@@ -1,0 +1,56 @@
+import * as THREE from 'three';
+
+/**
+ * Player flashlight (ADR-0004): a shadow-casting spot that trails the view slightly
+ * through a spring, so the beam feels hand-held. Toggling changes intensity only
+ * (hiding a light would recompile materials).
+ */
+export class Flashlight {
+  readonly light: THREE.SpotLight;
+  intensity = 70;
+  on = true;
+  stiffness = 40;
+  damping = 8;
+  private readonly camera: THREE.Camera;
+  private readonly dir = new THREE.Vector3(0, 0, -1);
+  private readonly vel = new THREE.Vector3();
+  private readonly tmp = new THREE.Vector3();
+  private readonly right = new THREE.Vector3();
+  private level = 1;
+
+  constructor(scene: THREE.Scene, camera: THREE.Camera) {
+    this.camera = camera;
+    this.light = new THREE.SpotLight(0xfff1dc, this.intensity, 24, THREE.MathUtils.degToRad(26), 0.55, 2);
+    this.light.castShadow = true;
+    this.light.shadow.mapSize.set(1024, 1024);
+    this.light.shadow.bias = -0.0004;
+    this.light.shadow.normalBias = 0.02;
+    this.light.shadow.camera.near = 0.1;
+    scene.add(this.light, this.light.target);
+    camera.getWorldDirection(this.dir);
+  }
+
+  toggle(): void {
+    this.on = !this.on;
+  }
+
+  update(dt: number): void {
+    const step = Math.min(dt, 1 / 30);
+    this.camera.getWorldDirection(this.tmp);
+    // Spring the beam direction toward the view direction.
+    this.vel.addScaledVector(this.tmp.sub(this.dir), this.stiffness * step);
+    this.vel.multiplyScalar(Math.max(0, 1 - this.damping * step));
+    this.dir.addScaledVector(this.vel, step).normalize();
+
+    // Held slightly right of and below the eye.
+    this.right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    this.light.position.copy(this.camera.position).addScaledVector(this.right, 0.18);
+    this.light.position.y -= 0.12;
+    this.light.target.position.copy(this.light.position).addScaledVector(this.dir, 6);
+
+    // Short fade instead of a hard snap when toggling.
+    const goal = this.on ? 1 : 0;
+    this.level += (goal - this.level) * Math.min(1, step * 18);
+    this.light.intensity = this.intensity * this.level;
+  }
+}

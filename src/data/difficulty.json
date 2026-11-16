@@ -1,0 +1,32 @@
+{
+  "story": {
+    "label": "Story",
+    "description": "For the narrative. Plenty of ammo and health, forgiving enemies, generous revives.",
+    "playerDamageTaken": 0.5, "enemyHp": 0.75, "enemyLurchInterval": 1.4,
+    "startReserve": { "pistol": 48, "shells": 12 },
+    "dropChance": { "ammo": 0.8, "health": 0.25 },
+    "medPackHeal": 50, "grabMashCount": 4, "squadDamage": 0.6, "squadAccuracy": 0.55,
+    "hintDelay": [20, 40], "checkpointHeal": 100,
+    "bleedOutTime": 30, "reviveHp": 60, "revivesPerCheckpoint": null, "medicDownedTime": 6
+  },
+  "standard": {
+    "label": "Standard",
+    "description": "The intended experience. Every bullet matters; the team has your back if you have theirs.",
+    "playerDamageTaken": 1.0, "enemyHp": 1.0, "enemyLurchInterval": 1.0,
+    "startReserve": { "pistol": 36, "shells": 8 },
+    "dropChance": { "ammo": 0.55, "health": 0.15 },
+    "medPackHeal": 40, "grabMashCount": 6, "squadDamage": 0.45, "squadAccuracy": 0.45,
+    "hintDelay": [45, 90], "checkpointHeal": 70,
+    "bleedOutTime": 20, "reviveHp": 40, "revivesPerCheckpoint": 3, "medicDownedTime": 10
+  },
+  "survival": {
+    "label": "Survival",
+    "description": "Scarce supplies, hard-hitting enemies, one revive per checkpoint. Protect the medic.",
+    "playerDamageTaken": 1.4, "enemyHp": 1.25, "enemyLurchInterval": 0.8,
+    "startReserve": { "pistol": 24, "shells": 4 },
+    "dropChance": { "ammo": 0.35, "health": 0.08 },
+    "medPackHeal": 30, "grabMashCount": 9, "squadDamage": 0.35, "squadAccuracy": 0.35,
+    "hintDelay": [90, 180], "checkpointHeal": 50,
+    "bleedOutTime": 12, "reviveHp": 25, "revivesPerCheckpoint": 1, "medicDownedTime": 15
+  }
+}

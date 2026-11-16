@@ -1,0 +1,129 @@
+#menu {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  padding: 0 7vw;
+  background: linear-gradient(90deg, rgb(3 7 9 / 0.88) 0%, rgb(3 7 9 / 0.6) 45%, rgb(3 7 9 / 0.15) 100%);
+  backdrop-filter: blur(2px);
+  font-family: var(--mono);
+  color: var(--visor);
+}
+#menu[hidden] { display: none; }
+.menu-panel {
+  width: min(460px, 90vw);
+  max-height: 86vh;
+  overflow: auto;
+  padding: 1.6rem 1.6rem 1.2rem;
+  border-left: 2px solid rgb(207 232 240 / 0.35);
+  background: rgb(5 12 15 / 0.55);
+}
+.menu-panel h1 {
+  margin: 0 0 0.3rem;
+  font-size: 1.5rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.title-screen h1 { font-size: 2.6rem; letter-spacing: 0.32em; }
+.menu-panel h2 {
+  margin: 1.1rem 0 0.4rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgb(207 232 240 / 0.55);
+}
+.menu-sub, .menu-text, .menu-foot, .menu-hint, .menu-empty, .menu-damaged { font-size: 0.85rem; line-height: 1.45; }
+.menu-sub { margin: 0 0 1.2rem; color: rgb(207 232 240 / 0.65); }
+.menu-foot, .menu-hint { margin-top: 1.2rem; color: rgb(207 232 240 / 0.45); }
+.menu-empty { color: rgb(207 232 240 / 0.45); margin: 0.2rem 0; }
+.menu-damaged { color: #ff8a80; margin: 0.2rem 0; }
+.menu-btn {
+  display: block;
+  width: 100%;
+  margin: 0.35rem 0;
+  padding: 0.7rem 0.9rem;
+  text-align: left;
+  font: inherit;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--visor);
+  background: rgb(207 232 240 / 0.04);
+  border: 1px solid rgb(207 232 240 / 0.18);
+  cursor: pointer;
+}
+.menu-btn small {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: rgb(207 232 240 / 0.6);
+}
+.menu-btn:hover, .menu-btn:focus-visible {
+  outline: none;
+  background: rgb(207 232 240 / 0.14);
+  border-color: rgb(207 232 240 / 0.7);
+}
+.menu-btn:disabled { opacity: 0.35; cursor: default; }
+.menu-btn.danger { border-color: rgb(255 59 47 / 0.5); }
+.menu-btn.danger:hover, .menu-btn.danger:focus-visible { background: rgb(255 59 47 / 0.18); border-color: var(--danger); }
+.menu-btn.small { padding: 0.4rem 0.7rem; font-size: 0.75rem; width: auto; }
+.menu-slot { margin-bottom: 0.8rem; }
+.menu-field {
+  display: grid;
+  grid-template-columns: 1fr 9rem 3.5rem;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.45rem 0;
+  font-size: 0.85rem;
+}
+.menu-field input[type='range'] { width: 100%; accent-color: #9fd8e6; }
+.menu-field output { text-align: right; color: rgb(207 232 240 / 0.75); }
+.menu-field select {
+  grid-column: 2 / 4;
+  font: inherit;
+  color: var(--visor);
+  background: #081217;
+  border: 1px solid rgb(207 232 240 / 0.3);
+  padding: 0.3rem;
+}
+.menu-field.toggle { grid-template-columns: 1.2rem 1fr; }
+.menu-field.toggle input { accent-color: #9fd8e6; width: 1rem; height: 1rem; }
+.menu-field.toggle small { grid-column: 2; color: rgb(207 232 240 / 0.5); font-size: 0.72rem; margin-top: -0.3rem; }
+.menu-field :focus-visible { outline: 2px solid #9fd8e6; outline-offset: 2px; }
+
+#interact {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  transform: translateX(-50%);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  background: rgb(5 9 12 / 0.6);
+  border: 1px solid rgb(57 255 158 / 0.5);
+  color: #9dffcc;
+}
+#interact[hidden] { display: none; }
+
+.toasts { position: fixed; right: 1.5rem; top: 1.5rem; z-index: 12; display: grid; gap: 0.5rem; pointer-events: none; }
+.toast {
+  min-width: 14rem;
+  padding: 0.6rem 0.9rem;
+  font-family: var(--mono);
+  color: var(--visor);
+  background: rgb(5 12 15 / 0.8);
+  border-left: 2px solid #9fd8e6;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.35s, transform 0.35s;
+}
+.toast.in { opacity: 1; transform: none; }
+.toast strong { display: block; font-size: 0.8rem; letter-spacing: 0.18em; text-transform: uppercase; }
+.toast span { display: block; margin-top: 0.15rem; font-size: 0.78rem; color: rgb(207 232 240 / 0.7); }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: none; }
+}

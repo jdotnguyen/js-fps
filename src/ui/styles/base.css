@@ -1,0 +1,21 @@
+:root {
+  --ink: #05090c;
+  --visor: #cfe8f0;
+  --danger: #ff3b2f;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--ink); overflow: hidden; }
+#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#ui { position: fixed; inset: 0; pointer-events: none; font-family: var(--mono); color: var(--visor); }
+#prompt {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  padding: 0.6rem 1rem; background: rgb(5 9 12 / 0.7); border: 1px solid rgb(207 232 240 / 0.3);
+  letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.85rem;
+}
+#prompt[hidden], #boot-error[hidden] { display: none; }
+#boot-error {
+  position: fixed; inset: 2rem; overflow: auto; padding: 1.5rem;
+  background: #1a0806; color: #ffd9d4; border: 1px solid var(--danger);
+  font: 0.9rem/1.5 var(--mono); white-space: pre-wrap;
+}
