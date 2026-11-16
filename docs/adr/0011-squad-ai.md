@@ -93,3 +93,33 @@ Scored every 0.25 s; highest wins with hysteresis.
 
 ## Open questions
 - Whether squadmates can die in later chapters.
+
+## Progress
+### 2026-11-16: steps 1-2 (squad entity, follow) — `src/ai/squad.ts`
+- Giles and Okafor spawn as humanoids with their ADR-0022 looks (`actors/squadLooks.ts`), move
+  through the player's collision motor, and are placed near Jay on new game, load and restart
+  (any jump of more than 4 m).
+- Follow: every 0.25 s each picks a target: a formation slot (Giles 1.4 m right / 1.8 m back,
+  Okafor 1.0 m left / 3.2 m back, mirrored to the near side if needed) when Jay can see it and it
+  is somewhere to stand; else a point on Jay's breadcrumb trail (2.6 / 4.2 m back); else beside
+  him. Targets inside Jay's 15 degree aim cone, or whose straight route crosses it, are rejected.
+- Aim cone: a mate in the cone sidesteps the minimum distance that clears it, committed to one
+  side, at a quick-hop speed. Measured: 0 s in the cone while Jay holds his aim; up to ~1 s while
+  Jay spins 180 degrees on the spot with Okafor straight in front of him.
+- Speed scales with distance from walk (1.4 m/s) to just over Jay's sprint (5.2 m/s). Soft
+  separation from Jay (1.1 m) and each other (0.9 m); Jay never collides with them.
+- Catch-up teleport when more than 25 m away and out of Jay's view, onto his trail behind him.
+- Tests: `squad.test.ts` (follow down the demo corridor, no wall clipping, out of the aim when
+  held, regroup after a restart). Headless walk through kit_test: max 7 m behind, no teleports,
+  no wall clipping.
+- Known gaps: walk animation is not speed-matched, so they may look like they glide when running;
+  during the intro cutscene they still follow instead of being scripted (host `npc:*` actions are
+  still stubs); not yet seen in a browser.
+### 2026-11-16: calmer follow (Justin's playtest note: too fast, scrambling when he turns)
+- Within 3 m (10 ft) of Jay, or on reaching their spot near him, they stop and stay put until he
+  is more than 4.5 m away. Hook for later: an object they need to use nearby will override this.
+- Speeds: 1.3 m/s walk; brisk 2.4 m/s past 6 m behind; 3.4 m/s jog past 12 m. Gentler
+  acceleration and turning (3.2 rad/s); idle turn toward Jay only when he is well off to the side.
+- They clear the line of fire only when Jay aims (aim held 0.35 s), with a step, not a hop.
+- Headless kit_test walk: up to ~12 m behind while Jay walks 24 m, no teleports or clipping, and
+  no movement at all while he turns on the spot for 25 s.

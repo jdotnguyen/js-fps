@@ -96,3 +96,20 @@ plus `Stagger`, `Crawl`, `Blind`, `Dead`.
 
 ## Open questions
 - Lunger and dodge (stretch).
+
+## Progress
+### 2026-11-16: step 1 (navgraph, A*, steering) — `src/ai/nav.ts`
+- `NavGraph` over any `ColliderQuery` (kit levels' `CollisionWorld`, the demo room's `BoxColliders`).
+  Edges link nodes within 6 m whose straight line is clear at shin and chest height, down the
+  middle and along both shoulders (0.3 m). Edges through a door's closed box are door edges,
+  passable only while that door is open.
+- Nodes: kit `navNodes`, a node 1.2 m either side of every door, and a 1.5 m grid fill at floor
+  level (`World.navGraph()`); the demo room uses a 1 m grid. kit_test: 63 nodes, 592 edges, ~15 ms.
+- `findPath`: straight line when clear, else A* from the nearest visible node, then string pulling.
+- Local steering for the squad is separation + the ADR-0004 motor's wall sliding; enemy
+  separation and repath-on-door-change land with step 3.
+- Tests: `nav.test.ts` (pillar detour, open/closed door). Headless check on kit_test: every node
+  reachable with doors open except one authored node at the vault's dead end (0, 0, -12): check
+  that piece's nav node in the browser.
+- Not verified in a browser yet (no dev server from the cloud session): debug draw of the graph
+  is still to do.

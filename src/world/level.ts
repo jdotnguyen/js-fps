@@ -17,6 +17,7 @@ import type { Interactable, Interactions } from '../actors/interaction.ts';
 import type { Aabb } from '../actors/motor.ts';
 import { PLAYER_TUNING, type PlayerWorld } from '../actors/player.ts';
 import type { World, WorldCheckpoint } from './world.ts';
+import { gridNodes, NavGraph, type P3 } from '../ai/nav.ts';
 
 const EYE_HEIGHT = PLAYER_TUNING.eyeHeight;
 
@@ -517,6 +518,35 @@ export class Level implements World {
   }
 
   /** Doors and "use" triggers as ADR-0004 interactables. */
+  private nav: NavGraph | null = null;
+
+  /**
+   * AI navigation (ADR-0007): kit nav nodes, a node either side of every door, and a 1.5 m grid
+   * fill so open rooms are covered too. Door edges are passable while the door is open.
+   */
+  navGraph(): NavGraph {
+    if (this.nav) return this.nav;
+    const t0 = performance.now();
+    const nodes: P3[] = this.debug.nav.map((v) => ({ x: v.x, y: v.y, z: v.z }));
+    for (const door of this.doors) {
+      const c = door.collider;
+      const cx = (c.minX + c.maxX) / 2;
+      const cz = (c.minZ + c.maxZ) / 2;
+      // The door's thin axis is its normal.
+      const alongX = c.maxX - c.minX < c.maxZ - c.minZ;
+      for (const s of [-1.2, 1.2]) nodes.push({ x: cx + (alongX ? s : 0), y: c.minY, z: cz + (alongX ? 0 : s) });
+    }
+    const b = this.debug.bounds;
+    if (!b.isEmpty()) nodes.push(...gridNodes(this.collision, { minX: b.min.x + 0.75, maxX: b.max.x - 0.75, minZ: b.min.z + 0.75, maxZ: b.max.z - 0.75, maxY: this.spawn.position.y - EYE_HEIGHT + 0.36 }, 1.5));
+    this.nav = new NavGraph({
+      world: this.collision,
+      nodes,
+      doors: this.doors.map((d) => ({ id: d.data.id, box: d.collider, isOpen: () => !d.collider.enabled })),
+    });
+    console.info(`[nav] ${this.nav.nodes.length} nodes, ${this.nav.edgeCount()} edges in ${(performance.now() - t0).toFixed(0)} ms`);
+    return this.nav;
+  }
+
   registerInteractions(interactions: Interactions): () => void {
     const offs: Array<() => void> = [];
     for (const t of this.triggers) {

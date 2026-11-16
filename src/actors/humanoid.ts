@@ -243,13 +243,22 @@ export class Humanoid {
    * Stand-in mover until ADR-0007 owns navigation; pass null to stop.
    */
   move(desired: THREE.Vector3 | null, dt: number): void {
+    this.steer(desired, dt);
+    this.group.position.addScaledVector(this.velocity, dt);
+  }
+
+  /**
+   * Turn and accelerate toward `desired` without moving; returns this frame's world velocity
+   * for a caller that moves the body itself (the squad moves through the collision motor).
+   */
+  steer(desired: THREE.Vector3 | null, dt: number, opts: { maxSpeed?: number; turnRate?: number; accel?: number } = {}): Readonly<THREE.Vector3> {
     const loc = this.locomotion;
     const slamming = this.slam?.busy === true;
     const canMove = this.state === 'alive' && !slamming;
     // A hit to a leg makes the body flinch and nearly stop for a moment (ADR-0019).
     const flinch = this.staggerTimer > 0 ? STAGGER_SPEED : 1;
     const heroMul = this.spec.hero ? HERO_SPEED : 1;
-    const max = canMove ? WALK_SPEED[this.spec.role] * loc.speedMul * this.speedScale * flinch * heroMul : 0;
+    const max = canMove ? (opts.maxSpeed ?? WALK_SPEED[this.spec.role] * this.speedScale * heroMul) * loc.speedMul * flinch : 0;
     // Winding up a slam: the hero stands its ground but keeps aiming at the target (ADR-0021).
     if (slamming && this.state === 'alive' && desired && this.slam?.phase === 'windup') {
       let diff = Math.atan2(-desired.x, -desired.z) - this.heading;
@@ -273,7 +282,7 @@ export class Humanoid {
         this.turnError = diff;
         target = max * step.speedFactor;
       } else {
-        const turn = (this.spec.hero ? HERO_TURN : 2.2) * dt;
+        const turn = (opts.turnRate ?? (this.spec.hero ? HERO_TURN : 2.2)) * dt;
         this.heading += THREE.MathUtils.clamp(diff, -turn, turn);
         this.turn.vel = 0;
         this.turn.inPlace = false;
@@ -292,11 +301,19 @@ export class Humanoid {
       this.group.position.z += reach * (Math.cos(this.heading) - Math.cos(heading0));
     }
     // A pivoting body stops at once instead of coasting forward.
-    this.speed += (target - this.speed) * Math.min(1, dt * (this.turn.inPlace ? 9 : 4));
+    this.speed += (target - this.speed) * Math.min(1, dt * (this.turn.inPlace ? 9 : (opts.accel ?? 4)));
     if (this.speed < 1e-3) this.speed = 0;
     this.velocity.set(-Math.sin(this.heading), 0, -Math.cos(this.heading)).multiplyScalar(this.speed);
-    this.group.position.addScaledVector(this.velocity, dt);
     this.group.rotation.y = this.heading;
+    return this.velocity;
+  }
+
+  /** Face a heading instantly (spawns and teleports). */
+  setHeading(h: number): void {
+    this.heading = h;
+    this.speed = 0;
+    this.velocity.set(0, 0, 0);
+    this.group.rotation.y = h;
   }
 
   // ---------------------------------------------------------------- hits

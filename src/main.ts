@@ -48,6 +48,11 @@ import { SaveStore } from './game/save.ts';
 import { createMenus } from './ui/menus/screens.ts';
 import { Toasts } from './ui/toast.ts';
 import { Viewmodel } from './render/viewmodel/viewmodel.ts';
+import { Squad } from './ai/squad.ts';
+import { GoreSystem } from './actors/gore.ts';
+import { PoseLibrary } from './actors/poses.ts';
+import { loadPoseFile } from './data/types/poses.ts';
+import posesJson from './data/poses.json';
 
 const LEVEL_FILES = import.meta.glob<unknown>('./data/levels/*.json', { eager: true, import: 'default' });
 const TEXTURE_SIZE = 512;
@@ -196,6 +201,20 @@ async function boot(): Promise<void> {
     cutscene,
   });
   currentPreset = () => game.preset;
+
+  // Squad (ADR-0011): Giles and Okafor follow Jay through the shared navgraph (ADR-0007).
+  prompt.textContent = 'Building the squad…';
+  await nextFrame();
+  const t1 = performance.now();
+  const gore = new GoreSystem(new Rng('game-gore'));
+  scene.add(gore.group);
+  const squad = new Squad({ ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore }, nav: world.navGraph(), player });
+  scene.add(squad.group);
+  squad.group.visible = false;
+  console.info(`[boot] squad built in ${(performance.now() - t1).toFixed(0)} ms`);
+  events.on('game:mode', ({ mode }) => {
+    squad.group.visible = mode !== 'title';
+  });
   prompt.textContent = 'Building weapons…';
   await nextFrame();
   const viewmodel = new Viewmodel({
@@ -422,7 +441,11 @@ async function boot(): Promise<void> {
     update: (dt) => {
       simTime += dt;
       game.update(dt);
-      if (game.mode === 'playing' && !game.flying) sequences?.update(dt);
+      if (game.mode === 'playing' && !game.flying) {
+        sequences?.update(dt);
+        squad.update(dt, camera.position);
+        gore.update(dt);
+      }
       input.endStep();
     },
     render: (_alpha, frameDt) => {
