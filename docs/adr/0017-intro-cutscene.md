@@ -99,6 +99,25 @@ The mug beat is interactive but not branching: it only teaches `interact`.
 - Debug: `?debug&seq=cutscene_test` (a skippable demo-room scene), and the debug panel
   button "run cutscene_test (skippable)".
 
+### Draft script (`data/sequences/drafts/intro_shift_change.json`)
+Written against the beats above: 24 lines in `slice01.json` (`intro_*`, all `story` priority
+so the speech queue never drops one; only squad, crew and PA speak, the player is silent).
+It is a draft, not shipped: it sits in `drafts/`, which the game does not load, so New game
+does not start a two-minute empty scene before the rooms and squad exist. `intro.test.ts`
+keeps it valid (schema, every line and sound exists, plays to the end headless, skips to
+the same end state). To ship it: move it up into `data/sequences/` and add the names below.
+
+Names the world must provide (the draft uses these placeholders):
+| Kind | Names |
+|---|---|
+| Anchors (`anchor:`) | `dock_door`, `abyss_window`, `post_front`, `kitchen_door`, `kitchen_stand`, `counter`, `counter_giles`, `counter_okafor` |
+| NPCs (`npc:`) | `giles`, `okafor` (and crew `cook`, `tech` standing in the kitchen) |
+| NPC action | `npcMoveTo`, `npcAnim` with `rub_forearm` |
+| Events it emits | `cutscene:caption` (title card text), `intro:coffee_ready`, `intro:coffee_done`; waits for `intro:coffee_taken` (the mug interact, 6 s timeout) |
+| Flags it sets | `pa_quarantine_played`, `giles_forearm_seen`, `introSeen`; checkpoint `cp_intro` |
+Until the NPC system exists, `npc*` steps warn once and are skipped, and `say` needs the
+speech manager (ADR-0010).
+
 ### Assets needed (all procedural, nothing blocks the build)
 No separate asset-design phase is required. ADR-0006 `buildHumanoid(spec)` already defines
 the body, outfits and pose library, and the intro needs only a small subset of it:
@@ -130,7 +149,7 @@ procedural ones without touching sequences.
 2. [Done] Letterbox bars driven by `onRails`; `skipCutscene` action, settings, skip prompt UI, `SkipHold` (7 tests, `src/script/skipHold.ts`), `?debug&seq=cutscene_test` to try it in the demo room.
 3. `buildHumanoid` subset (ADR-0006 step 1): two named crew plus three extras, idle and gait.
 4. R01 guard post and R02 kitchen blockout, new props (mug, coffee machine, tray, counter).
-5. `intro_shift_change.json` and its lines in `slice01.json`; hook `newGame()`.
+5. [Drafted] `intro_shift_change.json` and its lines in `slice01.json`; `newGame()` is already hooked (`CutsceneController.playIntro`). Promote the draft when steps 3 and 4 land.
 6. Tests: skip at 0 %, mid-walk and during the mug beat all end in the same state.
 
 ## Definition of done

@@ -18,8 +18,40 @@ import { HERO_NECK, HERO_NECK_EXTRA, JOINTS, jointDef, type JointName, type Segm
 export const OUTFITS = ['security', 'engineer', 'medic', 'lab', 'crew'] as const;
 export type Outfit = (typeof OUTFITS)[number];
 
+/** Signature props a named character can carry (ADR-0022 / docs/characters.md). */
+export type LookProp = 'glasses' | 'glassesOnHead' | 'penlight' | 'stethoscope' | 'multitool' | 'hiVis' | 'chestPatch' | 'grease';
+
+/**
+ * Hand-set appearance for named characters. Anything left out stays seeded, so crowds are unchanged.
+ */
+export interface Look {
+  skin?: string;
+  /** Hair colour, or null for bald. */
+  hair?: string | null;
+  /** Hairline height in head space (0.13..0.15 seeded; higher = receding). */
+  hairLine?: number;
+  /** Extra recession at the temples (0..1). */
+  recede?: number;
+  /** Close-cropped: scalp shows through the hair. */
+  cropped?: boolean;
+  /** Hair volume: 'curly' builds a curly mop that stands up on top. */
+  hairStyle?: 'curly';
+  /** Half-width of the visible mouth in metres (seeded bodies use the full face width). */
+  mouth?: number;
+  facial?: 'stubble' | 'beard' | null;
+  facialColor?: string;
+  /** Dark under the eyes. 0..1. */
+  tired?: number;
+  jaw?: number;
+  nose?: number;
+  /** Override the outfit's sleeve rule. */
+  rolled?: boolean;
+  props?: readonly LookProp[];
+}
+
 export interface BodyShape {
   outfit: Outfit;
+  look?: Look;
   /** Metres; 1.78 is the reference. */
   height: number;
   /** Width multiplier, ~0.85 (slight) to 1.2 (heavy). */
@@ -248,6 +280,8 @@ interface Ctx {
   boots: THREE.Color;
   belt: THREE.Color;
   hair: THREE.Color | null;
+  look: Look;
+  outfit: Outfit;
   infectable: boolean;
   hero: boolean;
   parts: PartGeometry[];
@@ -555,12 +589,145 @@ function buildTorso(ctx: Ctx): void {
   // Belt.
   const belt = taperedCapsule({ y0: 0.07, y1: 0.11, r0: 0.152 * ctx.w, r1: 0.152 * ctx.w, sx: 1.22, sz: 0.84 }, 14, 1, 1);
   add(ctx, 'pelvis', 'body', paint(belt, solid(ctx.belt)));
-  if (ctx.scheme === SCHEMES.engineer || ctx.scheme === SCHEMES.security) {
+  if (ctx.outfit === 'engineer' || ctx.outfit === 'security') {
     for (const sx of [-1, 1]) {
       const pouch = new THREE.BoxGeometry(0.07, 0.08, 0.05, 1, 1, 1);
       pouch.translate(sx * 0.15 * ctx.w, 0.06, 0.02);
       add(ctx, 'pelvis', 'body', paint(clean(pouch), solid(ctx.belt)));
     }
+  }
+}
+
+// ---------------------------------------------------------------- hair volume
+
+/**
+ * A curly mop: a shell around the scalp pushed out by curl noise, thickest on top so it
+ * stands up. Outside the hair region the shell tucks inside the skull, so it stays watertight.
+ */
+function buildCurlyHair(ctx: Ctx, hairLine: number, recede: number): void {
+  const hair = ctx.hair!;
+  const seed = ctx.seed;
+  const g = clean(new THREE.SphereGeometry(1, 40, 30));
+  const pos = g.getAttribute('position') as THREE.BufferAttribute;
+  const p = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  const amount = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    p.fromBufferAttribute(pos, i);
+    const x = p.x * 0.082;
+    const y = p.y * 0.112 + 0.1;
+    let z = p.z * 0.1;
+    if (z > 0 && y > 0.08) z *= 1.08;
+    if (z < 0) z *= 0.94;
+    const line = hairLine + recede * 0.025 * Math.min(1, Math.abs(x) / 0.06) * (z < 0 ? 1 : 0);
+    // Hair region weight: above the hairline at the front, down to the nape at the back.
+    const front = THREE.MathUtils.smoothstep(y, line - 0.004, line + 0.012);
+    const back = z > 0.0 ? THREE.MathUtils.smoothstep(y, 0.045, 0.075) * THREE.MathUtils.smoothstep(z, -0.01, 0.03) : 0;
+    const sides = Math.abs(x) > 0.06 ? THREE.MathUtils.smoothstep(y, 0.105, 0.125) : 0;
+    const w = Math.max(front, back, sides);
+    n.set(x / 0.082, (y - 0.1) / 0.112, z / 0.1).normalize();
+    const top = THREE.MathUtils.smoothstep(n.y, 0.2, 0.95);
+    const curl = noise3(x * 70, y * 70, z * 70, seed + 41) * 0.009 + noise3(x * 170, y * 170, z * 170, seed + 42) * 0.005;
+    const thick = w * (0.012 + 0.03 * top + curl);
+    const inset = w > 0.02 ? 1 : 0.94;
+    pos.setXYZ(i, x * inset + n.x * thick, y * inset + 0.1 * (1 - inset) + n.y * thick + w * top * 0.012, z * inset + n.z * thick);
+    amount[i] = w;
+  }
+  g.computeVertexNormals();
+  paint(g, (q, out) => {
+    const shade = 0.75 + 0.35 * noise3(q.x * 170, q.y * 170, q.z * 170, seed + 42);
+    out.copy(hair).multiplyScalar(shade);
+    return 0;
+  });
+  add(ctx, 'head', 'body', g);
+}
+
+// ---------------------------------------------------------------- signature props
+
+const PROP_DARK = new THREE.Color('#121416');
+
+/** A thin box from a to b. */
+function bar(a: [number, number, number], b: [number, number, number], t: number): THREE.BufferGeometry {
+  const va = new THREE.Vector3(...a);
+  const vb = new THREE.Vector3(...b);
+  const g = new THREE.BoxGeometry(t, t, va.distanceTo(vb));
+  const m = new THREE.Matrix4().lookAt(vb, va, new THREE.Vector3(0, 1, 0));
+  g.applyMatrix4(m);
+  g.translate((va.x + vb.x) / 2, (va.y + vb.y) / 2, (va.z + vb.z) / 2);
+  return g;
+}
+const PROP_STEEL = new THREE.Color('#8d949a');
+const HI_VIS = new THREE.Color('#c9c47a');
+
+function buildProps(ctx: Ctx): void {
+  const props = ctx.look.props ?? [];
+  const w = ctx.w;
+  const has = (p: LookProp): boolean => props.includes(p);
+  if (has('glassesOnHead')) {
+    // Reading glasses pushed up onto the head (head space: front is -Z, crown at y 0.212).
+    const parts: THREE.BufferGeometry[] = [];
+    for (const sx of [-1, 1]) {
+      const lens = new THREE.TorusGeometry(0.016, 0.0022, 5, 14);
+      lens.scale(1.15, 0.8, 1);
+      lens.rotateX(-1.3);
+      lens.translate(sx * 0.03, 0.19, -0.05);
+      parts.push(lens);
+      // Arm from the hinge over the head and down to the ear.
+      parts.push(bar([sx * 0.05, 0.188, -0.05], [sx * 0.078, 0.13, 0.015], 0.0026));
+    }
+    const bridge = new THREE.BoxGeometry(0.018, 0.003, 0.003);
+    bridge.translate(0, 0.194, -0.056);
+    parts.push(bridge);
+    for (const g of parts) add(ctx, 'head', 'body', paint(clean(g), solid(PROP_DARK)));
+  }
+  if (has('glasses')) {
+    // Worn glasses: rectangular frames over the eyes, arms back to the ears.
+    const parts: THREE.BufferGeometry[] = [];
+    for (const sx of [-1, 1]) {
+      const lens = new THREE.TorusGeometry(0.016, 0.0021, 5, 4);
+      lens.rotateZ(Math.PI / 4);
+      lens.scale(1.25, 0.85, 1);
+      lens.translate(sx * 0.031, 0.106, -0.104);
+      parts.push(lens);
+      parts.push(bar([sx * 0.052, 0.109, -0.1], [sx * 0.085, 0.102, 0.012], 0.0024));
+    }
+    parts.push(bar([-0.009, 0.109, -0.108], [0.009, 0.109, -0.108], 0.0024));
+    for (const g of parts) add(ctx, 'head', 'body', paint(clean(g), solid(PROP_DARK)));
+  }
+  if (has('penlight')) {
+    const pen = new THREE.CylinderGeometry(0.006, 0.006, 0.1, 8);
+    pen.translate(0.075 * w, 0.16, -0.145 * w);
+    add(ctx, 'chest', 'body', paint(clean(pen), solid(PROP_DARK)));
+    const clip = new THREE.BoxGeometry(0.004, 0.03, 0.003);
+    clip.translate(0.075 * w, 0.2, -0.149 * w);
+    add(ctx, 'chest', 'body', paint(clean(clip), solid(PROP_STEEL)));
+  }
+  if (has('stethoscope')) {
+    // Draped round the neck, ends hanging down the chest.
+    const loop = new THREE.TorusGeometry(0.088, 0.006, 6, 24, Math.PI * 1.25);
+    loop.rotateX(Math.PI / 2);
+    loop.rotateY(-Math.PI * 0.125 + Math.PI / 2);
+    loop.translate(0, -0.005, 0.01);
+    add(ctx, 'neck', 'body', paint(clean(loop), solid(PROP_DARK)));
+    for (const sx of [-1, 1]) {
+      const tube = new THREE.CylinderGeometry(0.006, 0.006, 0.17, 6);
+      tube.translate(sx * 0.06 * w, 0.14, -0.15 * w);
+      add(ctx, 'chest', 'body', paint(clean(tube), solid(PROP_DARK)));
+    }
+    const bell = new THREE.CylinderGeometry(0.016, 0.016, 0.008, 12);
+    bell.rotateX(Math.PI / 2);
+    bell.translate(-0.06 * w, 0.05, -0.155 * w);
+    add(ctx, 'chest', 'body', paint(clean(bell), solid(PROP_STEEL)));
+  }
+  if (has('multitool')) {
+    const tool = new THREE.BoxGeometry(0.03, 0.09, 0.022);
+    tool.translate(0.17 * w, 0.03, -0.03);
+    add(ctx, 'pelvis', 'body', paint(clean(tool), solid(new THREE.Color('#1b1b1b'))));
+  }
+  if (has('chestPatch')) {
+    const patch = new THREE.BoxGeometry(0.06, 0.035, 0.004);
+    patch.translate(-0.07 * w, 0.17, -0.146 * w);
+    add(ctx, 'chest', 'body', paint(clean(patch), solid(new THREE.Color('#d8d2c0'))));
   }
 }
 
@@ -613,16 +780,24 @@ function headSurface(ctx: Ctx, jaw: number, nose: number): THREE.BufferGeometry 
 
 function buildHead(ctx: Ctx): void {
   const { seed, rng } = ctx;
-  const jawShape = rng.range(0.85, 1.05);
-  const nose = rng.range(0.85, 1.2);
-  const hairLine = rng.range(0.13, 0.15);
+  const look = ctx.look;
+  const jawShape = look.jaw ?? rng.range(0.85, 1.05);
+  const nose = look.nose ?? rng.range(0.85, 1.2);
+  const hairLine = look.hairLine ?? rng.range(0.13, 0.15);
+  const recede = look.recede ?? 0;
+  const mouthHalf = look.mouth ?? Infinity;
+  const lipHalf = Math.min(0.024, mouthHalf * 0.95);
+  const facialCol = look.facial ? new THREE.Color(look.facialColor ?? ctx.hair ?? '#2a2018') : null;
   const lip = new THREE.Color(ctx.skin).lerp(new THREE.Color('#6a2a28'), 0.35);
   const brow = ctx.hair ?? new THREE.Color(ctx.skin).multiplyScalar(0.5);
   const face: Painter = (q, out, fx) => {
     const front = q.z < -0.03;
     const torn = ctx.hero && heroScalpTorn(q, seed);
-    if (ctx.hair && !torn && (q.y > hairLine || (q.z > 0.01 && q.y > 0.07)) && !(front && q.y < hairLine + 0.012)) {
+    // Temples recede: the front hairline climbs toward the sides.
+    const line = hairLine + recede * 0.025 * Math.min(1, Math.abs(q.x) / 0.06) * (q.z < 0 ? 1 : 0);
+    if (ctx.hair && !torn && (q.y > line || (q.z > 0.01 && q.y > 0.07)) && !(front && q.y < line + 0.012)) {
       mottle(ctx.hair, q, seed + 5, 0.12, out);
+      if (look.cropped) out.lerp(ctx.skin, 0.35 + 0.15 * noise3(q.x * 300, q.y * 300, q.z * 300, seed + 6));
       return 0;
     }
     if (ctx.hero) {
@@ -631,7 +806,23 @@ function buildHead(ctx: Ctx): void {
     let socket = 0;
     for (const sx of [-1, 1]) socket = Math.max(socket, gauss(q.x, q.y, q.z, sx * 0.03, 0.106, -0.085, 0.016));
     out.multiplyScalar(1 - 0.6 * socket);
-    if (front && Math.abs(q.x) < 0.024 && q.y > 0.043 && q.y < 0.058) out.lerp(lip, 0.7);
+    if (look.tired) {
+      let bag = 0;
+      for (const sx of [-1, 1]) bag = Math.max(bag, gauss(q.x, q.y, q.z, sx * 0.031, 0.093, -0.084, 0.013));
+      out.lerp(new THREE.Color(ctx.skin).multiplyScalar(0.5).lerp(new THREE.Color('#5a3a4a'), 0.35), Math.min(1, bag * look.tired * 1.2));
+    }
+    if (facialCol) {
+      // Jaw, chin, cheeks below the cheekbone and the upper lip; not the lips themselves.
+      const lips = Math.abs(q.x) < lipHalf && q.y > 0.043 && q.y < 0.058;
+      const cheek = q.y < 0.082 - 0.03 * Math.max(0, q.z + 0.02) / 0.06 && q.y > -0.02 && q.z < 0.03;
+      const tache = Math.abs(q.x) < 0.03 && q.y >= 0.058 && q.y < 0.07 && front;
+      if (!lips && (cheek || tache)) {
+        const edge = Math.min(1, (0.082 - q.y) / 0.012, 1);
+        if (look.facial === 'beard') out.lerp(facialCol, 0.88 * Math.max(0.4, edge));
+        else out.lerp(facialCol, (0.62 + 0.18 * noise3(q.x * 400, q.y * 400, q.z * 400, seed + 8)) * Math.max(0.5, edge));
+      }
+    }
+    if (front && Math.abs(q.x) < lipHalf && q.y > 0.043 && q.y < 0.058) out.lerp(lip, 0.7);
     if (front && Math.abs(q.y - 0.124) < 0.005 && Math.abs(q.x) > 0.012 && Math.abs(q.x) < 0.048) out.lerp(brow, 0.75);
     if (front) {
       // Blood weeping from the eyes and pouring from the mouth.
@@ -650,6 +841,13 @@ function buildHead(ctx: Ctx): void {
   const floor = clampRegion(jaw, 'inside');
   paint(skull, face, ctx.infectable ? seed + 17 : null);
   paint(jaw, face, ctx.infectable ? seed + 17 : null);
+  if (Number.isFinite(mouthHalf)) {
+    // A smaller mouth: only the middle of the seam shows as mouth; the rest keeps the face paint.
+    for (const [g, flags] of [[skull, roof], [jaw, floor]] as const) {
+      const pos = g.getAttribute('position') as THREE.BufferAttribute;
+      for (let i = 0; i < flags.length; i++) if (flags[i] && Math.abs(pos.getX(i)) > mouthHalf) flags[i] = 0;
+    }
+  }
   colorFlagged(skull, roof, MOUTH);
   colorFlagged(jaw, floor, TONGUE);
   skull.computeVertexNormals();
@@ -662,11 +860,12 @@ function buildHead(ctx: Ctx): void {
   // piece while the mouth is shut.
   const teeth = (lower: boolean): THREE.BufferGeometry => {
     const list: THREE.BufferGeometry[] = [];
+    const span = Math.min(0.026, mouthHalf * 0.85);
     for (let k = 0; k < 8; k++) {
-      const x = -0.026 + (k / 7) * 0.052;
+      const x = (-0.026 + (k / 7) * 0.052) * (span / 0.026);
       const z = -0.079 + 0.016 * (x / 0.026) ** 2;
       const h = rng.range(0.006, 0.01) * (lower ? 0.8 : 1);
-      const tooth = new THREE.BoxGeometry(0.0058, h, 0.005);
+      const tooth = new THREE.BoxGeometry(0.0058 * Math.max(0.5, span / 0.026), h, 0.005);
       tooth.rotateY(Math.atan2(x, 0.05));
       tooth.translate(x, lower ? MOUTH_Y + h / 2 : MOUTH_Y - h / 2, z + 0.004);
       list.push(tooth);
@@ -699,6 +898,8 @@ function buildHead(ctx: Ctx): void {
       return 0;
     }));
   }
+
+  if (ctx.hair && look.hairStyle === 'curly') buildCurlyHair(ctx, hairLine, recede);
 
   // Ears.
   for (const sx of [-1, 1]) {
@@ -806,8 +1007,13 @@ function buildFoot(ctx: Ctx, side: Side): void {
 function buildLimbs(ctx: Ctx, side: Side): void {
   const { suit, over, scheme, seed } = ctx;
   const sleeve = over && scheme.coat ? over : suit;
+  const props = ctx.look.props ?? [];
+  const hiVis = props.includes('hiVis');
+  const grease = props.includes('grease');
   const cloth = (base: THREE.Color): Painter => (p, out) => {
     mottle(base, p, seed, 0.06, out);
+    if (grease) out.multiplyScalar(1 - 0.45 * THREE.MathUtils.smoothstep(noise3(p.x * 18, p.y * 18, p.z * 18, seed + 31), 0.35, 0.6));
+    if (hiVis && Math.abs(p.y + 0.16) < 0.014) out.copy(HI_VIS);
     return 0;
   };
   limbSegment(ctx, `upperArm_${side}`, cloth(sleeve));
@@ -826,6 +1032,8 @@ function buildLimbs(ctx: Ctx, side: Side): void {
           return 1;
         }
         mottle(sleeve, p, seed, 0.06, out);
+        if (grease) out.multiplyScalar(1 - 0.45 * THREE.MathUtils.smoothstep(noise3(p.x * 18, p.y * 18, p.z * 18, seed + 31), 0.35, 0.6));
+        if (hiVis && Math.abs(p.y + 0.1) < 0.012) out.copy(HI_VIS);
         return 0;
       });
   limbSegment(ctx, `thigh_${side}`, cloth(suit));
@@ -1036,8 +1244,12 @@ function buildStumps(ctx: Ctx, extra: ExtraBoneDef[], offsets: Partial<Record<Jo
 /** Build every mesh piece for one body. Deterministic for a given shape. */
 export function buildBodyGeometry(shape: BodyShape): BodyGeometry {
   const rng = new Rng(`body:${shape.seed}`);
-  const scheme = SCHEMES[shape.outfit];
-  const skin = new THREE.Color(rng.pick(SKIN_TONES));
+  const look = shape.look ?? {};
+  const baseScheme = SCHEMES[shape.outfit];
+  const scheme = look.rolled === undefined ? baseScheme : { ...baseScheme, rolled: look.rolled };
+  // Always draw from the rng so seeded bodies stay identical whether or not a look is given.
+  const seededSkin = rng.pick(SKIN_TONES);
+  const skin = new THREE.Color(look.skin ?? seededSkin);
   const ctx: Ctx = {
     rng,
     seed: Math.floor(rng.next() * 1e6),
@@ -1048,7 +1260,13 @@ export function buildBodyGeometry(shape: BodyShape): BodyGeometry {
     over: scheme.over ? new THREE.Color(scheme.over) : null,
     boots: new THREE.Color(scheme.boots),
     belt: new THREE.Color(scheme.belt),
-    hair: rng.chance(0.85) ? new THREE.Color(rng.pick(HAIR)) : null,
+    hair: ((): THREE.Color | null => {
+      const seeded = rng.chance(0.85) ? rng.pick(HAIR) : null;
+      const h = look.hair === undefined ? seeded : look.hair;
+      return h ? new THREE.Color(h) : null;
+    })(),
+    look,
+    outfit: shape.outfit,
     infectable: shape.infectable,
     hero: shape.hero === true,
     parts: [],
@@ -1068,6 +1286,7 @@ export function buildBodyGeometry(shape: BodyShape): BodyGeometry {
   }
   buildLimbs(ctx, 'L');
   buildLimbs(ctx, 'R');
+  buildProps(ctx);
   if (shape.infectable) buildGrowths(ctx, extra);
   buildStumps(ctx, extra, jointOffsets);
   // Geometry is built at the reference height; the root bone scales the whole body by scaleY.

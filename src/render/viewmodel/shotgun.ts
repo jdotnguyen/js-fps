@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { type HandMaterials, type HandPose, buildHand } from './hand.ts';
 import { cylZ, extrudeProfile, mesh, rbox, type WeaponMaterials } from './parts.ts';
+import { LOAD_BEND, LOAD_POSE, SHELL_IN_HAND } from './shotgunReload.ts';
 import type { Placement, WeaponRig } from './rig.ts';
 
 /**
@@ -147,6 +148,21 @@ export function buildShotgun(wm: WeaponMaterials, hm: HandMaterials, opts: Shotg
   left.group.rotation.set(...lp.rot);
   add(left.group, pump);
 
+  // Loading hand: hidden until a reload; carries a shell cradled in the curled fingers.
+  const load = buildHand(LOAD_POSE, { right: true, materials: hm, ...(opts.voxel ? { voxel: opts.voxel } : {}), bend: LOAD_BEND });
+  load.group.name = 'hand-right-load';
+  load.group.visible = false;
+  const shell = new THREE.Group();
+  shell.name = 'shell';
+  shell.add(mesh(cylZ(0.0095, 0.05, 14), wm.shell, 'shell-hull'));
+  const brass = mesh(cylZ(0.0099, 0.014, 14), wm.brass, 'shell-brass');
+  brass.position.z = 0.019;
+  shell.add(brass);
+  shell.position.set(...SHELL_IN_HAND);
+  shell.visible = false;
+  load.group.add(shell);
+  add(load.group);
+
   return {
     id: 'shotgun',
     root,
@@ -154,6 +170,8 @@ export function buildShotgun(wm: WeaponMaterials, hm: HandMaterials, opts: Shotg
     moverTravel: 0.075,
     mag: null,
     muzzle,
+    loadHand: load.group,
+    shell,
     setAmmo(loaded) {
       ledMats.forEach((m, i) => {
         m.emissiveIntensity = i < loaded ? 2.4 : 0.05;

@@ -1,0 +1,299 @@
+{
+  "id": "intro_shift_change",
+  "skippable": true,
+  "once": true,
+  "steps": [
+    {
+      "do": "playerControl",
+      "move": "locked",
+      "look": "clamped",
+      "weapons": false,
+      "interact": false,
+      "flashlight": false
+    },
+    {
+      "do": "playerClampLook",
+      "target": "anchor:dock_door",
+      "degrees": 140
+    },
+    {
+      "do": "fade",
+      "to": 1,
+      "s": 0
+    },
+    {
+      "do": "emit",
+      "event": "cutscene:caption",
+      "payload": {
+        "text": "Thalassa Deep Research Station",
+        "detail": "Docking Ring - 06:40 - Shift change"
+      }
+    },
+    {
+      "do": "fade",
+      "to": 0,
+      "s": 2.5,
+      "wait": true
+    },
+    {
+      "do": "wait",
+      "s": 2.5
+    },
+    {
+      "do": "sfx",
+      "id": "hullGroan",
+      "at": "anchor:abyss_window"
+    },
+    {
+      "do": "wait",
+      "s": 3
+    },
+    {
+      "do": "sfx",
+      "id": "pressurePing"
+    },
+    {
+      "do": "say",
+      "line": "intro_pa_shift_01"
+    },
+    {
+      "do": "wait",
+      "s": 1.5
+    },
+    {
+      "do": "sfx",
+      "id": "click",
+      "at": "anchor:dock_door"
+    },
+    {
+      "parallel": [
+        {
+          "do": "npcMoveTo",
+          "npc": "okafor",
+          "to": "anchor:post_front",
+          "wait": true
+        },
+        {
+          "do": "npcMoveTo",
+          "npc": "giles",
+          "to": "anchor:post_front",
+          "wait": true
+        },
+        {
+          "do": "playerLookAt",
+          "target": "npc:okafor",
+          "duration": 1.4,
+          "weight": 0.6
+        }
+      ]
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_01"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_01"
+    },
+    {
+      "do": "playerLookAt",
+      "target": "npc:giles",
+      "duration": 0.8,
+      "weight": 0.6
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_02"
+    },
+    {
+      "do": "wait",
+      "s": 1.2
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_02"
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_03"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_03"
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_04"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_04"
+    },
+    {
+      "do": "playerClampLook",
+      "target": "anchor:kitchen_door",
+      "degrees": 150
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "okafor",
+      "to": "anchor:kitchen_door"
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "giles",
+      "to": "anchor:kitchen_door"
+    },
+    {
+      "do": "playerWalkTo",
+      "to": "anchor:kitchen_door"
+    },
+    {
+      "do": "wait",
+      "s": 1
+    },
+    {
+      "do": "say",
+      "line": "pa_quarantine_01"
+    },
+    {
+      "do": "setFlag",
+      "flag": "pa_quarantine_played",
+      "value": true
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_05"
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_05"
+    },
+    {
+      "do": "npcAnim",
+      "npc": "giles",
+      "anim": "rub_forearm"
+    },
+    {
+      "do": "setFlag",
+      "flag": "giles_forearm_seen",
+      "value": true
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_06"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_06"
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_07"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_07"
+    },
+    {
+      "do": "playerWalkTo",
+      "to": "anchor:kitchen_door",
+      "wait": true
+    },
+    {
+      "do": "playerClampLook",
+      "target": "anchor:counter",
+      "degrees": 120
+    },
+    {
+      "parallel": [
+        {
+          "do": "npcMoveTo",
+          "npc": "okafor",
+          "to": "anchor:counter_okafor",
+          "wait": true
+        },
+        {
+          "do": "npcMoveTo",
+          "npc": "giles",
+          "to": "anchor:counter_giles",
+          "wait": true
+        },
+        {
+          "do": "playerWalkTo",
+          "to": "anchor:kitchen_stand",
+          "wait": true
+        },
+        {
+          "do": "playerLookAt",
+          "target": "anchor:counter",
+          "duration": 1.2,
+          "weight": 0.7
+        }
+      ]
+    },
+    {
+      "do": "say",
+      "line": "intro_cook_01"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_08"
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_08"
+    },
+    {
+      "do": "say",
+      "line": "intro_tech_01"
+    },
+    {
+      "do": "say",
+      "line": "intro_cook_02"
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_09"
+    },
+    {
+      "do": "playerControl",
+      "interact": true
+    },
+    {
+      "do": "emit",
+      "event": "intro:coffee_ready"
+    },
+    {
+      "do": "waitFor",
+      "event": "intro:coffee_taken",
+      "timeout": 6
+    },
+    {
+      "do": "emit",
+      "event": "intro:coffee_done"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_09"
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_10"
+    },
+    {
+      "do": "setFlag",
+      "flag": "introSeen",
+      "value": true
+    },
+    {
+      "do": "playerControl",
+      "reset": true
+    },
+    {
+      "do": "checkpoint",
+      "id": "cp_intro",
+      "label": "Commons"
+    }
+  ]
+}

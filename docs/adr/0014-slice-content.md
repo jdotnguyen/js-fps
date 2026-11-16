@@ -49,7 +49,7 @@ Flow is linear with small side rooms (lockers with ammo) for exploration.
    Checkpoint.
 5. **7:30-9:00 Breathing room (R07-R08).** Security office; Giles unlocks the armory: shotgun.
    Corpses on the floor; one is a play-dead and gets up as the player passes. Through the
-   glass to R08, a medic is dragged out of view by something unseen and killed; blood on the
+   glass to R08, Okafor's nurse, Priya Anand, is dragged out of view by something unseen and killed (docs/characters.md); blood on the
    glass. *Foreshadow 2:* Giles goes ahead alone to a panel ("I'll get the panel, go"); a
    scream-like sound off-screen, he returns. *Foreshadow 3:* a fresh bandage on his
    forearm: "Cut it on the panel." Okafor offers to look; he refuses. Checkpoint.
@@ -62,7 +62,8 @@ Flow is linear with small side rooms (lockers with ammo) for exploration.
 8. **13:30-15:00 Cliffhanger (R11).** Doors sealed; silence; relief banter. Giles at the
    final console. Lights come back on and show a fluid trail behind him. He says quietly,
    "I didn't want you to see this." The player's look is soft-locked on him, his arm
-   convulses and begins to change; Okafor backs away. Cut to black. Title card.
+   convulses and begins to change. Okafor, blindsided, steps toward him; Giles says "Stay back,
+   Tomas." Cut to black. Title card. (ADR-0022)
 
 ## Script outline
 - About 80-110 lines in `data/dialogue/slice01.json`: ~40 story, ~20 hints, ~40 barks.
