@@ -38,6 +38,8 @@ export interface SequenceTrigger {
 export interface SequenceDef {
   id: string;
   trigger?: SequenceTrigger;
+  /** The player may skip it (hold the skip key): every remaining step's end state is applied at once (ADR-0017). */
+  skippable?: boolean;
   /** Run at most once per playthrough (remembered in the flag `seq:<id>`). */
   once?: boolean;
   /** Sequences in one group never overlap; a later one waits its turn. */
@@ -53,4 +55,9 @@ export interface SequenceDef {
 export interface Running {
   update(dt: number): boolean;
   cancel?(): void;
+  /**
+   * Stop and apply the end state of whatever is left of this step instantly (ADR-0017).
+   * Steps that already finished are not applied again.
+   */
+  skip?(): void;
 }

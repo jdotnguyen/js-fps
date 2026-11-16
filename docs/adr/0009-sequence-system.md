@@ -60,10 +60,10 @@ Story: `say` (ADR-0010), `setObjective`, `completeObjective`, `checkpoint`, `end
 - **Checkpoints:** snapshot of flags, objectives, door/light states, player HP/ammo, squad
   positions, alive enemies. Death restores the snapshot and restarts sequences that were
   marked `resumeFromCheckpoint`.
-- Sequences are not skippable unless they set `skippable: true` (amended by ADR-0017). Every
-  action implements `finish()`, which applies its end state instantly, so a skip is
-  `finish()` on all remaining steps. In-world scenes where the player keeps control (the
-  drop) stay unskippable.
+- Sequences are not skippable unless they set `skippable: true` (ADR-0017). Skipping
+  applies the end state of every step still to come, once (`SequenceManager.skip()`; each
+  action may define its end state in `SKIPS`, see ADR-0017). In-world scenes where the
+  player keeps control (the drop) stay unskippable.
 
 ### Debug
 - `?seq=<id>` starts a sequence (with prerequisite flags from its `debugSetup`).
@@ -77,8 +77,8 @@ Story: `say` (ADR-0010), `setObjective`, `completeObjective`, `checkpoint`, `end
 - Pre-rendered or camera-cut cutscenes: rejected by the "real-time, first person" decision.
 
 ## Execution steps
-1. [Done] Interpreter with flow actions + validation (`src/sequence/`).
-2. [Partly done] Player actions and control stack (`playerControl`, `playerLookAt`, `playerWalkTo`, `playerPlace`, `say`, `fade`, `sfx`, `checkpoint`); world actions still to do.
+1. Interpreter with flow actions + validation.
+2. Player and world actions, control stack.
 3. NPC actions (stub until ADR-0011), `transform` (ADR-0006), `say` (ADR-0010).
 4. Objectives and checkpoints.
 5. Debug overlay and `?seq=`.

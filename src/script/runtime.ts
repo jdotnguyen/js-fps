@@ -18,6 +18,7 @@ export interface RunInfo {
   /** Short description of what is happening now. */
   label: string;
   elapsed: number;
+  skippable: boolean;
 }
 
 /** In-memory world state at a checkpoint (ADR-0009). Persisting it is ADR-0016's job. */
@@ -46,10 +47,12 @@ class Serial implements Running {
   private cur: Running | null = null;
   private readonly steps: Step[];
   private readonly start: (step: Step, index: number) => Running | void;
+  private readonly skipStep: (step: Step) => void;
 
-  constructor(steps: Step[], start: (step: Step, index: number) => Running | void) {
+  constructor(steps: Step[], start: (step: Step, index: number) => Running | void, skipStep: (step: Step) => void) {
     this.steps = steps;
     this.start = start;
+    this.skipStep = skipStep;
   }
 
   update(dt: number): boolean {
@@ -69,6 +72,13 @@ class Serial implements Running {
     this.cur?.cancel?.();
     this.cur = null;
   }
+
+  /** Finish the step in flight, then apply every later step's end state. */
+  skip(): void {
+    this.cur?.skip?.();
+    this.cur = null;
+    while (this.i < this.steps.length) this.skipStep(this.steps[this.i++]!);
+  }
 }
 
 class Parallel implements Running {
@@ -85,6 +95,11 @@ class Parallel implements Running {
 
   cancel(): void {
     for (const k of this.live) k.cancel?.();
+    this.live = [];
+  }
+
+  skip(): void {
+    for (const k of this.live) k.skip?.();
     this.live = [];
   }
 }
@@ -142,7 +157,33 @@ export class SequenceManager {
       total: r.def.steps.length,
       label: r.label,
       elapsed: r.elapsed,
+      skippable: r.def.skippable === true,
     }));
+  }
+
+  /** A skippable sequence is running (the skip prompt shows only then). */
+  get skippable(): boolean {
+    return this.runs.some((r) => r.def.skippable === true);
+  }
+
+  /**
+   * Skip every skippable running sequence (ADR-0017): apply the end state of everything
+   * left, then end normally so control layers are released. Returns whether any skipped.
+   */
+  skip(): boolean {
+    let any = false;
+    for (const run of [...this.runs]) {
+      if (!run.def.skippable) continue;
+      any = true;
+      try {
+        run.root.skip?.();
+      } catch (err) {
+        this.host.warn(`sequence "${run.def.id}" failed while skipping (${run.label}): ${String(err)}`);
+      }
+      this.end(run, false, true);
+    }
+    if (any) this.host.stopSpeech?.();
+    return any;
   }
 
   /**
@@ -245,11 +286,15 @@ export class SequenceManager {
     this.runs.push(run);
     this.host.events.emit('sequence:started', { id: def.id });
     try {
-      run.root = new Serial(def.steps, (step, index) => {
-        run.step = index;
-        run.label = describe(step);
-        return this.startStep(run, step);
-      });
+      run.root = new Serial(
+        def.steps,
+        (step, index) => {
+          run.step = index;
+          run.label = describe(step);
+          return this.startStep(run, step);
+        },
+        (step) => this.skipStep(run, step),
+      );
       // Run the first instantaneous steps right away, as the author would expect.
       if (run.root.update(0)) this.end(run, false);
     } catch (err) {
@@ -260,7 +305,7 @@ export class SequenceManager {
     return true;
   }
 
-  private end(run: Run, cancelled: boolean): void {
+  private end(run: Run, cancelled: boolean, skipped = false): void {
     if (!this.runs.includes(run)) return;
     this.runs = this.runs.filter((r) => r !== run);
     if (cancelled) {
@@ -273,7 +318,7 @@ export class SequenceManager {
     for (const fn of run.endFns.reverse()) fn();
     for (const release of run.releases.reverse()) release();
     for (const off of run.listeners) off();
-    this.host.events.emit('sequence:ended', { id: run.def.id, cancelled });
+    this.host.events.emit('sequence:ended', { id: run.def.id, cancelled, skipped });
     this.drainQueue();
   }
 
@@ -300,7 +345,31 @@ export class SequenceManager {
     }
     const def = ACTIONS[step.do];
     if (!def) throw new Error(`unknown action "${step.do}"`);
-    return def.start(step, this.contextFor(run));
+    const ctx = this.contextFor(run);
+    const r = def.start(step, ctx);
+    if (!r || r.skip) return r;
+    // A step in flight: skipping stops it and applies its end state once.
+    return {
+      update: (dt) => r.update(dt),
+      cancel: () => r.cancel?.(),
+      skip: () => {
+        r.cancel?.();
+        def.skip?.(step, ctx);
+      },
+    };
+  }
+
+  /** Apply a step's end state without playing it. */
+  private skipStep(run: Run, step: Step): void {
+    if (isParallel(step)) {
+      for (const child of step.parallel) this.skipStep(run, child);
+      return;
+    }
+    const def = ACTIONS[step.do];
+    if (!def) return;
+    const ctx = this.contextFor(run);
+    if (def.skip) def.skip(step, ctx);
+    else def.start(step, ctx)?.cancel?.();
   }
 
   private contextFor(run: Run): ActionContext {
@@ -308,7 +377,15 @@ export class SequenceManager {
     return {
       host,
       seqId: run.def.id,
-      build: (steps) => new Serial(steps, (step) => this.startStep(run, step)),
+      build: (steps) =>
+        new Serial(
+          steps,
+          (step) => this.startStep(run, step),
+          (step) => this.skipStep(run, step),
+        ),
+      skipSteps: (steps) => {
+        for (const step of steps) this.skipStep(run, step);
+      },
       listen: (event, fn) => {
         const off = host.events.on(event, fn);
         run.listeners.push(off);

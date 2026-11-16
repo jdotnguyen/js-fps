@@ -34,9 +34,6 @@ import { AudioEngine } from './audio/engine.ts';
 import { MenuMusic } from './audio/menuMusic.ts';
 import { Game } from './game/game.ts';
 import { CutsceneController } from './game/cutscene.ts';
-import { createSequenceHost } from './game/sequenceHost.ts';
-import { Sequencer } from './sequence/sequencer.ts';
-import type { SequenceDef } from './sequence/types.ts';
 import { CutsceneUi } from './ui/hud/cutsceneUi.ts';
 import { Interactions } from './actors/interaction.ts';
 import { Player, PLAYER_TUNING } from './actors/player.ts';
@@ -52,8 +49,6 @@ import { createMenus } from './ui/menus/screens.ts';
 import { Toasts } from './ui/toast.ts';
 import { Viewmodel } from './render/viewmodel/viewmodel.ts';
 
-/** ADR-0017 cutscenes (src/sequence runtime). ADR-0009 sequences live in data/sequences. */
-const SEQUENCE_FILES = import.meta.glob<SequenceDef>('./data/cutscenes/*.json', { eager: true, import: 'default' });
 const LEVEL_FILES = import.meta.glob<unknown>('./data/levels/*.json', { eager: true, import: 'default' });
 const TEXTURE_SIZE = 512;
 const FOG_COLOR = 0x04080a;
@@ -170,31 +165,11 @@ async function boot(): Promise<void> {
 
   const toasts = new Toasts(document.body);
   const hud = new PlayerHud(el<HTMLElement>('#ui'), el<HTMLElement>('#interact'), keymap.interact[0] ?? 'KeyE');
-  // Sequences and the cutscene chrome (ADR-0009, ADR-0017). `game` is created just below;
-  // the sequencer shares its flags object so sequences read and write the real game state.
-  const gameRef: { current: Game | null } = { current: null };
-  const sequenceFlags = new Proxy({} as Game['flags'], {
-    get: (_t, key: string) => gameRef.current?.flags[key],
-    set: (_t, key: string, value: Game['flags'][string]) => {
-      if (gameRef.current) gameRef.current.flags[key] = value;
-      return true;
-    },
-  });
-  const sequencer = new Sequencer({
-    events,
-    flags: sequenceFlags,
-    host: createSequenceHost({ player, hud, audio, toasts, checkpoint: (id) => gameRef.current?.scriptedCheckpoint(id) }),
-  });
-  for (const [path, def] of Object.entries(SEQUENCE_FILES)) {
-    try {
-      sequencer.register(def);
-    } catch (err) {
-      throw new Error(`data/cutscenes/${path.replace(/^.*\//, '')}: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
+  // ADR-0009 sequences (also run the ADR-0017 skippable cutscenes). Created once the loop
+  // exists, because the loop owns the time scale; the cutscene chrome looks it up on use.
+  let sequences: SequenceManager | null = null;
   const cutscene = new CutsceneController({
-    events,
-    sequencer,
+    sequences: () => sequences,
     input,
     settings,
     player,
@@ -219,7 +194,6 @@ async function boot(): Promise<void> {
     hud,
     cutscene,
   });
-  gameRef.current = game;
   currentPreset = () => game.preset;
   prompt.textContent = 'Building weapons…';
   await nextFrame();
@@ -276,14 +250,7 @@ async function boot(): Promise<void> {
     });
   }
 
-  // ADR-0009 sequences; created once the loop exists (it owns the time scale).
-  let sequences: SequenceManager | null = null;
-
   const runSequence = (id: string): void => {
-    if (sequencer.has(id)) {
-      sequencer.play(id);
-      return;
-    }
     const seq = DEBUG_SEQUENCES[id];
     if (!seq) {
       if (sequences?.has(id)) sequences.start(id, { debug: true });

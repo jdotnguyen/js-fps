@@ -40,6 +40,8 @@ export interface ActionContext {
   readonly seqId: string;
   /** Build a nested step list (used by `if` and `loop`). */
   build(steps: Step[]): Running;
+  /** Apply the end state of a whole step list without playing it (skipping). */
+  skipSteps(steps: Step[]): void;
   /** Subscribe to an event until the sequence ends. */
   listen(event: string, fn: (payload: unknown) => void): () => void;
   /** Push a control layer owned by this sequence (popped on end or cancel). */
@@ -54,10 +56,18 @@ export interface ActionContext {
   missing(feature: string): void;
 }
 
-interface ActionDef {
+export interface ActionDef {
   validate: Validator<ActionStep>;
   start(step: ActionStep, ctx: ActionContext): Running | void;
+  /**
+   * Apply this step's end state instantly, for a step that has not started or is in
+   * flight (ADR-0017). Without it the runtime runs `start` and drops the result, which is
+   * right for instant actions (setFlag, doorState, checkpoint...).
+   */
+  skip?: SkipFn;
 }
+
+export type SkipFn = (step: ActionStep, ctx: ActionContext) => void;
 
 type Shape = Parameters<typeof obj>[0];
 
@@ -222,6 +232,13 @@ export const ACTIONS: Record<string, ActionDef> = {
   ),
 
   // ---- player
+  playerPlace: act({ at: target, yaw: optional(num), pitch: optional(num) }, (s, ctx) => {
+    const at = resolve('playerPlace', s.at, ctx);
+    if (!at) return;
+    if (!ctx.host.placePlayer) return ctx.missing('playerPlace');
+    ctx.host.placePlayer(at, s.yaw, s.pitch);
+  }),
+
   playerControl: act(control, (s, ctx) => {
     const { reset, ...over } = s;
     if (reset) ctx.releaseControl();
@@ -341,7 +358,7 @@ export const ACTIONS: Record<string, ActionDef> = {
   say: act({ line: str, wait }, (s, ctx) => {
     if (!ctx.host.say) return ctx.missing('say');
     const h = ctx.host.say(s.line);
-    if (h && s.wait !== false) return pending(h.done);
+    if (h && s.wait !== false) return { ...pending(h.done), skip: () => ctx.host.markLinePlayed?.(s.line) };
   }),
 
   setObjective: act({ id: str }, (s, ctx) => {
@@ -361,6 +378,48 @@ export const ACTIONS: Record<string, ActionDef> = {
     ctx.host.endSlice?.();
   }),
 };
+
+// ------------------------------------------------------------------------- skipping
+
+const NOOP: SkipFn = () => undefined;
+
+/**
+ * End states for ADR-0017 skipping. Only actions that wait, play or ease need an entry;
+ * instant actions (setFlag, doorState, lightState, emit, setObjective, checkpoint...) are
+ * simply run, which is their end state.
+ */
+const SKIPS: Record<string, SkipFn> = {
+  // Things that only wait for time or events have no end state of their own.
+  wait: NOOP,
+  waitFor: NOOP,
+  loop: NOOP,
+  cameraShake: NOOP,
+  timeScale: NOOP,
+  playerLookAt: NOOP,
+  sfx: NOOP,
+  if: (s, ctx) => {
+    const st = s as unknown as { flag: string; is?: Scalar; then: Step[]; else?: Step[] };
+    const branch = (ctx.host.flags[st.flag] ?? false) === (st.is ?? true) ? st.then : st.else;
+    if (branch) ctx.skipSteps(branch);
+  },
+  playerWalkTo: (s, ctx) => {
+    const at = resolve('playerWalkTo', s['to'] as TargetRef, ctx);
+    if (at) ctx.host.placePlayer?.({ x: at.x, y: undefined, z: at.z }, undefined, undefined);
+  },
+  fade: (s, ctx) => ctx.host.fade?.(s['to'] as number, 0),
+  water: (s, ctx) => ctx.host.water?.(s['level'] as number, 0),
+  say: (s, ctx) => ctx.host.markLinePlayed?.(s['line'] as string),
+};
+for (const name of ['npcMoveTo', 'npcAnim', 'npcLookAt', 'npcTask', 'npcFollow', 'transform', 'spawn', 'despawn', 'attachToTrack']) {
+  SKIPS[name] = (s, ctx) => {
+    if (ctx.host.npc) void ctx.host.npc(name, { ...s, wait: false, instant: true });
+  };
+}
+for (const [name, fn] of Object.entries(SKIPS)) {
+  const def = ACTIONS[name];
+  if (!def) throw new Error(`SKIPS names unknown action "${name}"`);
+  def.skip = fn;
+}
 
 // ---------------------------------------------------------------------------- step schema
 

@@ -12,6 +12,7 @@ const id: Validator<string> = (v, p) => {
 export const sequenceV = obj({
   id,
   trigger: optional(obj({ event: str, requires: optional(str) })),
+  skippable: optional(bool),
   once: optional(bool),
   exclusive: optional(str),
   resumeFromCheckpoint: optional(bool),

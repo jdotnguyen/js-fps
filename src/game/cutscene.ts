@@ -1,9 +1,8 @@
 import type { Player } from '../actors/player.ts';
 import type { Input } from '../core/input.ts';
 import type { SettingsStore } from '../core/settings.ts';
-import type { EventBus } from '../core/events.ts';
-import { SkipHold } from '../sequence/skipHold.ts';
-import type { Sequencer } from '../sequence/sequencer.ts';
+import type { SequenceManager } from '../script/runtime.ts';
+import { SkipHold } from '../script/skipHold.ts';
 import type { PlayerHud } from '../ui/hud/playerHud.ts';
 import type { CutsceneUi } from '../ui/hud/cutsceneUi.ts';
 
@@ -16,8 +15,8 @@ const SKIP_FADE_OUT = 0.4;
 const SKIP_FADE_IN = 0.5;
 
 export interface CutsceneDeps {
-  events: EventBus;
-  sequencer: Sequencer;
+  /** Looked up on use: the manager is built after the loop (it owns the time scale). */
+  sequences: () => SequenceManager | null;
   input: Input;
   settings: SettingsStore;
   player: Player;
@@ -28,42 +27,50 @@ export interface CutsceneDeps {
 }
 
 /**
- * Runs the sequencer in the game loop and owns everything the player sees around a
- * cutscene: letterbox bars while on rails, the hold-to-skip prompt, and the skip itself.
+ * Everything the player sees around a skippable sequence (ADR-0017): letterbox bars while
+ * on rails, the hold-to-skip prompt, and the skip itself. The sequences are run and
+ * ended by the ADR-0009 `SequenceManager`; this only decides when to skip.
  */
 export class CutsceneController {
   private readonly d: CutsceneDeps;
   private readonly hold = new SkipHold();
   private hint = 0;
+  private wasSkippable = false;
   private skipping = false;
   private skipTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(deps: CutsceneDeps) {
     this.d = deps;
-    deps.events.on('sequence:started', ({ id }) => {
-      if (this.d.sequencer.running().some((r) => r.id === id && r.skippable)) {
-        this.hold.reset();
-        this.hint = HINT_START;
-      }
-    });
     deps.ui.onActivity(() => {
-      if (this.d.sequencer.skippable) this.hint = Math.max(this.hint, HINT_ACTIVITY);
+      if (this.skippable) this.hint = Math.max(this.hint, HINT_ACTIVITY);
     });
+  }
+
+  private get skippable(): boolean {
+    return this.d.sequences()?.skippable ?? false;
   }
 
   /** Cutscene bars show while a sequence runs and the player cannot move on their own. */
   get barsOn(): boolean {
-    return this.d.sequencer.running().length > 0 && this.d.player.onRails;
+    const m = this.d.sequences();
+    return m !== null && m.running().length > 0 && this.d.player.onRails;
   }
 
   playIntro(): boolean {
-    return this.d.sequencer.has(INTRO_SEQUENCE) && this.d.sequencer.play(INTRO_SEQUENCE);
+    const m = this.d.sequences();
+    return m !== null && m.has(INTRO_SEQUENCE) && m.start(INTRO_SEQUENCE);
   }
 
-  /** Fixed step while playing. */
+  /** Fixed step while playing (the manager itself is stepped by the main loop). */
   update(dt: number): void {
-    const { sequencer, input, settings } = this.d;
-    if (sequencer.skippable && !this.skipping) {
+    const { input, settings } = this.d;
+    const skippable = this.skippable;
+    if (skippable && !this.wasSkippable) {
+      this.hold.reset();
+      this.hint = HINT_START;
+    }
+    this.wasSkippable = skippable;
+    if (skippable && !this.skipping) {
       const s = settings.get();
       const fired = this.hold.update(
         dt,
@@ -71,18 +78,17 @@ export class CutsceneController {
         { seconds: s.skipHoldSeconds, assist: s.skipAssist },
       );
       if (fired) this.startSkip();
-    } else if (!sequencer.skippable && !this.skipping) {
+    } else if (!skippable && !this.skipping) {
       this.hold.reset();
     }
     this.hint = Math.max(0, this.hint - dt);
-    sequencer.update(dt);
   }
 
   /** Per rendered frame: bars and prompt. */
   render(): void {
-    const { sequencer, settings, ui } = this.d;
+    const { settings, ui } = this.d;
     ui.setBars(this.barsOn, settings.get().reducedMotion);
-    const show = sequencer.skippable && (this.hint > 0 || this.hold.progress > 0 || this.hold.armed);
+    const show = this.skippable && (this.hint > 0 || this.hold.progress > 0 || this.hold.armed);
     const key = this.d.skipKeyLabel();
     const assist = settings.get().skipAssist;
     const text = this.skipping
@@ -102,7 +108,8 @@ export class CutsceneController {
     this.skipping = false;
     this.hold.reset();
     this.hint = 0;
-    this.d.sequencer.cancelAll();
+    this.wasSkippable = false;
+    this.d.sequences()?.cancelAll();
     this.d.player.cancelWalk();
     this.d.ui.setBars(false, false);
     this.d.ui.setSkip(false, '', 0);
@@ -119,10 +126,11 @@ export class CutsceneController {
     this.d.hud.setFade(1, SKIP_FADE_OUT);
     this.skipTimer = setTimeout(() => {
       this.skipTimer = null;
-      this.d.sequencer.skip();
+      this.d.sequences()?.skip();
       this.d.player.cancelWalk();
       this.hold.reset();
       this.hint = 0;
+      this.wasSkippable = false;
       this.skipping = false;
       this.d.hud.setFade(0, SKIP_FADE_IN);
     }, (SKIP_FADE_OUT + 0.05) * 1000);

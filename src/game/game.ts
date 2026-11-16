@@ -241,11 +241,6 @@ export class Game {
     this.d.audio.setMasterVolume(v);
   }
 
-  /** A sequence's `checkpoint` step (ADR-0009): same as walking into a checkpoint volume. */
-  scriptedCheckpoint(id: string): void {
-    this.reachCheckpoint(id, this.location || id);
-  }
-
   private spawnAtStart(): void {
     const { player, world } = this.d;
     this.d.cutscene.cancel();
