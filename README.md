@@ -7,7 +7,7 @@ Everything is procedural for now: no models, textures or audio files.
 
 - Design summary: [DESIGN.md](DESIGN.md)
 - Executable decisions, in build order: [docs/adr/](docs/adr/README.md)
-- The previous prototype (INKSHOT, an arena wave shooter) has been removed; it remains in git history.
+- The previous prototype (INKSHOT, an arena wave shooter) is kept in `legacy/inkshot/` for reference only.
 
 ## Run
 
