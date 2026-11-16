@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '../core/rng.ts';
 import { Animator, type GaitStyle } from './animator.ts';
-import { buildBodyGeometry, triangleCount, woundCap, type BodyGeometry, type ExtraBone, type ExtraBoneDef, type Outfit, type PartGeometry } from './bodyGeometry.ts';
+import { buildBodyGeometry, triangleCount, woundCap, type BodyGeometry, type ExtraBone, type ExtraBoneDef, type Look, type Outfit, type PartGeometry } from './bodyGeometry.ts';
 import { createBodyMaterials, MAX_BONES, type BodyMaterials } from './bodyMaterial.ts';
 import { rayCapsule } from './capsule.ts';
 import { BodyDamage, SHAMBLER_BASE_HP, type HitResult, type LocomotionState } from './damage.ts';
@@ -42,6 +42,8 @@ export interface HumanoidSpec {
   baseHp?: number;
   /** Pose while standing still (npc) or lying (corpse). */
   pose?: string;
+  /** Hand-set appearance for named characters (squad). */
+  look?: Look;
 }
 
 export interface HumanoidContext {
@@ -142,6 +144,7 @@ export class Humanoid {
       infectable: this.infectionLevel > 0 || spec.transformable === true,
       hero: spec.hero === true,
       seed: spec.seed,
+      ...(spec.look ? { look: spec.look } : {}),
     });
     this.triangles = triangleCount(this.geo.parts);
     this.materials = createBodyMaterials();

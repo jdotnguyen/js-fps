@@ -20,6 +20,7 @@ import { Flashlight } from '../render/flashlight.ts';
 import { GoreSystem } from '../actors/gore.ts';
 import { Humanoid, type BodyHit, type HumanoidSpec } from '../actors/humanoid.ts';
 import { PoseLibrary } from '../actors/poses.ts';
+import { GILES, OKAFOR } from '../actors/squadLooks.ts';
 
 /**
  * ADR-0006 test room: /sandbox/actors.html (dev server only, not part of the game build).
@@ -156,11 +157,11 @@ async function boot(): Promise<void> {
     spawn({ seed: 'shambler-d', outfit: 'crew', role: 'enemy', infection: 2.5 }, -0.8, -4.6, 0.1);
     const lurker = spawn({ seed: 'playdead-a', outfit: 'lab', role: 'enemy', infection: 2 }, 2.2, -1.5, 2.4);
     lurker.playDead('corpseProne');
-    engineer = spawn({ seed: 'august-giles', outfit: 'engineer', role: 'npc', transformable: true, pose: 'crouchWork', height: 1.82 }, -6.05, -2, Math.PI / 2);
+    engineer = spawn({ ...GILES, role: 'npc', transformable: true, pose: 'crouchWork' }, -6.05, -2, Math.PI / 2);
     engineer.plantFeet = true;
     engineer.handTargets.L = new THREE.Vector3(-6.72, 0.95, -1.82);
     engineer.handTargets.R = new THREE.Vector3(-6.72, 0.88, -2.2);
-    const medic = spawn({ seed: 'okafor', outfit: 'medic', role: 'npc', pose: 'typing', height: 1.8 }, 4.6, -4, -Math.PI / 2);
+    const medic = spawn({ ...OKAFOR, role: 'npc', pose: 'typing' }, 4.6, -4, -Math.PI / 2);
     medic.handTargets.L = new THREE.Vector3(5.12, 1.02, -4.22);
     medic.handTargets.R = new THREE.Vector3(5.12, 1.02, -3.8);
     spawn({ seed: 'corpse-sec', outfit: 'security', role: 'corpse', pose: 'corpseSlumped' }, -6.62, 2.2, -Math.PI / 2);
