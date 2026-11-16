@@ -42,10 +42,10 @@ export class Flashlight {
     this.vel.multiplyScalar(Math.max(0, 1 - this.damping * step));
     this.dir.addScaledVector(this.vel, step).normalize();
 
-    // Held slightly right of and below the eye.
+    // Carried at the left of the chest: low and to the left, so it never glares on a right-hand weapon.
     this.right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
-    this.light.position.copy(this.camera.position).addScaledVector(this.right, 0.18);
-    this.light.position.y -= 0.12;
+    this.light.position.copy(this.camera.position).addScaledVector(this.right, -0.22);
+    this.light.position.y -= 0.32;
     this.light.target.position.copy(this.light.position).addScaledVector(this.dir, 6);
 
     // Short fade instead of a hard snap when toggling.

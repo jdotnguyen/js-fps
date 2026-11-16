@@ -41,6 +41,7 @@ import { PlayerHud } from './ui/hud/playerHud.ts';
 import { SaveStore } from './game/save.ts';
 import { createMenus } from './ui/menus/screens.ts';
 import { Toasts } from './ui/toast.ts';
+import { Viewmodel } from './render/viewmodel/viewmodel.ts';
 
 const LEVEL_FILES = import.meta.glob<unknown>('./data/levels/*.json', { eager: true, import: 'default' });
 const TEXTURE_SIZE = 512;
@@ -83,6 +84,14 @@ async function boot(): Promise<void> {
   await nextFrame();
 
   const renderer = createRenderer(canvas, settings.get());
+  if (new URLSearchParams(location.search).has('vmlab')) {
+    prompt.hidden = true;
+    document.querySelector<HTMLElement>('#ui')?.setAttribute('hidden', '');
+    document.querySelector<HTMLElement>('#menu')?.setAttribute('hidden', '');
+    const { runLab } = await import('./render/viewmodel/lab.ts');
+    await runLab(renderer);
+    return;
+  }
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(FOG_COLOR);
   scene.fog = new THREE.FogExp2(FOG_COLOR, 0.05);
@@ -167,6 +176,19 @@ async function boot(): Promise<void> {
     hud,
   });
   currentPreset = () => game.preset;
+  prompt.textContent = 'Building weapons…';
+  await nextFrame();
+  const viewmodel = new Viewmodel({
+    scene,
+    camera,
+    input,
+    player,
+    events,
+    enabled: () => game.mode === 'playing' && !game.flying && player.alive && player.control.state.weapons,
+    visible: () => game.mode !== 'title' && !game.flying,
+    reducedMotion: () => settings.get().reducedMotion,
+  });
+  renderer.compile(scene, camera);
   createMenus(el<HTMLElement>('#menu'), { game, saves, settings, difficulties, events });
   const menuMusic = new MenuMusic(audio, game.mode);
   menuMusic.start();
@@ -341,6 +363,7 @@ async function boot(): Promise<void> {
     render: (_alpha, frameDt) => {
       debug?.beginFrame();
       game.render(frameDt);
+      viewmodel.update(frameDt);
       flashlight.update(frameDt);
       world.update(simTime, frameDt, camera.position, settings.get().reducedFlashing);
       if (level && levelStats) {
