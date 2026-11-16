@@ -135,4 +135,8 @@ Hero tier (`spec.hero`, ~60k triangles each, 2–3 on screen, tough and slow):
 - High-resolution gaunt head (hollow cheeks, brow, sockets), fangs, smaller eyes, jaw baked slightly open.
 - `hulk` pose in `poses.json`. Sandbox `?rim` adds key and rim lights for judging the sculpt.
 
-Known gaps: coat reads as flat strips; hunched pose hides the face from low camera angles; hero has no gait or attack of its own; cloth does not sway; 60 fps on the M2 not measured.
+Hero face (neck and hunch): hero bodies carry per-body joint offsets (`BodyGeometry.jointOffsets`), so the head joint sits 7 cm higher than the shared skeleton's (`HERO_NECK_EXTRA` in `skeleton.ts`). The hero neck mesh is longer and thicker at the base with tendon cords, and the root scale is adjusted so the hero keeps its requested height. The `hulk` pose has a shallower hunch (spine -12, chest -6) with the head tilted up to compensate. Angles are untested by eye; tune them in `poses.json` from the sandbox.
+
+Body separation: see ADR-0018 (`src/actors/separation.ts`, applied in the sandbox; `?nosep` compares).
+
+Known gaps: coat reads as flat strips; hero has no gait or attack of its own; cloth does not sway; 60 fps on the M2 not measured; face visibility after the neck change needs a visual check.

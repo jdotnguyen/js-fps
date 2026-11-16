@@ -75,3 +75,12 @@ test('an infectable body fits the bone budget and every extra bone has a built p
     built.add(e.name);
   }
 });
+
+test('a hero body gets a longer neck: the head joint moves up and the height still matches', () => {
+  const crowd = buildBodyGeometry({ outfit: 'lab', height: 2.15, build: 1.25, infectable: true, seed: 'neck' });
+  const hero = buildBodyGeometry({ outfit: 'lab', height: 2.15, build: 1.25, infectable: true, hero: true, seed: 'neck' });
+  assert.deepEqual(crowd.jointOffsets, {});
+  const head = hero.jointOffsets.head;
+  assert.ok(head && head[1] > (JOINTS.find((j) => j.name === 'head')?.offset[1] ?? 0));
+  assert.ok(hero.scale.y < crowd.scale.y, 'root scale shrinks so the taller skeleton keeps the requested height');
+});

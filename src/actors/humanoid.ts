@@ -9,6 +9,7 @@ import { BodyDamage, SHAMBLER_BASE_HP, type HitResult, type LocomotionState } fr
 import type { GoreSystem } from './gore.ts';
 import { solveTwoBone } from './ik.ts';
 import type { PoseLibrary } from './poses.ts';
+import { footprintOf } from './separation.ts';
 import { JOINT_INDEX, JOINTS, SEVER_JOINT, subtree, type JointName, type Region, type SeverableRegion, type Side } from './skeleton.ts';
 
 /**
@@ -165,6 +166,11 @@ export class Humanoid {
 
   get alive(): boolean {
     return this.state !== 'dead';
+  }
+
+  /** Ground footprint circle and mass for body-vs-body separation (ADR-0018). */
+  get footprint(): { r: number; mass: number } {
+    return footprintOf(this.spec.hero === true, this.geo.scale.w);
   }
 
   get poseName(): string {
@@ -396,7 +402,8 @@ export class Humanoid {
     for (const j of JOINTS) {
       const bone = new THREE.Bone();
       bone.name = j.name;
-      bone.position.set(j.offset[0] * w, j.offset[1], j.offset[2]);
+      const at = this.geo.jointOffsets[j.name] ?? j.offset;
+      bone.position.set(at[0] * w, at[1], at[2]);
       out[j.name] = bone;
       if (j.parent) out[j.parent].add(bone);
       this.boneIndex.set(j.name, this.boneList.length);

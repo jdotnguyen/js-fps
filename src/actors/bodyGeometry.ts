@@ -3,7 +3,7 @@ import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '../core/rng.ts';
 import { heroColor, heroFace, heroScalpTorn, sculptHeroHead, sculptHero, tatterColor, tatterStrip } from './heroSculpt.ts';
 import { fbm3, noise3 } from './noise3.ts';
-import { JOINTS, jointDef, type JointName, type SegmentDef, type Side, type Vec3T } from './skeleton.ts';
+import { HERO_NECK, HERO_NECK_EXTRA, JOINTS, jointDef, type JointName, type SegmentDef, type Side, type Vec3T } from './skeleton.ts';
 
 /**
  * Procedural body meshes (ADR-0006). Every piece is built in the local space of the bone
@@ -63,6 +63,8 @@ export interface BodyGeometry {
   extraBones: ExtraBoneDef[];
   /** `y`: uniform scale on the root bone for height; `w`: width (build) on x offsets and radii. */
   scale: { y: number; w: number };
+  /** Per-body joint offsets that replace the reference skeleton's (hero neck/head). */
+  jointOffsets: Partial<Record<JointName, Vec3T>>;
   skinTone: THREE.Color;
 }
 
@@ -248,13 +250,14 @@ function scaledSeg(s: SegmentDef, w: number): SegmentDef {
 function limbSegment(ctx: Ctx, name: JointName, painter: Painter, radial = 10, rings = 8): void {
   const def = jointDef(name);
   if (!def.segment) return;
+  const segment = ctx.hero && name === 'neck' ? HERO_NECK : def.segment;
   if (ctx.hero) {
-    const hg = taperedCapsule(scaledSeg(def.segment, ctx.w), 40, 28, 6);
+    const hg = taperedCapsule(scaledSeg(segment, ctx.w), 40, 28, 6);
     sculptHero(hg, name, ctx.seed);
     add(ctx, name, 'body', paint(hg, (p, out, fx) => heroColor(name, p, ctx.seed, ctx.skin, out, fx), null));
     return;
   }
-  const g = taperedCapsule(scaledSeg(def.segment, ctx.w), radial, rings);
+  const g = taperedCapsule(scaledSeg(segment, ctx.w), radial, rings);
   displace(g, 0.004, 9, ctx.seed + def.name.length * 13);
   add(ctx, name, 'body', paint(g, painter, ctx.infectable ? ctx.seed + name.length * 7 : null));
 }
@@ -856,15 +859,16 @@ export function woundCap(radius: number, dirY: 1 | -1, seed: number): THREE.Buff
   return parts;
 }
 
-function buildStumps(ctx: Ctx, extra: ExtraBoneDef[]): void {
+function buildStumps(ctx: Ctx, extra: ExtraBoneDef[], offsets: Partial<Record<JointName, Vec3T>>): void {
   for (const name of STUMP_JOINTS) {
     const def = jointDef(name);
     if (!def.parent) continue;
+    const at = offsets[name] ?? def.offset;
     const bone: ExtraBone = `stump_${name}`;
     extra.push({
       name: bone,
       parent: def.parent,
-      offset: [def.offset[0] * ctx.w, def.offset[1], def.offset[2]],
+      offset: [at[0] * ctx.w, at[1], at[2]],
       kind: 'stump',
     });
     const r = name === 'head' ? 0.05 * ctx.w : (def.segment?.r0 ?? 0.05) * ctx.w;
@@ -895,7 +899,10 @@ export function buildBodyGeometry(shape: BodyShape): BodyGeometry {
     hero: shape.hero === true,
     parts: [],
   };
-  const scaleY = shape.height / 1.78;
+  // A hero's longer neck raises the head, so the reference height is stretched to match and the body stays at `shape.height`.
+  const neckExtra = ctx.hero ? HERO_NECK_EXTRA : 0;
+  const jointOffsets: Partial<Record<JointName, Vec3T>> = ctx.hero ? { head: [0, jointDef('head').offset[1] + neckExtra, 0] } : {};
+  const scaleY = shape.height / (1.78 + neckExtra);
   const extra: ExtraBoneDef[] = [];
   buildTorso(ctx);
   if (ctx.hero) buildTatters(ctx);
@@ -907,9 +914,9 @@ export function buildBodyGeometry(shape: BodyShape): BodyGeometry {
   buildLimbs(ctx, 'L');
   buildLimbs(ctx, 'R');
   if (shape.infectable) buildGrowths(ctx, extra);
-  buildStumps(ctx, extra);
+  buildStumps(ctx, extra, jointOffsets);
   // Geometry is built at the reference height; the root bone scales the whole body by scaleY.
-  return { parts: ctx.parts, extraBones: extra, scale: { y: scaleY, w: shape.build }, skinTone: skin };
+  return { parts: ctx.parts, extraBones: extra, scale: { y: scaleY, w: shape.build }, jointOffsets, skinTone: skin };
 }
 
 /** Triangle count of the pieces, for the per-body budget (ADR-0006). */

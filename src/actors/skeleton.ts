@@ -96,6 +96,12 @@ const SPINE = seg(0, 0.18, 0.13, 0.14, 1.2, 0.76);
 const CHEST = seg(0, 0.24, 0.15, 0.13, 1.3, 0.78);
 const NECK = seg(-0.03, 0.09, 0.052, 0.048);
 
+/** Hero bodies get a longer neck (metres) so the head clears the chest bulk and the jaw reads from eye level. */
+export const HERO_NECK_EXTRA = 0.07;
+
+/** Neck segment for hero bodies: the reference neck stretched and thickened at the base (trapezius). */
+export const HERO_NECK = seg(-0.03, 0.09 + HERO_NECK_EXTRA, 0.07, 0.046);
+
 export const JOINTS: readonly JointDef[] = [
   { name: 'root', parent: null, offset: [0, 0, 0], segment: null, capsule: null, region: null },
   { name: 'pelvis', parent: 'root', offset: [0, 0.98, 0], segment: PELVIS, capsule: capOf(PELVIS, 0.85), region: 'torso' },

@@ -71,6 +71,7 @@ export function muscle(joint: JointName, p: THREE.Vector3): number {
     }
     case 'neck': {
       for (const s of [-1, 1]) m += gauss(p, s * 0.032, 0.03, 0.0, 0.03, 0.07, 0.04, 0.012);
+      for (const s of [-1, 1]) m += gauss(p, s * 0.026, 0.1, -0.012, 0.012, 0.06, 0.014, 0.008); // corded neck tendons (hero neck is longer)
       break;
     }
     case 'upperArm_L':

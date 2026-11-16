@@ -19,7 +19,8 @@ enemy, and data-defined variants in `data/enemies.json`.
   nodes with clear line of sight within 6 m; door edges are blocked while the door is not
   open.
 - A* over the graph; then direct steering when there is line of sight to the target.
-- Local steering: seek + separation (radius 0.8 m) + wall avoidance using colliders.
+- Local steering: seek + separation + wall avoidance using colliders. Separation uses the per-body
+  footprints and masses of ADR-0018 (not a fixed 0.8 m radius).
 - Repath every 0.5 s or when a door changes state.
 - Special movers: `vent` (enemy emerges from a vent spawn with an animation) and
   `ceiling_drop`.

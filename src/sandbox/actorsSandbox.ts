@@ -20,6 +20,7 @@ import { Flashlight } from '../render/flashlight.ts';
 import { GoreSystem } from '../actors/gore.ts';
 import { Humanoid, type BodyHit, type HumanoidSpec } from '../actors/humanoid.ts';
 import { PoseLibrary } from '../actors/poses.ts';
+import { separate, type SepBody } from '../actors/separation.ts';
 
 /**
  * ADR-0006 test room: /sandbox/actors.html (dev server only, not part of the game build).
@@ -296,6 +297,34 @@ async function boot(): Promise<void> {
     h.group.position.z = THREE.MathUtils.clamp(h.group.position.z, -7.6, 7.6);
   };
 
+  // ---------------------------------------------------------------- separation (ADR-0018)
+  // Live enemies are pushed apart; corpses, seated NPCs, play-dead bodies and the camera are immovable.
+  // `?nosep` turns it off so the old clipping can be compared.
+  const separationOn = !new URLSearchParams(location.search).has('nosep');
+  const sepBodies: SepBody[] = [];
+  const sepOwners: Array<Humanoid | null> = [];
+  const PLAYER_RADIUS = 0.35;
+  const applySeparation = (): void => {
+    sepBodies.length = 0;
+    sepOwners.length = 0;
+    for (const a of actors) {
+      const h = a.h;
+      const fp = h.footprint;
+      const mobile = h.spec.role === 'enemy' && (h.state === 'alive' || h.state === 'falling' || h.state === 'gettingUp');
+      sepBodies.push({ x: h.group.position.x, z: h.group.position.z, r: fp.r, mass: mobile ? fp.mass : Infinity });
+      sepOwners.push(mobile ? h : null);
+    }
+    sepBodies.push({ x: camera.position.x, z: camera.position.z, r: PLAYER_RADIUS, mass: Infinity });
+    sepOwners.push(null);
+    separate(sepBodies);
+    sepOwners.forEach((h, i) => {
+      const b = sepBodies[i];
+      if (!h || !b) return;
+      h.group.position.x = THREE.MathUtils.clamp(b.x, -6.6, 6.6);
+      h.group.position.z = THREE.MathUtils.clamp(b.z, -7.6, 7.6);
+    });
+  };
+
   // ---------------------------------------------------------------- loop
   let simTime = 0;
   let fps = 60;
@@ -312,10 +341,9 @@ async function boot(): Promise<void> {
         input.endStep();
         return;
       }
-      for (const a of actors) {
-        think(a, dt);
-        a.h.update(dt, camera.position);
-      }
+      for (const a of actors) think(a, dt);
+      if (separationOn) applySeparation();
+      for (const a of actors) a.h.update(dt, camera.position);
       gore.update(dt);
       input.endStep();
     },
@@ -335,7 +363,7 @@ async function boot(): Promise<void> {
         `ACTORS SANDBOX · ADR-0006`,
         `weapon ${weapon === PISTOL ? 'pistol (18)' : 'shotgun (8×9)'}  [1/2]`,
         `gore ${gore.mode.toUpperCase()}  [G]   hitboxes ${hitboxes ? 'on' : 'off'}  [H]`,
-        `[T] transform engineer   [R] reset   [F] flashlight`,
+        `[T] transform engineer   [R] reset   [F] flashlight   separation ${separationOn ? 'on' : 'off (?nosep)'}`,
         ``,
         lastHit,
         ``,
