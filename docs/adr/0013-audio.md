@@ -91,3 +91,15 @@ breathing.
   Verified in sandbox: 55 unit tests (no NaN/clipping, audible, deterministic, loops
   seamless, IR decays, scheduler intervals), levels report, spectrogram sheet inspected.
   **Not yet verified:** listening in the browser, mix balance, CPU cost.
+- 2026-11-15: Step 2 (per-room reverb) on branch `adr/0013-audio`.
+  - `audio/reverb.ts`: presets `metal_corridor`, `metal_hall`, `small_office`, `flooded` as
+    procedural IRs (rt60, colour, predelay, early taps); unknown names fall back to the corridor.
+  - `AudioEngine.setRoomReverb()`: lazily built convolver per preset, 0.5 s equal-power
+    crossfade, old convolver is disconnected once faded out. Wired to `room:entered` (which now
+    carries `reverb` from level data `atmosphere.reverb`). `kit_test.json` rooms now set one
+    each so the change can be heard.
+  **Deviation:** the reverb send is still one shared bus; per-bus sends (voice, music) arrive
+  with those buses.
+  Verified: typecheck clean, 117 tests pass (new `reverb.test.ts`: finite, decays, deterministic,
+  presets differ in length and brightness). **Not yet verified:** listening in the browser,
+  crossfade click-free, CPU cost of the longer IRs.

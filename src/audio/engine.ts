@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Rng } from '../core/rng.ts';
-import { impulseResponse } from './dsp.ts';
+import { DEFAULT_REVERB, REVERB_CROSSFADE, REVERB_SPECS, renderReverbIr, resolveReverb, type ReverbPreset } from './reverb.ts';
 import { SOUND_SPECS, type SoundName } from './sounds.ts';
 
 /**
@@ -27,6 +27,13 @@ export interface LoopHandle {
   stop(): void;
 }
 
+interface ReverbNode {
+  conv: ConvolverNode;
+  out: GainNode;
+  /** Whether the reverb send currently feeds this convolver. */
+  connected: boolean;
+}
+
 export class AudioEngine {
   readonly ctx: AudioContext;
   readonly master: GainNode;
@@ -34,6 +41,8 @@ export class AudioEngine {
   private readonly muffleFilter: BiquadFilterNode;
   readonly buses: Record<BusName, GainNode>;
   private readonly reverbIn: GainNode;
+  private readonly reverbs = new Map<ReverbPreset, ReverbNode>();
+  private activeReverb: ReverbPreset;
   private readonly buffers = new Map<SoundName, AudioBuffer[]>();
   private readonly rng = new Rng('audio-engine');
   private readonly forward = new THREE.Vector3();
@@ -53,15 +62,78 @@ export class AudioEngine {
     };
     this.buses = { ambience: bus(1), sfx: bus(1), ui: bus(0.8) };
 
-    const sr = this.ctx.sampleRate;
-    const [left, right] = impulseResponse(sr, 1.6, new Rng('reverb'));
-    const ir = this.ctx.createBuffer(2, left.length, sr);
-    ir.copyToChannel(left, 0);
-    ir.copyToChannel(right, 1);
-    const convolver = new ConvolverNode(this.ctx, { buffer: ir });
     this.reverbIn = new GainNode(this.ctx, { gain: 1 });
-    const reverbOut = new GainNode(this.ctx, { gain: 0.55 });
-    this.reverbIn.connect(convolver).connect(reverbOut).connect(this.master);
+    this.activeReverb = DEFAULT_REVERB;
+    const initial = this.reverbNode(DEFAULT_REVERB);
+    initial.out.gain.value = REVERB_SPECS[DEFAULT_REVERB].level;
+    this.connectReverb(initial);
+  }
+
+  /** Build (once) the convolver for a preset. Its output is silent until the preset is active. */
+  private reverbNode(preset: ReverbPreset): ReverbNode {
+    let node = this.reverbs.get(preset);
+    if (!node) {
+      const sr = this.ctx.sampleRate;
+      const [left, right] = renderReverbIr(sr, preset, new Rng('reverb'));
+      const ir = this.ctx.createBuffer(2, left.length, sr);
+      ir.copyToChannel(left, 0);
+      ir.copyToChannel(right, 1);
+      const conv = new ConvolverNode(this.ctx, { buffer: ir });
+      const out = new GainNode(this.ctx, { gain: 0 });
+      conv.connect(out).connect(this.master);
+      node = { conv, out, connected: false };
+      this.reverbs.set(preset, node);
+    }
+    return node;
+  }
+
+  private connectReverb(node: ReverbNode): void {
+    if (!node.connected) {
+      this.reverbIn.connect(node.conv);
+      node.connected = true;
+    }
+  }
+
+  /** Reverb preset currently applied to the reverb send. */
+  get roomReverb(): ReverbPreset {
+    return this.activeReverb;
+  }
+
+  /**
+   * Switch the shared reverb to a room's preset (level data `atmosphere.reverb`) with an
+   * equal-power crossfade, so walking from a corridor into a hall changes the space smoothly.
+   * Unknown names fall back to the default preset.
+   */
+  setRoomReverb(name: string | undefined, seconds = REVERB_CROSSFADE): void {
+    const next = resolveReverb(name);
+    if (next === this.activeReverb) return;
+    const prevPreset = this.activeReverb;
+    const prev = this.reverbNode(prevPreset);
+    const incoming = this.reverbNode(next);
+    this.activeReverb = next;
+    this.connectReverb(incoming);
+
+    const now = this.ctx.currentTime;
+    const steps = 16;
+    const fadeIn = new Float32Array(steps);
+    const fadeOut = new Float32Array(steps);
+    for (let i = 0; i < steps; i++) {
+      const x = i / (steps - 1);
+      fadeIn[i] = Math.sin(x * Math.PI * 0.5) * REVERB_SPECS[next].level;
+      fadeOut[i] = Math.cos(x * Math.PI * 0.5) * REVERB_SPECS[prevPreset].level;
+    }
+    for (const [node, curve] of [[incoming, fadeIn], [prev, fadeOut]] as const) {
+      node.out.gain.cancelScheduledValues(now);
+      node.out.gain.setValueAtTime(node.out.gain.value, now);
+      node.out.gain.setValueCurveAtTime(curve, now, Math.max(seconds, 0.01));
+    }
+    // Stop feeding the old convolver once it has faded out, unless it became active again.
+    const outgoing = prev;
+    setTimeout(() => {
+      if (this.reverbs.get(this.activeReverb) === outgoing) return;
+      this.reverbIn.disconnect(outgoing.conv);
+      outgoing.connected = false;
+    }, seconds * 1000 + 100);
   }
 
   /** Browsers start audio suspended until a user gesture; call from a click handler. */
