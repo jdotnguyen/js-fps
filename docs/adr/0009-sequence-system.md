@@ -89,3 +89,31 @@ Story: `say` (ADR-0010), `setObjective`, `completeObjective`, `checkpoint`, `end
 
 ## Open questions
 - None blocking.
+
+## Progress log
+- 2026-11-15: Steps 1, 2, 4 and 5 implemented on branch `adr/0009-sequence` (uncommitted).
+  Step 3 is stubbed: NPC actions and `transform` go through `host.npc` and warn once until
+  ADR-0006/0007/0011 provide it; `say` warns until the speech manager is wired into the game
+  (ADR-0010).
+  - `script/actions.ts`: one table holding schema and implementation of every action;
+    `script/runtime.ts`: serial/parallel cursors, control stack per sequence, exclusive
+    queue, triggers, checkpoints; `script/gameHost.ts`: the only file that touches the game;
+    `script/overlay.ts` + `?seq=<id>`; data in `data/sequences/`.
+  - **Convention:** `wait` defaults to false on every action (the step returns at once);
+    `say` is the exception and waits for the line unless `"wait": false`.
+  - **Added to Level:** `setDoor`, `doorStates`, `setRoomLights`, `roomLightPatterns`,
+    `anchorPosition`. **Added to Game:** `reachCheckpoint` is now public.
+  - **Checkpoint restore:** doors and room lights are snapshotted in memory at each
+    `checkpoint` step and put back on `game:restarted`. Flags come from the autosave as
+    before. On death every sequence is cancelled (control released); those marked
+    `resumeFromCheckpoint` that had not yet reached a checkpoint restart from step 0.
+    **Gap:** the snapshot is not persisted, so a page reload loses door/light state (ADR-0016).
+  - **Not available yet (warn once, then skipped):** `cameraShake`, `glass`, `water`, `music`,
+    `ambience`, all NPC actions, `say`. Level triggers that fire sequences need the level's
+    `trigger:fired` event, which already exists.
+  - Verified: 123 unit tests (schema errors with paths, the ADR example end to end, control
+    always released on end/cancel/failure, exclusive queue, death and restore, the shipped
+    `test_drop.json`), `tsc --noEmit` clean.
+  **Not verified:** running in the browser (`?debug&level=kit_test&seq=test_drop`), overlay
+  appearance, performance. `vite build` could not run in the agent's Linux VM (the repo's
+  node_modules are macOS builds).
