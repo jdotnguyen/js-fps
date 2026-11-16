@@ -91,3 +91,11 @@ breathing.
   Verified in sandbox: 55 unit tests (no NaN/clipping, audible, deterministic, loops
   seamless, IR decays, scheduler intervals), levels report, spectrogram sheet inspected.
   **Not yet verified:** listening in the browser, mix balance, CPU cost.
+- 2026-11-15: Menu theme "Pressure" added at Justin's request (deviation: ADR said no composed tracks in the slice).
+  - `audio/music.ts`: procedural 64 s seamless stereo loop in D (sub drone, clashing pads, sonar ping + echo,
+    detuned bell motif, hull groans, faint heartbeat, shimmer, damped-comb reverb folded over the seam).
+  - `audio/musicWorker.ts` renders it off the main thread at 32 kHz (about 28 s at 44.1 kHz on the main thread
+    otherwise); `audio/menuMusic.ts` loops it on the new `music` bus: full on title, 40% when paused, faded out
+    while playing. `npm run music:preview` writes `previews/music/menuTheme.wav`.
+  - Verified in sandbox: typecheck of the new files, 112 unit tests (finite, no clipping, deterministic, seam).
+    **Not yet verified:** listening by ear, mix level against ambience, `vite build` bundling of the worker.
