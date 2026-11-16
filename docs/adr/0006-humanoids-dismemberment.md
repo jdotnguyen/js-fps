@@ -97,3 +97,29 @@ pelvis -> thigh_L -> shin_L -> foot_L                       (and _R)
 
 ## Open questions
 - None blocking.
+
+## Progress
+Implemented on 2026-11-15; **pending the on-device performance check** below.
+
+- Code: `src/actors/` (`humanoid.ts` entry point; `skeleton`, `bodyGeometry`, `bodyMaterial`,
+  `animator`, `poses`, `ik`, `capsule`, `damage`, `gore`), pose data in `src/data/poses.json`
+  (validated by `src/data/types/poses.ts`).
+- Test room: `npm run dev`, then open `/sandbox/actors.html` (add `?debug` for stats/GUI,
+  `?nopost` to skip post-processing). Kept out of `main.ts` on purpose. Mouse shoots, 1/2
+  pistol/shotgun, H hitboxes, G gore Full/Reduced, T transforms the engineer, R resets.
+- Implementation note [Assumed]: the rigid parts are merged into one skinned mesh per material
+  with weight-1 skinning (each vertex follows exactly one joint), so a body is 2 draw calls
+  instead of ~30 (the 300 draw-call budget can't absorb 10 x 30). Joints are still named
+  `THREE.Bone`s, so the GLB part-swap plan is unchanged. Severing collapses the joint's bone
+  and spawns a separate debris mesh.
+- Verified: 23 unit tests (damage table, sever chains, locomotion rules, death by limbs/torso,
+  ray-capsule, 6-10k triangle budget for every outfit, pose data); headless browser run of the
+  test room: sever of every part type, crawl/drag/blind/bite-only states, death poses, Reduced
+  gore, play-dead get-up sequence, typing/crouch IK, infection 0 -> 3 transformation, debris
+  settling flat, pools and spurts. 8 bodies: ~9.2k triangles each, ~35 draw calls for the whole
+  room, animation + IK about 0.16 ms per frame on CPU.
+- Not yet verified: 60 fps on the M2 at Medium (needs Justin's machine).
+- Known gaps: no wall collision for debris (floor only, until ADR-0003 collision is wired in);
+  the LOD drops growths and shadows beyond 15 m but does not swap to smoother segments; the
+  gore mode is a `GoreSystem.mode` field until ADR-0012 adds the setting; base HP takes a plain
+  number, and ADR-0008 supplies the difficulty multiplier.
