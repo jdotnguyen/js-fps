@@ -31,6 +31,7 @@ import kitManifestJson from './data/kit-manifest.json';
 import type { World } from './world/world.ts';
 import { DemoRoomAudio } from './world/demoRoomAudio.ts';
 import { AudioEngine } from './audio/engine.ts';
+import { MenuMusic } from './audio/menuMusic.ts';
 import { Game } from './game/game.ts';
 import { Interactions } from './actors/interaction.ts';
 import { Player, PLAYER_TUNING } from './actors/player.ts';
@@ -171,6 +172,9 @@ async function boot(): Promise<void> {
   });
   currentPreset = () => game.preset;
   createMenus(el<HTMLElement>('#menu'), { game, saves, settings, difficulties, events });
+  const menuMusic = new MenuMusic(audio, game.mode);
+  menuMusic.start();
+  events.on('game:mode', ({ mode }) => menuMusic.setMode(mode));
   events.on('player:flashlight', () => roomAudio?.flashlightClick());
   events.on('player:footstep', (f) => roomAudio?.footstep(f.surface, f.x, f.z, f.sprint));
   events.on('player:damaged', () => audio.muffle(0.4));
@@ -266,6 +270,7 @@ async function boot(): Promise<void> {
     const sound = gui.addFolder('Audio mix');
     sound.add(audio.buses.ambience.gain, 'value', 0, 2, 0.01).name('ambience');
     sound.add(audio.buses.sfx.gain, 'value', 0, 2, 0.01).name('footsteps / sfx');
+    sound.add(audio.buses.music.gain, 'value', 0, 1, 0.01).name('music');
     gui.addFolder('Camera').add(freeCam, 'speed', 1, 20, 0.5).name('fly speed (F1)');
     const pf = gui.addFolder('Player');
     const actions = {
