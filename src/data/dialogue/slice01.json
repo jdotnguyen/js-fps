@@ -1,0 +1,33 @@
+{
+  "chapter": "slice01",
+  "lines": [
+    { "id": "pa_quarantine_01", "speaker": "pa", "text": "Attention, all personnel. Lab B is under routine quarantine. Please keep clear of the east corridor.",
+      "emote": "neutral", "channel": "radio", "priority": "story", "audio": null, "minDuration": 3, "choices": [] },
+    { "id": "crew_mess_greeting_01", "speaker": "crew_mess", "text": "Morning, officer. Coffee's terrible again.",
+      "emote": "laugh", "channel": "local", "priority": "idle", "audio": null, "minDuration": 1.5, "choices": [] },
+    { "id": "okafor_legs_01", "speaker": "medic", "text": "Legs! Take its legs!",
+      "emote": "urgent", "channel": "local", "priority": "combat", "audio": null, "minDuration": 1.2, "choices": [] },
+    { "id": "okafor_revive_rule_01", "speaker": "medic", "text": "You go down, I'll get you up. If I go down, we're both done.",
+      "emote": "neutral", "channel": "local", "priority": "story", "audio": null, "minDuration": 2.5, "choices": [] },
+    { "id": "okafor_spotted_01", "speaker": "medic", "text": "Movement, left side!",
+      "emote": "alarmed", "channel": "local", "priority": "combat", "audio": null, "minDuration": 1, "choices": [] },
+    { "id": "giles_cover_01", "speaker": "engineer", "text": "Cover me, I'll get this open!",
+      "emote": "urgent", "channel": "local", "priority": "story", "audio": null, "minDuration": 1.5, "choices": [] },
+    { "id": "giles_hit_01", "speaker": "engineer", "text": "Agh! It got me!",
+      "emote": "pained", "channel": "local", "priority": "combat", "audio": null, "minDuration": 1, "choices": [] },
+    { "id": "giles_panel_01", "speaker": "engineer", "text": "I'll get the panel, go.",
+      "emote": "neutral", "channel": "radio", "priority": "story", "audio": null, "minDuration": 1.5, "choices": [] },
+    { "id": "giles_cut_01", "speaker": "engineer", "text": "Cut it on the panel. It's nothing.",
+      "emote": "laugh", "channel": "local", "priority": "story", "audio": null, "minDuration": 1.8, "choices": [] },
+    { "id": "giles_hint_door_01", "speaker": "engineer", "text": "That door's sealed. Maybe there's another way round?",
+      "emote": "question", "channel": "local", "priority": "hint", "audio": null, "minDuration": 2, "choices": [] },
+    { "id": "okafor_clear_01", "speaker": "medic", "text": "Clear. Everyone breathing?",
+      "emote": "relieved", "channel": "local", "priority": "combat", "audio": null, "minDuration": 1.5, "choices": [] },
+    { "id": "okafor_quiet_01", "speaker": "medic", "text": "Quiet. Something's in the water.",
+      "emote": "whisper", "channel": "local", "priority": "story", "audio": null, "minDuration": 2, "choices": [] },
+    { "id": "giles_reveal_01", "speaker": "engineer", "text": "I didn't want you to see this.",
+      "emote": "dread", "channel": "local", "priority": "story", "audio": null, "minDuration": 2.5, "choices": [] },
+    { "id": "crew_lab_scream_01", "speaker": "crew_lab", "text": "[screaming]",
+      "emote": "scream", "channel": "radio", "priority": "story", "audio": null, "minDuration": 1.2, "choices": [] }
+  ]
+}

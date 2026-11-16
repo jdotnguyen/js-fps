@@ -1,0 +1,140 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { EventBus } from '../core/events.ts';
+import { DialogueLibrary } from './library.ts';
+import { SpeechManager, type PlayRequest, type VoicePlayer } from './speech.ts';
+
+const speakers: unknown = JSON.parse(readFileSync(new URL('../data/dialogue/speakers.json', import.meta.url), 'utf8'));
+const L = (id: string, priority: string, text = 'One two three.', speaker = 'engineer'): Record<string, unknown> => ({
+  id, speaker, text, emote: 'neutral', channel: 'local', priority, audio: null, minDuration: 1, choices: [],
+});
+// 'One two three.' = 3 words -> 1.85 s subtitle.
+const library = new DialogueLibrary(speakers, {
+  't.json': {
+    chapter: 't',
+    lines: [L('story_a', 'story'), L('story_b', 'story'), L('hint_a', 'hint'), L('combat_a', 'combat'), L('combat_b', 'combat'), L('idle_a', 'idle'), L('medic_a', 'story', 'Hi.', 'medic')],
+  },
+});
+
+function setup(): { sm: SpeechManager; log: string[]; plays: PlayRequest[]; stops: Array<[string, boolean]> } {
+  const bus = new EventBus();
+  const log: string[] = [];
+  const plays: PlayRequest[] = [];
+  const stops: Array<[string, boolean]> = [];
+  const player: VoicePlayer = {
+    play(req) {
+      plays.push(req);
+      return { stop: (interrupted) => stops.push([req.line.id, interrupted]) };
+    },
+  };
+  bus.on('speech:started', (e) => log.push(`start ${e.id}`));
+  bus.on('speech:ended', (e) => log.push(`end ${e.id} ${e.reason}`));
+  bus.on('speech:dropped', (e) => log.push(`drop ${e.id}`));
+  return { sm: new SpeechManager(bus, library, player), log, plays, stops };
+}
+
+const run = (sm: SpeechManager, seconds: number, step = 0.05): void => {
+  for (let t = 0; t < seconds - 1e-9; t += step) sm.update(step);
+};
+
+test('a line plays, shows its subtitle for the ADR duration, then ends', async () => {
+  const { sm, log } = setup();
+  const h = sm.say('story_a');
+  assert.equal(sm.speaking()?.duration, 3 * 0.35 + 0.8);
+  run(sm, 1.8);
+  assert.deepEqual(log, ['start story_a']);
+  run(sm, 0.1);
+  assert.deepEqual(log, ['start story_a', 'end story_a finished']);
+  assert.equal(await h.done, 'finished');
+});
+
+test('a story line interrupts a combat bark (ADR definition of done)', async () => {
+  const { sm, log, stops } = setup();
+  const bark = sm.say('combat_a');
+  run(sm, 0.5);
+  sm.say('story_a');
+  assert.deepEqual(log, ['start combat_a', 'end combat_a interrupted', 'start story_a']);
+  assert.deepEqual(stops, [['combat_a', true]]);
+  assert.equal(await bark.done, 'interrupted');
+});
+
+test('equal priority queues behind, with a short gap', () => {
+  const { sm, log } = setup();
+  sm.say('story_a');
+  sm.say('story_b');
+  assert.deepEqual(sm.queuedIds(), ['story_b']);
+  run(sm, 1.9);
+  assert.deepEqual(log, ['start story_a', 'end story_a finished']);
+  run(sm, 0.25);
+  assert.deepEqual(log, ['start story_a', 'end story_a finished', 'start story_b']);
+});
+
+test('lower priority waits; hints are never dropped, combat barks are', async () => {
+  const { sm, log } = setup();
+  sm.say('story_a');
+  const hint = sm.say('hint_a');
+  const bark = sm.say('combat_a');
+  assert.equal(await bark.done, 'dropped', 'would wait > 2 s');
+  assert.deepEqual(sm.queuedIds(), ['hint_a']);
+  run(sm, 2.2);
+  assert.ok(log.includes('start hint_a'));
+  run(sm, 2);
+  assert.equal(await hint.done, 'finished');
+});
+
+test('a short wait is fine for barks; a long one drops them in update', () => {
+  const { sm, log } = setup();
+  sm.say('combat_a');
+  run(sm, 0.5);
+  sm.say('combat_b'); // waits ~1.55 s: allowed
+  assert.deepEqual(sm.queuedIds(), ['combat_b']);
+  sm.say('story_a'); // interrupts combat_a; combat_b now waits behind 1.85 s of story
+  run(sm, 2.1);
+  assert.ok(log.includes('drop combat_b'));
+  assert.ok(!log.includes('start combat_b'));
+});
+
+test('higher priority jumps the queue', () => {
+  const { sm } = setup();
+  sm.say('medic_a'); // 1.15 s, so the idle line's wait stays under 2 s
+  sm.say('idle_a');
+  sm.say('hint_a');
+  assert.deepEqual(sm.queuedIds(), ['hint_a', 'idle_a']);
+});
+
+test('saying the same line twice returns the same handle', () => {
+  const { sm, plays } = setup();
+  const a = sm.say('story_a');
+  assert.equal(sm.say('story_a'), a);
+  assert.equal(plays.length, 1);
+});
+
+test('stopAll clears everything and resolves as stopped', async () => {
+  const { sm } = setup();
+  const a = sm.say('story_a');
+  const b = sm.say('story_b');
+  sm.stopAll();
+  assert.equal(await a.done, 'stopped');
+  assert.equal(await b.done, 'stopped');
+  assert.equal(sm.speaking(), null);
+});
+
+test('rasp override and babble flag reach the player', () => {
+  const { sm, plays } = setup();
+  sm.setRasp('engineer', 0.4);
+  sm.babble = true;
+  sm.say('story_a');
+  assert.equal(plays[0]!.rasp, 0.4);
+  assert.equal(plays[0]!.babble, true);
+  sm.say('medic_a');
+  run(sm, 5);
+  assert.equal(plays[1]!.rasp, null);
+});
+
+test('a long real-audio file extends the line', () => {
+  const bus = new EventBus();
+  const sm = new SpeechManager(bus, library, { play: () => ({ duration: 4, stop: () => {} }) });
+  sm.say('story_a');
+  assert.equal(sm.speaking()?.duration, 4);
+});

@@ -1,0 +1,23 @@
+{
+  "engineer": {
+    "name": "Giles", "kind": "voice", "f0": 210, "formants": 1.12, "tempo": 0.9, "attack": 0.6,
+    "breath": 0.12, "rasp": 0, "drive": 0.25, "detune": 0, "brightness": 7000, "channel": "local"
+  },
+  "medic": {
+    "name": "Okafor", "kind": "voice", "f0": 115, "formants": 0.94, "tempo": 1.15, "attack": 1.4,
+    "breath": 0.18, "rasp": 0, "drive": 0.15, "detune": 0, "brightness": 4800, "channel": "local"
+  },
+  "pa": {
+    "name": "Station PA", "kind": "chime", "f0": 440, "formants": 1, "tempo": 1, "attack": 1,
+    "breath": 0, "rasp": 0, "drive": 0, "detune": 0, "brightness": 6000, "channel": "radio"
+  },
+  "crew": {
+    "name": "Crew", "kind": "voice", "f0": 150, "formants": 1.03, "tempo": 1, "attack": 1,
+    "breath": 0.15, "rasp": 0.05, "drive": 0.2, "detune": 0, "brightness": 6000, "channel": "local",
+    "spread": 0.35
+  },
+  "infected": {
+    "name": "???", "kind": "voice", "f0": 95, "formants": 0.88, "tempo": 1.2, "attack": 0.8,
+    "breath": 0.45, "rasp": 0.9, "drive": 0.85, "detune": 0.7, "brightness": 3800, "channel": "local"
+  }
+}

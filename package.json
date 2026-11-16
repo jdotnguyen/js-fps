@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test \"src/**/*.test.ts\"",
     "textures:preview": "node --experimental-strip-types scripts/textures-preview.ts",
-    "sounds:preview": "node --experimental-strip-types scripts/sounds-preview.ts"
+    "sounds:preview": "node --experimental-strip-types scripts/sounds-preview.ts",
+    "voice:preview": "node --experimental-strip-types scripts/voice-preview.ts"
   },
   "dependencies": {
     "three": "^0.170.0"

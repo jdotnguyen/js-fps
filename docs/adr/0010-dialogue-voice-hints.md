@@ -113,3 +113,22 @@ Speech API. Because everything is Web Audio, radio and positional filters work f
 
 ## Open questions
 - Final names and personalities of the squadmates.
+
+## Progress
+In progress on 2026-11-15 (branch `adr/0010-dialogue`, worktree `.worktrees/adr-0010`): steps 1-3.
+- Step 1: `data/types/dialogue.ts` (line, chapter and speaker validators; `choices` must be
+  empty), `dialogue/library.ts` (cross-file checks, `crew_*` seeded voices, subtitle duration),
+  `data/dialogue/speakers.json`, placeholder `data/dialogue/slice01.json` (lines quoted in
+  ADR-0014 plus a few stand-ins; ADR-0014 writing replaces them).
+- Step 2: `dialogue/vocalSynth.ts` (offline source-filter synth, all 10 emotes, babble, PA
+  chime, rasp override), `npm run voice:preview` (WAVs + spectrogram sheet in
+  `previews/voice/`), debug page `/voices.html` in dev.
+- Step 3: `dialogue/speech.ts` (priority queue, interruption, 2 s drop rule, `speech:*` and
+  `subtitle:show/hide` events), `dialogue/voicePlayer.ts` (local HRTF + radio chain with
+  squelch and static). Not wired into `game.ts`/`main.ts` yet, on purpose (parallel ADRs).
+- Verified: typecheck, all Node tests (story interrupts combat is a test), page click-through
+  in a stubbed DOM. Not yet verified by ear: "every emote recognisable by mood" needs Justin.
+- Known gaps: no reverb send for local voices (engine's reverb input is private; add a
+  public send when ADR-0013 room switching lands); real VO files (step 6) fall back to
+  `neutral`; babble is a manager flag until ADR-0012 adds the setting; voices keep playing
+  under the pause menu (ADR-0012 should call `stopAll` or duck the voice bus).

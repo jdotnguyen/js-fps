@@ -1,0 +1,91 @@
+import { arr, bool, nullable, numRange, obj, oneOf, optional, record, str, type Infer, type Validator, ValidationError } from '../../core/validate.ts';
+
+/** Dialogue data (ADR-0010): lines in data/dialogue/<chapter>.json, voices in speakers.json. */
+
+export const EMOTES = ['neutral', 'question', 'urgent', 'alarmed', 'pained', 'relieved', 'laugh', 'whisper', 'dread', 'scream'] as const;
+export type Emote = (typeof EMOTES)[number];
+
+export const CHANNELS = ['local', 'radio'] as const;
+export type Channel = (typeof CHANNELS)[number];
+
+/** Lowest first. Higher interrupts lower; equal queues. */
+export const PRIORITIES = ['idle', 'combat', 'hint', 'story'] as const;
+export type Priority = (typeof PRIORITIES)[number];
+
+export const priorityRank = (p: Priority): number => PRIORITIES.indexOf(p);
+
+/** Speaker ids that `crew_<anything>` resolves to. */
+export const CREW_PREFIX = 'crew_';
+
+const lineShape = {
+  id: str,
+  speaker: str,
+  text: str,
+  /** Required unless `audio` is set. */
+  emote: nullable(oneOf(EMOTES)),
+  babble: optional(bool),
+  channel: oneOf(CHANNELS),
+  priority: oneOf(PRIORITIES),
+  /** Path under public/, e.g. "assets/vo/giles_cover_01.mp3". Plays instead of the emote. */
+  audio: nullable(str),
+  minDuration: numRange(0, 30),
+  /** Reserved for the dialogue-choice system; must be empty in the slice. */
+  choices: arr(str),
+};
+export type DialogueLine = Infer<typeof lineShape>;
+
+const validateLineShape = obj(lineShape);
+
+export const validateLine: Validator<DialogueLine> = (v, p) => {
+  const line = validateLineShape(v, p);
+  if (!/^[a-z0-9_]+$/.test(line.id)) throw new ValidationError(`${p} > id`, `"${line.id}" must be lower_snake_case`);
+  if (line.text.trim() === '') throw new ValidationError(`${p} > text`, 'empty subtitle text');
+  if (line.emote === null && line.audio === null) throw new ValidationError(`${p} > emote`, 'emote is required unless audio is set');
+  if (line.choices.length > 0) throw new ValidationError(`${p} > choices`, 'dialogue choices are not in the slice (ADR-0010); must be []');
+  return line;
+};
+
+const chapterShape = {
+  chapter: str,
+  lines: arr(validateLine),
+};
+export type DialogueChapter = Infer<typeof chapterShape>;
+export const validateChapter: Validator<DialogueChapter> = obj(chapterShape);
+
+/** Voice profile for the vocal synth. Every number is a multiplier or 0..1 amount. */
+const voiceShape = {
+  name: str,
+  kind: oneOf(['voice', 'chime'] as const),
+  /** Base pitch in Hz (ignored for chimes). */
+  f0: numRange(40, 600),
+  /** Formant scale: 1 = adult male reference, >1 brighter / smaller vocal tract. */
+  formants: numRange(0.7, 1.5),
+  /** Time stretch of every emote: >1 slower. */
+  tempo: numRange(0.5, 2),
+  /** Attack time multiplier: <1 snappier. */
+  attack: numRange(0.2, 3),
+  /** Breath noise mixed under the voice. */
+  breath: numRange(0, 1),
+  /** Roughness: jitter + subharmonic (Giles's foreshadowing raises this at runtime). */
+  rasp: numRange(0, 1),
+  /** Saturator drive. */
+  drive: numRange(0, 1),
+  /** Second detuned source (infected voices). */
+  detune: numRange(0, 1),
+  /** Brightness: lowpass cutoff in Hz after the formants. */
+  brightness: numRange(1500, 12000),
+  /** Default channel for lines that don't need a specific one (informational). */
+  channel: oneOf(CHANNELS),
+  /** Seeded spread for generated speakers (crew_*): f0 +/- this fraction, formants +/- half of it. */
+  spread: optional(numRange(0, 0.6)),
+};
+export type VoiceProfile = Infer<typeof voiceShape>;
+const validateVoice = obj(voiceShape);
+
+export const validateSpeakers: Validator<Record<string, VoiceProfile>> = (v, p) => {
+  const table = record(validateVoice)(v, p);
+  for (const required of ['engineer', 'medic', 'pa', 'crew', 'infected']) {
+    if (!(required in table)) throw new ValidationError(`${p} > ${required}`, 'missing required speaker');
+  }
+  return table;
+};
