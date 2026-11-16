@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '../core/rng.ts';
-import { heroColor, heroFace, heroScalpTorn, sculptHeroHead, sculptHero, tatterColor, tatterStrip } from './heroSculpt.ts';
+import { clothPatch, heroColor, heroFace, heroScalpTorn, sculptHeroHead, sculptHero, tatterColor, tatterStrip } from './heroSculpt.ts';
 import { fbm3, noise3 } from './noise3.ts';
 import { HERO_NECK, HERO_NECK_EXTRA, JOINTS, jointDef, type JointName, type SegmentDef, type Side, type Vec3T } from './skeleton.ts';
 
@@ -39,15 +39,26 @@ export type ExtraBone =
   | 'growth_shoulder_L' | 'growth_shoulder_R' | 'growth_jaw' | 'growth_spine'
   | 'shards_arm' | 'shards_leg' | 'ribs'
   | `tendril_${number}_${number}`
+  | `cloth_${number}_${number}`
   | `stump_${JointName}`;
 
 export interface ExtraBoneDef {
   name: ExtraBone;
   parent: JointName | ExtraBone;
   offset: Vec3T;
-  kind: 'growth' | 'shards' | 'ribs' | 'tendril' | 'stump';
+  kind: 'growth' | 'shards' | 'ribs' | 'tendril' | 'cloth' | 'stump';
   /** Rest rotation (radians, XYZ) for bones that aim somewhere (tendril roots). */
   rest?: Vec3T;
+}
+
+/**
+ * Skins a piece along a chain of bones by height instead of rigidly. `bones[0]` is the piece's own bone;
+ * `ys[k]` is the height of bone k's pivot in that bone's space. A vertex between two pivots blends the
+ * two bones, above the first pivot it follows `bones[0]`, below the last it follows the last bone.
+ */
+export interface ClothChain {
+  bones: Array<JointName | ExtraBone>;
+  ys: number[];
 }
 
 export interface PartGeometry {
@@ -56,6 +67,8 @@ export interface PartGeometry {
   /** Matte material (skin, cloth) or wet material (flesh, growths, stumps). */
   layer: 'body' | 'wet';
   geometry: THREE.BufferGeometry;
+  /** Cloth that bends along a bone chain (coat tails). */
+  chain?: ClothChain;
 }
 
 export interface BodyGeometry {
@@ -239,8 +252,8 @@ interface Ctx {
   parts: PartGeometry[];
 }
 
-function add(ctx: Ctx, bone: PartGeometry['bone'], layer: PartGeometry['layer'], g: THREE.BufferGeometry): void {
-  ctx.parts.push({ bone, layer, geometry: g });
+function add(ctx: Ctx, bone: PartGeometry['bone'], layer: PartGeometry['layer'], g: THREE.BufferGeometry, chain?: ClothChain): void {
+  ctx.parts.push(chain ? { bone, layer, geometry: g, chain } : { bone, layer, geometry: g });
 }
 
 function scaledSeg(s: SegmentDef, w: number): SegmentDef {
@@ -313,41 +326,87 @@ function enlargeHead(ctx: Ctx, k: number): void {
   }
 }
 
-/** Coat tails, sleeve rags, tie and trouser shreds hanging off the sculpted body. */
-function buildTatters(ctx: Ctx): void {
+/** Coat-tail chains: bones hung from the spine that the tails are skinned along, so they bend and sway. */
+export const COAT_CHAINS = 3;
+const COAT_CHAIN_SEGMENTS = 2;
+/** Spine-local heights of the coat's top edge and of each chain bone's pivot. */
+const COAT_PIVOT_Y = [0.1, -0.12, -0.34] as const;
+
+/** Coat, collar, lapels, sleeves, tie and trouser shreds on the sculpted hero body. */
+function buildTatters(ctx: Ctx, extra: ExtraBoneDef[]): void {
   const coat = new THREE.Color('#d8d3c4');
+  const lining = new THREE.Color('#bdb7a6');
   const trou = new THREE.Color('#3a3d3f');
   const tie = new THREE.Color('#2c3d52');
   const r = ctx.rng.fork('tatter');
-  const strip = (bone: JointName, x: number, y: number, z: number, w: number, len: number, curl: number, rotY: number, rotZ: number, base: THREE.Color, jag = 0.5): void => {
+  const W = ctx.w;
+  const strip = (bone: JointName, x: number, y: number, z: number, w: number, len: number, curl: number, rotY: number, rotZ: number, base: THREE.Color, jag = 0.5, chain?: ClothChain): void => {
     const g = tatterStrip(w, len, curl, jag, Math.floor(r.next() * 1e5));
     g.rotateZ(rotZ);
     g.rotateY(rotY);
     g.translate(x, y, z);
-    add(ctx, bone, 'body', paint(g, (p, out) => tatterColor(p, ctx.seed, base, out, y - len), null));
+    add(ctx, bone, 'body', paint(g, (p, out) => tatterColor(p, ctx.seed, base, out, y - len), null), chain);
   };
-  const W = ctx.w;
-  // Coat tails: back and sides from the spine/pelvis, ragged and uneven.
+  const patch = (bone: JointName, g: THREE.BufferGeometry, base: THREE.Color, hemY: number): void => {
+    add(ctx, bone, 'body', paint(g, (p, out) => tatterColor(p, ctx.seed, base, out, hemY), null));
+  };
+
+  // Coat tails: back and sides, ragged and uneven. Pairs of tails share a chain of two sway bones.
   const tails: Array<[number, number, number, number, number, number]> = [
     [-0.17, 0.1, 0.06, 0.62, -0.1, 0.5], [-0.1, 0.1, 0.1, 0.78, -0.08, 0.25], [-0.03, 0.1, 0.12, 0.6, -0.06, 0.05],
     [0.04, 0.1, 0.12, 0.82, -0.08, -0.08], [0.11, 0.1, 0.1, 0.66, -0.08, -0.3], [0.18, 0.1, 0.06, 0.58, -0.1, -0.55],
   ];
-  for (const [x, y, z, len, curl, rotY] of tails) strip('spine', x * W * 1.1, y, z * W, 0.15, len, curl, rotY, 0, coat, 0.6);
-  // Front remnants hanging from the chest: one lapel strip each side.
-  strip('chest', -0.1 * W, 0.2, -0.13 * W, 0.1, 0.5, -0.06, 0.25, 0.05, coat, 0.7);
-  strip('chest', 0.095 * W, 0.19, -0.13 * W, 0.09, 0.58, -0.07, -0.2, -0.05, coat, 0.7);
-  // Collar standing up around the neck, torn open at the front.
-  for (let i = 0; i < 5; i++) {
-    const a = -0.9 + i * 0.45;
-    strip('chest', Math.sin(a) * 0.075 * W, 0.255, 0.0 + Math.cos(a) * 0.06 * W - 0.01, 0.055, 0.11, 0.03, a, 0, coat, 0.5);
+  const chains: ClothChain[] = [];
+  for (let c = 0; c < COAT_CHAINS; c++) {
+    const bones: ClothChain['bones'] = ['spine'];
+    const pair = [tails[c * 2], tails[c * 2 + 1]];
+    const cx = ((pair[0]?.[0] ?? 0) + (pair[1]?.[0] ?? 0)) * 0.5 * W * 1.1;
+    for (let k = 0; k < COAT_CHAIN_SEGMENTS; k++) {
+      const name: ExtraBone = `cloth_${c}_${k}`;
+      bones.push(name);
+      extra.push({
+        name,
+        parent: k === 0 ? 'spine' : `cloth_${c}_${k - 1}`,
+        offset: k === 0 ? [cx, COAT_PIVOT_Y[1], 0.1 * W] : [0, COAT_PIVOT_Y[2] - COAT_PIVOT_Y[1], 0],
+        kind: 'cloth',
+      });
+    }
+    chains.push({ bones, ys: [...COAT_PIVOT_Y] });
   }
+  tails.forEach(([x, y, z, len, curl, rotY], k) => strip('spine', x * W * 1.1, y, z * W, 0.15, len, curl, rotY, 0, coat, 0.6, chains[Math.floor(k / 2)]));
+
+  // Collar: a thick band standing up around the neck, tallest at the back and torn open at the front.
+  patch('chest', clothPatch(22, 5, (u, v) => {
+    const th = -2.5 + u * 5.0;
+    const k = 0.55 + 0.45 * Math.cos(th * 0.62);
+    const rad = (0.092 + 0.05 * v ** 1.5) * W;
+    return [rad * Math.sin(th), 0.2 + 0.11 * k * v, rad * Math.cos(th)];
+  }, 1, 0.006, 0.35, ctx.seed + 31), coat, 0.2);
+
+  // Lapels: a rolled panel each side of the chest opening, torn at the bottom.
+  for (const s of [-1, 1] as const) {
+    patch('chest', clothPatch(8, 12, (u, v) => {
+      const w = 0.035 + 0.07 * Math.sin(Math.PI * v ** 0.6);
+      const x = s * (0.04 + 0.02 * v) + s * u * w;
+      const z = -0.145 * W - 0.03 * Math.sin(u * Math.PI * 0.85) * (1 - 0.4 * v);
+      return [x, 0.235 - 0.26 * v, z];
+    }, s > 0 ? 1 : -1, 0.006, 0.45, ctx.seed + 41 + s), lining, 0);
+  }
+
   // Tie.
   strip('chest', 0.0, 0.215, -0.125 * W, 0.04, 0.24, -0.05, 0, 0, tie, 0.3);
-  // Sleeve rags from the upper arms.
-  for (const [side, bone] of [[-1, 'upperArm_L'], [1, 'upperArm_R']] as Array<[number, JointName]>) {
-    strip(bone, side * 0.045 * W, -0.1, 0.0, 0.085, 0.24, 0.05, 0, side * 0.05, coat, 0.7);
-    strip(bone, side * 0.0, -0.1, -0.05 * W, 0.07, 0.2, -0.03, 0.6 * side, 0, coat, 0.7);
+
+  // Sleeve remnants: an open cuff of coat left on each upper arm, the left almost whole, the right shredded.
+  for (const [side, bone, len, jag] of [[-1, 'upperArm_L', 0.27, 0.35], [1, 'upperArm_R', 0.13, 0.7]] as Array<[number, JointName, number, number]>) {
+    patch(bone, clothPatch(16, 6, (u, v) => {
+      const th = 0.5 + u * (Math.PI * 2 - 1.0);
+      const rad = (0.098 - 0.018 * v) * W;
+      return [rad * Math.sin(th), 0.04 - v * len, rad * Math.cos(th)];
+    }, -1, 0.006, jag, ctx.seed + 51 + side), coat, 0.04 - len);
+    // A flap hanging loose from the cuff.
+    strip(bone, side * 0.0, 0.0, -0.1 * W, 0.07, len * 0.9, -0.03, 0.6 * side, 0, coat, 0.7);
   }
+
   // Trouser shreds below the belt.
   for (const [side, bone] of [[-1, 'thigh_L'], [1, 'thigh_R']] as Array<[number, JointName]>) {
     for (let i = 0; i < 3; i++) strip(bone, side * (i - 1) * 0.055 * W, -0.3, (i === 1 ? -0.06 : 0.04) * W, 0.07, 0.3, -0.03, i * 0.5, 0, trou, 0.8);
@@ -905,7 +964,7 @@ export function buildBodyGeometry(shape: BodyShape): BodyGeometry {
   const scaleY = shape.height / (1.78 + neckExtra);
   const extra: ExtraBoneDef[] = [];
   buildTorso(ctx);
-  if (ctx.hero) buildTatters(ctx);
+  if (ctx.hero) buildTatters(ctx, extra);
   buildHead(ctx);
   if (ctx.hero) {
     heroTeeth(ctx);

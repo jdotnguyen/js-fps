@@ -137,6 +137,10 @@ Hero tier (`spec.hero`, ~60k triangles each, 2–3 on screen, tough and slow):
 
 Hero face (neck and hunch): hero bodies carry per-body joint offsets (`BodyGeometry.jointOffsets`), so the head joint sits 7 cm higher than the shared skeleton's (`HERO_NECK_EXTRA` in `skeleton.ts`). The hero neck mesh is longer and thicker at the base with tendon cords, and the root scale is adjusted so the hero keeps its requested height. The `hulk` pose has a shallower hunch (spine -12, chest -6) with the head tilted up to compensate. Angles are untested by eye; tune them in `poses.json` from the sandbox.
 
+Leg wounds: a leg hit that does not sever staggers the body, and a leg part below 60% HP limps and walks slower; severing, falling and crawling are unchanged. See ADR-0019.
+
+Crawl turning: crawlers and draggers pivot on the spot (limbs moving, head leading) before moving off. See ADR-0020.
+
 Body separation: see ADR-0018 (`src/actors/separation.ts`, applied in the sandbox; `?nosep` compares).
 
 Known gaps: coat reads as flat strips; hero has no gait or attack of its own; cloth does not sway; 60 fps on the M2 not measured; face visibility after the neck change needs a visual check.

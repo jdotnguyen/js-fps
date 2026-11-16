@@ -6,6 +6,7 @@ import {
   type Limb,
   type Region,
   type SeverableRegion,
+  type Side,
 } from './skeleton.ts';
 
 /** Part HP as a fraction of the enemy's base HP (ADR-0006 damage rules, [Decided]). */
@@ -41,12 +42,21 @@ export const SHAMBLER_BASE_HP = 100;
 /** Limbs lost before the body dies (head counts). */
 export const LIMBS_TO_KILL = 3;
 
+/** A leg limps once its thigh or shin has lost this share of its own HP (ADR-0019). */
+export const LIMP_WOUND = 0.4;
+/** Walk speed lost at the worst limp. */
+export const LIMP_SLOWDOWN = 0.25;
+
 export type LocomotionMode = 'walk' | 'crawl' | 'drag';
 
 export interface LocomotionState {
   mode: LocomotionMode;
-  /** Multiplier on walk speed: 1, 0.55 crawling on one leg, 0.4 dragging with arms. */
+  /** Multiplier on walk speed: 1, 0.55 crawling on one leg, 0.4 dragging with arms. Less than 1 when walking on a wounded leg. */
   speedMul: number;
+  /** 0 = sound legs, up to 1 = a leg about to come off: limp gait and slower walk (ADR-0019). */
+  limp: number;
+  /** The wounded leg (the worse one when both are hurt), or null when neither limps. */
+  limpSide: Side | null;
   /** Multiplier on grab damage: -40% per lost arm side, 0 with no arms. */
   grabMul: number;
   canGrabL: boolean;
@@ -153,14 +163,30 @@ export class BodyDamage {
     return result;
   }
 
+  /** How hurt a leg is: the larger share lost by its thigh or shin, 0..1 (1 for a severed leg). */
+  legWound(side: Side): number {
+    const lost = (r: 'thigh' | 'shin'): number => {
+      const max = this.maxHp[`${r}_${side}`];
+      return max > 0 ? 1 - this.hp[`${r}_${side}`] / max : 0;
+    };
+    return Math.max(lost('thigh'), lost('shin'));
+  }
+
   locomotion(): LocomotionState {
     const lost = this.limbsLost();
     const legsLost = (lost.has('leg_L') ? 1 : 0) + (lost.has('leg_R') ? 1 : 0);
     const armsLost = (lost.has('arm_L') ? 1 : 0) + (lost.has('arm_R') ? 1 : 0);
     const mode: LocomotionMode = legsLost === 0 ? 'walk' : legsLost === 1 ? 'crawl' : 'drag';
+    // Limp only while both legs are attached; from the threshold it ramps from 0.4 to 1 as the leg nears severing.
+    const woundL = this.legWound('L');
+    const woundR = this.legWound('R');
+    const worst = Math.max(woundL, woundR);
+    const limp = mode === 'walk' && worst >= LIMP_WOUND ? 0.4 + 0.6 * Math.min(1, (worst - LIMP_WOUND) / (1 - LIMP_WOUND)) : 0;
     return {
       mode,
-      speedMul: mode === 'walk' ? 1 : mode === 'crawl' ? 0.55 : 0.4,
+      speedMul: mode === 'walk' ? 1 - LIMP_SLOWDOWN * limp : mode === 'crawl' ? 0.55 : 0.4,
+      limp,
+      limpSide: limp > 0 ? (woundL >= woundR ? 'L' : 'R') : null,
       grabMul: armsLost === 0 ? 1 : armsLost === 1 ? 0.6 : 0,
       canGrabL: !lost.has('arm_L'),
       canGrabR: !lost.has('arm_R'),

@@ -259,7 +259,7 @@ export function tatterColor(p: THREE.Vector3, seed: number, base: THREE.Color, o
  * Hanging cloth strip in the local XY plane, top at y = 0, running down `length`.
  * `curl` bows it out in +Z; `jag` ragged-ness of the hem. Double sided.
  */
-export function tatterStrip(width: number, length: number, curl: number, jag: number, seed: number, cols = 6, rows = 10): THREE.BufferGeometry {
+export function tatterStrip(width: number, length: number, curl: number, jag: number, seed: number, cols = 6, rows = 10, thick = 0.007): THREE.BufferGeometry {
   const pos: number[] = [];
   const idx: number[] = [];
   const hem: number[] = [];
@@ -277,7 +277,11 @@ export function tatterStrip(width: number, length: number, curl: number, jag: nu
   }
   const stride = rows + 1;
   const n = pos.length / 3;
-  for (let i = 0; i < n; i++) pos.push(pos[i * 3] as number, pos[i * 3 + 1] as number, (pos[i * 3 + 2] as number) - 0.002);
+  // Back sheet sits `thick` behind the front, thinning toward the hem, so the cloth has a body and a visible edge.
+  for (let i = 0; i < n; i++) {
+    const t = (i % stride) / rows;
+    pos.push(pos[i * 3] as number, pos[i * 3 + 1] as number, (pos[i * 3 + 2] as number) - thick * (1 - 0.45 * t));
+  }
   for (let c = 0; c < cols; c++) {
     for (let r = 0; r < rows; r++) {
       const a = c * stride + r;
@@ -286,6 +290,82 @@ export function tatterStrip(width: number, length: number, curl: number, jag: nu
       idx.push(n + a, n + a + 1, n + b, n + b, n + a + 1, n + b + 1);
     }
   }
+  // Edge walls (both windings) along the sides and the hem close the gap between the sheets.
+  const wall = (f0: number, f1: number): void => {
+    idx.push(f0, f1, n + f0, f1, n + f1, n + f0, f0, n + f0, f1, f1, n + f0, n + f1);
+  };
+  for (let r = 0; r < rows; r++) {
+    wall(r, r + 1);
+    wall(cols * stride + r, cols * stride + r + 1);
+  }
+  for (let c = 0; c < cols; c++) wall(c * stride + rows, (c + 1) * stride + rows);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * A thick, ragged sheet of cloth over a parametric surface. `at(u, v)` gives a point for u, v in 0..1;
+ * the sheet's outer face points along du x dv times `outward` (1 or -1). The back sheet sits `thick`
+ * behind it, the far edge (v = 1) is torn by `jag`, and walls close the rim. Double sided like tatterStrip.
+ */
+export function clothPatch(
+  cols: number,
+  rows: number,
+  at: (u: number, v: number) => readonly [number, number, number],
+  outward: 1 | -1,
+  thick: number,
+  jag: number,
+  seed: number,
+): THREE.BufferGeometry {
+  const stride = rows + 1;
+  const front: THREE.Vector3[] = [];
+  for (let c = 0; c <= cols; c++) {
+    const u = c / cols;
+    const vMax = 1 - jag * (0.5 + 0.5 * noise3(c * 1.9, 0.3, 0.7, seed)) * (c % 2 ? 1 : 0.3);
+    for (let r = 0; r <= rows; r++) {
+      const p = at(u, (r / rows) * vMax);
+      front.push(new THREE.Vector3(p[0], p[1], p[2]));
+    }
+  }
+  const at2 = (c: number, r: number): THREE.Vector3 => front[Math.min(cols, Math.max(0, c)) * stride + Math.min(rows, Math.max(0, r))] as THREE.Vector3;
+  const pos: number[] = [];
+  const nrm = new THREE.Vector3();
+  const du = new THREE.Vector3();
+  const dv = new THREE.Vector3();
+  for (const v of front) pos.push(v.x, v.y, v.z);
+  for (let c = 0; c <= cols; c++) {
+    for (let r = 0; r <= rows; r++) {
+      du.subVectors(at2(c + 1, r), at2(c - 1, r));
+      dv.subVectors(at2(c, r + 1), at2(c, r - 1));
+      nrm.crossVectors(du, dv).normalize().multiplyScalar(outward * thick * (1 - 0.4 * (r / rows)));
+      const v = at2(c, r);
+      pos.push(v.x - nrm.x, v.y - nrm.y, v.z - nrm.z);
+    }
+  }
+  const n = front.length;
+  const idx: number[] = [];
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < rows; r++) {
+      const a = c * stride + r;
+      const b = (c + 1) * stride + r;
+      if (outward > 0) {
+        idx.push(a, b, a + 1, b, b + 1, a + 1, n + a, n + a + 1, n + b, n + b, n + a + 1, n + b + 1);
+      } else {
+        idx.push(a, a + 1, b, b, a + 1, b + 1, n + a, n + b, n + a + 1, n + b, n + b + 1, n + a + 1);
+      }
+    }
+  }
+  const wall = (f0: number, f1: number): void => {
+    idx.push(f0, f1, n + f0, f1, n + f1, n + f0, f0, n + f0, f1, f1, n + f0, n + f1);
+  };
+  for (let r = 0; r < rows; r++) {
+    wall(r, r + 1);
+    wall(cols * stride + r, cols * stride + r + 1);
+  }
+  for (let c = 0; c < cols; c++) wall(c * stride + rows, (c + 1) * stride + rows);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setIndex(idx);

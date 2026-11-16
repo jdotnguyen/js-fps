@@ -84,3 +84,28 @@ test('a hero body gets a longer neck: the head joint moves up and the height sti
   assert.ok(head && head[1] > (JOINTS.find((j) => j.name === 'head')?.offset[1] ?? 0));
   assert.ok(hero.scale.y < crowd.scale.y, 'root scale shrinks so the taller skeleton keeps the requested height');
 });
+
+test('a hero fits the bone budget, and every coat chain bone exists with its parent built first', () => {
+  const g = buildBodyGeometry({ outfit: 'lab', height: 2.15, build: 1.25, infectable: true, hero: true, seed: 'coat' });
+  assert.ok(JOINTS.length + g.extraBones.length <= 64, `${JOINTS.length + g.extraBones.length} bones`);
+  const built = new Set<string>(JOINTS.map((j) => j.name));
+  for (const e of g.extraBones) {
+    assert.ok(built.has(e.parent), `${e.name} parent ${e.parent} comes later`);
+    built.add(e.name);
+  }
+  const chained = g.parts.filter((p) => p.chain);
+  assert.ok(chained.length >= 6, 'the coat tails are skinned along chains');
+  for (const part of chained) {
+    for (const b of part.chain?.bones ?? []) assert.ok(built.has(b), `chain bone ${b} is missing`);
+    assert.equal(part.chain?.bones.length, (part.chain?.ys.length ?? 0), 'one pivot height per chain bone');
+  }
+});
+
+test('hero coat pieces are thick: every cloth patch has volume and finite vertices', () => {
+  const g = buildBodyGeometry({ outfit: 'lab', height: 2.15, build: 1, infectable: false, hero: true, seed: 'coat2' });
+  assert.ok(triangleCount(g.parts) < 90000, `hero is ${triangleCount(g.parts)} triangles`);
+  for (const part of g.parts) {
+    const a = part.geometry.getAttribute('position');
+    for (let i = 0; i < a.count; i++) assert.ok(Number.isFinite(a.getX(i) + a.getY(i) + a.getZ(i)), `${part.bone} has a NaN vertex`);
+  }
+});

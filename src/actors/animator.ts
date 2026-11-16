@@ -17,6 +17,9 @@ const N = JOINTS.length;
 
 /** Full gait cycle length (two steps) in metres, and the speed it is tuned for. */
 const STRIDE: Record<GaitStyle, number> = { none: 1, walk: 1.3, shamble: 1.05, crawl: 0.55, drag: 0.5, flail: 1.0 };
+/** Ground speed (m/s) a crawler's limbs act as if they were making per rad/s of turn while pivoting. */
+const PIVOT_DRIVE_CRAWL = 0.28;
+const PIVOT_DRIVE_DRAG = 0.22;
 const REF_SPEED: Record<GaitStyle, number> = { none: 1, walk: 1.4, shamble: 1.3, crawl: 0.72, drag: 0.52, flail: 0.8 };
 
 /** Spring stiffness/damping for additive hit reactions. */
@@ -36,6 +39,9 @@ export class Animator {
   gait: GaitStyle = 'none';
   /** Ground speed in m/s, set by the mover. */
   speed = 0;
+  /** Crawlers and draggers: turn speed in rad/s (+ = left) and heading error to the target (rad). They drive the limbs while pivoting. */
+  turnRate = 0;
+  turnError = 0;
   /** 0..1 strength of convulsion noise (transformation, writhing). */
   convulse = 0;
   /** Group-local look target (head/neck turn toward it), or null. */
@@ -80,6 +86,9 @@ export class Animator {
   private readonly snapCur = { x: 0, y: 0, z: 0 };
   private stumble = 0;
   private stumbleTimer = 4;
+  /** Limp from a wounded leg (ADR-0019): overrides the seeded lame leg while it lasts. */
+  private woundSide: 0 | 1 = 0;
+  private woundAmount = 0;
   private chargeCur = 0;
 
   constructor(bones: THREE.Bone[], poses: PoseLibrary, initialPose: string, rng: Rng) {
@@ -205,14 +214,23 @@ export class Animator {
     return Math.sin(t * 1.7 + s) * 0.6 + Math.sin(t * 2.9 + s * 2.1) * 0.4;
   }
 
+  /** Set by the body each frame from its leg damage: `amount` 0 = sound, 1 = about to lose the leg. */
+  setWound(side: 'L' | 'R' | null, amount: number): void {
+    if (side) this.woundSide = side === 'L' ? 0 : 1;
+    this.woundAmount = side ? amount : 0;
+  }
+
   private readonly bob = new THREE.Vector3();
   private readonly rootEuler = new THREE.Vector3();
 
   private updateGait(dt: number): void {
     const style = this.gait;
-    const targetAmp = style === 'none' ? 0 : Math.min(1.25, this.speed / REF_SPEED[style]);
+    // Pivoting crawlers pull themselves around: the turn speed drives the limbs as if it were ground speed.
+    const pivot = style === 'crawl' ? PIVOT_DRIVE_CRAWL : style === 'drag' ? PIVOT_DRIVE_DRAG : 0;
+    const drive = style === 'none' ? 0 : Math.max(this.speed, pivot * Math.abs(this.turnRate));
+    const targetAmp = style === 'none' ? 0 : Math.min(1.25, drive / REF_SPEED[style]);
     this.amp += (targetAmp - this.amp) * Math.min(1, dt * 5);
-    if (style !== 'none') this.phase += (this.speed / STRIDE[style]) * Math.PI * 2 * dt;
+    if (style !== 'none') this.phase += (drive / STRIDE[style]) * Math.PI * 2 * dt;
     const A = this.amp;
     const t = this.time;
     this.bob.set(0, 0, 0);
@@ -224,12 +242,16 @@ export class Animator {
       const sham = style !== 'walk';
       // Lurching time warp for shamblers.
       const p = sham ? this.phase + 0.35 * Math.sin(this.phase) : this.phase;
+      // A wounded leg limps whatever the gait; otherwise shamblers keep their seeded lame leg.
+      const wounded = this.woundAmount > 0.01;
+      const lameSide = wounded ? this.woundSide : this.limpSide;
+      const lameAmt = wounded ? Math.max(this.limpAmount, 0.5 + 0.5 * this.woundAmount) : this.limpAmount;
       for (const side of [0, 1] as const) {
         const s = side === 0 ? 'L' : 'R';
         const ph = p + side * Math.PI;
-        const lame = sham && side === this.limpSide;
-        const stride = lame ? 1 - 0.5 * this.limpAmount : 1;
-        const knee = lame ? 1 - 0.7 * this.limpAmount : 1;
+        const lame = (sham || wounded) && side === lameSide;
+        const stride = lame ? 1 - 0.5 * lameAmt : 1;
+        const knee = lame ? 1 - 0.7 * lameAmt : 1;
         const sinp = Math.sin(ph);
         this.add(`thigh_${s}`, A * 24 * stride * sinp, 0, 0);
         this.add(`shin_${s}`, -A * (6 + 44 * Math.max(0, Math.cos(ph))) * knee, 0, 0);
@@ -242,17 +264,19 @@ export class Animator {
       this.add('pelvis', 0, A * 5 * sp, A * 3.5 * sp);
       this.add('spine', 0, -A * 4 * sp, 0);
       this.add('chest', 0, -A * 2 * sp, -A * 2 * sp);
-      if (sham) {
-        const lean = this.limpSide === 0 ? -1 : 1;
-        this.add('pelvis', 0, 0, lean * A * 5 * this.limpAmount * Math.max(0, Math.sin(p + this.limpSide * Math.PI)));
-        this.add('neck', A * 6 * Math.cos(2 * p), 0, 0);
-        this.add('head', 0, A * 6 * this.n(t * 0.5, 9), A * 5 * this.n(t * 0.4, 10));
+      if (sham || wounded) {
+        const lean = lameSide === 0 ? -1 : 1;
+        this.add('pelvis', 0, 0, lean * A * 5 * lameAmt * Math.max(0, Math.sin(p + lameSide * Math.PI)));
+        if (sham) {
+          this.add('neck', A * 6 * Math.cos(2 * p), 0, 0);
+          this.add('head', 0, A * 6 * this.n(t * 0.5, 9), A * 5 * this.n(t * 0.4, 10));
+        }
       }
       this.bob.y = A * 0.022 * Math.cos(2 * p) - A * 0.012;
       if (sham) {
         // Hyperextending knee on the lame leg as it takes weight.
-        const lame = this.limpSide === 0 ? 'L' : 'R';
-        this.add(`shin_${lame}`, A * 16 * this.infect * Math.max(0, -Math.sin(p + this.limpSide * Math.PI)), 0, 0);
+        const lame = lameSide === 0 ? 'L' : 'R';
+        this.add(`shin_${lame}`, A * 16 * this.infect * Math.max(0, -Math.sin(p + lameSide * Math.PI)), 0, 0);
       }
       return;
     }
@@ -263,13 +287,17 @@ export class Animator {
         const s = side === 0 ? 'L' : 'R';
         const ph = this.phase + side * Math.PI;
         const sinp = Math.sin(ph);
-        this.add(`upperArm_${s}`, A * 35 * sinp, 0, (side === 0 ? -1 : 1) * A * 10 * Math.cos(ph));
-        this.add(`foreArm_${s}`, A * 40 * Math.max(0, -sinp), 0, 0);
+        // Turning: the arm on the outside of the turn pulls hard, the inside arm mostly anchors.
+        const tf = THREE.MathUtils.clamp(this.turnRate / 1.2, -1, 1);
+        const arm = side === 0 ? 1 - 0.55 * tf : 1 + 0.55 * tf;
+        this.add(`upperArm_${s}`, A * 35 * arm * sinp, 0, (side === 0 ? -1 : 1) * A * 10 * arm * Math.cos(ph));
+        this.add(`foreArm_${s}`, A * 40 * arm * Math.max(0, -sinp), 0, 0);
         this.add(`thigh_${s}`, A * 22 * Math.sin(ph + Math.PI / 2), 0, 0);
         this.add(`shin_${s}`, -A * 30 * Math.max(0, sinp), 0, 0);
         // Fingers claw at the floor on the pull.
-        this.add(`hand_${s}`, A * 45 * Math.max(0, -sinp), 0, 0);
+        this.add(`hand_${s}`, A * 45 * arm * Math.max(0, -sinp), 0, 0);
       }
+      this.leadTurn();
       this.add('neck', A * 10 * this.n(t * 3.1, 21), A * 14 * this.n(t * 2.7, 22), 0);
       const sp = Math.sin(this.phase);
       this.rootEuler.z = A * 7 * sp;
@@ -291,7 +319,17 @@ export class Animator {
       this.add('chest', A * 9 * Math.max(0, sp), 0, 0);
       this.add('head', A * 6 * Math.max(0, sp), 0, 0);
       this.bob.y = A * 0.025 * Math.max(0, sp);
+      this.leadTurn();
     }
+  }
+
+  /** The head turns toward the target first, the chest and spine follow, and the body comes round after them. */
+  private leadTurn(): void {
+    const deg = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(this.turnError), -60, 60);
+    this.add('head', 0, deg * 0.55, 0);
+    this.add('neck', 0, deg * 0.2, 0);
+    this.add('chest', 0, deg * 0.2, 0);
+    this.add('spine', 0, deg * 0.1, 0);
   }
 
   /**

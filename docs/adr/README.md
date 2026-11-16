@@ -39,6 +39,8 @@ Execution steps, Definition of done, Open questions.
 | 0016 | Save system and game state | 0001, 0008, 0012 |
 | 0017 | New-game intro cutscene (skippable, on rails) | 0004, 0006, 0009, 0010 |
 | 0018 | Actor separation (body-vs-body collision) | 0004, 0006, 0007 |
+| 0019 | Leg wounds (stagger, limp, then dismember and fall) | 0006, 0007 |
+| 0020 | Turn-then-move steering for crawlers and draggers | 0006 |
 
 0013 (audio) can run in parallel with 0004-0008 once 0003 exists.
 0015 is a standing rule set: read it before starting any ADR.

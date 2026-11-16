@@ -10,6 +10,7 @@ import type { GoreSystem } from './gore.ts';
 import { solveTwoBone } from './ik.ts';
 import type { PoseLibrary } from './poses.ts';
 import { footprintOf } from './separation.ts';
+import { CRAWL_TURN, DRAG_TURN, newTurnState, settleTurn, stepTurn, type TurnState } from './turning.ts';
 import { JOINT_INDEX, JOINTS, SEVER_JOINT, subtree, type JointName, type Region, type SeverableRegion, type Side } from './skeleton.ts';
 
 /**
@@ -21,6 +22,14 @@ import { JOINT_INDEX, JOINTS, SEVER_JOINT, subtree, type JointName, type Region,
  * on screen. Joints are still Object3Ds (THREE.Bone) with the ADR's names, so pre-split
  * GLB parts can replace the procedural ones later.
  */
+
+/** A leg hit that does not sever the leg staggers the body for this long, at this share of its speed (ADR-0019). */
+export const STAGGER_TIME = 0.35;
+export const STAGGER_SPEED = 0.3;
+/** How far ahead of the body's origin (metres) the planted hands are when a crawler or dragger pivots. */
+const PIVOT_REACH_CRAWL = 0.32;
+const PIVOT_REACH_DRAG = 0.4;
+const isLegRegion = (r: Region): boolean => r.startsWith('thigh_') || r.startsWith('shin_');
 
 export type Role = 'enemy' | 'npc' | 'corpse';
 export type LifeState = 'alive' | 'falling' | 'gettingUp' | 'playingDead' | 'dead';
@@ -224,17 +233,45 @@ export class Humanoid {
   move(desired: THREE.Vector3 | null, dt: number): void {
     const loc = this.locomotion;
     const canMove = this.state === 'alive';
-    const max = canMove ? WALK_SPEED[this.spec.role] * loc.speedMul * this.speedScale : 0;
+    // A hit to a leg makes the body flinch and nearly stop for a moment (ADR-0019).
+    const flinch = this.staggerTimer > 0 ? STAGGER_SPEED : 1;
+    const max = canMove ? WALK_SPEED[this.spec.role] * loc.speedMul * this.speedScale * flinch : 0;
     let target = 0;
+    const heading0 = this.heading;
+    const heavy = loc.mode !== 'walk';
+    const turnParams = loc.mode === 'crawl' ? CRAWL_TURN : DRAG_TURN;
+    this.turnError = 0;
     if (desired && canMove && desired.x * desired.x + desired.z * desired.z > 1e-6) {
       const want = Math.atan2(-desired.x, -desired.z);
       let diff = want - this.heading;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      const turn = (loc.mode === 'walk' ? 2.2 : 1.1) * dt;
-      this.heading += THREE.MathUtils.clamp(diff, -turn, turn);
-      target = max * THREE.MathUtils.clamp(Math.cos(diff), 0, 1);
+      if (heavy) {
+        // Crawlers and draggers pivot on the spot until they face the target, then move off (ADR-0020).
+        const step = stepTurn(this.turn, diff, dt, turnParams);
+        this.heading += step.dHeading;
+        this.turnError = diff;
+        target = max * step.speedFactor;
+      } else {
+        const turn = 2.2 * dt;
+        this.heading += THREE.MathUtils.clamp(diff, -turn, turn);
+        this.turn.vel = 0;
+        this.turn.inPlace = false;
+        target = max * THREE.MathUtils.clamp(Math.cos(diff), 0, 1);
+      }
+    } else if (heavy) {
+      this.heading += settleTurn(this.turn, dt, turnParams);
+    } else {
+      this.turn.vel = 0;
+      this.turn.inPlace = false;
     }
-    this.speed += (target - this.speed) * Math.min(1, dt * 4);
+    // Pivoting crawlers swing round their planted hands, not their hips: keep a point ahead of the body fixed.
+    if (heavy && this.turn.inPlace) {
+      const reach = loc.mode === 'crawl' ? PIVOT_REACH_CRAWL : PIVOT_REACH_DRAG;
+      this.group.position.x += reach * (Math.sin(this.heading) - Math.sin(heading0));
+      this.group.position.z += reach * (Math.cos(this.heading) - Math.cos(heading0));
+    }
+    // A pivoting body stops at once instead of coasting forward.
+    this.speed += (target - this.speed) * Math.min(1, dt * (this.turn.inPlace ? 9 : 4));
     if (this.speed < 1e-3) this.speed = 0;
     this.velocity.set(-Math.sin(this.heading), 0, -Math.cos(this.heading)).multiplyScalar(this.speed);
     this.group.position.addScaledVector(this.velocity, dt);
@@ -284,6 +321,10 @@ export class Humanoid {
 
     const localDir = dir.clone().applyQuaternion(this.group.quaternion.clone().invert());
     this.animator.kick(hit.joint, localDir, Math.min(0.9, (amount / 18) * 0.38));
+    // A leg hit that does not take the leg off: stagger.
+    if (result.applied > 0 && !result.severed && isLegRegion(hit.region) && this.state === 'alive') {
+      this.staggerTimer = STAGGER_TIME;
+    }
 
     if (result.severed) this.sever(result.severed, dir);
     if (this.state === 'playingDead') this.getUp();
@@ -315,6 +356,7 @@ export class Humanoid {
     this.updateInfection(dt);
     this.chooseAnimation();
     const moving = this.state === 'alive' || this.state === 'falling' || this.state === 'gettingUp';
+    this.animator.setWound(this.locomotion.limpSide, this.locomotion.limp);
     this.animator.infect = this.infectionLevel / 3;
     this.animator.twitchy = moving && (this.spec.role === 'enemy' || this.infectionLevel >= 1);
     this.animator.charge = this.state === 'alive' && this.locomotion.mode === 'walk' ? Math.max(this.charge, this.speedScale > 1.2 ? 1 : 0) : 0;
@@ -335,6 +377,7 @@ export class Humanoid {
     }
     this.applyBoneScales();
     this.updateTendrils();
+    this.updateCloth(dt);
     const pulse = 0.7 + 0.3 * Math.sin(this.time * 2.3 + this.glowPhase) * Math.sin(this.time * 0.7 + this.glowPhase);
     this.materials.uniforms.uGlow.value = smooth(0.8, 3, this.infectionLevel) * pulse * (this.state === 'dead' ? 0.3 : 1) * 0.9;
     this.group.updateMatrixWorld(true);
@@ -365,6 +408,48 @@ export class Humanoid {
       const rest = this.tendrilRest.get(e.name);
       if (rest) bone.quaternion.copy(rest).multiply(this.swayQ);
       else bone.quaternion.copy(this.swayQ);
+    }
+  }
+
+  private readonly clothQ = new THREE.Quaternion();
+  private readonly clothE = new THREE.Euler();
+  private readonly clothWorld = new THREE.Quaternion();
+  private readonly clothUp = new THREE.Quaternion();
+  private clothLag = 0;
+  private staggerTimer = 0;
+  private readonly turn: TurnState = newTurnState();
+  /** Heading error to the target (rad, + = left) while a crawler or dragger is steering, else 0. */
+  private turnError = 0;
+
+  /**
+   * Coat tails: each chain bone sways on its own phase, trails behind the walk, and is eased toward
+   * hanging straight down so the hunched spine does not hold the cloth out at an angle.
+   */
+  private updateCloth(dt: number): void {
+    const t = this.time;
+    const dead = this.state === 'dead';
+    // Lag follows speed with a delay, so the tails swing out when the body lurches and fall back after.
+    this.clothLag += (this.speed - this.clothLag) * Math.min(1, dt * 3);
+    const trail = THREE.MathUtils.clamp(this.clothLag / 1.3, 0, 2);
+    const amp = dead ? 0.25 : 1 + 0.8 * Math.max(this.charge, this.animator.convulse);
+    this.group.getWorldQuaternion(this.clothUp);
+    for (const e of this.geo.extraBones) {
+      if (e.kind !== 'cloth') continue;
+      const bone = this.extras.get(e.name);
+      if (!bone || !bone.parent) continue;
+      const [, ci, si] = e.name.split('_');
+      const k = Number(si) + 1;
+      const ph = Number(ci) * 1.9 + this.glowPhase;
+      this.clothE.set(
+        // Trailing back (+Z) is a negative turn about X.
+        -0.1 * trail * k + 0.07 * amp * Math.sin(t * (1.1 + 0.25 * k) + ph + k),
+        0.05 * amp * Math.sin(t * 0.8 + ph * 1.4),
+        0.08 * amp * Math.sin(t * (1.4 + 0.3 * k) + ph * 1.3 + k * 1.1),
+      );
+      this.clothQ.setFromEuler(this.clothE);
+      // Gravity: the rotation that would bring this bone back to the body's upright, blended in.
+      bone.parent.getWorldQuaternion(this.clothWorld).invert().multiply(this.clothUp);
+      bone.quaternion.identity().slerp(this.clothWorld, k === 1 ? 0.55 : 0.3).multiply(this.clothQ);
     }
   }
 
@@ -447,9 +532,27 @@ export class Humanoid {
       const index = this.boneIndex.get(part.bone) ?? 0;
       const si = new Uint16Array(count * 4);
       const sw = new Float32Array(count * 4);
+      const chain = part.chain;
+      const pos = part.geometry.getAttribute('position');
       for (let v = 0; v < count; v++) {
         si[v * 4] = index;
         sw[v * 4] = 1;
+        if (!chain) continue;
+        // Blend the two chain bones whose pivots bracket this vertex's height.
+        const y = pos.getY(v);
+        let k = 0;
+        while (k + 1 < chain.ys.length && y <= (chain.ys[k + 1] as number)) k++;
+        const hi = chain.ys[k] as number;
+        const lo = chain.ys[k + 1];
+        const next = chain.bones[k + 1];
+        const cur = this.boneIndex.get(chain.bones[k] as string) ?? index;
+        si[v * 4] = cur;
+        if (lo !== undefined && next !== undefined && y < hi) {
+          const w = THREE.MathUtils.clamp((hi - y) / (hi - lo), 0, 1);
+          si[v * 4 + 1] = this.boneIndex.get(next) ?? cur;
+          sw[v * 4] = 1 - w;
+          sw[v * 4 + 1] = w;
+        }
       }
       g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
       g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
@@ -499,6 +602,7 @@ export class Humanoid {
   // ---------------------------------------------------------------- internals: state
 
   private updateTimers(dt: number): void {
+    if (this.staggerTimer > 0) this.staggerTimer -= dt;
     if (this.state === 'falling') {
       this.stateTimer -= dt;
       if (this.stateTimer <= 0) this.state = 'alive';
@@ -535,6 +639,8 @@ export class Humanoid {
     }
     this.animator.gait = gait;
     this.animator.speed = this.speed;
+    this.animator.turnRate = gait === 'crawl' || gait === 'drag' ? this.turn.vel : 0;
+    this.animator.turnError = gait === 'crawl' || gait === 'drag' ? this.turnError : 0;
     if (this.state !== 'alive' || this.animator.sequencePlaying) return;
     let pose = this.idlePose;
     if (loc.mode === 'crawl') pose = 'crawl';
@@ -688,6 +794,7 @@ export class Humanoid {
       else if (e.kind === 'shards') s = shards;
       else if (e.kind === 'ribs') s = smooth(1.9, 2.7, inf);
       else if (e.kind === 'tendril') s = e.name.endsWith('_0') ? (this.near ? smooth(1.3, 2.8, inf) : 0) : 1;
+      else if (e.kind === 'cloth') s = 1;
       else s = this.stumpsOn.has(e.name.slice('stump_'.length) as JointName) ? 1 : 0;
       bone.scale.setScalar(Math.max(TINY, s));
     }

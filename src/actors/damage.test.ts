@@ -94,3 +94,47 @@ test('no arms: bite only', () => {
   assert.equal(loc.biteOnly, true);
   assert.equal(loc.grabMul, 0);
 });
+
+test('a leg that has lost 40% of a part limps and walks slower, and the limp grows toward severing', () => {
+  const d = new BodyDamage(100);
+  assert.equal(d.locomotion().limp, 0);
+  assert.equal(d.locomotion().speedMul, 1);
+  d.apply('thigh_R', 10);
+  assert.equal(d.locomotion().limp, 0, 'a scratch does not limp');
+  d.apply('thigh_R', 10);
+  const first = d.locomotion();
+  assert.ok(first.limp >= 0.4 && first.limp <= 1, `limp ${first.limp}`);
+  assert.equal(first.limpSide, 'R');
+  assert.ok(first.speedMul < 1 && first.speedMul >= 0.75);
+  assert.equal(first.mode, 'walk');
+  d.apply('thigh_R', 10);
+  assert.ok(d.locomotion().limp > first.limp, 'worse wound, worse limp');
+});
+
+test('one pistol hit to a thigh starts the limp and the next one takes the leg off', () => {
+  const d = new BodyDamage(100);
+  assert.equal(d.apply('thigh_L', PISTOL).severed, null);
+  assert.ok(d.locomotion().limp > 0);
+  assert.equal(d.apply('thigh_L', PISTOL).severed, 'thigh_L');
+  const loc = d.locomotion();
+  assert.equal(loc.mode, 'crawl');
+  assert.equal(loc.limp, 0);
+  assert.equal(loc.limpSide, null);
+  assert.equal(loc.speedMul, 0.55);
+});
+
+test('the worse leg decides which side limps', () => {
+  const d = new BodyDamage(100);
+  d.apply('thigh_L', 20);
+  d.apply('thigh_R', 28);
+  assert.equal(d.locomotion().limpSide, 'R');
+});
+
+test('a tougher body takes more hits before it limps (hero: 400 HP)', () => {
+  const d = new BodyDamage(400);
+  d.apply('thigh_L', PISTOL * 2);
+  assert.equal(d.locomotion().limp, 0, 'two pistol hits do not limp a hero');
+  d.apply('thigh_L', PISTOL * 3);
+  assert.ok(d.locomotion().limp > 0);
+  assert.equal(d.locomotion().mode, 'walk');
+});
