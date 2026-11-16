@@ -20,6 +20,9 @@ export interface WeaponRig {
   /** Detachable magazine (pistol) so reloads can drop it. */
   mag: THREE.Object3D | null;
   muzzle: THREE.Object3D;
+  /** Shotgun: the second right hand used while loading, with the shell it carries as a child. */
+  loadHand?: THREE.Group;
+  shell?: THREE.Group;
   /** Update on-gun readouts to match the internal ammo state. */
   setAmmo(loaded: number, reserve: number): void;
   /** Eased 0..1 laser-sight strength (pistol, aim mode). */

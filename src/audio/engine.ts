@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Rng } from '../core/rng.ts';
 import { DEFAULT_REVERB, REVERB_CROSSFADE, REVERB_SPECS, renderReverbIr, resolveReverb, type ReverbPreset } from './reverb.ts';
-import { SOUND_SPECS, type SoundName } from './sounds.ts';
+import { SAMPLE_URLS, SOUND_SPECS, type SampleName, type SoundName } from './sounds.ts';
 
 /**
  * Web Audio engine (ADR-0013): buses -> master -> limiter, a shared convolution
@@ -145,7 +145,7 @@ export class AudioEngine {
   renderSounds(): number {
     const t0 = performance.now();
     const sr = this.ctx.sampleRate;
-    for (const [name, spec] of Object.entries(SOUND_SPECS) as Array<[SoundName, (typeof SOUND_SPECS)[SoundName]]>) {
+    for (const [name, spec] of Object.entries(SOUND_SPECS) as Array<[keyof typeof SOUND_SPECS, (typeof SOUND_SPECS)[keyof typeof SOUND_SPECS]]>) {
       const list: AudioBuffer[] = [];
       for (let v = 0; v < spec.variants; v++) {
         const data = spec.make(sr, new Rng(`${name}:${v}`));
@@ -156,6 +156,26 @@ export class AudioEngine {
       this.buffers.set(name, list);
     }
     return performance.now() - t0;
+  }
+
+  /**
+   * Fetch and decode the recorded samples (SAMPLE_URLS), replacing any procedural sound of the same
+   * name. Failures are logged and leave the procedural fallback (or silence) in place.
+   */
+  async loadSamples(): Promise<void> {
+    const base = import.meta.env.BASE_URL;
+    await Promise.all(
+      (Object.entries(SAMPLE_URLS) as Array<[SampleName, string]>).map(async ([name, url]) => {
+        try {
+          const res = await fetch(base + url);
+          if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+          const buffer = await this.ctx.decodeAudioData(await res.arrayBuffer());
+          this.buffers.set(name, [buffer]);
+        } catch (err) {
+          console.warn(`[audio] could not load sample "${name}" from ${url}`, err);
+        }
+      }),
+    );
   }
 
   /** Dull the whole mix for `seconds` (taking a hit), then open back up. */

@@ -3,17 +3,21 @@ import { PLAYER_TUNING, type Player } from '../../actors/player.ts';
 import type { EventBus } from '../../core/events.ts';
 import type { Input } from '../../core/input.ts';
 import { createHandMaterials } from './hand.ts';
-import { createWeaponMaterials, mesh, cylZ } from './parts.ts';
+import { createWeaponMaterials } from './parts.ts';
 import { buildPistol, PISTOL_LEFT_PLACEMENT } from './pistol.ts';
 import type { WeaponId, WeaponRig } from './rig.ts';
 import { buildShotgun, PUMP_CENTER_Z, SHOTGUN_RIGHT_PLACEMENT } from './shotgun.ts';
+import { CYCLE, loadCycle, placeLoadHand, PUSH_START } from './shotgunReload.ts';
 
 declare module '../../core/events.ts' {
   interface EventMap {
     'weapon:fired': { weapon: WeaponId };
     'weapon:dryFire': { weapon: WeaponId };
-    'weapon:reloadStart': { weapon: WeaponId };
+    /** `duration` (s) and `empty` are set for the pistol, whose reload is a fixed-length animation. */
+    'weapon:reloadStart': { weapon: WeaponId; duration?: number; empty?: boolean };
     'weapon:reloaded': { weapon: WeaponId; loaded: number; reserve: number };
+    /** A shotgun shell reaches the loading port (once per shell during a reload). */
+    'weapon:shellInsert': { weapon: WeaponId };
     'weapon:equipped': { weapon: WeaponId };
   }
 }
@@ -35,7 +39,26 @@ interface PoseSet {
   sprint: Pose;
   lowered: Pose;
 }
+/** Per-weapon motion character. The pistol's values reproduce the original stiff-ish behaviour; the shotgun is heavier and looser. */
+interface Feel {
+  /** Gain on the fast sway layer's position / rotation (negative position gain flips it to trail the view). */
+  swayPos: number;
+  swayRot: number;
+  /** Slow, heavy inertia layer: the gun lags the view and dips on footsteps and shots. 0 = off. */
+  weight: number;
+  /** Breathing / idle drift gain. */
+  idle: number;
+  /** Walk-bob gain. */
+  bob: number;
+  /** Strafe lean gain. */
+  strafe: number;
+  /** Random roll twist kicked on each shot. */
+  twist: number;
+  /** Aim and sprint blends settle with a small overshoot instead of a hard ease. */
+  soft: boolean;
+}
 interface Spec {
+  feel: Feel;
   mag: number;
   startReserve: number;
   interval: number;
@@ -47,6 +70,7 @@ interface Spec {
 
 const SPECS: Record<WeaponId, Spec> = {
   pistol: {
+    feel: { swayPos: 1, swayRot: 1, weight: 0, idle: 1, bob: 1, strafe: 0, twist: 0, soft: false },
     mag: 12,
     startReserve: 36,
     interval: 0.18,
@@ -61,11 +85,12 @@ const SPECS: Record<WeaponId, Spec> = {
     },
   },
   shotgun: {
+    feel: { swayPos: -2.5, swayRot: 2.2, weight: 1, idle: 2.5, bob: 2, strafe: 1, twist: 6, soft: true },
     mag: 6,
     startReserve: 18,
     interval: 0.75,
     recoilZ: 1.5,
-    recoilRx: 6.5,
+    recoilRx: 8.5,
     kick: 2.4,
     poses: {
       hip: { p: [0.17, -0.2, -0.2], r: [0.03, 0.1, 0] },
@@ -115,7 +140,7 @@ class Spring {
 }
 
 type Phase = 'idle' | 'lowering' | 'raising';
-type Reload = { kind: 'pistol'; t: number; total: number; empty: boolean } | { kind: 'shotgun'; t: number; shell: number; entering: boolean; stop: boolean } | null;
+type Reload = { kind: 'pistol'; t: number; total: number; empty: boolean } | { kind: 'shotgun'; t: number; shell: number; entering: boolean; stop: boolean; inserted: boolean } | null;
 
 export class Viewmodel {
   readonly group = new THREE.Group();
@@ -146,6 +171,16 @@ export class Viewmodel {
   private readonly recRy = new Spring(380, 24);
   private readonly swayX = new Spring(90, 12);
   private readonly swayY = new Spring(90, 12);
+  /** Heavy-weapon inertia: slower and looser than the sway layer. */
+  private readonly wX = new Spring(34, 6);
+  private readonly wY = new Spring(34, 6);
+  private readonly recRz = new Spring(300, 20);
+  private lean = 0;
+  private stepSide = 1;
+  private aimSm = 0;
+  private aimV = 0;
+  private sprSm = 0;
+  private sprV = 0;
   private readonly flash: THREE.Group;
   private readonly flashLight: THREE.PointLight;
   private flashT = 0;
@@ -166,6 +201,14 @@ export class Viewmodel {
       shotgun: { loaded: SPECS.shotgun.mag, reserve: SPECS.shotgun.startReserve },
     };
     this.group.name = 'viewmodel';
+    // Each footfall thumps the heavy layer: a small dip, alternating side to side.
+    deps.events.on('player:footstep', (f) => {
+      const w = SPECS[this.current].feel.weight;
+      if (w === 0 || this.d.reducedMotion()) return;
+      this.stepSide = -this.stepSide;
+      this.wY.kick(-0.45 * w * (f.sprint ? 1.5 : 1));
+      this.wX.kick(0.07 * w * this.stepSide);
+    });
     this.group.frustumCulled = false;
     for (const id of ['pistol', 'shotgun'] as const) {
       const rig = this.rigs[id];
@@ -206,14 +249,8 @@ export class Viewmodel {
     this.carriedMag = pistolMag ? pistolMag.clone(true) : new THREE.Group();
     this.carriedMag.visible = false;
     this.rigs.pistol.root.getObjectByName('grip-tilt')?.add(this.carriedMag);
-    this.shellProp = new THREE.Group();
-    const wmShell = wm.shell;
-    this.shellProp.add(mesh(cylZ(0.0095, 0.05, 14), wmShell, 'shell-hull'));
-    const brass = mesh(cylZ(0.0099, 0.014, 14), wm.brass, 'shell-brass');
-    brass.position.z = 0.019;
-    this.shellProp.add(brass);
-    this.shellProp.visible = false;
-    this.rigs.shotgun.root.add(this.shellProp);
+    // The shell is carried by the loading hand (built into the shotgun rig).
+    this.shellProp = this.rigs.shotgun.shell ?? new THREE.Group();
 
     this.limitSpotNearField();
     this.equipFlash(this.current);
@@ -279,7 +316,9 @@ export class Viewmodel {
     this.aimBlend = player.aimBlend;
     this.sprintBlend = approach(this.sprintBlend, player.sprinting ? 1 : 0, dt / 0.18);
     this.cooldown = Math.max(0, this.cooldown - dt);
+    const prevSince = this.sinceShot;
     this.sinceShot += dt;
+    this.pumpKicks(prevSince, this.sinceShot);
 
     const fireDown = input.isDown('fire') && input.locked;
     const rDown = input.isDown('reload');
@@ -300,9 +339,25 @@ export class Viewmodel {
 
     this.updateSwitch(dt);
     this.updateReload(dt);
+    this.updateLoadHand();
     this.updateWeaponAnim(dt);
     this.updatePose(dt);
     this.updateFlash(dt);
+  }
+
+  /** Weight shifts as the pump is racked: a tug at the start of the back stroke, a slam at the end of the forward one. */
+  private pumpKicks(from: number, to: number): void {
+    if (this.current !== 'shotgun' || this.reload || this.d.reducedMotion()) return;
+    const crossed = (t: number): boolean => from < t && to >= t;
+    if (crossed(0.2)) {
+      this.recZ.kick(0.35);
+      this.wY.kick(0.3);
+    }
+    if (crossed(0.62)) {
+      this.recZ.kick(-0.55);
+      this.recRx.kick(-1.4);
+      this.wY.kick(-0.7);
+    }
   }
 
   // ---- switching -----------------------------------------------------------------------
@@ -329,6 +384,11 @@ export class Viewmodel {
         this.pending = null;
         this.rigs[this.current].root.visible = true;
         this.equipFlash(this.current);
+        if (this.current === 'shotgun') {
+          // Draw-and-rack: reuse the post-shot pump cycle (it starts 0.2 s in and ends at 0.64 s). Ammo is untouched.
+          this.sinceShot = 0;
+          this.cooldown = Math.max(this.cooldown, 0.65);
+        }
         this.d.events.emit('weapon:equipped', { weapon: this.current });
       }
       this.phase = 'raising';
@@ -336,6 +396,7 @@ export class Viewmodel {
     } else if (this.phase === 'raising' && this.phaseT >= 1) {
       this.phase = 'idle';
       this.phaseT = 0;
+      this.wY.kick(-0.5 * SPECS[this.current].feel.weight);
     }
   }
 
@@ -385,6 +446,11 @@ export class Viewmodel {
     this.recRx.kick(spec.recoilRx * aimDamp);
     this.recRy.kick((Math.random() - 0.5) * spec.recoilRx * 0.5);
     this.d.player.addKick(spec.kick * (this.d.reducedMotion() ? 0.3 : 1));
+    if (spec.feel.twist > 0 && !this.d.reducedMotion()) {
+      this.recRz.kick((Math.random() - 0.5) * spec.feel.twist);
+      this.wY.kick(-0.6 * spec.feel.weight);
+      this.wX.kick((Math.random() - 0.5) * 0.5 * spec.feel.weight);
+    }
     this.flashT = id === 'pistol' ? 0.055 : 0.085;
     this.flash.rotation.z = Math.random() * Math.PI;
     this.flash.scale.setScalar(id === 'pistol' ? 0.7 : 1.5);
@@ -400,8 +466,9 @@ export class Viewmodel {
     const spec = SPECS[id];
     if (st.loaded >= spec.mag || st.reserve <= 0) return;
     if (id === 'pistol') this.reload = { kind: 'pistol', t: 0, total: st.loaded === 0 ? 1.7 : 1.4, empty: st.loaded === 0 };
-    else this.reload = { kind: 'shotgun', t: 0, shell: 0, entering: true, stop: false };
-    this.d.events.emit('weapon:reloadStart', { weapon: id });
+    else this.reload = { kind: 'shotgun', t: 0, shell: 0, entering: true, stop: false, inserted: false };
+    const pr = this.reload.kind === 'pistol' ? this.reload : null;
+    this.d.events.emit('weapon:reloadStart', pr ? { weapon: id, duration: pr.total, empty: pr.empty } : { weapon: id });
   }
 
   private cancelReload(): void {
@@ -462,8 +529,27 @@ export class Viewmodel {
       if (r.empty && u >= 0.74 && u < 0.86) this.slideLockedBack = false;
       if (u >= 1) this.finishPistolReload();
     } else {
-      this.updateShotgunReload(r, rightHand);
+      this.updateShotgunReload(r);
     }
+  }
+
+  /** Swap the shotgun's grip hand for the loading hand while reloading, and place it along the shell cycle. */
+  private updateLoadHand(): void {
+    const rig = this.rigs.shotgun;
+    const load = rig.loadHand;
+    const grip = rig.root.getObjectByName('hand-right');
+    if (!load || !grip) return;
+    const blend = this.current === 'shotgun' ? this.reloadBlend : 0;
+    const useLoad = blend > 0.02;
+    grip.visible = !useLoad;
+    load.visible = useLoad;
+    if (!useLoad) {
+      this.shellProp.visible = false;
+      return;
+    }
+    const r = this.reload;
+    const u = r && r.kind === 'shotgun' && !r.entering ? clamp01(r.t / CYCLE) : 0;
+    placeLoadHand(load, SHOTGUN_RIGHT_PLACEMENT, u, blend);
   }
 
   private slideLockedBack = false;
@@ -493,10 +579,9 @@ export class Viewmodel {
     this.d.events.emit('weapon:reloaded', { weapon: 'pistol', loaded: st.loaded, reserve: st.reserve });
   }
 
-  private updateShotgunReload(r: Extract<NonNullable<Reload>, { kind: 'shotgun' }>, rightHand: THREE.Object3D | undefined): void {
+  private updateShotgunReload(r: Extract<NonNullable<Reload>, { kind: 'shotgun' }>): void {
     const st = this.ammo.shotgun;
     const rig = this.rigs.shotgun;
-    const rest = SHOTGUN_RIGHT_PLACEMENT.pos;
     if (r.entering) {
       this.shellProp.visible = false;
       if (r.t >= 0.25) {
@@ -505,24 +590,21 @@ export class Viewmodel {
       }
       return;
     }
-    const cycle = 0.5;
+    const cycle = CYCLE;
     const u = clamp01(r.t / cycle);
-    // 0-.55 hand runs to the shell, grabs and carries it up to the port; .55-.75 insert; .75-1 hand returns.
-    const out = u < 0.55 ? ease(u / 0.55) : u < 0.75 ? 1 : 1 - ease((u - 0.75) / 0.25);
-    const off: V3 = [-0.03, -0.09, -0.07];
-    rightHand?.position.set(rest[0] + off[0] * out, rest[1] + off[1] * out, rest[2] + off[2] * out);
-    const port: V3 = [0, -0.04, -0.152];
-    const inHand: V3 = [rest[0] + off[0] * out - 0.004, rest[1] + off[1] * out + 0.01, rest[2] + off[2] * out - 0.02];
-    const ins = clamp01((u - 0.55) / 0.2);
-    this.shellProp.visible = u < 0.76;
-    this.shellProp.position.set(lerp(inHand[0], port[0], ease(ins)), lerp(inHand[1], port[1], ease(ins)), lerp(inHand[2], port[2], ease(ins)));
-    this.shellProp.rotation.set(0.35 * (1 - ins), 0, 0);
+    // The loading hand (see shotgunReload.ts) carries the shell to the port and shoves it in.
+    this.shellProp.visible = loadCycle(u).shell;
+    if (!r.inserted && u >= PUSH_START + 0.03) {
+      r.inserted = true;
+      this.d.events.emit('weapon:shellInsert', { weapon: 'shotgun' });
+    }
     if (r.t >= cycle) {
       st.loaded++;
       st.reserve--;
       rig.setAmmo(st.loaded, st.reserve);
       r.shell++;
       r.t = 0;
+      r.inserted = false;
       if (st.loaded >= SPECS.shotgun.mag || st.reserve <= 0 || r.stop) {
         this.reload = null;
         this.shellProp.visible = false;
@@ -552,7 +634,11 @@ export class Viewmodel {
         // Pump cycles after each shot: back, then forward.
         const a = clamp01((t - 0.2) / 0.2);
         const b = clamp01((t - 0.42) / 0.22);
-        s = t < 0.2 ? 0 : t < 0.42 ? ease(a) : 1 - ease(b);
+        // Back stroke: yanked, decelerating. Forward stroke: accelerates and slams home, with a tiny rebound.
+        const backE = 1 - Math.pow(1 - a, 3);
+        const fwdE = b * b * (1.4 - 0.4 * b);
+        s = t < 0.2 ? 0 : t < 0.42 ? backE : 1 - fwdE;
+        if (t >= 0.64 && t < 0.95) s = 0.07 * Math.exp(-(t - 0.64) * 28) * Math.sin((t - 0.64) * 70);
         if (this.reload) s = this.reload.kind === 'shotgun' ? 0 : s;
         rig.mover.position.z = PUMP_CENTER_Z + rig.moverTravel * s;
       }
@@ -568,8 +654,24 @@ export class Viewmodel {
     const reduced = this.d.reducedMotion();
     const rig = this.rigs[this.current];
     const poses = SPECS[this.current].poses;
-    const aimE = ease(this.aimBlend);
-    const sprintE = ease(this.sprintBlend) * (1 - aimE);
+    const feel = SPECS[this.current].feel;
+    let aimE = ease(this.aimBlend);
+    let sprintE = ease(this.sprintBlend) * (1 - aimE);
+    if (feel.soft) {
+      // Settle into aim / sprint on a slightly underdamped spring: a little overshoot, then rest.
+      const k = 190;
+      const c = 20;
+      this.aimV += (k * (aimE - this.aimSm) - c * this.aimV) * dt;
+      this.aimSm += this.aimV * dt;
+      this.sprV += (k * (sprintE - this.sprSm) - c * this.sprV) * dt;
+      this.sprSm += this.sprV * dt;
+      aimE = THREE.MathUtils.clamp(this.aimSm, -0.02, 1.06);
+      sprintE = THREE.MathUtils.clamp(this.sprSm, -0.02, 1.06);
+    } else {
+      this.aimSm = aimE;
+      this.sprSm = sprintE;
+      this.aimV = this.sprV = 0;
+    }
     const lower = this.lowerAmount();
 
     let pos = mix3(poses.hip.p, poses.aim.p, aimE);
@@ -587,28 +689,48 @@ export class Viewmodel {
     const swayScale = reduced ? 0.25 : 1 - 0.6 * aimE;
     this.swayX.kick(THREE.MathUtils.clamp(-dyaw / Math.max(dt, 1e-3), -6, 6) * 0.035 * swayScale);
     this.swayY.kick(THREE.MathUtils.clamp(dpitch / Math.max(dt, 1e-3), -6, 6) * 0.03 * swayScale);
+    if (feel.weight > 0) {
+      // The gun lags the view: turn right and it trails left, look up and it dips.
+      this.wX.kick(THREE.MathUtils.clamp(dyaw / Math.max(dt, 1e-3), -8, 8) * 0.05 * feel.weight * swayScale);
+      this.wY.kick(THREE.MathUtils.clamp(-dpitch / Math.max(dt, 1e-3), -8, 8) * 0.04 * feel.weight * swayScale);
+    }
     this.swayX.step(dt);
     this.swayY.step(dt);
+    this.wX.step(dt);
+    this.wY.step(dt);
+    this.recRz.step(dt);
     this.recZ.step(dt);
     this.recRx.step(dt);
     this.recRy.step(dt);
 
-    // Bob and breathing.
+    // Bob, breathing and strafe lean.
     const speed = Math.hypot(player.velocity.x, player.velocity.y);
     const ampGoal = reduced ? 0 : Math.min(1, speed / PLAYER_TUNING.walkSpeed) * (player.sprinting ? 1.5 : 1);
     this.bobAmp = approach(this.bobAmp, ampGoal, dt * 4);
     this.bobPhase += speed * dt * (player.sprinting ? 2.6 : 2.2);
     const bob = this.bobAmp * (1 - 0.7 * aimE);
-    const breathe = reduced ? 0 : Math.sin(this.time * 1.7) * 0.0006;
+    const m = reduced ? 0 : 1;
+    const calm = 1 - 0.5 * aimE;
+    const breathe = reduced ? 0 : Math.sin(this.time * 1.7) * 0.0006 * feel.idle;
+    // Extra idle life beyond the pistol's baseline: a slow drift and a rocking breath.
+    const extra = (feel.idle - 1) * m * calm;
+    const idleX = Math.sin(this.time * 0.63) * 0.0006 * extra;
+    const idleRx = Math.sin(this.time * 1.7 + 1) * 0.0025 * extra;
+    const idleRz = Math.sin(this.time * 0.9) * 0.003 * extra;
+    const lateral = player.velocity.x * Math.cos(player.yaw) - player.velocity.y * Math.sin(player.yaw);
+    const leanGoal = THREE.MathUtils.clamp(lateral / PLAYER_TUNING.walkSpeed, -1.4, 1.4) * feel.strafe * m;
+    this.lean += (leanGoal - this.lean) * (1 - Math.exp(-dt * 7));
+    const B = feel.bob;
+    const W = feel.weight;
     pos = [
-      pos[0] + Math.sin(this.bobPhase) * 0.004 * bob + this.swayX.x * 0.06,
-      pos[1] + Math.abs(Math.cos(this.bobPhase)) * -0.004 * bob + breathe + this.swayY.x * 0.05,
+      pos[0] + Math.sin(this.bobPhase) * 0.004 * bob * B + this.swayX.x * 0.06 * feel.swayPos + this.wX.x * 0.1 * W - this.lean * 0.005 + idleX,
+      pos[1] + Math.abs(Math.cos(this.bobPhase)) * -0.004 * bob * B + breathe + this.swayY.x * 0.05 * feel.swayPos + this.wY.x * 0.1 * W,
       pos[2] + this.recZ.x * 1.0,
     ];
     rot = [
-      rot[0] + this.recRx.x * 0.1 + this.swayY.x * 0.5 + Math.sin(this.bobPhase * 2) * 0.006 * bob,
-      rot[1] + this.recRy.x * 0.05 + this.swayX.x * 0.5 + Math.cos(this.bobPhase) * 0.01 * bob,
-      rot[2] + this.swayX.x * -0.2,
+      rot[0] + this.recRx.x * 0.1 + this.swayY.x * 0.5 * feel.swayRot + Math.sin(this.bobPhase * 2) * 0.006 * bob * B + this.wY.x * 0.9 * W + idleRx,
+      rot[1] + this.recRy.x * 0.05 + this.swayX.x * 0.5 * feel.swayRot + Math.cos(this.bobPhase) * 0.01 * bob * B - this.wX.x * 1.0 * W,
+      rot[2] + this.swayX.x * -0.2 * feel.swayRot + this.recRz.x * 0.08 + Math.sin(this.bobPhase) * 0.006 * bob * (B - 1) - this.lean * 0.045 + idleRz,
     ];
 
     // Reload tilt.
@@ -617,8 +739,9 @@ export class Viewmodel {
       rot = [rot[0] + 0.12 * rl, rot[1] + 0.18 * rl, rot[2] - 0.3 * rl];
       pos = [pos[0] - 0.02 * rl, pos[1] + 0.03 * rl, pos[2] + 0.02 * rl];
     } else {
-      rot = [rot[0] + 0.15 * rl, rot[1] - 0.05 * rl, rot[2] + 0.5 * rl];
-      pos = [pos[0] - 0.05 * rl, pos[1] + 0.03 * rl, pos[2] + 0.03 * rl];
+      // Lift the gun and roll it up on its side (underside, with the loading port, toward the player and the loading hand).
+      rot = [rot[0] + 0.2 * rl, rot[1] - 0.35 * rl, rot[2] + 1.25 * rl];
+      pos = [pos[0] - 0.17 * rl, pos[1] + 0.14 * rl, pos[2] + 0.11 * rl];
     }
 
     rig.root.position.set(pos[0], pos[1], pos[2]);

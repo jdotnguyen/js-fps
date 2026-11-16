@@ -134,6 +134,7 @@ async function boot(): Promise<void> {
   // Audio starts suspended; the first click anywhere resumes it (browser rule).
   const audio = new AudioEngine();
   console.info(`[boot] sounds rendered in ${audio.renderSounds().toFixed(0)} ms`);
+  void audio.loadSamples();
   const roomAudio = room ? new DemoRoomAudio(audio, room, new Rng('room-audio')) : null;
   roomAudio?.start();
   addEventListener('pointerdown', () => void audio.resume(), { capture: true });
@@ -215,6 +216,46 @@ async function boot(): Promise<void> {
   events.on('player:flashlight', () => roomAudio?.flashlightClick());
   events.on('player:footstep', (f) => roomAudio?.footstep(f.surface, f.x, f.z, f.sprint));
   events.on('player:damaged', () => audio.muffle(0.4));
+  const crosshair = el<HTMLElement>('#crosshair');
+  crosshair.hidden = game.mode !== 'playing';
+  events.on('game:mode', ({ mode }) => {
+    crosshair.hidden = mode !== 'playing';
+  });
+  // Empty chamber: same click for both guns, a little lower and heavier on the shotgun.
+  events.on('weapon:dryFire', ({ weapon }) => audio.play('dryFire', { bus: 'sfx', gain: 0.8, rate: weapon === 'shotgun' ? 0.88 : 1 }));
+  // Pistol reload: the recording is split into mag out / mag in / slide release, each timed to its animation phase.
+  let reloadTimers: ReturnType<typeof setTimeout>[] = [];
+  const clearReloadSounds = (): void => {
+    reloadTimers.forEach(clearTimeout);
+    reloadTimers = [];
+  };
+  events.on('weapon:reloadStart', ({ weapon, duration, empty }) => {
+    if (weapon !== 'pistol' || duration === undefined) return;
+    clearReloadSounds();
+    const at = (u: number, sound: 'pistolReloadOut' | 'pistolReloadIn' | 'pistolReloadSlide', gain: number): void => {
+      reloadTimers.push(setTimeout(() => audio.play(sound, { bus: 'sfx', gain, reverb: 0.2 }), u * duration * 1000));
+    };
+    at(0.1, 'pistolReloadOut', 0.7);
+    at(0.6, 'pistolReloadIn', 0.8);
+    if (empty) at(0.74, 'pistolReloadSlide', 0.8);
+  });
+  events.on('weapon:equipped', ({ weapon }) => {
+    clearReloadSounds();
+    // Switching to the shotgun racks the pump (animation only; no ammo change). Same 0.2 s offset as after a shot.
+    if (weapon === 'shotgun') reloadTimers.push(setTimeout(() => audio.play('shotgunPump', { bus: 'sfx', gain: 0.8, reverb: 0.2 }), 200));
+  });
+  // One shell-in sound per shell as it reaches the port, with a little pitch variation so a run of them doesn't machine-gun.
+  events.on('weapon:shellInsert', () => audio.play('shotgunShell', { bus: 'sfx', gain: 0.8, reverb: 0.2, rate: 0.96 + Math.random() * 0.08 }));
+  events.on('weapon:fired', ({ weapon }) => {
+    const rate = 0.97 + Math.random() * 0.06;
+    if (weapon === 'pistol') {
+      audio.play('pistolShot', { bus: 'sfx', gain: 0.6, reverb: 0.35, rate });
+    } else {
+      audio.play('shotgunShot', { bus: 'sfx', gain: 0.9, reverb: 0.4, rate });
+      // The pump animation starts racking back 0.2 s after the shot.
+      setTimeout(() => audio.play('shotgunPump', { bus: 'sfx', gain: 0.8, reverb: 0.2 }), 200);
+    }
+  });
   events.on('room:entered', (r) => audio.setRoomReverb(r.reverb));
 
   if (level) {
