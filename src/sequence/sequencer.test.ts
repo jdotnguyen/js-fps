@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { readFileSync, readdirSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { ControlStack } from '../actors/control.ts';
 import { EventBus } from '../core/events.ts';
@@ -223,4 +224,13 @@ test('bad data fails at register with a readable path', () => {
   assert.throws(() => t.seq.register({ id: 'x', steps: [{ do: 'wait', s: 'two' }] }), /"s" must be a number/);
   assert.throws(() => t.seq.register({ id: 'x', steps: [{ parallel: [{ do: 'fade', to: 3 }] }] }), /parallel.*"to" must be 0 to 1/);
   assert.throws(() => t.seq.play('missing'), /Unknown sequence/);
+});
+
+test('every shipped cutscene file registers with this runtime (data/cutscenes)', () => {
+  const dir = new URL('../data/cutscenes/', import.meta.url);
+  const defs = readdirSync(dir)
+    .filter((n) => n.endsWith('.json'))
+    .map((n) => JSON.parse(readFileSync(new URL(n, dir), 'utf8')) as SequenceDef);
+  assert.ok(defs.length > 0);
+  setup(defs);
 });

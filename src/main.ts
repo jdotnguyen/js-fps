@@ -52,7 +52,8 @@ import { createMenus } from './ui/menus/screens.ts';
 import { Toasts } from './ui/toast.ts';
 import { Viewmodel } from './render/viewmodel/viewmodel.ts';
 
-const SEQUENCE_FILES = import.meta.glob<SequenceDef>('./data/sequences/*.json', { eager: true, import: 'default' });
+/** ADR-0017 cutscenes (src/sequence runtime). ADR-0009 sequences live in data/sequences. */
+const SEQUENCE_FILES = import.meta.glob<SequenceDef>('./data/cutscenes/*.json', { eager: true, import: 'default' });
 const LEVEL_FILES = import.meta.glob<unknown>('./data/levels/*.json', { eager: true, import: 'default' });
 const TEXTURE_SIZE = 512;
 const FOG_COLOR = 0x04080a;
@@ -188,7 +189,7 @@ async function boot(): Promise<void> {
     try {
       sequencer.register(def);
     } catch (err) {
-      throw new Error(`data/sequences/${path.replace(/^.*\//, '')}: ${err instanceof Error ? err.message : String(err)}`);
+      throw new Error(`data/cutscenes/${path.replace(/^.*\//, '')}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
   const cutscene = new CutsceneController({
