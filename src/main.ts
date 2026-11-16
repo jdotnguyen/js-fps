@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import './ui/styles/base.css';
 import './ui/styles/menu.css';
+import './ui/styles/hud.css';
 import keymapJson from './data/keymap.json';
 import difficultyJson from './data/difficulty.json';
 import { validateKeymap } from './data/types/keymap.ts';
@@ -24,6 +25,11 @@ import { buildDemoRoom } from './world/demoRoom.ts';
 import { DemoRoomAudio } from './world/demoRoomAudio.ts';
 import { AudioEngine } from './audio/engine.ts';
 import { Game } from './game/game.ts';
+import { Interactions } from './actors/interaction.ts';
+import { Player, PLAYER_TUNING } from './actors/player.ts';
+import { DEBUG_SEQUENCES } from './actors/debugSequences.ts';
+import { DEMO_INTERACT_BOXES, demoRoomPlayerWorld } from './world/demoRoomColliders.ts';
+import { PlayerHud } from './ui/hud/playerHud.ts';
 import { SaveStore } from './game/save.ts';
 import { createMenus } from './ui/menus/screens.ts';
 import { Toasts } from './ui/toast.ts';
@@ -100,10 +106,24 @@ async function boot(): Promise<void> {
   freeCam.bounds = room.bounds;
 
   const flashlight = new Flashlight(scene, camera);
+  const interactions = new Interactions();
+  // The game sets the difficulty; until then the player reads Standard.
+  let currentPreset = (): (typeof difficulties)['standard'] => difficulties.standard;
+  const player = new Player({
+    camera,
+    input,
+    events,
+    settings: () => settings.get(),
+    flashlight,
+    interactions,
+    difficulty: () => currentPreset(),
+    world: demoRoomPlayerWorld(),
+  });
   const post = createPost(renderer, scene, camera, settings.get().quality);
   renderer.compile(scene, camera);
 
   const toasts = new Toasts(document.body);
+  const hud = new PlayerHud(el<HTMLElement>('#ui'), el<HTMLElement>('#interact'), keymap.interact[0] ?? 'KeyE');
   const game = new Game({
     events,
     settings,
@@ -111,15 +131,56 @@ async function boot(): Promise<void> {
     difficulties,
     input,
     camera,
+    player,
+    interactions,
     freeCam,
     flashlight,
     room,
     audio,
     toasts,
-    interactPrompt: el<HTMLElement>('#interact'),
+    hud,
   });
+  currentPreset = () => game.preset;
   createMenus(el<HTMLElement>('#menu'), { game, saves, settings, difficulties, events });
-  events.on('game:flashlight', () => roomAudio.flashlightClick());
+  events.on('player:flashlight', () => roomAudio.flashlightClick());
+  events.on('player:footstep', (f) => roomAudio.footstep(f.surface, f.x, f.z, f.sprint));
+  events.on('player:damaged', () => audio.muffle(0.4));
+
+  // Demo room interactables (ADR-0004). Kit levels will register their own (ADR-0003).
+  interactions.add({ id: 'save_station', prompt: 'Use save station', box: DEMO_INTERACT_BOXES.saveStation, use: () => game.openSaveStation() });
+  interactions.add({
+    id: 'locker_sec07',
+    prompt: 'Open locker',
+    hold: 0.6,
+    box: DEMO_INTERACT_BOXES.locker,
+    enabled: () => !game.flags['locker_sec07'],
+    use: () => {
+      game.flags['locker_sec07'] = true;
+      toasts.show('Locker SEC-07', 'Empty. Someone got here first.');
+    },
+  });
+  interactions.add({
+    id: 'lab_b_monitor',
+    prompt: 'Read monitor',
+    box: DEMO_INTERACT_BOXES.console,
+    use: () => toasts.show('Lab B monitor', 'Specimen B-7: stable. Containment check required.'),
+  });
+  interactions.add({
+    id: 'door_07b_panel',
+    prompt: 'Override door',
+    hold: 1.0,
+    box: DEMO_INTERACT_BOXES.doorPanel,
+    use: () => toasts.show('Access denied', 'Pressure differential · lockdown 07-B'),
+  });
+
+  const runSequence = (id: string): void => {
+    const seq = DEBUG_SEQUENCES[id];
+    if (!seq) {
+      console.warn(`[debug] unknown sequence '${id}'. Known: ${Object.keys(DEBUG_SEQUENCES).join(', ')}`);
+      return;
+    }
+    seq({ player, say: (t, b) => toasts.show(t, b ?? ''), focus: room.anchors.door }).catch((err: unknown) => console.error(err));
+  };
 
   // Apply settings now and whenever they change.
   const applySettings = (): void => {
@@ -165,13 +226,49 @@ async function boot(): Promise<void> {
     const sound = gui.addFolder('Audio mix');
     sound.add(audio.buses.ambience.gain, 'value', 0, 2, 0.01).name('ambience');
     sound.add(audio.buses.sfx.gain, 'value', 0, 2, 0.01).name('footsteps / sfx');
-    gui.addFolder('Camera').add(freeCam, 'speed', 1, 20, 0.5);
+    gui.addFolder('Camera').add(freeCam, 'speed', 1, 20, 0.5).name('fly speed (F1)');
+    const pf = gui.addFolder('Player');
+    const actions = {
+      damage: () => player.damage(20, player.eyePosition().add(new THREE.Vector3(1.5, 0, 0))),
+      down: () => player.damage(10000),
+      revive: () => player.revive(),
+      grab: () => player.grab(player.eyePosition().addScaledVector(player.viewDirection(), 0.9)),
+      controlTest: () => runSequence('control-test'),
+      walkTest: () => runSequence('walk-test'),
+      fly: () => game.toggleFly(),
+    };
+    pf.add(player.vitals, 'hp', 0, 100).name('hp').listen().disable();
+    pf.add(player, 'stamina', 0, PLAYER_TUNING.sprintMax).name('sprint stamina').listen().disable();
+    pf.add(actions, 'damage').name('take 20 damage');
+    pf.add(actions, 'down').name('go down');
+    pf.add(actions, 'revive').name('medic revive');
+    pf.add(actions, 'grab').name('get grabbed');
+    pf.add(actions, 'controlTest').name('run control-test');
+    pf.add(actions, 'walkTest').name('run walk-test');
+    pf.add(actions, 'fly').name('toggle fly (F1)');
+    const feel = pf.addFolder('Feel');
+    for (const key of Object.keys(PLAYER_TUNING) as Array<keyof typeof PLAYER_TUNING>) feel.add(PLAYER_TUNING, key);
+    feel.close();
+    addEventListener('keydown', (e) => {
+      if (e.code !== 'F1') return;
+      e.preventDefault();
+      if (game.mode === 'playing') game.toggleFly();
+    });
+    // ?debug&seq=<id>: run a debug sequence a moment after play starts.
+    const seqId = flags.seq;
+    if (seqId) {
+      const off = events.on('game:mode', ({ mode }) => {
+        if (mode !== 'playing') return;
+        off();
+        setTimeout(() => runSequence(seqId), 1200);
+      });
+    }
     gui.close();
   }
 
   // "Click to look around" only matters while playing without the mouse captured.
   const updatePrompt = (): void => {
-    prompt.textContent = 'Click to continue · WASD move · F flashlight · E use · Esc pause';
+    prompt.textContent = 'Click to continue · WASD move · Shift sprint · RMB aim · F flashlight · E use · V shove · Esc pause';
     prompt.hidden = !(game.mode === 'playing' && !input.locked);
   };
   events.on('input:pointerLock', updatePrompt);
@@ -200,7 +297,8 @@ async function boot(): Promise<void> {
       flashlight.update(frameDt);
       room.update(simTime, frameDt, camera.position, settings.get().reducedFlashing);
       audio.updateListener(camera);
-      roomAudio.update(simTime, camera, game.mode === 'playing');
+      roomAudio.update(simTime);
+      post.grade.uDamage.value = game.mode === 'title' || game.flying ? 0 : player.damageFx;
       post.render(simTime);
       debug?.endFrame();
     },

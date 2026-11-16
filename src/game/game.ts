@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import type { Interactions } from '../actors/interaction.ts';
+import type { Player } from '../actors/player.ts';
 import type { AudioEngine } from '../audio/engine.ts';
 import type { EventBus } from '../core/events.ts';
 import type { FreeCamera } from '../core/freeCamera.ts';
@@ -7,6 +9,7 @@ import type { SettingsStore } from '../core/settings.ts';
 import type { DifficultyId, DifficultyTable } from '../data/types/difficulty.ts';
 import type { Flashlight } from '../render/flashlight.ts';
 import type { Toasts } from '../ui/toast.ts';
+import type { PlayerHud } from '../ui/hud/playerHud.ts';
 import type { DemoRoom } from '../world/demoRoom.ts';
 import { SAVE_VERSION, type SaveData, type SaveKind, type SaveStore } from './save.ts';
 
@@ -16,6 +19,7 @@ declare module '../core/events.ts' {
   interface EventMap {
     'game:mode': { mode: GameMode };
     'game:saveStation': Record<string, never>;
+    'game:restarted': { checkpoint: string | null };
   }
 }
 
@@ -26,18 +30,22 @@ export interface GameDeps {
   difficulties: DifficultyTable;
   input: Input;
   camera: THREE.PerspectiveCamera;
+  player: Player;
+  interactions: Interactions;
+  /** Debug fly camera (F1 with ?debug). */
   freeCam: FreeCamera;
   flashlight: Flashlight;
   room: DemoRoom;
   audio: AudioEngine;
   toasts: Toasts;
-  /** HUD element for "[E] Use save station". */
-  interactPrompt: HTMLElement;
+  hud: PlayerHud;
 }
 
 const CHAPTER = 'slice01';
 const LEVEL = 'demo-room';
-const STATION_RANGE = 1.9;
+/** Game over: fade to black, hold, then restart from the last checkpoint (ADR-0004). */
+const DEATH_FADE = 1.4;
+const DEATH_HOLD = 1.0;
 
 /**
  * Session state and mode machine (ADR-0016): title -> playing <-> paused. Owns the
@@ -51,10 +59,12 @@ export class Game {
   checkpoint: string | null = null;
   location = '';
   flags: Record<string, string | number | boolean> = {};
+  /** Debug fly camera instead of the player. */
+  flying = false;
   private readonly d: GameDeps;
   private titleTime = 0;
-  private readonly forward = new THREE.Vector3();
-  private readonly toStation = new THREE.Vector3();
+  private restartTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly eye = new THREE.Vector3();
 
   constructor(deps: GameDeps) {
     this.d = deps;
@@ -62,6 +72,7 @@ export class Game {
       // Esc or alt-tab while playing releases the mouse: that is "pause".
       if (!locked && this.mode === 'playing') this.pause();
     });
+    deps.events.on('player:died', () => this.gameOver());
   }
 
   get preset() {
@@ -80,30 +91,28 @@ export class Game {
     this.checkpoint = null;
     this.location = '';
     this.flags = {};
-    const { position, yaw } = this.d.room.spawn;
-    this.d.camera.position.copy(position);
-    this.d.freeCam.yaw = yaw;
-    this.d.freeCam.pitch = 0;
-    this.d.flashlight.on = true;
+    this.spawnAtStart();
     this.enterPlaying();
   }
 
-  load(save: SaveData): void {
+  load(save: SaveData, quiet = false): void {
     this.slot = save.slot;
     this.difficulty = save.difficulty;
     this.playTime = save.playTime;
     this.checkpoint = save.checkpoint;
     this.location = save.location;
     this.flags = { ...save.flags };
-    this.d.camera.position.fromArray(save.player.position);
-    this.d.freeCam.yaw = save.player.yaw;
-    this.d.freeCam.pitch = save.player.pitch;
+    const { player } = this.d;
+    player.reset(save.player.health);
+    player.placeAtEye(new THREE.Vector3().fromArray(save.player.position), save.player.yaw, save.player.pitch);
     this.d.flashlight.on = save.player.flashlightOn;
+    this.cancelRestart();
     this.enterPlaying();
-    this.d.toasts.show(save.kind === 'auto' ? 'Autosave loaded' : 'Save loaded', save.location);
+    if (!quiet) this.d.toasts.show(save.kind === 'auto' ? 'Autosave loaded' : 'Save loaded', save.location);
   }
 
   snapshot(kind: SaveKind): SaveData {
+    const { player } = this.d;
     return {
       version: SAVE_VERSION,
       kind,
@@ -116,10 +125,10 @@ export class Game {
       checkpoint: this.checkpoint,
       location: this.location || 'Section 07',
       player: {
-        position: this.d.camera.position.toArray(),
-        yaw: this.d.freeCam.yaw,
-        pitch: this.d.freeCam.pitch,
-        health: 100,
+        position: player.eyePosition(this.eye).toArray(),
+        yaw: player.yaw,
+        pitch: player.pitch,
+        health: Math.max(1, Math.round(player.vitals.hp)),
         flashlightOn: this.d.flashlight.on,
       },
       flags: { ...this.flags },
@@ -149,6 +158,8 @@ export class Game {
   }
 
   quitToTitle(): void {
+    this.cancelRestart();
+    this.d.hud.setFade(0, 0);
     this.setMode('title');
     if (document.pointerLockElement) document.exitPointerLock();
   }
@@ -159,39 +170,37 @@ export class Game {
     this.d.events.emit('game:saveStation', {});
   }
 
+  /** ?debug F1: swap between the player and the fly camera. */
+  toggleFly(): void {
+    const { player, freeCam, camera } = this.d;
+    this.flying = !this.flying;
+    if (this.flying) {
+      freeCam.yaw = player.yaw;
+      freeCam.pitch = player.pitch;
+    } else {
+      player.placeAtEye(camera.position, freeCam.yaw, freeCam.pitch);
+    }
+    this.d.toasts.show('Debug', this.flying ? 'Free-fly camera (F1 to return)' : 'Player camera');
+  }
+
   /** Fixed-step simulation. */
   update(dt: number): void {
-    if (this.mode !== 'playing') {
-      this.setInteractPrompt(null);
+    if (this.mode !== 'playing') return;
+    this.playTime += dt;
+    if (this.flying) {
+      this.d.freeCam.update(dt);
       return;
     }
-    this.playTime += dt;
-    const { input, freeCam, flashlight, camera, room } = this.d;
-    if (input.wasPressed('flashlight')) {
-      flashlight.toggle();
-      this.d.events.emit('game:flashlight', { on: flashlight.on });
-    }
-    freeCam.update(dt);
-
+    const { player, room } = this.d;
+    player.update(dt);
     for (const cp of room.anchors.checkpoints) {
-      if (!this.flags[`cp:${cp.id}`] && camera.position.z < cp.zBelow) this.reachCheckpoint(cp.id, cp.label);
-    }
-
-    // Save terminal: in range and roughly facing it.
-    camera.getWorldDirection(this.forward);
-    this.toStation.subVectors(room.anchors.saveStation, camera.position);
-    const dist = Math.hypot(this.toStation.x, this.toStation.z);
-    const facing = this.forward.dot(this.toStation.normalize());
-    if (dist < STATION_RANGE && facing > 0.72) {
-      this.setInteractPrompt('[E] Use save station');
-      if (input.wasPressed('interact')) this.openSaveStation();
-    } else {
-      this.setInteractPrompt(null);
+      if (!this.flags[`cp:${cp.id}`] && player.alive && player.body.z < cp.zBelow) this.reachCheckpoint(cp.id, cp.label);
     }
   }
 
   /** Per rendered frame. */
   render(frameDt: number): void {
+    const { player, hud, interactions } = this.d;
     if (this.mode === 'title') {
       // Attract camera: a slow drift down the corridor behind the title menu.
       this.titleTime += frameDt;
@@ -200,10 +209,22 @@ export class Game {
       cam.position.set(Math.sin(t * 0.11) * 0.9, 1.7 + Math.sin(t * 0.07) * 0.08, 7.5 - 3 * (1 - Math.cos(t * 0.05)));
       cam.lookAt(Math.sin(t * 0.13) * 1.2, 1.3, -10);
       this.d.input.consumeLook();
+      hud.hide();
       return;
     }
-    if (this.mode === 'playing') this.d.freeCam.look();
-    else this.d.input.consumeLook();
+    if (this.mode === 'playing') {
+      if (this.flying) {
+        this.d.freeCam.look();
+        hud.hide();
+        return;
+      }
+      player.look(frameDt);
+      player.applyCamera(frameDt);
+      hud.update(player, interactions);
+    } else {
+      this.d.input.consumeLook();
+      hud.hide();
+    }
   }
 
   /** Re-apply master volume with pause ducking. */
@@ -212,10 +233,44 @@ export class Game {
     this.d.audio.setMasterVolume(v);
   }
 
+  private spawnAtStart(): void {
+    const { player, room } = this.d;
+    player.reset();
+    player.placeAtEye(room.spawn.position, room.spawn.yaw);
+    this.d.flashlight.on = true;
+  }
+
+  private gameOver(): void {
+    this.cancelRestart();
+    this.d.hud.setFade(1, DEATH_FADE);
+    this.restartTimer = setTimeout(() => this.restartFromCheckpoint(), (DEATH_FADE + DEATH_HOLD) * 1000);
+  }
+
+  /** Back to the slot's last autosave, healed to at least the difficulty's checkpoint heal. */
+  private restartFromCheckpoint(): void {
+    this.restartTimer = null;
+    const auto = this.d.saves.read(this.slot, 'auto').data;
+    if (auto) {
+      const hp = Math.max(auto.player.health, this.preset.checkpointHeal);
+      this.load({ ...auto, player: { ...auto.player, health: hp } }, true);
+    } else {
+      this.spawnAtStart();
+    }
+    this.d.toasts.show('Restarted', this.location || 'Section 07');
+    this.d.hud.setFade(0, 0.9);
+    this.d.events.emit('game:restarted', { checkpoint: this.checkpoint });
+  }
+
+  private cancelRestart(): void {
+    if (this.restartTimer !== null) clearTimeout(this.restartTimer);
+    this.restartTimer = null;
+  }
+
   private reachCheckpoint(id: string, label: string): void {
     this.flags[`cp:${id}`] = true;
     this.checkpoint = id;
     this.location = label;
+    this.d.player.vitals.checkpoint();
     this.d.saves.write(this.snapshot('auto'));
     this.d.toasts.show('Checkpoint', label);
   }
@@ -229,19 +284,5 @@ export class Game {
     this.mode = mode;
     this.applyVolume();
     this.d.events.emit('game:mode', { mode });
-  }
-
-  private promptText: string | null = null;
-  private setInteractPrompt(text: string | null): void {
-    if (text === this.promptText) return;
-    this.promptText = text;
-    this.d.interactPrompt.textContent = text ?? '';
-    this.d.interactPrompt.hidden = text === null;
-  }
-}
-
-declare module '../core/events.ts' {
-  interface EventMap {
-    'game:flashlight': { on: boolean };
   }
 }

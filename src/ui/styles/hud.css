@@ -1,0 +1,42 @@
+/* Player HUD pieces for ADR-0004 (full HUD is ADR-0012). */
+
+/* Hold-to-use progress: a bar along the bottom edge of the interact prompt. */
+#interact { overflow: hidden; }
+#interact::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: calc(var(--progress, 0) * 100%);
+  background: #39ff9e;
+  opacity: 0;
+}
+#interact.holding::after { opacity: 1; }
+
+.player-status {
+  position: absolute;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%);
+  padding: 0.4rem 0.9rem;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+  color: #ff8a80;
+  background: rgb(20 4 4 / 0.55);
+  border: 1px solid rgb(255 59 47 / 0.5);
+  pointer-events: none;
+}
+.player-status[hidden] { display: none; }
+
+.screen-fade {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition-property: opacity;
+  transition-timing-function: ease-in-out;
+}
