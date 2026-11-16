@@ -43,7 +43,7 @@ export function muscle(joint: JointName, p: THREE.Vector3): number {
     case 'chest': {
       for (const s of [-1, 1]) {
         m += gauss(p, s * 0.078, 0.15, -0.1, 0.07, 0.05, 0.05, 0.034); // pecs
-        m += gauss(p, s * 0.07, 0.235, 0.0, 0.07, 0.04, 0.08, 0.028); // traps
+        m += gauss(p, s * 0.09, 0.2, 0.0, 0.06, 0.035, 0.07, 0.01); // traps
         m += gauss(p, s * 0.145, 0.09, 0.05, 0.05, 0.1, 0.08, 0.03); // lats
         m += gauss(p, s * 0.1, 0.1, -0.09, 0.05, 0.05, 0.05, 0.012); // serratus
       }
@@ -121,6 +121,7 @@ export function sculptHero(g: THREE.BufferGeometry, joint: JointName, seed: numb
     const vein = Math.abs(noise3(p.x * 34, p.y * 9, p.z * 34, seed + 17));
     d = d * 1.7 + 0.005 * Math.max(0, 1 - vein * 7);
     d += 0.002 * fbm3(p.x * 40, p.y * 40, p.z * 40, seed, 2);
+    d += 0.0045 * scarRidge(p, seed);
     const f = flayMask(joint, p, seed);
     if (f > 0) {
       const rim = Math.max(0, 1 - Math.abs(f - 0.3) / 0.3); // ridge at the torn edge
@@ -132,6 +133,12 @@ export function sculptHero(g: THREE.BufferGeometry, joint: JointName, seed: numb
   g.computeVertexNormals();
 }
 
+/** Thin raised scar lines where a low-frequency noise field crosses zero. */
+function scarRidge(p: THREE.Vector3, seed: number): number {
+  const v = noise3(p.x * 6 + 3, p.y * 6, p.z * 6, seed + 90);
+  return Math.max(0, 1 - Math.abs(v) * 16);
+}
+
 export interface HeroFx {
   glow: number;
   rot: number;
@@ -140,12 +147,13 @@ export interface HeroFx {
 const SALLOW = new THREE.Color('#8e9886');
 const BRUISE = new THREE.Color('#4a3a58');
 const VEIN = new THREE.Color('#2a3a48');
+const SCAR = new THREE.Color('#9a7a78');
 const FIBRE_DARK = new THREE.Color('#210406');
 const FIBRE_LIGHT = new THREE.Color('#8e2c26');
 const CLOT = new THREE.Color('#14060a');
 const SINEW = new THREE.Color('#9a8570');
 const CRUST = new THREE.Color('#25080a');
-const SHIRT = new THREE.Color('#a8a392');
+const SHIRT = new THREE.Color('#bdb8a8');
 const TROUSER = new THREE.Color('#2e3234');
 const SHIRT_STAIN = new THREE.Color('#8a1a1a');
 
@@ -222,12 +230,14 @@ export function heroColor(joint: JointName, p: THREE.Vector3, seed: number, skin
     out.lerp(SHIRT_STAIN, stain * 0.85);
     return 0;
   }
+  const scar = scarRidge(p, seed);
   const valley = THREE.MathUtils.clamp(muscle(joint, p) / 0.03, -1, 1); // groove -1, bulge +1
   const ao = 0.62 + 0.38 * THREE.MathUtils.smoothstep(valley, -0.7, 0.6);
   out.copy(skin).lerp(SALLOW, 0.7).multiplyScalar((0.4 + 0.2 * n) * ao);
   out.lerp(BRUISE, 0.55 * THREE.MathUtils.smoothstep(fbmStain(p, seed + 9), 0.5, 0.75));
   const vein = Math.abs(noise3(p.x * 26, p.y * 7, p.z * 26, seed + 12));
   out.lerp(VEIN, 0.6 * Math.max(0, 1 - vein * 6));
+  out.lerp(SCAR, 0.7 * scar);
   return 0.3; // keep most of the painted tone; the infection shader still adds some sheen
 }
 
@@ -280,4 +290,32 @@ export function tatterStrip(width: number, length: number, curl: number, jag: nu
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;
+}
+
+/**
+ * Gaunt hero face: heavy brow, hollow cheeks, deep sockets, sunken temples. `origin` is the
+ * position of the geometry's local origin in head space (zero for the skull, the jaw hinge for the jaw).
+ */
+export function sculptHeroHead(g: THREE.BufferGeometry, origin: readonly [number, number, number]): void {
+  const pos = g.getAttribute('position') as THREE.BufferAttribute;
+  const nrm = g.getAttribute('normal') as THREE.BufferAttribute;
+  const q = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    q.set(pos.getX(i) + origin[0], pos.getY(i) + origin[1], pos.getZ(i) + origin[2]);
+    let d = 0;
+    if (q.z < -0.03) {
+      const ax = Math.abs(q.x);
+      d += gauss(q, 0, 0.112, -0.088, 0.05, 0.008, 0.02, 0.013); // brow ridge
+      for (const s of [-1, 1]) {
+        d -= gauss(q, s * 0.03, 0.104, -0.088, 0.018, 0.016, 0.02, 0.011); // sockets
+        d -= gauss(q, s * 0.055, 0.062, -0.07, 0.03, 0.035, 0.035, 0.013); // hollow cheeks
+        d += gauss(q, s * 0.05, 0.088, -0.078, 0.02, 0.012, 0.02, 0.006); // cheekbones
+        d -= gauss(q, s * 0.07, 0.11, -0.04, 0.02, 0.03, 0.04, 0.007); // temples
+      }
+      if (ax < 0.012) d -= gauss(q, 0, 0.088, -0.092, 0.012, 0.012, 0.02, 0.006); // nose bridge pinched
+    }
+    d += 0.0016 * noise3(q.x * 120, q.y * 120, q.z * 120, 41);
+    pos.setXYZ(i, pos.getX(i) + nrm.getX(i) * d, pos.getY(i) + nrm.getY(i) * d, pos.getZ(i) + nrm.getZ(i) * d);
+  }
+  g.computeVertexNormals();
 }

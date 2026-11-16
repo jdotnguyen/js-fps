@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '../core/rng.ts';
-import { heroColor, heroFace, heroScalpTorn, sculptHero, tatterColor, tatterStrip } from './heroSculpt.ts';
+import { heroColor, heroFace, heroScalpTorn, sculptHeroHead, sculptHero, tatterColor, tatterStrip } from './heroSculpt.ts';
 import { fbm3, noise3 } from './noise3.ts';
 import { JOINTS, jointDef, type JointName, type SegmentDef, type Side, type Vec3T } from './skeleton.ts';
 
@@ -259,12 +259,51 @@ function limbSegment(ctx: Ctx, name: JointName, painter: Painter, radial = 10, r
   add(ctx, name, 'body', paint(g, painter, ctx.infectable ? ctx.seed + name.length * 7 : null));
 }
 
+/** Long, crooked fangs for hero mouths: upper row on the skull, lower row on the jaw. */
+function heroTeeth(ctx: Ctx): void {
+  const rng = ctx.rng.fork('fangs');
+  for (const lower of [false, true]) {
+    const list: THREE.BufferGeometry[] = [];
+    for (let k = 0; k < 10; k++) {
+      const x = -0.032 + (k / 9) * 0.064;
+      const z = -0.077 + 0.018 * (x / 0.03) ** 2;
+      const len = rng.range(0.012, 0.028) * (lower ? 0.9 : 1) * (k % 3 === 0 ? 1.4 : 1);
+      const tooth = clean(new THREE.ConeGeometry(0.0034, len, 5, 1));
+      if (!lower) tooth.rotateX(Math.PI);
+      tooth.rotateZ(rng.range(-0.25, 0.25));
+      tooth.rotateX(rng.range(-0.15, 0.15));
+      const y = lower ? MOUTH_Y + len / 2 : MOUTH_Y - len / 2;
+      tooth.translate(x, y - (lower ? JAW_HINGE[1] : 0), z - (lower ? JAW_HINGE[2] : 0) + rng.range(-0.002, 0.002));
+      list.push(tooth);
+    }
+    const g = clean(list.reduce((acc, t) => mergeTwo(acc, t)));
+    add(ctx, lower ? 'jaw' : 'head', 'body', paint(g, (_p, c) => {
+      c.copy(BONE).lerp(BONE_OLD, rng.range(0.2, 0.9));
+      return 0;
+    }));
+  }
+}
+
 /** Bigger head for hero bodies; the jaw keeps meeting the skull at its hinge. */
 function enlargeHead(ctx: Ctx, k: number): void {
   const hinge = JAW_HINGE;
   for (const part of ctx.parts) {
-    if (part.bone === 'head') part.geometry.scale(k, k, k);
-    else if (part.bone === 'jaw') {
+    if (part.bone === 'head') {
+      if (part.geometry.getAttribute('position').count > 300) sculptHeroHead(part.geometry, [0, 0, 0]);
+      part.geometry.computeBoundingBox();
+      const bb = part.geometry.boundingBox;
+      // Eyes (small pieces high on the face): smaller, so they read as glints in hollow sockets.
+      if (bb && part.geometry.getAttribute('position').count <= 80 && bb.min.y > 0.1) {
+        const c = bb.getCenter(new THREE.Vector3());
+        part.geometry.translate(-c.x, -c.y, -c.z);
+        part.geometry.scale(0.62, 0.62, 0.62);
+        part.geometry.translate(c.x, c.y, c.z + 0.004);
+      }
+      part.geometry.scale(k, k, k);
+    } else if (part.bone === 'jaw') {
+      if (part.geometry.getAttribute('position').count > 300) sculptHeroHead(part.geometry, hinge);
+      // Jaw hangs open at rest; the animator adds to it.
+      part.geometry.rotateX(-0.42);
       part.geometry.scale(k, k, k);
       part.geometry.translate((k - 1) * hinge[0], (k - 1) * hinge[1], (k - 1) * hinge[2]);
     }
@@ -273,7 +312,7 @@ function enlargeHead(ctx: Ctx, k: number): void {
 
 /** Coat tails, sleeve rags, tie and trouser shreds hanging off the sculpted body. */
 function buildTatters(ctx: Ctx): void {
-  const coat = new THREE.Color('#b4af9e');
+  const coat = new THREE.Color('#d8d3c4');
   const trou = new THREE.Color('#3a3d3f');
   const tie = new THREE.Color('#2c3d52');
   const r = ctx.rng.fork('tatter');
@@ -294,6 +333,11 @@ function buildTatters(ctx: Ctx): void {
   // Front remnants hanging from the chest: one lapel strip each side.
   strip('chest', -0.1 * W, 0.2, -0.13 * W, 0.1, 0.5, -0.06, 0.25, 0.05, coat, 0.7);
   strip('chest', 0.095 * W, 0.19, -0.13 * W, 0.09, 0.58, -0.07, -0.2, -0.05, coat, 0.7);
+  // Collar standing up around the neck, torn open at the front.
+  for (let i = 0; i < 5; i++) {
+    const a = -0.9 + i * 0.45;
+    strip('chest', Math.sin(a) * 0.075 * W, 0.255, 0.0 + Math.cos(a) * 0.06 * W - 0.01, 0.055, 0.11, 0.03, a, 0, coat, 0.5);
+  }
   // Tie.
   strip('chest', 0.0, 0.215, -0.125 * W, 0.04, 0.24, -0.05, 0, 0, tie, 0.3);
   // Sleeve rags from the upper arms.
@@ -377,7 +421,7 @@ function gauss(x: number, y: number, z: number, cx: number, cy: number, cz: numb
 
 /** The full head surface before it is split into skull and jaw. */
 function headSurface(ctx: Ctx, jaw: number, nose: number): THREE.BufferGeometry {
-  const g = clean(new THREE.SphereGeometry(1, 30, 22));
+  const g = clean(new THREE.SphereGeometry(1, ctx.hero ? 56 : 30, ctx.hero ? 40 : 22));
   const pos = g.getAttribute('position') as THREE.BufferAttribute;
   const p = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
@@ -856,7 +900,10 @@ export function buildBodyGeometry(shape: BodyShape): BodyGeometry {
   buildTorso(ctx);
   if (ctx.hero) buildTatters(ctx);
   buildHead(ctx);
-  if (ctx.hero) enlargeHead(ctx, 1.22);
+  if (ctx.hero) {
+    heroTeeth(ctx);
+    enlargeHead(ctx, 1.22);
+  }
   buildLimbs(ctx, 'L');
   buildLimbs(ctx, 'R');
   if (shape.infectable) buildGrowths(ctx, extra);

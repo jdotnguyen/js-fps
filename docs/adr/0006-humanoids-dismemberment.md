@@ -123,3 +123,16 @@ Implemented on 2026-11-15; **pending the on-device performance check** below.
   the LOD drops growths and shadows beyond 15 m but does not swap to smoother segments; the
   gore mode is a `GoreSystem.mode` field until ADR-0012 adds the setting; base HP takes a plain
   number, and ADR-0008 supplies the difficulty multiplier.
+
+### Progress: gore pass and hero tier
+
+Crowd tier (10–13.5k triangles each, up to ~24 on screen):
+- Jaw joint, wet/crusted/meat body shader, infected motion (head snaps, spasms, stumbling, lunge, death twitch), tendrils, exposed ribs, instanced gore chunks, blood trails.
+- Triangle budget per crowd body is now 8–15k (was ~3–4k).
+
+Hero tier (`spec.hero`, ~60k triangles each, 2–3 on screen, tough and slow):
+- `src/actors/heroSculpt.ts`: sculpted muscle (pecs, abs, delts, biceps, quads, calves), wound craters with raised crusted rims, wet muscle-fibre shading (negative `aRot` means wet), scar ridges, shirt/trouser rags painted on the body, cloth strips for coat tails, lapels, collar, tie and sleeve rags.
+- High-resolution gaunt head (hollow cheeks, brow, sockets), fangs, smaller eyes, jaw baked slightly open.
+- `hulk` pose in `poses.json`. Sandbox `?rim` adds key and rim lights for judging the sculpt.
+
+Known gaps: coat reads as flat strips; hunched pose hides the face from low camera angles; hero has no gait or attack of its own; cloth does not sway; 60 fps on the M2 not measured.
