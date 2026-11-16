@@ -4,7 +4,7 @@ import { Rng } from '../core/rng.ts';
 import type { AmbientPreset, DoorData, DoorState, LevelData, RoomData, TriggerData, UnlockSource } from '../data/types/level.ts';
 import { createShaft } from '../render/fx/shafts.ts';
 import { Particulates } from '../render/fx/particulates.ts';
-import { LightController, type ShaftUniforms } from '../render/lights.ts';
+import { LightController, type LightPattern, type ShaftUniforms } from '../render/lights.ts';
 import { fixtureMaterial, type Materials } from '../render/materials.ts';
 import { CollisionWorld, type Collider } from './collision.ts';
 import { at } from './kit/geom.ts';
@@ -588,6 +588,53 @@ export class Level implements World {
   unlock(id: string, by: UnlockSource): boolean {
     const d = this.doors.find((x) => x.data.id === id);
     return d ? this.unlockDoor(d, by) : false;
+  }
+
+  // ---------------------------------------------------------------- script control (ADR-0009)
+
+  /** Force a door into a state (sequences, checkpoint restore). False for unknown ids. */
+  setDoor(id: string, state: DoorState): boolean {
+    const d = this.doors.find((x) => x.data.id === id);
+    if (!d) return false;
+    this.setDoorState(d, state);
+    d.target = state === 'open' ? 1 : 0;
+    d.away = 0;
+    return true;
+  }
+
+  doorStates(): Record<string, DoorState> {
+    return Object.fromEntries(this.doors.map((d) => [d.data.id, d.state]));
+  }
+
+  /** Set the pattern of every light in a room. False if the room has none. */
+  setRoomLights(room: string, pattern: LightPattern): boolean {
+    let any = false;
+    for (const it of this.lights.items) {
+      if (!it.name.startsWith(`${room} `)) continue;
+      it.pattern = pattern;
+      any = true;
+    }
+    return any;
+  }
+
+  /** Pattern of each room's first light, enough to snapshot and restore. */
+  roomLightPatterns(): Record<string, LightPattern> {
+    const out: Record<string, LightPattern> = {};
+    for (const r of this.rooms) {
+      const first = this.lights.items.find((it) => it.name.startsWith(`${r.data.id} `));
+      if (first) out[r.data.id] = first.pattern;
+    }
+    return out;
+  }
+
+  /** World position of a door or a room's centre, for look-at and sound targets. */
+  anchorPosition(kind: 'door' | 'room', id: string): THREE.Vector3 | null {
+    if (kind === 'door') return this.doors.find((d) => d.data.id === id)?.center.clone() ?? null;
+    const room = this.rooms.find((r) => r.data.id === id);
+    if (!room || room.cells.length === 0) return null;
+    const box = new THREE.Box3();
+    for (const c of room.cells) box.union(c);
+    return box.getCenter(new THREE.Vector3());
   }
 
   // ---------------------------------------------------------------- door + trigger logic

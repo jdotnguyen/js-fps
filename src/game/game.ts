@@ -264,7 +264,8 @@ export class Game {
     this.restartTimer = null;
   }
 
-  private reachCheckpoint(id: string, label: string): void {
+  /** Take a checkpoint: flag it, heal, autosave. Also called by sequences (ADR-0009). */
+  reachCheckpoint(id: string, label: string): void {
     this.flags[`cp:${id}`] = true;
     this.checkpoint = id;
     this.location = label;

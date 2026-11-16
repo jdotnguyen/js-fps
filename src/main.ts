@@ -35,6 +35,10 @@ import { Game } from './game/game.ts';
 import { Interactions } from './actors/interaction.ts';
 import { Player, PLAYER_TUNING } from './actors/player.ts';
 import { DEBUG_SEQUENCES } from './actors/debugSequences.ts';
+import { createGameHost } from './script/gameHost.ts';
+import { loadSequences } from './script/load.ts';
+import { SequenceOverlay } from './script/overlay.ts';
+import { SequenceManager } from './script/runtime.ts';
 import { DEMO_INTERACT_BOXES } from './world/demoRoomColliders.ts';
 import { PlayerHud } from './ui/hud/playerHud.ts';
 import { SaveStore } from './game/save.ts';
@@ -204,10 +208,14 @@ async function boot(): Promise<void> {
     });
   }
 
+  // ADR-0009 sequences; created once the loop exists (it owns the time scale).
+  let sequences: SequenceManager | null = null;
+
   const runSequence = (id: string): void => {
     const seq = DEBUG_SEQUENCES[id];
     if (!seq) {
-      console.warn(`[debug] unknown sequence '${id}'. Known: ${Object.keys(DEBUG_SEQUENCES).join(', ')}`);
+      if (sequences?.has(id)) sequences.start(id, { debug: true });
+      else console.warn(`[debug] unknown sequence '${id}'. Known: ${[...Object.keys(DEBUG_SEQUENCES), ...(sequences?.ids() ?? [])].join(', ')}`);
       return;
     }
     seq({ player, say: (t, b) => toasts.show(t, b ?? ''), focus: room?.anchors.door ?? world.spawn.position }).catch((err: unknown) => console.error(err));
@@ -331,6 +339,7 @@ async function boot(): Promise<void> {
     update: (dt) => {
       simTime += dt;
       game.update(dt);
+      if (game.mode === 'playing' && !game.flying) sequences?.update(dt);
       input.endStep();
     },
     render: (_alpha, frameDt) => {
@@ -349,6 +358,37 @@ async function boot(): Promise<void> {
       debug?.endFrame();
     },
   });
+
+  sequences = new SequenceManager(
+    createGameHost({
+      events,
+      game,
+      player,
+      world,
+      level,
+      audio,
+      hud,
+      toasts,
+      anchors: room ? { door: room.anchors.door, window: room.anchors.window, vent: room.anchors.vent, console: room.anchors.console, abyss: room.anchors.abyss } : undefined,
+      setTimeScale: (scale) => {
+        loop.clock.scale = scale;
+      },
+    }),
+    loadSequences(),
+  );
+  // Back to the title or a fresh game: nothing from the last session keeps running.
+  events.on('game:mode', ({ mode }) => {
+    if (mode === 'title') sequences?.cancelAll();
+  });
+  if (flags.enabled) {
+    const overlay = new SequenceOverlay(sequences);
+    events.on('game:mode', () => overlay.update());
+    const tickOverlay = (): void => {
+      overlay.update();
+      requestAnimationFrame(tickOverlay);
+    };
+    tickOverlay();
+  }
 
   game.showTitle();
   updatePrompt();
