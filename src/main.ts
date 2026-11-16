@@ -21,19 +21,29 @@ import { createMaterials } from './render/materials.ts';
 import { createPost } from './render/post.ts';
 import { Flashlight } from './render/flashlight.ts';
 import { LIGHT_PATTERNS } from './render/lights.ts';
-import { buildDemoRoom } from './world/demoRoom.ts';
+import { buildDemoRoom, type DemoRoom } from './world/demoRoom.ts';
+import { demoRoomWorld } from './world/demoWorld.ts';
+import { loadLevel, type Level } from './world/level.ts';
+import { KitRegistry, validateKitManifest } from './world/registry.ts';
+import { LevelOverlay, OVERLAY_LAYERS } from './world/levelDebug.ts';
+import { levelValidator } from './data/types/level.ts';
+import kitManifestJson from './data/kit-manifest.json';
+import type { World } from './world/world.ts';
 import { DemoRoomAudio } from './world/demoRoomAudio.ts';
 import { AudioEngine } from './audio/engine.ts';
+import { MenuMusic } from './audio/menuMusic.ts';
 import { Game } from './game/game.ts';
 import { Interactions } from './actors/interaction.ts';
 import { Player, PLAYER_TUNING } from './actors/player.ts';
 import { DEBUG_SEQUENCES } from './actors/debugSequences.ts';
-import { DEMO_INTERACT_BOXES, demoRoomPlayerWorld } from './world/demoRoomColliders.ts';
+import { DEMO_INTERACT_BOXES } from './world/demoRoomColliders.ts';
 import { PlayerHud } from './ui/hud/playerHud.ts';
 import { SaveStore } from './game/save.ts';
 import { createMenus } from './ui/menus/screens.ts';
 import { Toasts } from './ui/toast.ts';
+import { Viewmodel } from './render/viewmodel/viewmodel.ts';
 
+const LEVEL_FILES = import.meta.glob<unknown>('./data/levels/*.json', { eager: true, import: 'default' });
 const TEXTURE_SIZE = 512;
 const FOG_COLOR = 0x04080a;
 const GRAIN = 0.035;
@@ -74,6 +84,14 @@ async function boot(): Promise<void> {
   await nextFrame();
 
   const renderer = createRenderer(canvas, settings.get());
+  if (new URLSearchParams(location.search).has('vmlab')) {
+    prompt.hidden = true;
+    document.querySelector<HTMLElement>('#ui')?.setAttribute('hidden', '');
+    document.querySelector<HTMLElement>('#menu')?.setAttribute('hidden', '');
+    const { runLab } = await import('./render/viewmodel/lab.ts');
+    await runLab(renderer);
+    return;
+  }
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(FOG_COLOR);
   scene.fog = new THREE.FogExp2(FOG_COLOR, 0.05);
@@ -86,24 +104,41 @@ async function boot(): Promise<void> {
 
   const t0 = performance.now();
   const materials = createMaterials(TEXTURE_SIZE, Math.min(8, renderer.capabilities.getMaxAnisotropy()));
-  const room = buildDemoRoom(materials, new Rng('demo-room'));
-  scene.add(room.group);
-  console.info(`[boot] textures + room built in ${(performance.now() - t0).toFixed(0)} ms`);
+  // ?level=<id> loads a data-driven kit level (ADR-0003); otherwise the hand-built demo room.
+  const levelId = new URLSearchParams(location.search).get('level');
+  let room: DemoRoom | null = null;
+  let level: Level | null = null;
+  let world: World;
+  if (levelId) {
+    const file = Object.entries(LEVEL_FILES).find(([path]) => path.endsWith(`/${levelId}.json`));
+    if (!file) throw new Error(`No level '${levelId}'. Known: ${Object.keys(LEVEL_FILES).map((f) => f.replace(/^.*\/|\.json$/g, '')).join(', ')}`);
+    const registry = new KitRegistry(validate(validateKitManifest, kitManifestJson, 'data/kit-manifest.json'), undefined);
+    const data = validate(levelValidator(registry.ids()), file[1], `data/levels/${levelId}.json`);
+    level = await loadLevel(data, { materials, registry, events, scene });
+    world = level;
+    console.info(`[boot] level '${levelId}' built in ${(performance.now() - t0).toFixed(0)} ms`);
+    console.table(level.roomStats());
+  } else {
+    room = buildDemoRoom(materials, new Rng('demo-room'));
+    world = demoRoomWorld(room);
+    console.info(`[boot] textures + room built in ${(performance.now() - t0).toFixed(0)} ms`);
+  }
+  scene.add(world.group);
 
   // Audio starts suspended; the first click anywhere resumes it (browser rule).
   const audio = new AudioEngine();
   console.info(`[boot] sounds rendered in ${audio.renderSounds().toFixed(0)} ms`);
-  const roomAudio = new DemoRoomAudio(audio, room, new Rng('room-audio'));
-  roomAudio.start();
+  const roomAudio = room ? new DemoRoomAudio(audio, room, new Rng('room-audio')) : null;
+  roomAudio?.start();
   addEventListener('pointerdown', () => void audio.resume(), { capture: true });
   addEventListener('keydown', () => void audio.resume(), { capture: true });
 
-  camera.position.copy(room.spawn.position);
+  camera.position.copy(world.spawn.position);
   const input = new Input(canvas, keymap, events);
   const freeCam = new FreeCamera(camera, input, () => settings.get());
-  freeCam.yaw = room.spawn.yaw;
+  freeCam.yaw = world.spawn.yaw;
   freeCam.speed = 2.5;
-  freeCam.bounds = room.bounds;
+  freeCam.bounds = world.bounds;
 
   const flashlight = new Flashlight(scene, camera);
   const interactions = new Interactions();
@@ -117,7 +152,7 @@ async function boot(): Promise<void> {
     flashlight,
     interactions,
     difficulty: () => currentPreset(),
-    world: demoRoomPlayerWorld(),
+    world: world.playerWorld,
   });
   const post = createPost(renderer, scene, camera, settings.get().quality);
   renderer.compile(scene, camera);
@@ -135,43 +170,65 @@ async function boot(): Promise<void> {
     interactions,
     freeCam,
     flashlight,
-    room,
+    world,
     audio,
     toasts,
     hud,
   });
   currentPreset = () => game.preset;
+  prompt.textContent = 'Building weapons…';
+  await nextFrame();
+  const viewmodel = new Viewmodel({
+    scene,
+    camera,
+    input,
+    player,
+    events,
+    enabled: () => game.mode === 'playing' && !game.flying && player.alive && player.control.state.weapons,
+    visible: () => game.mode !== 'title' && !game.flying,
+    reducedMotion: () => settings.get().reducedMotion,
+  });
+  renderer.compile(scene, camera);
   createMenus(el<HTMLElement>('#menu'), { game, saves, settings, difficulties, events });
-  events.on('player:flashlight', () => roomAudio.flashlightClick());
-  events.on('player:footstep', (f) => roomAudio.footstep(f.surface, f.x, f.z, f.sprint));
+  const menuMusic = new MenuMusic(audio, game.mode);
+  menuMusic.start();
+  events.on('game:mode', ({ mode }) => menuMusic.setMode(mode));
+  events.on('player:flashlight', () => roomAudio?.flashlightClick());
+  events.on('player:footstep', (f) => roomAudio?.footstep(f.surface, f.x, f.z, f.sprint));
   events.on('player:damaged', () => audio.muffle(0.4));
 
-  // Demo room interactables (ADR-0004). Kit levels will register their own (ADR-0003).
-  interactions.add({ id: 'save_station', prompt: 'Use save station', box: DEMO_INTERACT_BOXES.saveStation, use: () => game.openSaveStation() });
-  interactions.add({
-    id: 'locker_sec07',
-    prompt: 'Open locker',
-    hold: 0.6,
-    box: DEMO_INTERACT_BOXES.locker,
-    enabled: () => !game.flags['locker_sec07'],
-    use: () => {
-      game.flags['locker_sec07'] = true;
-      toasts.show('Locker SEC-07', 'Empty. Someone got here first.');
-    },
-  });
-  interactions.add({
-    id: 'lab_b_monitor',
-    prompt: 'Read monitor',
-    box: DEMO_INTERACT_BOXES.console,
-    use: () => toasts.show('Lab B monitor', 'Specimen B-7: stable. Containment check required.'),
-  });
-  interactions.add({
-    id: 'door_07b_panel',
-    prompt: 'Override door',
-    hold: 1.0,
-    box: DEMO_INTERACT_BOXES.doorPanel,
-    use: () => toasts.show('Access denied', 'Pressure differential · lockdown 07-B'),
-  });
+  if (level) {
+    level.registerInteractions(interactions);
+    events.on('door:denied', (d) => toasts.show('Door', d.reason));
+    events.on('door:unlocked', (d) => toasts.show('Door unlocked', d.id));
+  } else {
+    // Demo room interactables (ADR-0004).
+    interactions.add({ id: 'save_station', prompt: 'Use save station', box: DEMO_INTERACT_BOXES.saveStation, use: () => game.openSaveStation() });
+    interactions.add({
+      id: 'locker_sec07',
+      prompt: 'Open locker',
+      hold: 0.6,
+      box: DEMO_INTERACT_BOXES.locker,
+      enabled: () => !game.flags['locker_sec07'],
+      use: () => {
+        game.flags['locker_sec07'] = true;
+        toasts.show('Locker SEC-07', 'Empty. Someone got here first.');
+      },
+    });
+    interactions.add({
+      id: 'lab_b_monitor',
+      prompt: 'Read monitor',
+      box: DEMO_INTERACT_BOXES.console,
+      use: () => toasts.show('Lab B monitor', 'Specimen B-7: stable. Containment check required.'),
+    });
+    interactions.add({
+      id: 'door_07b_panel',
+      prompt: 'Override door',
+      hold: 1.0,
+      box: DEMO_INTERACT_BOXES.doorPanel,
+      use: () => toasts.show('Access denied', 'Pressure differential · lockdown 07-B'),
+    });
+  }
 
   const runSequence = (id: string): void => {
     const seq = DEBUG_SEQUENCES[id];
@@ -179,7 +236,7 @@ async function boot(): Promise<void> {
       console.warn(`[debug] unknown sequence '${id}'. Known: ${Object.keys(DEBUG_SEQUENCES).join(', ')}`);
       return;
     }
-    seq({ player, say: (t, b) => toasts.show(t, b ?? ''), focus: room.anchors.door }).catch((err: unknown) => console.error(err));
+    seq({ player, say: (t, b) => toasts.show(t, b ?? ''), focus: room?.anchors.door ?? world.spawn.position }).catch((err: unknown) => console.error(err));
   };
 
   // Apply settings now and whenever they change.
@@ -197,6 +254,7 @@ async function boot(): Promise<void> {
   events.on('settings:changed', applySettings);
 
   let debug: DebugTools | null = null;
+  let levelStats: { drawCalls: number; pool: number } | null = null;
   if (flags.enabled) {
     debug = await createDebugTools();
     const gui = debug.gui;
@@ -217,7 +275,7 @@ async function boot(): Promise<void> {
     fx.add(post.bloom, 'radius', 0, 1, 0.01).name('bloom radius');
     const lightsFolder = gui.addFolder('Lights');
     lightsFolder.add(flashlight, 'intensity', 0, 200, 1).name('flashlight');
-    for (const item of room.lights.items) {
+    for (const item of world.lights.items) {
       const f = lightsFolder.addFolder(item.name);
       f.add(item, 'pattern', [...LIGHT_PATTERNS]);
       f.add(item, 'base', 0, 100, 0.5).name('intensity');
@@ -226,6 +284,7 @@ async function boot(): Promise<void> {
     const sound = gui.addFolder('Audio mix');
     sound.add(audio.buses.ambience.gain, 'value', 0, 2, 0.01).name('ambience');
     sound.add(audio.buses.sfx.gain, 'value', 0, 2, 0.01).name('footsteps / sfx');
+    sound.add(audio.buses.music.gain, 'value', 0, 1, 0.01).name('music');
     gui.addFolder('Camera').add(freeCam, 'speed', 1, 20, 0.5).name('fly speed (F1)');
     const pf = gui.addFolder('Player');
     const actions = {
@@ -263,6 +322,16 @@ async function boot(): Promise<void> {
         setTimeout(() => runSequence(seqId), 1200);
       });
     }
+    if (level) {
+      const overlay = new LevelOverlay(level);
+      scene.add(overlay.group);
+      const lf = gui.addFolder('Level');
+      for (const layer of OVERLAY_LAYERS) lf.add(overlay.visible, layer).name(layer).onChange((on: boolean) => overlay.set(layer, on));
+      lf.add({ unlockAll: () => level.unlock('D2', 'script') }, 'unlockAll').name('unlock D2');
+      levelStats = { drawCalls: 0, pool: 0 };
+      lf.add(levelStats, 'drawCalls').name('visible draw calls').listen().disable();
+      lf.add(levelStats, 'pool').name('pooled lights bound').listen().disable();
+    }
     gui.close();
   }
 
@@ -294,10 +363,15 @@ async function boot(): Promise<void> {
     render: (_alpha, frameDt) => {
       debug?.beginFrame();
       game.render(frameDt);
+      viewmodel.update(frameDt);
       flashlight.update(frameDt);
-      room.update(simTime, frameDt, camera.position, settings.get().reducedFlashing);
+      world.update(simTime, frameDt, camera.position, settings.get().reducedFlashing);
+      if (level && levelStats) {
+        levelStats.drawCalls = level.visibleDrawCalls();
+        levelStats.pool = level.pool.boundCount();
+      }
       audio.updateListener(camera);
-      roomAudio.update(simTime);
+      roomAudio?.update(simTime);
       post.grade.uDamage.value = game.mode === 'title' || game.flying ? 0 : player.damageFx;
       post.render(simTime);
       debug?.endFrame();

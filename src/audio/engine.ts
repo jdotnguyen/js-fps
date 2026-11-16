@@ -7,7 +7,7 @@ import { SOUND_SPECS, type SoundName } from './sounds.ts';
  * Web Audio engine (ADR-0013): buses -> master -> limiter, a shared convolution
  * reverb send, HRTF-positioned voices, and procedurally rendered buffers.
  */
-export type BusName = 'ambience' | 'sfx' | 'ui';
+export type BusName = 'ambience' | 'sfx' | 'ui' | 'music';
 
 export interface VoiceOptions {
   bus?: BusName;
@@ -51,7 +51,7 @@ export class AudioEngine {
       node.connect(this.master);
       return node;
     };
-    this.buses = { ambience: bus(1), sfx: bus(1), ui: bus(0.8) };
+    this.buses = { ambience: bus(1), sfx: bus(1), ui: bus(0.8), music: bus(0.3) };
 
     const sr = this.ctx.sampleRate;
     const [left, right] = impulseResponse(sr, 1.6, new Rng('reverb'));
@@ -130,6 +130,24 @@ export class AudioEngine {
     const { source, output } = this.voice(name, opts, false);
     source.onended = () => output.disconnect();
     source.start();
+  }
+
+  /** Loop a pre-rendered stereo track on the music bus. Silent until `setGain` raises it. */
+  loopStereo(left: Float32Array<ArrayBuffer>, right: Float32Array<ArrayBuffer>, sampleRate: number): LoopHandle {
+    const buffer = this.ctx.createBuffer(2, left.length, sampleRate);
+    buffer.copyToChannel(left, 0);
+    buffer.copyToChannel(right, 1);
+    const source = new AudioBufferSourceNode(this.ctx, { buffer, loop: true });
+    const gain = new GainNode(this.ctx, { gain: 0 });
+    source.connect(gain).connect(this.buses.music);
+    source.start();
+    return {
+      setGain: (value, timeConstant = 0.03) => gain.gain.setTargetAtTime(value, this.ctx.currentTime, timeConstant),
+      stop: () => {
+        source.stop();
+        gain.disconnect();
+      },
+    };
   }
 
   loop(name: SoundName, opts: VoiceOptions = {}): LoopHandle {

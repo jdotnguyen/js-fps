@@ -159,6 +159,11 @@ export class Player {
     return this.vitals.state === 'alive';
   }
 
+  /** Camera kick from weapon fire: positive pitches the view up (same spring as damage kick). */
+  addKick(amount: number): void {
+    this.kickVel += amount;
+  }
+
   get downed(): boolean {
     return this.vitals.state === 'downed';
   }
