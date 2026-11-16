@@ -1,6 +1,6 @@
 # ADR-0003: Modular level kit and data-driven levels
 
-Status: Accepted (hybrid kit) / Proposed (dimensions, schema)
+Status: Done 2026-11-15 (hybrid kit [Decided]; dimensions and schema as assumed)
 
 ## Context
 Justin wants interior corridors with far more polygons [Decided], a hybrid asset approach
@@ -131,3 +131,22 @@ beacons, vent grates, valves, debris piles, corpse poses (uses ADR-0006 humanoid
 
 ## Open questions
 - Visual level editor (later chapters).
+
+## Done on 2026-11-15
+- Built on `foundation` after ADR-0004: collision is a 2 m spatial hash that implements the
+  motor's `ColliderQuery` (`world/collision.ts`), so the player uses `actors/motor.ts`
+  directly; step-up and slopes come from the motor, not from a second movement path.
+- `Game` takes a `World` (`world/world.ts`): the demo room (`world/demoWorld.ts`) and kit
+  levels (`world/level.ts`) share spawn, checkpoints, interactions and title camera.
+- `?level=<id>` loads `src/data/levels/<id>.json`; `?level=kit_test&debug` adds a Level
+  folder (overlays: grid, rooms, colliders, triggers, sockets, light slots, nav nodes; unlock
+  D2; live draw-call and pooled-light counts). No `?level` boots the demo room as before.
+- Assumed dimensions kept: 4 m grid, 3 m x 3.2 m corridors, 2 m x 2.4 m doors, 0.35 m step.
+- Schema additions beyond the ADR: room `height`, piece `cells`, trigger `prompt`, light
+  `range`, door `unlockOn`/`params`.
+- Checks: `tsc --noEmit` clean, 109 tests pass, walked prep room -> corridor -> locked
+  bulkhead (hold E) -> Lab B -> vault with all three checkpoints, console clean,
+  50 visible draw calls with all four rooms in view (limit 60 per room), swapping a piece ID
+  in the JSON boots with different geometry and no code change.
+- Not run: `npm run build` (the Linux VM lacks the rollup binary); run it on the Mac.
+- GLB swap path (`data/kit-manifest.json`) is in place but untested with a real GLB.

@@ -10,7 +10,7 @@ import type { DifficultyId, DifficultyTable } from '../data/types/difficulty.ts'
 import type { Flashlight } from '../render/flashlight.ts';
 import type { Toasts } from '../ui/toast.ts';
 import type { PlayerHud } from '../ui/hud/playerHud.ts';
-import type { DemoRoom } from '../world/demoRoom.ts';
+import type { World } from '../world/world.ts';
 import { SAVE_VERSION, type SaveData, type SaveKind, type SaveStore } from './save.ts';
 
 export type GameMode = 'title' | 'playing' | 'paused';
@@ -35,14 +35,13 @@ export interface GameDeps {
   /** Debug fly camera (F1 with ?debug). */
   freeCam: FreeCamera;
   flashlight: Flashlight;
-  room: DemoRoom;
+  world: World;
   audio: AudioEngine;
   toasts: Toasts;
   hud: PlayerHud;
 }
 
 const CHAPTER = 'slice01';
-const LEVEL = 'demo-room';
 /** Game over: fade to black, hold, then restart from the last checkpoint (ADR-0004). */
 const DEATH_FADE = 1.4;
 const DEATH_HOLD = 1.0;
@@ -63,6 +62,7 @@ export class Game {
   flying = false;
   private readonly d: GameDeps;
   private titleTime = 0;
+  private readonly feet = new THREE.Vector3();
   private restartTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly eye = new THREE.Vector3();
 
@@ -121,7 +121,7 @@ export class Game {
       playTime: this.playTime,
       difficulty: this.difficulty,
       chapter: CHAPTER,
-      level: LEVEL,
+      level: this.d.world.id,
       checkpoint: this.checkpoint,
       location: this.location || 'Section 07',
       player: {
@@ -191,10 +191,11 @@ export class Game {
       this.d.freeCam.update(dt);
       return;
     }
-    const { player, room } = this.d;
+    const { player, world } = this.d;
     player.update(dt);
-    for (const cp of room.anchors.checkpoints) {
-      if (!this.flags[`cp:${cp.id}`] && player.alive && player.body.z < cp.zBelow) this.reachCheckpoint(cp.id, cp.label);
+    this.feet.set(player.body.x, player.body.y, player.body.z);
+    for (const cp of world.checkpoints) {
+      if (!this.flags[`cp:${cp.id}`] && player.alive && cp.reached(this.feet)) this.reachCheckpoint(cp.id, cp.label);
     }
   }
 
@@ -204,10 +205,7 @@ export class Game {
     if (this.mode === 'title') {
       // Attract camera: a slow drift down the corridor behind the title menu.
       this.titleTime += frameDt;
-      const t = this.titleTime;
-      const cam = this.d.camera;
-      cam.position.set(Math.sin(t * 0.11) * 0.9, 1.7 + Math.sin(t * 0.07) * 0.08, 7.5 - 3 * (1 - Math.cos(t * 0.05)));
-      cam.lookAt(Math.sin(t * 0.13) * 1.2, 1.3, -10);
+      this.d.world.attract(this.titleTime, this.d.camera);
       this.d.input.consumeLook();
       hud.hide();
       return;
@@ -234,9 +232,9 @@ export class Game {
   }
 
   private spawnAtStart(): void {
-    const { player, room } = this.d;
+    const { player, world } = this.d;
     player.reset();
-    player.placeAtEye(room.spawn.position, room.spawn.yaw);
+    player.placeAtEye(world.spawn.position, world.spawn.yaw);
     this.d.flashlight.on = true;
   }
 
