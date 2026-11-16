@@ -1,17 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildBodyGeometry, OUTFITS, triangleCount } from './bodyGeometry.ts';
+import { BODY_ATTRIBUTES, buildBodyGeometry, OUTFITS, triangleCount } from './bodyGeometry.ts';
 import { loadPoseFile } from '../data/types/poses.ts';
 import { PoseLibrary } from './poses.ts';
 import { JOINT_NAMES, JOINTS, subtree } from './skeleton.ts';
 
-test('every outfit stays inside the 6-10k triangle budget (ADR-0006)', () => {
+test('every outfit stays inside the 8-15k triangle budget (ADR-0006, raised for gore detail)', () => {
   for (const outfit of OUTFITS) {
     for (const infectable of [false, true]) {
       const g = buildBodyGeometry({ outfit, height: 1.78, build: 1, infectable, seed: `t-${outfit}` });
       const tris = triangleCount(g.parts);
-      assert.ok(tris >= 4000 && tris <= 10000, `${outfit} infectable=${infectable}: ${tris} triangles`);
+      assert.ok(tris >= 8000 && tris <= 15000, `${outfit} infectable=${infectable}: ${tris} triangles`);
     }
   }
 });
@@ -20,7 +20,7 @@ test('all pieces share one attribute layout so they merge into one skinned mesh'
   const g = buildBodyGeometry({ outfit: 'lab', height: 1.78, build: 1, infectable: true, seed: 'attrs' });
   for (const p of g.parts) {
     const names = Object.keys(p.geometry.attributes).sort().join(',');
-    assert.equal(names, 'aSkin,color,normal,position', `${p.bone}: ${names}`);
+    assert.equal(names, [...BODY_ATTRIBUTES].join(','), `${p.bone}: ${names}`);
     assert.ok(p.geometry.getIndex(), `${p.bone} is not indexed`);
   }
 });
@@ -64,4 +64,14 @@ test('a pose rotates the joint it names', () => {
     if (j.name === 'thigh_L') assert.ok(Math.abs(w - Math.cos(Math.PI / 4)) < 1e-6);
     else assert.ok(Math.abs(w - 1) < 1e-9, `${j.name} moved`);
   });
+});
+
+test('an infectable body fits the bone budget and every extra bone has a built parent', () => {
+  const g = buildBodyGeometry({ outfit: 'crew', height: 1.78, build: 1, infectable: true, seed: 'bones' });
+  assert.ok(JOINTS.length + g.extraBones.length <= 64, `${JOINTS.length + g.extraBones.length} bones`);
+  const built = new Set<string>(JOINTS.map((j) => j.name));
+  for (const e of g.extraBones) {
+    assert.ok(built.has(e.parent), `${e.name} parent ${e.parent} comes later`);
+    built.add(e.name);
+  }
 });

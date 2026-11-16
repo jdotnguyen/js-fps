@@ -110,6 +110,10 @@ async function boot(): Promise<void> {
   box(0.25, 0.9, 1.2, -6.85, 0.75, -2, mats.steel);
   box(0.7, 1.0, 1.4, 5.4, 0.5, -4, mats.paintBone);
   room.add(new THREE.HemisphereLight(0x8fa3ad, 0x14181b, 0.35));
+  if (new URLSearchParams(location.search).has('rim')) {
+    const key = new THREE.DirectionalLight(0xffd7b0, 2.2); key.position.set(-3, 4, 4); room.add(key);
+    const rim = new THREE.DirectionalLight(0x5fe0c0, 3.0); rim.position.set(3, 3, -4); room.add(rim);
+  }
   for (const [x, z, shadow] of [[0, -4, true], [-4.5, -1, false], [4.5, -4, false], [0, 3, false]] as const) {
     const spot = new THREE.SpotLight(0xffe2bd, 38, 11, THREE.MathUtils.degToRad(48), 0.6, 1.6);
     spot.position.set(x, 3.3, z);
@@ -148,6 +152,7 @@ async function boot(): Promise<void> {
     spawn({ seed: 'shambler-a', outfit: 'crew', role: 'enemy', infection: 1 }, -2.2, -6, 0);
     spawn({ seed: 'shambler-b', outfit: 'lab', role: 'enemy', infection: 2 }, 0.4, -7, 0.2);
     spawn({ seed: 'shambler-c', outfit: 'security', role: 'enemy', infection: 3 }, 2.6, -6.4, -0.3);
+    spawn({ seed: 'hero-warden', outfit: 'lab', role: 'enemy', infection: 2, hero: true, height: 2.15, build: 1.25, baseHp: 400, pose: 'hulk' }, 0.2, -3, 0);
     spawn({ seed: 'shambler-d', outfit: 'crew', role: 'enemy', infection: 2.5 }, -0.8, -4.6, 0.1);
     const lurker = spawn({ seed: 'playdead-a', outfit: 'lab', role: 'enemy', infection: 2 }, 2.2, -1.5, 2.4);
     lurker.playDead('corpseProne');
@@ -283,6 +288,8 @@ async function boot(): Promise<void> {
       desired = toCam;
     }
     h.lookTarget = camera.position;
+    // Lunge when close: jaw gapes, arms reach.
+    h.charge = !h.locomotion.blind && dist < 2.6 ? 1 : 0;
     h.move(desired, dt);
     // Keep inside the room.
     h.group.position.x = THREE.MathUtils.clamp(h.group.position.x, -6.6, 6.6);

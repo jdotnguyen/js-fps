@@ -9,7 +9,7 @@
 
 /** Same order as JOINTS (bone index = position here); a test keeps them in step. */
 export const JOINT_NAMES = [
-  'root', 'pelvis', 'spine', 'chest', 'neck', 'head',
+  'root', 'pelvis', 'spine', 'chest', 'neck', 'head', 'jaw',
   'shoulder_L', 'upperArm_L', 'foreArm_L', 'hand_L', 'thigh_L', 'shin_L', 'foot_L',
   'shoulder_R', 'upperArm_R', 'foreArm_R', 'hand_R', 'thigh_R', 'shin_R', 'foot_R',
 ] as const;
@@ -103,6 +103,8 @@ export const JOINTS: readonly JointDef[] = [
   { name: 'chest', parent: 'spine', offset: [0, 0.18, 0], segment: CHEST, capsule: capOf(CHEST, 0.85), region: 'torso' },
   { name: 'neck', parent: 'chest', offset: [0, 0.22, 0], segment: NECK, capsule: capOf(NECK, 1), region: 'head' },
   { name: 'head', parent: 'neck', offset: [0, 0.08, 0], segment: null, capsule: { a: [0, 0.06, -0.01], b: [0, 0.12, -0.01], r: 0.1 }, region: 'head' },
+  // Lower jaw, hinged near the ears; covered by the head capsule.
+  { name: 'jaw', parent: 'head', offset: [0, 0.062, 0.01], segment: null, capsule: null, region: null },
   ...limbJoints('L'),
   ...limbJoints('R'),
 ];

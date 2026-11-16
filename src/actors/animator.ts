@@ -42,6 +42,14 @@ export class Animator {
   lookLocal: THREE.Vector3 | null = null;
   /** Joints that hang limp (Reduced gore severed limbs). */
   readonly limp = new Set<number>();
+  /** Infection 0..1: drives the twisted posture, broken joints, jaw and twitching. */
+  infect = 0;
+  /** Infected movement layer on (enemies; not scripted npcs until they turn). */
+  twitchy = false;
+  /** 0..1 lunge: lean in, arms out, jaw wide (AI lurch bursts, attacks). */
+  charge = 0;
+  /** Seconds of post-mortem twitching left. */
+  deathTwitch = 0;
 
   readonly bones: THREE.Bone[];
   private readonly restPos: THREE.Vector3[];
@@ -63,6 +71,16 @@ export class Animator {
   private readonly limpSide: 0 | 1;
   private readonly limpAmount: number;
   private readonly noiseSeed: number;
+  private readonly rng: Rng;
+  /** Seeded deformities: head lolled to one side, a hunched shoulder, one broken limb. */
+  private readonly skew: { neckRoll: number; neckYaw: number; hunch: number; broken: JointName; brokenAngle: [number, number, number] };
+  private spasmTimer = 1;
+  private snapTimer = 0.5;
+  private readonly snap = { x: 0, y: 0, z: 0 };
+  private readonly snapCur = { x: 0, y: 0, z: 0 };
+  private stumble = 0;
+  private stumbleTimer = 4;
+  private chargeCur = 0;
 
   constructor(bones: THREE.Bone[], poses: PoseLibrary, initialPose: string, rng: Rng) {
     this.bones = bones;
@@ -73,6 +91,21 @@ export class Animator {
     this.limpSide = rng.chance(0.5) ? 0 : 1;
     this.limpAmount = rng.range(0.25, 0.75);
     this.noiseSeed = rng.range(0, 100);
+    this.rng = rng.fork('spasm');
+    const brokenOptions: Array<[JointName, [number, number, number]]> = [
+      ['foreArm_L', [-28, 0, 0]], ['foreArm_R', [-28, 0, 0]],
+      ['hand_L', [-70, 0, 20]], ['hand_R', [-70, 0, -20]],
+      ['shin_L', [14, 0, 0]], ['shin_R', [14, 0, 0]],
+      ['upperArm_L', [0, 40, -25]], ['upperArm_R', [0, -40, 25]],
+    ];
+    const [broken, brokenAngle] = rng.pick(brokenOptions);
+    this.skew = {
+      neckRoll: (rng.chance(0.5) ? -1 : 1) * rng.range(22, 48),
+      neckYaw: rng.range(-18, 18),
+      hunch: (rng.chance(0.5) ? -1 : 1) * rng.range(8, 20),
+      broken,
+      brokenAngle,
+    };
     this.phase = rng.range(0, Math.PI * 2);
   }
 
@@ -122,6 +155,7 @@ export class Animator {
     this.off.fill(0);
     this.updateGait(dt);
     this.updateLook(dt);
+    this.updateInfected(dt);
     this.updateReactions(dt);
     this.addConvulsions();
     this.write();
@@ -215,6 +249,11 @@ export class Animator {
         this.add('head', 0, A * 6 * this.n(t * 0.5, 9), A * 5 * this.n(t * 0.4, 10));
       }
       this.bob.y = A * 0.022 * Math.cos(2 * p) - A * 0.012;
+      if (sham) {
+        // Hyperextending knee on the lame leg as it takes weight.
+        const lame = this.limpSide === 0 ? 'L' : 'R';
+        this.add(`shin_${lame}`, A * 16 * this.infect * Math.max(0, -Math.sin(p + this.limpSide * Math.PI)), 0, 0);
+      }
       return;
     }
 
@@ -228,7 +267,10 @@ export class Animator {
         this.add(`foreArm_${s}`, A * 40 * Math.max(0, -sinp), 0, 0);
         this.add(`thigh_${s}`, A * 22 * Math.sin(ph + Math.PI / 2), 0, 0);
         this.add(`shin_${s}`, -A * 30 * Math.max(0, sinp), 0, 0);
+        // Fingers claw at the floor on the pull.
+        this.add(`hand_${s}`, A * 45 * Math.max(0, -sinp), 0, 0);
       }
+      this.add('neck', A * 10 * this.n(t * 3.1, 21), A * 14 * this.n(t * 2.7, 22), 0);
       const sp = Math.sin(this.phase);
       this.rootEuler.z = A * 7 * sp;
       this.add('chest', 0, A * 6 * sp, 0);
@@ -243,11 +285,119 @@ export class Animator {
       for (const s of ['L', 'R'] as const) {
         this.add(`upperArm_${s}`, A * 40 * sp, 0, 0);
         this.add(`foreArm_${s}`, A * 45 * Math.max(0, -sp), 0, 0);
+        this.add(`hand_${s}`, A * 50 * Math.max(0, -sp), 0, 0);
       }
+      this.add('neck', A * 8 * this.n(t * 2.9, 23), A * 16 * this.n(t * 2.3, 24), 0);
       this.add('chest', A * 9 * Math.max(0, sp), 0, 0);
       this.add('head', A * 6 * Math.max(0, sp), 0, 0);
       this.bob.y = A * 0.025 * Math.max(0, sp);
     }
+  }
+
+  /**
+   * The bloom's movement: a skewed, broken posture, sudden spasms, head snaps that hold at
+   * wrong angles, a slack chattering jaw that gapes on a lunge, stumbles, twitching fingers.
+   */
+  private updateInfected(dt: number): void {
+    const t = this.time;
+    const inf = this.twitchy ? this.infect : 0;
+    this.chargeCur += (this.charge - this.chargeCur) * Math.min(1, dt * 6);
+    const c = this.chargeCur;
+    const k = this.skew;
+
+    // Jaw: closed on the living; slack and chattering on the infected; wide on a lunge.
+    const chatter = inf * (0.5 + 0.5 * Math.sin(t * 0.9 + this.noiseSeed)) * 9 * Math.sin(t * 38 + this.noiseSeed);
+    this.add('jaw', -(inf * (10 + 14 * (0.5 + 0.5 * this.n(t * 0.6, 30))) + chatter + c * 38), 0, this.n(t, 31) * 4 * inf);
+
+    if (inf > 0) {
+      // Head lolled and wrong; one shoulder hiked up; one limb bent the wrong way.
+      this.add('neck', 0, k.neckYaw * inf * 0.5, k.neckRoll * inf * 0.55);
+      this.add('head', 0, k.neckYaw * inf * 0.5, k.neckRoll * inf * 0.45);
+      this.add(k.hunch < 0 ? 'upperArm_L' : 'upperArm_R', 0, 0, k.hunch * inf);
+      this.add('chest', 0, 0, k.hunch * 0.4 * inf);
+      const b = k.brokenAngle;
+      const bi = Math.min(1, inf * 1.4 - 0.2);
+      if (bi > 0) this.add(k.broken, b[0] * bi, b[1] * bi, b[2] * bi);
+      // Fingers and hands never still.
+      for (const s of ['L', 'R'] as const) {
+        this.add(`hand_${s}`, 18 * inf * this.n(t * 4.3, s === 'L' ? 32 : 33), 0, 12 * inf * this.n(t * 3.7, s === 'L' ? 34 : 35));
+      }
+
+      // Head snaps: jump to a new wrong angle, hold it, jump again.
+      this.snapTimer -= dt;
+      if (this.snapTimer <= 0) {
+        this.snapTimer = this.rng.range(0.35, 2.2) / (0.5 + inf);
+        const big = this.rng.chance(0.3);
+        this.snap.x = this.rng.range(-25, 20) * (big ? 1.6 : 1);
+        this.snap.y = this.rng.range(-45, 45) * (big ? 1.4 : 1);
+        this.snap.z = this.rng.range(-35, 35);
+      }
+      const ks = Math.min(1, dt * 22);
+      this.snapCur.x += (this.snap.x - this.snapCur.x) * ks;
+      this.snapCur.y += (this.snap.y - this.snapCur.y) * ks;
+      this.snapCur.z += (this.snap.z - this.snapCur.z) * ks;
+      this.add('head', this.snapCur.x * inf, this.snapCur.y * inf * 0.6, this.snapCur.z * inf * 0.6);
+      this.add('neck', 0, this.snapCur.y * inf * 0.4, this.snapCur.z * inf * 0.3);
+
+      // Spasms: violent kicks through a random joint.
+      this.spasmTimer -= dt;
+      if (this.spasmTimer <= 0) {
+        this.spasmTimer = this.rng.range(0.25, 1.8) / (0.4 + inf);
+        this.spasm(0.35 + 0.65 * inf);
+      }
+
+      // Stumble: the body pitches forward and catches itself.
+      if (this.gait === 'shamble' && this.speed > 0.3) {
+        this.stumbleTimer -= dt;
+        if (this.stumbleTimer <= 0) {
+          this.stumbleTimer = this.rng.range(3, 8);
+          this.stumble = 1;
+        }
+      }
+      if (this.stumble > 0) {
+        this.stumble = Math.max(0, this.stumble - dt * 1.8);
+        const s = Math.sin(this.stumble * Math.PI);
+        this.add('spine', -22 * s, 0, 8 * s);
+        this.add('chest', -10 * s, 0, 0);
+        this.add('upperArm_L', 45 * s, 0, -20 * s);
+        this.add('upperArm_R', 45 * s, 0, 20 * s);
+        this.bob.y -= 0.07 * s;
+      }
+    }
+
+    if (c > 0.01) {
+      // Lunge: low and forward, arms thrown out grasping, head jutting.
+      this.add('spine', -20 * c, 0, 0);
+      this.add('chest', -12 * c, 0, 0);
+      this.add('neck', 18 * c, 0, 0);
+      this.add('head', 14 * c, 0, 0);
+      for (const s of ['L', 'R'] as const) {
+        const ph = this.phase * 1.3 + (s === 'L' ? 0 : Math.PI);
+        this.add(`upperArm_${s}`, (70 + 25 * Math.sin(ph)) * c, 0, (s === 'L' ? -1 : 1) * 15 * c);
+        this.add(`foreArm_${s}`, (-10 + 30 * Math.max(0, Math.sin(ph))) * c, 0, 0);
+        this.add(`hand_${s}`, -30 * c, 0, 0);
+      }
+    }
+
+    // Twitching after death, fading out.
+    if (this.deathTwitch > 0) {
+      this.deathTwitch -= dt;
+      if (this.rng.chance(dt * 6 * Math.min(1, this.deathTwitch / 2))) this.spasm(0.5 * Math.min(1, this.deathTwitch / 3));
+    }
+  }
+
+  private static readonly SPASM_JOINTS: readonly JointName[] = [
+    'head', 'head', 'neck', 'neck', 'chest', 'spine',
+    'upperArm_L', 'upperArm_R', 'foreArm_L', 'foreArm_R', 'hand_L', 'hand_R', 'thigh_L', 'thigh_R',
+  ];
+
+  private spasm(strength: number): void {
+    const name = this.rng.pick(Animator.SPASM_JOINTS);
+    const i = J[name] * 3;
+    const s = strength * this.rng.range(9, 18);
+    this.reactVel[i] = (this.reactVel[i] ?? 0) + this.rng.range(-1, 1) * s;
+    this.reactVel[i + 1] = (this.reactVel[i + 1] ?? 0) + this.rng.range(-1, 1) * s * 0.7;
+    this.reactVel[i + 2] = (this.reactVel[i + 2] ?? 0) + this.rng.range(-1, 1) * s;
   }
 
   /** Headless flailing: arms grope, torso sways (ADR-0006 blind state). */

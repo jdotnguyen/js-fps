@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '../core/rng.ts';
 import { Animator, type GaitStyle } from './animator.ts';
-import { buildBodyGeometry, triangleCount, woundCap, type BodyGeometry, type ExtraBone, type Outfit, type PartGeometry } from './bodyGeometry.ts';
+import { buildBodyGeometry, triangleCount, woundCap, type BodyGeometry, type ExtraBone, type ExtraBoneDef, type Outfit, type PartGeometry } from './bodyGeometry.ts';
 import { createBodyMaterials, MAX_BONES, type BodyMaterials } from './bodyMaterial.ts';
 import { rayCapsule } from './capsule.ts';
 import { BodyDamage, SHAMBLER_BASE_HP, type HitResult, type LocomotionState } from './damage.ts';
@@ -36,6 +36,8 @@ export interface HumanoidSpec {
   infection?: number;
   /** Build growth geometry even at stage 0, so a scripted transformation can run. */
   transformable?: boolean;
+  /** Hero tier: sculpted muscle, torn skin, tattered cloth. Use sparingly (budget). */
+  hero?: boolean;
   /** Base HP before part fractions; already difficulty-scaled by the caller (ADR-0008). */
   baseHp?: number;
   /** Pose while standing still (npc) or lying (corpse). */
@@ -115,6 +117,10 @@ export class Humanoid {
   private pendingPool = -1;
   private near = true;
   private readonly velocity = new THREE.Vector3();
+  private time = 0;
+  private trail = 0;
+  private readonly glowPhase: number;
+  private readonly tendrilRest = new Map<ExtraBone, THREE.Quaternion>();
 
   constructor(spec: HumanoidSpec, ctx: HumanoidContext) {
     this.spec = spec;
@@ -126,6 +132,7 @@ export class Humanoid {
     this.damage = new BodyDamage(spec.baseHp ?? SHAMBLER_BASE_HP);
     this.idlePose = spec.pose ?? (spec.role === 'enemy' ? 'shamble' : 'idle');
     this.state = spec.role === 'corpse' ? 'dead' : 'alive';
+    this.glowPhase = this.rng.range(0, Math.PI * 2);
     this.group.name = `humanoid:${spec.seed}`;
 
     this.geo = buildBodyGeometry({
@@ -133,6 +140,7 @@ export class Humanoid {
       height,
       build,
       infectable: this.infectionLevel > 0 || spec.transformable === true,
+      hero: spec.hero === true,
       seed: spec.seed,
     });
     this.triangles = triangleCount(this.geo.parts);
@@ -265,14 +273,20 @@ export class Humanoid {
     const wasWalking = this.locomotion.mode === 'walk';
     const result = this.damage.apply(hit.region, amount);
     const gore = this.ctx.gore;
-    gore.burst(hit.point, dir.clone().multiplyScalar(-0.6).add(new THREE.Vector3(0, 0.4, 0)), 14);
+    gore.burst(hit.point, dir.clone().multiplyScalar(-0.6).add(new THREE.Vector3(0, 0.4, 0)), 22);
+    if (this.rng.chance(0.35)) gore.chunks(hit.point, dir.clone().multiplyScalar(0.4), 1);
 
     const localDir = dir.clone().applyQuaternion(this.group.quaternion.clone().invert());
-    this.animator.kick(hit.joint, localDir, Math.min(0.6, (amount / 18) * 0.22));
+    this.animator.kick(hit.joint, localDir, Math.min(0.9, (amount / 18) * 0.38));
 
     if (result.severed) this.sever(result.severed, dir);
     if (this.state === 'playingDead') this.getUp();
 
+    if (result.killedBy === 'torso') {
+      // Torso destroyed: it bursts.
+      gore.burst(hit.point, dir.clone().multiplyScalar(0.8).add(new THREE.Vector3(0, 0.8, 0)), 90);
+      gore.chunks(hit.point, dir.clone().multiplyScalar(0.6), 9);
+    }
     if (result.killed) {
       this.die(result.killedBy === 'limbs' && !wasWalking);
     } else if (wasWalking && this.locomotion.mode !== 'walk' && (this.state === 'alive' || this.state === 'gettingUp')) {
@@ -286,10 +300,19 @@ export class Humanoid {
 
   // ---------------------------------------------------------------- per frame
 
+  /** 0..1 lunge (AI lurch bursts and attacks, ADR-0007): lean in, arms out, jaw wide. */
+  charge = 0;
+
   update(dt: number, cameraPosition: THREE.Vector3 | null = null): void {
+    this.time += dt;
     this.updateTimers(dt);
     this.updateInfection(dt);
     this.chooseAnimation();
+    const moving = this.state === 'alive' || this.state === 'falling' || this.state === 'gettingUp';
+    this.animator.infect = this.infectionLevel / 3;
+    this.animator.twitchy = moving && (this.spec.role === 'enemy' || this.infectionLevel >= 1);
+    this.animator.charge = this.state === 'alive' && this.locomotion.mode === 'walk' ? Math.max(this.charge, this.speedScale > 1.2 ? 1 : 0) : 0;
+    this.updateBloodTrail(dt);
     if (this.lookTarget && this.state === 'alive' && !this.locomotion.blind) {
       this.group.updateMatrixWorld();
       this.animator.lookLocal = this.group.worldToLocal(this.rayTmpA.copy(this.lookTarget)).divideScalar(this.geo.scale.y);
@@ -305,8 +328,47 @@ export class Humanoid {
       }
     }
     this.applyBoneScales();
+    this.updateTendrils();
+    const pulse = 0.7 + 0.3 * Math.sin(this.time * 2.3 + this.glowPhase) * Math.sin(this.time * 0.7 + this.glowPhase);
+    this.materials.uniforms.uGlow.value = smooth(0.8, 3, this.infectionLevel) * pulse * (this.state === 'dead' ? 0.3 : 1) * 0.9;
     this.group.updateMatrixWorld(true);
     this.solveIk();
+  }
+
+  private readonly swayQ = new THREE.Quaternion();
+  private readonly swayE = new THREE.Euler();
+
+  /** Tendrils writhe constantly; harder when the body lunges or convulses. */
+  private updateTendrils(): void {
+    if (!this.near) return;
+    const t = this.time;
+    const agitation = 1 + 1.5 * Math.max(this.charge, this.animator.convulse) + (this.state === 'dead' ? -0.7 : 0);
+    for (const e of this.geo.extraBones) {
+      if (e.kind !== 'tendril') continue;
+      const bone = this.extras.get(e.name);
+      if (!bone) continue;
+      const [, ti, si] = e.name.split('_');
+      const k = Number(si) + 1;
+      const ph = Number(ti) * 2.1 + this.glowPhase;
+      this.swayE.set(
+        0.45 * agitation * Math.sin(t * (1.6 + 0.3 * k) + ph + k * 0.9) * (0.4 + 0.25 * k),
+        0.3 * Math.sin(t * 1.1 + ph * 1.7),
+        0.5 * agitation * Math.sin(t * (2.1 + 0.4 * k) + ph * 1.3 + k * 1.2) * (0.4 + 0.25 * k),
+      );
+      this.swayQ.setFromEuler(this.swayE);
+      const rest = this.tendrilRest.get(e.name);
+      if (rest) bone.quaternion.copy(rest).multiply(this.swayQ);
+      else bone.quaternion.copy(this.swayQ);
+    }
+  }
+
+  /** Crawlers and draggers smear blood behind them. */
+  private updateBloodTrail(dt: number): void {
+    if (this.state !== 'alive' || this.locomotion.mode === 'walk' || this.speed < 0.05) return;
+    this.trail += this.speed * dt;
+    if (this.trail < 0.45) return;
+    this.trail = 0;
+    this.ctx.gore.pool(this.jointWorld('pelvis'), 0.28);
   }
 
   showHitboxes(on: boolean): void {
@@ -344,7 +406,13 @@ export class Humanoid {
       const bone = new THREE.Bone();
       bone.name = e.name;
       bone.position.set(e.offset[0], e.offset[1], e.offset[2]);
-      out[e.parent].add(bone);
+      if (e.rest) {
+        bone.rotation.set(e.rest[0], e.rest[1], e.rest[2]);
+        this.tendrilRest.set(e.name, bone.quaternion.clone());
+      }
+      const parent = (out as Record<string, THREE.Bone | undefined>)[e.parent] ?? this.extras.get(e.parent as ExtraBone);
+      if (!parent) throw new Error(`bone ${e.name}: parent ${e.parent} not built yet`);
+      parent.add(bone);
       this.extras.set(e.name, bone);
       this.boneIndex.set(e.name, this.boneList.length);
       this.boneList.push(bone);
@@ -466,7 +534,7 @@ export class Humanoid {
     else if (loc.mode === 'drag') pose = 'dragging';
     else if (loc.blind) pose = 'blindFlail';
     else if (this.spec.role === 'npc' && this.speed > 0.05) pose = 'walk';
-    else if (this.spec.role === 'enemy') pose = 'shamble';
+    else if (this.spec.role === 'enemy') pose = this.spec.pose ?? 'shamble';
     this.animator.setPose(pose, 0.45);
   }
 
@@ -480,6 +548,8 @@ export class Humanoid {
       ? 'corpseProne'
       : this.rng.pick(['corpseProne', 'corpseSupine', 'corpseSide']);
     this.animator.setPose(pose, 0.7);
+    this.animator.deathTwitch = 3 + this.infectionLevel * 1.5;
+    this.charge = 0;
     this.pendingPool = 0.9;
   }
 
@@ -516,6 +586,7 @@ export class Humanoid {
     const stump = this.extras.get(`stump_${jointName}`);
     if (stump) gore.spurt(stump, new THREE.Vector3(), towardChild, 1.5);
     gore.spurt(debris.object, new THREE.Vector3(), towardChild.clone().negate(), 0.7);
+    gore.chunks(world, dirWorld.clone().multiplyScalar(0.5), 5);
     gore.pool(world, 0.55);
   }
 
@@ -534,8 +605,8 @@ export class Humanoid {
       const owner = part.bone;
       let include = chain.has(owner as JointName);
       if (!include) {
-        const extra = this.geo.extraBones.find((e) => e.name === owner);
-        if (extra && chain.has(extra.parent)) {
+        const extra = this.extraDef(owner as ExtraBone);
+        if (extra && chain.has(this.rootJointOf(extra))) {
           include = extra.kind !== 'stump' || this.stumpsOn.has(extra.name.slice('stump_'.length) as JointName);
         }
       }
@@ -574,6 +645,21 @@ export class Humanoid {
     return { object, probes, radius, dispose: () => geos.forEach((g) => g.dispose()) };
   }
 
+  private extraDef(name: ExtraBone): ExtraBoneDef | undefined {
+    return this.geo.extraBones.find((e) => e.name === name);
+  }
+
+  /** The joint an extra bone ultimately hangs from (tendril chains are extras of extras). */
+  private rootJointOf(e: ExtraBoneDef): JointName {
+    let parent = e.parent;
+    for (let guard = 0; guard < 16; guard++) {
+      const up = this.extraDef(parent as ExtraBone);
+      if (!up) return parent as JointName;
+      parent = up.parent;
+    }
+    return parent as JointName;
+  }
+
   // ---------------------------------------------------------------- internals: scale + IK
 
   private applyBoneScales(): void {
@@ -593,6 +679,8 @@ export class Humanoid {
       let s = 1;
       if (e.kind === 'growth') s = growth;
       else if (e.kind === 'shards') s = shards;
+      else if (e.kind === 'ribs') s = smooth(1.9, 2.7, inf);
+      else if (e.kind === 'tendril') s = e.name.endsWith('_0') ? (this.near ? smooth(1.3, 2.8, inf) : 0) : 1;
       else s = this.stumpsOn.has(e.name.slice('stump_'.length) as JointName) ? 1 : 0;
       bone.scale.setScalar(Math.max(TINY, s));
     }

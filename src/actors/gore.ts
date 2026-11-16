@@ -10,8 +10,9 @@ import { Rng } from '../core/rng.ts';
 export type GoreMode = 'full' | 'reduced';
 
 export const MAX_DEBRIS = 24;
-export const MAX_POOLS = 24;
-const MAX_PARTICLES = 900;
+export const MAX_POOLS = 28;
+export const MAX_CHUNKS = 64;
+const MAX_PARTICLES = 1400;
 const GRAVITY = 9.8;
 const DEBRIS_SLEEP_AFTER = 3;
 const FADE_TIME = 0.6;
@@ -103,6 +104,11 @@ export class GoreSystem {
   private readonly pLife: Float32Array;
   private pCursor = 0;
 
+  // Meat chunks: one InstancedMesh (one draw call), ring buffer of slots.
+  private readonly chunkMesh: THREE.InstancedMesh;
+  private readonly chunkSlots: Array<{ pos: THREE.Vector3; vel: THREE.Vector3; rot: THREE.Quaternion; spin: THREE.Vector3; scale: number; live: boolean; resting: boolean }> = [];
+  private chunkCursor = 0;
+
   constructor(rng: Rng, floorY: (x: number, z: number) => number = () => 0) {
     this.rng = rng;
     this.floorY = floorY;
@@ -118,10 +124,37 @@ export class GoreSystem {
     geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
     this.points = new THREE.Points(
       geo,
-      new THREE.PointsMaterial({ size: 0.022, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.95, depthWrite: false }),
+      new THREE.PointsMaterial({ size: 0.026, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.95, depthWrite: false }),
     );
     this.points.frustumCulled = false;
     this.group.add(this.points);
+
+    const chunkGeo = new THREE.IcosahedronGeometry(0.022, 1);
+    const cp = chunkGeo.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < cp.count; i++) {
+      const k = 0.65 + 0.7 * rng.next();
+      cp.setXYZ(i, cp.getX(i) * k, cp.getY(i) * (0.6 + 0.5 * rng.next()), cp.getZ(i) * k);
+    }
+    chunkGeo.computeVertexNormals();
+    this.chunkMesh = new THREE.InstancedMesh(
+      chunkGeo,
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.22, metalness: 0, envMapIntensity: 1.6 }),
+      MAX_CHUNKS,
+    );
+    this.chunkMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.chunkMesh.frustumCulled = false;
+    this.chunkMesh.castShadow = true;
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    const col = new THREE.Color();
+    for (let i = 0; i < MAX_CHUNKS; i++) {
+      this.chunkMesh.setMatrixAt(i, zero);
+      // Dark muscle, pale fat, the odd bone fragment.
+      const r = rng.next();
+      col.set(r < 0.65 ? 0x4a0a0e : r < 0.88 ? 0x7a3a34 : 0xcfc3a8).multiplyScalar(0.8 + 0.4 * rng.next());
+      this.chunkMesh.setColorAt(i, col);
+      this.chunkSlots.push({ pos: new THREE.Vector3(), vel: new THREE.Vector3(), rot: new THREE.Quaternion(), spin: new THREE.Vector3(), scale: 1, live: false, resting: false });
+    }
+    this.group.add(this.chunkMesh);
 
     const tex = poolTexture();
     const pool = (color: number): THREE.MeshStandardMaterial =>
@@ -174,11 +207,33 @@ export class GoreSystem {
 
   /** Spurt from `point` along `dir` (both local to `anchor`) for `duration` seconds. */
   spurt(anchor: THREE.Object3D, point: THREE.Vector3, dir: THREE.Vector3, duration = 1.5, dark = this.mode === 'reduced'): void {
-    this.emitters.push({ anchor, point: point.clone(), dir: dir.clone().normalize(), duration, age: 0, rate: 160, speed: 2.4, dark });
+    this.emitters.push({ anchor, point: point.clone(), dir: dir.clone().normalize(), duration, age: 0, rate: 260, speed: 2.8, dark });
+    // Then it keeps dripping for a while.
+    this.emitters.push({ anchor, point: point.clone(), dir: dir.clone().normalize(), duration: duration * 4, age: 0, rate: 14, speed: 0.15, dark });
+  }
+
+  /** Throw torn meat and bone fragments (Full gore only). */
+  chunks(at: THREE.Vector3, dir: THREE.Vector3, count: number): void {
+    if (this.mode === 'reduced') return;
+    for (let n = 0; n < count; n++) {
+      const c = this.chunkSlots[this.chunkCursor];
+      this.chunkCursor = (this.chunkCursor + 1) % MAX_CHUNKS;
+      if (!c) continue;
+      c.live = true;
+      c.resting = false;
+      c.pos.copy(at);
+      c.vel.copy(dir).multiplyScalar(this.rng.range(1, 3.2));
+      c.vel.x += this.rng.range(-1.3, 1.3);
+      c.vel.y += this.rng.range(0.6, 2.6);
+      c.vel.z += this.rng.range(-1.3, 1.3);
+      c.rot.setFromEuler(new THREE.Euler(this.rng.range(0, 6), this.rng.range(0, 6), this.rng.range(0, 6)));
+      c.spin.set(this.rng.range(-14, 14), this.rng.range(-14, 14), this.rng.range(-14, 14));
+      c.scale = this.rng.range(0.5, 1.5);
+    }
   }
 
   /** Single burst at a world point (bullet impact on flesh, ADR-0005). */
-  burst(at: THREE.Vector3, dir: THREE.Vector3, count = 18, dark = this.mode === 'reduced'): void {
+  burst(at: THREE.Vector3, dir: THREE.Vector3, count = 30, dark = this.mode === 'reduced'): void {
     const d = new THREE.Vector3();
     for (let i = 0; i < count; i++) {
       d.copy(dir).multiplyScalar(this.rng.range(0.6, 2.2));
@@ -214,6 +269,7 @@ export class GoreSystem {
     this.updateDebris(dt);
     this.updateEmitters(dt);
     this.updateParticles(dt);
+    this.updateChunks(dt);
     for (const p of this.pools) {
       if (p.grow >= 1) continue;
       p.grow = Math.min(1, p.grow + dt / 2.5);
@@ -233,6 +289,40 @@ export class GoreSystem {
     this.poolCursor = 0;
     this.pPos.fill(-999);
     this.pLife.fill(0);
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    this.chunkSlots.forEach((c, i) => {
+      c.live = false;
+      this.chunkMesh.setMatrixAt(i, zero);
+    });
+    this.chunkMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  private readonly cm = new THREE.Matrix4();
+  private readonly cs = new THREE.Vector3();
+  private readonly cq = new THREE.Quaternion();
+
+  private updateChunks(dt: number): void {
+    let dirty = false;
+    this.chunkSlots.forEach((c, i) => {
+      if (!c.live || c.resting) return;
+      dirty = true;
+      c.vel.y -= GRAVITY * dt;
+      c.pos.addScaledVector(c.vel, dt);
+      const a = c.spin.length() * dt;
+      if (a > 1e-6) c.rot.premultiply(this.cq.setFromAxisAngle(this.cs.copy(c.spin).normalize(), a));
+      const floor = this.floorY(c.pos.x, c.pos.z) + 0.012 * c.scale;
+      if (c.pos.y < floor) {
+        c.pos.y = floor;
+        c.vel.y *= -0.18;
+        c.vel.x *= 0.45;
+        c.vel.z *= 0.45;
+        c.spin.multiplyScalar(0.4);
+        if (c.vel.lengthSq() < 0.01) c.resting = true;
+      }
+      this.cm.compose(c.pos, c.rot, this.cs.setScalar(c.scale));
+      this.chunkMesh.setMatrixAt(i, this.cm);
+    });
+    if (dirty) this.chunkMesh.instanceMatrix.needsUpdate = true;
   }
 
   // ---------------------------------------------------------------- internals
