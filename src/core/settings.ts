@@ -11,6 +11,10 @@ export interface Settings {
   reducedMotion: boolean;
   masterVolume: number;
   filmGrain: boolean;
+  /** Seconds the skip key is held to skip a cutscene (ADR-0017). */
+  skipHoldSeconds: number;
+  /** One press starts the skip countdown instead of holding the key (ADR-0017). */
+  skipAssist: boolean;
 }
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
@@ -23,6 +27,8 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   reducedMotion: false,
   masterVolume: 0.8,
   filmGrain: true,
+  skipHoldSeconds: 3,
+  skipAssist: false,
 });
 
 const STORAGE_KEY = 'js-fps:settings:v1';
@@ -41,6 +47,7 @@ export function mergeSettings(stored: unknown): Settings {
     if (typeof v !== typeof DEFAULT_SETTINGS[key]) continue;
     if (key === 'quality' && !qualities.includes(v as string)) continue;
     if (typeof v === 'number' && !Number.isFinite(v)) continue;
+    if (key === 'skipHoldSeconds' && ((v as number) < 1.5 || (v as number) > 6)) continue;
     (out as unknown as Record<string, unknown>)[key] = v;
   }
   return out;

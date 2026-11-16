@@ -177,6 +177,8 @@ export function createMenus(root: HTMLElement, deps: MenuDeps): Menu {
       toggle('Subtitles', 'subtitles', 'Teammates speak in non-verbal sounds; subtitles carry the words.'),
       toggle('Reduced flashing', 'reducedFlashing', 'Limits flickering and strobing lights.'),
       toggle('Reduced motion', 'reducedMotion', 'Less camera bob and shake.'),
+      range('Cutscene skip hold time', 'skipHoldSeconds', 1.5, 6, 0.5, (v) => `${v.toFixed(1)} s`),
+      toggle('Skip assist', 'skipAssist', 'Press the skip key once to start the countdown, again to cancel, instead of holding it.'),
     ],
   });
 

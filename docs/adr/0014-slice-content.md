@@ -32,8 +32,9 @@ go back in time [Decided]. The overall story ending is open [Open].
 Flow is linear with small side rooms (lockers with ammo) for exploration.
 
 ## Beat sheet (target times)
-1. **0:00-2:30 Quiet (R01-R02).** Shift change. Walk with Giles and Okafor; banter sets
-   personalities. Learn move, look, flashlight, interact (badge door). Crew acts normally.
+1. **0:00-2:30 Quiet (R01-R02).** Shift change. A skippable on-rails intro (ADR-0017): the
+   player guards the docking ring, Giles and Okafor arrive, banter sets personalities, and
+   the player follows them to the kitchen. Learn move, look, flashlight, interact (badge door). Crew acts normally.
    PA announces a "routine quarantine" of Lab B. *Foreshadow 1:* Giles rubs his forearm and
    dismisses it.
 2. **2:30-3:30 The drop (R03-R04).** In the gallery a researcher in R04 convulses and

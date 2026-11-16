@@ -33,16 +33,22 @@ import { DemoRoomAudio } from './world/demoRoomAudio.ts';
 import { AudioEngine } from './audio/engine.ts';
 import { MenuMusic } from './audio/menuMusic.ts';
 import { Game } from './game/game.ts';
+import { CutsceneController } from './game/cutscene.ts';
+import { createSequenceHost } from './game/sequenceHost.ts';
+import { Sequencer } from './sequence/sequencer.ts';
+import type { SequenceDef } from './sequence/types.ts';
+import { CutsceneUi } from './ui/hud/cutsceneUi.ts';
 import { Interactions } from './actors/interaction.ts';
 import { Player, PLAYER_TUNING } from './actors/player.ts';
 import { DEBUG_SEQUENCES } from './actors/debugSequences.ts';
 import { DEMO_INTERACT_BOXES } from './world/demoRoomColliders.ts';
-import { PlayerHud } from './ui/hud/playerHud.ts';
+import { PlayerHud, keyLabel } from './ui/hud/playerHud.ts';
 import { SaveStore } from './game/save.ts';
 import { createMenus } from './ui/menus/screens.ts';
 import { Toasts } from './ui/toast.ts';
 import { Viewmodel } from './render/viewmodel/viewmodel.ts';
 
+const SEQUENCE_FILES = import.meta.glob<SequenceDef>('./data/sequences/*.json', { eager: true, import: 'default' });
 const LEVEL_FILES = import.meta.glob<unknown>('./data/levels/*.json', { eager: true, import: 'default' });
 const TEXTURE_SIZE = 512;
 const FOG_COLOR = 0x04080a;
@@ -159,6 +165,38 @@ async function boot(): Promise<void> {
 
   const toasts = new Toasts(document.body);
   const hud = new PlayerHud(el<HTMLElement>('#ui'), el<HTMLElement>('#interact'), keymap.interact[0] ?? 'KeyE');
+  // Sequences and the cutscene chrome (ADR-0009, ADR-0017). `game` is created just below;
+  // the sequencer shares its flags object so sequences read and write the real game state.
+  const gameRef: { current: Game | null } = { current: null };
+  const sequenceFlags = new Proxy({} as Game['flags'], {
+    get: (_t, key: string) => gameRef.current?.flags[key],
+    set: (_t, key: string, value: Game['flags'][string]) => {
+      if (gameRef.current) gameRef.current.flags[key] = value;
+      return true;
+    },
+  });
+  const sequencer = new Sequencer({
+    events,
+    flags: sequenceFlags,
+    host: createSequenceHost({ player, hud, audio, toasts, checkpoint: (id) => gameRef.current?.scriptedCheckpoint(id) }),
+  });
+  for (const [path, def] of Object.entries(SEQUENCE_FILES)) {
+    try {
+      sequencer.register(def);
+    } catch (err) {
+      throw new Error(`data/sequences/${path.replace(/^.*\//, '')}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  const cutscene = new CutsceneController({
+    events,
+    sequencer,
+    input,
+    settings,
+    player,
+    hud,
+    ui: new CutsceneUi(el<HTMLElement>('#ui')),
+    skipKeyLabel: () => keyLabel(keymap.skipCutscene[0] ?? 'Space'),
+  });
   const game = new Game({
     events,
     settings,
@@ -174,7 +212,9 @@ async function boot(): Promise<void> {
     audio,
     toasts,
     hud,
+    cutscene,
   });
+  gameRef.current = game;
   currentPreset = () => game.preset;
   prompt.textContent = 'Building weapons…';
   await nextFrame();
@@ -231,6 +271,10 @@ async function boot(): Promise<void> {
   }
 
   const runSequence = (id: string): void => {
+    if (sequencer.has(id)) {
+      sequencer.play(id);
+      return;
+    }
     const seq = DEBUG_SEQUENCES[id];
     if (!seq) {
       console.warn(`[debug] unknown sequence '${id}'. Known: ${Object.keys(DEBUG_SEQUENCES).join(', ')}`);
@@ -294,6 +338,7 @@ async function boot(): Promise<void> {
       grab: () => player.grab(player.eyePosition().addScaledVector(player.viewDirection(), 0.9)),
       controlTest: () => runSequence('control-test'),
       walkTest: () => runSequence('walk-test'),
+      cutsceneTest: () => runSequence('cutscene_test'),
       fly: () => game.toggleFly(),
     };
     pf.add(player.vitals, 'hp', 0, 100).name('hp').listen().disable();
@@ -304,6 +349,7 @@ async function boot(): Promise<void> {
     pf.add(actions, 'grab').name('get grabbed');
     pf.add(actions, 'controlTest').name('run control-test');
     pf.add(actions, 'walkTest').name('run walk-test');
+    pf.add(actions, 'cutsceneTest').name('run cutscene_test (skippable)');
     pf.add(actions, 'fly').name('toggle fly (F1)');
     const feel = pf.addFolder('Feel');
     for (const key of Object.keys(PLAYER_TUNING) as Array<keyof typeof PLAYER_TUNING>) feel.add(PLAYER_TUNING, key);

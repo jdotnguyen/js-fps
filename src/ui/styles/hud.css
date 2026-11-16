@@ -40,3 +40,50 @@
   transition-property: opacity;
   transition-timing-function: ease-in-out;
 }
+
+/* Cutscene bars and skip prompt (ADR-0017). Bars sit under the fade (z 9) and toasts (z 12). */
+.cine { position: fixed; inset: 0; z-index: 8; pointer-events: none; }
+.cine-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 11vh;
+  background: #000;
+  transition: transform 0.6s ease-in-out;
+}
+.cine-bar.top { top: 0; transform: translateY(-100%); }
+.cine-bar.bottom { bottom: 0; transform: translateY(100%); }
+.cine.on .cine-bar { transform: none; }
+/* Reduced motion: no sliding, a short crossfade instead. */
+.cine.reduced .cine-bar { transform: none; opacity: 0; transition: opacity 0.15s linear; }
+.cine.reduced.on .cine-bar { opacity: 1; }
+
+.skip-prompt {
+  position: fixed;
+  right: 2rem;
+  bottom: calc(11vh + 1.2rem);
+  z-index: 10;
+  display: grid;
+  gap: 0.35rem;
+  min-width: 14rem;
+  padding: 0.5rem 0.8rem 0.6rem;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  color: #e6f4f1;
+  background: rgb(0 0 0 / 0.72);
+  border: 1px solid rgb(230 244 241 / 0.55);
+  pointer-events: none;
+}
+.skip-prompt[hidden] { display: none; }
+.skip-bar { height: 6px; border: 1px solid rgb(230 244 241 / 0.7); background: rgb(255 255 255 / 0.08); }
+.skip-fill { height: 100%; width: 0; background: #e6f4f1; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

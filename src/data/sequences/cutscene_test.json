@@ -1,0 +1,12 @@
+{
+  "id": "cutscene_test",
+  "skippable": true,
+  "steps": [
+    { "do": "playerControl", "move": "locked", "look": "clamped", "weapons": false, "interact": false, "flashlight": false },
+    { "do": "wait", "s": 4 },
+    { "do": "setFlag", "flag": "cutscene_test_walked", "value": true },
+    { "do": "playerWalkTo", "pos": [0, 0, -6] },
+    { "do": "wait", "s": 4 },
+    { "do": "playerControl", "reset": true }
+  ]
+}

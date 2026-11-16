@@ -15,6 +15,7 @@
   "objective": ["Tab"],
   "navPulse": ["KeyQ"],
   "pause": ["Escape"],
+  "skipCutscene": ["Space", "Enter"],
   "flyUp": ["Space"],
   "flyDown": ["KeyC"]
 }
