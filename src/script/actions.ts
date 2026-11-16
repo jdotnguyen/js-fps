@@ -395,12 +395,16 @@ const SKIPS: Record<string, SkipFn> = {
   loop: NOOP,
   cameraShake: NOOP,
   timeScale: NOOP,
-  playerLookAt: NOOP,
   sfx: NOOP,
   if: (s, ctx) => {
     const st = s as unknown as { flag: string; is?: Scalar; then: Step[]; else?: Step[] };
     const branch = (ctx.host.flags[st.flag] ?? false) === (st.is ?? true) ? st.then : st.else;
     if (branch) ctx.skipSteps(branch);
+  },
+  // A look that was easing toward its target jumps to the final view.
+  playerLookAt: (s, ctx) => {
+    const at = resolve('playerLookAt', s['target'] as TargetRef, ctx);
+    if (at) ctx.host.lookAt?.(at, 0.01, 1);
   },
   playerWalkTo: (s, ctx) => {
     const at = resolve('playerWalkTo', s['to'] as TargetRef, ctx);
