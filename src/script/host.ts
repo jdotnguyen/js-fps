@@ -20,6 +20,13 @@ export interface ControlOverride {
   interact?: boolean;
 }
 
+/** Where to put the player. `y` is the feet height; omitted keeps the current floor. */
+export interface PlaceTarget {
+  x: number;
+  y: number | undefined;
+  z: number;
+}
+
 export interface SpeechLike {
   done: Promise<unknown>;
 }
@@ -41,6 +48,8 @@ export interface SequenceHost {
   /** Resolves when the player arrives (or is released). */
   walkTo?(at: Vec3Like, speed: number | undefined): Promise<void>;
   fade?(level: number, seconds: number): void;
+  /** Teleport the player, cancelling any forced walk (skipped scenes, `playerPlace`). */
+  placePlayer?(at: PlaceTarget, yaw: number | undefined, pitch: number | undefined): void;
   cameraShake?(amount: number, seconds: number): void;
   setTimeScale?(scale: number): void;
 
@@ -56,10 +65,17 @@ export interface SequenceHost {
 
   /** Speak a dialogue line (ADR-0010). */
   say?(line: string): SpeechLike | null;
+  /** A skipped line must not be repeated by ambient barks. */
+  markLinePlayed?(line: string): void;
+  /** Cut off every line still playing (a scene was skipped). */
+  stopSpeech?(): void;
   /** Record a checkpoint in the game (autosave, toast). */
   checkpoint?(id: string, label: string | undefined): void;
   endSlice?(): void;
-  /** NPC and transform actions (ADR-0006/0011): resolves when the action is finished. */
+  /**
+   * NPC and transform actions (ADR-0006/0011): resolves when the action is finished.
+   * A skipped scene sends `instant: true`: apply the end state now (teleport, final pose).
+   */
   npc?(action: string, step: Readonly<Record<string, unknown>>): Promise<void> | void;
 }
 

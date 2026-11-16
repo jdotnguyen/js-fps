@@ -72,18 +72,32 @@ The mug beat is interactive but not branching: it only teaches `interact`.
   - Prompt shows the player's current binding, not a hardcoded key.
   - Reduced motion: bar fills without easing. Reduced flashing: the skip fade is a plain
     0.4 s dissolve to black, no flash.
-- Skip effect (`CutsceneController`): fade to black 0.4 s, call `finish()` on every remaining step, fade in 0.5 s.
+- Skip effect (`CutsceneController`): fade to black 0.4 s, `SequenceManager.skip()`, fade in 0.5 s.
 
-### Sequencer support (extends ADR-0009)
-- Every action gets `finish()` beside `start`, `update`, `cancel`. It applies the action's
-  final state instantly (move NPCs to their marks, set flags, mark lines as played,
-  set music state). A sequence skips by calling `finish()` on all steps from the cursor on.
-- Sequence option `skippable: boolean` (default false) and `endState` for the debug view.
-- Lines skipped are marked played in the dialogue library so barks do not repeat them.
+### Sequencer support (extends ADR-0009, in `src/script/`)
+- A cutscene is an ordinary ADR-0009 sequence with `"skippable": true`; there is one
+  interpreter. `SequenceManager.skip()` ends every skippable running sequence and
+  `SequenceManager.skippable` tells the UI whether to show the prompt.
+- **Skipping** applies each remaining step's end state once: the step in flight is
+  cancelled and finished, later steps are finished without playing, and steps that already
+  ended (including finished children of a `parallel`) are not applied again. A step's end
+  state is its optional `skip` handler in the action table (`actions.ts`); without one,
+  the step is simply run, which is right for instant actions (`setFlag`, `doorState`,
+  `lightState`, `emit`, `checkpoint`, `setObjective`...).
+- End states: `wait`, `waitFor`, `loop`, `cameraShake`, `timeScale`, `playerLookAt`, `sfx`
+  do nothing; `fade` jumps to its final level; `playerWalkTo` teleports to the target;
+  `water` jumps to its level; `say` marks the line played (`host.markLinePlayed`) and
+  `host.stopSpeech()` cuts any voice still going; NPC actions are sent to `host.npc` with
+  `instant: true` (teleport, final pose); `if` skips the branch it would have taken.
+- New action `playerPlace` (`at`, `yaw`, `pitch`) sets the player's exact end position, so
+  a scene's last step can pin where control returns.
+- `sequence:ended` now carries `skipped`. Control layers are released as usual.
 - Flags set by the intro: `introSeen`, `pa_quarantine_played`, `giles_forearm_seen`.
-- Game: `newGame()` calls `sequencer.play('intro_shift_change')` instead of
-  `enterPlaying()` directly; the sequence's `checkpoint` step writes `cp_intro`.
-- Debug: `?seq=intro_shift_change`, and `?seq=intro_shift_change&skip` to test the end state.
+- Game: `newGame()` calls `CutsceneController.playIntro()` (`SequenceManager.start` of
+  `intro_shift_change`) instead of `enterPlaying()` alone; the sequence's `checkpoint` step
+  writes `cp_intro`.
+- Debug: `?debug&seq=cutscene_test` (a skippable demo-room scene), and the debug panel
+  button "run cutscene_test (skippable)".
 
 ### Assets needed (all procedural, nothing blocks the build)
 No separate asset-design phase is required. ADR-0006 `buildHumanoid(spec)` already defines
@@ -103,7 +117,7 @@ procedural ones without touching sequences.
 ## Consequences
 - The opening reaches the player in two minutes with no playable content, so skipping is
   important for replays and for streamers/testers.
-- `finish()` on every action is extra work for every new action type; tests cover it.
+- An action that waits or eases needs an end state in `SKIPS`; instant actions need nothing. `skip.test.ts` covers the rules.
 
 ## Alternatives rejected
 - Hold Esc to skip: conflicts with pause.
@@ -112,8 +126,8 @@ procedural ones without touching sequences.
 - Bars set manually per sequence: they get forgotten and drift from the real control state.
 
 ## Execution steps
-1. [Done] Sequencer core (ADR-0009 steps 1-2) with `finish()`, `skippable`, control stack, `onRails`: `src/sequence/`, 13 tests.
-2. [Done] Letterbox bars driven by `onRails`; `skipCutscene` action, settings, skip prompt UI, `SkipHold` (7 tests), `?debug&seq=cutscene_test` to try it in the demo room.
+1. [Done] Skipping in the ADR-0009 interpreter: `skippable`, `skip()`, per-action end states, `playerPlace`, `Player.onRails` (`src/script/`, `skip.test.ts`).
+2. [Done] Letterbox bars driven by `onRails`; `skipCutscene` action, settings, skip prompt UI, `SkipHold` (7 tests, `src/script/skipHold.ts`), `?debug&seq=cutscene_test` to try it in the demo room.
 3. `buildHumanoid` subset (ADR-0006 step 1): two named crew plus three extras, idle and gait.
 4. R01 guard post and R02 kitchen blockout, new props (mug, coffee machine, tray, counter).
 5. `intro_shift_change.json` and its lines in `slice01.json`; hook `newGame()`.

@@ -3,7 +3,7 @@
  * script file that knows about three.js, the player, the world and the audio engine.
  */
 import * as THREE from 'three';
-import type { Player } from '../actors/player.ts';
+import { PLAYER_TUNING, type Player } from '../actors/player.ts';
 import type { SoundName } from '../audio/sounds.ts';
 import { SOUND_SPECS } from '../audio/sounds.ts';
 import type { AudioEngine } from '../audio/engine.ts';
@@ -76,6 +76,14 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
     clampLook: (at, degrees) => d.player.clampLook(at ? v3(at) : null, degrees),
     walkTo: (at, speed) => d.player.walkTo(v3(at), speed),
     fade: (level, seconds) => d.hud.setFade(level, seconds),
+    placePlayer: (at, yaw, pitch) => {
+      d.player.cancelWalk();
+      d.player.placeAtEye(
+        new THREE.Vector3(at.x, (at.y ?? d.player.body.y) + PLAYER_TUNING.eyeHeight, at.z),
+        yaw ?? d.player.yaw,
+        pitch ?? d.player.pitch,
+      );
+    },
     setTimeScale: (scale) => d.setTimeScale(scale),
 
     setDoor: (id, state) => d.level?.setDoor(id, state as DoorState) ?? false,
