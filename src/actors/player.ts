@@ -4,7 +4,7 @@ import type { Input } from '../core/input.ts';
 import type { Settings } from '../core/settings.ts';
 import type { DifficultyPreset } from '../data/types/difficulty.ts';
 import type { Flashlight } from '../render/flashlight.ts';
-import { ControlStack } from './control.ts';
+import { ControlStack, isOnRails } from './control.ts';
 import type { Interactions } from './interaction.ts';
 import { DEFAULT_MOTOR, moveBody, type ColliderQuery, type MotorState } from './motor.ts';
 import { MAX_HP, Vitals, type VitalsChange } from './vitals.ts';
@@ -155,6 +155,11 @@ export class Player {
     deps.camera.rotation.order = 'YXZ';
   }
 
+  /** Cannot move on their own: locked, or on a scripted walk (ADR-0017 cutscene bars). */
+  get onRails(): boolean {
+    return isOnRails(this.control.state, this.walkTarget !== null);
+  }
+
   get alive(): boolean {
     return this.vitals.state === 'alive';
   }
@@ -253,6 +258,13 @@ export class Player {
     return new Promise((resolve) => {
       this.walkTarget = { pos: pos.clone(), speed, done: resolve };
     });
+  }
+
+  /** Stop a forced walk where it is (a skipped scene teleports the player instead). */
+  cancelWalk(): void {
+    const w = this.walkTarget;
+    this.walkTarget = null;
+    w?.done();
   }
 
   // ------------------------------------------------------------------ combat hooks

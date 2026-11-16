@@ -9,6 +9,7 @@ import type { SettingsStore } from '../core/settings.ts';
 import type { DifficultyId, DifficultyTable } from '../data/types/difficulty.ts';
 import type { Flashlight } from '../render/flashlight.ts';
 import type { Toasts } from '../ui/toast.ts';
+import type { CutsceneController } from './cutscene.ts';
 import type { PlayerHud } from '../ui/hud/playerHud.ts';
 import type { World } from '../world/world.ts';
 import { SAVE_VERSION, type SaveData, type SaveKind, type SaveStore } from './save.ts';
@@ -39,6 +40,8 @@ export interface GameDeps {
   audio: AudioEngine;
   toasts: Toasts;
   hud: PlayerHud;
+  /** Sequencer, cutscene bars and the skip prompt (ADR-0017). */
+  cutscene: CutsceneController;
 }
 
 const CHAPTER = 'slice01';
@@ -93,6 +96,8 @@ export class Game {
     this.flags = {};
     this.spawnAtStart();
     this.enterPlaying();
+    // The opening plays on rails and may be skipped; with none registered, play starts at once.
+    this.d.cutscene.playIntro();
   }
 
   load(save: SaveData, quiet = false): void {
@@ -107,6 +112,7 @@ export class Game {
     player.placeAtEye(new THREE.Vector3().fromArray(save.player.position), save.player.yaw, save.player.pitch);
     this.d.flashlight.on = save.player.flashlightOn;
     this.cancelRestart();
+    this.d.cutscene.cancel();
     this.enterPlaying();
     if (!quiet) this.d.toasts.show(save.kind === 'auto' ? 'Autosave loaded' : 'Save loaded', save.location);
   }
@@ -149,6 +155,7 @@ export class Game {
   pause(): void {
     if (this.mode !== 'playing') return;
     this.setMode('paused');
+    this.d.cutscene.paused();
   }
 
   resume(): void {
@@ -159,6 +166,7 @@ export class Game {
 
   quitToTitle(): void {
     this.cancelRestart();
+    this.d.cutscene.cancel();
     this.d.hud.setFade(0, 0);
     this.setMode('title');
     if (document.pointerLockElement) document.exitPointerLock();
@@ -192,6 +200,7 @@ export class Game {
       return;
     }
     const { player, world } = this.d;
+    this.d.cutscene.update(dt);
     player.update(dt);
     this.feet.set(player.body.x, player.body.y, player.body.z);
     for (const cp of world.checkpoints) {
@@ -202,6 +211,7 @@ export class Game {
   /** Per rendered frame. */
   render(frameDt: number): void {
     const { player, hud, interactions } = this.d;
+    this.d.cutscene.render();
     if (this.mode === 'title') {
       // Attract camera: a slow drift down the corridor behind the title menu.
       this.titleTime += frameDt;
@@ -231,8 +241,14 @@ export class Game {
     this.d.audio.setMasterVolume(v);
   }
 
+  /** A sequence's `checkpoint` step (ADR-0009): same as walking into a checkpoint volume. */
+  scriptedCheckpoint(id: string): void {
+    this.reachCheckpoint(id, this.location || id);
+  }
+
   private spawnAtStart(): void {
     const { player, world } = this.d;
+    this.d.cutscene.cancel();
     player.reset();
     player.placeAtEye(world.spawn.position, world.spawn.yaw);
     this.d.flashlight.on = true;
