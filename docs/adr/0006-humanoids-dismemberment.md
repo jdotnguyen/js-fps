@@ -147,4 +147,6 @@ Crawl turning: crawlers and draggers pivot on the spot (limbs moving, head leadi
 
 Body separation: see ADR-0018 (`src/actors/separation.ts`, applied in the sandbox; `?nosep` compares).
 
-Known gaps: 60 fps on the M2 not measured; the slam impact pose stops short of the floor.
+Performance (item 5): 8 crowd bodies plus 3 heroes hold 60 fps (1% low 56.5) on the M2 at 1440x900 with post-processing; 146 draw calls, 1.24 M triangles. See ADR-0015, Measurements.
+
+Known gaps: the slam impact pose stops short of the floor; post-processing doubles drawn triangles (ADR-0002).

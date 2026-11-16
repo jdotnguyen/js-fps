@@ -42,3 +42,30 @@ on a hobby project that will grow over time [Decided]. Each step must be checkab
 
 ## Status
 Standing rule set; no execution steps of its own.
+
+## Measurements
+
+### 2026-11-16: humanoids, crowd and hero tiers (ADR-0006, ADR-0021)
+MacBook Air M2, Claude desktop browser pane (Chrome 156), visible, rendering at 1440x900 x 1.25 (1800x1125
+buffer), post-processing on, flashlight on. Scene: `sandbox/actors.html?stress` (8 crowd bodies at 10-13.5k
+triangles each, 3 heroes at 64.6k each, the room), the bodies walking toward the camera.
+
+| View | Avg fps | 1% low | Draw calls | Triangles drawn |
+|---|---|---|---|---|
+| Whole room, all 11 bodies | 60 (vsync) | 56.5 | 146 | 1.24 M |
+| Same view, bodies hidden | 60 (vsync) | 56.5 | 58 | 31 k |
+| Close-up on the heroes | 60 (vsync) | 56.8 | 94 | 0.30 M |
+
+All within budget (60 fps, 1% lows >= 45, <= 300 calls, <= 1.5 M triangles). The cap is vsync, so the headroom
+is not known from these numbers.
+
+A synchronous benchmark (`__actors.bench()`, which waits for the GPU after every frame and so overstates frame
+time on the M2's tile-based GPU) gave the split: the bodies cost about 7.5 ms at this resolution with or without
+post, AI + separation + animation about 1.5 ms of CPU, and post-processing is the largest single cost. Post also
+renders the scene a second time, so drawn triangles roughly double with it on; a busier room may hit the 1.5 M
+budget through post before it does through bodies.
+
+How to repeat: open `sandbox/actors.html?stress` with the pane visible, then in the console
+`__actors.renderSize(1440, 900)` and time requestAnimationFrame for a few seconds (`__actors.stats()` gives calls,
+triangles and the buffer size). A hidden pane runs as a background page and caps near 30 fps, so it cannot be used.
+

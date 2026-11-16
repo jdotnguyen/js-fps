@@ -147,10 +147,22 @@ async function boot(): Promise<void> {
     return h;
   };
 
+  const stress = new URLSearchParams(location.search).has('stress');
   const spawnAll = (): void => {
     for (const a of actors) a.h.dispose();
     actors.length = 0;
     gore.clear();
+    if (stress) {
+      // ADR-0015 budget scene: 8 crowd bodies and 3 heroes (`?stress`).
+      const outfits = ['crew', 'lab', 'security', 'medic', 'engineer'] as const;
+      for (let i = 0; i < 8; i++) {
+        spawn({ seed: `stress-${i}`, outfit: outfits[i % outfits.length] ?? 'crew', role: 'enemy', infection: 1 + (i % 3) }, -4.5 + (i % 4) * 3, -6.5 + Math.floor(i / 4) * 1.8, 0);
+      }
+      for (let i = 0; i < 3; i++) {
+        spawn({ seed: `stress-hero-${i}`, outfit: 'lab', role: 'enemy', infection: 2, hero: true, height: 2.15, build: 1.25, pose: 'hulk' }, -3 + i * 3, -2.5, 0);
+      }
+      return;
+    }
     spawn({ seed: 'shambler-a', outfit: 'crew', role: 'enemy', infection: 1 }, -2.2, -6, 0);
     spawn({ seed: 'shambler-b', outfit: 'lab', role: 'enemy', infection: 2 }, 0.4, -7, 0.2);
     spawn({ seed: 'shambler-c', outfit: 'security', role: 'enemy', infection: 3 }, 2.6, -6.4, -0.3);
@@ -430,6 +442,80 @@ async function boot(): Promise<void> {
         }
       },
       fire: (o: THREE.Vector3, d: THREE.Vector3) => fire(o, d),
+      /**
+       * ADR-0015 benchmark that does not depend on requestAnimationFrame (a hidden pane throttles it):
+       * runs `frames` full frames (AI, separation, animation, render) at w x h CSS pixels, waiting for
+       * the GPU after each one, and reports frame time in ms. Pessimistic: CPU and GPU never overlap.
+       */
+      bench: (frames = 300, w = 1440, h = 900, warmup = 30) => {
+        const prevSize = renderer.getSize(new THREE.Vector2());
+        renderer.setSize(w, h, false);
+        post?.setSize(w, h, renderer.getPixelRatio());
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        const gl = renderer.getContext();
+        const px = new Uint8Array(4);
+        const total: number[] = [];
+        const cpu: number[] = [];
+        let calls = 0;
+        let triangles = 0;
+        const dt = 1 / 60;
+        for (let i = 0; i < frames + warmup; i++) {
+          const t0 = performance.now();
+          simTime += dt;
+          for (const a of actors) think(a, dt);
+          if (separationOn) applySeparation();
+          for (const a of actors) a.h.update(dt, camera.position);
+          gore.update(dt);
+          const t1 = performance.now();
+          renderer.info.reset();
+          if (post) post.render(simTime);
+          else renderer.render(scene, camera);
+          gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+          const t2 = performance.now();
+          if (i < warmup) continue;
+          total.push(t2 - t0);
+          cpu.push(t1 - t0);
+          calls = Math.max(calls, renderer.info.render.calls);
+          triangles = Math.max(triangles, renderer.info.render.triangles);
+        }
+        const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+        renderer.setSize(prevSize.x, prevSize.y, false);
+        post?.setSize(prevSize.x, prevSize.y, renderer.getPixelRatio());
+        camera.aspect = prevSize.x / prevSize.y;
+        camera.updateProjectionMatrix();
+        const sorted = [...total].sort((a, b) => a - b);
+        const avg = (xs: number[]): number => xs.reduce((s, x) => s + x, 0) / xs.length;
+        const p99 = sorted[Math.floor(sorted.length * 0.99)] ?? 0;
+        return {
+          frames,
+          buffer: `${size.x}x${size.y}`,
+          avgMs: +avg(total).toFixed(2),
+          cpuMs: +avg(cpu).toFixed(2),
+          p99Ms: +p99.toFixed(2),
+          worstMs: +(sorted[sorted.length - 1] ?? 0).toFixed(2),
+          avgFps: +(1000 / avg(total)).toFixed(1),
+          low1Fps: +(1000 / p99).toFixed(1),
+          calls,
+          triangles,
+          humanoids: actors.length,
+          bodyTriangles: actors.reduce((t, a) => t + a.h.triangles, 0),
+        };
+      },
+      /** Render at w x h CSS pixels regardless of the window (ADR-0015 checks at 1440x900); null restores. */
+      renderSize: (w: number | null, h: number | null) => {
+        const W = w ?? innerWidth;
+        const H = h ?? innerHeight;
+        renderer.setSize(W, H, false);
+        post?.setSize(W, H, renderer.getPixelRatio());
+        camera.aspect = W / H;
+        camera.updateProjectionMatrix();
+      },
+      /** Last frame's renderer stats and the drawing buffer size (ADR-0015 checks). */
+      stats: () => {
+        const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+        return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, width: size.x, height: size.y, pixelRatio: renderer.getPixelRatio() };
+      },
       setWeapon: (w: 'pistol' | 'shotgun') => {
         weapon = w === 'pistol' ? PISTOL : SHOTGUN;
       },
