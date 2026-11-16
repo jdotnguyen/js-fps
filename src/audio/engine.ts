@@ -30,6 +30,8 @@ export interface LoopHandle {
 export class AudioEngine {
   readonly ctx: AudioContext;
   readonly master: GainNode;
+  /** Low-pass on the whole mix, for the damage "muffle" (ADR-0004). */
+  private readonly muffleFilter: BiquadFilterNode;
   readonly buses: Record<BusName, GainNode>;
   private readonly reverbIn: GainNode;
   private readonly buffers = new Map<SoundName, AudioBuffer[]>();
@@ -42,7 +44,8 @@ export class AudioEngine {
     const limiter = new DynamicsCompressorNode(this.ctx, { threshold: -8, knee: 6, ratio: 12, attack: 0.003, release: 0.25 });
     limiter.connect(this.ctx.destination);
     this.master = new GainNode(this.ctx, { gain: 0.8 });
-    this.master.connect(limiter);
+    this.muffleFilter = new BiquadFilterNode(this.ctx, { type: 'lowpass', frequency: 20000, Q: 0.5 });
+    this.master.connect(this.muffleFilter).connect(limiter);
     const bus = (gain: number): GainNode => {
       const node = new GainNode(this.ctx, { gain });
       node.connect(this.master);
@@ -81,6 +84,17 @@ export class AudioEngine {
       this.buffers.set(name, list);
     }
     return performance.now() - t0;
+  }
+
+  /** Dull the whole mix for `seconds` (taking a hit), then open back up. */
+  muffle(seconds = 0.4, cutoff = 650): void {
+    const f = this.muffleFilter.frequency;
+    const now = this.ctx.currentTime;
+    f.cancelScheduledValues(now);
+    f.setValueAtTime(f.value, now);
+    f.exponentialRampToValueAtTime(cutoff, now + 0.03);
+    f.setValueAtTime(cutoff, now + seconds);
+    f.exponentialRampToValueAtTime(20000, now + seconds + 0.25);
   }
 
   setMasterVolume(v: number): void {

@@ -7,7 +7,6 @@ import { ABYSS_CYCLE } from '../render/fx/abyss.ts';
 import type { DemoRoom } from './demoRoom.ts';
 
 const BUZZ_GAIN = 0.2;
-const FLOOR_EYE_HEIGHT = 1.9;
 
 interface Buzz {
   handle: LoopHandle;
@@ -28,9 +27,6 @@ export class DemoRoomAudio {
   private readonly rng: Rng;
   private readonly scheduler: Scheduler;
   private readonly buzz: Buzz[] = [];
-  private readonly lastPos = new THREE.Vector3();
-  private hasLast = false;
-  private stride = 0;
   private lastMoanCycle = -1;
 
   constructor(engine: AudioEngine, room: DemoRoom, rng: Rng) {
@@ -90,7 +86,7 @@ export class DemoRoomAudio {
     s.add([11, 17], () => e.play('klaxon', { bus: 'ambience', position: a.door, gain: 0.5, muffled: true, reverb: 0.5 }));
   }
 
-  update(t: number, camera: THREE.Camera, footsteps: boolean): void {
+  update(t: number): void {
     const e = this.engine;
     // Fluorescent buzz follows each light; a failing tube arcs when it kicks back on.
     for (const b of this.buzz) {
@@ -111,24 +107,16 @@ export class DemoRoomAudio {
       this.lastMoanCycle = cycle;
       e.play('distantMoan', { bus: 'ambience', position: this.room.anchors.abyss, gain: 0.9, muffled: true, reverb: 0.9 });
     }
+  }
 
-    // Footsteps by distance travelled near floor height; surface from position.
-    const p = camera.position;
-    if (footsteps && this.hasLast && p.y < FLOOR_EYE_HEIGHT) {
-      const d = Math.hypot(p.x - this.lastPos.x, p.z - this.lastPos.z);
-      this.stride += d;
-      if (this.stride > 0.75) {
-        this.stride = 0;
-        e.play(Math.abs(p.x) > 1.8 ? 'footGrate' : 'footPlate', {
-          position: new THREE.Vector3(p.x, 0.05, p.z),
-          gain: 0.65,
-          reverb: 0.22,
-          rate: this.rng.range(0.94, 1.06),
-        });
-      }
-    }
-    this.lastPos.copy(p);
-    this.hasLast = true;
+  /** One footstep from the player (ADR-0004 drives timing; the surface picks the sound). */
+  footstep(surface: string, x: number, z: number, sprint: boolean): void {
+    this.engine.play(surface === 'grate' ? 'footGrate' : 'footPlate', {
+      position: new THREE.Vector3(x, 0.05, z),
+      gain: sprint ? 0.8 : 0.65,
+      reverb: 0.22,
+      rate: this.rng.range(0.94, 1.06) * (sprint ? 1.05 : 1),
+    });
   }
 
   flashlightClick(): void {

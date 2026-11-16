@@ -104,3 +104,29 @@ this via a control stack).
 
 ## Open questions
 - Gamepad support.
+
+## Implementation note (2026-11-15, Claude) — awaiting Justin's walk test
+Built: `src/actors/` — `motor.ts` (cylinder vs ADR-0003 `{min,max}` boxes, 0.35 m step-up,
+0.4 m snap-down, rounded-corner sliding, sub-stepped), `control.ts` (control stack),
+`vitals.ts` (health / Downed / bleed-out / revive limit), `interaction.ts` (2 m ray, taps and
+holds), `player.ts` (movement, sprint stamina, aim FOV easing, head bob, step smoothing,
+footstep events, damage feedback, grab + mash, shove, `lookAt` / `clampLook` / `walkTo`),
+`debugSequences.ts`. Demo room collision in `src/world/demoRoomColliders.ts`; HUD in
+`src/ui/hud/playerHud.ts`. Free camera kept as F1 fly mode under `?debug`.
+
+Verified: `tsc` clean; 81/81 unit tests (18 new: walls, sliding, ledges, stairs up/down,
+off-centre door entry, tunnelling, head clearance, falls, control stack restore, vitals);
+headless walk of the demo room (3.2 / 5.0 m/s, stops at door, crates, locker; hold-to-use;
+move lock; bleed-out; grab escape; plate/grate footsteps).
+
+Not yet verified: in-browser feel, `npm run build` on macOS, `?debug` budget stats, console.
+Test with `npm run dev`, then `/?debug&seq=control-test` (DoD: lock + soft-lock + restore).
+
+Gaps / decisions taken:
+- Collision is a linear box scan; ADR-0003's spatial hash should implement `ColliderQuery`.
+- Revive comes from the debug panel until the medic (ADR-0011). Revives reset per checkpoint.
+- Death restarts from the slot's autosave, healed to `checkpointHeal` (ADR-0008 number).
+- No heartbeat or breathing sound yet (ADR-0013); low HP shows as a pulsing red grade.
+- Interact ray is not occluded by walls; fine while interactables sit on wall faces.
+- Shove emits `player:shove`; enemy push and stagger is ADR-0007. Dodge still deferred.
+- Game over is a 1.4 s fade, 1 s hold, restart.
