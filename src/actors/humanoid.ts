@@ -5,7 +5,9 @@ import { Animator, type GaitStyle } from './animator.ts';
 import { buildBodyGeometry, triangleCount, woundCap, type BodyGeometry, type ExtraBone, type ExtraBoneDef, type Outfit, type PartGeometry } from './bodyGeometry.ts';
 import { createBodyMaterials, MAX_BONES, type BodyMaterials } from './bodyMaterial.ts';
 import { rayCapsule } from './capsule.ts';
-import { BodyDamage, SHAMBLER_BASE_HP, type HitResult, type LocomotionState } from './damage.ts';
+import { BodyDamage, DEFAULT_PROFILE, HERO_BASE_HP, HERO_PROFILE, POISE_WINDOW, SHAMBLER_BASE_HP, type HitResult, type LocomotionState } from './damage.ts';
+import { BELLY_WOUND } from './heroSculpt.ts';
+import { SLAM, SlamState } from './slam.ts';
 import type { GoreSystem } from './gore.ts';
 import { solveTwoBone } from './ik.ts';
 import type { PoseLibrary } from './poses.ts';
@@ -29,6 +31,10 @@ export const STAGGER_SPEED = 0.3;
 /** How far ahead of the body's origin (metres) the planted hands are when a crawler or dragger pivots. */
 const PIVOT_REACH_CRAWL = 0.32;
 const PIVOT_REACH_DRAG = 0.4;
+/** Hero tier (ADR-0021): walk speed share, turn speed (rad/s), and how generous the weak-spot hit area is. */
+const HERO_SPEED = 0.72;
+const HERO_TURN = 1.2;
+const WEAK_SPOT_SLACK = 1.25;
 const isLegRegion = (r: Region): boolean => r.startsWith('thigh_') || r.startsWith('shin_');
 
 export type Role = 'enemy' | 'npc' | 'corpse';
@@ -139,7 +145,10 @@ export class Humanoid {
     const height = spec.height ?? 1.78 * this.rng.range(0.96, 1.04);
     const build = spec.build ?? this.rng.range(0.92, 1.1);
     this.infectionLevel = THREE.MathUtils.clamp(spec.infection ?? 0, 0, 3);
-    this.damage = new BodyDamage(spec.baseHp ?? SHAMBLER_BASE_HP);
+    this.damage = spec.hero
+      ? new BodyDamage(spec.baseHp ?? HERO_BASE_HP, HERO_PROFILE)
+      : new BodyDamage(spec.baseHp ?? SHAMBLER_BASE_HP, DEFAULT_PROFILE);
+    this.slam = spec.hero ? new SlamState() : null;
     this.idlePose = spec.pose ?? (spec.role === 'enemy' ? 'shamble' : 'idle');
     this.state = spec.role === 'corpse' ? 'dead' : 'alive';
     this.glowPhase = this.rng.range(0, Math.PI * 2);
@@ -232,10 +241,19 @@ export class Humanoid {
    */
   move(desired: THREE.Vector3 | null, dt: number): void {
     const loc = this.locomotion;
-    const canMove = this.state === 'alive';
+    const slamming = this.slam?.busy === true;
+    const canMove = this.state === 'alive' && !slamming;
     // A hit to a leg makes the body flinch and nearly stop for a moment (ADR-0019).
     const flinch = this.staggerTimer > 0 ? STAGGER_SPEED : 1;
-    const max = canMove ? WALK_SPEED[this.spec.role] * loc.speedMul * this.speedScale * flinch : 0;
+    const heroMul = this.spec.hero ? HERO_SPEED : 1;
+    const max = canMove ? WALK_SPEED[this.spec.role] * loc.speedMul * this.speedScale * flinch * heroMul : 0;
+    // Winding up a slam: the hero stands its ground but keeps aiming at the target (ADR-0021).
+    if (slamming && this.state === 'alive' && desired && this.slam?.phase === 'windup') {
+      let diff = Math.atan2(-desired.x, -desired.z) - this.heading;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      const turn = SLAM.windupTurn * dt;
+      this.heading += THREE.MathUtils.clamp(diff, -turn, turn);
+    }
     let target = 0;
     const heading0 = this.heading;
     const heavy = loc.mode !== 'walk';
@@ -252,7 +270,7 @@ export class Humanoid {
         this.turnError = diff;
         target = max * step.speedFactor;
       } else {
-        const turn = 2.2 * dt;
+        const turn = (this.spec.hero ? HERO_TURN : 2.2) * dt;
         this.heading += THREE.MathUtils.clamp(diff, -turn, turn);
         this.turn.vel = 0;
         this.turn.inPlace = false;
@@ -314,17 +332,30 @@ export class Humanoid {
   /** Apply weapon damage at a hit (ADR-0005 calls this). `dir` is the shot direction. */
   applyHit(hit: BodyHit, amount: number, dir: THREE.Vector3): HitResult {
     const wasWalking = this.locomotion.mode === 'walk';
-    const result = this.damage.apply(hit.region, amount);
+    const weak = this.isWeakSpot(hit);
+    const result = this.damage.apply(hit.region, amount, weak);
     const gore = this.ctx.gore;
     gore.burst(hit.point, dir.clone().multiplyScalar(-0.6).add(new THREE.Vector3(0, 0.4, 0)), 22);
     if (this.rng.chance(0.35)) gore.chunks(hit.point, dir.clone().multiplyScalar(0.4), 1);
 
     const localDir = dir.clone().applyQuaternion(this.group.quaternion.clone().invert());
     this.animator.kick(hit.joint, localDir, Math.min(0.9, (amount / 18) * 0.38));
-    // A leg hit that does not take the leg off: stagger.
-    if (result.applied > 0 && !result.severed && isLegRegion(hit.region) && this.state === 'alive') {
-      this.staggerTimer = STAGGER_TIME;
+    // Stagger (ADR-0019, ADR-0021): crowd bodies on every leg hit; tough bodies only when enough damage lands
+    // close together, or on any weak-spot hit, which also cancels a slam.
+    if (result.applied > 0 && !result.severed && this.state === 'alive') {
+      const poise = this.damage.profile.poise;
+      this.poiseDamage += result.applied;
+      this.poiseTimer = POISE_WINDOW;
+      if (weak) {
+        this.staggerTimer = STAGGER_TIME * 2;
+        this.animator.kick('spine', localDir, 0.9);
+        this.slam?.cancel();
+      } else if (poise === 0 ? isLegRegion(hit.region) : this.poiseDamage >= poise) {
+        this.staggerTimer = STAGGER_TIME;
+        this.poiseDamage = 0;
+      }
     }
+    if (weak) gore.burst(hit.point, dir.clone().multiplyScalar(-0.9).add(new THREE.Vector3(0, 0.2, 0)), 40);
 
     if (result.severed) this.sever(result.severed, dir);
     if (this.state === 'playingDead') this.getUp();
@@ -334,6 +365,7 @@ export class Humanoid {
       gore.burst(hit.point, dir.clone().multiplyScalar(0.8).add(new THREE.Vector3(0, 0.8, 0)), 90);
       gore.chunks(hit.point, dir.clone().multiplyScalar(0.6), 9);
     }
+    if (result.severed || result.killed) this.slam?.cancel();
     if (result.killed) {
       this.die(result.killedBy === 'limbs' && !wasWalking);
     } else if (wasWalking && this.locomotion.mode !== 'walk' && (this.state === 'alive' || this.state === 'gettingUp')) {
@@ -347,12 +379,59 @@ export class Humanoid {
 
   // ---------------------------------------------------------------- per frame
 
+  /**
+   * Ask a hero to slam a target (world position). Starts only in range, roughly facing it, off cooldown
+   * and walking (ADR-0021). Returns whether it started.
+   */
+  tryAttack(target: THREE.Vector3): boolean {
+    if (!this.slam || this.state !== 'alive' || this.locomotion.mode !== 'walk' || this.staggerTimer > 0) return false;
+    const dx = target.x - this.group.position.x;
+    const dz = target.z - this.group.position.z;
+    let diff = Math.atan2(-dx, -dz) - this.heading;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    return this.slam.start(Math.hypot(dx, dz), diff);
+  }
+
+  /** World point where a slam landed this frame (y = 0), once; null otherwise. Callers apply `slamFalloff`. */
+  consumeSlamImpact(): THREE.Vector3 | null {
+    const p = this.slamImpact;
+    this.slamImpact = null;
+    return p;
+  }
+
+  /** A heavy foot came down this frame (hero stomp: the caller can shake the camera). */
+  get footfall(): boolean {
+    return this.animator.footfall;
+  }
+
+  /** Is a torso hit on the hero's belly wound? The hit point is tested in spine space against the painted wound (heroSculpt). */
+  private isWeakSpot(hit: BodyHit): boolean {
+    // Any torso capsule counts: in the hunch the chest capsule covers the belly from the front.
+    if (!this.spec.hero || hit.region !== 'torso') return false;
+    const local = this.bones.spine.worldToLocal(this.rayTmpA.copy(hit.point));
+    if (local.z > -0.02) return false;
+    const x = (local.x - BELLY_WOUND.x) / (BELLY_WOUND.rx * WEAK_SPOT_SLACK);
+    const y = (local.y - BELLY_WOUND.y) / (BELLY_WOUND.ry * WEAK_SPOT_SLACK);
+    return x * x + y * y <= 1;
+  }
+
   /** 0..1 lunge (AI lurch bursts and attacks, ADR-0007): lean in, arms out, jaw wide. */
   charge = 0;
 
   update(dt: number, cameraPosition: THREE.Vector3 | null = null): void {
     this.time += dt;
     this.updateTimers(dt);
+    if (this.slam) {
+      if (this.state !== 'alive' || this.locomotion.mode !== 'walk') this.slam.cancel();
+      if (this.slam.update(dt)) {
+        this.group.updateMatrixWorld();
+        const f = new THREE.Vector3(-Math.sin(this.heading), 0, -Math.cos(this.heading));
+        this.slamImpact = this.group.position.clone().addScaledVector(f, SLAM.reach * this.geo.scale.y * 0.9);
+        this.slamImpact.y = 0;
+        this.animator.kick('chest', new THREE.Vector3(0, 0, -1), 0.5);
+        this.ctx.gore.burst(this.slamImpact.clone().setY(0.1), new THREE.Vector3(0, 1.2, 0), 26);
+      }
+    }
     this.updateInfection(dt);
     this.chooseAnimation();
     const moving = this.state === 'alive' || this.state === 'falling' || this.state === 'gettingUp';
@@ -417,6 +496,12 @@ export class Humanoid {
   private readonly clothUp = new THREE.Quaternion();
   private clothLag = 0;
   private staggerTimer = 0;
+  private poiseDamage = 0;
+  private poiseTimer = 0;
+  /** Hero slam attack (ADR-0021); null for crowd bodies. */
+  readonly slam: SlamState | null;
+  private slamImpact: THREE.Vector3 | null = null;
+  private slamPhaseShown: string = 'idle';
   private readonly turn: TurnState = newTurnState();
   /** Heading error to the target (rad, + = left) while a crawler or dragger is steering, else 0. */
   private turnError = 0;
@@ -603,6 +688,10 @@ export class Humanoid {
 
   private updateTimers(dt: number): void {
     if (this.staggerTimer > 0) this.staggerTimer -= dt;
+    if (this.poiseTimer > 0) {
+      this.poiseTimer -= dt;
+      if (this.poiseTimer <= 0) this.poiseDamage = 0;
+    }
     if (this.state === 'falling') {
       this.stateTimer -= dt;
       if (this.stateTimer <= 0) this.state = 'alive';
@@ -635,6 +724,7 @@ export class Humanoid {
       if (loc.mode === 'crawl') gait = 'crawl';
       else if (loc.mode === 'drag') gait = 'drag';
       else if (loc.blind) gait = 'flail';
+      else if (this.spec.hero) gait = 'heavy';
       else if (this.speed > 0.05 || this.spec.role === 'enemy') gait = this.spec.role === 'enemy' ? 'shamble' : 'walk';
     }
     this.animator.gait = gait;
@@ -642,6 +732,14 @@ export class Humanoid {
     this.animator.turnRate = gait === 'crawl' || gait === 'drag' ? this.turn.vel : 0;
     this.animator.turnError = gait === 'crawl' || gait === 'drag' ? this.turnError : 0;
     if (this.state !== 'alive' || this.animator.sequencePlaying) return;
+    const phase = this.slam?.phase ?? 'idle';
+    if (phase !== this.slamPhaseShown) {
+      this.slamPhaseShown = phase;
+      if (phase === 'windup') this.animator.setPose('slamWindup', SLAM.windup * 0.75);
+      else if (phase === 'strike') this.animator.setPose('slamImpact', SLAM.strike);
+    }
+    if (phase === 'windup' || phase === 'strike') return;
+    if (phase === 'recover' && (this.slam?.t ?? 0) < SLAM.recover * 0.45) return; // hold the impact, then heave back up
     let pose = this.idlePose;
     if (loc.mode === 'crawl') pose = 'crawl';
     else if (loc.mode === 'drag') pose = 'dragging';

@@ -41,6 +41,7 @@ Execution steps, Definition of done, Open questions.
 | 0018 | Actor separation (body-vs-body collision) | 0004, 0006, 0007 |
 | 0019 | Leg wounds (stagger, limp, then dismember and fall) | 0006, 0007 |
 | 0020 | Turn-then-move steering for crawlers and draggers | 0006 |
+| 0021 | Hero tier behaviour (heavy gait, slam, toughness, weak spot) | 0006, 0007, 0019 |
 
 0013 (audio) can run in parallel with 0004-0008 once 0003 exists.
 0015 is a standing rule set: read it before starting any ADR.

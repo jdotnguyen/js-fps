@@ -9,18 +9,18 @@ import { JOINT_INDEX, JOINTS, type JointName } from './skeleton.ts';
  * Writes local bone rotations; IK runs afterwards in Humanoid.
  */
 
-export type GaitStyle = 'none' | 'walk' | 'shamble' | 'crawl' | 'drag' | 'flail';
+export type GaitStyle = 'none' | 'walk' | 'shamble' | 'heavy' | 'crawl' | 'drag' | 'flail';
 
 const D2R = Math.PI / 180;
 const J = JOINT_INDEX;
 const N = JOINTS.length;
 
 /** Full gait cycle length (two steps) in metres, and the speed it is tuned for. */
-const STRIDE: Record<GaitStyle, number> = { none: 1, walk: 1.3, shamble: 1.05, crawl: 0.55, drag: 0.5, flail: 1.0 };
+const STRIDE: Record<GaitStyle, number> = { none: 1, walk: 1.3, shamble: 1.05, heavy: 1.55, crawl: 0.55, drag: 0.5, flail: 1.0 };
 /** Ground speed (m/s) a crawler's limbs act as if they were making per rad/s of turn while pivoting. */
 const PIVOT_DRIVE_CRAWL = 0.28;
 const PIVOT_DRIVE_DRAG = 0.22;
-const REF_SPEED: Record<GaitStyle, number> = { none: 1, walk: 1.4, shamble: 1.3, crawl: 0.72, drag: 0.52, flail: 0.8 };
+const REF_SPEED: Record<GaitStyle, number> = { none: 1, walk: 1.4, shamble: 1.3, heavy: 0.95, crawl: 0.72, drag: 0.52, flail: 0.8 };
 
 /** Spring stiffness/damping for additive hit reactions. */
 const REACT_K = 140;
@@ -42,6 +42,8 @@ export class Animator {
   /** Crawlers and draggers: turn speed in rad/s (+ = left) and heading error to the target (rad). They drive the limbs while pivoting. */
   turnRate = 0;
   turnError = 0;
+  /** True on the frame a heavy foot lands (hero stomp). */
+  footfall = false;
   /** 0..1 strength of convulsion noise (transformation, writhing). */
   convulse = 0;
   /** Group-local look target (head/neck turn toward it), or null. */
@@ -236,7 +238,13 @@ export class Animator {
     this.bob.set(0, 0, 0);
     this.rootEuler.set(0, 0, 0);
     if (style === 'flail') this.flail(t);
+    this.footfall = false;
     if (A < 1e-3) return;
+
+    if (style === 'heavy') {
+      this.heavyGait(A, dt);
+      return;
+    }
 
     if (style === 'walk' || style === 'shamble' || style === 'flail') {
       const sham = style !== 'walk';
@@ -320,6 +328,49 @@ export class Animator {
       this.add('head', A * 6 * Math.max(0, sp), 0, 0);
       this.bob.y = A * 0.025 * Math.max(0, sp);
       this.leadTurn();
+    }
+  }
+
+  private lastStep = 0;
+
+  /**
+   * Hero stomp (ADR-0021): long slow strides, the knee lifted high and the foot driven down, the whole
+   * weight rolling over onto each leg, the body dropping on every footfall, arms swinging low and late.
+   */
+  private heavyGait(A: number, _dt: number): void {
+    const p = this.phase;
+    const wounded = this.woundAmount > 0.01;
+    for (const side of [0, 1] as const) {
+      const s = side === 0 ? 'L' : 'R';
+      const ph = p + side * Math.PI;
+      const sinp = Math.sin(ph);
+      const lame = wounded && side === this.woundSide ? 1 - 0.45 * (0.5 + 0.5 * this.woundAmount) : 1;
+      // Swing forward slowly, then plant hard: a lift (knee up) through the swing.
+      const swing = Math.max(0, Math.cos(ph));
+      this.add(`thigh_${s}`, A * (20 * sinp + 16 * swing * swing) * lame, 0, 0);
+      this.add(`shin_${s}`, -A * (8 + 58 * swing * swing) * lame, 0, 0);
+      this.add(`foot_${s}`, A * 14 * Math.sin(ph - 0.8), 0, 0);
+      // Arms hang heavy and swing late, the far arm wider.
+      const arm = side === 0 ? 1 : 0.7;
+      this.add(`upperArm_${s}`, -A * 14 * arm * Math.sin(ph - 0.5), 0, (side === 0 ? -1 : 1) * A * 6 * Math.abs(Math.sin(ph)));
+      this.add(`foreArm_${s}`, A * 10 * arm * (1 + Math.sin(ph - 0.7)), 0, 0);
+    }
+    // Weight rolls over the planted leg: big pelvis roll and yaw, shoulders counter-rotate.
+    const sp = Math.sin(p);
+    this.add('pelvis', 0, A * 7 * sp, A * 7 * sp);
+    this.add('spine', A * 3 * Math.cos(2 * p), -A * 6 * sp, -A * 4 * sp);
+    this.add('chest', 0, -A * 5 * sp, -A * 3 * sp);
+    this.add('neck', -A * 4 * Math.cos(2 * p), 0, 0);
+    this.add('head', A * 5 * Math.cos(2 * p), A * 3 * sp, A * 2 * sp);
+    // The body drops sharply as each foot lands (twice per cycle) and rises slowly through the stride.
+    const step = ((p % Math.PI) + Math.PI) % Math.PI; // 0..pi per step
+    const land = Math.PI * 0.5;
+    const since = ((step - land) + Math.PI) % Math.PI; // 0 just after landing
+    this.bob.y = -A * 0.045 * Math.exp(-since * 6) + A * 0.015 * Math.sin(since);
+    const stepIndex = Math.floor((p - land) / Math.PI);
+    if (stepIndex !== this.lastStep) {
+      this.footfall = this.lastStep !== 0 || stepIndex > 0;
+      this.lastStep = stepIndex;
     }
   }
 
@@ -451,7 +502,7 @@ export class Animator {
   private updateLook(dt: number): void {
     let yaw = 0;
     let pitch = 0;
-    if (this.lookLocal && (this.gait === 'none' || this.gait === 'walk' || this.gait === 'shamble')) {
+    if (this.lookLocal && (this.gait === 'none' || this.gait === 'walk' || this.gait === 'shamble' || this.gait === 'heavy')) {
       const d = this.lookLocal;
       yaw = THREE.MathUtils.clamp(Math.atan2(-d.x, -d.z), -1.2, 1.2);
       pitch = THREE.MathUtils.clamp(Math.atan2(d.y - 1.55, Math.hypot(d.x, d.z)), -0.6, 0.6);

@@ -139,10 +139,12 @@ Hero face (neck and hunch): hero bodies carry per-body joint offsets (`BodyGeome
 
 Hero skin and face (item 3): sagging flesh (a hanging gut with an overhang crease, folds under the pecs, drooping inner thighs and backs of the arms, flesh bagging above the knees); branching raised veins on the limbs and neck; wounds twice as deep, with bone showing at the bottom of the deepest shin and forearm wounds; a fixed belly wound (`BELLY_WOUND` in `heroSculpt.ts`) of wet meat with the bloom glowing inside, placed for the item 4 weak spot. Bare skin has a faint clammy sheen (small negative `aRot`), wetter on the veins; wet surfaces now keep their gloss under the infection blotches. Face: jaw baked open 0.6 rad and stretched 12% (hulk pose jaw -22), bigger fangs with gums, cheeks torn back from the mouth corners with flesh strands across the gape (skinned between skull and jaw so they stretch as it opens), glowing bloom growths on one temple and the jaw, and dark bloodshot eyes with a small glowing pupil. The coat and shirt are grimier so they do not blow out under the flashlight. Hero is about 64.6k triangles and 55 of 64 bones; no shader change (cache keys still -v3).
 
+Hero behaviour (item 4): heavy stomping gait, slam attack, 400 HP with limbs and torso half-proof and the belly wound as a x2 weak spot. See ADR-0021.
+
 Leg wounds: a leg hit that does not sever staggers the body, and a leg part below 60% HP limps and walks slower; severing, falling and crawling are unchanged. See ADR-0019.
 
 Crawl turning: crawlers and draggers pivot on the spot (limbs moving, head leading) before moving off. See ADR-0020.
 
 Body separation: see ADR-0018 (`src/actors/separation.ts`, applied in the sandbox; `?nosep` compares).
 
-Known gaps: coat reads as flat strips; hero has no gait or attack of its own; cloth does not sway; 60 fps on the M2 not measured; face visibility after the neck change needs a visual check.
+Known gaps: 60 fps on the M2 not measured; the slam impact pose stops short of the floor.

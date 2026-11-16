@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BodyDamage } from './damage.ts';
+import { BodyDamage, HERO_BASE_HP, HERO_PROFILE } from './damage.ts';
 
 const PISTOL = 18;
 
@@ -137,4 +137,38 @@ test('a tougher body takes more hits before it limps (hero: 400 HP)', () => {
   d.apply('thigh_L', PISTOL * 3);
   assert.ok(d.locomotion().limp > 0);
   assert.equal(d.locomotion().mode, 'walk');
+});
+
+test('hero: limbs and torso shrug off pistol fire, the weak spot does not', () => {
+  const hero = new BodyDamage(HERO_BASE_HP, HERO_PROFILE);
+  assert.equal(hero.maxHp.torso, 480);
+  const body = hero.apply('torso', PISTOL);
+  assert.ok(body.applied < 3, `a body shot takes ${body.applied}`);
+  const belly = hero.apply('torso', PISTOL, true);
+  assert.equal(belly.region, 'torso');
+  assert.equal(belly.weakSpot, true);
+  assert.ok(belly.applied >= 10 * body.applied, 'the weak spot takes ten times a body shot');
+  // About a dozen pistol shots to the belly kill it.
+  let shots = 1;
+  while (!hero.dead && shots < 40) {
+    hero.apply('torso', PISTOL, true);
+    shots++;
+  }
+  assert.ok(hero.dead && shots >= 10 && shots <= 16, `${shots} belly shots`);
+});
+
+test('hero: a thigh takes about sixteen pistol hits to sever', () => {
+  const hero = new BodyDamage(HERO_BASE_HP, HERO_PROFILE);
+  let shots = 0;
+  while (!hero.isSevered('thigh_L') && shots < 40) {
+    hero.apply('thigh_L', PISTOL);
+    shots++;
+  }
+  assert.ok(shots >= 14 && shots <= 18, `${shots} hits`);
+});
+
+test('crowd bodies keep the ADR-0006 tables', () => {
+  const d = new BodyDamage(100);
+  assert.equal(d.apply('torso', 20).applied, 10);
+  assert.equal(d.apply('torso', 20, true).applied, 20, 'weak spot multiplier 1 without a profile');
 });

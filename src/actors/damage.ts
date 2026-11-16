@@ -36,6 +36,35 @@ export const DAMAGE_TAKEN: Readonly<Record<Region, number>> = {
   torso: 0.5,
 };
 
+/**
+ * Per-unit overrides of the ADR-0006 tables (ADR-0021). Heroes take less from limbs and torso,
+ * have a bigger torso pool, and take extra damage through their weak spot.
+ */
+export interface DamageProfile {
+  taken?: Partial<Record<Region, number>>;
+  partHp?: Partial<Record<Region, number>>;
+  /** Multiplier applied instead of `taken` for hits on the weak spot (the torso pool). */
+  weakSpotTaken: number;
+  /** Damage within POISE_WINDOW seconds needed to stagger the body (0 = every leg hit staggers). */
+  poise: number;
+}
+
+export const DEFAULT_PROFILE: DamageProfile = { weakSpotTaken: 1, poise: 0 };
+
+/** Hero tier [Assumed]: 400 base HP, limbs and torso half-proof, belly weak spot at x2. */
+export const HERO_BASE_HP = 400;
+export const HERO_PROFILE: DamageProfile = {
+  taken: {
+    head: 0.5, upperArm_L: 0.5, foreArm_L: 0.5, upperArm_R: 0.5, foreArm_R: 0.5,
+    thigh_L: 0.5, shin_L: 0.5, thigh_R: 0.5, shin_R: 0.5, torso: 0.15,
+  },
+  partHp: { torso: 1.2 },
+  weakSpotTaken: 2,
+  poise: 30,
+};
+/** Seconds over which damage counts toward breaking poise. */
+export const POISE_WINDOW = 0.4;
+
 /** Shambler base HP before difficulty scaling (ADR-0006). */
 export const SHAMBLER_BASE_HP = 100;
 
@@ -81,6 +110,8 @@ export interface HitResult {
   newLimb: Limb | null;
   killed: boolean;
   killedBy: 'torso' | 'limbs' | null;
+  /** The hit landed on the weak spot (ADR-0021). */
+  weakSpot: boolean;
 }
 
 /**
@@ -93,12 +124,14 @@ export class BodyDamage {
   private readonly hp: Record<Region, number>;
   private readonly severed = new Set<SeverableRegion>();
   private deadBy: 'torso' | 'limbs' | null = null;
+  readonly profile: DamageProfile;
 
   /** `baseHp` is already scaled by difficulty (ADR-0008 supplies the multiplier). */
-  constructor(baseHp: number = SHAMBLER_BASE_HP) {
+  constructor(baseHp: number = SHAMBLER_BASE_HP, profile: DamageProfile = DEFAULT_PROFILE) {
     this.baseHp = baseHp;
+    this.profile = profile;
     const max = {} as Record<Region, number>;
-    for (const r of REGIONS) max[r] = PART_HP[r] * baseHp;
+    for (const r of REGIONS) max[r] = (profile.partHp?.[r] ?? PART_HP[r]) * baseHp;
     this.maxHp = max;
     this.hp = { ...max };
   }
@@ -129,10 +162,13 @@ export class BodyDamage {
     return out;
   }
 
-  apply(region: Region, amount: number): HitResult {
-    const result: HitResult = { region, applied: 0, severed: null, lost: [], newLimb: null, killed: false, killedBy: null };
+  /** `weakSpot` routes the hit to the torso pool at the profile's weak-spot multiplier. */
+  apply(hitRegion: Region, amount: number, weakSpot = false): HitResult {
+    const region: Region = weakSpot ? 'torso' : hitRegion;
+    const result: HitResult = { region, applied: 0, severed: null, lost: [], newLimb: null, killed: false, killedBy: null, weakSpot };
     if (this.dead || amount <= 0 || this.isSevered(region)) return result;
-    const applied = Math.min(this.hp[region], amount * DAMAGE_TAKEN[region]);
+    const taken = weakSpot ? this.profile.weakSpotTaken : (this.profile.taken?.[region] ?? DAMAGE_TAKEN[region]);
+    const applied = Math.min(this.hp[region], amount * taken);
     this.hp[region] -= applied;
     result.applied = applied;
     if (this.hp[region] > 1e-6) return result;

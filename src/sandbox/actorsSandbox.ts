@@ -21,6 +21,7 @@ import { GoreSystem } from '../actors/gore.ts';
 import { Humanoid, type BodyHit, type HumanoidSpec } from '../actors/humanoid.ts';
 import { PoseLibrary } from '../actors/poses.ts';
 import { separate, type SepBody } from '../actors/separation.ts';
+import { SLAM, slamFalloff } from '../actors/slam.ts';
 
 /**
  * ADR-0006 test room: /sandbox/actors.html (dev server only, not part of the game build).
@@ -205,6 +206,7 @@ async function boot(): Promise<void> {
       const max = best.humanoid.damage.maxHp[r.region].toFixed(0);
       let line = `${best.humanoid.spec.seed} · ${r.region} −${r.applied.toFixed(0)} (${hp}/${max})`;
       if (r.severed) line += ` → SEVERED ${r.lost.join('+')}`;
+      if (r.weakSpot) line += ` · WEAK SPOT`;
       if (r.killed) line += ` → DEAD (${r.killedBy})`;
       lines.push(line);
     }
@@ -273,7 +275,8 @@ async function boot(): Promise<void> {
       a.lurchTimer = 4 + Math.random() * 3;
     }
     a.lurchLeft -= dt;
-    h.speedScale = a.lurchLeft > 0 ? 2.4 / 1.3 : 1;
+    // Heroes never lurch: they come on at one steady, heavy pace (ADR-0021).
+    h.speedScale = a.lurchLeft > 0 && !h.spec.hero ? 2.4 / 1.3 : 1;
     toCam.subVectors(camera.position, h.group.position).setY(0);
     const dist = toCam.length();
     let desired: THREE.Vector3 | null = null;
@@ -290,7 +293,13 @@ async function boot(): Promise<void> {
     }
     h.lookTarget = camera.position;
     // Lunge when close: jaw gapes, arms reach.
-    h.charge = !h.locomotion.blind && dist < 2.6 ? 1 : 0;
+    h.charge = !h.spec.hero && !h.locomotion.blind && dist < 2.6 ? 1 : 0;
+    if (h.spec.hero) {
+      // Close the last of the distance to slam range, then slam.
+      if (dist < SLAM.range * 0.75) desired = null;
+      h.tryAttack(camera.position);
+      if (h.slam?.busy) desired = toCam;
+    }
     h.move(desired, dt);
     // Keep inside the room.
     h.group.position.x = THREE.MathUtils.clamp(h.group.position.x, -6.6, 6.6);
@@ -327,6 +336,10 @@ async function boot(): Promise<void> {
 
   // ---------------------------------------------------------------- loop
   let simTime = 0;
+  /** Camera shake 0..1 from hero stomps and slams; applied at render time only. */
+  let shake = 0;
+  let lastSlam = '';
+  const shakeOffset = new THREE.Vector3();
   let fps = 60;
   let frozen = false;
   const loop = new Loop({
@@ -343,7 +356,21 @@ async function boot(): Promise<void> {
       }
       for (const a of actors) think(a, dt);
       if (separationOn) applySeparation();
-      for (const a of actors) a.h.update(dt, camera.position);
+      for (const a of actors) {
+        a.h.update(dt, camera.position);
+        const impact = a.h.consumeSlamImpact();
+        if (impact) {
+          const d = Math.hypot(camera.position.x - impact.x, camera.position.z - impact.z);
+          const f = slamFalloff(d);
+          shake = Math.max(shake, 0.35 + 0.65 * f);
+          lastSlam = f > 0 ? `SLAM · hit you for ${(SLAM.damage * f).toFixed(0)}` : `SLAM · missed (${d.toFixed(1)} m)`;
+        }
+        if (a.h.footfall) {
+          const d = a.h.group.position.distanceTo(camera.position);
+          if (d < 8) shake = Math.max(shake, 0.12 * (1 - d / 8));
+        }
+      }
+      shake = Math.max(0, shake - dt * 2.2);
       gore.update(dt);
       input.endStep();
     },
@@ -351,10 +378,13 @@ async function boot(): Promise<void> {
       renderer.info.reset();
       debug?.beginFrame();
       freeCam.look();
+      shakeOffset.set(Math.sin(simTime * 61), Math.sin(simTime * 77 + 1), Math.sin(simTime * 53 + 2)).multiplyScalar(0.03 * shake * shake);
+      camera.position.add(shakeOffset);
       flashlight.update(frameDt);
       if (post) post.render(simTime);
       else renderer.render(scene, camera);
       debug?.endFrame();
+      camera.position.sub(shakeOffset);
       if (frameDt > 0) fps += (1 / frameDt - fps) * 0.05;
       const info = renderer.info.render;
       const alive = actors.filter((a) => a.h.alive).length;
@@ -366,7 +396,7 @@ async function boot(): Promise<void> {
         `[T] transform engineer   [R] reset   [F] flashlight   separation ${separationOn ? 'on' : 'off (?nosep)'}`,
         ``,
         lastHit,
-        ``,
+        lastSlam,
         `alive ${alive}/${actors.length}   debris ${gore.activeDebris}   pools ${gore.activePools}`,
         `tris/body ${tris}   draw calls ${info.calls}   ${fps.toFixed(0)} fps`,
       ].join('\n');
