@@ -38,6 +38,7 @@ Execution steps, Definition of done, Open questions.
 | 0015 | Performance budget, verification and workflow | applies to all |
 | 0016 | Save system and game state | 0001, 0008, 0012 |
 | 0017 | New-game intro cutscene (skippable, on rails) | 0004, 0006, 0009, 0010 |
+| 0018 | Squad characters: personalities, backstory, infection arc | 0010, 0011, 0014 |
 
 0013 (audio) can run in parallel with 0004-0008 once 0003 exists.
 0015 is a standing rule set: read it before starting any ADR.
