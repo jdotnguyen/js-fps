@@ -198,7 +198,8 @@ function paint(g: THREE.BufferGeometry, painter: Painter, blotch: number | null 
     skin[i] = painter(p, c, fx);
     if (blotch !== null) {
       const n = fbm3(p.x * 13, p.y * 13, p.z * 13, blotch, 3);
-      fx.rot = Math.max(fx.rot, THREE.MathUtils.smoothstep(n + 0.25 * noise3(p.x * 60, p.y * 60, p.z * 60, blotch + 9), 0.16, 0.6));
+      // Wet surfaces (negative aRot) keep their gloss; elsewhere the infection blotches show through.
+      if (fx.rot >= 0) fx.rot = Math.max(fx.rot, THREE.MathUtils.smoothstep(n + 0.25 * noise3(p.x * 60, p.y * 60, p.z * 60, blotch + 9), 0.16, 0.6));
     }
     colors[i * 3] = c.r;
     colors[i * 3 + 1] = c.g;
@@ -283,8 +284,8 @@ function heroTeeth(ctx: Ctx): void {
     for (let k = 0; k < 10; k++) {
       const x = -0.032 + (k / 9) * 0.064;
       const z = -0.077 + 0.018 * (x / 0.03) ** 2;
-      const len = rng.range(0.012, 0.028) * (lower ? 0.9 : 1) * (k % 3 === 0 ? 1.4 : 1);
-      const tooth = clean(new THREE.ConeGeometry(0.0034, len, 5, 1));
+      const len = rng.range(0.016, 0.034) * (lower ? 0.85 : 1) * (k % 3 === 0 ? 1.45 : 1);
+      const tooth = clean(new THREE.ConeGeometry(0.0044, len, 5, 1));
       if (!lower) tooth.rotateX(Math.PI);
       tooth.rotateZ(rng.range(-0.25, 0.25));
       tooth.rotateX(rng.range(-0.15, 0.15));
@@ -300,6 +301,97 @@ function heroTeeth(ctx: Ctx): void {
   }
 }
 
+/** Hero jaw baked open (radians) and stretched downward, so the mouth gapes even from eye level. */
+const HERO_JAW_GAPE = 0.6;
+const HERO_JAW_DROP = 1.12;
+const HERO_HEAD_SCALE = 1.22;
+
+/** Where a point given in the shut, unscaled jaw (head space) ends up after enlargeHead, in head space. */
+function heroJawPoint(x: number, y: number, z: number): THREE.Vector3 {
+  const h = JAW_HINGE;
+  const p = new THREE.Vector3(x - h[0], (y - h[1]) * HERO_JAW_DROP, z - h[2]);
+  p.applyAxisAngle(new THREE.Vector3(1, 0, 0), -HERO_JAW_GAPE);
+  return p.add(new THREE.Vector3(h[0], h[1], h[2])).multiplyScalar(HERO_HEAD_SCALE);
+}
+
+/**
+ * Hero face detail added after the head is enlarged (head space):
+ * strands of cheek flesh stretched across the gape, skinned between skull and jaw so they stretch as it opens,
+ * gums along both rows of fangs, and clusters of glowing bloom growths on one side of the face.
+ */
+function heroFaceDetail(ctx: Ctx): void {
+  const k = HERO_HEAD_SCALE;
+  const rng = ctx.rng.fork('face');
+  const flesh = fleshPainter(ctx.seed + 401, 0.9);
+  const wetFlesh: Painter = (p, out, fx) => {
+    flesh(p, out, fx);
+    out.lerp(FLESH_RAW, 0.5);
+    fx.rot = -1;
+    return 0;
+  };
+  // Cheek strands: three a side between the upper and lower lip corners, sagging under their own weight.
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < 3; i++) {
+      const x = s * (0.03 + i * 0.008);
+      const z = -0.072 + i * 0.008;
+      const top = new THREE.Vector3(x, MOUTH_Y + 0.002, z).multiplyScalar(k);
+      const bot = heroJawPoint(x, MOUTH_Y - 0.002, z);
+      const mid = top.clone().lerp(bot, 0.5);
+      mid.z -= 0.006 * k;
+      mid.x += s * rng.range(0.002, 0.006);
+      const curve = new THREE.CatmullRomCurve3([top, mid, bot]);
+      const tube = clean(new THREE.TubeGeometry(curve, 8, rng.range(0.0022, 0.0038) * k, 5, false));
+      add(ctx, 'head', 'wet', paint(tube, wetFlesh), { bones: ['head', 'jaw'], ys: [top.y, bot.y] });
+    }
+  }
+  // Gums: a swollen ridge of raw tissue at the roots of each row of fangs.
+  const gum = (lower: boolean): THREE.BufferGeometry => {
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= 8; i++) {
+      const x = -0.034 + (i / 8) * 0.068;
+      const z = -0.075 + 0.018 * (x / 0.03) ** 2;
+      pts.push(lower ? heroJawPoint(x, MOUTH_Y + 0.001, z) : new THREE.Vector3(x, MOUTH_Y - 0.001, z).multiplyScalar(k));
+    }
+    return paint(clean(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.0045 * k, 5, false)), wetFlesh);
+  };
+  add(ctx, 'head', 'wet', gum(false));
+  const lowerGum = gum(true);
+  lowerGum.translate(-JAW_HINGE[0], -JAW_HINGE[1], -JAW_HINGE[2]);
+  add(ctx, 'jaw', 'wet', lowerGum);
+  // Bloom growths: a glowing cluster over one temple and cheek, a smaller one on the jaw.
+  const side = rng.chance(0.5) ? -1 : 1;
+  const cluster: Array<[number, number, number, number]> = [
+    [0.062, 0.12, -0.05, 0.012], [0.07, 0.105, -0.04, 0.009], [0.055, 0.135, -0.04, 0.008], [0.066, 0.09, -0.055, 0.007],
+    [0.075, 0.125, -0.025, 0.0075], [0.048, 0.145, -0.055, 0.006], [0.058, 0.078, -0.065, 0.0055],
+  ];
+  cluster.forEach(([x, y, z, r], i) => add(ctx, 'head', 'wet', growthBlob(ctx, r * k, new THREE.Vector3(side * x, y, z).multiplyScalar(k), 430 + i)));
+  const jawBlobs: Array<[number, number, number, number]> = [[0.05, 0.03, -0.055, 0.008], [0.058, 0.04, -0.045, 0.006], [0.042, 0.022, -0.065, 0.005]];
+  jawBlobs.forEach(([x, y, z, r], i) => {
+    const at = heroJawPoint(side * x, y, z).sub(new THREE.Vector3(JAW_HINGE[0], JAW_HINGE[1], JAW_HINGE[2]));
+    add(ctx, 'jaw', 'wet', growthBlob(ctx, r * k, at, 450 + i));
+  });
+}
+
+/** Hero eyes: bloodshot dark sclera with one small hot pupil that glows, instead of a milky white ball. */
+function heroEye(g: THREE.BufferGeometry, c: THREE.Vector3): void {
+  const pos = g.getAttribute('position') as THREE.BufferAttribute;
+  const col = g.getAttribute('color') as THREE.BufferAttribute;
+  const glow = g.getAttribute('aGlow') as THREE.BufferAttribute;
+  const skin = g.getAttribute('aSkin') as THREE.BufferAttribute;
+  const sclera = new THREE.Color('#3a0e0e');
+  const iris = new THREE.Color('#c8e8a0');
+  for (let i = 0; i < pos.count; i++) {
+    const lx = pos.getX(i) - c.x;
+    const ly = pos.getY(i) - c.y;
+    const front = pos.getZ(i) < c.z - 0.006;
+    const pupil = front && Math.hypot(lx, ly) < 0.0042;
+    const cc = pupil ? iris : sclera;
+    col.setXYZ(i, cc.r, cc.g, cc.b);
+    glow.setX(i, pupil ? 1 : 0);
+    skin.setX(i, 0);
+  }
+}
+
 /** Bigger head for hero bodies; the jaw keeps meeting the skull at its hinge. */
 function enlargeHead(ctx: Ctx, k: number): void {
   const hinge = JAW_HINGE;
@@ -312,14 +404,16 @@ function enlargeHead(ctx: Ctx, k: number): void {
       if (bb && part.geometry.getAttribute('position').count <= 80 && bb.min.y > 0.1) {
         const c = bb.getCenter(new THREE.Vector3());
         part.geometry.translate(-c.x, -c.y, -c.z);
-        part.geometry.scale(0.62, 0.62, 0.62);
-        part.geometry.translate(c.x, c.y, c.z + 0.004);
+        part.geometry.scale(0.68, 0.68, 0.68);
+        part.geometry.translate(c.x, c.y, c.z + 0.006);
+        heroEye(part.geometry, c);
       }
       part.geometry.scale(k, k, k);
     } else if (part.bone === 'jaw') {
       if (part.geometry.getAttribute('position').count > 300) sculptHeroHead(part.geometry, hinge);
-      // Jaw hangs open at rest; the animator adds to it.
-      part.geometry.rotateX(-0.42);
+      // Jaw hangs open and dislocated at rest (dropped and stretched); the animator adds to it.
+      part.geometry.scale(1, HERO_JAW_DROP, 1);
+      part.geometry.rotateX(-HERO_JAW_GAPE);
       part.geometry.scale(k, k, k);
       part.geometry.translate((k - 1) * hinge[0], (k - 1) * hinge[1], (k - 1) * hinge[2]);
     }
@@ -334,8 +428,9 @@ const COAT_PIVOT_Y = [0.1, -0.12, -0.34] as const;
 
 /** Coat, collar, lapels, sleeves, tie and trouser shreds on the sculpted hero body. */
 function buildTatters(ctx: Ctx, extra: ExtraBoneDef[]): void {
-  const coat = new THREE.Color('#d8d3c4');
-  const lining = new THREE.Color('#bdb7a6');
+  // Grimy, not white: a clean lab coat blows out under the flashlight.
+  const coat = new THREE.Color('#a8a292');
+  const lining = new THREE.Color('#8c8678');
   const trou = new THREE.Color('#3a3d3f');
   const tie = new THREE.Color('#2c3d52');
   const r = ctx.rng.fork('tatter');
@@ -386,15 +481,15 @@ function buildTatters(ctx: Ctx, extra: ExtraBoneDef[]): void {
   // Lapels: a rolled panel each side of the chest opening, torn at the bottom.
   for (const s of [-1, 1] as const) {
     patch('chest', clothPatch(8, 12, (u, v) => {
-      const w = 0.035 + 0.07 * Math.sin(Math.PI * v ** 0.6);
+      const w = 0.03 + 0.055 * Math.sin(Math.PI * v ** 0.6);
       const x = s * (0.04 + 0.02 * v) + s * u * w;
       const z = -0.145 * W - 0.03 * Math.sin(u * Math.PI * 0.85) * (1 - 0.4 * v);
-      return [x, 0.235 - 0.26 * v, z];
+      return [x, 0.235 - 0.19 * v, z];
     }, s > 0 ? 1 : -1, 0.006, 0.45, ctx.seed + 41 + s), lining, 0);
   }
 
   // Tie.
-  strip('chest', 0.0, 0.215, -0.125 * W, 0.04, 0.24, -0.05, 0, 0, tie, 0.3);
+  strip('chest', 0.0, 0.215, -0.125 * W, 0.04, 0.17, -0.05, 0, 0, tie, 0.5);
 
   // Sleeve remnants: an open cuff of coat left on each upper arm, the left almost whole, the right shredded.
   for (const [side, bone, len, jag] of [[-1, 'upperArm_L', 0.27, 0.35], [1, 'upperArm_R', 0.13, 0.7]] as Array<[number, JointName, number, number]>) {
@@ -968,7 +1063,8 @@ export function buildBodyGeometry(shape: BodyShape): BodyGeometry {
   buildHead(ctx);
   if (ctx.hero) {
     heroTeeth(ctx);
-    enlargeHead(ctx, 1.22);
+    enlargeHead(ctx, HERO_HEAD_SCALE);
+    heroFaceDetail(ctx);
   }
   buildLimbs(ctx, 'L');
   buildLimbs(ctx, 'R');

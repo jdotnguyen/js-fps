@@ -109,3 +109,31 @@ test('hero coat pieces are thick: every cloth patch has volume and finite vertic
     for (let i = 0; i < a.count; i++) assert.ok(Number.isFinite(a.getX(i) + a.getY(i) + a.getZ(i)), `${part.bone} has a NaN vertex`);
   }
 });
+
+test('hero face: cheek strands are skinned between skull and jaw, and the face carries glowing growths', () => {
+  const g = buildBodyGeometry({ outfit: 'lab', height: 2.15, build: 1.25, infectable: true, hero: true, seed: 'face' });
+  const strands = g.parts.filter((p) => p.chain?.bones.join() === 'head,jaw');
+  assert.equal(strands.length, 6, 'three cheek strands a side');
+  for (const s of strands) assert.ok((s.chain?.ys[0] ?? 0) > (s.chain?.ys[1] ?? 0), 'strands run from the skull down to the jaw');
+  const faceGlow = g.parts.filter((p) => (p.bone === 'head' || p.bone === 'jaw') && p.layer === 'wet')
+    .some((p) => { const a = p.geometry.getAttribute('aGlow'); for (let i = 0; i < a.count; i++) if (a.getX(i) > 0.3) return true; return false; });
+  assert.ok(faceGlow, 'bloom growths glow');
+});
+
+test('hero skin is glossy and the belly wound glows (weak-spot telegraph)', () => {
+  const g = buildBodyGeometry({ outfit: 'lab', height: 2.15, build: 1.25, infectable: false, hero: true, seed: 'skin' });
+  const spine = g.parts.filter((p) => p.bone === 'spine' && p.layer === 'body' && p.geometry.getAttribute('position').count > 1000);
+  assert.ok(spine.length > 0);
+  let glow = 0;
+  let wet = 0;
+  for (const p of spine) {
+    const a = p.geometry.getAttribute('aGlow');
+    const r = p.geometry.getAttribute('aRot');
+    for (let i = 0; i < a.count; i++) {
+      if (a.getX(i) > 0.3) glow++;
+      if (r.getX(i) < 0) wet++;
+    }
+  }
+  assert.ok(glow > 5, `belly wound glows (${glow} vertices)`);
+  assert.ok(wet > 100, 'bare skin and wounds have negative aRot (gloss)');
+});

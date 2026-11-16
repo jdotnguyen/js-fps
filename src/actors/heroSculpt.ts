@@ -34,6 +34,79 @@ export function flayMask(joint: JointName, p: THREE.Vector3, seed: number): numb
   return THREE.MathUtils.smoothstep(v, edge, edge + 0.07);
 }
 
+/** 0..1 for the deepest part of a wound, where the crater goes through to bone on shins and forearms. */
+export function flayDepth(joint: JointName, p: THREE.Vector3, seed: number): number {
+  const amount = FLAY[joint];
+  if (!amount) return 0;
+  const base = 0.5 + 0.5 * fbm3(p.x * 9, p.y * 9, p.z * 9, seed + joint.length * 31, 3);
+  const edge = 1 - amount * 0.8;
+  return THREE.MathUtils.smoothstep(base + (p.z < 0 ? 0.04 : -0.04), edge + 0.13, edge + 0.22);
+}
+
+/**
+ * The belly wound (spine space): a deep, ragged hole in the gut with the bloom glowing inside.
+ * Fixed in place on every hero so it can be the weak spot (hero item 4). 1 inside, 0 outside.
+ */
+export const BELLY_WOUND = { x: -0.02, y: 0.03, rx: 0.075, ry: 0.06 } as const;
+export function bellyWound(p: THREE.Vector3, seed: number): number {
+  if (p.z > -0.02) return 0;
+  const dx = (p.x - BELLY_WOUND.x) / BELLY_WOUND.rx;
+  const dy = (p.y - BELLY_WOUND.y) / BELLY_WOUND.ry;
+  const d = Math.hypot(dx, dy) + 0.22 * noise3(p.x * 40, p.y * 40, 0, seed + 71) + 0.08 * noise3(p.x * 110, p.y * 110, 0, seed + 72);
+  return THREE.MathUtils.smoothstep(1 - d, 0, 0.25);
+}
+
+/** How strongly each joint shows raised veins. */
+const VEINY: Partial<Record<JointName, number>> = {
+  foreArm_L: 1, foreArm_R: 1, upperArm_L: 0.85, upperArm_R: 0.85, neck: 1, chest: 0.55,
+  thigh_L: 0.7, thigh_R: 0.7, shin_L: 0.6, shin_R: 0.6, spine: 0.35, pelvis: 0.25,
+};
+
+/** Raised vein mask 0..1: branching ridges running along the limb (local Y), where noise fields cross zero. */
+export function veinRidge(joint: JointName, p: THREE.Vector3, seed: number): number {
+  const k = VEINY[joint];
+  if (!k) return 0;
+  const trunk = noise3(p.x * 13, p.y * 3.2, p.z * 13, seed + 17) + 0.3 * noise3(p.x * 38, p.y * 12, p.z * 38, seed + 18);
+  const branch = noise3(p.x * 22, p.y * 7, p.z * 22, seed + 19);
+  const a = Math.max(0, 1 - Math.abs(trunk) * 7);
+  const b = Math.max(0, 1 - Math.abs(branch) * 9) * THREE.MathUtils.smoothstep(noise3(p.x * 6, p.y * 6, p.z * 6, seed + 20), 0, 0.4);
+  return k * Math.max(a, 0.75 * b);
+}
+
+/** Loose, sagging skin: a hanging gut, folds under the pecs, drooping inner thighs and the backs of the arms. */
+export function sag(joint: JointName, p: THREE.Vector3, seed: number): number {
+  const side = joint.endsWith('_L') ? -1 : 1;
+  const fold = (y: number, w: number, a: number): number => -a * Math.exp(-(((p.y - y) / w) ** 2));
+  let d = 0;
+  switch (joint) {
+    case 'spine':
+      if (p.z < -0.04) {
+        d += gauss(p, 0, 0.03, -0.12, 0.1, 0.05, 0.05, 0.024); // gut hanging forward
+        d += fold(-0.005 + 0.01 * noise3(p.x * 20, 0, 0, seed + 3), 0.009, 0.01) * Math.exp(-((p.x / 0.09) ** 2)); // crease where the gut overhangs the belt
+      }
+      break;
+    case 'pelvis':
+      if (p.z < -0.04) d += gauss(p, 0, 0.09, -0.12, 0.1, 0.03, 0.04, 0.012); // gut spilling over
+      break;
+    case 'chest':
+      for (const s of [-1, 1]) if (p.z < -0.05) d += -0.006 * Math.exp(-(((p.x - s * 0.08) / 0.05) ** 2) - (((p.y - 0.1) / 0.01) ** 2)); // under the pecs
+      break;
+    case 'upperArm_L':
+    case 'upperArm_R':
+      d += gauss(p, side * 0.01, -0.17, 0.06, 0.04, 0.08, 0.03, 0.014); // hanging skin behind the triceps
+      if (p.y > -0.08) d += 0.0028 * Math.sin(p.y * 170 + 3 * noise3(p.x * 20, 0, p.z * 20, seed + 5)) * THREE.MathUtils.smoothstep(p.y, -0.08, 0); // creased shoulder skin
+      break;
+    case 'thigh_L':
+    case 'thigh_R':
+      d += gauss(p, -side * 0.05, -0.1, 0.0, 0.035, 0.09, 0.05, 0.015); // inner thigh droop
+      if (p.z < -0.02) d += gauss(p, 0, -0.33, -0.05, 0.05, 0.025, 0.03, 0.01) + fold(-0.365, 0.008, 0.008); // flesh bagging above the knee
+      break;
+    default:
+      break;
+  }
+  return d;
+}
+
 /** Muscle bulk added along the normal at local position `p`. */
 export function muscle(joint: JointName, p: THREE.Vector3): number {
   const side = joint.endsWith('_L') ? -1 : 1;
@@ -61,7 +134,9 @@ export function muscle(joint: JointName, p: THREE.Vector3): number {
       }
       if (p.z < -0.03) {
         m -= 0.012 * Math.exp(-((p.x / 0.009) ** 2));
-        m -= 0.011 * (Math.exp(-(((p.y - 0.06) / 0.009) ** 2)) + Math.exp(-(((p.y - 0.115) / 0.009) ** 2)));
+        // Ab grooves only across the rectus, fading out toward the flanks.
+        const mid = Math.exp(-((p.x / 0.06) ** 2));
+        m -= 0.011 * mid * (Math.exp(-(((p.y - 0.06) / 0.009) ** 2)) + Math.exp(-(((p.y - 0.115) / 0.009) ** 2)));
       }
       break;
     }
@@ -117,17 +192,21 @@ export function sculptHero(g: THREE.BufferGeometry, joint: JointName, seed: numb
   const p = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
     p.fromBufferAttribute(pos, i);
-    let d = muscle(joint, p);
-    // Cords and veins: thin ridges following the limb.
-    const vein = Math.abs(noise3(p.x * 34, p.y * 9, p.z * 34, seed + 17));
-    d = d * 1.7 + 0.005 * Math.max(0, 1 - vein * 7);
+    let d = muscle(joint, p) * 1.7 + sag(joint, p, seed);
+    // Bulging veins: soft raised ridges that branch along the limb.
+    d += 0.0065 * veinRidge(joint, p, seed);
     d += 0.002 * fbm3(p.x * 40, p.y * 40, p.z * 40, seed, 2);
     d += 0.0045 * scarRidge(p, seed);
     const f = flayMask(joint, p, seed);
     if (f > 0) {
       const rim = Math.max(0, 1 - Math.abs(f - 0.3) / 0.3); // ridge at the torn edge
-      d += 0.008 * rim - 0.014 * f;
-      d += 0.0025 * Math.sin(Math.atan2(p.x, p.z) * 46 + 4 * noise3(0, p.y * 14, 0, seed)) * f; // fibre grooves
+      d += 0.011 * rim - 0.024 * f - 0.012 * flayDepth(joint, p, seed);
+      d += 0.003 * Math.sin(Math.atan2(p.x, p.z) * 46 + 4 * noise3(0, p.y * 14, 0, seed)) * f; // fibre grooves
+    }
+    if (joint === 'spine') {
+      const b = bellyWound(p, seed);
+      const rim = Math.max(0, 1 - Math.abs(b - 0.15) / 0.15);
+      d += 0.012 * rim - 0.035 * b;
     }
     pos.setXYZ(i, p.x + nrm.getX(i) * d, p.y + nrm.getY(i) * d, p.z + nrm.getZ(i) * d);
   }
@@ -154,9 +233,11 @@ const FIBRE_LIGHT = new THREE.Color('#8e2c26');
 const CLOT = new THREE.Color('#14060a');
 const SINEW = new THREE.Color('#9a8570');
 const CRUST = new THREE.Color('#25080a');
-const SHIRT = new THREE.Color('#bdb8a8');
+const SHIRT = new THREE.Color('#9e9a8c');
 const TROUSER = new THREE.Color('#2e3234');
 const SHIRT_STAIN = new THREE.Color('#8a1a1a');
+const BOWEL = new THREE.Color('#9a5a58');
+const BONE_BARE = new THREE.Color('#cfc2a4');
 
 function trouserCovers(joint: JointName, p: THREE.Vector3, rag: number): boolean {
   switch (joint) {
@@ -196,7 +277,24 @@ export function heroFace(q: THREE.Vector3, seed: number, skin: THREE.Color, out:
     fx.rot = -1;
     return true;
   }
+  // Cheeks torn open from the mouth corners back toward the jaw hinge: raw, wet fibre.
+  if (q.z < -0.02) {
+    const ax = Math.abs(q.x);
+    const along = ax - 0.026;
+    const tearY = 0.05 + 0.09 * Math.max(0, along) + 0.007 * noise3(q.x * 45, 0, q.z * 45, seed + 11);
+    const width = (0.004 + 0.007 * (0.5 + 0.5 * noise3(q.x * 70, q.y * 20, 0, seed + 12))) * (1 - Math.max(0, along - 0.03) / 0.03);
+    if (along > 0 && along < 0.055 && Math.abs(q.y - tearY) < width) {
+      out.copy(FIBRE_DARK).lerp(FIBRE_LIGHT, 0.5 + 0.5 * Math.sin(q.y * 900 + q.x * 200));
+      fx.rot = -1;
+      return true;
+    }
+  }
   out.copy(skin).lerp(SALLOW, 0.75).multiplyScalar(0.42 + 0.18 * n);
+  // Bloom light leaking around the sunken eyes.
+  for (const sx of [-1, 1]) {
+    const r = Math.hypot(q.x - sx * 0.03, q.y - 0.105);
+    if (q.z < -0.06 && r > 0.011 && r < 0.016) fx.glow = Math.max(fx.glow, 0.12); // a faint rim under the lid
+  }
   const hollow = Math.max(gauss(q, -0.052, 0.07, -0.07, 0.025, 0.03, 0.03, 1), gauss(q, 0.052, 0.07, -0.07, 0.025, 0.03, 0.03, 1));
   out.multiplyScalar(1 - 0.5 * hollow);
   out.lerp(BRUISE, 0.5 * THREE.MathUtils.smoothstep(fbmStain(q, seed + 5), 0.5, 0.72));
@@ -204,8 +302,31 @@ export function heroFace(q: THREE.Vector3, seed: number, skin: THREE.Color, out:
 }
 
 export function heroColor(joint: JointName, p: THREE.Vector3, seed: number, skin: THREE.Color, out: THREE.Color, fx: HeroFx): number {
-  const f = flayMask(joint, p, seed);
   const n = 0.5 + 0.5 * noise3(p.x * 40, p.y * 40, p.z * 40, seed);
+  if (joint === 'spine') {
+    const b = bellyWound(p, seed);
+    if (b > 0.3) {
+      // Gut wound: dark wet meat, coils of bowel and the bloom glowing in the depths.
+      const coil = 0.5 + 0.5 * Math.sin(p.x * 160 + 6 * noise3(p.x * 30, p.y * 30, 0, seed + 73)) * Math.sin(p.y * 140);
+      out.copy(FIBRE_DARK).lerp(FIBRE_LIGHT, 0.45 + 0.45 * coil * n).lerp(BOWEL, 0.5 * coil);
+      out.lerp(CLOT, 0.6 * THREE.MathUtils.smoothstep(0.6 - b, 0, 0.3)); // clotted toward the rim
+      fx.rot = -1;
+      fx.glow = THREE.MathUtils.smoothstep(b, 0.45, 0.9) * (0.5 + 0.5 * n);
+      return 0;
+    }
+    if (b > 0.05) {
+      out.copy(CRUST).lerp(FIBRE_DARK, 0.5 * n);
+      fx.rot = -0.6;
+      return 0;
+    }
+  }
+  const f = flayMask(joint, p, seed);
+  if (f > 0.5 && (joint.startsWith('shin') || joint.startsWith('foreArm')) && flayDepth(joint, p, seed) > 0.6 && Math.abs(p.x) < 0.025 && p.z < 0) {
+    // Bone showing through at the bottom of the deepest wounds.
+    out.copy(BONE_BARE).lerp(CLOT, 0.35 * (1 - n));
+    fx.rot = -0.7;
+    return 0;
+  }
   if (f > 0.5) {
     // Raw muscle: dark fibres with bright wet ridges, clotted blood and pale sinew, never flat red.
     const ang = Math.atan2(p.x, p.z);
@@ -236,9 +357,11 @@ export function heroColor(joint: JointName, p: THREE.Vector3, seed: number, skin
   const ao = 0.62 + 0.38 * THREE.MathUtils.smoothstep(valley, -0.7, 0.6);
   out.copy(skin).lerp(SALLOW, 0.7).multiplyScalar((0.4 + 0.2 * n) * ao);
   out.lerp(BRUISE, 0.55 * THREE.MathUtils.smoothstep(fbmStain(p, seed + 9), 0.5, 0.75));
-  const vein = Math.abs(noise3(p.x * 26, p.y * 7, p.z * 26, seed + 12));
-  out.lerp(VEIN, 0.6 * Math.max(0, 1 - vein * 6));
+  const vein = veinRidge(joint, p, seed);
+  out.lerp(VEIN, 0.75 * vein);
   out.lerp(SCAR, 0.7 * scar);
+  // Clammy skin: a faint sheen everywhere, wetter on the veins (negative aRot lowers roughness).
+  fx.rot = -(0.15 + 0.35 * vein);
   return 0.3; // keep most of the painted tone; the infection shader still adds some sheen
 }
 
