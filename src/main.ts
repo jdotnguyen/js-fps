@@ -240,6 +240,7 @@ async function boot(): Promise<void> {
   events.on('player:flashlight', () => roomAudio?.flashlightClick());
   events.on('player:footstep', (f) => roomAudio?.footstep(f.surface, f.x, f.z, f.sprint));
   events.on('player:damaged', () => audio.muffle(0.4));
+  events.on('room:entered', (r) => audio.setRoomReverb(r.reverb));
 
   if (level) {
     level.registerInteractions(interactions);

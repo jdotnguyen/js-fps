@@ -22,7 +22,7 @@ const EYE_HEIGHT = PLAYER_TUNING.eyeHeight;
 
 declare module '../core/events.ts' {
   interface EventMap {
-    'room:entered': { id: string; name: string };
+    'room:entered': { id: string; name: string; reverb?: string | undefined };
     'door:state': { id: string; state: DoorState };
     'door:opened': { id: string };
     'door:closed': { id: string };
@@ -719,7 +719,7 @@ export class Level implements World {
     const room = this.roomAt(eye);
     if (room && room !== this.current) {
       this.current = room;
-      this.deps.events.emit('room:entered', { id: room.data.id, name: room.data.name });
+      this.deps.events.emit('room:entered', { id: room.data.id, name: room.data.name, reverb: room.data.atmosphere?.reverb });
     }
     this.updateDoors(dt, eye);
     this.updateTriggers(eye);

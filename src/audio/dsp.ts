@@ -158,28 +158,50 @@ export function stats(buf: Float32Array): { peak: number; rms: number } {
   return { peak, rms: Math.sqrt(sum / Math.max(1, buf.length)) };
 }
 
+/** Colour and early-reflection pattern of an impulse response (see audio/reverb.ts). */
+export interface IrShape {
+  /** Low-pass cutoff at the start of the tail, Hz. */
+  cutoff: number;
+  /** How fast the tail darkens, per second (higher = duller late tail). */
+  darken: number;
+  /** Cutoff the tail settles towards, Hz. */
+  floor: number;
+  /** Silence before the tail begins, seconds. */
+  predelay: number;
+  /** Early reflections: [time s, amplitude, side 0|1]. */
+  taps: ReadonlyArray<readonly [number, number, number]>;
+}
+
+export const DEFAULT_IR_SHAPE: IrShape = {
+  cutoff: 6000,
+  darken: 2.2,
+  floor: 300,
+  predelay: 0,
+  taps: [
+    [0.007, 0.7, 0], [0.011, 0.55, 1], [0.017, 0.45, 0], [0.023, 0.4, 1], [0.031, 0.3, 0], [0.043, 0.25, 1],
+  ],
+};
+
 /**
  * Stereo impulse response for the convolution reverb: early reflections plus a
- * decaying, darkening noise tail (metal corridor). rt60 in seconds.
+ * decaying, darkening noise tail. rt60 in seconds. The default shape is the metal corridor.
  */
-export function impulseResponse(sr: number, rt60: number, rng: Rng): [Buf, Buf] {
-  const len = Math.round(sr * rt60 * 1.1);
+export function impulseResponse(sr: number, rt60: number, rng: Rng, shape: IrShape = DEFAULT_IR_SHAPE): [Buf, Buf] {
+  const pre = Math.round(shape.predelay * sr);
+  const len = Math.round(sr * rt60 * 1.1) + pre;
   const out: [Buf, Buf] = [new Float32Array(len), new Float32Array(len)];
-  const taps: Array<[number, number, number]> = [
-    [0.007, 0.7, 0], [0.011, 0.55, 1], [0.017, 0.45, 0], [0.023, 0.4, 1], [0.031, 0.3, 0], [0.043, 0.25, 1],
-  ];
   for (let ch = 0; ch < 2; ch++) {
     const buf = out[ch]!;
     const noise = white(rng.fork(`ir${ch}`));
-    const lp = new OnePole(6000, sr);
-    for (let i = 0; i < len; i++) {
-      const t = i / sr;
-      if (i % 64 === 0) lp.setCutoff(6000 * Math.exp(-t * 2.2) + 300);
+    const lp = new OnePole(shape.cutoff, sr);
+    for (let i = pre; i < len; i++) {
+      const t = (i - pre) / sr;
+      if (i % 64 === 0) lp.setCutoff(shape.cutoff * Math.exp(-t * shape.darken) + shape.floor);
       const env = Math.exp((-t * 6.9) / rt60) * Math.min(1, t / 0.012);
       buf[i] = lp.process(noise()) * env * 0.5;
     }
-    for (const [time, amp, side] of taps) {
-      const i = Math.round((time + (ch === side ? 0 : 0.0015)) * sr);
+    for (const [time, amp, side] of shape.taps) {
+      const i = Math.round((time + (ch === side ? 0 : 0.0015)) * sr) + pre;
       if (i < len) buf[i] = buf[i]! + amp * (ch === side ? 1 : 0.6);
     }
   }

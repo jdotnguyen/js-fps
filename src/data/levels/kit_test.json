@@ -15,6 +15,7 @@
   {
    "id": "R01",
    "name": "Prep room",
+   "atmosphere": { "reverb": "small_office" },
    "pieces": [
     {
      "kit": "floor",
@@ -230,6 +231,7 @@
   {
    "id": "R02",
    "name": "Observation corridor",
+   "atmosphere": { "reverb": "metal_corridor" },
    "pieces": [
     {
      "kit": "corridor_straight",
@@ -262,6 +264,7 @@
   {
    "id": "R03",
    "name": "Lab B",
+   "atmosphere": { "reverb": "metal_hall" },
    "pieces": [
     {
      "kit": "floor",
@@ -462,6 +465,7 @@
   {
    "id": "R04",
    "name": "Sample vault",
+   "atmosphere": { "reverb": "flooded" },
    "pieces": [
     {
      "kit": "corridor_straight",
