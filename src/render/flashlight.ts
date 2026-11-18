@@ -8,7 +8,8 @@ import * as THREE from 'three';
 export class Flashlight {
   readonly light: THREE.SpotLight;
   intensity = 70;
-  on = true;
+  /** Off at the start: the first dark area teaches the key (ADR-0025). */
+  on = false;
   stiffness = 40;
   damping = 8;
   private readonly camera: THREE.Camera;
@@ -16,7 +17,7 @@ export class Flashlight {
   private readonly vel = new THREE.Vector3();
   private readonly tmp = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
-  private level = 1;
+  private level = 0;
 
   constructor(scene: THREE.Scene, camera: THREE.Camera) {
     this.camera = camera;

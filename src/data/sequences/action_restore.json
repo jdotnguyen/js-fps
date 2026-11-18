@@ -1,0 +1,124 @@
+[
+ {
+  "id": "action_restore",
+  "trigger": {
+   "event": "game:mode",
+   "match": {
+    "mode": "playing"
+   }
+  },
+  "steps": [
+   {
+    "do": "if",
+    "flag": "drop_started",
+    "then": [
+     {
+      "do": "doorState",
+      "id": "D_R02_R03",
+      "state": "sealed"
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "drop_done",
+    "then": [
+     {
+      "do": "doorState",
+      "id": "D_R03_R05",
+      "state": "closed"
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "contact_done",
+    "then": [
+     {
+      "do": "doorState",
+      "id": "D_R05_R06",
+      "state": "closed"
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "cover_done",
+    "then": [
+     {
+      "do": "doorState",
+      "id": "D_R06_R07",
+      "state": "open"
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "armory_open",
+    "then": [
+     {
+      "do": "doorState",
+      "id": "D_R07_R07a",
+      "state": "open"
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "medlab_open",
+    "then": [
+     {
+      "do": "doorState",
+      "id": "D_R07_R09",
+      "state": "open"
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "valve_done",
+    "then": [
+     {
+      "do": "doorState",
+      "id": "D_R10_R11",
+      "state": "closed"
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "climax_done",
+    "then": [
+     {
+      "do": "doorState",
+      "id": "D_R10_R11",
+      "state": "sealed"
+     },
+     {
+      "do": "doorState",
+      "id": "D_R13d_R11",
+      "state": "sealed"
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "sec_done",
+    "then": [
+     {
+      "do": "npcMoveTo",
+      "npc": "priya",
+      "to": "anchor:priya_hide",
+      "instant": true
+     },
+     {
+      "do": "npcAnim",
+      "npc": "priya",
+      "anim": "squad_downed",
+      "instant": true
+     }
+    ]
+   }
+  ]
+ }
+]

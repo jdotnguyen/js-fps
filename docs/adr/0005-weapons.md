@@ -81,3 +81,30 @@ procedural animation, and an on-gun ammo readout.
 
 ## Open questions
 - None blocking.
+
+## Progress 2026-11-17: step 6 (ammo pickups)
+- Level `pickups` entries with `kind` (`ammo_pistol`, `ammo_shotgun`, `medkit`) and optional
+  `amount` (the Standard figure) are supplies; `item` entries stay key items. `game/supplies.ts`
+  places a small box with a glowing stripe (medkit: bone case with a red cross), collects it
+  within 1 m without interact, adds to the viewmodel reserve (`Viewmodel.addReserve`) and
+  toasts "+12 pistol rounds". Taken placed pickups are saved as `pickup:<id>` flags.
+- Both guns count as owned until the shotgun pickup exists (gap). No pickup sound yet.
+
+## Progress 2026-11-18: animated GLB viewmodels
+- The procedural SDF pistol/shotgun and hands are replaced in play by `public/assets/models/weapons/pistol.glb`
+  and `shotgun.glb` (skinned arms + gun, one clip each for Fire, PostFire/pump, reloads, Hide/Unhide/Weild).
+  `render/viewmodel/glbWeapons.ts` loads them (`loadWeaponModels`, awaited in main.ts before the `Viewmodel` is
+  built); `viewmodel.ts` keeps the state machine and spring layers but takes its timings from the clips.
+  The old `pistol.ts` / `shotgun.ts` / `hand.ts` builders remain only for the `?vmlab` turntable.
+- The shotgun export had its gun mesh 10,000x too large, backwards and upside down; `scripts/fix-weapon-glb.mjs` rewrites it
+  (idempotent, already applied to the committed file). The arms and pistol needed nothing.
+- Shotgun cycle: Fire, then PostFire (pump) 0.3 s later, ready 0.9 s after the shot. Reload: PriorToReload, a
+  ReloadOne per shell, ReloadLastOne; firing mid-reload drops out of it. Pistol: Fire restarts per shot (0.24 s),
+  ReloadClip / EmptyClipReload.
+- Audio no longer uses timers. The viewmodel emits `weapon:cue` (`magOut`, `magIn`, `slide`, `slideSoft`, `pump`)
+  at times read off the clips (`CUES` in viewmodel.ts); main.ts plays the samples on them. The pump sample is
+  time-stretched x1.1 (`scripts/fit-weapon-audio.mjs` -> `shotgun-pump-fit.wav`) so its rack and slam land on
+  PostFire's. Other samples already fit and are only re-timed.
+- The Fire/PostFire clips throw the whole rig back ~0.35 m; the viewmodel cancels part of that (`recoilCancel`)
+  so the gun stays in front of the camera, more when aiming. Pose numbers (`SPECS.*.poses`) are first guesses.
+- Gone with the procedural guns: the on-gun ammo screen/lights, the pistol aim laser and the slide-lock on empty.

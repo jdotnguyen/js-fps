@@ -1,0 +1,6 @@
+{
+  "card_l1": { "name": "Level 1 Card", "kind": "card", "level": 1 },
+  "card_l2": { "name": "Level 2 Card", "kind": "card", "level": 2 },
+  "vent_driver": { "name": "Vent Driver", "kind": "tool" },
+  "sample_case": { "name": "Sample Case", "kind": "tool" }
+}

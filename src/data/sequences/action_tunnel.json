@@ -1,0 +1,218 @@
+[
+ {
+  "id": "medlab_door",
+  "trigger": {
+   "event": "door:denied",
+   "match": {
+    "id": "D_R07_R09"
+   },
+   "requires": "sec_done",
+   "unless": "medlab_open"
+  },
+  "resumeFromCheckpoint": true,
+  "debugSetup": {
+   "flags": {
+    "sec_done": true
+   }
+  },
+  "steps": [
+   {
+    "do": "npcMoveTo",
+    "npc": "okafor",
+    "to": "anchor:okafor_biometric"
+   },
+   {
+    "do": "wait",
+    "s": 1.2
+   },
+   {
+    "do": "npcAnim",
+    "npc": "okafor",
+    "anim": "glance"
+   },
+   {
+    "do": "say",
+    "line": "tunnel_okafor_01"
+   },
+   {
+    "do": "npcTask",
+    "npc": "okafor",
+    "task": "biometric",
+    "args": {
+     "at": "anchor:okafor_biometric",
+     "panel": "D_R07_R09"
+    },
+    "wait": true
+   },
+   {
+    "do": "doorState",
+    "id": "D_R07_R09",
+    "state": "open"
+   },
+   {
+    "do": "sfx",
+    "id": "consoleBeep",
+    "at": "anchor:okafor_biometric"
+   },
+   {
+    "do": "say",
+    "line": "tunnel_okafor_02",
+    "wait": false
+   },
+   {
+    "do": "setFlag",
+    "flag": "medlab_open",
+    "value": true
+   },
+   {
+    "do": "completeObjective",
+    "id": "obj_medlab"
+   }
+  ]
+ },
+ {
+  "id": "tunnel_enter",
+  "trigger": {
+   "event": "trigger:r09_enter",
+   "requires": "medlab_open",
+   "unless": "tunnel_started"
+  },
+  "resumeFromCheckpoint": true,
+  "debugSetup": {
+   "flags": {
+    "sec_done": true,
+    "medlab_open": true
+   }
+  },
+  "steps": [
+   {
+    "do": "setFlag",
+    "flag": "giles.infectionStage",
+    "value": 3
+   },
+   {
+    "do": "setObjective",
+    "id": "obj_valve"
+   },
+   {
+    "do": "spawnGroup",
+    "group": "r09_tunnel"
+   },
+   {
+    "do": "wait",
+    "s": 2.0
+   },
+   {
+    "do": "say",
+    "line": "okafor_quiet_01"
+   },
+   {
+    "do": "wait",
+    "s": 4.0
+   },
+   {
+    "do": "say",
+    "line": "tunnel_giles_01"
+   },
+   {
+    "do": "npcAnim",
+    "npc": "giles",
+    "anim": "cough"
+   },
+   {
+    "do": "setFlag",
+    "flag": "tunnel_started",
+    "value": true
+   }
+  ]
+ },
+ {
+  "id": "valve_turn",
+  "trigger": {
+   "event": "valve:r10_main",
+   "unless": "valve_done"
+  },
+  "resumeFromCheckpoint": true,
+  "debugSetup": {
+   "flags": {
+    "sec_done": true,
+    "medlab_open": true,
+    "tunnel_started": true
+   }
+  },
+  "steps": [
+   {
+    "do": "cameraShake",
+    "amount": 0.25,
+    "s": 1.4
+   },
+   {
+    "do": "sfx",
+    "id": "hullGroan",
+    "at": "anchor:valve_r10"
+   },
+   {
+    "do": "sfx",
+    "id": "pressurePing",
+    "at": "anchor:valve_r10"
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "giles",
+    "to": "anchor:r10_giles"
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "okafor",
+    "to": "anchor:r10_okafor"
+   },
+   {
+    "do": "wait",
+    "s": 2.0
+   },
+   {
+    "do": "say",
+    "line": "valve_giles_01"
+   },
+   {
+    "do": "wait",
+    "s": 1.5
+   },
+   {
+    "do": "say",
+    "line": "valve_quiet_giles_01"
+   },
+   {
+    "do": "say",
+    "line": "valve_quiet_giles_02"
+   },
+   {
+    "do": "say",
+    "line": "valve_quiet_okafor_01"
+   },
+   {
+    "do": "npcAnim",
+    "npc": "giles",
+    "anim": "cough"
+   },
+   {
+    "do": "setFlag",
+    "flag": "valve_done",
+    "value": true
+   },
+   {
+    "do": "completeObjective",
+    "id": "obj_valve"
+   },
+   {
+    "do": "setObjective",
+    "id": "obj_power"
+   },
+   {
+    "do": "checkpoint",
+    "id": "cp_valve",
+    "label": "Valve Room"
+   }
+  ]
+ }
+]

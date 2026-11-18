@@ -1,0 +1,166 @@
+[
+ {
+  "id": "quiet_restore",
+  "trigger": {
+   "event": "game:mode",
+   "match": {
+    "mode": "playing"
+   }
+  },
+  "steps": [
+   {
+    "do": "if",
+    "flag": "radio_muted",
+    "then": [],
+    "else": [
+     {
+      "do": "if",
+      "flag": "radio_place",
+      "is": "commons",
+      "then": [
+       {
+        "do": "radio",
+        "track": "tag_fm_01",
+        "at": "anchor:radio"
+       }
+      ]
+     },
+     {
+      "do": "if",
+      "flag": "radio_place",
+      "is": "hydro",
+      "then": [
+       {
+        "do": "radio",
+        "track": "tag_fm_01",
+        "at": "anchor:hydro_radio"
+       }
+      ]
+     },
+     {
+      "do": "if",
+      "flag": "radio_place",
+      "is": "dive",
+      "then": [
+       {
+        "do": "radio",
+        "track": "tag_fm_01",
+        "at": "anchor:dive_radio"
+       }
+      ]
+     },
+     {
+      "do": "if",
+      "flag": "radio_place",
+      "is": "ruined",
+      "then": [
+       {
+        "do": "radio",
+        "track": "tag_fm_01",
+        "at": "anchor:r05_radio"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "commons_changed_1",
+    "then": [
+     {
+      "do": "emit",
+      "event": "screen:set",
+      "payload": {
+       "id": "commons_tv",
+       "state": "on"
+      }
+     },
+     {
+      "do": "npcMoveTo",
+      "npc": "cook",
+      "to": "anchor:priya_exit",
+      "instant": true
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "commons_changed_2",
+    "then": [
+     {
+      "do": "npcMoveTo",
+      "npc": "crew_1",
+      "to": "anchor:priya_chair",
+      "instant": true
+     },
+     {
+      "do": "npcAnim",
+      "npc": "crew_1",
+      "anim": "idle_mug",
+      "instant": true
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "drop_started",
+    "then": [
+     {
+      "do": "emit",
+      "event": "blinds:set",
+      "payload": {
+       "id": "labb",
+       "state": "up",
+       "instant": true
+      }
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "drop_done",
+    "then": [
+     {
+      "do": "transform",
+      "npc": "researcher_b",
+      "to": 3,
+      "instant": true
+     },
+     {
+      "do": "npcAnim",
+      "npc": "researcher_b",
+      "anim": "shamble",
+      "instant": true
+     },
+     {
+      "do": "lightState",
+      "room": "R04",
+      "pattern": "alarm",
+      "tint": "emergency"
+     },
+     {
+      "do": "lightState",
+      "room": "R03",
+      "pattern": "steady",
+      "tint": "emergency"
+     },
+     {
+      "do": "glass",
+      "id": "labb",
+      "state": "cracked"
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "contact_done",
+    "then": [
+     {
+      "do": "despawn",
+      "npc": "researcher_b"
+     }
+    ]
+   }
+  ]
+ }
+]

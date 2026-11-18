@@ -48,6 +48,11 @@ export class Animator {
   convulse = 0;
   /** Group-local look target (head/neck turn toward it), or null. */
   lookLocal: THREE.Vector3 | null = null;
+  /**
+   * 0..1: how much ambient idle life (breathing, weight shift, arm fidgets, gaze wandering) to layer on a standing body.
+   * The body sets it for living non-enemies; it fades out while walking, in a sequence, or at 0.
+   */
+  idleLife = 0;
   /** Joints that hang limp (Reduced gore severed limbs). */
   readonly limp = new Set<number>();
   /** Infection 0..1: drives the twisted posture, broken joints, jaw and twitching. */
@@ -71,6 +76,9 @@ export class Animator {
   private phase = 0;
   private amp = 0;
   private time = 0;
+  private lifeW = 0;
+  private readonly gaze = { yaw: 0, pitch: 0, tYaw: 0, tPitch: 0, left: 1.5 };
+  private gazeState = 1;
   private readonly look = { yaw: 0, pitch: 0 };
   private readonly react = new Float32Array(N * 3);
   private readonly reactVel = new Float32Array(N * 3);
@@ -102,6 +110,7 @@ export class Animator {
     this.limpSide = rng.chance(0.5) ? 0 : 1;
     this.limpAmount = rng.range(0.25, 0.75);
     this.noiseSeed = rng.range(0, 100);
+    this.gazeState = Math.floor(this.noiseSeed * 1000) + 1;
     this.rng = rng.fork('spasm');
     const brokenOptions: Array<[JointName, [number, number, number]]> = [
       ['foreArm_L', [-28, 0, 0]], ['foreArm_R', [-28, 0, 0]],
@@ -165,6 +174,7 @@ export class Animator {
     this.updateBlend(dt);
     this.off.fill(0);
     this.updateGait(dt);
+    this.updateIdleLife(dt);
     this.updateLook(dt);
     this.updateInfected(dt);
     this.updateReactions(dt);
@@ -264,14 +274,25 @@ export class Animator {
         this.add(`thigh_${s}`, A * 24 * stride * sinp, 0, 0);
         this.add(`shin_${s}`, -A * (6 + 44 * Math.max(0, Math.cos(ph))) * knee, 0, 0);
         this.add(`foot_${s}`, A * 12 * Math.sin(ph - 0.6), 0, 0);
-        const swing = sham ? (side === 0 ? 0.3 : 0.6) : 1;
-        this.add(`upperArm_${s}`, -A * 16 * swing * sinp, 0, 0);
-        this.add(`foreArm_${s}`, A * 8 * swing * (1 + sinp), 0, 0);
+        if (sham) {
+          const swing = side === 0 ? 0.3 : 0.6;
+          this.add(`upperArm_${s}`, -A * 16 * swing * sinp, 0, 0);
+          this.add(`foreArm_${s}`, A * 8 * swing * (1 + sinp), 0, 0);
+        } else {
+          this.walkArm(s, side, ph, A);
+        }
       }
       const sp = Math.sin(p);
       this.add('pelvis', 0, A * 5 * sp, A * 3.5 * sp);
-      this.add('spine', 0, -A * 4 * sp, 0);
-      this.add('chest', 0, -A * 2 * sp, -A * 2 * sp);
+      if (sham) {
+        this.add('spine', 0, -A * 4 * sp, 0);
+        this.add('chest', 0, -A * 2 * sp, -A * 2 * sp);
+      } else {
+        // Shoulders counter-rotate against the hips (net about -6 deg against +5), the head stays on the road.
+        this.add('spine', 0, -A * 6 * sp, A * 1.5 * sp);
+        this.add('chest', 0, -A * 5 * sp, -A * 2 * sp);
+        this.add('head', 0, A * 6 * sp, 0);
+      }
       if (sham || wounded) {
         const lean = lameSide === 0 ? -1 : 1;
         this.add('pelvis', 0, 0, lean * A * 5 * lameAmt * Math.max(0, Math.sin(p + lameSide * Math.PI)));
@@ -329,6 +350,20 @@ export class Animator {
       this.bob.y = A * 0.025 * Math.max(0, sp);
       this.leadTurn();
     }
+  }
+
+  /**
+   * A walking arm: it trails the opposite leg by a beat, swings further back than forward, bends at the elbow as it
+   * comes forward, drifts out a little at the extremes, and the wrist and forearm roll follow the swing.
+   */
+  private walkArm(s: 'L' | 'R', side: 0 | 1, ph: number, A: number): void {
+    const out = side === 0 ? -1 : 1;
+    const a = Math.sin(ph - 0.3);
+    const fwd = Math.max(0, -a);
+    this.add(`upperArm_${s}`, -A * (a > 0 ? 21 : 14) * a, out * A * 4 * a, out * A * (2 + 3 * Math.abs(a)));
+    this.add(`foreArm_${s}`, A * (9 + 20 * fwd * fwd), 0, 0);
+    this.add(`hand_${s}`, -A * 7 * Math.sin(ph - 0.9), 0, 0);
+    this.add(`shoulder_${s}`, 0, out * A * 3 * a, 0);
   }
 
   private lastStep = 0;
@@ -499,6 +534,47 @@ export class Animator {
     this.add('neck', 18 * this.n(t * 1.9, 11), 14 * this.n(t * 2.3, 12), 0);
   }
 
+  private gazeRand(): number {
+    this.gazeState = (this.gazeState * 48271) % 2147483647;
+    return this.gazeState / 2147483647;
+  }
+
+  /** Poses where the arms are doing a job: their idle fidgets shrink. */
+  private static readonly ARMS_BUSY: ReadonlySet<string> = new Set(['aim_pistol', 'typing', 'clipboard', 'crouchWork', 'kneel_revive', 'drink', 'offer_mug']);
+
+  /** Ambient life for standing bodies: slow breathing, a drifting weight shift, loose arms. Rotations only, a few degrees. */
+  private updateIdleLife(dt: number): void {
+    const target = this.idleLife > 0 && !this.seq ? this.idleLife * Math.max(0, 1 - this.amp * 4) : 0;
+    this.lifeW += (target - this.lifeW) * Math.min(1, dt * 2);
+    const w = this.lifeW;
+    if (w < 1e-3) return;
+    const t = this.time;
+    const s = this.noiseSeed;
+    const breath = Math.sin(t * 1.5 + s) * (1 + 0.25 * Math.sin(t * 0.37 + s * 1.7)) * w;
+    this.add('spine', 0.5 * breath, 0, 0);
+    this.add('chest', 1.1 * breath, 0, 0);
+    this.add('neck', -0.4 * breath, 0, 0);
+    this.add('head', -0.5 * breath, 0, 0);
+    this.add('upperArm_L', 0, 0, 0.5 * breath);
+    this.add('upperArm_R', 0, 0, -0.5 * breath);
+    // Weight shift: pelvis rolls and turns a little, the spine counters so the head stays level.
+    const sh = (Math.sin(t * 0.42 + s * 1.3) * 0.6 + Math.sin(t * 0.17 + s * 0.7) * 0.4) * w;
+    this.add('pelvis', 0, 1.2 * sh, 1.6 * sh);
+    this.add('spine', 0, -0.6 * sh, -1.2 * sh);
+    this.add('chest', 0, -0.4 * sh, -0.6 * sh);
+    this.add('head', 0, 0, 0.2 * sh);
+    // Loose arms: no independent swinging. They ride the breath above and the weight shift (the far arm swings
+    // out a hair as the pelvis rolls), with the hands and elbows relaxing a degree or two.
+    const f = Animator.ARMS_BUSY.has(this.to.name) ? 0.25 : 1;
+    const a = w * f;
+    this.add('upperArm_L', 0, 0, 0.8 * sh * f);
+    this.add('upperArm_R', 0, 0, 0.8 * sh * f);
+    this.add('foreArm_L', 1.0 * this.n(t * 0.5, 7) * a, 0, 0);
+    this.add('foreArm_R', 1.0 * this.n(t * 0.5, 8) * a, 0, 0);
+    this.add('hand_L', 1.5 * this.n(t * 0.5, 9) * a, 0, 0);
+    this.add('hand_R', 1.5 * this.n(t * 0.5, 10) * a, 0, 0);
+  }
+
   private updateLook(dt: number): void {
     let yaw = 0;
     let pitch = 0;
@@ -506,6 +582,24 @@ export class Animator {
       const d = this.lookLocal;
       yaw = THREE.MathUtils.clamp(Math.atan2(-d.x, -d.z), -1.2, 1.2);
       pitch = THREE.MathUtils.clamp(Math.atan2(d.y - 1.55, Math.hypot(d.x, d.z)), -0.6, 0.6);
+    }
+    const w = this.lifeW;
+    if (w > 1e-3) {
+      // Idle gaze: look off to one side or down for a moment, then back, unless something is being looked at.
+      const g = this.gaze;
+      g.left -= dt;
+      if (g.left <= 0) {
+        const away = this.gazeRand() < 0.55;
+        g.tYaw = away ? (this.gazeRand() - 0.5) * 1.4 : 0;
+        g.tPitch = away ? (this.gazeRand() - 0.6) * 0.35 : 0;
+        g.left = 1.5 + this.gazeRand() * 3.5;
+      }
+      const gk = Math.min(1, dt * 2.2);
+      g.yaw += (g.tYaw - g.yaw) * gk;
+      g.pitch += (g.tPitch - g.pitch) * gk;
+      const free = this.lookLocal ? 0 : 1;
+      yaw += free * g.yaw * w + 0.05 * this.n(this.time, 1) * w;
+      pitch += free * g.pitch * w + 0.025 * this.n(this.time, 2) * w;
     }
     const k = Math.min(1, dt * 4);
     this.look.yaw += (yaw - this.look.yaw) * k;

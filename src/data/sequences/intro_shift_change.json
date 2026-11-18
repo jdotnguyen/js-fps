@@ -1,0 +1,614 @@
+{
+  "id": "intro_shift_change",
+  "skippable": true,
+  "once": true,
+  "steps": [
+    {
+      "do": "playerControl",
+      "move": "locked",
+      "look": "clamped",
+      "weapons": false,
+      "interact": false,
+      "flashlight": false
+    },
+    {
+      "do": "fade",
+      "to": 1,
+      "s": 0
+    },
+    {
+      "do": "playerPlace",
+      "at": "anchor:post_front",
+      "yaw": 0,
+      "pitch": 0
+    },
+    {
+      "do": "doorState",
+      "id": "D_dock",
+      "state": "locked"
+    },
+    {
+      "do": "music",
+      "id": "main_theme"
+    },
+    {
+      "do": "emit",
+      "event": "cutscene:caption",
+      "payload": {
+        "text": "Thalassa Deep Research Station",
+        "detail": "Docking Ring - 06:40 - Shift change"
+      }
+    },
+    {
+      "do": "playerFrame",
+      "target": "anchor:dock_window",
+      "duration": 0.1,
+      "wait": true
+    },
+    {
+      "do": "fade",
+      "to": 0,
+      "s": 2.5,
+      "wait": true
+    },
+    {
+      "do": "emit",
+      "event": "intro:sub_dock"
+    },
+    {
+      "do": "sfx",
+      "id": "subPass"
+    },
+    {
+      "do": "wait",
+      "s": 4
+    },
+    {
+      "do": "sfx",
+      "id": "hullGroan",
+      "at": "anchor:dock_window"
+    },
+    {
+      "do": "wait",
+      "s": 4
+    },
+    {
+      "do": "sfx",
+      "id": "subClamp"
+    },
+    {
+      "do": "wait",
+      "s": 1
+    },
+    {
+      "do": "sfx",
+      "id": "metalKnock",
+      "at": "anchor:dock_window"
+    },
+    {
+      "do": "wait",
+      "s": 1
+    },
+    {
+      "do": "sfx",
+      "id": "pressurePing"
+    },
+    {
+      "do": "say",
+      "line": "intro_pa_shift_01"
+    },
+    {
+      "do": "music",
+      "stop": true
+    },
+    {
+      "do": "sfx",
+      "id": "click",
+      "at": "anchor:dock_door"
+    },
+    {
+      "do": "doorState",
+      "id": "D_dock",
+      "state": "open"
+    },
+    {
+      "do": "wait",
+      "s": 0.6
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "ruiz",
+      "to": "anchor:walkby_stop"
+    },
+    {
+      "do": "playerFrame",
+      "target": "npc:ruiz",
+      "duration": 1.0,
+      "wait": true
+    },
+    {
+      "do": "say",
+      "line": "intro_ruiz_01"
+    },
+    {
+      "do": "say",
+      "line": "intro_jay_01"
+    },
+    {
+      "do": "say",
+      "line": "intro_ruiz_02"
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "ruiz",
+      "to": "anchor:crew_ruiz_commons"
+    },
+    {
+      "do": "playerFrame",
+      "target": "anchor:dock_door",
+      "duration": 1.2
+    },
+    {
+      "do": "doorState",
+      "id": "D_dock",
+      "state": "locked"
+    },
+    {
+      "do": "wait",
+      "s": 2.0
+    },
+    {
+      "do": "sfx",
+      "id": "click",
+      "at": "anchor:dock_door"
+    },
+    {
+      "do": "doorState",
+      "id": "D_dock",
+      "state": "open"
+    },
+    {
+      "do": "wait",
+      "s": 0.6
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "sung",
+      "to": "anchor:walkby_stop"
+    },
+    {
+      "do": "playerFrame",
+      "target": "npc:sung",
+      "duration": 1.0,
+      "wait": true
+    },
+    {
+      "do": "say",
+      "line": "intro_sung_01"
+    },
+    {
+      "do": "say",
+      "line": "intro_jay_02"
+    },
+    {
+      "do": "say",
+      "line": "intro_sung_02"
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "sung",
+      "to": "anchor:crew_sung_commons"
+    },
+    {
+      "do": "playerFrame",
+      "target": "anchor:dock_door",
+      "duration": 1.2
+    },
+    {
+      "do": "doorState",
+      "id": "D_dock",
+      "state": "locked"
+    },
+    {
+      "do": "wait",
+      "s": 1.5
+    },
+    {
+      "do": "sfx",
+      "id": "click",
+      "at": "anchor:dock_door"
+    },
+    {
+      "do": "doorState",
+      "id": "D_dock",
+      "state": "open"
+    },
+    {
+      "do": "wait",
+      "s": 0.6
+    },
+    {
+      "parallel": [
+        {
+          "do": "npcMoveTo",
+          "npc": "okafor",
+          "to": "anchor:post_okafor",
+          "wait": true
+        },
+        {
+          "do": "npcMoveTo",
+          "npc": "giles",
+          "to": "anchor:post_giles",
+          "wait": true
+        }
+      ]
+    },
+    {
+      "do": "doorState",
+      "id": "D_dock",
+      "state": "closed"
+    },
+    {
+      "do": "playerFrame",
+      "target": "speaker",
+      "initial": "npc:okafor",
+      "duration": 0.8,
+      "wait": true
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_01"
+    },
+    {
+      "do": "say",
+      "line": "intro_jay_03"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_01"
+    },
+    {
+      "do": "say",
+      "line": "intro_jay_04"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_02"
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_02"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_03"
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_03"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_04"
+    },
+    {
+      "do": "say",
+      "line": "intro_jay_05"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_05"
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "okafor",
+      "to": "anchor:window_okafor"
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "giles",
+      "to": "anchor:window_giles"
+    },
+    {
+      "do": "wait",
+      "s": 0.6
+    },
+    {
+      "do": "playerFrame",
+      "target": "speaker",
+      "initial": "npc:giles",
+      "duration": 0.8,
+      "wait": true
+    },
+    {
+      "parallel": [
+        {
+          "do": "playerWalkTo",
+          "to": "anchor:window_jay",
+          "speed": 1.3,
+          "timeout": 25,
+          "wait": true
+        },
+        {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+            {
+              "do": "say",
+              "line": "pa_quarantine_01",
+              "wait": false,
+              "overlap": true
+            },
+            {
+              "do": "setFlag",
+              "flag": "pa_quarantine_played",
+              "value": true
+            },
+            {
+              "do": "say",
+              "line": "intro_giles_06"
+            },
+            {
+              "do": "npcAnim",
+              "npc": "giles",
+              "anim": "rub_forearm"
+            },
+            {
+              "do": "setFlag",
+              "flag": "giles_forearm_seen",
+              "value": true
+            },
+            {
+              "do": "say",
+              "line": "intro_okafor_04"
+            },
+            {
+              "do": "say",
+              "line": "intro_giles_07"
+            },
+            {
+              "do": "say",
+              "line": "intro_okafor_05"
+            },
+            {
+              "do": "say",
+              "line": "intro_giles_08"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "do": "playerFrame",
+      "target": "anchor:abyss_window_walk",
+      "duration": 1.6,
+      "wait": true
+    },
+    {
+      "do": "emit",
+      "event": "intro:abyss_shadow"
+    },
+    {
+      "do": "sfx",
+      "id": "hullGroan",
+      "at": "anchor:abyss_window_walk"
+    },
+    {
+      "do": "wait",
+      "s": 4
+    },
+    {
+      "do": "playerFrame",
+      "target": "anchor:kitchen_door",
+      "duration": 1.2,
+      "wait": true
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "okafor",
+      "to": "anchor:counter_okafor"
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "giles",
+      "to": "anchor:counter_giles"
+    },
+    {
+      "do": "playerWalkTo",
+      "to": "anchor:kitchen_stand",
+      "wait": true,
+      "speed": 1.3,
+      "timeout": 25
+    },
+    {
+      "do": "radio",
+      "track": "tag_fm_01",
+      "at": "anchor:radio"
+    },
+    {
+      "do": "setFlag",
+      "flag": "radio_place",
+      "value": "commons"
+    },
+    {
+      "do": "playerFrame",
+      "target": "speaker",
+      "initial": "npc:cook",
+      "duration": 0.8,
+      "wait": true
+    },
+    {
+      "do": "say",
+      "line": "intro_cook_01"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_09"
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_06"
+    },
+    {
+      "do": "say",
+      "line": "intro_jay_06"
+    },
+    {
+      "do": "say",
+      "line": "intro_cook_02"
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "priya",
+      "to": "anchor:priya_enter",
+      "instant": true
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "priya",
+      "to": "anchor:priya_stand"
+    },
+    {
+      "do": "playerFrame",
+      "target": "speaker",
+      "initial": "npc:priya",
+      "duration": 0.8,
+      "wait": true
+    },
+    {
+      "do": "setFlag",
+      "flag": "priya_met",
+      "value": true
+    },
+    {
+      "do": "say",
+      "line": "intro_priya_01"
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_07"
+    },
+    {
+      "do": "say",
+      "line": "intro_priya_02"
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_08"
+    },
+    {
+      "do": "say",
+      "line": "intro_priya_03"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_10"
+    },
+    {
+      "do": "say",
+      "line": "intro_priya_04"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_11"
+    },
+    {
+      "do": "say",
+      "line": "intro_jay_07"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_12"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_13"
+    },
+    {
+      "do": "setFlag",
+      "flag": "mara_mentioned",
+      "value": true
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "priya",
+      "to": "anchor:priya_offer"
+    },
+    {
+      "do": "playerFrame",
+      "target": "npc:priya",
+      "duration": 0.8,
+      "wait": true
+    },
+    {
+      "do": "npcAnim",
+      "npc": "priya",
+      "anim": "offer_mug"
+    },
+    {
+      "do": "say",
+      "line": "intro_priya_05"
+    },
+    {
+      "do": "playerControl",
+      "interact": true
+    },
+    {
+      "do": "emit",
+      "event": "intro:coffee_ready"
+    },
+    {
+      "do": "npcOffer",
+      "npc": "priya",
+      "item": "mug",
+      "prompt": "Take coffee",
+      "event": "intro:coffee_taken",
+      "timeout": 6,
+      "wait": true
+    },
+    {
+      "do": "emit",
+      "event": "intro:coffee_done"
+    },
+    {
+      "do": "playerFrame",
+      "target": "speaker",
+      "duration": 0.8
+    },
+    {
+      "do": "say",
+      "line": "intro_jay_08"
+    },
+    {
+      "do": "say",
+      "line": "intro_priya_06"
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "priya",
+      "to": "anchor:priya_exit"
+    },
+    {
+      "do": "say",
+      "line": "intro_okafor_09"
+    },
+    {
+      "do": "say",
+      "line": "intro_giles_14"
+    },
+    {
+      "do": "setFlag",
+      "flag": "introSeen",
+      "value": true
+    },
+    {
+      "do": "playerControl",
+      "reset": true
+    },
+    {
+      "do": "checkpoint",
+      "id": "cp_intro",
+      "label": "Commons"
+    }
+  ]
+}

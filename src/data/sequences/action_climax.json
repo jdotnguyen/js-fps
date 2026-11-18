@@ -1,0 +1,654 @@
+[
+ {
+  "id": "climax",
+  "trigger": {
+   "event": "trigger:r11_enter",
+   "requires": "valve_done",
+   "unless": "climax_done"
+  },
+  "resumeFromCheckpoint": true,
+  "debugSetup": {
+   "flags": {
+    "sec_done": true,
+    "medlab_open": true,
+    "tunnel_started": true,
+    "valve_done": true,
+    "giles.infectionStage": 3,
+    "giles.bandaged": true
+   }
+  },
+  "steps": [
+   {
+    "do": "setFlag",
+    "flag": "climax_started",
+    "value": true
+   },
+   {
+    "do": "setFlag",
+    "flag": "giles.infectionStage",
+    "value": 3
+   },
+   {
+    "do": "doorState",
+    "id": "D_R10_R11",
+    "state": "open"
+   },
+   {
+    "do": "doorState",
+    "id": "D_R13d_R11",
+    "state": "open"
+   },
+   {
+    "do": "lightState",
+    "room": "R11",
+    "pattern": "flicker",
+    "tint": "emergency"
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "giles",
+    "to": "anchor:r11_giles_task"
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "okafor",
+    "to": "anchor:r11_okafor_end"
+   },
+   {
+    "do": "say",
+    "line": "climax_giles_01"
+   },
+   {
+    "do": "spawnGroup",
+    "group": "r11_climax"
+   },
+   {
+    "parallel": [
+     {
+      "do": "npcTask",
+      "npc": "giles",
+      "task": "power_restore",
+      "args": {
+       "at": "anchor:r11_giles_task",
+       "panel": "r11_power",
+       "duration": 30
+      },
+      "wait": true
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "say",
+        "line": "climax_okafor_01"
+       },
+       {
+        "do": "waitFor",
+        "event": "squad:taskProgress",
+        "match": {
+         "task": "power_restore"
+        },
+        "min": {
+         "progress": 0.5
+        },
+        "timeout": 120
+       },
+       {
+        "do": "say",
+        "line": "climax_giles_02",
+        "wait": false
+       }
+      ]
+     },
+     {
+      "do": "waitGroup",
+      "group": "r11_climax"
+     }
+    ]
+   },
+   {
+    "do": "wait",
+    "s": 0.8
+   },
+   {
+    "do": "say",
+    "line": "climax_giles_03",
+    "wait": false
+   },
+   {
+    "do": "doorState",
+    "id": "D_R10_R11",
+    "state": "sealed"
+   },
+   {
+    "do": "doorState",
+    "id": "D_R13d_R11",
+    "state": "sealed"
+   },
+   {
+    "do": "sfx",
+    "id": "hullGroan",
+    "at": "anchor:r11_hold"
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.3,
+    "s": 1.0
+   },
+   {
+    "do": "lightState",
+    "room": "R11",
+    "pattern": "dying",
+    "tint": "emergency"
+   },
+   {
+    "do": "wait",
+    "s": 2.5
+   },
+   {
+    "do": "setFlag",
+    "flag": "climax_done",
+    "value": true
+   },
+   {
+    "do": "completeObjective",
+    "id": "obj_power"
+   },
+   {
+    "do": "checkpoint",
+    "id": "cp_climax_won",
+    "label": "Auxiliary Power"
+   },
+   {
+    "do": "emit",
+    "event": "climax:won"
+   }
+  ]
+ },
+ {
+  "id": "reveal_restore",
+  "trigger": {
+   "event": "game:mode",
+   "match": {
+    "mode": "playing"
+   },
+   "requires": "climax_done",
+   "unless": "reveal_done"
+  },
+  "steps": [
+   {
+    "do": "if",
+    "flag": "running:cliffhanger",
+    "then": [],
+    "else": [
+     {
+      "do": "if",
+      "flag": "running:title_card",
+      "then": [],
+      "else": [
+       {
+        "do": "if",
+        "flag": "running:stinger_priya",
+        "then": [],
+        "else": [
+         {
+          "do": "setFlag",
+          "flag": "seq:cliffhanger",
+          "value": false
+         },
+         {
+          "do": "setFlag",
+          "flag": "seq:title_card",
+          "value": false
+         },
+         {
+          "do": "setFlag",
+          "flag": "seq:stinger_priya",
+          "value": false
+         },
+         {
+          "do": "setFlag",
+          "flag": "giles.infectionStage",
+          "value": 3
+         },
+         {
+          "do": "setFlag",
+          "flag": "giles.bandaged",
+          "value": true
+         },
+         {
+          "do": "lightState",
+          "room": "R11",
+          "pattern": "dying",
+          "tint": "emergency"
+         },
+         {
+          "do": "npcMoveTo",
+          "npc": "giles",
+          "to": "anchor:r11_giles_task",
+          "instant": true
+         },
+         {
+          "do": "npcMoveTo",
+          "npc": "okafor",
+          "to": "anchor:r11_okafor_end",
+          "instant": true
+         },
+         {
+          "do": "emit",
+          "event": "climax:won"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "climax_hero",
+  "trigger": {
+   "event": "enemy:spawned",
+   "match": {
+    "variant": "hero"
+   },
+   "requires": "climax_started",
+   "unless": "climax_done"
+  },
+  "steps": [
+   {
+    "do": "wait",
+    "s": 1.2
+   },
+   {
+    "do": "say",
+    "line": "climax_okafor_02"
+   }
+  ]
+ },
+ {
+  "id": "cliffhanger",
+  "trigger": {
+   "event": "climax:won"
+  },
+  "once": true,
+  "skippable": true,
+  "exclusive": "rails",
+  "debugSetup": {
+   "flags": {
+    "climax_done": true,
+    "giles.infectionStage": 3,
+    "giles.bandaged": true
+   }
+  },
+  "steps": [
+   {
+    "do": "playerControl",
+    "move": "locked",
+    "look": "free",
+    "weapons": false,
+    "interact": false
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "okafor",
+    "to": "anchor:r11_okafor_end"
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "giles",
+    "to": "anchor:r11_giles_task"
+   },
+   {
+    "do": "wait",
+    "s": 1.5
+   },
+   {
+    "do": "say",
+    "line": "end_okafor_01"
+   },
+   {
+    "do": "say",
+    "line": "end_giles_01"
+   },
+   {
+    "do": "say",
+    "line": "end_jay_01"
+   },
+   {
+    "do": "wait",
+    "s": 1.0
+   },
+   {
+    "do": "say",
+    "line": "end_giles_02"
+   },
+   {
+    "do": "wait",
+    "s": 1.0
+   },
+   {
+    "parallel": [
+     {
+      "do": "lightState",
+      "room": "R11",
+      "pattern": "steady",
+      "tint": "none"
+     },
+     {
+      "do": "emit",
+      "event": "reveal:trail"
+     },
+     {
+      "do": "sfx",
+      "id": "fluorescentBuzz",
+      "at": "anchor:r11_hold"
+     },
+     {
+      "do": "setFlag",
+      "flag": "giles.infectionStage",
+      "value": 4
+     }
+    ]
+   },
+   {
+    "do": "playerLookAt",
+    "target": "npc:giles",
+    "duration": 1.2,
+    "weight": 1.0
+   },
+   {
+    "do": "wait",
+    "s": 1.5
+   },
+   {
+    "do": "playerClampLook",
+    "target": "npc:giles",
+    "degrees": 26
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "giles",
+    "to": "anchor:giles_final"
+   },
+   {
+    "do": "wait",
+    "s": 1.2
+   },
+   {
+    "do": "say",
+    "line": "giles_reveal_01"
+   },
+   {
+    "do": "say",
+    "line": "end_giles_03"
+   },
+   {
+    "do": "say",
+    "line": "end_giles_04"
+   },
+   {
+    "do": "say",
+    "line": "end_giles_05"
+   },
+   {
+    "do": "say",
+    "line": "end_jay_02"
+   },
+   {
+    "parallel": [
+     {
+      "do": "transform",
+      "npc": "giles",
+      "to": 1,
+      "duration": 9
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "npcMoveTo",
+        "npc": "okafor",
+        "to": "anchor:r11_okafor_step",
+        "speed": 1.4
+       },
+       {
+        "do": "say",
+        "line": "end_okafor_02"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 1.2
+       },
+       {
+        "do": "say",
+        "line": "end_giles_06"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "do": "wait",
+    "s": 1.0
+   },
+   {
+    "do": "npcFollow",
+    "npc": "okafor",
+    "stop": true
+   },
+   {
+    "do": "fade",
+    "to": 1,
+    "s": 2.5,
+    "wait": true
+   },
+   {
+    "do": "emit",
+    "event": "story:cliffhanger"
+   }
+  ]
+ },
+ {
+  "id": "title_card",
+  "trigger": {
+   "event": "story:cliffhanger"
+  },
+  "once": true,
+  "exclusive": "rails",
+  "steps": [
+   {
+    "do": "wait",
+    "s": 1.0
+   },
+   {
+    "do": "titleCard",
+    "title": "THALASSA",
+    "sub": "SLICE ONE",
+    "s": 5,
+    "wait": true
+   },
+   {
+    "do": "wait",
+    "s": 1.4
+   },
+   {
+    "do": "emit",
+    "event": "story:title_done"
+   }
+  ]
+ },
+ {
+  "id": "stinger_priya",
+  "trigger": {
+   "event": "story:title_done"
+  },
+  "once": true,
+  "skippable": true,
+  "exclusive": "rails",
+  "steps": [
+   {
+    "do": "playerControl",
+    "move": "locked",
+    "look": "locked",
+    "weapons": false,
+    "interact": false
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "priya",
+    "to": "anchor:priya_hide",
+    "instant": true
+   },
+   {
+    "do": "npcAnim",
+    "npc": "priya",
+    "anim": "squad_downed",
+    "instant": true
+   },
+   {
+    "do": "cameraFeed",
+    "id": "stinger",
+    "from": "anchor:stinger_cam",
+    "lookAt": "anchor:stinger_look",
+    "state": "live",
+    "fullscreen": true,
+    "label": "CAM 04  SURGERY",
+    "fov": 70
+   },
+   {
+    "do": "fade",
+    "to": 0,
+    "s": 0.6
+   },
+   {
+    "do": "wait",
+    "s": 2.5
+   },
+   {
+    "do": "say",
+    "line": "stinger_priya_01"
+   },
+   {
+    "do": "say",
+    "line": "stinger_priya_02"
+   },
+   {
+    "do": "spawn",
+    "npc": "r08_thing",
+    "kind": "lab",
+    "at": "anchor:stinger_enter"
+   },
+   {
+    "do": "transform",
+    "npc": "r08_thing",
+    "to": 3,
+    "instant": true
+   },
+   {
+    "do": "sfx",
+    "id": "distantMoan",
+    "at": "anchor:stinger_enter"
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "r08_thing",
+    "to": "anchor:stinger_kill",
+    "speed": 0.7
+   },
+   {
+    "do": "say",
+    "line": "stinger_priya_04"
+   },
+   {
+    "do": "wait",
+    "s": 1.0
+   },
+   {
+    "do": "say",
+    "line": "stinger_priya_05"
+   },
+   {
+    "do": "wait",
+    "s": 1.5
+   },
+   {
+    "do": "sfx",
+    "id": "fleshTear",
+    "at": "anchor:priya_hide"
+   },
+   {
+    "do": "gore",
+    "at": "anchor:priya_hide",
+    "kind": "splash",
+    "dir": "anchor:stinger_cam",
+    "count": 80,
+    "size": 1.8
+   },
+   {
+    "do": "say",
+    "line": "stinger_priya_03",
+    "wait": false
+   },
+   {
+    "do": "wait",
+    "s": 1.2
+   },
+   {
+    "do": "sfx",
+    "id": "fleshTear",
+    "at": "anchor:priya_hide"
+   },
+   {
+    "do": "gore",
+    "at": "anchor:priya_hide",
+    "kind": "chunks",
+    "dir": "anchor:stinger_cam",
+    "count": 14
+   },
+   {
+    "do": "wait",
+    "s": 3.0
+   },
+   {
+    "do": "cameraFeed",
+    "id": "stinger",
+    "state": "static",
+    "fullscreen": true
+   },
+   {
+    "do": "wait",
+    "s": 1.8
+   },
+   {
+    "do": "cameraFeed",
+    "id": "stinger",
+    "state": "off",
+    "fullscreen": true
+   },
+   {
+    "do": "fade",
+    "to": 1,
+    "s": 0.8,
+    "wait": true
+   },
+   {
+    "do": "setFlag",
+    "flag": "reveal_done",
+    "value": true
+   },
+   {
+    "do": "endSlice"
+   }
+  ]
+ }
+]

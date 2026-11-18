@@ -212,3 +212,23 @@ reveal; the player is **Jay**, silent, with **no written backstory with anyone**
 - Okafor's platform-fire past stays as written. [Decided]
 - Priya Anand is the medic dragged away in R08. [Decided]
 - Supporting-cast names stand: Voss, Anand, Bram, Ruiz, Hale. [Decided]
+
+## Amendment (2026-11-16, intro grilling)
+- **Jay** speaks (see ADR-0022 amendment): steady, attentive, remembers details. A man.
+- **Priya Anand** [Decided]: likeable, same weight as Giles and Okafor. In the intro she covers
+  the medical bay so Okafor can sit down and hands Jay his coffee (his first interaction in the
+  game). In R08 she is attacked and dragged off and appears dead, but **survives**; she is killed
+  slowly on a security feed in the post-title stinger (ADR-0014 amendment). This replaces "dragged
+  away through the glass" as her end. Her relationship line "Her death in R08" now reads "her
+  apparent death in R08".
+- **Katie Heins** [Decided]: Jay's security chief. Short purple hair. Runs the morning briefing
+  in person; didn't know about the Lab B quarantine and is annoyed by it.
+- **Director Hale** [Assumed]: now **seen**. He is the station administrator who cuts into the
+  briefing on the big screen ("routine quarantine") and is met in person in the TAG admin office
+  on the rounds, nervous and snapping at his assistant. He takes orders from a topside voice that
+  is never seen. (The placeholder "Leland Marsh" from the session is dropped in favour of the
+  existing, decided name Hale.) His office is no longer the door that stays locked.
+- **Ines Ruiz** moves out of the kitchen (Priya takes the slot) and becomes a guard-post walk-by
+  in the intro [Assumed]. Her "Third quarantine" line is cut.
+- **New crew** on the rounds: botanists (hydroponics), maintenance and divers (dive bay), execs
+  and an assistant (admin office). Names to come.

@@ -1,0 +1,7 @@
+{
+  "access_needs_item": "You'll need a {item} to open this door.",
+  "access_needs_tool": "You'll need a {item} to open this.",
+  "access_sealed": "This door won't open.",
+  "access_sealed_lockdown": "This door won't open. Lockdown in effect.",
+  "access_sealed_vent": "This vent won't open."
+}

@@ -113,3 +113,78 @@ plus `Stagger`, `Crawl`, `Blind`, `Dead`.
   that piece's nav node in the browser.
 - Not verified in a browser yet (no dev server from the cloud session): debug draw of the graph
   is still to do.
+
+### 2026-11-17: steps 2-6 (perception, shambler FSM, grab, play-dead, spawning) and game integration
+Code: `src/ai/perception.ts`, `enemy.ts` (one enemy: body + state machine), `enemyDirector.ts` (all enemies:
+spawning, noise, separation, grabs, slams, events), `spawner.ts` (queue and cap), `enemyData.ts` +
+`src/data/enemies.json` (variants: `shambler`, `hero`, `playDead`), `enemyTargets.ts` (player and squad
+adapters), `enemyGame.ts` (main-game wiring), `src/actors/shots.ts` (player hitscan, ADR-0005 numbers).
+- **Perception** (every 0.2 s, staggered): 110 degree cone, 18 m when the target is lit (flashlight on) or
+  the enemy is in the beam, 8 m otherwise, LOS by segment test against the level colliders (closed doors
+  block). Anything within 1.6 m is felt whatever the cone (blind bodies rely on that and on sound). Hearing:
+  gunshot 25 m, shove 8 m, footstep 4 m, sprint 8 m, through a clear line or a nav route (open doors only)
+  no longer than 1.15 x the radius. Alerts spread 6 m. Memory: chase for 6 s after losing the target, then
+  search the last known spot, give up after 14 s.
+- **States**: dormant (idle or a slow wander near home) -> alerted (groan 0.5-1.2 s) -> chase (nav
+  `findPath`, repath every 0.5 s when the goal moves or at once on any `door:state`; lurch 2.4 m/s for 0.6 s
+  every 4-7 s x `enemyLurchInterval`) -> windup 0.8 s (arms out, slow tracking) -> swipe 15 / bite 10 ->
+  recover 0.7 s; plus search, stagger, grab, playDead, waking, dead. A staggered body (leg flinch or AI
+  stagger) never starts an attack. Crawlers/draggers bite at 1.0 m and never grab; bite-only (no arms) bites;
+  blind bodies flail and follow sound. Walk speed comes from `Humanoid.steer` (limp, crawl, drag). Unsticking:
+  no progress for 1 s drops the path and sidesteps 0.6 s. Movement: steer -> `separate()` (ADR-0018 radii,
+  player and squadmates immovable) -> the ADR-0004 motor.
+- **Stagger**: shove (`player:shove`), 3+ shotgun pellets on one body (with a small knock back), losing a
+  limb, a hero slam nearby: 0.9 s (heroes shorter).
+- **Grab**: 35% of strikes on the player with both arms, one grabber at a time, via `player.grab()`; 8 dps x
+  `grabMul`. Ends when the player mashes free (grabber staggers 1 s), when the grabber loses an arm or takes
+  30 damage while holding (a teammate shooting it off), or dies; `player.releaseGrab()` is called.
+- **Play-dead**: spawns in a random corpse pose, immovable for separation. Wakes when a target is within 3 m,
+  within 6 m while looking away, a gunshot within 2.5 m, being shot, or a script; gets up (the `getUp`
+  sequence), then hunts with an immediate first lurch.
+- **Hero**: no lurch; `Humanoid.tryAttack` at slam range; the impact applies `slamFalloff` x 45 to every
+  target in reach, knocks them back up to 4.5 m/s, and staggers crowd bodies within the radius.
+- **Spawning**: `rooms[].spawns[]` gained optional `group`, `active` (false = wait for the group), `variant`,
+  `count`, `interval`, `yaw`, `outfit`, `infection`, `on` (an event name that triggers it). `corpse` spawns
+  default to play-deads; `vent`/`ceiling` spawns come out prone, get up and hunt the player; `door` spawns
+  arrive hunting. Max 8 alive; the rest queue and feed in round-robin across points (R11: two points of
+  `count: 7` give 14 with 8 at a time). Corpses capped at 16 (oldest removed). New sequence actions
+  `spawnGroup { group, wait? }` (with `wait` it ends on that group's `group:cleared`; skipped it just spawns)
+  and `despawnGroup { group }`. Cleared groups are stored in the playthrough flags (`group:<id>` =
+  `cleared`) and not respawned after a checkpoint restart.
+- **Events**: `enemy:spawned`, `enemy:alerted`, `enemy:died`, `enemy:attack { id, target, kind, amount }`,
+  `enemy:grab`, `enemy:grabReleased`, `enemy:slam`, `enemy:hit`, `combat:first` (once per session, first
+  alert with a target), `group:cleared { group }` and `group:cleared:<group>`.
+- **Squad API** (ADR-0011): `director.list` (each with `position`, `alive`, `grabbing`, `state`, `target`,
+  `body`), `director.grabber`, `raycast` / `applyHit(hit, amount, dir, by)`, `addTarget(squadTarget(...))`.
+  Squadmates are registered as targets (weight 0.6) and obstacles; their hits arrive only as `enemy:attack`
+  (the squad owns their health).
+- **Difficulty**: HP x `enemyHp` at spawn, lurch interval x `enemyLurchInterval`; damage to the player is
+  raw and Vitals applies `playerDamageTaken` (no separate enemy damage multiplier exists in ADR-0008).
+- **Weapons**: `weapon:fired` now does hitscan (pistol 18, shotgun 8 x 9 with 6-12 m falloff, ADR-0005
+  spread hip/aim) against the level colliders and enemy capsules; gore bursts, severing, pools and the
+  sandbox's death behaviour come from `Humanoid.applyHit`. Shots are heard 25 m.
+
+How to try: `npm run dev`, then `/?level=kit_test&enemies=shambler:3,hero,playDead` (spawns near the player
+when play starts, preferring the view direction; works on the demo room too). `?debug` adds an Enemies folder:
+spawn shambler / hero / play-dead ahead, kill all, remove all, freeze AI, ignore player, and live counts of
+states and queued spawns. `__enemies` in the console is the director.
+
+Verified headless only (no browser from this session): 31 tests in `perception.test.ts`, `spawner.test.ts`,
+`enemy.test.ts` and `enemySim.test.ts` (kit_test built in Node: a corridor shambler paths through D1 to the
+player and attacks in under 20 s; with D1 closed it waits, opening the door makes it repath and come through;
+a sequence `spawnGroup` waits for `group:cleared`). 8 enemies (one hero) cost about 0.13 ms of AI per step on
+the Node VM, bodies another 0.13 ms.
+
+Gaps:
+- Nothing here has been seen in a browser: animation of the windup/swipe (uses `charge` and arm kicks, no
+  dedicated poses), the groan and slam sounds, debug spawning, and the feel of the numbers.
+- Enemies never open doors (as specified). kit_test's auto doors close 1.2 s after the player walks away, so a
+  pursuer is cut off behind them; decide whether shamblers should push open unlocked auto doors.
+- `vent` and `ceiling_drop` movers are a prone spawn plus get-up, not an emerge/drop animation.
+- No bullet-hole decals or sparks on walls yet (ADR-0005 step 2); `ShotReport.wall` gives the point.
+- Squad damage and the "teammate prioritises the grabber's arm" behaviour belong to the squad AI.
+- The ADR-0009 `spawn`/`despawn` npc actions still go to the NPC system; enemies use `spawnGroup`.
+- Separation's player circle is immovable; heroes do not shove the player (ADR-0018 open question).
+- Lunger (step 7) not started. Debug draw of the navgraph still to do.
+- A leftover empty file `scratch_enemy/h.ts` at the repo root (created by mistake; deleting is not allowed
+  from this session) can be deleted.

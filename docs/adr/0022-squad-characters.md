@@ -88,3 +88,41 @@ Principle: missable on a first play, obvious on a second.
    the player as "Jay".
 2. Write the foreshadowing lines against the ladder; add the stage drivers to ADR-0011 step 7.
 3. Update ADR-0010's voice notes (Giles rasp stages, laugh removal at the reveal).
+
+## Amendment (2026-11-16)
+- **Jay speaks** (ADR-0010 amendment). His voice is **steady and attentive** [Decided]: few
+  words, quietly funny, the straight man for Giles, goes along with Okafor's orders, and
+  remembers the small details of other people's lives. Jay is a man [Decided]. Bitter irony
+  for the reveal: the one who notices everything also missed the arm.
+- **Mara plant** [Decided]: in the intro kitchen Jay asks "How's Mara liking the new school?";
+  Giles answers in one proud line and deflects fast ("Expensive. Coffee?"). The "talks about
+  her once" rule now reads: Jay raises her in the intro; Giles talks about her only once, late.
+- **Giles's twist is a tragedy, not a betrayal** [Assumed, Justin did not object]: a good man
+  making a human, bad choice out of fear for the contract and Mara's school. Not working for
+  TAG, never endangers the squad on purpose. What he saw in Lab B is a secret, not malice.
+- **Priya Anand** joins the intro with the same weight as Giles and Okafor (ADR-0017). Okafor's
+  guilt gains a second layer: she was covering the bay for him.
+
+## Progress
+### 2026-11-17: cast looks and ladder hooks
+- `actors/castLooks.ts`: Priya (teal scrubs, plum cardigan), Katie Heins (security, short purple
+  hair), Director Hale (charcoal suit), Bram/cook (kitchen whites), Ruiz (comms tech), Sung (diver);
+  crew looks botanist, diver, exec, assistant, maintenance, security, crew, lab (seeded faces per NPC
+  id). Outfits are recoloured with the new `Look.outfitColors`.
+- The infection ladder is data in `ai/squadBrain.ts` (`INFECTION_LADDER`), driven by the
+  `giles.infectionStage` flag (see ADR-0011 progress). Not seen in a browser.
+
+### 2026-11-17: the ladder is raised by the action sequences
+`giles.infectionStage` (flag, read by the squad every 0.5 s) is set by `src/data/sequences/action_*.json`:
+**1** after the cover-me bypass once the six are dead (`flex_hand` anim, numb-hand line, Okafor's glance);
+**2** in `sec_glass` when the strangled cry plays at the armory panel (then `rub_forearm`, "Cut it on the panel",
+Okafor's offer refused; `giles.bandaged` is set when he is back, see below); **3** on entering the flooded tunnel (cough anim, fewer jokes; also on
+the valve and climax); **4** when the R11 lights return in `cliffhanger` (rasp, laugh removed), followed by
+`transform giles to 1` over 9 s while Okafor steps toward him and Giles says "Stay back, Tomas." Skipping the
+reveal applies stage 4 and the transformation's end state. The Mara line is `valve_quiet_giles_01/02` in `valve_turn`
+(Jay keeps control).
+
+Moved bodies (2026-11-17): a downed or dragged NPC holds a lying pose (`Humanoid.carried`, no walking gait); `npcDrag` ropes one body behind another (Priya behind the surgery thing).
+
+### Visible tells
+`actors/castTells.ts` (`Humanoid.setTells`) puts small overlay meshes on existing bones: a gauze cuff with ridges and a dark seep on the left forearm (flag `giles.bandaged`), and from stage 3 dark veins (forearm below the cuff, left face, neck) and sweat beads (forehead, lip). `Squad.applyTells` reads `giles.infectionStage` and `giles.bandaged` every 0.5 s, so a load, restart or checkpoint restore brings them back (and removes them when the flags are older; a missing stage flag now means stage 0). Tested in `actors/castTells.test.ts` and `ai/squad.test.ts`; placement unseen in a browser. Not done: the humming stopping (voice mood only), a rolled-up sleeve (the cuff sits over the long sleeve).

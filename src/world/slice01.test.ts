@@ -1,0 +1,309 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import * as THREE from 'three';
+import { validate } from '../core/validate.ts';
+import { EventBus } from '../core/events.ts';
+import { validateItemTable } from '../data/types/items.ts';
+import { levelValidator, type LevelData } from '../data/types/level.ts';
+import { validateUiText } from '../data/types/uiText.ts';
+import { Inventory } from '../game/inventory.ts';
+import type { Materials } from '../render/materials.ts';
+import type { Interactable, Interactions } from '../actors/interaction.ts';
+import { DEFAULT_MOTOR, moveBody, type MotorState } from '../actors/motor.ts';
+import type { P3 } from '../ai/nav.ts';
+
+// slice01 (ADR-0014/0017/0023): the level validates, builds headlessly (no WebGL, a stub 2D
+// canvas), provides every anchor the draft sequences use, keeps rooms in the draw-call budget,
+// and a body can walk the critical path through the real colliders and doors.
+
+// ---- headless stubs: canvas 2D contexts that draw nothing
+const noop = (): void => undefined;
+const ctx = new Proxy({} as Record<string | symbol, unknown>, {
+  get: (t, k) => (k in t ? t[k] : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop: noop }) : k === 'measureText' ? () => ({ width: 10 }) : k === 'getImageData' ? (_x: number, _y: number, w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }) : noop),
+  set: (t, k, v) => ((t[k] = v), true),
+});
+(globalThis as { Path2D?: unknown }).Path2D ??= function Path2D(): unknown {
+  return new Proxy({}, { get: () => noop });
+};
+(globalThis as { document?: unknown }).document ??= { createElement: () => ({ width: 1, height: 1, getContext: () => ctx, style: {} }) };
+
+const { KitRegistry } = await import('./registry.ts');
+const { Level } = await import('./level.ts');
+
+const json = (path: string): unknown => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
+const items = validate(validateItemTable, json('../data/items.json'), 'data/items.json');
+const ui = validate(validateUiText, json('../data/dialogue/ui.json'), 'data/dialogue/ui.json');
+const registry = new KitRegistry({ glb: {} });
+const data: LevelData = validate(levelValidator(registry.ids(), { items: new Set(Object.keys(items)), uiText: new Set(Object.keys(ui)) }), json('../data/levels/slice01.json'), 'slice01');
+
+function fakeMaterials(): Materials {
+  const s = (color: number): THREE.MeshStandardMaterial => new THREE.MeshStandardMaterial({ color });
+  return {
+    paintTeal: s(0x2f6f70), paintDark: s(0x222222), paintBone: s(0xccccbb), steel: s(0x888888), diamond: s(0x777777),
+    grating: s(0x666666), rubber: s(0x111111), hazard: s(0xccaa00), glass: new THREE.MeshPhysicalMaterial({ transparent: true }),
+    black: s(0x000000), cable: s(0x111111), glowCyan: s(0x00ffff),
+  };
+}
+
+function build(inventory: Inventory | null = null): { level: InstanceType<typeof Level>; events: EventBus } {
+  const events = new EventBus();
+  const level = new Level(data, { materials: fakeMaterials(), registry, events, scene: new THREE.Scene(), inventory, uiText: ui });
+  return { level, events };
+}
+
+const ROOMS = ['R01', 'R01w', 'R02', 'R03', 'R04', 'R05', 'R06', 'R07', 'R08', 'R09', 'R10', 'R11', 'R12a', 'R12b', 'R12c', 'R12d', 'R12e', 'R13a', 'R13b', 'R13c', 'R13d', 'R13e', 'R14a', 'R14b', 'R14c', 'R14d', 'R14e'];
+
+test('slice01 validates: every ADR-0014/0023 room, areas, map stations, checkpoints', () => {
+  const ids = new Set(data.rooms.map((r) => r.id));
+  for (const id of ROOMS) assert.ok(ids.has(id), `room ${id}`);
+  const areas = new Set(data.rooms.map((r) => r.area));
+  for (const a of ['dock', 'commons', 'gallery', 'hydroponics', 'dive_bay', 'admin', 'labs', 'security', 'medbay', 'tunnel', 'control']) assert.ok(areas.has(a), `area ${a}`);
+  assert.deepEqual(new Set((data.mapStations ?? []).map((s) => s.reveals)), new Set(['commons', 'hydroponics', 'dive_bay', 'admin']));
+  assert.deepEqual(data.checkpoints.map((c) => c.id), ['cp_first_contact', 'cp_cover_me', 'cp_security', 'cp_flooded', 'cp_climax']);
+  assert.deepEqual(data.doors.find((d) => d.id === 'hydro_store')?.access, { requires: 'card_l2' });
+  assert.equal(data.pickups?.find((p) => p.item === 'card_l2')?.room, 'R14c');
+  // Nothing hostile in the quiet half: every spawn waits for its group.
+  const spawns = data.rooms.flatMap((r) => r.spawns ?? []);
+  assert.ok(spawns.length > 10);
+  for (const s of spawns) assert.equal(s.active, false, s.id);
+  assert.deepEqual(new Set(spawns.map((s) => s.group)), new Set(['r05_contact', 'r05_trickle', 'r06_cover', 'r07_playdead', 'r09_tunnel', 'r11_climax']));
+});
+
+test('slice01 builds headlessly; every anchor the draft sequences use exists; NPCs are placed', () => {
+  const { level } = build();
+  for (const file of ['intro_shift_change', 'briefing_gallery', 'commons', 'rounds', 'drop']) {
+    const text = readFileSync(new URL(`../data/sequences/${file}.json`, import.meta.url), 'utf8');
+    const names = [...new Set([...text.matchAll(/"anchor:([A-Za-z0-9_-]+)"/g)].map((m) => m[1]!))];
+    assert.ok(names.length >= (file === 'drop' ? 1 : 3), file);
+    for (const n of names) assert.ok(level.anchor(n), `${file}: anchor:${n}`);
+  }
+  for (const n of ['dock_door', 'dock_window', 'post_front', 'abyss_window_walk', 'window_jay', 'window_giles', 'window_okafor', 'kitchen_door', 'kitchen_stand', 'counter', 'counter_giles', 'counter_okafor', 'priya_enter', 'priya_offer', 'priya_exit']) assert.ok(level.anchor(n), `ADR-0017 anchor ${n}`);
+  const npcs = new Map(level.npcSpawns().map((n) => [n.id, n]));
+  for (const id of ['giles', 'okafor', 'priya', 'cook', 'ruiz', 'sung', 'heins', 'hale']) assert.ok(npcs.has(id), `npc ${id}`);
+  assert.equal(npcs.get('giles')?.room, 'R01a');
+  assert.ok(Math.abs(level.anchor('post_front')!.yaw) < 1e-9);
+});
+
+test('slice01 Part A: the drop, the glimpse and the rounds have what they need in the level', () => {
+  const { level } = build();
+  const npcs = new Map(level.npcSpawns().map((n) => [n.id, n]));
+  assert.equal(npcs.get('researcher_b')?.transformable, true, 'Voss can transform behind the glass');
+  const emits = new Set(data.rooms.flatMap((r) => (r.triggers ?? []).map((t) => t.emit)));
+  for (const e of ['trigger:commons_to_gallery', 'trigger:gallery_brief_spot', 'trigger:gallery_enter', 'round:hydro_log', 'round:dive_case', 'trigger:hale_office', 'trigger:security_booth', 'trigger:hydro_store_enter', 'trigger:dive_lockers_enter', 'commons:radio']) assert.ok(emits.has(e), `trigger ${e}`);
+  for (const a of ['cam04_pos', 'cam04_look', 'cam04_figure', 'dawdle_call', 'gallery_door', 'brief_giles', 'brief_okafor']) assert.ok(level.anchor(a), `anchor ${a}`);
+  assert.ok(JSON.stringify(data).includes('"sample_case"'), 'the dive sample case is placed');
+  const r03 = data.rooms.find((r) => r.id === 'R03')!;
+  assert.equal(r03.props?.filter((p) => p.kit === 'glass_cracks').length, 3, 'three crack layers on the Lab B glass');
+  const r13d = data.rooms.find((r) => r.id === 'R13d')!;
+  assert.ok(r13d.triggers?.some((t) => t.emit === 'area:dark'), 'the dark area trigger is in R13d');
+});
+
+test('slice01 draw calls stay within the ADR-0003 budget per room', () => {
+  const { level } = build();
+  const stats = level.roomStats();
+  const worst = [...stats].sort((a, b) => b.drawCalls - a.drawCalls).slice(0, 3);
+  console.info('[slice01] heaviest rooms', worst.map((s) => `${s.id} ${s.drawCalls} calls ${Math.round(s.triangles / 1000)}k tris`).join(', '));
+  for (const s of stats) assert.ok(s.drawCalls <= 60, `${s.id}: ${s.drawCalls} draw calls`);
+  const tris = stats.reduce((n, s) => n + s.triangles, 0);
+  assert.ok(tris < 1_500_000, `whole level ${tris} triangles`);
+});
+
+// ---------------------------------------------------------------- the critical path, walked
+
+interface DoorPeek {
+  data: { id: string };
+  collider: { enabled: boolean };
+}
+
+test('slice01 critical path: nav-reachable and walkable through the real doors', () => {
+  const inventory = new Inventory(items);
+  const { level, events } = build(inventory);
+  const uses = new Map<string, Interactable>();
+  level.registerInteractions({ add: (i: Interactable) => (uses.set(i.id, i), () => undefined) } as unknown as Interactions);
+  const entered: string[] = [];
+  const fired: string[] = [];
+  events.on('room:entered', ({ id }) => void entered.push(id));
+  events.on('trigger:fired', ({ event }) => void fired.push(event));
+  const doors = (level as unknown as { doors: DoorPeek[] }).doors;
+  const nav = level.navGraph();
+  const EYE = 1.7;
+  const body: MotorState = { x: 6, y: 0, z: 2.6, vy: 0, grounded: true };
+  const eye = new THREE.Vector3();
+  let t = 0;
+  const tick = (dt: number): void => {
+    t += dt;
+    level.update(t, dt, eye.set(body.x, body.y + EYE, body.z), false);
+  };
+  /** Route ignoring door state (doors open as the walker reaches them, like the player). */
+  const route = (to: P3): P3[] => {
+    const saved = doors.map((d) => d.collider.enabled);
+    for (const d of doors) d.collider.enabled = false;
+    const path = nav.findPath({ x: body.x, y: body.y, z: body.z }, to, { radius: 0.3 });
+    doors.forEach((d, i) => (d.collider.enabled = saved[i]!));
+    assert.ok(path, `no nav route from ${body.x.toFixed(1)},${body.z.toFixed(1)} to ${to.x},${to.z}`);
+    return path!;
+  };
+  const walkTo = (name: string, to: P3 = level.anchor(name)!.pos): void => {
+    for (const wp of route(to)) {
+      let stuck = 0;
+      let best = Infinity;
+      for (let step = 0; step < 30 * 40; step++) {
+        const dx = wp.x - body.x;
+        const dz = wp.z - body.z;
+        const d = Math.hypot(dx, dz);
+        if (d < 0.25) break;
+        const v = Math.min(d, 4 / 30);
+        moveBody(body, (dx / d) * v, (dz / d) * v, 1 / 30, DEFAULT_MOTOR, level.collision);
+        tick(1 / 30);
+        if (d < best - 0.05) {
+          best = d;
+          stuck = 0;
+        } else if (++stuck > 30 * 4) assert.fail(`walk to ${name}: stuck at ${body.x.toFixed(2)},${body.z.toFixed(2)} (waypoint ${wp.x.toFixed(1)},${wp.z.toFixed(1)}, room ${level.currentRoomId()})`);
+      }
+    }
+    assert.ok(Math.hypot(to.x - body.x, to.z - body.z) < 0.6, `reached ${name}`);
+    assert.ok(Math.abs(body.y) < 0.05, `${name}: feet on the deck (y ${body.y.toFixed(2)})`);
+  };
+  const use = (id: string): void => {
+    const it = uses.get(id);
+    assert.ok(it, `interactable ${id}`);
+    it!.use();
+  };
+  const at = (x: number, z: number): P3 => ({ x, y: 0, z });
+
+  tick(1 / 30);
+  // Quiet half: intro walk, briefing, the three rounds (any order), the card backtrack.
+  walkTo('walk_window');
+  walkTo('kitchen_stand');
+  walkTo('brief_jay');
+  walkTo('cp_round_admin');
+  use('pickup:P_card_l2');
+  assert.ok(inventory.has('card_l2'));
+  walkTo('admin_cam_view');
+  walkTo('cp_round_hydro');
+  walkTo('hydro_store_moment');
+  walkTo('hydro_alarm', at(48.6, 28.4));
+  walkTo('cp_round_dive');
+  walkTo('dive_case_locker', at(15.8, 40));
+  walkTo('dark_corridor');
+  assert.ok(fired.includes('area:dark'), 'dark corridor trigger');
+  walkTo('drop_jay');
+  // The drop: lockdown behind, the way to R05 opens (sequences do this with setDoor/unlock).
+  level.setDoor('D_R02_R03', 'sealed');
+  assert.ok(level.unlock('D_R03_R05', 'script'));
+  walkTo('r05_entry');
+  walkTo('r06_hold');
+  assert.ok(level.unlock('D_R06_R07', 'engineer'));
+  level.setDoor('D_R06_R07', 'open');
+  walkTo('cp_security', at(0, 40.2));
+  assert.ok(level.unlock('D_R07_R07a', 'engineer'));
+  walkTo('r07_panel');
+  assert.ok(level.unlock('D_R07_R09', 'medic'));
+  walkTo('r09_mid');
+  walkTo('valve', at(36.9, 52.8));
+  use('trigger:trig_r10_valve');
+  assert.equal(level.doorStates()['D_R10_R11'], 'closed', 'valve unlocks the control-room bulkhead');
+  level.setDoor('D_R10_R11', 'open');
+  walkTo('r11_hold');
+
+  const required = ['R01', 'R01w', 'R02', 'R03', 'R14a', 'R14b', 'R14c', 'R14e', 'R12a', 'R12b', 'R12e', 'R12d', 'R13a', 'R13b', 'R13e', 'R13d', 'R05', 'R06', 'R07', 'R07a', 'R09', 'R10', 'R11'];
+  for (const r of required) assert.ok(entered.includes(r), `entered ${r}`);
+  for (const e of ['trigger:commons_enter', 'trigger:gallery_enter', 'trigger:gallery_brief_spot', 'trigger:admin_enter', 'trigger:hale_office', 'trigger:security_booth', 'trigger:hydro_enter', 'trigger:hydro_store_enter', 'trigger:dive_enter', 'trigger:r05_enter', 'trigger:r06_enter', 'trigger:r07_enter', 'trigger:r09_enter', 'trigger:r10_enter', 'trigger:r11_enter', 'valve:r10_main']) {
+    assert.ok(fired.includes(e), `fired ${e}`);
+  }
+  console.info(`[slice01] walked ${entered.length} room entries in ${t.toFixed(0)} s of game time`);
+});
+
+test('slice01 visible draw calls stay under the ADR-0015 frame budget', () => {
+  const { level } = build();
+  const eye = new THREE.Vector3();
+  let worst = { id: '', calls: 0 };
+  for (const r of data.rooms) {
+    const a = r.anchors?.[0]?.pos ?? r.npcs?.[0]?.at;
+    const p = Array.isArray(a) ? a : level.anchorPosition('room', r.id)!.toArray();
+    level.update(0, 0.016, eye.set(p[0]!, 1.7, p[2]!), false);
+    const calls = level.visibleDrawCalls();
+    if (calls > worst.calls) worst = { id: r.id, calls };
+  }
+  console.info(`[slice01] most visible draw calls: ${worst.calls} from ${worst.id}`);
+  assert.ok(worst.calls <= 300, `${worst.id}: ${worst.calls}`);
+});
+
+test('slice01 props react to their events (sub, briefing screen, Lab B blinds)', () => {
+  const { level, events } = build();
+  const find = (name: string): THREE.Object3D => {
+    const o = level.group.getObjectByName(name);
+    assert.ok(o, name);
+    return o!;
+  };
+  const eye = new THREE.Vector3(6, 1.7, 2.6);
+  const run = (s: number): void => {
+    for (let i = 0; i < s * 10; i++) level.update(i / 10, 0.1, eye, false);
+  };
+  const sub = find('supply_sub');
+  run(0.2);
+  assert.equal(sub.visible, false, 'sub away before the intro');
+  (events.emit as (n: string, p: unknown) => void)('intro:sub_dock', {});
+  run(16);
+  assert.ok(sub.visible && Math.abs(sub.position.x) < 1e-3 && Math.abs(sub.position.y) < 1e-3, 'sub docked');
+  eye.set(8, 1.7, 17.4);
+  run(0.2);
+  const screen = find('screen:brief_screen') as THREE.Mesh;
+  const mat = screen.material as THREE.MeshStandardMaterial;
+  assert.ok(mat.emissiveIntensity < 0.5);
+  (events.emit as (n: string, p: unknown) => void)('briefing:screen', { state: 'on', who: 'hale' });
+  assert.ok(mat.emissiveIntensity > 1);
+  (events.emit as (n: string, p: unknown) => void)('blinds:set', { id: 'labb', state: 'up', instant: true });
+  (events.emit as (n: string, p: unknown) => void)('briefing:screen', { state: 'off' });
+  assert.ok(mat.emissiveIntensity < 0.5);
+});
+
+test('slice01 Part B: the action sequences find their anchors, doors, groups and set-piece props', () => {
+  const { level, events } = build();
+  const doorIds = new Set(data.doors.map((d) => d.id));
+  for (const file of ['action_contact', 'action_security', 'action_tunnel', 'action_climax']) {
+    const text = readFileSync(new URL(`../data/sequences/${file}.json`, import.meta.url), 'utf8');
+    const names = [...new Set([...text.matchAll(/"anchor:([A-Za-z0-9_-]+)"/g)].map((m) => m[1]!))];
+    assert.ok(names.length >= 1, file);
+    for (const n of names) assert.ok(level.anchor(n), `${file}: anchor:${n}`);
+    for (const m of text.matchAll(/"(?:door:|id": ")(D_[A-Za-z0-9_]+)"/g)) assert.ok(doorIds.has(m[1]!), `${file}: door ${m[1]}`);
+  }
+  // Spawn groups: the counts ADR-0014 asks for.
+  const spawns = data.rooms.flatMap((r) => r.spawns ?? []);
+  const total = (g: string): number => spawns.filter((s) => s.group === g).reduce((n, s) => n + (s.count ?? 1), 0);
+  assert.equal(total('r05_contact'), 1, 'one shambler breaks through the door');
+  assert.ok(total('r05_trickle') >= 2 && total('r05_trickle') <= 3, 'two to three trickle in');
+  assert.equal(total('r06_cover'), 6);
+  assert.equal(total('r11_climax'), 14);
+  assert.ok(spawns.some((s) => s.group === 'r11_climax' && s.variant === 'hero'), 'a hero in the climax');
+  // The glass wall into the medical bay takes cracks and blood; the control room hides the bloom's trail.
+  const r07 = data.rooms.find((r) => r.id === 'R07')!;
+  assert.equal(r07.props?.filter((p) => p.kit === 'glass_blood').length, 3);
+  const r11 = data.rooms.find((r) => r.id === 'R11')!;
+  assert.ok(r11.props?.some((p) => p.kit === 'fluid_trail'));
+  const meshes = (prefix: string): THREE.Mesh[] => {
+    const out: THREE.Mesh[] = [];
+    level.group.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+      if ((o as THREE.Mesh).isMesh && m?.name?.startsWith(prefix)) out.push(o as THREE.Mesh);
+    });
+    return out;
+  };
+  const trail = meshes('fluid-trail');
+  assert.equal(trail.length, 1);
+  assert.equal(trail[0]!.visible, false, 'hidden until the lights come back');
+  (events.emit as (n: string, p: unknown) => void)('reveal:trail', {});
+  assert.equal(trail[0]!.visible, true);
+  const blood = level.group.children.length ? meshesByName(level, 'glass-blood') : [];
+  assert.equal(blood.length, 0, 'blood is set by level event; no hidden pane shows before it');
+});
+
+function meshesByName(level: InstanceType<typeof Level>, prefix: string): THREE.Mesh[] {
+  const out: THREE.Mesh[] = [];
+  level.group.traverse((o) => {
+    const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+    if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).visible && m?.name?.startsWith(prefix)) out.push(o as THREE.Mesh);
+  });
+  return out;
+}

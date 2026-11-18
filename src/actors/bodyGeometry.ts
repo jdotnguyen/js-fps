@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '../core/rng.ts';
+import type { SurfaceDef } from './bodyMaterial.ts';
 import { clothPatch, heroColor, heroFace, heroScalpTorn, sculptHeroHead, sculptHero, tatterColor, tatterStrip } from './heroSculpt.ts';
 import { fbm3, noise3 } from './noise3.ts';
 import { HERO_NECK, HERO_NECK_EXTRA, JOINTS, jointDef, type JointName, type SegmentDef, type Side, type Vec3T } from './skeleton.ts';
@@ -46,6 +47,11 @@ export interface Look {
   nose?: number;
   /** Override the outfit's sleeve rule. */
   rolled?: boolean;
+  /**
+   * Recolour the outfit (cast and crew variants: botanist, diver, exec, a cardigan over scrubs).
+   * `over` null removes the vest or jacket; `coat` makes it a long coat.
+   */
+  outfitColors?: { suit?: string; over?: string | null; coat?: boolean; boots?: string; belt?: string };
   props?: readonly LookProp[];
 }
 
@@ -101,6 +107,11 @@ export interface PartGeometry {
   geometry: THREE.BufferGeometry;
   /** Cloth that bends along a bone chain (coat tails). */
   chain?: ClothChain;
+  /**
+   * Imported models only: key into `BodyGeometry.surfaces` (a textured material). Such pieces carry their
+   * own smooth `skinIndex`/`skinWeight` (joint indices) instead of following `bone` rigidly.
+   */
+  surface?: string;
 }
 
 export interface BodyGeometry {
@@ -111,6 +122,8 @@ export interface BodyGeometry {
   /** Per-body joint offsets that replace the reference skeleton's (hero neck/head). */
   jointOffsets: Partial<Record<JointName, Vec3T>>;
   skinTone: THREE.Color;
+  /** Textured materials for imported-model pieces (see `PartGeometry.surface`). */
+  surfaces?: Readonly<Record<string, SurfaceDef>>;
 }
 
 /** Attributes every piece carries (tests check this so merging never fails). */
@@ -1222,6 +1235,23 @@ export function woundCap(radius: number, dirY: 1 | -1, seed: number): THREE.Buff
 }
 
 function buildStumps(ctx: Ctx, extra: ExtraBoneDef[], offsets: Partial<Record<JointName, Vec3T>>): void {
+  const built = buildStumpParts(ctx.seed, ctx.w, offsets, (name) => (name === 'head' ? 0.05 : (jointDef(name).segment?.r0 ?? 0.05)) * ctx.w);
+  extra.push(...built.extra);
+  ctx.parts.push(...built.parts);
+}
+
+/**
+ * Stump bones and their wound caps for every severable joint (shown when that joint is cut off).
+ * `radius` is the cap radius in metres per joint. Shared by procedural bodies and imported models.
+ */
+export function buildStumpParts(
+  seed: number,
+  w: number,
+  offsets: Partial<Record<JointName, Vec3T>>,
+  radius: (name: JointName) => number,
+): { extra: ExtraBoneDef[]; parts: PartGeometry[] } {
+  const extra: ExtraBoneDef[] = [];
+  const parts: PartGeometry[] = [];
   for (const name of STUMP_JOINTS) {
     const def = jointDef(name);
     if (!def.parent) continue;
@@ -1230,13 +1260,13 @@ function buildStumps(ctx: Ctx, extra: ExtraBoneDef[], offsets: Partial<Record<Jo
     extra.push({
       name: bone,
       parent: def.parent,
-      offset: [at[0] * ctx.w, at[1], at[2]],
+      offset: [at[0] * w, at[1], at[2]],
       kind: 'stump',
     });
-    const r = name === 'head' ? 0.05 * ctx.w : (def.segment?.r0 ?? 0.05) * ctx.w;
     const dir: 1 | -1 = name === 'head' ? 1 : -1;
-    for (const g of woundCap(r, dir, ctx.seed + name.length)) add(ctx, bone, 'wet', g);
+    for (const g of woundCap(radius(name), dir, seed + name.length)) parts.push({ bone, layer: 'wet', geometry: g });
   }
+  return { extra, parts };
 }
 
 // ---------------------------------------------------------------- entry
@@ -1246,7 +1276,8 @@ export function buildBodyGeometry(shape: BodyShape): BodyGeometry {
   const rng = new Rng(`body:${shape.seed}`);
   const look = shape.look ?? {};
   const baseScheme = SCHEMES[shape.outfit];
-  const scheme = look.rolled === undefined ? baseScheme : { ...baseScheme, rolled: look.rolled };
+  const recoloured = look.outfitColors ? { ...baseScheme, ...look.outfitColors } : baseScheme;
+  const scheme = look.rolled === undefined ? recoloured : { ...recoloured, rolled: look.rolled };
   // Always draw from the rng so seeded bodies stay identical whether or not a look is given.
   const seededSkin = rng.pick(SKIN_TONES);
   const skin = new THREE.Color(look.skin ?? seededSkin);

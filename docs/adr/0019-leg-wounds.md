@@ -64,3 +64,10 @@ attacks and whether to keep advancing.
 ## Open questions
 - Should arm hits also flinch? (They currently only change grab strength.)
 - Does a limp need its own sound (a drag or a grunt)?
+
+## Progress
+### 2026-11-17: step 3 (game AI)
+The ADR-0007 AI (`src/ai/enemy.ts`) never starts an attack while `Humanoid.staggered` (leg flinch or AI
+stagger); walk speed already follows `speedMul`; a limp at or above 0.7 stops lurch bursts and a lighter limp
+shortens them (the animator keeps using `limpSide`). A shot-off leg drops the enemy into the crawl, after which
+it bites at 1.0 m and cannot grab (tested in `enemy.test.ts`). Not seen in a browser yet.

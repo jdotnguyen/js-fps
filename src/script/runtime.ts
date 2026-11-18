@@ -238,28 +238,36 @@ export class SequenceManager {
       list.push(d);
       byEvent.set(d.trigger.event, list);
     }
-    const fire = (list: SequenceDef[]): void => {
+    const fire = (list: SequenceDef[], payload?: unknown): void => {
       for (const d of list) {
+        const want = d.trigger?.match;
+        if (want) {
+          const got = (typeof payload === 'object' && payload !== null ? payload : {}) as Record<string, unknown>;
+          if (!Object.entries(want).every(([k, v]) => got[k] === v)) continue;
+        }
         const need = d.trigger?.requires;
         if (need && !this.host.flags[need]) continue;
+        const done = d.trigger?.unless;
+        if (done && this.host.flags[done]) continue;
         this.begin(d, false);
       }
     };
-    let levelTriggers = false;
     for (const [event, list] of byEvent) {
-      this.subs.push(this.host.events.on(event, () => fire(list)));
-      if (event.startsWith('trigger:')) levelTriggers = true;
+      this.subs.push(this.host.events.on(event, (p) => fire(list, p)));
     }
-    if (levelTriggers) {
-      // Level triggers announce themselves as `trigger:fired { event }` (ADR-0003).
-      this.subs.push(
-        this.host.events.on('trigger:fired', (p) => {
-          const name = `trigger:${(p as { event?: string }).event ?? ''}`;
-          const list = byEvent.get(name);
-          if (list) fire(list);
-        }),
-      );
-    }
+    // Level triggers announce themselves as `trigger:fired { event }` (ADR-0003). Their `emit`
+    // may be written with or without the `trigger:` prefix (slice01 writes `trigger:<name>`, use
+    // triggers write e.g. `round:hydro_log`): a sequence trigger matches either spelling.
+    this.subs.push(
+      this.host.events.on('trigger:fired', (p) => {
+        const emitted = (p as { event?: string } | null)?.event ?? '';
+        if (!emitted) return;
+        const prefixed = byEvent.get(`trigger:${emitted}`);
+        if (prefixed) fire(prefixed, p);
+        const plain = byEvent.get(emitted);
+        if (plain) fire(plain, p);
+      }),
+    );
   }
 
   // ------------------------------------------------------------------ lifecycle
@@ -377,6 +385,7 @@ export class SequenceManager {
     return {
       host,
       seqId: run.def.id,
+      isRunning: (id) => this.isRunning(id) || this.queue.includes(id),
       build: (steps) =>
         new Serial(
           steps,
@@ -436,6 +445,21 @@ export class SequenceManager {
     this.cancelAll();
   }
 
+  /**
+   * The load itself announced `game:mode playing`, which started the restore sequences; the
+   * restart then cancelled them (and the NPC reset ran after them). Run them again, once the
+   * dust has settled. They must be idempotent (ADR-0009), as pause/resume fires them too.
+   */
+  private refireRestores(): void {
+    for (const d of this.defs.values()) {
+      const t = d.trigger;
+      if (!t || t.event !== 'game:mode' || t.match?.['mode'] !== 'playing') continue;
+      if (t.requires && !this.host.flags[t.requires]) continue;
+      if (t.unless && this.host.flags[t.unless]) continue;
+      this.begin(d, false);
+    }
+  }
+
   /** The game reloaded the checkpoint autosave: put the scripted world back as it was. */
   private onRestart(checkpoint: string | null): void {
     const resume = new Set(this.dying);
@@ -451,5 +475,6 @@ export class SequenceManager {
       const def = this.defs.get(id);
       if (def) this.begin(def, true);
     }
+    this.refireRestores();
   }
 }

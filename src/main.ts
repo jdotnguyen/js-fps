@@ -3,6 +3,8 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import './ui/styles/base.css';
 import './ui/styles/menu.css';
 import './ui/styles/hud.css';
+import './ui/styles/tutorial.css';
+import './ui/styles/map.css';
 import keymapJson from './data/keymap.json';
 import difficultyJson from './data/difficulty.json';
 import { validateKeymap } from './data/types/keymap.ts';
@@ -21,6 +23,10 @@ import { createMaterials } from './render/materials.ts';
 import { createPost } from './render/post.ts';
 import { Flashlight } from './render/flashlight.ts';
 import { LIGHT_PATTERNS } from './render/lights.ts';
+import { CameraFeeds } from './render/cameraFeed.ts';
+import { createFeedGl } from './render/cameraFeedGl.ts';
+import { preloadSeabed } from './render/fx/seabed.ts';
+import { preloadSubModel } from './render/fx/subModel.ts';
 import { buildDemoRoom, type DemoRoom } from './world/demoRoom.ts';
 import { demoRoomWorld } from './world/demoWorld.ts';
 import { loadLevel, type Level } from './world/level.ts';
@@ -35,6 +41,7 @@ import { MenuMusic } from './audio/menuMusic.ts';
 import { Game } from './game/game.ts';
 import { CutsceneController } from './game/cutscene.ts';
 import { CutsceneUi } from './ui/hud/cutsceneUi.ts';
+import { TitleCard } from './ui/titleCard.ts';
 import { Interactions } from './actors/interaction.ts';
 import { Player, PLAYER_TUNING } from './actors/player.ts';
 import { DEBUG_SEQUENCES } from './actors/debugSequences.ts';
@@ -47,13 +54,38 @@ import { PlayerHud, keyLabel } from './ui/hud/playerHud.ts';
 import { SaveStore } from './game/save.ts';
 import { createMenus } from './ui/menus/screens.ts';
 import { Toasts } from './ui/toast.ts';
+import { TutorialPrompts } from './ui/tutorialPrompts.ts';
+import { TutorialProfile } from './ui/tutorials.ts';
+import { loadWeaponModels } from './render/viewmodel/glbWeapons.ts';
 import { Viewmodel } from './render/viewmodel/viewmodel.ts';
 import { Squad } from './ai/squad.ts';
+import { NpcDirector } from './ai/npcs.ts';
+import { wireSquadToEnemies } from './ai/squadEnemies.ts';
+import { setupEnemies, spawnPointsOf } from './ai/enemyGame.ts';
+import type { SpawnPointData } from './ai/spawner.ts';
 import { GoreSystem } from './actors/gore.ts';
 import { PoseLibrary } from './actors/poses.ts';
 import { loadPoseFile } from './data/types/poses.ts';
 import posesJson from './data/poses.json';
+import bodyModelsJson from './data/body-models.json';
+import { BodyModelLibrary, validateBodyModelTable } from './actors/bodyModelLibrary.ts';
+import itemsJson from './data/items.json';
+import uiTextJson from './data/dialogue/ui.json';
+import { validateItemTable } from './data/types/items.ts';
+import { validateUiText } from './data/types/uiText.ts';
+import { Inventory } from './game/inventory.ts';
+// ADR-0024 map + objectives, ADR-0010 speech, barks and hints, ADR-0005/0008 supplies.
+import objectivesJson from './data/objectives.json';
+import { objectivesValidator } from './data/types/objectives.ts';
+import { buildMapModel, MapState } from './ui/mapModel.ts';
+import { Guidance } from './game/guidance.ts';
+import { loadDialogueLibrary } from './dialogue/load.ts';
+import { SpeechManager } from './dialogue/speech.ts';
+import { WebAudioVoicePlayer } from './dialogue/voicePlayer.ts';
+import { Subtitles } from './ui/hud/subtitles.ts';
 
+/** The level New game plays (ADR-0014). */
+const DEFAULT_LEVEL = 'slice01';
 const LEVEL_FILES = import.meta.glob<unknown>('./data/levels/*.json', { eager: true, import: 'default' });
 const TEXTURE_SIZE = 512;
 const FOG_COLOR = 0x04080a;
@@ -88,6 +120,10 @@ async function boot(): Promise<void> {
   const keymap = validate(validateKeymap, keymapJson, 'data/keymap.json');
   const difficulties = validate(validateDifficultyTable, difficultyJson, 'data/difficulty.json');
   const saves = new SaveStore(browserStore());
+  // Key items and access hint text (ADR-0024).
+  const itemTable = validate(validateItemTable, itemsJson, 'data/items.json');
+  const uiText = validate(validateUiText, uiTextJson, 'data/dialogue/ui.json');
+  const inventory = new Inventory(itemTable, events);
 
   prompt.textContent = 'Generating textures…';
   prompt.hidden = false;
@@ -115,17 +151,23 @@ async function boot(): Promise<void> {
 
   const t0 = performance.now();
   const materials = createMaterials(TEXTURE_SIZE, Math.min(8, renderer.capabilities.getMaxAnisotropy()));
-  // ?level=<id> loads a data-driven kit level (ADR-0003); otherwise the hand-built demo room.
-  const levelId = new URLSearchParams(location.search).get('level');
+  // The game is the slice (ADR-0014): no ?level loads slice01 and New game plays the intro (ADR-0017).
+  // ?level=<id> loads another data-driven kit level (ADR-0003, e.g. kit_test); ?level=demo is the hand-built demo room.
+  const levelParam = new URLSearchParams(location.search).get('level');
+  const levelId = levelParam === 'demo' ? null : (levelParam ?? DEFAULT_LEVEL);
   let room: DemoRoom | null = null;
   let level: Level | null = null;
+  let levelSpawns: SpawnPointData[] = [];
   let world: World;
+  await Promise.all([preloadSeabed(import.meta.env.BASE_URL), preloadSubModel(import.meta.env.BASE_URL)]);
   if (levelId) {
     const file = Object.entries(LEVEL_FILES).find(([path]) => path.endsWith(`/${levelId}.json`));
     if (!file) throw new Error(`No level '${levelId}'. Known: ${Object.keys(LEVEL_FILES).map((f) => f.replace(/^.*\/|\.json$/g, '')).join(', ')}`);
     const registry = new KitRegistry(validate(validateKitManifest, kitManifestJson, 'data/kit-manifest.json'), undefined);
-    const data = validate(levelValidator(registry.ids()), file[1], `data/levels/${levelId}.json`);
-    level = await loadLevel(data, { materials, registry, events, scene });
+    const refs = { items: new Set(Object.keys(itemTable)), uiText: new Set(Object.keys(uiText)) };
+    const data = validate(levelValidator(registry.ids(), refs), file[1], `data/levels/${levelId}.json`);
+    level = await loadLevel(data, { materials, registry, events, scene, inventory, uiText });
+    levelSpawns = spawnPointsOf(data);
     world = level;
     console.info(`[boot] level '${levelId}' built in ${(performance.now() - t0).toFixed(0)} ms`);
     console.table(level.roomStats());
@@ -151,6 +193,11 @@ async function boot(): Promise<void> {
   freeCam.yaw = world.spawn.yaw;
   freeCam.speed = 2.5;
   freeCam.bounds = world.bounds;
+
+  // Security camera feeds (ADR-0023): `cameraFeed` actions draw the world from a camera onto `feed:<id>` screens.
+  const feedGl = createFeedGl({ renderer, scene, view: level ? (eye, draw) => level.renderFromEye(eye, draw) : null });
+  const cameraFeeds = new CameraFeeds({ root: world.group, draw: feedGl });
+  events.on('level:reset', () => cameraFeeds.reset());
 
   const flashlight = new Flashlight(scene, camera);
   const interactions = new Interactions();
@@ -182,7 +229,12 @@ async function boot(): Promise<void> {
     hud,
     ui: new CutsceneUi(el<HTMLElement>('#ui')),
     skipKeyLabel: () => keyLabel(keymap.skipCutscene[0] ?? 'Space'),
+    // The opening needs the dock and kitchen anchors (ADR-0017); other levels start in control.
+    hasIntro: () => level?.anchor('post_front') != null,
   });
+  // Map knowledge (ADR-0024): outlines from the level data, saved with the game.
+  const mapModel = level ? buildMapModel(level.source) : null;
+  const mapState = mapModel ? new MapState(mapModel) : null;
   const game = new Game({
     events,
     settings,
@@ -199,8 +251,25 @@ async function boot(): Promise<void> {
     toasts,
     hud,
     cutscene,
+    inventory,
+    map: mapState,
   });
   currentPreset = () => game.preset;
+  // Tutorial pop-ups (ADR-0025): pause the simulation while one is open (see the loop).
+  const tutorials = new TutorialPrompts({
+    parent: el<HTMLElement>('#ui'),
+    events,
+    settings,
+    input,
+    profile: new TutorialProfile(browserStore()),
+    bindings: (a) => keymap[a],
+    mode: () => game.mode,
+    playTime: () => game.playTime,
+    onRails: () => player.onRails || (sequences?.skippable ?? false),
+    sequenceRunning: (id) => sequences?.isRunning(id) ?? false,
+    flashlightOn: () => flashlight.on,
+    focusId: () => interactions.focus?.target.id ?? null,
+  });
 
   // Squad (ADR-0011): Giles and Okafor follow Jay through the shared navgraph (ADR-0007).
   prompt.textContent = 'Building the squad…';
@@ -208,27 +277,162 @@ async function boot(): Promise<void> {
   const t1 = performance.now();
   const gore = new GoreSystem(new Rng('game-gore'));
   scene.add(gore.group);
-  const squad = new Squad({ ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore }, nav: world.navGraph(), player });
+  // Imported crowd bodies (ADR-0026): `?bodyModels=all` makes every eligible spawn use one, `off` none.
+  const bodyModels = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/body-models.json'));
+  const bodyModelsParam = new URLSearchParams(location.search).get('bodyModels');
+  if (bodyModelsParam === 'all') bodyModels.forceShare = 1;
+  if (bodyModelsParam === 'off') bodyModels.forceShare = 0;
+  await bodyModels.load(import.meta.env.BASE_URL);
+  const squad = new Squad({
+    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels },
+    nav: world.navGraph(),
+    player,
+    difficulty: () => game.preset,
+    // squad:* events (reloading, downed, revived, taskProgress, noSafetyNet...) for barks and the HUD.
+    emit: (name, payload) => events.emit(name, payload as never),
+    flags: () => game.flags,
+    // ADR-0011: Jay down while the medic is down: nobody can revive him.
+    gameOver: () => player.damage(1e6),
+  });
   scene.add(squad.group);
   squad.group.visible = false;
   console.info(`[boot] squad built in ${(performance.now() - t1).toFixed(0)} ms`);
   events.on('game:mode', ({ mode }) => {
     squad.group.visible = mode !== 'title';
   });
-  prompt.textContent = 'Building weapons…';
+  // Enemies (ADR-0007): level spawns, player hits, noise; `?enemies=shambler:2,hero` for a quick fight.
+  const enemies = setupEnemies({ events, ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels }, world, player, camera, flashlightOn: () => flashlight.on, game, audio, spawns: levelSpawns, squad, search: location.search });
+  scene.add(enemies.director.group);
+  wireSquadToEnemies(squad, enemies.director, events);
+  // Enemies and squadmates open unlocked auto doors as they walk up (level.setActors).
+  // (NPCs join below, once the NpcDirector exists.)
+  // Scripted NPCs and the cast (ADR-0009/0017/0023): sequences drive them and borrow the squad.
+  const npcFeet = new THREE.Vector3();
+  const npcHead = new THREE.Vector3();
+  const npcs = new NpcDirector({
+    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels },
+    nav: world.navGraph(),
+    colliders: world.playerWorld.colliders,
+    squad,
+    player: () => ({ feet: npcFeet.set(player.body.x, player.body.y, player.body.z), head: player.eyePosition(npcHead), wish: player.wish }),
+    interact: (item) => interactions.add(item),
+    emit: (name, payload) => events.emit(name as never, payload as never),
+    sequenceRunning: () => (sequences?.running().length ?? 0) > 0,
+  });
+  scene.add(npcs.group);
+  // Scripted walks path round corners, and everyone (cast, spawned NPCs, squad) is solid to Jay.
+  player.setNav(world.navGraph());
+  player.setBodies(() => npcs.solidBodies());
+  if (level) npcs.spawnFromLevel(level.npcSpawns());
+  // Enemies, squadmates and scripted NPCs (the intro crew) open unlocked auto doors as they walk up.
+  level?.setActors(function* () {
+    for (const e of enemies.director.list) if (e.alive && e.state !== 'dormant' && e.state !== 'playDead') yield e.position;
+    for (const m of squad.mates) yield m.position;
+    for (const id of npcs.ids()) {
+      if (npcs.isSquad(id)) continue;
+      const a = npcs.actor(id, false);
+      if (a) yield a.position;
+    }
+  });
+  npcs.group.visible = false;
+  events.on('game:mode', ({ mode }) => {
+    npcs.group.visible = mode !== 'title';
+    if (mode === 'title') npcs.reset();
+  });
+  events.on('game:restarted', () => npcs.reset());
+  prompt.textContent = 'Loading weapons…';
   await nextFrame();
+  const weaponModels = await loadWeaponModels();
   const viewmodel = new Viewmodel({
     scene,
     camera,
     input,
     player,
     events,
-    enabled: () => game.mode === 'playing' && !game.flying && player.alive && player.control.state.weapons,
+    models: weaponModels,
+    enabled: () => game.mode === 'playing' && !game.flying && player.alive && player.control.state.weapons && !tutorials.blocking,
     visible: () => game.mode !== 'title' && !game.flying,
     reducedMotion: () => settings.get().reducedMotion,
+    // ADR-0005: on a level with a shotgun pickup Jay starts with the pistol only (flag `weapon:shotgun`).
+    owns: (id) => id === 'pistol' || !(level?.source.pickups ?? []).some((p) => p.kind === 'weapon_shotgun') || game.flags['weapon:shotgun'] === true,
+  });
+  hud.setAmmoSource(() => {
+    const id = viewmodel.weapon;
+    return { name: id, ...viewmodel.ammoOf(id), mag: viewmodel.magSize(id) };
   });
   renderer.compile(scene, camera);
-  createMenus(el<HTMLElement>('#menu'), { game, saves, settings, difficulties, events });
+  // Speech (ADR-0010): one voice at a time with subtitles; lines unknown to the library are skipped.
+  const dialogue = loadDialogueLibrary();
+  const speech = new SpeechManager(events, dialogue, new WebAudioVoicePlayer(audio));
+  squad.setSpeech(speech);
+  new Subtitles(el<HTMLElement>('#ui'), events, settings);
+  const say = (id: string, opts?: { overlap?: boolean; at?: () => { x: number; y: number; z: number } }) => {
+    if (!dialogue.hasLine(id)) {
+      console.warn(`[speech] unknown line "${id}"`);
+      return null;
+    }
+    return speech.say(id, opts);
+  };
+  events.on('game:mode', ({ mode }) => {
+    if (mode === 'title') speech.stopAll();
+  });
+  events.on('game:restarted', () => speech.stopAll());
+  const guidance = new Guidance({
+    events,
+    input,
+    ui: el<HTMLElement>('#ui'),
+    scene,
+    materials,
+    interactions,
+    toasts,
+    level,
+    model: mapModel,
+    mapState,
+    objectives: validate(objectivesValidator(new Set(dialogue.allLines().map((l) => l.id))), objectivesJson, 'data/objectives.json'),
+    barkLines: dialogue.allLines().filter((l) => l.id.startsWith('bark_') || l.id.startsWith('hint_')),
+    speech: { speaking: () => speech.speaking(), say },
+    speakerAt: (sp) => {
+      if (sp !== 'engineer' && sp !== 'medic') return null;
+      const p = squad.mate(sp).position;
+      return { x: p.x, y: p.y + 1.6, z: p.z };
+    },
+    nav: () => world.navGraph(),
+    difficulties,
+    preset: () => game.preset,
+    flags: () => game.flags,
+    mode: () => game.mode,
+    busy: () => game.flying || player.onRails || (sequences?.skippable ?? false) || tutorials.blocking,
+    openMap: () => game.openMap(),
+    resume: () => game.resume(),
+    player: {
+      feet: () => ({ x: player.body.x, y: player.body.y, z: player.body.z }),
+      yaw: () => player.yaw,
+      hp: () => player.vitals.hp,
+      alive: () => player.alive,
+      heal: (n) => {
+        const before = player.vitals.hp;
+        player.heal(n);
+        return player.vitals.hp > before;
+      },
+    },
+    // Shotgun ammo only counts (boxes, drops) once the armory shotgun is carried (ADR-0005).
+    ammo: () => ({
+      pistol: { ...viewmodel.ammoOf('pistol'), mag: viewmodel.magSize('pistol') },
+      ...(viewmodel.owns('shotgun') ? { shotgun: { ...viewmodel.ammoOf('shotgun'), mag: viewmodel.magSize('shotgun') } } : {}),
+    }),
+    addAmmo: (w, n) => viewmodel.addReserve(w, n),
+    giveWeapon: (w) => {
+      if (viewmodel.owns(w)) return false;
+      game.flags[`weapon:${w}`] = true;
+      events.emit('weapon:given' as never, { weapon: w } as never);
+      viewmodel.equip(w);
+      return true;
+    },
+    itemName: (id) => inventory.name(id),
+    holds: (id) => inventory.satisfies(id),
+    keys: (a) => keymap[a],
+  });
+  createMenus(el<HTMLElement>('#menu'), { game, saves, settings, difficulties, events, resetTutorials: () => tutorials.reset() });
   const menuMusic = new MenuMusic(audio, game.mode);
   menuMusic.start();
   events.on('game:mode', ({ mode }) => menuMusic.setMode(mode));
@@ -242,45 +446,43 @@ async function boot(): Promise<void> {
   });
   // Empty chamber: same click for both guns, a little lower and heavier on the shotgun.
   events.on('weapon:dryFire', ({ weapon }) => audio.play('dryFire', { bus: 'sfx', gain: 0.8, rate: weapon === 'shotgun' ? 0.88 : 1 }));
-  // Pistol reload: the recording is split into mag out / mag in / slide release, each timed to its animation phase.
-  let reloadTimers: ReturnType<typeof setTimeout>[] = [];
-  const clearReloadSounds = (): void => {
-    reloadTimers.forEach(clearTimeout);
-    reloadTimers = [];
-  };
-  events.on('weapon:reloadStart', ({ weapon, duration, empty }) => {
-    if (weapon !== 'pistol' || duration === undefined) return;
-    clearReloadSounds();
-    const at = (u: number, sound: 'pistolReloadOut' | 'pistolReloadIn' | 'pistolReloadSlide', gain: number): void => {
-      reloadTimers.push(setTimeout(() => audio.play(sound, { bus: 'sfx', gain, reverb: 0.2 }), u * duration * 1000));
-    };
-    at(0.1, 'pistolReloadOut', 0.7);
-    at(0.6, 'pistolReloadIn', 0.8);
-    if (empty) at(0.74, 'pistolReloadSlide', 0.8);
+  // Reload, pump and shell sounds hang on cues the viewmodel emits at fixed points of the GLB clips (CUES in
+  // viewmodel.ts), so they stay in step with the animation whatever its speed. The samples start a few
+  // milliseconds before their transient, so each cue time already allows for that.
+  events.on('weapon:cue', ({ cue }) => {
+    switch (cue) {
+      case 'magOut':
+        audio.play('pistolReloadOut', { bus: 'sfx', gain: 0.7, reverb: 0.2 });
+        break;
+      case 'magIn':
+        audio.play('pistolReloadIn', { bus: 'sfx', gain: 0.8, reverb: 0.2 });
+        break;
+      case 'slide':
+        audio.play('pistolReloadSlide', { bus: 'sfx', gain: 0.8, reverb: 0.2 });
+        break;
+      case 'slideSoft':
+        audio.play('pistolReloadSlide', { bus: 'sfx', gain: 0.45, reverb: 0.2, rate: 1.04 });
+        break;
+      case 'pump':
+        audio.play('shotgunPump', { bus: 'sfx', gain: 0.8, reverb: 0.2 });
+        break;
+    }
   });
-  events.on('weapon:equipped', ({ weapon }) => {
-    clearReloadSounds();
-    // Switching to the shotgun racks the pump (animation only; no ammo change). Same 0.2 s offset as after a shot.
-    if (weapon === 'shotgun') reloadTimers.push(setTimeout(() => audio.play('shotgunPump', { bus: 'sfx', gain: 0.8, reverb: 0.2 }), 200));
-  });
-  // One shell-in sound per shell as it reaches the port, with a little pitch variation so a run of them doesn't machine-gun.
+  // One shell-in sound per shell as it seats in the port (ReloadOne), with a little pitch variation so a run of them doesn't machine-gun.
   events.on('weapon:shellInsert', () => audio.play('shotgunShell', { bus: 'sfx', gain: 0.8, reverb: 0.2, rate: 0.96 + Math.random() * 0.08 }));
   events.on('weapon:fired', ({ weapon }) => {
     const rate = 0.97 + Math.random() * 0.06;
-    if (weapon === 'pistol') {
-      audio.play('pistolShot', { bus: 'sfx', gain: 0.6, reverb: 0.35, rate });
-    } else {
-      audio.play('shotgunShot', { bus: 'sfx', gain: 0.9, reverb: 0.4, rate });
-      // The pump animation starts racking back 0.2 s after the shot.
-      setTimeout(() => audio.play('shotgunPump', { bus: 'sfx', gain: 0.8, reverb: 0.2 }), 200);
-    }
+    if (weapon === 'pistol') audio.play('pistolShot', { bus: 'sfx', gain: 0.6, reverb: 0.35, rate });
+    else audio.play('shotgunShot', { bus: 'sfx', gain: 0.9, reverb: 0.4, rate });
   });
   events.on('room:entered', (r) => audio.setRoomReverb(r.reverb));
 
+  events.on('item:given', (it) => toasts.show('Picked up', it.name));
   if (level) {
     level.registerInteractions(interactions);
     events.on('door:denied', (d) => toasts.show('Door', d.reason));
     events.on('door:unlocked', (d) => toasts.show('Door unlocked', d.id));
+    events.on('access:denied', (d) => hud.showHint(d.hint));
   } else {
     // Demo room interactables (ADR-0004).
     interactions.add({ id: 'save_station', prompt: 'Use save station', box: DEMO_INTERACT_BOXES.saveStation, use: () => game.openSaveStation() });
@@ -405,16 +607,52 @@ async function boot(): Promise<void> {
         setTimeout(() => runSequence(seqId), 1200);
       });
     }
+    // ?debug&jump=r05|r06|r07|r09|r11: skip the quiet half and start at that action beat with the flags it needs
+    // (ADR-0014 Part B). The intro still gets cancelled; doors are re-applied by the `action_restore` sequence.
+    const jump = new URLSearchParams(location.search).get('jump');
+    if (jump && level) {
+      const base: Record<string, boolean | number> = { introSeen: true, briefingSeen: true, rounds_done: true, drop_started: true, drop_done: true };
+      const steps: Array<[string, string, Record<string, boolean | number>]> = [
+        ['r05', 'cp_first_contact', {}],
+        ['r06', 'cp_cover_me', { contact_done: true }],
+        ['r07', 'cp_security', { cover_done: true, 'giles.infectionStage': 1 }],
+        ['r09', 'cp_flooded', { armory_open: true, glass_near: true, sec_done: true, medlab_open: true, 'giles.infectionStage': 3, 'giles.bandaged': true, 'weapon:shotgun': true }],
+        ['r11', 'cp_climax', { tunnel_started: true, valve_done: true, 'giles.infectionStage': 3, 'giles.bandaged': true, 'weapon:shotgun': true }],
+      ];
+      const off = events.on('game:mode', ({ mode }) => {
+        if (mode !== 'playing') return;
+        off();
+        setTimeout(() => {
+          const upto = steps.findIndex(([key]) => key === jump);
+          const cp = upto >= 0 ? level.source.checkpoints?.find((c) => c.id === steps[upto]![1]) : undefined;
+          if (!cp) return console.warn(`[debug] jump=${jump}: use ${steps.map(([k]) => k).join(', ')}`);
+          sequences?.cancelAll();
+          Object.assign(game.flags, base);
+          for (const [, , add] of steps.slice(0, upto + 1)) Object.assign(game.flags, add);
+          sequences?.start('action_restore');
+          player.placeAtEye(new THREE.Vector3(cp.pos[0], cp.pos[1] + PLAYER_TUNING.eyeHeight, cp.pos[2]), ((cp.yaw ?? 0) * Math.PI) / 180);
+        }, 400);
+      });
+    }
+    // ?debug&give=card_l2,vent_driver: key items at the start of play (ADR-0024).
+    const give = new URLSearchParams(location.search).get('give');
+    if (give) {
+      events.on('game:mode', ({ mode }) => {
+        if (mode === 'playing') for (const id of give.split(',')) inventory.give(id.trim(), 'debug');
+      });
+    }
     if (level) {
       const overlay = new LevelOverlay(level);
       scene.add(overlay.group);
       const lf = gui.addFolder('Level');
       for (const layer of OVERLAY_LAYERS) lf.add(overlay.visible, layer).name(layer).onChange((on: boolean) => overlay.set(layer, on));
       lf.add({ unlockAll: () => level.unlock('D2', 'script') }, 'unlockAll').name('unlock D2');
+      for (const id of Object.keys(itemTable)) lf.add({ give: () => inventory.give(id, 'debug') }, 'give').name(`give ${inventory.name(id)}`);
       levelStats = { drawCalls: 0, pool: 0 };
       lf.add(levelStats, 'drawCalls').name('visible draw calls').listen().disable();
       lf.add(levelStats, 'pool').name('pooled lights bound').listen().disable();
     }
+    enemies.addDebug(gui);
     gui.close();
   }
 
@@ -439,17 +677,30 @@ async function boot(): Promise<void> {
   let simTime = 0;
   const loop = new Loop({
     update: (dt) => {
+      tutorials.update(dt);
+      if (game.mode === 'playing') speech.update(dt);
+      if (tutorials.blocking) {
+        input.endStep();
+        return;
+      }
       simTime += dt;
       game.update(dt);
       if (game.mode === 'playing' && !game.flying) {
         sequences?.update(dt);
+        enemies.update(dt);
         squad.update(dt, camera.position);
+        npcs.update(dt, camera.position);
         gore.update(dt);
+        guidance.update(dt);
       }
       input.endStep();
     },
     render: (_alpha, frameDt) => {
       debug?.beginFrame();
+      // Camera feeds first: they rebind room visibility and lights, which world.update sets back for Jay.
+      if (game.mode === 'playing') cameraFeeds.update(frameDt, simTime);
+      tutorials.render();
+      guidance.render(frameDt);
       game.render(frameDt);
       viewmodel.update(frameDt);
       flashlight.update(frameDt);
@@ -462,6 +713,7 @@ async function boot(): Promise<void> {
       roomAudio?.update(simTime);
       post.grade.uDamage.value = game.mode === 'title' || game.flying ? 0 : player.damageFx;
       post.render(simTime);
+      feedGl.overlay(game.mode === 'playing' ? cameraFeeds.fullscreen : null);
       debug?.endFrame();
     },
   });
@@ -476,6 +728,13 @@ async function boot(): Promise<void> {
       audio,
       hud,
       toasts,
+      inventory,
+      enemies: enemies.director,
+      npcs,
+      cameraFeeds,
+      gore,
+      titleCard: new TitleCard(el<HTMLElement>('#ui')),
+      speech: { say: (id: string, opts?: { overlap?: boolean }) => say(id, opts), stopAll: () => speech.stopAll() },
       anchors: room ? { door: room.anchors.door, window: room.anchors.window, vent: room.anchors.vent, console: room.anchors.console, abyss: room.anchors.abyss } : undefined,
       setTimeScale: (scale) => {
         loop.clock.scale = scale;

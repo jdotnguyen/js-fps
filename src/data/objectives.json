@@ -1,0 +1,178 @@
+{
+  "round_hydro": {
+    "title": "Hydroponics: sign the irrigation log",
+    "required": true,
+    "area": "hydroponics",
+    "hints": [
+      [
+        "hint_hydro_1a",
+        "hint_hydro_1b"
+      ],
+      [
+        "hint_hydro_2a",
+        "hint_map_1b",
+        "hint_hydro_2b"
+      ],
+      [
+        "hint_hydro_3a"
+      ]
+    ]
+  },
+  "round_dive": {
+    "title": "Dive bay: take the sample case to the airlock locker",
+    "required": true,
+    "area": "dive_bay",
+    "hints": [
+      [
+        "hint_dive_1a",
+        "hint_map_1a",
+        "hint_dive_1b"
+      ],
+      [
+        "hint_dive_2a",
+        "hint_dive_2b"
+      ],
+      [
+        "hint_dive_3a"
+      ]
+    ]
+  },
+  "round_admin": {
+    "title": "TAG admin: collect your Level 2 Card from Hale",
+    "required": true,
+    "area": "admin",
+    "hints": [
+      [
+        "hint_admin_1a",
+        "hint_admin_1b"
+      ],
+      [
+        "hint_admin_2a",
+        "hint_admin_2b"
+      ],
+      [
+        "hint_admin_3a"
+      ]
+    ]
+  },
+  "round_return": {
+    "title": "Return to the observation gallery",
+    "required": true,
+    "area": "gallery"
+  },
+  "obj_survive_lab": {
+    "title": "Get out of Lab B alive",
+    "required": true,
+    "hints": [
+      [
+        "hint_survive_1a"
+      ],
+      [
+        "hint_survive_2a"
+      ]
+    ]
+  },
+  "obj_hold_door": {
+    "title": "Cover Giles at the pressure door",
+    "required": true,
+    "target": "anchor:r06_panel"
+  },
+  "obj_armory": {
+    "title": "Take what you need from the armory",
+    "required": false,
+    "target": "anchor:shotgun_pickup",
+    "completeOn": {
+      "event": "pickup:taken",
+      "match": {
+        "kind": "weapon_shotgun"
+      }
+    }
+  },
+  "obj_medlab": {
+    "title": "Get through the med-lab door",
+    "required": true,
+    "target": "door:D_R07_R09"
+  },
+  "obj_valve": {
+    "title": "Restore pressure at the valve",
+    "required": true,
+    "target": "anchor:valve_r10"
+  },
+  "obj_power": {
+    "title": "Hold the control room while Giles restores power",
+    "required": true,
+    "target": "room:R11"
+  },
+  "opt_hydro_storeroom": {
+    "title": "Find a way into the Level 2 storeroom",
+    "required": false,
+    "startOn": {
+      "event": "access:denied",
+      "match": {
+        "requires": "card_l2"
+      }
+    },
+    "completeOn": {
+      "event": "access:granted",
+      "match": {
+        "requires": "card_l2"
+      }
+    },
+    "hints": [
+      [
+        "hint_storeroom_1a"
+      ]
+    ]
+  },
+  "opt_map_hydro": {
+    "title": "Find the hydroponics wall map",
+    "required": false,
+    "area": "hydroponics",
+    "startOn": {
+      "event": "map:areaEntered",
+      "match": {
+        "area": "hydroponics"
+      }
+    },
+    "completeOn": {
+      "event": "map:revealed",
+      "match": {
+        "area": "hydroponics"
+      }
+    }
+  },
+  "opt_map_dive": {
+    "title": "Find the dive bay wall map",
+    "required": false,
+    "area": "dive_bay",
+    "startOn": {
+      "event": "map:areaEntered",
+      "match": {
+        "area": "dive_bay"
+      }
+    },
+    "completeOn": {
+      "event": "map:revealed",
+      "match": {
+        "area": "dive_bay"
+      }
+    }
+  },
+  "opt_map_admin": {
+    "title": "Find the admin office wall map",
+    "required": false,
+    "area": "admin",
+    "startOn": {
+      "event": "map:areaEntered",
+      "match": {
+        "area": "admin"
+      }
+    },
+    "completeOn": {
+      "event": "map:revealed",
+      "match": {
+        "area": "admin"
+      }
+    }
+  }
+}

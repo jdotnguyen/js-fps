@@ -85,3 +85,12 @@ have taken and shakes the camera. Player health and knockback belong to ADR-0004
 ## Open questions
 - Should a slam also knock nearby shamblers aside (via ADR-0018 masses)?
 - Should the hero enrage (faster windup) below some torso HP?
+
+## Progress
+### 2026-11-17: steps 4-5 (game AI, sound)
+The `hero` variant (`src/data/enemies.json`) chases through the navgraph without lurching and calls
+`Humanoid.tryAttack` in slam range; it keeps tracking through the windup. On impact the director applies
+`slamFalloff` x 45 to every target (player through `Player.damage`, squadmates via `enemy:attack`), knocks
+them back (up to 4.5 m/s, the player through `player.velocity`) and staggers shamblers in the radius, which
+answers the first open question with "yes". `enemy:slam` plays a slowed `metalKnock`; the floor burst from
+`humanoid.ts` stands in for dust. Try `/?level=kit_test&enemies=hero`. Not seen in a browser yet.

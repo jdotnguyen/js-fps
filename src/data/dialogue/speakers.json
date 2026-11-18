@@ -7,6 +7,22 @@
     "name": "Okafor", "kind": "voice", "f0": 115, "formants": 0.94, "tempo": 1.15, "attack": 1.4,
     "breath": 0.18, "rasp": 0, "drive": 0.15, "detune": 0, "brightness": 4800, "channel": "local"
   },
+  "player": {
+    "name": "Jay", "kind": "voice", "f0": 125, "formants": 1.0, "tempo": 1.0, "attack": 1.1,
+    "breath": 0.14, "rasp": 0.02, "drive": 0.15, "detune": 0, "brightness": 5200, "channel": "local"
+  },
+  "nurse": {
+    "name": "Priya", "kind": "voice", "f0": 230, "formants": 1.22, "tempo": 0.95, "attack": 0.9,
+    "breath": 0.12, "rasp": 0, "drive": 0.15, "detune": 0, "brightness": 7500, "channel": "local"
+  },
+  "chief": {
+    "name": "Heins", "kind": "voice", "f0": 205, "formants": 1.17, "tempo": 0.88, "attack": 0.7,
+    "breath": 0.1, "rasp": 0.08, "drive": 0.22, "detune": 0, "brightness": 6800, "channel": "local"
+  },
+  "director": {
+    "name": "Director Hale", "kind": "voice", "f0": 118, "formants": 0.98, "tempo": 1.08, "attack": 1.3,
+    "breath": 0.06, "rasp": 0, "drive": 0.1, "detune": 0, "brightness": 5600, "channel": "radio"
+  },
   "pa": {
     "name": "Station PA", "kind": "chime", "f0": 440, "formants": 1, "tempo": 1, "attack": 1,
     "breath": 0, "rasp": 0, "drive": 0, "detune": 0, "brightness": 6000, "channel": "radio"

@@ -1,9 +1,9 @@
 import type { KeyValueStore } from '../core/storage.ts';
-import { bool, nullable, num, numRange, obj, oneOf, record, scalar, str, validate, vec3, type Infer } from '../core/validate.ts';
+import { arr, bool, nullable, num, numRange, obj, oneOf, record, scalar, str, validate, vec3, type Infer } from '../core/validate.ts';
 import { DIFFICULTY_IDS } from '../data/types/difficulty.ts';
 
 /** Save system (ADR-0016): 3 slots, each with its latest autosave and last manual save. */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 3;
 export const SLOT_COUNT = 3;
 export const SAVE_KINDS = ['auto', 'manual'] as const;
 export type SaveKind = (typeof SAVE_KINDS)[number];
@@ -21,6 +21,10 @@ const saveShape = {
   location: str,
   player: obj({ position: vec3, yaw: num, pitch: num, health: numRange(0, 1000), flashlightOn: bool }),
   flags: record(scalar),
+  /** Key items held (ADR-0024), ids from data/items.json. Added in v2. */
+  items: arr(str),
+  /** Map knowledge per level id (ADR-0024): rooms walked and areas revealed. Added in v3. */
+  map: record(obj({ seen: arr(str), revealed: arr(str) })),
 };
 
 export type SaveData = Infer<typeof saveShape>;
@@ -30,7 +34,12 @@ const validateSave = obj(saveShape);
  * MIGRATIONS[n] converts a version-n save object into version n+1.
  * Add an entry (and bump SAVE_VERSION) whenever the schema changes.
  */
-export const MIGRATIONS: Record<number, (old: Record<string, unknown>) => Record<string, unknown>> = {};
+export const MIGRATIONS: Record<number, (old: Record<string, unknown>) => Record<string, unknown>> = {
+  // v2 (ADR-0024): key items. Older saves hold none.
+  1: (old) => ({ ...old, items: [] }),
+  // v3 (ADR-0024): map state. Older saves have walked nothing yet.
+  2: (old) => ({ ...old, map: {} }),
+};
 
 export class SaveError extends Error {
   constructor(message: string) {

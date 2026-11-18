@@ -2,11 +2,14 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '../core/rng.ts';
 import { Animator, type GaitStyle } from './animator.ts';
+import { bodyGeometryFromModel } from './bodyModel.ts';
+import type { BodyModelLibrary } from './bodyModelLibrary.ts';
 import { buildBodyGeometry, triangleCount, woundCap, type BodyGeometry, type ExtraBone, type ExtraBoneDef, type Look, type Outfit, type PartGeometry } from './bodyGeometry.ts';
 import { createBodyMaterials, MAX_BONES, type BodyMaterials } from './bodyMaterial.ts';
 import { rayCapsule } from './capsule.ts';
 import { BodyDamage, DEFAULT_PROFILE, HERO_BASE_HP, HERO_PROFILE, POISE_WINDOW, SHAMBLER_BASE_HP, type HitResult, type LocomotionState } from './damage.ts';
 import { BELLY_WOUND } from './heroSculpt.ts';
+import { CastTells, NO_TELLS, type Tells } from './castTells.ts';
 import { SLAM, SlamState } from './slam.ts';
 import type { GoreSystem } from './gore.ts';
 import { solveTwoBone } from './ik.ts';
@@ -35,6 +38,8 @@ const PIVOT_REACH_DRAG = 0.4;
 const HERO_SPEED = 0.72;
 const HERO_TURN = 1.2;
 const WEAK_SPOT_SLACK = 1.25;
+/** Merge group for a piece: its imported surface, else its layer. Surface keys never clash with the layers (bodyModel.ts). */
+const materialKey = (p: PartGeometry): string => p.surface ?? p.layer;
 const isLegRegion = (r: Region): boolean => r.startsWith('thigh_') || r.startsWith('shin_');
 
 export type Role = 'enemy' | 'npc' | 'corpse';
@@ -60,11 +65,18 @@ export interface HumanoidSpec {
   pose?: string;
   /** Hand-set appearance for named characters (squad). */
   look?: Look;
+  /**
+   * Imported body model id (data/body-models.json, ADR-0026) in place of the procedural body. Ignored if the
+   * context has no library or the model failed to load; outfit, look and hero sculpting do not apply to it.
+   */
+  model?: string;
 }
 
 export interface HumanoidContext {
   poses: PoseLibrary;
   gore: GoreSystem;
+  /** Loaded imported body models (ADR-0026); bodies without one are procedural. */
+  bodyModels?: BodyModelLibrary;
 }
 
 export interface BodyHit {
@@ -98,6 +110,8 @@ export class Humanoid {
   readonly spec: Readonly<HumanoidSpec>;
   readonly damage: BodyDamage;
   readonly triangles: number;
+  /** Imported body model in use, or null for a procedural body. */
+  readonly modelId: string | null;
   readonly bones: Readonly<Record<JointName, THREE.Bone>>;
 
   state: LifeState;
@@ -107,6 +121,8 @@ export class Humanoid {
   speed = 0;
   /** Extra speed factor from the AI (lurch bursts, ADR-0007). */
   speedScale = 1;
+  /** A downed body being moved by a script (dragged, carried): hold this pose, never a walking gait. */
+  carried: string | null = null;
   /** World point the head turns toward, or null. */
   lookTarget: THREE.Vector3 | null = null;
   /** World points the hands reach for (consoles, panels), or null. */
@@ -131,6 +147,7 @@ export class Humanoid {
   private readonly hitboxes: THREE.Object3D[] = [];
   private infectionLevel: number;
   private transformAnim: { from: number; t: number; dur: number } | null = null;
+  private castTells: CastTells | null = null;
   private stateTimer = 0;
   private pendingPool = -1;
   private near = true;
@@ -156,7 +173,9 @@ export class Humanoid {
     this.glowPhase = this.rng.range(0, Math.PI * 2);
     this.group.name = `humanoid:${spec.seed}`;
 
-    this.geo = buildBodyGeometry({
+    const model = spec.model ? ctx.bodyModels?.get(spec.model) : undefined;
+    this.modelId = model ? (spec.model ?? null) : null;
+    this.geo = model ? bodyGeometryFromModel(model, height, this.rng.int(0, 1e6)) : buildBodyGeometry({
       outfit: spec.outfit,
       height,
       build,
@@ -166,7 +185,7 @@ export class Humanoid {
       ...(spec.look ? { look: spec.look } : {}),
     });
     this.triangles = triangleCount(this.geo.parts);
-    this.materials = createBodyMaterials();
+    this.materials = createBodyMaterials(this.geo.surfaces);
     this.bones = this.buildSkeleton();
     this.buildMeshes();
     this.buildCapsules();
@@ -213,6 +232,19 @@ export class Humanoid {
   setInfection(stage: number): void {
     this.transformAnim = null;
     this.infectionLevel = THREE.MathUtils.clamp(stage, 0, 3);
+  }
+
+  /** Bandage / veins / sweat overlays for named characters (ADR-0022); built on first use. */
+  setTells(t: Tells): void {
+    if (!this.castTells) {
+      if (t.bandage === NO_TELLS.bandage && t.veins === 0 && t.sweat === 0) return;
+      this.castTells = new CastTells((name) => this.bones[name]);
+    }
+    this.castTells.set(t);
+  }
+
+  get tells(): Readonly<Tells> {
+    return this.castTells?.current ?? NO_TELLS;
   }
 
   /** Scripted transformation 0 -> 3 (ADR-0006 set pieces): growths, skin, elongation, convulsions. */
@@ -412,6 +444,35 @@ export class Humanoid {
     return this.slam.start(Math.hypot(dx, dz), diff);
   }
 
+  /** Inside a hit flinch (ADR-0019) or an AI stagger: the AI starts no new attack (ADR-0007). */
+  get staggered(): boolean {
+    return this.staggerTimer > 0;
+  }
+
+  /** Flinch for at least `seconds` (shove, shotgun blast, lost limb: ADR-0007). Cancels a hero's windup. */
+  stagger(seconds: number): void {
+    if (this.state !== 'alive') return;
+    this.staggerTimer = Math.max(this.staggerTimer, seconds);
+    if (this.slam?.phase === 'windup') this.slam.cancel();
+  }
+
+  /** Damage without a ray hit (shove, scripts, debug kill): no gore burst, but death still applies. Use torso or head. */
+  hurt(region: Region, amount: number): HitResult {
+    const wasWalking = this.locomotion.mode === 'walk';
+    const result = this.damage.apply(region, amount);
+    if (result.killed) this.die(result.killedBy === 'limbs' && !wasWalking);
+    return result;
+  }
+
+  /** Swipe animation for a crowd attack (ADR-0007): the arm on `side` lashes forward and the chest follows. */
+  strike(side: Side, strength = 0.8): void {
+    this.strikeDir.set(0, 0.2, -1);
+    this.animator.kick(`foreArm_${side}`, this.strikeDir, strength);
+    this.animator.kick(`upperArm_${side}`, this.strikeDir, strength * 0.8);
+    this.animator.kick('chest', this.strikeDir, strength * 0.4);
+  }
+  private readonly strikeDir = new THREE.Vector3();
+
   /** World point where a slam landed this frame (y = 0), once; null otherwise. Callers apply `slamFalloff`. */
   consumeSlamImpact(): THREE.Vector3 | null {
     const p = this.slamImpact;
@@ -458,6 +519,7 @@ export class Humanoid {
     this.animator.setWound(this.locomotion.limpSide, this.locomotion.limp);
     this.animator.infect = this.infectionLevel / 3;
     this.animator.twitchy = moving && (this.spec.role === 'enemy' || this.infectionLevel >= 1);
+    this.animator.idleLife = this.state === 'alive' && this.spec.role === 'npc' && !this.locomotion.blind ? 1 : 0;
     this.animator.charge = this.state === 'alive' && this.locomotion.mode === 'walk' ? Math.max(this.charge, this.speedScale > 1.2 ? 1 : 0) : 0;
     this.updateBloodTrail(dt);
     if (this.lookTarget && this.state === 'alive' && !this.locomotion.blind) {
@@ -572,15 +634,24 @@ export class Humanoid {
   }
 
   dispose(): void {
+    this.castTells?.dispose();
     this.group.removeFromParent();
     for (const m of this.meshes) m.geometry.dispose();
     this.materials.body.dispose();
     this.materials.wet.dispose();
+    for (const m of Object.values(this.materials.surfaces)) m.dispose();
     for (const p of this.geo.parts) p.geometry.dispose();
     for (const h of this.hitboxes) if (h instanceof THREE.LineSegments) h.geometry.dispose();
   }
 
   // ---------------------------------------------------------------- internals: build
+
+  private materialFor(key: string): THREE.MeshStandardMaterial {
+    if (key === 'body' || key === 'wet') return this.materials[key];
+    const m = this.materials.surfaces[key];
+    if (!m) throw new Error(`humanoid: no surface material ${key}`);
+    return m;
+  }
 
   private jointBones(): THREE.Bone[] {
     return JOINTS.map((j) => this.bones[j.name]);
@@ -629,10 +700,17 @@ export class Humanoid {
 
   private buildMeshes(): void {
     this.group.updateMatrixWorld(true);
-    const layers: Record<PartGeometry['layer'], THREE.BufferGeometry[]> = { body: [], wet: [] };
+    const layers = new Map<string, THREE.BufferGeometry[]>();
     for (const part of this.geo.parts) {
       const bone = this.boneOf(part.bone);
       const g = part.geometry.clone().applyMatrix4(bone.matrixWorld);
+      const key = materialKey(part);
+      if (!layers.has(key)) layers.set(key, []);
+      if (g.getAttribute('skinIndex')) {
+        // Imported pieces arrive smooth-skinned onto the joints (bodyModel.ts); joint index = bone index.
+        layers.get(key)!.push(g);
+        continue;
+      }
       const count = g.getAttribute('position').count;
       const index = this.boneIndex.get(part.bone) ?? 0;
       const si = new Uint16Array(count * 4);
@@ -661,17 +739,16 @@ export class Humanoid {
       }
       g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
       g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
-      layers[part.layer].push(g);
+      layers.get(key)!.push(g);
     }
     const skeleton = new THREE.Skeleton(this.boneList);
-    for (const layer of ['body', 'wet'] as const) {
-      const list = layers[layer];
+    for (const [key, list] of layers) {
       if (list.length === 0) continue;
       const merged = mergeGeometries(list, false);
       for (const g of list) g.dispose();
       if (!merged) throw new Error('humanoid: geometry merge failed (attribute mismatch)');
-      const mesh = new THREE.SkinnedMesh(merged, this.materials[layer]);
-      mesh.name = `${this.group.name}:${layer}`;
+      const mesh = new THREE.SkinnedMesh(merged, this.materialFor(key));
+      mesh.name = `${this.group.name}:${key}`;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       // Poses reach ~1.9 m from the feet in any direction; a fixed sphere avoids per-frame bounds.
@@ -740,7 +817,7 @@ export class Humanoid {
   private chooseAnimation(): void {
     const loc = this.locomotion;
     let gait: GaitStyle = 'none';
-    if (this.state === 'alive') {
+    if (this.state === 'alive' && !this.carried) {
       if (loc.mode === 'crawl') gait = 'crawl';
       else if (loc.mode === 'drag') gait = 'drag';
       else if (loc.blind) gait = 'flail';
@@ -748,7 +825,7 @@ export class Humanoid {
       else if (this.speed > 0.05 || this.spec.role === 'enemy') gait = this.spec.role === 'enemy' ? 'shamble' : 'walk';
     }
     this.animator.gait = gait;
-    this.animator.speed = this.speed;
+    this.animator.speed = this.carried ? 0 : this.speed;
     this.animator.turnRate = gait === 'crawl' || gait === 'drag' ? this.turn.vel : 0;
     this.animator.turnError = gait === 'crawl' || gait === 'drag' ? this.turnError : 0;
     if (this.state !== 'alive' || this.animator.sequencePlaying) return;
@@ -766,6 +843,7 @@ export class Humanoid {
     else if (loc.blind) pose = 'blindFlail';
     else if (this.spec.role === 'npc' && this.speed > 0.05) pose = 'walk';
     else if (this.spec.role === 'enemy') pose = this.spec.pose ?? 'shamble';
+    if (this.carried) pose = this.carried;
     this.animator.setPose(pose, 0.45);
   }
 
@@ -807,7 +885,7 @@ export class Humanoid {
     }
 
     this.group.updateMatrixWorld(true);
-    const debris = this.buildDebris(jointName, def?.segment?.r0 ?? 0.05);
+    const debris = this.buildDebris(jointName, (this.modelId ? this.ctx.bodyModels?.get(this.modelId)?.stumpRadius[jointName] : undefined) ?? def?.segment?.r0 ?? 0.05);
     for (const j of subtree(jointName)) this.detached.add(j);
     this.stumpsOn.add(jointName);
     this.applyBoneScales();
@@ -830,7 +908,11 @@ export class Humanoid {
     const root = this.bones[rootJoint];
     const inv = root.matrixWorld.clone().invert();
     const chain = new Set(subtree(rootJoint).filter((j) => !this.detached.has(j)));
-    const layers: Record<PartGeometry['layer'], THREE.BufferGeometry[]> = { body: [], wet: [] };
+    const layers = new Map<string, THREE.BufferGeometry[]>();
+    const push = (key: string, g: THREE.BufferGeometry): void => {
+      if (!layers.has(key)) layers.set(key, []);
+      layers.get(key)!.push(g);
+    };
     const m = new THREE.Matrix4();
     for (const part of this.geo.parts) {
       const owner = part.bone;
@@ -843,23 +925,22 @@ export class Humanoid {
       }
       if (!include) continue;
       m.multiplyMatrices(inv, this.boneOf(owner).matrixWorld);
-      layers[part.layer].push(part.geometry.clone().applyMatrix4(m));
+      push(materialKey(part), part.geometry.clone().applyMatrix4(m));
     }
     // Cut face on the severed end, facing back toward the body.
     const dirY: 1 | -1 = rootJoint === 'head' ? -1 : 1;
-    for (const g of woundCap(capRadius * this.geo.scale.w, dirY, this.rng.int(0, 1e6))) layers.wet.push(g);
+    for (const g of woundCap(capRadius * this.geo.scale.w, dirY, this.rng.int(0, 1e6))) push('wet', g);
 
     const object = new THREE.Group();
     object.name = `debris:${rootJoint}`;
     root.matrixWorld.decompose(object.position, object.quaternion, object.scale);
     const geos: THREE.BufferGeometry[] = [];
-    for (const layer of ['body', 'wet'] as const) {
-      const list = layers[layer];
+    for (const [key, list] of layers) {
       if (list.length === 0) continue;
       const merged = mergeGeometries(list, false);
       for (const g of list) g.dispose();
       if (!merged) continue;
-      const mesh = new THREE.Mesh(merged, this.materials[layer]);
+      const mesh = new THREE.Mesh(merged, this.materialFor(key));
       mesh.castShadow = true;
       object.add(mesh);
       geos.push(merged);

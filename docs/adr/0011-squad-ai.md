@@ -123,3 +123,44 @@ Scored every 0.25 s; highest wins with hysteresis.
 - They clear the line of fire only when Jay aims (aim held 0.35 s), with a step, not a hop.
 - Headless kit_test walk: up to ~12 m behind while Jay walks 24 m, no teleports or clipping, and
   no movement at all while he turns on the spot for 25 s.
+### 2026-11-17: steps 3-7 (combat, tasks, revive, downed, biometric, reveal hooks) + scripted NPCs
+Code: `src/ai/squadBrain.ts` (pure pieces), `src/ai/squad.ts` (selector and bodies),
+`src/ai/squadEnemies.ts` (wiring to the ADR-0007 enemy director), `src/ai/npcs.ts` +
+`src/ai/npcActor.ts` (NPC director, sequence `npc*` actions), `src/actors/castLooks.ts`.
+- **Selector** (every 0.25 s, after the follow think): revive > task > combat > follow; downed
+  overrides everything. A squadmate a sequence drives (`scripted`) skips its AI entirely and is
+  not moved by restart placement or the catch-up teleport.
+- **Combat:** targets scored by threat (grabbing Jay +3, the medic +4 for grabbers; near Jay, the
+  medic, or a working Giles), distance and stickiness, line of sight through the navgraph. Aim:
+  Giles legs (torso once legs are gone), Okafor arms, grabbers' arms for both. Fire every ~0.33 s
+  (55% of the pistol), 10-round mag, 2.2 s reload (`squad:reloading`). Damage = 18 x
+  `squadDamage`, hit chance `squadAccuracy`. **Kill-share guard:** above 35% of a fight's kills
+  their damage halves; a fight ends after 8 s with nobody in combat. Back off from enemies within
+  2 m (Okafor 4 m). Shots go through `EnemyDirector.applyHit` with `by` = the mate's id, so gore,
+  severing and alerting work like the player's.
+- **Tasks:** `squad.startTask(id, kind, { at, yaw, panel, duration })` or sequence `npcTask`
+  (`args: { at, panel, duration }`). Durations: bypass_short 8, bypass/bypass_long 20,
+  power_restore 30, reroute 12, unlock_locker 6, biometric 5 (Okafor). Walk there, work pose,
+  pause while an enemy is within 3 m (he turns and shoots), resume, never reset. Events
+  `squad:taskStarted/Progress (every 10%)/Paused/Resumed/Done` with `{ id, task, panel, progress }`.
+- **Revive:** Jay downed -> Okafor jogs over, kneels, 3 s (`squad:reviveProgress` for the ring),
+  a hit pauses it 0.6 s, then `player.revive()` and `squad:revived`. He revives a downed Giles
+  (3 s) when no enemy is within 6 m. **Game-over rule:** Jay going down while Okafor is down emits
+  `squad:gameOver` and kills Jay (`player.damage(1e6)` drains the bleed-out).
+- **Downed:** mates have 100 HP (`squad.damageMate`, wired from enemy hits). Giles 6 s, Okafor
+  `medicDownedTime`, both up at 50 HP; `squad:downed`, `squad:up`, `squad:noSafetyNet`. Enemy
+  weights: medic 0.7 (1.0 reviving), working Giles 0.9, else 0.6; downed mates are not targets.
+- **Reveal hooks:** the `giles.infectionStage` flag (0-3, 4 = reveal) drives `speech.setRasp`
+  (0 / 0 / 0.25 / 0.45 / 0.6), `setLaugh(false)` at 4, and idle tells (rub_forearm, flex_hand,
+  cough) with `squad:tell`. The body's `transform` is the sequence action.
+- **Barks:** no lines written here; every beat above is a `squad:*` event for the bark system.
+- Tests: `squadBrain.test.ts` (7), `squad.test.ts` (10: a 6-shambler corridor fight where Jay gets
+  >= 65% of kills with the guard, revive, game over, Giles down/revived/up at 6 s, cover-me task
+  pause/resume, biometric 5 s, reveal ladder, scripted yield), `npcs.test.ts` (9).
+- Known gaps: not seen in a browser; poses (aim, kneel, downed, gestures) are first-pass numbers;
+  squad shots have no tracer, muzzle flash or sound yet (`squad:fired` is there to hook);
+  `setLaugh` has no SpeechManager implementation and no SpeechManager is wired in main.ts yet, so
+  rasp/laugh only take effect once the dialogue system passes one in (`Squad` dep `speech`);
+  stage 2's rolled sleeve/bandage is not a geometry change yet; enemies currently only grab Jay,
+  so the squad's shove-off-a-grabber path is unused; medic "4-8 m behind" in combat relies on his
+  follow slot (3.2 m) rather than a combat position.

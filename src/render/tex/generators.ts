@@ -318,28 +318,24 @@ export function rubberStuds(size: number, seed: number, studs = 10): TexSet {
   return w.finish('rubber', 3);
 }
 
-/** Diagonal yellow/black hazard paint, chipped to steel, with grime. */
-export function hazardStripes(size: number, seed: number, stripes = 4): TexSet {
+/** Solid yellow hazard paint (diagonal stripes removed), chipped to steel, with grime. */
+export function hazardStripes(size: number, seed: number): TexSet {
   const w = new Writer(size);
   const px = size / 512;
   const scratch = scratchField(size, 80, seed + 8, 6 * px, 50 * px);
   const YELLOW: RGB = [0.8, 0.58, 0.05];
-  const BLACK: RGB = [0.045, 0.045, 0.045];
-  const aa = stripes / size;
   for (let y = 0; y < size; y++) {
     const v = (y + 0.5) / size;
     for (let x = 0; x < size; x++) {
       const i = y * size + x;
       const u = (x + 0.5) / size;
-      const s = fract((u + v) * stripes);
-      const yellow = smoothstep(0.5 + aa, 0.5 - aa, s) * smoothstep(-aa, aa, s);
       const wearN = fbm(u, v, 8, 8, 5, seed);
       const sc = scratch[i]!;
       const wear = smoothstep(0.66, 0.74, wearN + sc * 0.35);
       const grime = smoothstep(0.4, 0.8, fbm(u, v, 3, 3, 5, seed + 4)) * 0.7;
       const fine = valueNoise(u * 256, v * 256, 256, 256, seed + 2);
       w.height[i] = -wear * 0.3 - sc * 0.05 + fine * 0.03;
-      const c = [lerp(BLACK[0], YELLOW[0], yellow), lerp(BLACK[1], YELLOW[1], yellow), lerp(BLACK[2], YELLOW[2], yellow)];
+      const c = [YELLOW[0], YELLOW[1], YELLOW[2]];
       mixInto(c, STEEL, wear);
       mixInto(c, GRIME, grime);
       w.color(i, c);

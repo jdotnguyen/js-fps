@@ -88,3 +88,10 @@ across, which is wider than the old fixed 0.8 m spacing.
 ## Open questions
 - Should heroes also push the player (a shove that moves the player circle)? Needs ADR-0004.
 - Per-limb hit reach for the hero's slam (see ADR-0006).
+
+## Progress
+### 2026-11-17: step 3 (game AI)
+`EnemyDirector.update` (`src/ai/enemyDirector.ts`) steers every enemy, then runs `separate()` over their
+planned positions with these radii and masses (play-deads and corpses immovable), plus the player (0.35 m) and
+the squadmates (0.3 m) as immovable circles, then moves each enemy through the ADR-0004 motor, so walls win.
+Hero slams stagger and push crowd bodies within the slam radius. Not yet measured in a browser.

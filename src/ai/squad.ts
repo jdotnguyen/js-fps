@@ -2,7 +2,66 @@ import * as THREE from 'three';
 import { DEFAULT_MOTOR, floorHeight, moveBody, type MotorConfig, type MotorState } from '../actors/motor.ts';
 import { Humanoid, type HumanoidContext, type HumanoidSpec } from '../actors/humanoid.ts';
 import { GILES, OKAFOR } from '../actors/squadLooks.ts';
+import { tellsFor } from '../actors/castTells.ts';
+import { GIVE_WAY, GiveWay, type WayEnv } from './giveWay.ts';
 import type { NavGraph, P3 } from './nav.ts';
+import {
+  COMBAT,
+  KillShare,
+  REVIVE,
+  ReviveJob,
+  SquadTask,
+  TASK_THREAT,
+  aimFor,
+  enemyWeight,
+  ladderStage,
+  pickTarget,
+  playerDownIsGameOver,
+  type SquadEnemy,
+  type SquadEnemySource,
+  type SquadId,
+  type TaskEvents,
+} from './squadBrain.ts';
+import { Rng } from '../core/rng.ts';
+
+export type { SquadId, SquadEnemy, SquadEnemySource } from './squadBrain.ts';
+
+/** Events the squad raises, for barks, hints and the HUD (ADR-0010/0012) to hook. */
+export interface SquadEvents {
+  'squad:reloading': { id: SquadId };
+  'squad:downed': { id: SquadId };
+  'squad:up': { id: SquadId; revived: boolean };
+  /** Okafor finished a revive (`target` is 'player' or 'engineer'). */
+  'squad:revived': { id: SquadId; target: 'player' | 'engineer' };
+  /** Revive ring on Jay's screen; progress 0..1, `paused` while Okafor is being hit. */
+  'squad:reviveProgress': { target: 'player' | 'engineer'; progress: number; paused: boolean };
+  'squad:taskStarted': { id: SquadId; task: string; panel: string | null; progress: number };
+  'squad:taskProgress': { id: SquadId; task: string; panel: string | null; progress: number };
+  /** An enemy reached the worker: he stops, calls for help and defends. */
+  'squad:taskPaused': { id: SquadId; task: string; panel: string | null; progress: number };
+  'squad:taskResumed': { id: SquadId; task: string; panel: string | null; progress: number };
+  'squad:taskDone': { id: SquadId; task: string; panel: string | null; progress: number };
+  /** The medic is down: no safety net (medic icon flashes, Giles barks). */
+  'squad:noSafetyNet': { downed: boolean };
+  /** Jay went down while the medic was down (ADR-0011): game over. */
+  'squad:gameOver': { reason: 'medicDown' };
+  'squad:shoved': { id: SquadId; enemy: string };
+  'squad:fired': { id: SquadId; enemy: string; hit: boolean; killed: boolean };
+  'squad:infectionStage': { stage: number };
+  /** A tell played (cough, rub_forearm, flex_hand), for audio and barks. */
+  'squad:tell': { id: SquadId; tell: string };
+}
+
+declare module '../core/events.ts' {
+  interface EventMap extends SquadEvents {}
+}
+
+/** Difficulty numbers the squad reads (ADR-0008). */
+export interface SquadDifficulty {
+  squadDamage: number;
+  squadAccuracy: number;
+  medicDownedTime: number;
+}
 
 /**
  * Squad AI, follow layer (ADR-0011 steps 1-2). Giles and Okafor are humanoid bodies moved
@@ -10,23 +69,30 @@ import type { NavGraph, P3 } from './nav.ts';
  * - a formation slot beside/behind Jay when it is reachable in plain view,
  * - otherwise a point on Jay's breadcrumb trail (corridors, doorways),
  * - sidestepping out of Jay's aim cone (15 degrees) when they drift into it.
- * They path with the shared navgraph, keep apart from Jay and each other (Jay can push past),
+ * They path with the shared navgraph, keep apart from Jay and each other (everyone is solid to Jay: a
+ * mate standing in his way steps aside, or out of a doorway, within half a second),
  * and catch up by teleporting when far away and out of sight. Combat, tasks and revives
  * (ADR-0011 steps 3+) layer on top of this later.
  */
-
-export type SquadId = 'engineer' | 'medic';
 
 /** What the squad reads from the player each step. */
 export interface SquadPlayer {
   body: MotorState;
   yaw: number;
   velocity: { x: number; y: number };
+  /** Unit XZ direction Jay is trying to move (zero when not moving); mates standing in his way give way. */
+  wish?: { x: number; z: number };
   /** 0..1, how far into aim-down-sights Jay is. */
   aimBlend: number;
   viewDirection(out?: THREE.Vector3): THREE.Vector3;
   eyePosition(out?: THREE.Vector3): THREE.Vector3;
+  /** Downed and waiting for the medic (ADR-0004); absent = never downed. */
+  readonly downed?: boolean;
+  /** The medic's revive finished. */
+  revive?(): void;
 }
+
+export type Behaviour = 'follow' | 'combat' | 'task' | 'revive' | 'downed';
 
 interface Role {
   id: SquadId;
@@ -70,12 +136,39 @@ export const SQUAD_TUNING = {
 
 const MOTOR: MotorConfig = { ...DEFAULT_MOTOR, radius: 0.3 };
 
+/** Quiet idle poses for the squad (no head yaw: the look-at layer already turns their heads). */
+const SQUAD_FIDGETS: readonly string[] = ['idle_weight', 'idle_shift', 'look_down', 'head_tilt', 'idle_crossed'];
+
 export class SquadMate {
   readonly id: SquadId;
   readonly body: Humanoid;
   readonly motor: MotorState;
   /** Debug: why the current target was chosen. */
-  mode: 'slot' | 'trail' | 'aimDodge' | 'idle' = 'idle';
+  mode: 'slot' | 'trail' | 'aimDodge' | 'idle' | 'task' | 'revive' | 'backoff' = 'idle';
+  /** What the selector chose (ADR-0011): follow, combat, task, revive, downed. */
+  behaviour: Behaviour = 'follow';
+  /** A sequence drives this body (NPC actions): the AI yields completely. */
+  scripted = false;
+  hp: number = REVIVE.maxHp;
+  /** Seconds left lying down. */
+  downedT = 0;
+  /** Current panel job (Giles's bypass, Okafor's biometric lock). */
+  task: SquadTask | null = null;
+  /** Okafor's revive in progress. */
+  revive: ReviveJob | null = null;
+  /** Combat target id. */
+  targetId: string | null = null;
+  ammo: number = COMBAT.magazine;
+  private fireT = 0;
+  private reloadT = 0;
+  private grabbedT = 0;
+  private gestureT = 30;
+  private gestureLeft = 0;
+  private hitT = 0;
+  private readonly rng: Rng;
+  /** Own stream for idle fidgets, so they never shift the combat rolls on `rng`. */
+  private readonly idleRng: Rng;
+  private ambientT = 5;
   readonly target = new THREE.Vector3();
   private readonly role: Role;
   private path: P3[] | null = null;
@@ -89,6 +182,10 @@ export class SquadMate {
   private dodgeSide = 0;
   /** Walking after Jay (true) or standing where they are (false). */
   private following = false;
+  /** Giving way to Jay: stepping to `way.spot`, then holding there until he has moved on. */
+  private readonly way = new GiveWay();
+  private wayPhase: 'out' | 'hold' | null = null;
+  private wayT = 0;
 
   constructor(role: Role, ctx: HumanoidContext) {
     this.role = role;
@@ -97,6 +194,243 @@ export class SquadMate {
     this.motor = { x: 0, y: 0, z: 0, vy: 0, grounded: true };
     // Stagger the two so they don't think on the same frame.
     this.thinkT = role.id === 'medic' ? SQUAD_TUNING.think / 2 : 0;
+    this.rng = new Rng(`squad:${role.id}`);
+    this.idleRng = new Rng(`squad-idle:${role.id}`);
+    this.ambientT = this.idleRng.range(3, 8);
+  }
+
+  get downed(): boolean {
+    return this.behaviour === 'downed';
+  }
+
+  /** Soft push from actor separation (the director clears overlap with Jay): slides through level collision. */
+  nudge(dx: number, dz: number, colliders: NavGraph['world'] | null): void {
+    if (colliders) moveBody(this.motor, dx, dz, 1 / 60, MOTOR, colliders);
+    else {
+      this.motor.x += dx;
+      this.motor.z += dz;
+    }
+    this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
+  }
+
+  /** Re-decide on the next step (a task or script just changed). */
+  thinkNow(): void {
+    this.thinkT = 0;
+  }
+
+  /** Working a panel right now (not walking to it, not finished). */
+  get working(): boolean {
+    return this.task !== null && (this.task.state === 'working' || this.task.state === 'paused');
+  }
+
+  /**
+   * Behaviour selector (every think, ADR-0011): revive > task > combat > follow, with the
+   * current behaviour kept unless something higher wins. Sets the movement target for the
+   * non-follow behaviours (after `think` has picked the follow target).
+   */
+  decide(squad: Squad, player: SquadPlayer): void {
+    const me = this.position;
+    const enemies = squad.enemyList();
+    // Revive: the medic's top priority when Jay is down; Giles when it is safe.
+    if (this.id === 'medic') {
+      const eng = squad.mate('engineer');
+      if (player.downed) {
+        if (this.revive?.target !== 'player') this.revive = new ReviveJob('player');
+      } else if (this.revive?.target === 'player') {
+        this.revive = null;
+      }
+      if (!this.revive && eng.downed && !enemies.some((e) => e.alive && e.position && Math.hypot(e.position.x - me.x, e.position.z - me.z) < REVIVE.safeRadius)) {
+        this.revive = new ReviveJob('engineer');
+      }
+      if (this.revive?.target === 'engineer' && !eng.downed) this.revive = null;
+      if (this.revive) {
+        const at = this.revive.target === 'player' ? squad.playerFeet : eng.position;
+        this.behaviour = 'revive';
+        this.target.copy(at);
+        this.mode = 'revive';
+        return;
+      }
+    }
+    if (this.task && !this.task.done) {
+      this.behaviour = 'task';
+      if (this.task.at && this.task.state === 'walking') {
+        this.target.set(this.task.at.x, this.task.at.y, this.task.at.z);
+        this.mode = 'task';
+      } else {
+        this.target.copy(me);
+        this.mode = 'task';
+      }
+      return;
+    }
+    const target = squad.combatTarget(this);
+    this.targetId = target?.id ?? null;
+    this.behaviour = target ? 'combat' : 'follow';
+    if (!target) {
+      if (this.body.idlePose === 'aim_pistol') this.body.setPose('idle', 0.5);
+      return;
+    }
+    // Back off from anything too close (the medic keeps more room).
+    let near: SquadEnemy | null = null;
+    let nearD = Infinity;
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      const d = Math.hypot(e.position.x - me.x, e.position.z - me.z);
+      if (d < nearD) {
+        nearD = d;
+        near = e;
+      }
+    }
+    if (near && nearD < COMBAT.backoff[this.id]) {
+      const ax = (me.x - near.position.x) / Math.max(nearD, 0.1);
+      const az = (me.z - near.position.z) / Math.max(nearD, 0.1);
+      for (const k of [2.5, 1.6, 1]) {
+        const t = tmpC.set(me.x + ax * k, me.y, me.z + az * k);
+        if (squad.standable(t) && squad.nav.direct(me, t, 0.25)) {
+          this.target.copy(t);
+          this.mode = 'backoff';
+          return;
+        }
+      }
+    }
+  }
+
+  /** Combat, task, revive and downed upkeep each step (after movement). */
+  act(dt: number, squad: Squad, player: SquadPlayer): void {
+    const me = this.position;
+    this.hitT = Math.max(0, this.hitT - dt);
+    const enemies = squad.enemyList();
+    // Grabbed: shove it off after a moment (no struggle for NPCs).
+    const grabber = enemies.find((e) => e.alive && e.grabbing === this.id);
+    if (grabber) {
+      this.grabbedT += dt;
+      if (this.grabbedT > 0.6) {
+        this.grabbedT = 0;
+        squad.enemies?.shove?.(grabber.id, me);
+        squad.emit('squad:shoved', { id: this.id, enemy: grabber.id });
+      }
+    } else this.grabbedT = 0;
+
+    // Task progress: pauses while an enemy is within 3 m of the worker; never resets.
+    const t = this.task;
+    if (t && !t.done) {
+      if (t.state === 'walking' && (!t.at || Math.hypot(t.at.x - me.x, t.at.z - me.z) <= SQUAD_TUNING.arrive + 0.15)) {
+        t.arrive();
+        if (t.yaw !== undefined) this.body.setHeading(t.yaw);
+        this.body.setPose(t.pose, 0.5);
+      }
+      const threat = enemies.some((e) => e.alive && Math.hypot(e.position.x - me.x, e.position.z - me.z) < TASK_THREAT);
+      const before = t.state;
+      t.update(dt, threat, true);
+      if (before === 'working' && t.state === 'paused') this.body.setPose('aim_pistol', 0.3);
+      if (before === 'paused' && t.state === 'working') this.body.setPose(t.pose, 0.5);
+      if (t.done) {
+        this.body.setPose('idle', 0.5);
+        this.task = null;
+      }
+    }
+
+    // Revive: kneel beside the target, 3 s, paused by hits.
+    const r = this.revive;
+    if (r) {
+      const at = r.target === 'player' ? squad.playerFeet : squad.mate('engineer').position;
+      const kneeling = Math.hypot(at.x - me.x, at.z - me.z) <= REVIVE.reach;
+      if (kneeling && this.body.idlePose !== 'kneel_revive') this.body.setPose('kneel_revive', 0.4);
+      const done = r.update(dt, kneeling);
+      if (kneeling) squad.emit('squad:reviveProgress', { target: r.target, progress: r.progress, paused: r.paused });
+      if (done) {
+        this.revive = null;
+        this.body.setPose('idle', 0.5);
+        if (r.target === 'player') player.revive?.();
+        else squad.mate('engineer').getUp(squad, true);
+        squad.emit('squad:revived', { id: this.id, target: r.target });
+      }
+      return; // no shooting while reviving
+    }
+
+    // Shooting (combat, or defending a paused task).
+    if (this.reloadT > 0) {
+      this.reloadT -= dt;
+      if (this.reloadT <= 0) this.ammo = COMBAT.magazine;
+      return;
+    }
+    const canShoot = this.behaviour === 'combat' || (this.behaviour === 'task' && this.task?.state === 'paused');
+    const target = canShoot ? (this.behaviour === 'combat' && this.targetId ? enemies.find((e) => e.id === this.targetId && e.alive) ?? null : squad.combatTarget(this)) : null;
+    this.fireT = Math.max(0, this.fireT - dt);
+    if (!target) return;
+    // Face the target, then shoot.
+    const face = tmpE.set(target.position.x - me.x, 0, target.position.z - me.z);
+    if (face.lengthSq() > 1e-4 && this.body.speed < 0.3) this.body.steer(face.normalize(), dt, { maxSpeed: 0, turnRate: 4 });
+    this.body.lookTarget = tmpF.set(target.position.x, target.position.y + 1.4, target.position.z);
+    if (this.behaviour === 'combat' && this.body.speed < 0.2 && this.body.idlePose !== 'aim_pistol') this.body.setPose('aim_pistol', 0.3);
+    const want = Math.atan2(-face.x, -face.z);
+    const off = Math.abs(Math.atan2(Math.sin(want - this.body.heading), Math.cos(want - this.body.heading)));
+    if (this.fireT > 0 || off > 0.35) return;
+    this.fireT = COMBAT.fireInterval * (0.85 + this.rng.next() * 0.3);
+    squad.fire(this, target);
+    this.ammo--;
+    if (this.ammo <= 0) {
+      this.reloadT = COMBAT.reload;
+      squad.emit('squad:reloading', { id: this.id });
+    }
+  }
+
+  /** Take damage from an enemy. At 0 HP they go down (nobody dies in the slice). */
+  hurt(amount: number, squad: Squad): void {
+    if (this.downed || this.scripted) return;
+    this.hitT = 0.5;
+    this.revive?.hit();
+    this.hp -= amount;
+    if (this.hp > 0) return;
+    this.hp = 0;
+    this.behaviour = 'downed';
+    this.revive = null;
+    this.downedT = this.id === 'medic' ? squad.difficulty().medicDownedTime : REVIVE.engineerDowned;
+    this.body.setPose('squad_downed', 0.25);
+    this.path = null;
+    squad.emit('squad:downed', { id: this.id });
+    if (this.id === 'medic') squad.emit('squad:noSafetyNet', { downed: true });
+  }
+
+  /** Up again: on his own at half health, or revived. */
+  getUp(squad: Squad, revived: boolean): void {
+    if (!this.downed) return;
+    this.behaviour = 'follow';
+    this.downedT = 0;
+    this.hp = REVIVE.maxHp * 0.5;
+    this.body.setPose('squad_getUp_0', 0.5);
+    this.gestureLeft = 0.9; // hold the half-up pose briefly, then stand
+    this.gestureT = 30;
+    squad.emit('squad:up', { id: this.id, revived });
+    if (this.id === 'medic') squad.emit('squad:noSafetyNet', { downed: false });
+  }
+
+  /** Idle tells per the infection ladder (Giles only), and the get-up settle. */
+  private idleGestures(dt: number, squad: Squad): void {
+    if (this.gestureLeft > 0) {
+      this.gestureLeft -= dt;
+      if (this.gestureLeft <= 0) this.body.setPose('idle', 0.6);
+      return;
+    }
+    if (this.behaviour !== 'follow' || this.mode !== 'idle') return;
+    const rung = ladderStage(squad.infectionStage);
+    if (this.id === 'engineer' && rung.gestures.length) {
+      this.gestureT -= dt;
+      if (this.gestureT <= 0) {
+        this.gestureT = rung.gestureEvery * (0.7 + this.rng.next() * 0.6);
+        const tell = this.rng.pick(rung.gestures);
+        const pose = tell === 'cough' ? 'cough' : tell;
+        this.body.setPose(pose, 0.35);
+        this.gestureLeft = tell === 'cough' ? 0.9 : 2.2;
+        squad.emit('squad:tell', { id: this.id, tell });
+        return;
+      }
+    }
+    // Ambient fidgets while standing about: shift weight, look down, tilt the head. No head turns: they already watch Jay.
+    this.ambientT -= dt;
+    if (this.ambientT > 0 || this.body.idlePose !== 'idle') return;
+    this.ambientT = this.idleRng.range(5, 12);
+    this.body.setPose(this.idleRng.pick(SQUAD_FIDGETS), 0.8);
+    this.gestureLeft = this.idleRng.range(2, 4);
   }
 
   get position(): THREE.Vector3 {
@@ -200,10 +534,21 @@ export class SquadMate {
   }
 
   update(dt: number, squad: Squad, player: SquadPlayer, cameraPos: THREE.Vector3 | null): void {
+    // A sequence is driving this body (npc actions): the NPC director moves and animates it.
+    if (this.scripted) return;
+    if (this.downed) {
+      this.downedT -= dt;
+      if (this.downedT <= 0) this.getUp(squad, false);
+      this.body.lookTarget = null;
+      this.body.steer(null, dt, { maxSpeed: 0 });
+      this.body.update(dt, cameraPos);
+      return;
+    }
     this.thinkT -= dt;
     if (this.thinkT <= 0) {
       this.thinkT = SQUAD_TUNING.think;
       this.think(squad, player);
+      this.decide(squad, player);
     }
     const me = this.position;
     const toTarget = Math.hypot(this.target.x - me.x, this.target.z - me.z);
@@ -211,9 +556,10 @@ export class SquadMate {
     let speed = 0;
 
     // Dodges are short hops, so they need to land precisely.
-    const arrive = this.mode === 'aimDodge' ? 0.15 : SQUAD_TUNING.arrive;
+    const errand = this.mode === 'task' || this.mode === 'revive' || this.mode === 'backoff';
+    const arrive = this.mode === 'aimDodge' ? 0.15 : this.mode === 'revive' ? REVIVE.reach * 0.8 : this.mode === 'task' ? 0.2 : SQUAD_TUNING.arrive;
     // Reaching the spot near Jay counts as stopping, even if it is just beyond 10 ft.
-    if (this.following && toTarget <= arrive && Math.hypot(me.x - squad.playerFeet.x, me.z - squad.playerFeet.z) <= SQUAD_TUNING.resumeDistance) {
+    if (!errand && this.following && toTarget <= arrive && Math.hypot(me.x - squad.playerFeet.x, me.z - squad.playerFeet.z) <= SQUAD_TUNING.resumeDistance) {
       this.following = false;
       this.target.copy(me);
       this.mode = 'idle';
@@ -237,9 +583,55 @@ export class SquadMate {
       speed = behind < 6 ? SQUAD_TUNING.walk : behind < 12 ? THREE.MathUtils.lerp(SQUAD_TUNING.walk, SQUAD_TUNING.brisk, (behind - 6) / 6) : SQUAD_TUNING.jog;
       // Stepping out of the line of fire: a purposeful step, not a scramble.
       if (this.mode === 'aimDodge') speed = Math.max(speed, 1.8);
+      // Errands: a jog to a downed teammate, a brisk walk to a panel or out of reach.
+      if (this.mode === 'revive') speed = SQUAD_TUNING.jog;
+      else if (this.mode === 'task' || this.mode === 'backoff') speed = Math.max(speed, SQUAD_TUNING.brisk);
+      // Moving again: drop a work or aim pose so the walk cycle shows.
+      if (this.body.idlePose !== 'idle' && this.gestureLeft <= 0) this.body.setPose('idle', 0.3);
     }
 
-    // Keep apart from Jay and each other. Jay never collides with them; they yield.
+    // Give way: Jay is solid to them, so a mate standing in his way steps out of his line (out of a
+    // doorway along its normal, away from him) within ~0.5 s and comes back to the follow AI once he
+    // has moved on. Combat and follow give way anywhere; panel work and revives only in a doorway.
+    let yielding = false;
+    let turnRate = 3.2;
+    let accel = 2.2;
+    const wish = player.wish;
+    if (wish && (this.wayPhase || (desired.lengthSq() < 1e-6 && this.body.speed < 0.3))) {
+      const env: WayEnv = {
+        nav: squad.nav,
+        colliders: squad.colliders,
+        occupied: (x, z, r) => squad.mates.some((o) => o !== this && Math.hypot(o.motor.x - x, o.motor.z - z) < r + o.body.footprint.r),
+      };
+      const free = this.behaviour === 'follow' || this.behaviour === 'combat';
+      if (this.way.press(dt, me, this.body.footprint.r, squad.playerFeet, wish, env, free ? 'any' : 'door')) {
+        this.wayPhase = 'out';
+        this.wayT = 0;
+      }
+      if (this.wayPhase) {
+        this.wayT += dt;
+        yielding = true;
+        const s = this.way.spot!;
+        const d = Math.hypot(s.x - me.x, s.z - me.z);
+        if (this.wayPhase === 'out' && d > 0.12 && this.wayT < 2.5) {
+          desired.set(s.x - me.x, 0, s.z - me.z).normalize();
+          speed = GIVE_WAY.speed * Math.min(1, 0.4 + d * 2);
+          turnRate = GIVE_WAY.turnRate;
+          accel = GIVE_WAY.accel;
+        } else {
+          this.wayPhase = 'hold';
+          desired.set(0, 0, 0);
+          speed = 0;
+          if (this.way.movedOn(dt, squad.playerFeet, wish) || this.wayT > 6) {
+            this.wayPhase = null;
+            this.way.reset();
+            yielding = false;
+          }
+        }
+      }
+    }
+
+    // Keep apart from Jay and each other (a softer shove than the give-way above).
     const sep = tmpE.set(0, 0, 0);
     const push = (o: P3, radius: number): void => {
       const dx = me.x - o.x;
@@ -250,19 +642,21 @@ export class SquadMate {
       sep.x += dx * k;
       sep.z += dz * k;
     };
-    push(squad.playerFeet, SQUAD_TUNING.personalPlayer);
+    if (!yielding) push(squad.playerFeet, SQUAD_TUNING.personalPlayer);
     for (const m of squad.mates) if (m !== this) push(m.position, SQUAD_TUNING.personalMate);
     if (sep.lengthSq() > 1e-6) {
       desired.addScaledVector(sep, 2.2);
       speed = Math.max(speed, 1.0);
     }
 
-    const vel = this.body.steer(desired.lengthSq() > 1e-6 ? desired : null, dt, { maxSpeed: speed, turnRate: 3.2, accel: 2.2 });
+    const vel = this.body.steer(desired.lengthSq() > 1e-6 ? desired : null, dt, { maxSpeed: speed, turnRate, accel });
     moveBody(this.motor, vel.x * dt, vel.z * dt, dt, MOTOR, squad.colliders);
     this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
 
     // Idle: look at Jay now and then; while moving, look where they walk.
-    if (speed === 0 && this.body.speed < 0.2) {
+    if (this.behaviour !== 'follow') {
+      this.body.lookTarget = null;
+    } else if (speed === 0 && this.body.speed < 0.2) {
       this.mode = this.mode === 'aimDodge' ? 'aimDodge' : 'idle';
       this.body.lookTarget = squad.playerHead;
       // Turn the body toward Jay slowly when he is off to the side.
@@ -287,6 +681,8 @@ export class SquadMate {
       }
     }
     this.lastPos.copy(me);
+    this.act(dt, squad, player);
+    this.idleGestures(dt, squad);
     this.body.update(dt, cameraPos);
   }
 }
@@ -296,12 +692,26 @@ const tmpB = new THREE.Vector3();
 const tmpC = new THREE.Vector3();
 const tmpD = new THREE.Vector3();
 const tmpE = new THREE.Vector3();
+const tmpF = new THREE.Vector3();
 
 export interface SquadDeps {
   ctx: HumanoidContext;
   nav: NavGraph;
   player: SquadPlayer;
+  /** Live enemies (ADR-0007); can also be set later with `setEnemies`. */
+  enemies?: SquadEnemySource | null;
+  difficulty?: () => SquadDifficulty;
+  /** Where squad events go (barks, HUD). */
+  emit?: (name: keyof SquadEvents, payload: SquadEvents[keyof SquadEvents]) => void;
+  /** Giles's voice (ADR-0010): rasp per infection stage; laugh removed at the reveal. */
+  speech?: { setRasp(speaker: string, amount: number | null): void; setLaugh?(speaker: string, on: boolean): void } | null;
+  /** The playthrough's flags: `giles.infectionStage` drives the reveal ladder. */
+  flags?: () => Record<string, string | number | boolean>;
+  /** Jay went down with the medic down: end the run (the player is killed). */
+  gameOver?: () => void;
 }
+
+const STANDARD: SquadDifficulty = { squadDamage: 0.45, squadAccuracy: 0.45, medicDownedTime: 10 };
 
 export class Squad {
   readonly group = new THREE.Group();
@@ -313,13 +723,29 @@ export class Squad {
   readonly right = new THREE.Vector3();
   /** Seconds Jay has been aiming down sights. */
   aimHeld = 0;
+  /** ADR-0011 kill-share guard. */
+  readonly kills = new KillShare();
+  enemies: SquadEnemySource | null;
+  /** ADR-0022 ladder stage (0..3, 4 = reveal). */
+  infectionStage = 0;
+  private readonly deps: SquadDeps;
+  private readonly rng = new Rng('squad-fire');
+  private wasDowned = false;
+  private stageT = 0;
   private readonly player: SquadPlayer;
   private readonly trail: THREE.Vector3[] = [];
   private placed = false;
 
+  /** The speech manager arrives after the squad is built (main.ts): Giles's rasp and laugh (ADR-0022). */
+  setSpeech(speech: NonNullable<SquadDeps['speech']>): void {
+    this.deps.speech = speech;
+  }
+
   constructor(deps: SquadDeps) {
     this.nav = deps.nav;
     this.player = deps.player;
+    this.deps = deps;
+    this.enemies = deps.enemies ?? null;
     this.group.name = 'squad';
     this.mates = ROLES.map((r) => new SquadMate(r, deps.ctx));
     for (const m of this.mates) this.group.add(m.body.group);
@@ -331,6 +757,106 @@ export class Squad {
 
   mate(id: SquadId): SquadMate {
     return this.mates.find((m) => m.id === id)!;
+  }
+
+  setEnemies(source: SquadEnemySource | null): void {
+    this.enemies = source;
+  }
+
+  enemyList(): readonly SquadEnemy[] {
+    return this.enemies?.list() ?? [];
+  }
+
+  difficulty(): SquadDifficulty {
+    return this.deps.difficulty?.() ?? STANDARD;
+  }
+
+  emit<K extends keyof SquadEvents>(name: K, payload: SquadEvents[K]): void {
+    this.deps.emit?.(name, payload);
+  }
+
+  /** Jay killed something (wire to the enemy death event): feeds the kill-share guard. */
+  recordKill(by: 'player' | 'squad'): void {
+    this.kills.record(by);
+  }
+
+  /** The best target for this mate, or null (role preferences, ADR-0011). */
+  combatTarget(m: SquadMate): SquadEnemy | null {
+    const list = this.enemyList();
+    if (!list.length) return null;
+    const eng = this.mate('engineer');
+    return pickTarget(list, {
+      me: m.position,
+      role: m.id,
+      player: this.playerFeet,
+      medic: this.mate('medic').position,
+      engineer: eng.position,
+      engineerWorking: eng.working,
+      current: m.targetId,
+      canSee: (e) => this.nav.direct({ x: m.position.x, y: m.position.y, z: m.position.z }, e.position, 0),
+    });
+  }
+
+  /** One shot: accuracy and damage from difficulty, halved by the kill-share guard. */
+  fire(m: SquadMate, e: SquadEnemy): void {
+    const diff = this.difficulty();
+    const hit = this.rng.next() < diff.squadAccuracy;
+    let killed = false;
+    if (hit && this.enemies) {
+      const damage = COMBAT.playerDamage * diff.squadDamage * this.kills.factor;
+      killed = this.enemies.shoot(e.id, aimFor(m.id, e), damage, { x: m.position.x, y: m.position.y + 1.4, z: m.position.z });
+      if (killed) this.kills.record('squad');
+    }
+    this.emit('squad:fired', { id: m.id, enemy: e.id, hit, killed });
+  }
+
+  /** An enemy hit a squadmate (the enemy AI calls this). */
+  damageMate(id: SquadId, amount: number): void {
+    this.mate(id).hurt(amount, this);
+  }
+
+  /**
+   * Start a panel job (sequence `npcTask`): Giles's bypass/power, Okafor's biometric lock.
+   * Replaces any job the mate had. The returned task resolves `whenDone`.
+   */
+  startTask(id: SquadId, kind: string, opts: { at?: P3 | null; yaw?: number; panel?: string | null; duration?: number } = {}): SquadTask {
+    const m = this.mate(id);
+    const payload = (t: SquadTask): SquadEvents['squad:taskProgress'] => ({ id, task: t.kind, panel: t.panel, progress: t.progress });
+    const ev: TaskEvents = {
+      progress: (t) => this.emit('squad:taskProgress', payload(t)),
+      paused: (t) => this.emit('squad:taskPaused', payload(t)),
+      resumed: (t) => this.emit('squad:taskResumed', payload(t)),
+      done: (t) => this.emit('squad:taskDone', payload(t)),
+    };
+    const task = new SquadTask(kind, { ...opts, who: id }, ev);
+    m.task = task;
+    m.thinkNow();
+    this.emit('squad:taskStarted', payload(task));
+    return task;
+  }
+
+  /** Enemy target weights (ADR-0011) for the enemy AI: the player is 1.0 on its side. */
+  weights(): Array<{ id: SquadId; position: THREE.Vector3; weight: number }> {
+    return this.mates.map((m) => ({
+      id: m.id,
+      position: m.position,
+      weight: enemyWeight(m.id, { reviving: m.revive !== null, working: m.working, downed: m.downed }),
+    }));
+  }
+
+  /** Giles's visible tells (ADR-0022): bandage once `giles.bandaged`, veins and sweat from stage 3. Restored with the flags. */
+  applyTells(bandaged: boolean): void {
+    this.mate('engineer').body.setTells(tellsFor(this.infectionStage, bandaged));
+  }
+
+  /** ADR-0022 ladder: rasp and laugh follow the stage; idle tells follow it too. */
+  setInfectionStage(stage: number): void {
+    if (stage === this.infectionStage) return;
+    this.infectionStage = stage;
+    const rung = ladderStage(stage);
+    this.deps.speech?.setRasp('engineer', rung.rasp > 0 ? rung.rasp : null);
+    this.deps.speech?.setLaugh?.('engineer', rung.laugh);
+    this.emit('squad:infectionStage', { stage });
   }
 
   /** Somewhere a body can stand: floor under it within a step, nothing at body height. */
@@ -377,6 +903,7 @@ export class Squad {
     this.readPlayer();
     this.trail.length = 0;
     for (const m of this.mates) {
+      if (m.scripted) continue; // a sequence has placed them
       const spot = this.spawnSpot(m);
       m.place(spot, this.player.yaw);
     }
@@ -425,6 +952,24 @@ export class Squad {
       return;
     }
     this.aimHeld = this.player.aimBlend > 0.5 ? this.aimHeld + dt : 0;
+    // Reveal ladder from the flags (sequences set `giles.infectionStage`).
+    this.stageT -= dt;
+    if (this.stageT <= 0 && this.deps.flags) {
+      this.stageT = 0.5;
+      const flags = this.deps.flags();
+      const v = flags['giles.infectionStage'];
+      // A missing flag is stage 0 (a restart or load from before the first tell clears the ladder).
+      this.setInfectionStage(typeof v === 'number' ? v : 0);
+      this.applyTells(flags['giles.bandaged'] === true);
+    }
+    // Jay goes down: game over if the medic is already down (ADR-0011), else Okafor comes.
+    const downed = this.player.downed === true;
+    if (downed && !this.wasDowned && playerDownIsGameOver(this.mate('medic').downed)) {
+      this.emit('squad:gameOver', { reason: 'medicDown' });
+      this.deps.gameOver?.();
+    }
+    this.wasDowned = downed;
+    this.kills.update(dt, this.mates.some((m) => m.behaviour === 'combat'));
     const last = this.trail.at(-1);
     if (!last || last.distanceTo(this.playerFeet) >= SQUAD_TUNING.trailStep) {
       this.trail.push(this.playerFeet.clone());
@@ -438,6 +983,7 @@ export class Squad {
 
   /** Far away and out of sight: reappear on Jay's trail behind him (ADR-0011). */
   private catchUp(m: SquadMate): void {
+    if (m.scripted || m.downed || m.behaviour === 'task' || m.behaviour === 'revive') return;
     const d = m.position.distanceTo(this.playerFeet);
     if (d < SQUAD_TUNING.teleportDistance || this.canSee(m.position)) return;
     for (const back of [5, 7, 9, 4]) {

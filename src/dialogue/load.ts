@@ -9,7 +9,8 @@ export function loadDialogueLibrary(): DialogueLibrary {
   for (const [path, data] of Object.entries(files)) {
     const name = path.replace('../', '');
     if (name.endsWith('/speakers.json')) speakers = data;
-    else chapters[name] = data;
+    // ui.json holds HUD string templates (ADR-0024), not dialogue lines.
+    else if (!name.endsWith('/ui.json')) chapters[name] = data;
   }
   return new DialogueLibrary(speakers, chapters);
 }

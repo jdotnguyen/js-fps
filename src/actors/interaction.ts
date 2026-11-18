@@ -11,8 +11,8 @@ export interface Interactable {
   prompt: string;
   /** World-space box the ray is tested against. */
   box: Aabb;
-  /** Seconds to hold; omit for a tap. */
-  hold?: number;
+  /** Seconds to hold; omit (or a getter returning undefined) for a tap. */
+  hold?: number | undefined;
   enabled?: () => boolean;
   use: () => void;
 }

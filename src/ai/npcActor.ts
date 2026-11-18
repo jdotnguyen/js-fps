@@ -1,0 +1,616 @@
+import * as THREE from 'three';
+import { DEFAULT_MOTOR, moveBody, type ColliderQuery, type MotorConfig, type MotorState } from '../actors/motor.ts';
+import type { Humanoid } from '../actors/humanoid.ts';
+import { Rng } from '../core/rng.ts';
+import { GIVE_WAY, GiveWay, PLAYER_RADIUS, type WayEnv } from './giveWay.ts';
+import type { NavGraph, P3 } from './nav.ts';
+
+/**
+ * One scriptable NPC body (ADR-0009 NPC actions, ADR-0017 intro, ADR-0023 crew). Wraps a
+ * Humanoid and its motor state; the squad lends theirs while a sequence drives them.
+ *
+ * Commands replace each other per channel (move, anim, look): a new move resolves the
+ * previous move's promise, so `wait` on a step that a skip overrides never hangs.
+ */
+
+/** Scripted gestures: pose to blend to, seconds to hold it (Infinity = until changed), and blend time. */
+export const NPC_ANIMS: Readonly<Record<string, { pose: string; hold: number; blend?: number }>> = {
+  rub_forearm: { pose: 'rub_forearm', hold: 2.4 },
+  flex_hand: { pose: 'flex_hand', hold: 1.6 },
+  offer_mug: { pose: 'offer_mug', hold: Infinity, blend: 0.5 },
+  drink: { pose: 'drink', hold: 1.8 },
+  glance: { pose: 'glance', hold: 1.3, blend: 0.3 },
+  cough: { pose: 'cough', hold: 0.9, blend: 0.15 },
+  gesture: { pose: 'talk_gesture', hold: 1.4 },
+  typing: { pose: 'typing', hold: Infinity },
+  crouchWork: { pose: 'crouchWork', hold: Infinity },
+  kneel: { pose: 'kneel_revive', hold: Infinity },
+  idle: { pose: 'idle', hold: 0 },
+};
+
+/** Small ambient gestures by base pose, picked now and then while an NPC is idle. */
+const AMBIENT_GESTURES: Readonly<Record<string, readonly string[]>> = {
+  idle: ['idle_weight', 'idle_shift', 'glance', 'glance_other', 'idle_crossed', 'talk_gesture', 'look_down', 'look_up', 'head_tilt'],
+  idle_crossed: ['glance', 'glance_other', 'idle_weight', 'look_down'],
+  idle_hips: ['glance', 'glance_other', 'idle_weight', 'look_up'],
+  idle_weight: ['glance', 'glance_other', 'idle_shift', 'idle_crossed', 'look_down', 'head_tilt'],
+  idle_mug: ['drink', 'glance', 'glance_other'],
+  clipboard: ['glance', 'glance_other'],
+  typing: ['glance', 'glance_other'],
+};
+
+export const NPC_TUNING = {
+  walk: 1.3,
+  arrive: 0.25,
+  repath: 0.6,
+  /** Ambient: look at Jay inside this range when he is roughly in front. */
+  noticeRange: 3.5,
+  gestureEvery: [5, 12] as const,
+  /** Bodies further than this from the camera skip animation (cheap crowds). */
+  sleepDistance: 28,
+  hideDistance: 45,
+  turnRate: 3.2,
+} as const;
+
+/** Base poses of someone working in place: never shoved off their station. */
+const WORK_POSES: ReadonlySet<string> = new Set(['typing', 'crouchWork', 'kneel_revive']);
+
+const MOTOR: MotorConfig = { ...DEFAULT_MOTOR, radius: 0.3 };
+
+export interface NpcEnv {
+  nav: NavGraph | null;
+  colliders: ColliderQuery | null;
+  playerHead: THREE.Vector3;
+  playerFeet: THREE.Vector3;
+  camera: THREE.Vector3 | null;
+  /** Unit XZ direction Jay is trying to move this step (zero = not moving); absent = never gives way. */
+  playerWish?: { x: number; z: number };
+  /** Is another body standing in this circle (give-way spots)? `self` is excluded. */
+  occupied?: (x: number, z: number, r: number, self: NpcActor) => boolean;
+}
+
+interface MoveCmd {
+  target: THREE.Vector3;
+  /** Remaining points (a path or a track); the last is the target. */
+  points: P3[] | null;
+  index: number;
+  speed: number;
+  yaw: number | undefined;
+  repathT: number;
+  stuckT: number;
+  /** Seconds waiting on Jay in the way (capped; the move is only given up past BLOCKED_GIVE_UP). */
+  blockT: number;
+  /** Side (+1/-1) committed to while steering round Jay, 0 = not steering round him. */
+  avoidSide: number;
+  usePath: boolean;
+  resolve: () => void;
+}
+
+/** A body pulled along by a rope (`npcDrag`): trails `dist` behind the dragger in a held pose. */
+interface Tow {
+  get: () => THREE.Vector3 | null;
+  dist: number;
+  pose: string;
+}
+
+/** A scripted walker keeps this clear of Jay's body edge ahead of it before it slows and steers round him. */
+const AVOID_RANGE = 1.2;
+/** Longest a scripted walker waits on Jay in its way before giving up (s). */
+const BLOCKED_GIVE_UP = 8;
+/** Longest a give-way sidestep or return walk may take before it is dropped (s). */
+const GIVE_WAY_TIMEOUT = 6;
+
+/** Where a body stands before it gave way to Jay, to come back to. */
+interface Home {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+}
+
+/** Catch-up speed (m/s) of a towed body that has fallen behind the rope length. */
+export const TOW_CATCHUP = 2.6;
+/** Pose held while a downed body is moved by a script and no other pose is given. */
+export const DRAG_POSE = 'corpseSupine';
+
+const dirOf = (yaw: number, out: THREE.Vector3): THREE.Vector3 => out.set(-Math.sin(yaw), 0, -Math.cos(yaw));
+const tmpA = new THREE.Vector3();
+const tmpB = new THREE.Vector3();
+
+export class NpcActor {
+  readonly id: string;
+  readonly body: Humanoid;
+  readonly motor: MotorState;
+  /** Base standing pose (from the level, or set by a persistent anim). */
+  basePose: string;
+  /** Item held out to Jay (npcOffer), if any. */
+  offering: string | null = null;
+  /** Ambient behaviour (look at Jay, small gestures) when no script is driving. */
+  ambient = true;
+  private move: MoveCmd | null = null;
+  private tow: Tow | null = null;
+  /** The current move set `body.carried` (cleared when it ends). */
+  private moveCarried = false;
+  private anim: { pose: string; left: number; resolve: () => void } | null = null;
+  private faceYaw: number | null = null;
+  private lookGet: (() => THREE.Vector3 | null) | null = null;
+  private follow: { get: () => THREE.Vector3 | null; distance: number } | null = null;
+  private readonly rng: Rng;
+  private gestureT: number;
+  private gesture: { pose: string; left: number } | null = null;
+  private lastGesture = '';
+  private lastPos = new THREE.Vector3();
+  /** Give-way to Jay (an internal move that never touches scripted promises). */
+  private readonly way = new GiveWay();
+  private wayHome: Home | null = null;
+  private wayPhase: 'out' | 'away' | 'back' | null = null;
+  private wayT = 0;
+  private wayPath: P3[] | null = null;
+  private wayRepathT = 0;
+
+  constructor(id: string, body: Humanoid, motor?: MotorState) {
+    this.id = id;
+    this.body = body;
+    const p = body.group.position;
+    this.motor = motor ?? { x: p.x, y: p.y, z: p.z, vy: 0, grounded: true };
+    this.basePose = body.idlePose;
+    this.rng = new Rng(`npc:${id}`);
+    this.gestureT = this.rng.range(NPC_TUNING.gestureEvery[0], NPC_TUNING.gestureEvery[1]);
+  }
+
+  get position(): THREE.Vector3 {
+    return this.body.group.position;
+  }
+
+  /** Eye height point, for `npc:<id>` targets (playerLookAt, playerFrame). */
+  head(out = new THREE.Vector3()): THREE.Vector3 {
+    return this.body.jointWorld('head', out).add(tmpA.set(0, 0.06, 0));
+  }
+
+  /** Busy with a scripted move, anim or follow. */
+  get busy(): boolean {
+    return this.move !== null || this.anim !== null || this.follow !== null || this.tow !== null;
+  }
+
+  /** Stepping aside for Jay (or back from it). */
+  get givingWay(): boolean {
+    return this.wayPhase !== null;
+  }
+
+  /** A script gave a command: drop any give-way (the body stays where it is). */
+  private cancelWay(): void {
+    this.wayPhase = null;
+    this.wayHome = null;
+    this.wayPath = null;
+    this.way.reset();
+  }
+
+  get moving(): boolean {
+    return this.move !== null;
+  }
+
+  /** Metres left to a scripted move's end point (null when not walking). */
+  get goalDistance(): number | null {
+    const m = this.move;
+    return m ? Math.hypot(m.target.x - this.motor.x, m.target.z - this.motor.z) : null;
+  }
+
+  /**
+   * Excluded from actor separation (ADR-0018): a carried or dragged body, and anyone working in place
+   * (typing at a console, crouched at a panel, kneeling over a body, holding out an offer).
+   */
+  get separationExempt(): boolean {
+    return this.tow !== null || this.body.carried !== null || this.offering !== null || WORK_POSES.has(this.basePose);
+  }
+
+  /** Soft push from actor separation: slides the body (through level collision), never a teleport. */
+  nudge(dx: number, dz: number, colliders: ColliderQuery | null): void {
+    if (colliders) moveBody(this.motor, dx, dz, 1 / 60, MOTOR, colliders);
+    else {
+      this.motor.x += dx;
+      this.motor.z += dz;
+    }
+    this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
+  }
+
+  place(at: P3, yaw?: number): void {
+    this.cancelWay();
+    this.motor.x = at.x;
+    this.motor.y = at.y;
+    this.motor.z = at.z;
+    this.motor.vy = 0;
+    this.motor.grounded = true;
+    this.body.group.position.set(at.x, at.y, at.z);
+    if (yaw !== undefined) this.body.setHeading(yaw);
+    this.faceYaw = null;
+    this.lastPos.copy(this.body.group.position);
+  }
+
+  /** Walk to a point (pathing when a nav graph is present). `instant` teleports there. */
+  moveTo(at: P3, opts: { speed?: number; yaw?: number; instant?: boolean; track?: P3[]; pose?: string } = {}): Promise<void> {
+    this.stopMove();
+    this.follow = null;
+    if (opts.pose && !opts.instant) {
+      // A downed body being moved: hold a lying pose instead of the walking gait.
+      this.body.carried = opts.pose;
+      this.moveCarried = true;
+    } else if (this.moveCarried) {
+      this.moveCarried = false;
+      if (!this.tow) this.body.carried = null;
+    }
+    if (opts.instant) {
+      this.place(at, opts.yaw);
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      this.move = {
+        target: new THREE.Vector3(at.x, at.y, at.z),
+        points: opts.track ? opts.track.map((p) => ({ ...p })) : null,
+        index: 0,
+        speed: opts.speed ?? NPC_TUNING.walk,
+        yaw: opts.yaw,
+        repathT: 0,
+        stuckT: 0,
+        blockT: 0,
+        avoidSide: 0,
+        usePath: !opts.track,
+        resolve,
+      };
+    });
+  }
+
+  /** Be pulled along behind `get()` (a dragger), `dist` m back, in a lying pose. */
+  towBehind(get: () => THREE.Vector3 | null, opts: { dist?: number; pose?: string } = {}): void {
+    this.stopMove();
+    this.follow = null;
+    this.tow = { get, dist: opts.dist ?? 1.1, pose: opts.pose ?? DRAG_POSE };
+    this.body.carried = this.tow.pose;
+  }
+
+  /** Let go of the rope: the body stays where it lies. */
+  untow(): void {
+    if (!this.tow) return;
+    this.tow = null;
+    this.body.carried = null;
+  }
+
+  get towed(): boolean {
+    return this.tow !== null;
+  }
+
+  stopMove(): void {
+    this.cancelWay();
+    const m = this.move;
+    this.move = null;
+    m?.resolve();
+  }
+
+  /** Play a named gesture (NPC_ANIMS) or any pose by name. Resolves when it ends (held poses resolve at once). */
+  playAnim(name: string, opts: { instant?: boolean; has?: (pose: string) => boolean } = {}): Promise<void> {
+    const def = NPC_ANIMS[name] ?? (opts.has?.(name) ? { pose: name, hold: Infinity } : null);
+    if (!def) return Promise.resolve();
+    this.cancelWay();
+    this.endAnim();
+    this.gesture = null;
+    if (def.hold === Infinity || def.hold === 0) {
+      // A persistent pose becomes the base pose (typing at a console, holding out a mug).
+      this.basePose = def.pose;
+      this.body.setPose(def.pose, opts.instant ? 0.01 : (def.blend ?? 0.4));
+      return Promise.resolve();
+    }
+    if (opts.instant) {
+      // Skipped: the gesture is over, back to the base pose.
+      this.body.setPose(this.basePose, 0.01);
+      return Promise.resolve();
+    }
+    this.body.setPose(def.pose, def.blend ?? 0.35);
+    return new Promise<void>((resolve) => {
+      this.anim = { pose: def.pose, left: def.hold, resolve };
+    });
+  }
+
+  private endAnim(): void {
+    const a = this.anim;
+    this.anim = null;
+    a?.resolve();
+  }
+
+  /** Back to standing (cancels anims and the held pose). */
+  resetPose(pose = 'idle'): void {
+    this.cancelWay();
+    this.endAnim();
+    this.basePose = pose;
+    this.body.setPose(pose, 0.4);
+  }
+
+  lookAt(get: (() => THREE.Vector3 | null) | null): void {
+    this.lookGet = get;
+  }
+
+  /** Keep within `distance` of a moving target (npcFollow). Null stops. */
+  followTarget(get: (() => THREE.Vector3 | null) | null, distance = 1.6): void {
+    this.stopMove();
+    this.follow = get ? { get, distance } : null;
+  }
+
+  turnTo(yaw: number | null): void {
+    this.cancelWay();
+    this.faceYaw = yaw;
+  }
+
+  update(dt: number, env: NpcEnv): void {
+    const me = this.position;
+    const camD = env.camera ? me.distanceTo(env.camera) : 0;
+    this.body.group.visible = camD < NPC_TUNING.hideDistance;
+    let speed = 0;
+    const desired = tmpB.set(0, 0, 0);
+
+    // Follow: walk toward the target when it gets away.
+    if (this.follow && !this.move) {
+      const f = this.follow;
+      const t = f.get();
+      const d = t ? Math.hypot(t.x - me.x, t.z - me.z) : 0;
+      if (t && d > f.distance + 1.2) {
+        // Walk to a point `distance` short of the target, then keep following (moveTo clears it).
+        const k = (d - f.distance) / d;
+        void this.moveTo({ x: me.x + (t.x - me.x) * k, y: t.y, z: me.z + (t.z - me.z) * k });
+        this.follow = f;
+      }
+    }
+
+    // Towed: the rope drags the body after the dragger, never faster than the catch-up speed.
+    const rope = this.tow;
+    if (rope) {
+      const t = rope.get();
+      if (t) {
+        const dx = t.x - me.x;
+        const dz = t.z - me.z;
+        const d = Math.hypot(dx, dz);
+        if (d > rope.dist + 1e-3) {
+          const step = Math.min(d - rope.dist, TOW_CATCHUP * dt);
+          this.motor.x = me.x + (dx / d) * step;
+          this.motor.z = me.z + (dz / d) * step;
+          this.motor.y = me.y;
+          this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
+          this.body.setHeading(Math.atan2(-dx, -dz));
+        }
+        this.body.carried = rope.pose;
+      }
+    }
+
+    const m = this.move;
+    if (m) {
+      let wp: P3 | null = null;
+      if (m.usePath) {
+        m.repathT -= dt;
+        if (!m.points || m.repathT <= 0) {
+          m.repathT = NPC_TUNING.repath;
+          m.points = env.nav?.findPath(me, m.target, { radius: 0.25 }) ?? [{ x: m.target.x, y: m.target.y, z: m.target.z }];
+          m.index = 0;
+        }
+      }
+      const pts = m.points ?? [{ x: m.target.x, y: m.target.y, z: m.target.z }];
+      wp = pts[m.index] ?? null;
+      while (wp && m.index < pts.length - 1 && Math.hypot(wp.x - me.x, wp.z - me.z) < 0.45) wp = pts[++m.index] ?? null;
+      const toEnd = Math.hypot(m.target.x - me.x, m.target.z - me.z);
+      if (toEnd <= NPC_TUNING.arrive && (!m.points || m.index >= pts.length - 1)) {
+        this.move = null;
+        if (m.yaw !== undefined) this.faceYaw = m.yaw;
+        m.resolve();
+      } else if (wp) {
+        desired.set(wp.x - me.x, 0, wp.z - me.z);
+        if (desired.lengthSq() > 1e-6) desired.normalize();
+        // Ease in over the last metre so arrivals don't overshoot.
+        speed = m.speed * Math.min(1, 0.35 + toEnd);
+        // Jay in the way: slow down, steer round him, and wait if there is no room (never shove or walk through him).
+        const jay = this.avoidJay(m, desired, env);
+        speed *= jay.scale;
+        const moved = Math.hypot(me.x - this.lastPos.x, me.z - this.lastPos.z);
+        if (jay.near) {
+          m.stuckT = Math.max(0, m.stuckT - dt);
+          m.blockT = jay.blocked ? m.blockT + dt : Math.max(0, m.blockT - dt);
+        } else {
+          m.blockT = Math.max(0, m.blockT - dt);
+          m.stuckT = moved < speed * dt * 0.1 ? m.stuckT + dt : Math.max(0, m.stuckT - dt);
+        }
+        // Hopelessly stuck (closed door, crowd): give up and stand there, so a `wait` never hangs.
+        if (m.stuckT > 4 || m.blockT > BLOCKED_GIVE_UP) {
+          this.move = null;
+          m.resolve();
+        } else if (m.stuckT > 1.2) m.points = null;
+      }
+    }
+    this.lastPos.copy(me);
+    // Standing: step aside when Jay walks into us, and come back once he has moved on.
+    let steerOpts: { turnRate: number; accel: number } = { turnRate: NPC_TUNING.turnRate, accel: 2.4 };
+    if (!this.move) {
+      const g = this.giveWay(dt, env, desired);
+      if (g > 0) {
+        speed = g;
+        steerOpts = { turnRate: GIVE_WAY.turnRate, accel: GIVE_WAY.accel };
+      }
+    } else if (this.wayPhase) this.cancelWay();
+    if (!this.move && this.moveCarried) {
+      this.moveCarried = false;
+      if (!this.tow) this.body.carried = null;
+    }
+
+    if (speed > 0) {
+      const vel = this.body.steer(desired, dt, { maxSpeed: speed, ...steerOpts });
+      if (env.colliders) moveBody(this.motor, vel.x * dt, vel.z * dt, dt, MOTOR, env.colliders);
+      else {
+        this.motor.x += vel.x * dt;
+        this.motor.z += vel.z * dt;
+      }
+      this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
+    } else {
+      // Settle: decelerate in place, then turn to the scripted facing.
+      const face = this.faceYaw !== null ? dirOf(this.faceYaw, tmpA) : null;
+      const vel = this.body.steer(face, dt, { maxSpeed: 0, turnRate: 2.2, accel: 3 });
+      if (vel.lengthSq() > 1e-6 && env.colliders) {
+        moveBody(this.motor, vel.x * dt, vel.z * dt, dt, MOTOR, env.colliders);
+        this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
+      }
+      if (this.faceYaw !== null && Math.abs(Math.atan2(Math.sin(this.faceYaw - this.body.heading), Math.cos(this.faceYaw - this.body.heading))) < 0.03) this.faceYaw = null;
+    }
+
+    // Timed gesture.
+    if (this.anim) {
+      this.anim.left -= dt;
+      if (this.anim.left <= 0) {
+        this.endAnim();
+        this.body.setPose(this.basePose, 0.4);
+      }
+    }
+
+    // Head: script look wins, then ambient notice of Jay.
+    const scripted = this.lookGet?.() ?? null;
+    if (scripted) this.body.lookTarget = scripted;
+    else if (this.ambient && !this.move && !this.tow) this.body.lookTarget = this.notices(env) ? env.playerHead : null;
+    else this.body.lookTarget = null;
+
+    if (this.ambient && !this.busy && !this.offering) this.ambientGesture(dt);
+
+    if (camD < NPC_TUNING.sleepDistance || !env.camera) this.body.update(dt, env.camera);
+  }
+
+  /**
+   * A scripted walker meets Jay: within AVOID_RANGE of his body edge and heading at him it eases off
+   * (stopping short of touching) and bends its path round him on a committed side. `blocked` when
+   * it has stopped short with him right ahead (the caller extends the stuck timer).
+   */
+  private avoidJay(m: MoveCmd, desired: THREE.Vector3, env: NpcEnv): { near: boolean; blocked: boolean; scale: number } {
+    const me = this.position;
+    const jx = env.playerFeet.x - me.x;
+    const jz = env.playerFeet.z - me.z;
+    const dj = Math.hypot(jx, jz);
+    const minD = this.body.footprint.r + PLAYER_RADIUS;
+    const gap = dj - minD;
+    const ahead = dj > 1e-4 ? (desired.x * jx + desired.z * jz) / dj : 0;
+    if (gap > AVOID_RANGE || ahead < 0.2 || Math.abs(env.playerFeet.y - me.y) > 1.2 || desired.lengthSq() < 1e-6) {
+      m.avoidSide = 0;
+      return { near: false, blocked: false, scale: 1 };
+    }
+    // Jay sits on the +perp side when cross > 0, so we bend the other way.
+    const cross = desired.x * jz - desired.z * jx;
+    if (m.avoidSide === 0) m.avoidSide = Math.abs(cross) > 0.02 ? Math.sign(cross) : 1;
+    const t = Math.max(0, Math.min(1, gap / AVOID_RANGE));
+    const bend = 1.6 * (1 - t);
+    const dx = desired.x;
+    const dz = desired.z;
+    desired.x = dx + m.avoidSide * dz * bend;
+    desired.z = dz - m.avoidSide * dx * bend;
+    desired.normalize();
+    const close = Math.max(0, Math.min(1, (gap - 0.04) / 0.9));
+    const k = ahead >= 0.5 ? 1 : (ahead - 0.2) / 0.3;
+    return { near: true, blocked: gap < 0.2 && ahead > 0.7, scale: 1 - (1 - close) * k };
+  }
+
+  /**
+   * Give way to Jay (standing bodies only): once his wish has pointed at us from inside contact range for
+   * GIVE_WAY.press seconds, walk to a spot ~1 m aside (or out of a doorway, away from him) on an internal
+   * channel (never resolves or replaces a scripted move), wait until he has moved on, then walk back to the
+   * original spot and facing. Any script command drops it (`cancelWay`). Returns the walking speed, 0 when
+   * standing. Held up by towing, carrying and offers; work poses only give way inside a doorway.
+   */
+  private giveWay(dt: number, env: NpcEnv, desired: THREE.Vector3): number {
+    const me = this.position;
+    const wish = env.playerWish;
+    if (this.tow || this.body.carried !== null || this.offering !== null || !this.body.group.visible) {
+      if (this.wayPhase) this.cancelWay();
+      return 0;
+    }
+    const mode = WORK_POSES.has(this.basePose) ? 'door' : 'any';
+    const r = this.body.footprint.r;
+    const wayEnv: WayEnv = { nav: env.nav, colliders: env.colliders, occupied: env.occupied ? (x, z, rr) => env.occupied!(x, z, rr, this) : undefined };
+    if (this.way.press(dt, me, r, env.playerFeet, wish, wayEnv, mode)) {
+      this.wayHome ??= { x: me.x, y: me.y, z: me.z, yaw: this.body.heading };
+      this.wayPhase = 'out';
+      this.wayT = 0;
+      this.wayPath = null;
+    }
+    const phase = this.wayPhase;
+    if (!phase) return 0;
+    this.wayT += dt;
+    const home = this.wayHome!;
+    if (phase === 'out') {
+      const s = this.way.spot!;
+      const d = Math.hypot(s.x - me.x, s.z - me.z);
+      if (d < 0.12 || this.wayT > 2.5) {
+        this.wayPhase = 'away';
+        this.wayT = 0;
+        return 0;
+      }
+      desired.set(s.x - me.x, 0, s.z - me.z).normalize();
+      return Math.min(GIVE_WAY.speed, 0.5 + d * 3);
+    }
+    if (phase === 'away') {
+      if (this.way.movedOn(dt, env.playerFeet, wish)) {
+        this.wayPhase = 'back';
+        this.wayT = 0;
+        this.wayPath = null;
+        this.wayRepathT = 0;
+      }
+      return 0;
+    }
+    // Back to the original spot and facing.
+    const toHome = Math.hypot(home.x - me.x, home.z - me.z);
+    if (toHome < 0.12 || this.wayT > GIVE_WAY_TIMEOUT) {
+      if (toHome < 0.5) {
+        // Land exactly on the old spot and facing.
+        this.motor.x = home.x;
+        this.motor.z = home.z;
+        this.body.group.position.set(home.x, this.motor.y, home.z);
+        this.faceYaw = home.yaw;
+      }
+      this.cancelWay();
+      return 0;
+    }
+    this.wayRepathT -= dt;
+    if (!this.wayPath || this.wayRepathT <= 0) {
+      this.wayRepathT = NPC_TUNING.repath;
+      this.wayPath = env.nav?.findPath(me, home, { radius: 0.2 }) ?? [{ x: home.x, y: home.y, z: home.z }];
+    }
+    let wp = this.wayPath[0];
+    while (wp && this.wayPath.length > 1 && Math.hypot(wp.x - me.x, wp.z - me.z) < 0.3) {
+      this.wayPath.shift();
+      wp = this.wayPath[0];
+    }
+    if (!wp) wp = home;
+    desired.set(wp.x - me.x, 0, wp.z - me.z);
+    if (desired.lengthSq() < 1e-6) return 0;
+    desired.normalize();
+    return Math.min(GIVE_WAY.speed, 0.3 + toHome * 1.5);
+  }
+
+  private notices(env: NpcEnv): boolean {
+    const me = this.position;
+    const dx = env.playerFeet.x - me.x;
+    const dz = env.playerFeet.z - me.z;
+    const d = Math.hypot(dx, dz);
+    if (d > NPC_TUNING.noticeRange || d < 0.2) return false;
+    const f = dirOf(this.body.heading, tmpA);
+    return (dx * f.x + dz * f.z) / d > -0.2; // not behind them
+  }
+
+  private ambientGesture(dt: number): void {
+    if (this.gesture) {
+      this.gesture.left -= dt;
+      if (this.gesture.left <= 0) {
+        this.gesture = null;
+        this.body.setPose(this.basePose, 0.6);
+      }
+      return;
+    }
+    this.gestureT -= dt;
+    if (this.gestureT > 0) return;
+    this.gestureT = this.rng.range(NPC_TUNING.gestureEvery[0], NPC_TUNING.gestureEvery[1]);
+    const options = AMBIENT_GESTURES[this.basePose];
+    if (!options?.length) return;
+    const fresh = options.filter((o) => o !== this.lastGesture);
+    const pose = this.rng.pick(fresh.length ? fresh : options);
+    this.lastGesture = pose;
+    this.gesture = { pose, left: this.rng.range(1.4, 3.2) };
+    this.body.setPose(pose, 0.6);
+  }
+}

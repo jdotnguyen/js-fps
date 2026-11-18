@@ -1,0 +1,776 @@
+[
+ {
+  "id": "hydro_moment",
+  "trigger": {
+   "event": "trigger:hydro_enter",
+   "requires": "briefingSeen"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "wait",
+    "s": 0.6
+   },
+   {
+    "do": "say",
+    "line": "hydro_botanist_01"
+   },
+   {
+    "do": "say",
+    "line": "hydro_jay_01"
+   },
+   {
+    "do": "say",
+    "line": "hydro_botanist_02"
+   },
+   {
+    "do": "say",
+    "line": "hydro_jay_02"
+   },
+   {
+    "do": "say",
+    "line": "hydro_botanist_03"
+   }
+  ]
+ },
+ {
+  "id": "hydro_log",
+  "trigger": {
+   "event": "round:hydro_log"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "sfx",
+    "id": "consoleBeep",
+    "at": "anchor:hydro_log"
+   },
+   {
+    "do": "setFlag",
+    "flag": "hydro_logged",
+    "value": true
+   },
+   {
+    "do": "completeObjective",
+    "id": "round_hydro"
+   },
+   {
+    "do": "setFlag",
+    "flag": "round_hydro_done",
+    "value": true
+   },
+   {
+    "do": "emit",
+    "event": "round:complete",
+    "payload": {
+     "which": "hydro"
+    }
+   }
+  ]
+ },
+ {
+  "id": "hydro_alarm",
+  "trigger": {
+   "event": "round:hydro_alarm"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "sfx",
+    "id": "consoleBeep",
+    "at": "anchor:hydro_alarm"
+   },
+   {
+    "do": "setFlag",
+    "flag": "hydro_alarm_reset",
+    "value": true
+   },
+   {
+    "do": "say",
+    "line": "hydro_botanist_04"
+   }
+  ]
+ },
+ {
+  "id": "hydro_store_denied",
+  "trigger": {
+   "event": "access:denied",
+   "match": {
+    "id": "hydro_store"
+   }
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "say",
+    "line": "hydro_store_locked_01"
+   }
+  ]
+ },
+ {
+  "id": "hydro_store_moment",
+  "trigger": {
+   "event": "trigger:hydro_store_enter"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "if",
+    "flag": "radio_muted",
+    "then": [],
+    "else": [
+     {
+      "do": "radio",
+      "track": "tag_fm_01",
+      "at": "anchor:hydro_radio"
+     },
+     {
+      "do": "setFlag",
+      "flag": "radio_place",
+      "value": "hydro"
+     }
+    ]
+   },
+   {
+    "do": "wait",
+    "s": 1.0
+   },
+   {
+    "do": "say",
+    "line": "hydro_store_jay_01"
+   },
+   {
+    "do": "say",
+    "line": "hydro_store_jay_02"
+   },
+   {
+    "do": "setFlag",
+    "flag": "hydro_store_seen",
+    "value": true
+   }
+  ]
+ },
+ {
+  "id": "dive_moment",
+  "trigger": {
+   "event": "trigger:dive_enter",
+   "requires": "briefingSeen"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "npcMoveTo",
+    "npc": "sung",
+    "to": "anchor:diver_1_spot",
+    "instant": true
+   },
+   {
+    "do": "emit",
+    "event": "tutorial:hint",
+    "payload": {
+     "action": "sprint"
+    }
+   },
+   {
+    "do": "wait",
+    "s": 1.2
+   },
+   {
+    "do": "npcLookAt",
+    "npc": "sung",
+    "target": "player"
+   },
+   {
+    "do": "say",
+    "line": "dive_sung_01"
+   },
+   {
+    "do": "say",
+    "line": "dive_jay_01"
+   },
+   {
+    "do": "say",
+    "line": "dive_sung_02"
+   },
+   {
+    "do": "say",
+    "line": "dive_maint_01"
+   }
+  ]
+ },
+ {
+  "id": "dive_case_taken",
+  "trigger": {
+   "event": "item:given",
+   "match": {
+    "id": "sample_case"
+   }
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "setFlag",
+    "flag": "dive_case_held",
+    "value": true
+   }
+  ]
+ },
+ {
+  "id": "dive_stow",
+  "trigger": {
+   "event": "round:dive_case",
+   "requires": "dive_case_held"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "sfx",
+    "id": "click",
+    "at": "anchor:dive_case_locker"
+   },
+   {
+    "do": "npcLookAt",
+    "npc": "sung",
+    "target": "anchor:dive_case_locker"
+   },
+   {
+    "do": "say",
+    "line": "dive_sung_03"
+   },
+   {
+    "do": "completeObjective",
+    "id": "round_dive"
+   },
+   {
+    "do": "setFlag",
+    "flag": "round_dive_done",
+    "value": true
+   },
+   {
+    "do": "emit",
+    "event": "round:complete",
+    "payload": {
+     "which": "dive"
+    }
+   }
+  ]
+ },
+ {
+  "id": "dive_stow_nocase",
+  "trigger": {
+   "event": "round:dive_case",
+   "unless": "dive_case_held"
+  },
+  "steps": [
+   {
+    "do": "wait",
+    "s": 0.2
+   },
+   {
+    "do": "say",
+    "line": "dive_jay_02"
+   },
+   {
+    "do": "wait",
+    "s": 1.0
+   }
+  ]
+ },
+ {
+  "id": "dive_radio",
+  "trigger": {
+   "event": "trigger:dive_lockers_enter",
+   "unless": "drop_started"
+  },
+  "steps": [
+   {
+    "do": "if",
+    "flag": "radio_muted",
+    "then": [],
+    "else": [
+     {
+      "do": "if",
+      "flag": "radio_place",
+      "then": [],
+      "else": [
+       {
+        "do": "radio",
+        "track": "tag_fm_01",
+        "at": "anchor:dive_radio"
+       },
+       {
+        "do": "setFlag",
+        "flag": "radio_place",
+        "value": "dive"
+       }
+      ],
+      "is": "dive"
+     }
+    ]
+   },
+   {
+    "do": "wait",
+    "s": 0.3
+   }
+  ]
+ },
+ {
+  "id": "admin_moment",
+  "trigger": {
+   "event": "trigger:admin_enter",
+   "requires": "briefingSeen"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "wait",
+    "s": 0.8
+   },
+   {
+    "do": "say",
+    "line": "admin_assistant_01"
+   }
+  ]
+ },
+ {
+  "id": "admin_hale",
+  "trigger": {
+   "event": "trigger:hale_office",
+   "requires": "briefingSeen"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "npcAnim",
+    "npc": "hale",
+    "anim": "talk_gesture"
+   },
+   {
+    "do": "say",
+    "line": "admin_hale_01"
+   },
+   {
+    "do": "wait",
+    "s": 0.4
+   },
+   {
+    "do": "npcLookAt",
+    "npc": "hale",
+    "target": "player"
+   },
+   {
+    "do": "npcAnim",
+    "npc": "hale",
+    "anim": "idle_hips"
+   },
+   {
+    "do": "say",
+    "line": "admin_hale_02"
+   },
+   {
+    "do": "say",
+    "line": "admin_jay_01"
+   },
+   {
+    "do": "say",
+    "line": "admin_hale_03"
+   },
+   {
+    "do": "say",
+    "line": "admin_hale_04"
+   }
+  ]
+ },
+ {
+  "id": "admin_card",
+  "trigger": {
+   "event": "item:given",
+   "match": {
+    "id": "card_l2"
+   }
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "sfx",
+    "id": "click",
+    "at": "anchor:hale_desk"
+   },
+   {
+    "do": "completeObjective",
+    "id": "round_admin"
+   },
+   {
+    "do": "setFlag",
+    "flag": "round_admin_done",
+    "value": true
+   },
+   {
+    "do": "emit",
+    "event": "round:complete",
+    "payload": {
+     "which": "admin"
+    }
+   }
+  ]
+ },
+ {
+  "id": "admin_glimpse",
+  "trigger": {
+   "event": "trigger:security_booth",
+   "requires": "briefingSeen"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "spawn",
+    "npc": "medbay_figure",
+    "kind": "lab",
+    "at": "anchor:cam04_figure"
+   },
+   {
+    "do": "cameraFeed",
+    "id": "admin_cam",
+    "from": "anchor:cam04_pos",
+    "lookAt": "anchor:cam04_look",
+    "state": "live",
+    "label": "CAM 04  MEDICAL BAY",
+    "fov": 62
+   },
+   {
+    "do": "wait",
+    "s": 2.5
+   },
+   {
+    "do": "say",
+    "line": "admin_monitor_01",
+    "wait": false
+   },
+   {
+    "do": "wait",
+    "s": 4.5
+   },
+   {
+    "do": "cameraFeed",
+    "id": "admin_cam",
+    "state": "static"
+   },
+   {
+    "do": "despawn",
+    "npc": "medbay_figure"
+   },
+   {
+    "do": "sfx",
+    "id": "consoleBeep",
+    "at": "anchor:admin_cam_monitor"
+   },
+   {
+    "do": "setFlag",
+    "flag": "admin_glimpse_seen",
+    "value": true
+   }
+  ]
+ },
+ {
+  "id": "round_done_hydro",
+  "trigger": {
+   "event": "round:complete",
+   "match": {
+    "which": "hydro"
+   }
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "checkpoint",
+    "id": "cp_round_hydro",
+    "label": "Hydroponics"
+   },
+   {
+    "do": "emit",
+    "event": "rounds:progress",
+    "payload": {
+     "which": "hydro"
+    }
+   },
+   {
+    "do": "if",
+    "flag": "round_dive_done",
+    "then": [
+     {
+      "do": "if",
+      "flag": "round_admin_done",
+      "then": [
+       {
+        "do": "emit",
+        "event": "rounds:all_done"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "round_done_dive",
+  "trigger": {
+   "event": "round:complete",
+   "match": {
+    "which": "dive"
+   }
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "checkpoint",
+    "id": "cp_round_dive",
+    "label": "Dive Bay"
+   },
+   {
+    "do": "emit",
+    "event": "rounds:progress",
+    "payload": {
+     "which": "dive"
+    }
+   },
+   {
+    "do": "if",
+    "flag": "round_hydro_done",
+    "then": [
+     {
+      "do": "if",
+      "flag": "round_admin_done",
+      "then": [
+       {
+        "do": "emit",
+        "event": "rounds:all_done"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "round_done_admin",
+  "trigger": {
+   "event": "round:complete",
+   "match": {
+    "which": "admin"
+   }
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "checkpoint",
+    "id": "cp_round_admin",
+    "label": "TAG Admin Office"
+   },
+   {
+    "do": "emit",
+    "event": "rounds:progress",
+    "payload": {
+     "which": "admin"
+    }
+   },
+   {
+    "do": "if",
+    "flag": "round_hydro_done",
+    "then": [
+     {
+      "do": "if",
+      "flag": "round_dive_done",
+      "then": [
+       {
+        "do": "emit",
+        "event": "rounds:all_done"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "rounds_commons_changes",
+  "trigger": {
+   "event": "rounds:progress"
+  },
+  "steps": [
+   {
+    "do": "if",
+    "flag": "commons_changed_1",
+    "then": [
+     {
+      "do": "if",
+      "flag": "commons_changed_2",
+      "then": [],
+      "else": [
+       {
+        "do": "npcMoveTo",
+        "npc": "crew_1",
+        "to": "anchor:priya_chair",
+        "instant": true
+       },
+       {
+        "do": "npcAnim",
+        "npc": "crew_1",
+        "anim": "idle_mug",
+        "instant": true
+       },
+       {
+        "do": "setFlag",
+        "flag": "commons_changed_2",
+        "value": true
+       }
+      ]
+     }
+    ],
+    "else": [
+     {
+      "do": "emit",
+      "event": "screen:set",
+      "payload": {
+       "id": "commons_tv",
+       "state": "on"
+      }
+     },
+     {
+      "do": "npcMoveTo",
+      "npc": "cook",
+      "to": "anchor:priya_exit",
+      "instant": true
+     },
+     {
+      "do": "setFlag",
+      "flag": "commons_changed_1",
+      "value": true
+     }
+    ]
+   },
+   {
+    "do": "wait",
+    "s": 0.3
+   }
+  ]
+ },
+ {
+  "id": "rounds_pa_repeat",
+  "trigger": {
+   "event": "rounds:progress"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "wait",
+    "s": 6
+   },
+   {
+    "do": "say",
+    "line": "pa_quarantine_01",
+    "wait": false,
+    "overlap": true
+   }
+  ]
+ },
+ {
+  "id": "rounds_return",
+  "trigger": {
+   "event": "rounds:all_done"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "wait",
+    "s": 2.0
+   },
+   {
+    "do": "say",
+    "line": "pa_gallery_call_01"
+   },
+   {
+    "do": "say",
+    "line": "rounds_giles_radio_01"
+   },
+   {
+    "do": "setFlag",
+    "flag": "rounds_done",
+    "value": true
+   },
+   {
+    "do": "setObjective",
+    "id": "round_return"
+   },
+   {
+    "do": "npcFollow",
+    "npc": "giles",
+    "target": "anchor:brief_giles",
+    "stay": true
+   },
+   {
+    "do": "npcFollow",
+    "npc": "okafor",
+    "target": "anchor:brief_okafor",
+    "stay": true
+   }
+  ]
+ },
+ {
+  "id": "researcher_walkby",
+  "trigger": {
+   "event": "trigger:commons_enter",
+   "requires": "commons_changed_1",
+   "unless": "drop_started"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "spawn",
+    "npc": "researcher_a",
+    "kind": "lab",
+    "at": "anchor:priya_enter"
+   },
+   {
+    "parallel": [
+     {
+      "do": "npcMoveTo",
+      "npc": "researcher_a",
+      "to": "anchor:dawdle_call",
+      "wait": true
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 3
+       },
+       {
+        "do": "say",
+        "line": "walkby_jay_01"
+       },
+       {
+        "do": "wait",
+        "s": 4
+       },
+       {
+        "do": "say",
+        "line": "walkby_jay_02"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "do": "despawn",
+    "npc": "researcher_a"
+   },
+   {
+    "do": "setFlag",
+    "flag": "researcher_walkby_seen",
+    "value": true
+   }
+  ]
+ }
+]

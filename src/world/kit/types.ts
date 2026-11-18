@@ -57,6 +57,11 @@ export interface PieceOutput {
   surfaces: Array<{ box: BoxSpec; material: SurfaceMaterial }>;
   /** Per-frame animation (screens, fans, abyss shader). */
   tick?: (t: number, dt: number) => void;
+  /**
+   * Named events the piece reacts to (blinds, wall screens, the supply sub). The loader
+   * subscribes each to the game event bus and to level trigger emits of the same name.
+   */
+  listeners?: Array<{ event: string; fn: (payload: unknown) => void }>;
 }
 
 export type PieceParams = Record<string, string | number | boolean>;
@@ -99,6 +104,12 @@ export class PieceBuilder {
   readonly navNodes: Array<{ pos: Vec3 }> = [];
   readonly surfaces: Array<{ box: BoxSpec; material: SurfaceMaterial }> = [];
   private readonly ticks: Array<(t: number, dt: number) => void> = [];
+  private readonly listeners: Array<{ event: string; fn: (payload: unknown) => void }> = [];
+
+  /** React to a named event (bus event or level trigger emit). Payload is unknown: check it. */
+  on(event: string, fn: (payload: unknown) => void): void {
+    this.listeners.push({ event, fn });
+  }
 
   add(geometry: THREE.BufferGeometry, material: THREE.Material, matrix?: THREE.Matrix4): THREE.Mesh {
     const mesh = new THREE.Mesh(geometry, material);
@@ -156,6 +167,7 @@ export class PieceBuilder {
         for (const f of ticks) f(t, dt);
       };
     }
+    if (this.listeners.length) out.listeners = this.listeners;
     return out;
   }
 }

@@ -1,0 +1,23 @@
+{
+  "chapter": "slice01_action",
+  "lines": [
+    { "id": "contact_okafor_03", "speaker": "medic", "text": "Legs! Take its legs!",
+      "emote": "urgent", "channel": "local", "priority": "story", "audio": null, "minDuration": 1.6, "choices": [] },
+    { "id": "contact_okafor_02", "speaker": "medic", "text": "More. Behind the benches. Stay on them.",
+      "emote": "urgent", "channel": "local", "priority": "story", "audio": null, "minDuration": 2, "choices": [] },
+    { "id": "sec_priya_03", "speaker": "nurse", "text": "[choking]",
+      "emote": "pained", "channel": "local", "priority": "story", "audio": null, "minDuration": 1.2, "choices": [] },
+    { "id": "sec_priya_04", "speaker": "nurse", "text": "Tomas, please- please-",
+      "emote": "scream", "channel": "local", "priority": "story", "audio": null, "minDuration": 1.8, "choices": [] },
+    { "id": "sec_giles_05", "speaker": "engineer", "text": "[a strangled cry]",
+      "emote": "scream", "channel": "local", "priority": "story", "audio": null, "minDuration": 1.2, "choices": [] },
+    { "id": "sec_okafor_07", "speaker": "medic", "text": "August? Talk to me.",
+      "emote": "urgent", "channel": "local", "priority": "story", "audio": null, "minDuration": 1.8, "choices": [] },
+    { "id": "climax_okafor_02", "speaker": "medic", "text": "Big one. Shotgun, Jay. Now.",
+      "emote": "urgent", "channel": "local", "priority": "story", "audio": null, "minDuration": 1.8, "choices": [] },
+    { "id": "stinger_priya_04", "speaker": "nurse", "text": "No. No, no, no...",
+      "emote": "whisper", "channel": "radio", "priority": "story", "audio": null, "minDuration": 2.2, "choices": [] },
+    { "id": "stinger_priya_05", "speaker": "nurse", "text": "Please don't. Please-",
+      "emote": "pained", "channel": "radio", "priority": "story", "audio": null, "minDuration": 2, "choices": [] }
+  ]
+}

@@ -1,5 +1,9 @@
 import type { EventBus } from './events.ts';
 
+/** Setting `tutorialPrompts` (ADR-0025): First time only / Always / Off. */
+export const TUTORIAL_MODES = ['first', 'always', 'off'] as const;
+export type TutorialMode = (typeof TUTORIAL_MODES)[number];
+
 /** Player settings persisted to localStorage. Grows with ADR-0012. */
 export interface Settings {
   mouseSensitivity: number;
@@ -15,6 +19,8 @@ export interface Settings {
   skipHoldSeconds: number;
   /** One press starts the skip countdown instead of holding the key (ADR-0017). */
   skipAssist: boolean;
+  /** Tutorial pop-ups: first time only (per profile), always, or off (ADR-0025). */
+  tutorialPrompts: TutorialMode;
 }
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
@@ -29,6 +35,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   filmGrain: true,
   skipHoldSeconds: 3,
   skipAssist: false,
+  tutorialPrompts: 'first',
 });
 
 const STORAGE_KEY = 'js-fps:settings:v1';
@@ -46,6 +53,7 @@ export function mergeSettings(stored: unknown): Settings {
     const v = src[key];
     if (typeof v !== typeof DEFAULT_SETTINGS[key]) continue;
     if (key === 'quality' && !qualities.includes(v as string)) continue;
+    if (key === 'tutorialPrompts' && !(TUTORIAL_MODES as readonly unknown[]).includes(v)) continue;
     if (typeof v === 'number' && !Number.isFinite(v)) continue;
     if (key === 'skipHoldSeconds' && ((v as number) < 1.5 || (v as number) > 6)) continue;
     (out as unknown as Record<string, unknown>)[key] = v;

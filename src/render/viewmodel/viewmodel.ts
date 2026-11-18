@@ -2,12 +2,8 @@ import * as THREE from 'three';
 import { PLAYER_TUNING, type Player } from '../../actors/player.ts';
 import type { EventBus } from '../../core/events.ts';
 import type { Input } from '../../core/input.ts';
-import { createHandMaterials } from './hand.ts';
-import { createWeaponMaterials } from './parts.ts';
-import { buildPistol, PISTOL_LEFT_PLACEMENT } from './pistol.ts';
-import type { WeaponId, WeaponRig } from './rig.ts';
-import { buildShotgun, PUMP_CENTER_Z, SHOTGUN_RIGHT_PLACEMENT } from './shotgun.ts';
-import { CYCLE, loadCycle, placeLoadHand, PUSH_START } from './shotgunReload.ts';
+import type { ClipName, GlbWeapon, PlayOptions } from './glbWeapons.ts';
+import type { WeaponId } from './rig.ts';
 
 declare module '../../core/events.ts' {
   interface EventMap {
@@ -18,15 +14,47 @@ declare module '../../core/events.ts' {
     'weapon:reloaded': { weapon: WeaponId; loaded: number; reserve: number };
     /** A shotgun shell reaches the loading port (once per shell during a reload). */
     'weapon:shellInsert': { weapon: WeaponId };
+    /** A sound moment inside a weapon animation (see CUES): the audio hangs its samples on these instead of guessing timings. */
+    'weapon:cue': { weapon: WeaponId; cue: WeaponCue };
     'weapon:equipped': { weapon: WeaponId };
   }
 }
 
+/** Sound moments, each emitted at a fixed point of a GLB clip (seconds into it, see CUES). */
+export type WeaponCue = 'magOut' | 'magIn' | 'slide' | 'slideSoft' | 'pump';
+
 /**
- * First-person weapon viewmodels (ADR-0005): the detailed SEC-9 and Breacher with their hands,
- * procedural sway / bob / recoil / aim / sprint poses, switching, firing and reload choreography.
- * Ammo here is a local stand-in until the weapon state machine and weapons.json land.
+ * First-person weapon viewmodels (ADR-0005): the animated pistol and shotgun GLBs (skinned arms + gun,
+ * glbWeapons.ts) driven by their own clips for firing, pumping, reloading and drawing, with procedural
+ * sway / bob / recoil springs, aim and sprint poses layered on top. The state machine (ammo, switching,
+ * cooldowns) is unchanged; clip lengths set the timings. Ammo here is a local stand-in until the weapon
+ * state machine and weapons.json land.
  */
+
+/** Seconds into the named clip at which a sound lands (read off the clips' bone tracks at 30 fps). */
+export const CUES = {
+  pistol: {
+    /** Magazine leaves the grip (ReloadClip / EmptyClipReload). */
+    magOut: 0.22,
+    /** Fresh magazine seats. */
+    magIn: 0.58,
+    /** Slide drops forward after an empty reload (EmptyClipReload). */
+    slide: 1.29,
+    /** The same slide move in a normal reload (ReloadClip), played softly. */
+    slideSoft: 0.7,
+  },
+  shotgun: {
+    /** Delay from the shot to PostFire starting; PostFire racks the pump. */
+    pumpAfterShot: 0.3,
+    /** Pump sound start, into PostFire (rack back begins ~0.1 s in). */
+    pump: 0.11,
+    /** Shell-in sound / ammo tick, into ReloadOne: the seat lands ~0.07 s later (that is where the sample's transient is). */
+    shell: 0.27,
+    /** Pump sound start, into Unhide / Weild, when the forend slides home. */
+    pumpDraw: 0.05,
+    pumpWield: 0.18,
+  },
+} as const;
 
 type V3 = [number, number, number];
 interface Pose {
@@ -65,38 +93,45 @@ interface Spec {
   recoilZ: number;
   recoilRx: number;
   kick: number;
+  /** Share of the Fire / PostFire clips' backward throw that is cancelled (hip, aimed). */
+  recoilCancel: [number, number];
   poses: PoseSet;
 }
 
 const SPECS: Record<WeaponId, Spec> = {
+  // Pose positions place the model's reference point (glbWeapons.ts) in camera space; rotations pivot about it.
   pistol: {
     feel: { swayPos: 1, swayRot: 1, weight: 0, idle: 1, bob: 1, strafe: 0, twist: 0, soft: false },
     mag: 12,
     startReserve: 36,
-    interval: 0.18,
-    recoilZ: 0.55,
-    recoilRx: 2.6,
+    interval: 0.24,
+    // The Fire clip already kicks the slide and arm; these springs only add a little on top.
+    recoilZ: 0.12,
+    recoilRx: 1.2,
     kick: 0.7,
+    recoilCancel: [0.35, 0.6],
     poses: {
-      hip: { p: [0.085, -0.13, -0.3], r: [0.02, 0.06, 0] },
-      aim: { p: [0.0, -0.088, -0.23], r: [0, 0, 0] },
-      sprint: { p: [0.07, -0.19, -0.2], r: [0.5, 0.45, -0.2] },
-      lowered: { p: [0.06, -0.32, -0.14], r: [0.7, 0.3, 0] },
+      hip: { p: [0.09, -0.14, -0.44], r: [0.02, 0.06, 0] },
+      aim: { p: [0.0, -0.092, -0.38], r: [0, 0, 0] },
+      sprint: { p: [0.07, -0.2, -0.3], r: [0.5, 0.45, -0.2] },
+      lowered: { p: [0.06, -0.34, -0.24], r: [0.7, 0.3, 0] },
     },
   },
   shotgun: {
-    feel: { swayPos: -2.5, swayRot: 2.2, weight: 1, idle: 2.5, bob: 2, strafe: 1, twist: 6, soft: true },
+    feel: { swayPos: -1.2, swayRot: 1.2, weight: 0.5, idle: 1, bob: 1.3, strafe: 0.6, twist: 2, soft: true },
     mag: 6,
     startReserve: 18,
-    interval: 0.75,
-    recoilZ: 1.5,
-    recoilRx: 8.5,
+    // Fire (recoil) runs for CUES.shotgun.pumpAfterShot, then PostFire (the pump, 0.6 s) until the gun is ready.
+    interval: CUES.shotgun.pumpAfterShot + 0.6,
+    recoilZ: 0.3,
+    recoilRx: 2.5,
     kick: 2.4,
+    recoilCancel: [0.85, 0.9],
     poses: {
-      hip: { p: [0.17, -0.2, -0.2], r: [0.03, 0.1, 0] },
-      aim: { p: [0.05, -0.135, -0.22], r: [0, 0.02, 0] },
-      sprint: { p: [0.15, -0.28, -0.1], r: [0.65, 0.5, -0.25] },
-      lowered: { p: [0.12, -0.42, -0.05], r: [0.8, 0.3, 0] },
+      hip: { p: [0.13, -0.21, -0.28], r: [0.03, 0.1, 0] },
+      aim: { p: [0.05, -0.14, -0.32], r: [0, 0.02, 0] },
+      sprint: { p: [0.16, -0.3, -0.22], r: [0.65, 0.5, -0.25] },
+      lowered: { p: [0.14, -0.5, -0.18], r: [0.8, 0.3, 0] },
     },
   },
 };
@@ -107,15 +142,18 @@ export interface ViewmodelDeps {
   input: Input;
   player: Player;
   events: EventBus;
+  /** The loaded GLB weapon rigs (loadWeaponModels in glbWeapons.ts). */
+  models: Record<WeaponId, GlbWeapon>;
   /** Weapons can be used right now (playing, alive, control allows). */
   enabled: () => boolean;
   /** The viewmodel should be drawn at all (hidden on the title screen and in fly mode). */
   visible: () => boolean;
   reducedMotion: () => boolean;
+  /** Weapons Jay carries (ADR-0005: the shotgun comes from the R07a armory). Default: all. */
+  owns?: (id: WeaponId) => boolean;
 }
 
 const ease = (t: number): number => t * t * (3 - 2 * t);
-const clamp01 = (t: number): number => Math.min(1, Math.max(0, t));
 const approach = (v: number, goal: number, step: number): number => (v < goal ? Math.min(goal, v + step) : Math.max(goal, v - step));
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 const mix3 = (a: V3, b: V3, t: number): V3 => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
@@ -140,22 +178,36 @@ class Spring {
 }
 
 type Phase = 'idle' | 'lowering' | 'raising';
-type Reload = { kind: 'pistol'; t: number; total: number; empty: boolean } | { kind: 'shotgun'; t: number; shell: number; entering: boolean; stop: boolean; inserted: boolean } | null;
+type Reload =
+  | { kind: 'pistol'; t: number; total: number; empty: boolean }
+  | { kind: 'shotgun'; stage: 'enter' | 'shell' | 'exit'; t: number; shell: number; inserted: boolean; stop: boolean }
+  | null;
+
+/** Hide / Unhide / Weild are authored slow for a showcase; speed them up for play. */
+const SWITCH_SPEED = 1.6;
+const WIELD_SPEED = 1.3;
+
+interface PendingCue {
+  at: number;
+  weapon: WeaponId;
+  cue: WeaponCue;
+}
 
 export class Viewmodel {
   readonly group = new THREE.Group();
   private readonly d: ViewmodelDeps;
-  private readonly rigs: Record<WeaponId, WeaponRig>;
+  private readonly rigs: Record<WeaponId, GlbWeapon>;
   private readonly ammo: Record<WeaponId, { loaded: number; reserve: number }>;
   private current: WeaponId = 'pistol';
   private pending: WeaponId | null = null;
-  private phase: Phase = 'raising';
+  private phase: Phase = 'idle';
   private phaseT = 0;
+  /** What the incoming weapon plays: Unhide on a plain switch, Weild when picked up or first drawn. */
+  private drawClip: 'Unhide' | 'Weild' = 'Unhide';
   private holster = 1;
   private sprintBlend = 0;
   private aimBlend = 0;
   private cooldown = 0;
-  private sinceShot = 99;
   private reload: Reload = null;
   private prevFire = false;
   private prevR = false;
@@ -166,6 +218,14 @@ export class Viewmodel {
   private bobPhase = 0;
   private bobAmp = 0;
   private time = 0;
+  private wasVisible = false;
+  /** Actions are held off until this time (the draw clip). */
+  private busyUntil = 0;
+  /** After a one-shot clip, go back to the rest pose at this time. */
+  private restAt = Infinity;
+  /** Shotgun: start the PostFire (pump) clip at this time. */
+  private pumpAt = Infinity;
+  private cues: PendingCue[] = [];
   private readonly recZ = new Spring(420, 26);
   private readonly recRx = new Spring(380, 24);
   private readonly recRy = new Spring(380, 24);
@@ -185,17 +245,13 @@ export class Viewmodel {
   private readonly flashLight: THREE.PointLight;
   private flashT = 0;
   private readonly fill: THREE.PointLight;
-  private readonly carriedMag: THREE.Object3D;
-  private readonly shellProp: THREE.Group;
-  private magFall = { t: -1, y: 0, vy: 0, vz: 0, z: 0, rx: 0 };
+  private readonly tmp = new THREE.Vector3();
+  private readonly recoilVec = new THREE.Vector3();
+  private recoilW = 0;
 
   constructor(deps: ViewmodelDeps) {
     this.d = deps;
-    const wm = createWeaponMaterials();
-    const hm = createHandMaterials();
-    const t0 = performance.now();
-    this.rigs = { pistol: buildPistol(wm, hm, { voxel: 0.0021 }), shotgun: buildShotgun(wm, hm, { voxel: 0.0021 }) };
-    console.info(`[boot] viewmodels built in ${(performance.now() - t0).toFixed(0)} ms`);
+    this.rigs = deps.models;
     this.ammo = {
       pistol: { loaded: SPECS.pistol.mag, reserve: SPECS.pistol.startReserve },
       shotgun: { loaded: SPECS.shotgun.mag, reserve: SPECS.shotgun.startReserve },
@@ -212,17 +268,11 @@ export class Viewmodel {
     this.group.frustumCulled = false;
     for (const id of ['pistol', 'shotgun'] as const) {
       const rig = this.rigs[id];
-      rig.root.rotation.order = 'YXZ';
       rig.root.visible = id === this.current;
       this.group.add(rig.root);
-      rig.root.traverse((o) => {
-        o.frustumCulled = false;
-        o.renderOrder = 10;
-      });
-      rig.setAmmo(this.ammo[id].loaded, this.ammo[id].reserve);
     }
 
-    // Muzzle flash: crossed additive quads plus a short-lived point light.
+    // Muzzle flash: crossed additive quads plus a short-lived point light. Camera-aligned, placed at the muzzle each frame.
     this.flash = new THREE.Group();
     const flashMat = new THREE.MeshBasicMaterial({ color: 0xffc47a, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
     for (let i = 0; i < 3; i++) {
@@ -235,6 +285,11 @@ export class Viewmodel {
     cone.position.z = -0.06;
     this.flash.add(cone);
     this.flash.visible = false;
+    this.flash.traverse((o) => {
+      o.frustumCulled = false;
+      o.renderOrder = 11;
+    });
+    this.group.add(this.flash);
     this.flashLight = new THREE.PointLight(0xffb060, 0, 7, 2);
     this.flashLight.castShadow = false;
     this.group.add(this.flashLight);
@@ -244,16 +299,7 @@ export class Viewmodel {
     this.fill.position.set(0.05, 0.12, -0.05);
     this.group.add(this.fill);
 
-    // Props used by reload choreography.
-    const pistolMag = this.rigs.pistol.mag;
-    this.carriedMag = pistolMag ? pistolMag.clone(true) : new THREE.Group();
-    this.carriedMag.visible = false;
-    this.rigs.pistol.root.getObjectByName('grip-tilt')?.add(this.carriedMag);
-    // The shell is carried by the loading hand (built into the shotgun rig).
-    this.shellProp = this.rigs.shotgun.shell ?? new THREE.Group();
-
     this.limitSpotNearField();
-    this.equipFlash(this.current);
     deps.scene.add(this.group);
     this.lastYaw = deps.player.yaw;
     this.lastPitch = deps.player.pitch;
@@ -292,9 +338,32 @@ export class Viewmodel {
     return this.current;
   }
 
+  /** Is this weapon carried? (switching skips the others) */
+  owns(id: WeaponId): boolean {
+    return id === 'pistol' || (this.d.owns?.(id) ?? true);
+  }
+
+  /** Switch to a weapon now (picked up, or a restart took the current one away). */
+  equip(id: WeaponId): void {
+    if (!this.owns(id)) return;
+    if (id !== this.current) this.drawClip = 'Weild';
+    this.requestSwitch(id);
+  }
+
   /** Current loaded / reserve for HUD or saves. */
   ammoOf(id: WeaponId): { loaded: number; reserve: number } {
     return this.ammo[id];
+  }
+
+  /** Ammo pickup (ADR-0005 step 6): add to a weapon's reserve. */
+  addReserve(id: WeaponId, n: number): void {
+    const st = this.ammo[id];
+    st.reserve = Math.max(0, st.reserve + Math.round(n));
+  }
+
+  /** Magazine size of a weapon. */
+  magSize(id: WeaponId): number {
+    return SPECS[id].mag;
   }
 
   // ---- per frame -----------------------------------------------------------------------
@@ -305,20 +374,23 @@ export class Viewmodel {
     this.group.visible = this.d.visible();
     if (!this.group.visible) {
       this.prevFire = input.isDown('fire');
+      this.wasVisible = false;
       return;
     }
     this.time += dt;
     this.group.position.copy(camera.position);
     this.group.quaternion.copy(camera.quaternion);
+    // First frame on screen (new game, back from the title or fly mode): the weapon is drawn.
+    if (!this.wasVisible) {
+      this.wasVisible = true;
+      if (this.phase === 'idle') this.startDraw(this.current, 'Weild');
+    }
 
     const active = this.d.enabled();
     this.holster = approach(this.holster, active ? 0 : 1, dt / 0.25);
     this.aimBlend = player.aimBlend;
     this.sprintBlend = approach(this.sprintBlend, player.sprinting ? 1 : 0, dt / 0.18);
     this.cooldown = Math.max(0, this.cooldown - dt);
-    const prevSince = this.sinceShot;
-    this.sinceShot += dt;
-    this.pumpKicks(prevSince, this.sinceShot);
 
     const fireDown = input.isDown('fire') && input.locked;
     const rDown = input.isDown('reload');
@@ -329,6 +401,10 @@ export class Viewmodel {
       if (d1 && !this.prev1) this.requestSwitch('pistol');
       if (d2 && !this.prev2) this.requestSwitch('shotgun');
       if (wheel !== 0) this.requestSwitch(this.current === 'pistol' ? 'shotgun' : 'pistol');
+    }
+    // A restart to before the armory takes the shotgun back out of Jay's hands.
+    if (!this.owns(this.current) && this.pending === null) this.requestSwitch('pistol');
+    if (active && this.holster < 0.4) {
       if (rDown && !this.prevR) this.startReload();
       if (fireDown && !this.prevFire) this.tryFire();
     }
@@ -339,24 +415,51 @@ export class Viewmodel {
 
     this.updateSwitch(dt);
     this.updateReload(dt);
-    this.updateLoadHand();
-    this.updateWeaponAnim(dt);
+    this.updateTimeline();
+    this.rigs[this.current].update(dt);
     this.updatePose(dt);
     this.updateFlash(dt);
   }
 
-  /** Weight shifts as the pump is racked: a tug at the start of the back stroke, a slam at the end of the forward one. */
-  private pumpKicks(from: number, to: number): void {
-    if (this.current !== 'shotgun' || this.reload || this.d.reducedMotion()) return;
-    const crossed = (t: number): boolean => from < t && to >= t;
-    if (crossed(0.2)) {
-      this.recZ.kick(0.35);
-      this.wY.kick(0.3);
+  // ---- clip timeline (cues, pump, return to rest) ----------------------------------------
+
+  private schedule(delay: number, weapon: WeaponId, cue: WeaponCue): void {
+    this.cues.push({ at: this.time + delay, weapon, cue });
+  }
+
+  private clearTimeline(): void {
+    this.cues.length = 0;
+    this.pumpAt = Infinity;
+    this.restAt = Infinity;
+  }
+
+  /** Play a one-shot clip on the current weapon; afterwards it settles back to the rest pose. */
+  private playOnce(clip: ClipName, opts: PlayOptions & { thenRest?: boolean } = {}): number {
+    const rig = this.rigs[this.current];
+    rig.play(clip, opts);
+    const len = rig.duration(clip) / (opts.speed ?? 1);
+    this.restAt = opts.thenRest === false ? Infinity : this.time + len;
+    return len;
+  }
+
+  private updateTimeline(): void {
+    const rig = this.rigs[this.current];
+    for (let i = this.cues.length - 1; i >= 0; i--) {
+      const c = this.cues[i]!;
+      if (this.time < c.at) continue;
+      this.cues.splice(i, 1);
+      this.d.events.emit('weapon:cue', { weapon: c.weapon, cue: c.cue });
     }
-    if (crossed(0.62)) {
-      this.recZ.kick(-0.55);
-      this.recRx.kick(-1.4);
-      this.wY.kick(-0.7);
+    if (this.time >= this.pumpAt) {
+      this.pumpAt = Infinity;
+      if (!this.reload && this.phase === 'idle') {
+        this.playOnce('PostFire', { fade: 0.15 });
+        this.schedule(CUES.shotgun.pump, 'shotgun', 'pump');
+      }
+    }
+    if (this.time >= this.restAt && !this.reload && this.phase === 'idle') {
+      this.restAt = Infinity;
+      rig.playRest(0.12);
     }
   }
 
@@ -366,56 +469,67 @@ export class Viewmodel {
     if (to === this.current && this.pending === null) return;
     if (this.phase !== 'idle' && this.pending !== null) return;
     if (to === this.current) return;
+    if (!this.owns(to)) return;
     this.pending = to;
     if (this.phase === 'idle') {
       this.phase = 'lowering';
       this.phaseT = 0;
+      this.cancelReload();
+      this.clearTimeline();
+      this.playOnce('Hide', { fade: 0.04, speed: SWITCH_SPEED, thenRest: false });
     }
+  }
+
+  /** Bring a weapon up with its Unhide / Weild clip. */
+  private startDraw(id: WeaponId, clip: 'Unhide' | 'Weild'): void {
     this.cancelReload();
+    this.clearTimeline();
+    const speed = clip === 'Weild' ? WIELD_SPEED : SWITCH_SPEED;
+    const rig = this.rigs[id];
+    rig.play(clip, { fade: 0, speed });
+    const len = rig.duration(clip) / speed;
+    this.restAt = this.time + len;
+    this.busyUntil = this.time + Math.min(len, 0.5);
+    if (id === 'shotgun') this.schedule(clip === 'Weild' ? CUES.shotgun.pumpWield : CUES.shotgun.pumpDraw, 'shotgun', 'pump');
   }
 
   private updateSwitch(dt: number): void {
     if (this.phase === 'idle') return;
-    this.phaseT += dt / 0.175;
-    if (this.phase === 'lowering' && this.phaseT >= 1) {
-      if (this.pending) {
-        this.rigs[this.current].root.visible = false;
-        this.current = this.pending;
-        this.pending = null;
-        this.rigs[this.current].root.visible = true;
-        this.equipFlash(this.current);
-        if (this.current === 'shotgun') {
-          // Draw-and-rack: reuse the post-shot pump cycle (it starts 0.2 s in and ends at 0.64 s). Ammo is untouched.
-          this.sinceShot = 0;
-          this.cooldown = Math.max(this.cooldown, 0.65);
+    if (this.phase === 'lowering') {
+      this.phaseT += dt / (this.rigs[this.current].duration('Hide') / SWITCH_SPEED);
+      if (this.phaseT >= 1) {
+        if (this.pending) {
+          this.rigs[this.current].root.visible = false;
+          this.current = this.pending;
+          this.pending = null;
+          this.rigs[this.current].root.visible = true;
+          const clip = this.drawClip;
+          this.drawClip = 'Unhide';
+          this.startDraw(this.current, clip);
+          this.d.events.emit('weapon:equipped', { weapon: this.current });
+          this.phaseT = 0;
+          this.phase = 'raising';
+          this.raiseLen = this.rigs[this.current].duration(clip) / (clip === 'Weild' ? WIELD_SPEED : SWITCH_SPEED);
+        } else {
+          this.phase = 'idle';
         }
-        this.d.events.emit('weapon:equipped', { weapon: this.current });
       }
-      this.phase = 'raising';
-      this.phaseT = 0;
-    } else if (this.phase === 'raising' && this.phaseT >= 1) {
-      this.phase = 'idle';
-      this.phaseT = 0;
-      this.wY.kick(-0.5 * SPECS[this.current].feel.weight);
+    } else {
+      this.phaseT += dt / Math.max(this.raiseLen, 0.05);
+      if (this.phaseT >= 1) {
+        this.phase = 'idle';
+        this.phaseT = 0;
+        this.wY.kick(-0.5 * SPECS[this.current].feel.weight);
+      }
     }
   }
 
-  private lowerAmount(): number {
-    let k = 0;
-    if (this.phase === 'lowering') k = ease(clamp01(this.phaseT));
-    else if (this.phase === 'raising') k = 1 - ease(clamp01(this.phaseT));
-    return Math.max(k, ease(this.holster));
-  }
-
-  private equipFlash(id: WeaponId): void {
-    this.flash.removeFromParent();
-    this.rigs[id].muzzle.add(this.flash);
-  }
+  private raiseLen = 0.3;
 
   // ---- fire / reload -------------------------------------------------------------------
 
   private canAct(): boolean {
-    return this.phase === 'idle' && this.sprintBlend < 0.35 && this.holster < 0.2;
+    return this.phase === 'idle' && this.sprintBlend < 0.35 && this.holster < 0.2 && this.time >= this.busyUntil;
   }
 
   private tryFire(): void {
@@ -424,23 +538,30 @@ export class Viewmodel {
     const st = this.ammo[id];
     const rig = this.rigs[id];
     if (this.reload) {
-      // Shotgun reloads are interruptible by firing (ADR-0005).
-      if (this.reload.kind === 'shotgun' && st.loaded > 0) this.reload.stop = true;
+      // Shotgun reloads are interruptible by firing (ADR-0005): drop out of the reload and shoot.
+      if (this.reload.kind === 'shotgun' && st.loaded > 0) this.endReload();
       else return;
     }
     if (st.loaded <= 0) {
       this.cooldown = 0.25;
-      this.sinceShot = 0;
       this.dryTrigger = 0.12;
+      this.recZ.kick(0.05);
       this.d.events.emit('weapon:dryFire', { weapon: id });
       return;
     }
     const spec = SPECS[id];
     st.loaded--;
-    rig.setAmmo(st.loaded, st.reserve);
     this.cooldown = spec.interval;
-    this.sinceShot = 0;
     this.dryTrigger = 0.1;
+    this.clearTimeline();
+    const fireLen = rig.duration('Fire');
+    rig.play('Fire', { fade: 0.02 });
+    if (id === 'shotgun') {
+      // Recoil, then the pump racks (PostFire). Ready again when the pump is home.
+      this.pumpAt = this.time + CUES.shotgun.pumpAfterShot;
+    } else {
+      this.restAt = this.time + fireLen;
+    }
     const aimDamp = 1 - 0.45 * this.aimBlend;
     this.recZ.kick(spec.recoilZ * aimDamp);
     this.recRx.kick(spec.recoilRx * aimDamp);
@@ -465,105 +586,47 @@ export class Viewmodel {
     const st = this.ammo[id];
     const spec = SPECS[id];
     if (st.loaded >= spec.mag || st.reserve <= 0) return;
-    if (id === 'pistol') this.reload = { kind: 'pistol', t: 0, total: st.loaded === 0 ? 1.7 : 1.4, empty: st.loaded === 0 };
-    else this.reload = { kind: 'shotgun', t: 0, shell: 0, entering: true, stop: false, inserted: false };
-    const pr = this.reload.kind === 'pistol' ? this.reload : null;
-    this.d.events.emit('weapon:reloadStart', pr ? { weapon: id, duration: pr.total, empty: pr.empty } : { weapon: id });
+    const rig = this.rigs[id];
+    this.clearTimeline();
+    if (id === 'pistol') {
+      const empty = st.loaded === 0;
+      const clip = empty ? 'EmptyClipReload' : 'ReloadClip';
+      this.reload = { kind: 'pistol', t: 0, total: rig.duration(clip), empty };
+      rig.play(clip, { fade: 0.08 });
+      this.schedule(CUES.pistol.magOut, 'pistol', 'magOut');
+      this.schedule(CUES.pistol.magIn, 'pistol', 'magIn');
+      this.schedule(empty ? CUES.pistol.slide : CUES.pistol.slideSoft, 'pistol', empty ? 'slide' : 'slideSoft');
+      this.d.events.emit('weapon:reloadStart', { weapon: id, duration: this.reload.total, empty });
+    } else {
+      this.reload = { kind: 'shotgun', stage: 'enter', t: 0, shell: 0, inserted: false, stop: false };
+      rig.play('PriorToReload', { fade: 0.1 });
+      this.d.events.emit('weapon:reloadStart', { weapon: id });
+    }
+  }
+
+  /** Leave a reload in progress (fired mid-reload): what has been loaded so far stays. */
+  private endReload(): void {
+    const r = this.reload;
+    if (!r) return;
+    this.reload = null;
+    const st = this.ammo[this.current];
+    this.d.events.emit('weapon:reloaded', { weapon: this.current, loaded: st.loaded, reserve: st.reserve });
   }
 
   private cancelReload(): void {
     this.reload = null;
-    this.carriedMag.visible = false;
-    this.shellProp.visible = false;
-    this.magFall.t = -1;
-    const mag = this.rigs.pistol.mag;
-    if (mag) {
-      mag.visible = true;
-      mag.position.set(0, 0, 0);
-      mag.rotation.set(0, 0, 0);
-    }
+    this.cues = this.cues.filter((c) => c.cue === 'pump');
   }
-
-  private reloadBlend = 0;
 
   private updateReload(dt: number): void {
     const r = this.reload;
-    const target = r ? 1 : 0;
-    this.reloadBlend = approach(this.reloadBlend, target, dt / 0.15);
-    // Left-hand slide along the grip axis and right-hand shell run, reset when idle.
-    const pistolRig = this.rigs.pistol;
-    const shotRig = this.rigs.shotgun;
-    const leftHand = pistolRig.root.getObjectByName('hand-left');
-    const rightHand = shotRig.root.getObjectByName('hand-right');
-    const gripMag = pistolRig.mag;
-    const slideDown = (s: number): void => {
-      if (!leftHand) return;
-      leftHand.position.set(PISTOL_LEFT_PLACEMENT.pos[0], PISTOL_LEFT_PLACEMENT.pos[1] - Math.cos(0.28) * s, PISTOL_LEFT_PLACEMENT.pos[2] + Math.sin(0.28) * s);
-    };
-    if (!r) {
-      slideDown(0);
-      rightHand?.position.set(...SHOTGUN_RIGHT_PLACEMENT.pos);
-      this.slideLockedBack = this.ammo.pistol.loaded === 0;
-      if (this.magFall.t >= 0 && gripMag) this.stepMagFall(dt, gripMag);
-      return;
-    }
+    if (!r) return;
     r.t += dt;
     if (r.kind === 'pistol') {
-      const u = r.t / r.total;
-      // Phases: 0-.14 hand drops, mag falls; .14-.42 grabs fresh mag; .42-.7 insert; .7-.86 slide release; rest settle.
-      const hand = u < 0.14 ? ease(u / 0.14) : u < 0.42 ? 1 : u < 0.7 ? 1 - ease((u - 0.42) / 0.28) : 0;
-      slideDown(0.13 * hand);
-      if (gripMag && u >= 0.08 && this.magFall.t < 0 && gripMag.visible && u < 0.42) {
-        this.magFall = { t: 0, y: 0, vy: 0.0, vz: 0, z: 0, rx: 0 };
-      }
-      if (this.magFall.t >= 0 && gripMag) this.stepMagFall(dt, gripMag);
-      const carry = u >= 0.14 && u < 0.7;
-      this.carriedMag.visible = carry;
-      if (carry) this.carriedMag.position.set(0, -0.13 * hand, 0);
-      if (u >= 0.7 && gripMag) {
-        gripMag.visible = true;
-        gripMag.position.set(0, 0, 0);
-        gripMag.rotation.set(0, 0, 0);
-        this.magFall.t = -1;
-      }
-      if (r.empty && u >= 0.74 && u < 0.86) this.slideLockedBack = false;
-      if (u >= 1) this.finishPistolReload();
+      if (r.t >= r.total) this.finishPistolReload();
     } else {
       this.updateShotgunReload(r);
     }
-  }
-
-  /** Swap the shotgun's grip hand for the loading hand while reloading, and place it along the shell cycle. */
-  private updateLoadHand(): void {
-    const rig = this.rigs.shotgun;
-    const load = rig.loadHand;
-    const grip = rig.root.getObjectByName('hand-right');
-    if (!load || !grip) return;
-    const blend = this.current === 'shotgun' ? this.reloadBlend : 0;
-    const useLoad = blend > 0.02;
-    grip.visible = !useLoad;
-    load.visible = useLoad;
-    if (!useLoad) {
-      this.shellProp.visible = false;
-      return;
-    }
-    const r = this.reload;
-    const u = r && r.kind === 'shotgun' && !r.entering ? clamp01(r.t / CYCLE) : 0;
-    placeLoadHand(load, SHOTGUN_RIGHT_PLACEMENT, u, blend);
-  }
-
-  private slideLockedBack = false;
-
-  private stepMagFall(dt: number, mag: THREE.Object3D): void {
-    const f = this.magFall;
-    f.t += dt;
-    f.vy -= 9.8 * dt * 1.2;
-    f.y += f.vy * dt;
-    f.z += f.vz * dt;
-    f.rx += 3.5 * dt;
-    mag.position.set(0, f.y, f.z);
-    mag.rotation.set(f.rx, 0, f.rx * 0.5);
-    if (f.t > 0.45) mag.visible = false;
   }
 
   private finishPistolReload(): void {
@@ -572,86 +635,57 @@ export class Viewmodel {
     const take = Math.min(spec.mag - st.loaded, st.reserve);
     st.loaded += take;
     st.reserve -= take;
-    this.rigs.pistol.setAmmo(st.loaded, st.reserve);
-    this.carriedMag.visible = false;
     this.reload = null;
-    this.slideLockedBack = false;
+    this.rigs.pistol.playRest(0.1);
     this.d.events.emit('weapon:reloaded', { weapon: 'pistol', loaded: st.loaded, reserve: st.reserve });
   }
 
+  /** PriorToReload, then ReloadOne per shell (shell seats at CUES.shotgun.shell), then ReloadLastOne. */
   private updateShotgunReload(r: Extract<NonNullable<Reload>, { kind: 'shotgun' }>): void {
     const st = this.ammo.shotgun;
     const rig = this.rigs.shotgun;
-    if (r.entering) {
-      this.shellProp.visible = false;
-      if (r.t >= 0.25) {
-        r.entering = false;
+    if (r.stage === 'enter') {
+      if (r.t >= rig.duration('PriorToReload')) {
+        r.stage = 'shell';
         r.t = 0;
+        r.inserted = false;
+        rig.play('ReloadOne', { fade: 0.05 });
       }
-      return;
-    }
-    const cycle = CYCLE;
-    const u = clamp01(r.t / cycle);
-    // The loading hand (see shotgunReload.ts) carries the shell to the port and shoves it in.
-    this.shellProp.visible = loadCycle(u).shell;
-    if (!r.inserted && u >= PUSH_START + 0.03) {
-      r.inserted = true;
-      this.d.events.emit('weapon:shellInsert', { weapon: 'shotgun' });
-    }
-    if (r.t >= cycle) {
-      st.loaded++;
-      st.reserve--;
-      rig.setAmmo(st.loaded, st.reserve);
-      r.shell++;
-      r.t = 0;
-      r.inserted = false;
-      if (st.loaded >= SPECS.shotgun.mag || st.reserve <= 0 || r.stop) {
-        this.reload = null;
-        this.shellProp.visible = false;
-        this.d.events.emit('weapon:reloaded', { weapon: 'shotgun', loaded: st.loaded, reserve: st.reserve });
+    } else if (r.stage === 'shell') {
+      if (!r.inserted && r.t >= CUES.shotgun.shell) {
+        r.inserted = true;
+        st.loaded++;
+        st.reserve--;
+        r.shell++;
+        this.d.events.emit('weapon:shellInsert', { weapon: 'shotgun' });
       }
-    }
-  }
-
-  // ---- weapon animation (slide / pump / trigger) ----------------------------------------
-
-  private updateWeaponAnim(dt: number): void {
-    this.dryTrigger = Math.max(0, this.dryTrigger - dt);
-    for (const id of ['pistol', 'shotgun'] as const) {
-      const rig = this.rigs[id];
-      if (!rig.root.visible) continue;
-      let s = 0;
-      const t = this.sinceShot;
-      if (id === 'pistol') {
-        const back = clamp01(t / 0.035);
-        const fwd = clamp01((t - 0.035) / 0.085);
-        s = t < 0.035 ? ease(back) : 1 - ease(fwd);
-        if (t > 0.12) s = 0;
-        if (this.ammo.pistol.loaded === 0 && this.slideLockedBack) s = 1;
-        if (this.ammo.pistol.loaded === 0 && !this.reload && t > 0.12) s = 1;
-        rig.mover.position.z = rig.moverTravel * s;
-      } else {
-        // Pump cycles after each shot: back, then forward.
-        const a = clamp01((t - 0.2) / 0.2);
-        const b = clamp01((t - 0.42) / 0.22);
-        // Back stroke: yanked, decelerating. Forward stroke: accelerates and slams home, with a tiny rebound.
-        const backE = 1 - Math.pow(1 - a, 3);
-        const fwdE = b * b * (1.4 - 0.4 * b);
-        s = t < 0.2 ? 0 : t < 0.42 ? backE : 1 - fwdE;
-        if (t >= 0.64 && t < 0.95) s = 0.07 * Math.exp(-(t - 0.64) * 28) * Math.sin((t - 0.64) * 70);
-        if (this.reload) s = this.reload.kind === 'shotgun' ? 0 : s;
-        rig.mover.position.z = PUMP_CENTER_Z + rig.moverTravel * s;
+      if (r.t >= rig.duration('ReloadOne')) {
+        r.t = 0;
+        r.inserted = false;
+        if (st.loaded >= SPECS.shotgun.mag || st.reserve <= 0 || r.stop) {
+          r.stage = 'exit';
+          rig.play('ReloadLastOne', { fade: 0.05 });
+        } else {
+          rig.play('ReloadOne', { fade: 0 });
+        }
       }
-      const pull = this.dryTrigger > 0 ? 1 : 0;
-      rig.setTrigger(pull);
+    } else if (r.t >= rig.duration('ReloadLastOne')) {
+      this.reload = null;
+      rig.playRest(0.1);
+      this.d.events.emit('weapon:reloaded', { weapon: 'shotgun', loaded: st.loaded, reserve: st.reserve });
     }
   }
 
   // ---- pose ----------------------------------------------------------------------------
 
+  private lowerAmount(): number {
+    return ease(this.holster);
+  }
+
   private updatePose(dt: number): void {
     const { player } = this.d;
     const reduced = this.d.reducedMotion();
+    this.dryTrigger = Math.max(0, this.dryTrigger - dt);
     const rig = this.rigs[this.current];
     const poses = SPECS[this.current].poses;
     const feel = SPECS[this.current].feel;
@@ -703,59 +737,54 @@ export class Viewmodel {
     this.recRx.step(dt);
     this.recRy.step(dt);
 
-    // Bob, breathing and strafe lean.
+    // Bob and strafe lean (the clips carry their own breathing).
     const speed = Math.hypot(player.velocity.x, player.velocity.y);
     const ampGoal = reduced ? 0 : Math.min(1, speed / PLAYER_TUNING.walkSpeed) * (player.sprinting ? 1.5 : 1);
     this.bobAmp = approach(this.bobAmp, ampGoal, dt * 4);
     this.bobPhase += speed * dt * (player.sprinting ? 2.6 : 2.2);
     const bob = this.bobAmp * (1 - 0.7 * aimE);
     const m = reduced ? 0 : 1;
-    const calm = 1 - 0.5 * aimE;
-    const breathe = reduced ? 0 : Math.sin(this.time * 1.7) * 0.0006 * feel.idle;
-    // Extra idle life beyond the pistol's baseline: a slow drift and a rocking breath.
-    const extra = (feel.idle - 1) * m * calm;
-    const idleX = Math.sin(this.time * 0.63) * 0.0006 * extra;
-    const idleRx = Math.sin(this.time * 1.7 + 1) * 0.0025 * extra;
-    const idleRz = Math.sin(this.time * 0.9) * 0.003 * extra;
     const lateral = player.velocity.x * Math.cos(player.yaw) - player.velocity.y * Math.sin(player.yaw);
     const leanGoal = THREE.MathUtils.clamp(lateral / PLAYER_TUNING.walkSpeed, -1.4, 1.4) * feel.strafe * m;
     this.lean += (leanGoal - this.lean) * (1 - Math.exp(-dt * 7));
     const B = feel.bob;
     const W = feel.weight;
     pos = [
-      pos[0] + Math.sin(this.bobPhase) * 0.004 * bob * B + this.swayX.x * 0.06 * feel.swayPos + this.wX.x * 0.1 * W - this.lean * 0.005 + idleX,
-      pos[1] + Math.abs(Math.cos(this.bobPhase)) * -0.004 * bob * B + breathe + this.swayY.x * 0.05 * feel.swayPos + this.wY.x * 0.1 * W,
+      pos[0] + Math.sin(this.bobPhase) * 0.004 * bob * B + this.swayX.x * 0.06 * feel.swayPos + this.wX.x * 0.1 * W - this.lean * 0.005,
+      pos[1] + Math.abs(Math.cos(this.bobPhase)) * -0.004 * bob * B + this.swayY.x * 0.05 * feel.swayPos + this.wY.x * 0.1 * W,
       pos[2] + this.recZ.x * 1.0,
     ];
     rot = [
-      rot[0] + this.recRx.x * 0.1 + this.swayY.x * 0.5 * feel.swayRot + Math.sin(this.bobPhase * 2) * 0.006 * bob * B + this.wY.x * 0.9 * W + idleRx,
+      rot[0] + this.recRx.x * 0.1 + this.swayY.x * 0.5 * feel.swayRot + Math.sin(this.bobPhase * 2) * 0.006 * bob * B + this.wY.x * 0.9 * W,
       rot[1] + this.recRy.x * 0.05 + this.swayX.x * 0.5 * feel.swayRot + Math.cos(this.bobPhase) * 0.01 * bob * B - this.wX.x * 1.0 * W,
-      rot[2] + this.swayX.x * -0.2 * feel.swayRot + this.recRz.x * 0.08 + Math.sin(this.bobPhase) * 0.006 * bob * (B - 1) - this.lean * 0.045 + idleRz,
+      rot[2] + this.swayX.x * -0.2 * feel.swayRot + this.recRz.x * 0.08 + Math.sin(this.bobPhase) * 0.006 * bob * (B - 1) - this.lean * 0.045,
     ];
 
-    // Reload tilt.
-    const rl = ease(this.reloadBlend);
-    if (this.current === 'pistol') {
-      rot = [rot[0] + 0.12 * rl, rot[1] + 0.18 * rl, rot[2] - 0.3 * rl];
-      pos = [pos[0] - 0.02 * rl, pos[1] + 0.03 * rl, pos[2] + 0.02 * rl];
-    } else {
-      // Lift the gun and roll it up on its side (underside, with the loading port, toward the player and the loading hand).
-      rot = [rot[0] + 0.2 * rl, rot[1] - 0.35 * rl, rot[2] + 1.25 * rl];
-      pos = [pos[0] - 0.17 * rl, pos[1] + 0.14 * rl, pos[2] + 0.11 * rl];
+    // Fire / PostFire throw the whole rig back ~0.35 m: cancel a share of it, more when aimed.
+    const inRecoil = rig.clip === 'Fire' || rig.clip === 'PostFire';
+    this.recoilW = approach(this.recoilW, inRecoil ? 1 : 0, dt / (inRecoil ? 0.04 : 0.15));
+    if (this.recoilW > 0) {
+      const [hipCut, aimCut] = SPECS[this.current].recoilCancel;
+      const cut = lerp(hipCut, aimCut, aimE) * this.recoilW;
+      rig.recoilDelta(this.recoilVec);
+      pos = [pos[0] - this.recoilVec.x * cut, pos[1] - this.recoilVec.y * cut, pos[2] - this.recoilVec.z * cut];
     }
 
     rig.root.position.set(pos[0], pos[1], pos[2]);
     rig.root.rotation.set(rot[0], rot[1], rot[2]);
-    rig.setLaser(this.current === 'pistol' ? ease(this.aimBlend) * (1 - lower) : 0);
   }
 
   private updateFlash(dt: number): void {
     if (this.flashT > 0) {
       this.flashT -= dt;
       this.flash.visible = this.flashT > 0;
-      const m = this.rigs[this.current].muzzle;
-      m.getWorldPosition(this.flashLight.position);
-      this.group.worldToLocal(this.flashLight.position);
+      // The muzzle follows the recoil animation; the flash itself stays camera-aligned (forward = -Z).
+      const rig = this.rigs[this.current];
+      rig.root.updateWorldMatrix(true, true);
+      rig.muzzle.getWorldPosition(this.tmp);
+      this.group.worldToLocal(this.tmp);
+      this.flash.position.copy(this.tmp);
+      this.flashLight.position.copy(this.tmp);
       this.flashLight.intensity = this.flashT > 0 ? (this.current === 'pistol' ? 6 : 14) : 0;
     } else {
       this.flash.visible = false;

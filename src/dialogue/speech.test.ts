@@ -138,3 +138,24 @@ test('a long real-audio file extends the line', () => {
   sm.say('story_a');
   assert.equal(sm.speaking()?.duration, 4);
 });
+
+test('an overlap line plays beside a story line without queuing (PA under the squad, ADR-0017)', async () => {
+  const { sm, log } = setup();
+  sm.say('story_a');
+  const pa = sm.say('story_b', { overlap: true });
+  assert.deepEqual(sm.queuedIds(), [], 'nothing waits');
+  assert.deepEqual(log, ['start story_a', 'start story_b']);
+  assert.equal(sm.speaking()?.id, 'story_a', 'the main lane is unchanged');
+  sm.say('medic_a');
+  assert.deepEqual(sm.queuedIds(), ['medic_a'], 'the main queue still works normally');
+  run(sm, 1.9);
+  assert.equal(await pa.done, 'finished');
+  assert.ok(log.includes('end story_b finished'));
+});
+
+test('stopAll also stops overlap lines', async () => {
+  const { sm } = setup();
+  const pa = sm.say('story_b', { overlap: true });
+  sm.stopAll();
+  assert.equal(await pa.done, 'stopped');
+});

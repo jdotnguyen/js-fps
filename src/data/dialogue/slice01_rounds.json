@@ -1,0 +1,17 @@
+{
+  "chapter": "slice01_rounds",
+  "lines": [
+    { "id": "hydro_botanist_04", "speaker": "crew_botanist", "text": "Alarm's quiet. Thank you, officer. The tomatoes thank you too.",
+      "emote": "relieved", "channel": "local", "priority": "story", "audio": null, "minDuration": 2.5, "choices": [] },
+    { "id": "dive_jay_02", "speaker": "player", "text": "Probably should carry the case first.",
+      "emote": "question", "channel": "local", "priority": "story", "audio": null, "minDuration": 2, "choices": [] },
+    { "id": "hydro_store_jay_01", "speaker": "player", "text": "Cot, kettle, a photo of somebody's dog. Somebody lives in here.",
+      "emote": "neutral", "channel": "local", "priority": "story", "audio": null, "minDuration": 3, "choices": [] },
+    { "id": "walkby_jay_01", "speaker": "player", "text": "Morning, Doctor.",
+      "emote": "neutral", "channel": "local", "priority": "story", "audio": null, "minDuration": 1.8, "choices": [] },
+    { "id": "walkby_jay_02", "speaker": "player", "text": "...Rough night, I guess.",
+      "emote": "question", "channel": "local", "priority": "story", "audio": null, "minDuration": 2.2, "choices": [] },
+    { "id": "hydro_store_jay_02", "speaker": "player", "text": "Radio's still warm. They only just left.",
+      "emote": "neutral", "channel": "local", "priority": "story", "audio": null, "minDuration": 2.5, "choices": [] }
+  ]
+}

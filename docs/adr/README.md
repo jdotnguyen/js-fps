@@ -43,6 +43,10 @@ Execution steps, Definition of done, Open questions.
 | 0020 | Turn-then-move steering for crawlers and draggers | 0006 |
 | 0021 | Hero tier behaviour (heavy gait, slam, toughness, weak spot) | 0006, 0007, 0019 |
 | 0022 | Squad characters: personalities, backstory, infection arc | 0010, 0011, 0014 |
+| 0023 | The quiet half: commons, briefing and morning rounds | 0014, 0017, 0024, 0025 |
+| 0024 | Map, objectives and access gating | 0003, 0004, 0012, 0016 |
+| 0025 | Tutorial prompts | 0004, 0012, 0016 |
+| 0026 | Imported body models for the crowd | 0006, 0007 |
 
 0013 (audio) can run in parallel with 0004-0008 once 0003 exists.
 0015 is a standing rule set: read it before starting any ADR.

@@ -1,0 +1,301 @@
+[
+ {
+  "id": "contact",
+  "trigger": {
+   "event": "trigger:r05_enter",
+   "requires": "drop_done",
+   "unless": "contact_done"
+  },
+  "resumeFromCheckpoint": true,
+  "debugSetup": {
+   "flags": {
+    "drop_done": true
+   }
+  },
+  "steps": [
+   {
+    "do": "doorState",
+    "id": "D_R05_R06",
+    "state": "sealed"
+   },
+   {
+    "do": "setObjective",
+    "id": "obj_survive_lab"
+   },
+   {
+    "do": "wait",
+    "s": 1.8
+   },
+   {
+    "do": "loop",
+    "count": 3,
+    "steps": [
+     {
+      "do": "sfx",
+      "id": "metalKnock",
+      "at": "door:D_R04_R05"
+     },
+     {
+      "do": "cameraShake",
+      "amount": 0.14,
+      "s": 0.3
+     },
+     {
+      "do": "wait",
+      "s": 0.8
+     }
+    ]
+   },
+   {
+    "do": "playerLookAt",
+    "target": "door:D_R04_R05",
+    "duration": 1.0,
+    "weight": 0.6
+   },
+   {
+    "do": "say",
+    "line": "contact_giles_01"
+   },
+   {
+    "do": "say",
+    "line": "contact_okafor_01"
+   },
+   {
+    "parallel": [
+     {
+      "do": "cameraShake",
+      "amount": 0.45,
+      "s": 0.9
+     },
+     {
+      "do": "sfx",
+      "id": "glassThud",
+      "at": "door:D_R04_R05"
+     },
+     {
+      "do": "doorState",
+      "id": "D_R04_R05",
+      "state": "open"
+     },
+     {
+      "do": "despawn",
+      "npc": "researcher_b"
+     },
+     {
+      "do": "spawnGroup",
+      "group": "r05_contact"
+     }
+    ]
+   },
+   {
+    "do": "wait",
+    "s": 1.4
+   },
+   {
+    "do": "say",
+    "line": "contact_okafor_03"
+   },
+   {
+    "do": "waitGroup",
+    "group": "r05_contact"
+   },
+   {
+    "do": "wait",
+    "s": 0.8
+   },
+   {
+    "do": "say",
+    "line": "contact_after_01"
+   },
+   {
+    "do": "say",
+    "line": "okafor_revive_rule_01"
+   },
+   {
+    "do": "spawnGroup",
+    "group": "r05_trickle"
+   },
+   {
+    "do": "say",
+    "line": "contact_okafor_02",
+    "wait": false
+   },
+   {
+    "do": "waitGroup",
+    "group": "r05_trickle"
+   },
+   {
+    "do": "wait",
+    "s": 1.2
+   },
+   {
+    "do": "doorState",
+    "id": "D_R05_R06",
+    "state": "closed"
+   },
+   {
+    "do": "radio",
+    "track": "tag_fm_01",
+    "at": "anchor:r05_radio"
+   },
+   {
+    "do": "setFlag",
+    "flag": "radio_place",
+    "value": "ruined"
+   },
+   {
+    "do": "setFlag",
+    "flag": "contact_done",
+    "value": true
+   },
+   {
+    "do": "checkpoint",
+    "id": "cp_contact_clear",
+    "label": "Lab Junction"
+   }
+  ]
+ },
+ {
+  "id": "ruined_radio_off",
+  "trigger": {
+   "event": "trigger:r06_enter",
+   "requires": "contact_done"
+  },
+  "steps": [
+   {
+    "do": "if",
+    "flag": "radio_place",
+    "is": "ruined",
+    "then": [
+     {
+      "do": "radio",
+      "stop": true
+     },
+     {
+      "do": "setFlag",
+      "flag": "radio_place",
+      "value": "none"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "cover_me",
+  "trigger": {
+   "event": "trigger:r06_door",
+   "requires": "contact_done",
+   "unless": "cover_done"
+  },
+  "resumeFromCheckpoint": true,
+  "debugSetup": {
+   "flags": {
+    "drop_done": true,
+    "contact_done": true
+   }
+  },
+  "steps": [
+   {
+    "do": "setObjective",
+    "id": "obj_hold_door"
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "giles",
+    "to": "anchor:r06_panel"
+   },
+   {
+    "do": "say",
+    "line": "giles_cover_01"
+   },
+   {
+    "do": "wait",
+    "s": 1.0
+   },
+   {
+    "do": "say",
+    "line": "cover_giles_01",
+    "wait": false
+   },
+   {
+    "do": "spawnGroup",
+    "group": "r06_cover"
+   },
+   {
+    "do": "npcTask",
+    "npc": "giles",
+    "task": "bypass",
+    "args": {
+     "at": "anchor:r06_panel",
+     "panel": "D_R06_R07",
+     "duration": 20
+    },
+    "wait": true
+   },
+   {
+    "do": "doorState",
+    "id": "D_R06_R07",
+    "state": "open"
+   },
+   {
+    "do": "sfx",
+    "id": "click",
+    "at": "anchor:r06_panel"
+   },
+   {
+    "do": "say",
+    "line": "cover_giles_02",
+    "wait": false
+   },
+   {
+    "do": "waitGroup",
+    "group": "r06_cover"
+   },
+   {
+    "do": "wait",
+    "s": 1.0
+   },
+   {
+    "do": "npcAnim",
+    "npc": "giles",
+    "anim": "flex_hand"
+   },
+   {
+    "do": "setFlag",
+    "flag": "giles.infectionStage",
+    "value": 1
+   },
+   {
+    "do": "say",
+    "line": "cover_giles_03"
+   },
+   {
+    "do": "npcAnim",
+    "npc": "okafor",
+    "anim": "glance"
+   },
+   {
+    "do": "say",
+    "line": "cover_okafor_01"
+   },
+   {
+    "do": "say",
+    "line": "cover_giles_04"
+   },
+   {
+    "do": "setFlag",
+    "flag": "cover_done",
+    "value": true
+   },
+   {
+    "do": "completeObjective",
+    "id": "obj_hold_door"
+   },
+   {
+    "do": "checkpoint",
+    "id": "cp_cover_done",
+    "label": "Pressure Door Hall"
+   }
+  ]
+ }
+]

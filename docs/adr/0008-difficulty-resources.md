@@ -61,3 +61,11 @@ plus a need-based drop system bounded by difficulty.
 
 ## Open questions
 - None blocking.
+
+## Progress 2026-11-17: step 3 (pickups) and drops
+- `game/pickups.ts`: placed amounts at Standard 12 rounds / 4 shells / medPackHeal; other
+  presets scale ammo by their startReserve against Standard (Story 16/6, Survival 8/2) and
+  medkits by medPackHeal. Enemy `enemy:died` rolls the need-based drop (health x2 under 40 HP,
+  ammo x1.5 under one magazine, the emptier owned weapon, half a box rounded up). Medkits are
+  left in place at full health. Difficulty changes apply to the next pickup.
+- Hints read `hintDelay` live from the preset.

@@ -1,0 +1,68 @@
+import { arr, numRange, obj, optional, record, str, type Infer, type Validator } from '../core/validate.ts';
+import type { Rng } from '../core/rng.ts';
+import { prepareBodyModel, type PreparedBodyModel } from './bodyModel.ts';
+
+/**
+ * Imported body models (ADR-0026, `data/body-models.json`): loaded once at boot, then shared by every body
+ * that uses them. A model that fails to load is logged and skipped; those bodies stay procedural.
+ */
+
+const modelShape = {
+  /** Path under public/. */
+  url: str,
+  /** Enemy variants (data/enemies.json ids) that may use this body. */
+  variants: arr(str),
+  /** Chance (0..1) that a spawn of one of those variants uses it instead of a procedural body. */
+  share: numRange(0, 1),
+  /** How much the infection shader tints the model's opaque surfaces (default 0.3). */
+  sickTint: optional(numRange(0, 1)),
+  /** Attribution for CREDITS.md and the credits screen (CC-BY and friends require it). */
+  credit: obj({ title: str, author: str, source: str, license: str }),
+};
+
+export type BodyModelDef = Infer<typeof modelShape>;
+export type BodyModelTable = Record<string, BodyModelDef>;
+export const validateBodyModelTable: Validator<BodyModelTable> = record(obj(modelShape));
+
+export class BodyModelLibrary {
+  readonly table: Readonly<BodyModelTable>;
+  /** Debug (`?bodyModels=all|off`): overrides every model's share. */
+  forceShare: number | null = null;
+  private readonly loaded = new Map<string, PreparedBodyModel>();
+
+  constructor(table: Readonly<BodyModelTable>) {
+    this.table = table;
+  }
+
+  /** Load and prepare every model. Never throws: failures are warned about and the model is left out. */
+  async load(baseUrl: string): Promise<void> {
+    const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+    const loader = new GLTFLoader();
+    await Promise.all(
+      Object.entries(this.table).map(async ([id, def]) => {
+        try {
+          const t0 = performance.now();
+          const gltf = await loader.loadAsync(baseUrl + def.url);
+          const model = prepareBodyModel(gltf.scene, def.sickTint === undefined ? {} : { sickTint: def.sickTint });
+          this.loaded.set(id, model);
+          console.info(`[body-models] ${id}: ${model.triangles} triangles, ${model.parts.length} pieces in ${(performance.now() - t0).toFixed(0)} ms`);
+        } catch (err) {
+          console.warn(`[body-models] ${id} (${def.url}) not loaded, using procedural bodies:`, err);
+        }
+      }),
+    );
+  }
+
+  get(id: string): PreparedBodyModel | undefined {
+    return this.loaded.get(id);
+  }
+
+  /** A loaded model for a spawn of `variant`, chosen by each model's share, or null for a procedural body. */
+  pick(variant: string, rng: Rng): string | null {
+    for (const [id, def] of Object.entries(this.table)) {
+      if (!this.loaded.has(id) || !def.variants.includes(variant)) continue;
+      if (rng.chance(this.forceShare ?? def.share)) return id;
+    }
+    return null;
+  }
+}

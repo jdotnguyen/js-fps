@@ -1,7 +1,10 @@
 import * as THREE from 'three';
-import type { EventBus } from '../core/events.ts';
+import type { EventBus, EventName } from '../core/events.ts';
 import { Rng } from '../core/rng.ts';
-import type { AmbientPreset, DoorData, DoorState, LevelData, RoomData, TriggerData, UnlockSource } from '../data/types/level.ts';
+import { isKeyPickup, type AmbientPreset, type DoorData, type DoorState, type KeyPickupData, type LevelData, type RoomData, type TriggerData, type UnlockSource, type VentData } from '../data/types/level.ts';
+import type { UiText } from '../data/types/uiText.ts';
+import type { Inventory } from '../game/inventory.ts';
+import { accessOpen, checkAccess, type AccessHint, type GateKind } from './access.ts';
 import { createShaft } from '../render/fx/shafts.ts';
 import { Particulates } from '../render/fx/particulates.ts';
 import { LightController, type LightPattern, type ShaftUniforms } from '../render/lights.ts';
@@ -32,6 +35,16 @@ declare module '../core/events.ts' {
     'door:denied': { id: string; reason: string };
     /** A level trigger fired; `event` is its "emit" name, e.g. "trigger:r06_enter". */
     'trigger:fired': { id: string; event: string };
+    /**
+     * ADR-0024: the player tried a gated door or vent without what it needs. `hint` is the
+     * text to show, with the item name marked for highlighting. The map uses id/requires/sealed.
+     */
+    'access:denied': { id: string; kind: GateKind; requires?: string | undefined; sealed?: boolean | undefined; hint: AccessHint };
+    /** The player opened a gated door or vent with the item it needs (first time per session). */
+    'access:granted': { id: string; kind: GateKind; requires: string };
+    'vent:opened': { id: string };
+    /** New game: the level went back to its authored state (blinds, screens, glass and camera feeds reset). */
+    'level:reset': Record<string, never>;
   }
 }
 
@@ -40,6 +53,10 @@ export interface LevelDeps {
   registry: KitRegistry;
   events: EventBus;
   scene: THREE.Scene;
+  /** Key items held, for access gating (ADR-0024). Without it gated doors never open. */
+  inventory?: Inventory | null;
+  /** data/dialogue/ui.json, for access hint text. */
+  uiText?: UiText;
 }
 
 const AMBIENT: Record<AmbientPreset, { sky: number; ground: number; intensity: number }> = {
@@ -124,6 +141,21 @@ interface DoorRuntime {
   staticMeshes: THREE.Mesh[];
   /** Box the interact ray tests (the closed leaves, a little proud on both sides). */
   useBox: Aabb;
+  /** `access:granted` already sent this session. */
+  granted: boolean;
+}
+
+interface VentRuntime {
+  data: VentData;
+  box: Aabb;
+  open: boolean;
+  granted: boolean;
+}
+
+interface PickupRuntime {
+  data: KeyPickupData;
+  mesh: THREE.Group;
+  box: Aabb;
 }
 
 interface TriggerRuntime {
@@ -172,6 +204,8 @@ export async function loadLevel(data: LevelData, deps: LevelDeps): Promise<Level
  */
 export class Level implements World {
   readonly id: string;
+  /** The validated level data (the map, ADR-0024, and supply pickups read it). */
+  readonly source: LevelData;
   readonly name: string;
   readonly group = new THREE.Group();
   readonly lights = new LightController();
@@ -188,11 +222,21 @@ export class Level implements World {
   private readonly roomById = new Map<string, RoomRuntime>();
   private readonly doors: DoorRuntime[] = [];
   private readonly triggers: TriggerRuntime[] = [];
+  private readonly vents: VentRuntime[] = [];
+  private readonly pickups: PickupRuntime[] = [];
+  /** Named positions from room `anchors` (yaw in radians). */
+  private readonly anchors = new Map<string, { pos: THREE.Vector3; yaw: number; room: string }>();
+  private readonly npcList: Array<{ id: string; look: string; pos: THREE.Vector3; yaw: number; pose?: string; transformable?: boolean; room: string }> = [];
   private readonly named = new Map<string, Set<() => void>>();
   private readonly hemi: THREE.HemisphereLight;
   private readonly dust: Particulates;
   private readonly visibleSlots: PooledSlot[] = [];
   private current: RoomRuntime | null = null;
+  /** Light patterns as authored (resetToData), and the colours a tint replaced (tintRoomLights). */
+  private initialPatterns: LightPattern[] = [];
+  private lastTime = 0;
+  private lastFlashing = false;
+  private readonly tinted = new Map<string, { slots: THREE.Color[]; glows: THREE.Color[]; sky: THREE.Color; ground: THREE.Color; intensity: number }>();
   private atmosphereReady = false;
   private readonly scratch2 = new THREE.Vector3();
   private feetY = 0;
@@ -200,6 +244,7 @@ export class Level implements World {
   constructor(data: LevelData, deps: LevelDeps) {
     this.deps = deps;
     this.id = data.id;
+    this.source = data;
     this.name = data.name ?? data.id;
     this.group.name = `level:${data.id}`;
     const rng = new Rng(`${data.id}:${data.seed}`);
@@ -210,6 +255,7 @@ export class Level implements World {
 
     for (const [index, r] of data.rooms.entries()) this.buildRoom(r, index, rng);
     for (const d of data.doors) this.buildDoor(d, rng);
+    this.initialPatterns = this.lights.items.map((it) => it.pattern);
     // Bake AO and merge once every collider exists, so walls shade across room seams.
     const ao = colliderAo(this.collision);
     for (const room of this.rooms) {
@@ -230,6 +276,21 @@ export class Level implements World {
       for (const mesh of door.staticMeshes) mb.addMesh(mesh);
       door.staticMeshes.length = 0;
       door.group.add(mb.build(`door:${door.data.id}`, ao));
+    }
+    for (const v of data.vents ?? []) {
+      const [min, max] = v.box;
+      this.vents.push({ data: v, box: { min, max }, open: false, granted: false });
+    }
+    // Key items only; supply pickups (ammo, medkits) live in game/pickups.ts.
+    for (const pk of data.pickups ?? []) if (isKeyPickup(pk)) this.buildPickup(pk);
+    for (const r of data.rooms) for (const a of r.anchors ?? []) this.anchors.set(a.id, { pos: new THREE.Vector3(...a.pos), yaw: deg(a.yaw ?? 0), room: r.id });
+    for (const r of data.rooms) {
+      for (const n of r.npcs ?? []) {
+        const a = typeof n.at === 'string' ? this.anchors.get(n.at) : null;
+        const pos = a ? a.pos.clone() : new THREE.Vector3(...(n.at as [number, number, number]));
+        const yaw = n.yaw !== undefined ? deg(n.yaw) : (a?.yaw ?? 0);
+        this.npcList.push({ id: n.id, look: n.look, pos, yaw, ...(n.pose !== undefined ? { pose: n.pose } : {}), ...(n.transformable ? { transformable: true } : {}), room: r.id });
+      }
     }
 
     const start = data.playerStart;
@@ -387,6 +448,7 @@ export class Level implements World {
         child.traverse((c) => {
           if (c instanceof THREE.Mesh) {
             const mat = Array.isArray(c.material) ? c.material[0] : c.material;
+            if (c.name.startsWith('seabed')) return; // far outside the glass: no shadow pass
             c.castShadow = !!mat && !mat.transparent && !(mat instanceof THREE.MeshStandardMaterial && mat.emissiveIntensity > 0.5 && mat.color.getHex() === 0);
             c.receiveShadow = true;
           }
@@ -410,6 +472,10 @@ export class Level implements World {
     }
     for (const n of out.navNodes) this.debug.nav.push(new THREE.Vector3(...n.pos).applyMatrix4(matrix));
     if (out.tick) room.ticks.push(out.tick);
+    for (const l of out.listeners ?? []) {
+      this.deps.events.on(l.event as EventName, l.fn as never);
+      this.onNamed(l.event, () => l.fn(undefined));
+    }
   }
 
   private addColliders(out: PieceOutput, matrix: THREE.Matrix4, tag: string): void {
@@ -468,13 +534,38 @@ export class Level implements World {
       auto: d.kit !== 'bulkhead',
       staticMeshes,
       useBox,
+      granted: false,
     };
     ref = door;
     this.doors.push(door);
-    if (d.unlockOn) this.onNamed(d.unlockOn, () => this.unlockDoor(door, 'script'));
+    if (d.unlockOn) {
+      const name = d.unlockOn;
+      this.onNamed(name, () => this.unlockDoor(door, 'script'));
+      // A sequence `emit` of the same name unlocks it too (e.g. `drop:done`, ADR-0014 beat 2).
+      this.deps.events.on(name as EventName, (() => this.unlockDoor(door, 'script')) as never);
+    }
     for (const s of visual.frame.sockets) {
       this.debug.sockets.push({ pos: new THREE.Vector3(...s.pos).applyMatrix4(matrix), dir: new THREE.Vector3(...s.dir).transformDirection(matrix) });
     }
+  }
+
+  /** A key item lying in the world: a small card (or tool case) with an accent stripe. */
+  private buildPickup(pk: KeyPickupData): void {
+    const room = this.roomById.get(pk.room)!;
+    const kind = this.deps.inventory?.def(pk.item)?.kind ?? 'card';
+    const mesh = new THREE.Group();
+    mesh.name = `pickup:${pk.id}`;
+    const [w, h, d] = kind === 'card' ? [0.16, 0.006, 0.1] : [0.32, 0.08, 0.14];
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), this.deps.materials.paintBone);
+    body.position.y = h / 2;
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(w * 1.01, h * 1.2, d * 0.25), fixtureMaterial('#39ff9e', 2.5));
+    stripe.position.set(0, h / 2, -d * 0.3);
+    mesh.add(body, stripe);
+    mesh.position.set(pk.pos[0], pk.pos[1], pk.pos[2]);
+    mesh.rotation.y = deg(pk.rot ?? 0);
+    room.group.add(mesh);
+    const r = 0.25;
+    this.pickups.push({ data: pk, mesh, box: { min: [pk.pos[0] - r, pk.pos[1] - 0.05, pk.pos[2] - r], max: [pk.pos[0] + r, pk.pos[1] + 0.3, pk.pos[2] + r] } });
   }
 
   // ---------------------------------------------------------------- queries
@@ -541,7 +632,8 @@ export class Level implements World {
     this.nav = new NavGraph({
       world: this.collision,
       nodes,
-      doors: this.doors.map((d) => ({ id: d.data.id, box: d.collider, isOpen: () => !d.collider.enabled })),
+      // Unlocked auto doors count as passable: they open for any body that walks up (setActors).
+      doors: this.doors.map((d) => ({ id: d.data.id, box: d.collider, isOpen: () => !d.collider.enabled || this.opensForActors(d) })),
     });
     console.info(`[nav] ${this.nav.nodes.length} nodes, ${this.nav.edgeCount()} edges in ${(performance.now() - t0).toFixed(0)} ms`);
     return this.nav;
@@ -571,18 +663,112 @@ export class Level implements World {
           return level.doorPrompt(door);
         },
         box: door.useBox,
-        enabled: () => door.state !== 'open' && !(door.auto && door.state === 'closed'),
+        enabled: () => door.state !== 'open' && !(door.auto && door.state === 'closed' && level.doorAccessOpen(door)),
         use: () => this.useDoor(door),
+        // A gated door answers a tap with its hint; bulkheads take a hold to open.
+        get hold() {
+          return door.auto || !level.doorAccessOpen(door) ? undefined : 0.8;
+        },
       };
-      if (!door.auto) item.hold = 0.8;
       offs.push(interactions.add(item));
+    }
+    for (const v of this.vents) {
+      const vent = v;
+      const item: Interactable = {
+        id: `vent:${v.data.id}`,
+        get prompt() {
+          return level.ventOpen(vent) ? 'Open vent' : 'Check vent';
+        },
+        box: vent.box,
+        enabled: () => !vent.open,
+        use: () => this.useVent(vent),
+        get hold() {
+          return level.ventOpen(vent) ? 1.0 : undefined;
+        },
+      };
+      offs.push(interactions.add(item));
+    }
+    for (const pk of this.pickups) {
+      const pickup = pk;
+      const inv = this.deps.inventory;
+      offs.push(
+        interactions.add({
+          id: `pickup:${pk.data.id}`,
+          prompt: `Take ${inv?.name(pk.data.item) ?? pk.data.item}`,
+          box: pickup.box,
+          enabled: () => !!inv && !inv.has(pickup.data.item),
+          use: () => {
+            inv?.give(pickup.data.item, 'pickup');
+            pickup.mesh.visible = false;
+          },
+        }),
+      );
     }
     return () => {
       for (const off of offs) off();
     };
   }
 
+  /**
+   * Other bodies that open unlocked auto doors (enemies, squad, NPCs) [Assumed 2026-11-17:
+   * shamblers push through auto doors; locked, sealed and card doors still stop them].
+   */
+  setActors(points: (() => Iterable<{ x: number; y: number; z: number }>) | null): void {
+    this.actorPoints = points;
+  }
+
+  private actorPoints: (() => Iterable<{ x: number; y: number; z: number }>) | null = null;
+
+  private opensForActors(d: DoorRuntime): boolean {
+    return d.auto && !d.data.access && d.state !== 'locked';
+  }
+
+  /** Distance from the door to the nearest actor (Infinity if none). */
+  private nearestActor(d: DoorRuntime): number {
+    if (!this.actorPoints || !this.opensForActors(d)) return Infinity;
+    let best = Infinity;
+    for (const p of this.actorPoints()) {
+      if (Math.abs(p.y - (d.center.y - 1.2)) > 2) continue;
+      best = Math.min(best, Math.hypot(p.x - d.center.x, p.z - d.center.z));
+    }
+    return best;
+  }
+
+  private doorAccessOpen(door: DoorRuntime): boolean {
+    return accessOpen(door.data.access, this.deps.inventory ?? null);
+  }
+
+  private ventOpen(vent: VentRuntime): boolean {
+    return accessOpen(vent.data.access, this.deps.inventory ?? null);
+  }
+
+  /** ADR-0024: check a gate; on denial emit `access:denied` with the hint. True if the player may pass. */
+  private gate(kind: GateKind, id: string, access: DoorData['access'], runtime: { granted: boolean }): boolean {
+    const result = checkAccess(access, kind, this.deps.inventory ?? null, this.deps.uiText);
+    if (!result.ok) {
+      this.deps.events.emit('access:denied', { id, kind, requires: access?.requires, sealed: access?.sealed, hint: result.hint });
+      return false;
+    }
+    if (access?.requires !== undefined && !runtime.granted) {
+      runtime.granted = true;
+      this.deps.events.emit('access:granted', { id, kind, requires: access.requires });
+    }
+    return true;
+  }
+
+  private useVent(vent: VentRuntime): void {
+    if (vent.open || !this.gate('vent', vent.data.id, vent.data.access, vent)) return;
+    // Crawling through comes with later chapters; for now the vent opens and says so.
+    vent.open = true;
+    this.deps.events.emit('vent:opened', { id: vent.data.id });
+  }
+
   private doorPrompt(door: DoorRuntime): string {
+    const a = door.data.access;
+    if (a && door.state !== 'open' && !this.doorAccessOpen(door)) {
+      if (a.sealed) return 'Check door';
+      return this.deps.inventory?.def(a.requires ?? '')?.kind === 'card' ? 'Check card reader' : 'Check door';
+    }
     switch (door.state) {
       case 'locked':
         return (door.data.unlockBy ?? 'player') === 'player' ? 'Unlock door' : 'Check locked door';
@@ -597,13 +783,17 @@ export class Level implements World {
 
   private useDoor(door: DoorRuntime): void {
     const id = door.data.id;
+    // ADR-0024 gating comes first: a sealed or carded door answers with its hint.
+    if (door.data.access && door.state !== 'open' && !this.gate('door', id, door.data.access, door)) return;
     if (door.state === 'locked') {
       const by = door.data.unlockBy ?? 'player';
       if (by === 'player') {
         if (this.unlockDoor(door, 'player')) this.openDoor(door);
         return;
       }
-      const reason = by === 'engineer' ? 'Locked. The engineer could bypass this.' : by === 'medic' ? 'Locked. Needs medical clearance.' : 'Locked. Lockdown override required.';
+      // A script-locked door may say why in ui.json (`door_locked_<id>`), e.g. the hubs before the briefing.
+      const custom = by === 'script' ? this.deps.uiText?.[`door_locked_${id}`] : undefined;
+      const reason = custom ?? (by === 'engineer' ? 'Locked. The engineer could bypass this.' : by === 'medic' ? 'Locked. Needs medical clearance.' : 'Locked. Lockdown override required.');
       this.deps.events.emit('door:denied', { id, reason });
     } else if (door.state === 'jammed') {
       this.deps.events.emit('door:denied', { id, reason: 'Jammed. It will not budge.' });
@@ -632,6 +822,76 @@ export class Level implements World {
     return true;
   }
 
+  /**
+   * Back to the level as authored (new game, load; ADR-0016/0023): door states, trigger
+   * `once` latches, vents, light patterns and tints, and key pickups the player does not hold.
+   * Sequences then re-apply story state from the flags (`quiet_restore`).
+   */
+  resetToData(): void {
+    for (const d of this.doors) {
+      d.granted = false;
+      this.setDoorState(d, d.data.state);
+      d.target = d.state === 'open' ? 1 : 0;
+      d.open = d.target;
+      d.visual.setOpen(d.open);
+      d.away = 0;
+      d.collider.enabled = d.open < 0.6;
+    }
+    for (const t of this.triggers) t.fired = false;
+    this.lights.items.forEach((it, i) => {
+      it.pattern = this.initialPatterns[i] ?? it.pattern;
+    });
+    for (const room of [...this.tinted.keys()]) this.tintRoomLights(room, 'none');
+    for (const v of this.vents) {
+      v.open = false;
+      v.granted = false;
+    }
+    for (const pk of this.pickups) pk.mesh.visible = !this.deps.inventory?.has(pk.data.item);
+    // Props that hold story state (blinds, screens, camera feeds) go back to their authored look.
+    this.deps.events.emit('level:reset', {});
+  }
+
+  /**
+   * Recolour a room's lights and ambient (ADR-0014 beat 2 emergency red): "emergency", a
+   * "#rrggbb" colour, or "none" to restore the authored colours. False for unknown rooms.
+   */
+  tintRoomLights(roomId: string, tint: string): boolean {
+    const room = this.roomById.get(roomId);
+    if (!room) return false;
+    const glowsOf = (): THREE.Color[] => room.slots.flatMap((s) => s.item.emissives.map((m) => m.emissive));
+    let saved = this.tinted.get(roomId);
+    if (tint === 'none') {
+      if (!saved) return true;
+      room.slots.forEach((s, i) => s.color.copy(saved!.slots[i] ?? s.color));
+      glowsOf().forEach((c, i) => c.copy(saved!.glows[i] ?? c));
+      room.ambient.sky.copy(saved.sky);
+      room.ambient.ground.copy(saved.ground);
+      room.ambient.intensity = saved.intensity;
+      this.tinted.delete(roomId);
+      return true;
+    }
+    if (!saved) {
+      saved = {
+        slots: room.slots.map((s) => s.color.clone()),
+        glows: glowsOf().map((c) => c.clone()),
+        sky: room.ambient.sky.clone(),
+        ground: room.ambient.ground.clone(),
+        intensity: room.ambient.intensity,
+      };
+      this.tinted.set(roomId, saved);
+    }
+    const emergency = tint === 'emergency';
+    const color = new THREE.Color(emergency ? '#ff2a1a' : tint);
+    for (const s of room.slots) s.color.copy(color);
+    for (const c of glowsOf()) c.copy(color);
+    if (emergency) {
+      room.ambient.sky.set(AMBIENT.emergency.sky);
+      room.ambient.ground.set(AMBIENT.emergency.ground);
+      room.ambient.intensity = AMBIENT.emergency.intensity;
+    }
+    return true;
+  }
+
   doorStates(): Record<string, DoorState> {
     return Object.fromEntries(this.doors.map((d) => [d.data.id, d.state]));
   }
@@ -655,6 +915,22 @@ export class Level implements World {
       if (first) out[r.data.id] = first.pattern;
     }
     return out;
+  }
+
+  /** A named anchor from the level data (`anchor:<id>` in sequences). Yaw in radians. Copies. */
+  anchor(id: string): { pos: THREE.Vector3; yaw: number } | null {
+    const a = this.anchors.get(id);
+    return a ? { pos: a.pos.clone(), yaw: a.yaw } : null;
+  }
+
+  /** Every anchor id, for tests and debug overlays. */
+  anchorIds(): string[] {
+    return [...this.anchors.keys()];
+  }
+
+  /** NPCs placed by room `npcs` entries, resolved to positions (yaw in radians). Copies. */
+  npcSpawns(): Array<{ id: string; look: string; pos: THREE.Vector3; yaw: number; pose?: string; transformable?: boolean; room: string }> {
+    return this.npcList.map((n) => ({ ...n, pos: n.pos.clone() }));
   }
 
   /** World position of a door or a room's centre, for look-at and sound targets. */
@@ -698,6 +974,8 @@ export class Level implements World {
     if (t.fired && t.data.once !== false) return;
     t.fired = true;
     this.deps.events.emit('trigger:fired', { id: t.data.id, event: t.data.emit });
+    // The emit name is a bus event too (spawn points' `on`, `area:dark`, sequence triggers).
+    (this.deps.events.emit as (name: string, payload: unknown) => void)(t.data.emit, { id: t.data.id });
     const set = this.named.get(t.data.emit);
     if (set) for (const fn of [...set]) fn();
   }
@@ -709,9 +987,14 @@ export class Level implements World {
       const dist = Math.hypot(dx, dz);
       const nearY = Math.abs(eye.y - EYE_HEIGHT - (d.center.y - 1.2)) < 1.5;
       if (d.auto) {
-        if (d.state === 'closed' && dist < 2.6 && nearY) this.openDoor(d);
+        const actor = this.nearestActor(d);
+        if (d.state === 'closed' && dist < 2.6 && nearY && this.doorAccessOpen(d)) {
+          if (d.data.access) this.gate('door', d.data.id, d.data.access, d);
+          this.openDoor(d);
+        }
+        else if (d.state === 'closed' && actor < 1.8) this.openDoor(d);
         else if (d.state === 'open') {
-          d.away = dist > 3.4 ? d.away + dt : 0;
+          d.away = dist > 3.4 && actor > 2.4 ? d.away + dt : 0;
           if (d.away > 1.2) {
             this.setDoorState(d, 'closed');
             d.target = 0;
@@ -756,18 +1039,7 @@ export class Level implements World {
 
     // Portal-by-adjacency culling.
     const cur = this.current;
-    for (const r of this.rooms) r.visible = cur === null;
-    if (cur) {
-      cur.visible = true;
-      for (const d of this.doors) {
-        if (d.open <= 0.001 && !d.visual.seeThrough) continue;
-        if (d.rooms[0] === cur) d.rooms[1].visible = true;
-        else if (d.rooms[1] === cur) d.rooms[0].visible = true;
-      }
-      for (const r of this.rooms) if (r.data.visibleFrom?.includes(cur.data.id)) r.visible = true;
-    }
-    for (const r of this.rooms) r.group.visible = r.visible;
-    for (const d of this.doors) d.group.visible = d.rooms[0].visible || d.rooms[1].visible;
+    this.cull(cur);
 
     // Atmosphere follows the current room.
     if (cur) {
@@ -786,6 +1058,38 @@ export class Level implements World {
     }
 
     // Light pool: slots of visible rooms, current room first.
+    this.bindLights(cur, eye);
+    this.lastTime = t;
+    this.lastFlashing = reducedFlashing;
+    this.lights.update(t, reducedFlashing);
+    this.pool.finish();
+
+    for (const r of this.rooms) if (r.visible) for (const tick of r.ticks) tick(t, dt);
+    for (const d of this.doors) if (d.group.visible) d.visual.tick(t);
+    // Taken pickups stay gone, also after loading a save that holds the item.
+    const inv = this.deps.inventory;
+    for (const pk of this.pickups) pk.mesh.visible = !inv?.has(pk.data.item);
+    this.dust.update(eye, t, dt);
+  }
+
+  /** Which rooms (and doors) draw when the view is in `cur`: it, what its open or see-through doors show, and its `visibleFrom` windows. */
+  private cull(cur: RoomRuntime | null): void {
+    for (const r of this.rooms) r.visible = cur === null;
+    if (cur) {
+      cur.visible = true;
+      for (const d of this.doors) {
+        if (d.open <= 0.001 && !d.visual.seeThrough) continue;
+        if (d.rooms[0] === cur) d.rooms[1].visible = true;
+        else if (d.rooms[1] === cur) d.rooms[0].visible = true;
+      }
+      for (const r of this.rooms) if (r.data.visibleFrom?.includes(cur.data.id)) r.visible = true;
+    }
+    for (const r of this.rooms) r.group.visible = r.visible;
+    for (const d of this.doors) d.group.visible = d.rooms[0].visible || d.rooms[1].visible;
+  }
+
+  /** Give the visible rooms' light slots to the pooled lights, nearest `eye` first, `cur` first of all. */
+  private bindLights(cur: RoomRuntime | null, eye: THREE.Vector3): void {
     const slots = this.visibleSlots;
     slots.length = 0;
     for (const r of this.rooms) {
@@ -799,12 +1103,21 @@ export class Level implements World {
       }
     }
     this.pool.assign(slots, eye);
-    this.lights.update(t, reducedFlashing);
-    this.pool.finish();
+  }
 
-    for (const r of this.rooms) if (r.visible) for (const tick of r.ticks) tick(t, dt);
-    for (const d of this.doors) if (d.group.visible) d.visual.tick(t);
-    this.dust.update(eye, t, dt);
+  /**
+   * Run `draw` as if the view were at `eye` (a security camera feed, ADR-0023): the rooms it can
+   * see are visible and the pooled lights are bound around it. The player's own view is set up
+   * again by the next `update`, so call this before it each frame, never between `update` and the
+   * main render. Light patterns are not advanced (`update` does that).
+   */
+  renderFromEye(eye: THREE.Vector3, draw: () => void): void {
+    const room = this.roomAt(eye);
+    this.cull(room);
+    this.bindLights(room, eye);
+    this.lights.update(this.lastTime, this.lastFlashing); // sets the bound lights' intensities for these slots
+    this.pool.finish();
+    draw();
   }
 
   attract(t: number, camera: THREE.PerspectiveCamera): void {

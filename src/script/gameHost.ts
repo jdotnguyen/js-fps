@@ -10,12 +10,16 @@ import type { AudioEngine } from '../audio/engine.ts';
 import type { EventBus, EventName } from '../core/events.ts';
 import type { DoorState } from '../data/types/level.ts';
 import type { Game } from '../game/game.ts';
+import type { Inventory } from '../game/inventory.ts';
 import type { LightPattern } from '../render/lights.ts';
 import type { PlayerHud } from '../ui/hud/playerHud.ts';
 import type { Toasts } from '../ui/toast.ts';
+import type { GoreClip } from '../actors/goreClip.ts';
 import type { Level } from '../world/level.ts';
 import type { World } from '../world/world.ts';
-import type { SequenceHost } from './host.ts';
+import type { NpcDirector } from '../ai/npcs.ts';
+import { RadioPlayer } from '../audio/radio.ts';
+import type { CameraFeedOptions, SequenceHost } from './host.ts';
 import type { TargetRef, Vec3Like } from './types.ts';
 
 export interface GameHostDeps {
@@ -28,8 +32,22 @@ export interface GameHostDeps {
   audio: AudioEngine;
   hud: PlayerHud;
   toasts: Toasts;
+  /** Key items (ADR-0024), for `giveItem`. */
+  inventory?: Inventory | undefined;
   /** Named positions of the hand-built demo room. */
   anchors?: Record<string, THREE.Vector3> | undefined;
+  /** Scripted NPCs and the squad hand-over (ADR-0009/0011): `npc:<id>` targets and NPC actions. */
+  npcs?: NpcDirector | null | undefined;
+  /** Enemy spawn groups (ADR-0007 `spawnGroup` / `despawnGroup`). */
+  enemies?: { spawnGroup(group: string): boolean; despawnGroup(group: string): boolean; groupCleared(group: string): boolean } | null | undefined;
+  /** Speech manager (ADR-0010) for `say`; without it lines are skipped with a warning. */
+  speech?: { say(id: string, opts?: { overlap?: boolean }): { done: Promise<unknown> } | null; stopAll(): void } | null | undefined;
+  /** Security camera feeds (`render/cameraFeed.ts`) for the `cameraFeed` action. */
+  cameraFeeds?: { apply(id: string, opts: CameraFeedOptions): void } | null | undefined;
+  /** Gore particles and pools (`gore` action). */
+  gore?: { burst(at: THREE.Vector3, dir: THREE.Vector3, count?: number, dark?: boolean, clip?: GoreClip): void; chunks(at: THREE.Vector3, dir: THREE.Vector3, count: number, clip?: GoreClip): void; pool(at: THREE.Vector3, size: number): void } | null | undefined;
+  /** The black title card (`titleCard` action). */
+  titleCard?: { show(title: string, sub: string, seconds: number): void; hide(): void } | null | undefined;
   setTimeScale(scale: number): void;
 }
 
@@ -42,8 +60,17 @@ function vec(v: THREE.Vector3): Vec3Like {
 export function createGameHost(d: GameHostDeps): SequenceHost {
   const v3 = (p: Vec3Like): THREE.Vector3 => new THREE.Vector3(p.x, p.y, p.z);
   const label = (id: string): string => d.game.location || id;
+  const radio = new RadioPlayer(d.audio);
+  let radioKey: string | null = null;
+  // Back to the title: the radio stops with everything else.
+  d.events.on('game:mode', ({ mode }) => {
+    if (mode === 'title') {
+      radio.stop();
+      d.titleCard?.hide();
+    }
+  });
 
-  return {
+  const host: SequenceHost = {
     events: {
       on: (name, fn) => d.events.on(name as EventName, fn as never),
       emit: (name, payload) => d.events.emit(name as EventName, (payload ?? {}) as never),
@@ -65,15 +92,40 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
         return at ? vec(at) : null;
       }
       if (kind === 'anchor') {
-        const at = d.anchors?.[name];
+        const at = d.anchors?.[name] ?? d.level?.anchor(name)?.pos;
         return at ? vec(at) : null;
       }
-      return null; // npc:… arrives with ADR-0007/0011
+      if (kind === 'npc') {
+        const at = d.npcs?.head(name, tmp);
+        return at ? vec(at) : null;
+      }
+      return null;
+    },
+
+    // Speaker ids (dialogue/speakers.json) to the NPC that speaks them; Jay, the PA and absent NPCs give null.
+    speakerTarget(speaker: string): TargetRef | null {
+      const alias: Record<string, string> = { engineer: 'giles', medic: 'okafor', nurse: 'priya', chief: 'heins' };
+      const id = alias[speaker] ?? (speaker.startsWith('crew_') ? speaker.slice(5) : null);
+      return id && d.npcs?.has(id) ? `npc:${id}` : null;
     },
 
     pushControl: (over, owner) => d.player.control.push(over, owner),
     lookAt: (at, duration, weight) => d.player.lookAt(v3(at), { duration, weight }),
     clampLook: (at, degrees) => d.player.clampLook(at ? v3(at) : null, degrees),
+    frame: (at, duration, give, follow) =>
+      d.player.frameView(at ? v3(at) : null, {
+        duration,
+        give,
+        ...(follow
+          ? {
+              follow: (out: THREE.Vector3) => {
+                const p = follow();
+                if (p) out.set(p.x, p.y, p.z);
+                return p !== null;
+              },
+            }
+          : {}),
+      }),
     walkTo: (at, speed) => d.player.walkTo(v3(at), speed),
     fade: (level, seconds) => d.hud.setFade(level, seconds),
     placePlayer: (at, yaw, pitch) => {
@@ -88,8 +140,35 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
 
     setDoor: (id, state) => d.level?.setDoor(id, state as DoorState) ?? false,
     doorStates: () => d.level?.doorStates() ?? {},
-    setLight: (room, pattern) => d.level?.setRoomLights(room, pattern as LightPattern) ?? false,
+    setLight: (room, pattern, tint) => {
+      const ok = d.level?.setRoomLights(room, pattern as LightPattern) ?? false;
+      if (tint !== undefined) d.level?.tintRoomLights(room, tint);
+      return ok;
+    },
+    // Glass partitions (`glass_cracks` props listen), ADR-0014 beat 2.
+    glass: (id, state) => d.events.emit('glass:set' as EventName, { id, state } as never),
     lightStates: () => d.level?.roomLightPatterns() ?? {},
+
+    radio: (track, at) => {
+      // The same track at the same spot keeps playing (a pause/resume or a restore must not restart the song).
+      const key = track ? `${track}@${at ? `${at.x},${at.y},${at.z}` : ''}` : null;
+      if (key !== null && key === radioKey && radio.track === track) return;
+      radioKey = key;
+      radio.play(track, at ? v3(at) : null);
+    },
+    ...(d.gore
+      ? {
+          gore: (kind: 'burst' | 'chunks' | 'pool' | 'splash', at: Vec3Like, to: Vec3Like, count: number | undefined, size: number | undefined, clip?: GoreClip) => {
+            const from = v3(at);
+            const dir = v3(to).sub(from).normalize();
+            if (kind === 'burst' || kind === 'splash') d.gore!.burst(from, dir, count ?? 40, undefined, clip);
+            if (kind === 'chunks') d.gore!.chunks(from, dir, count ?? 8, clip);
+            if (kind === 'pool' || kind === 'splash') d.gore!.pool(new THREE.Vector3(at.x, 0, at.z), size ?? 1.2);
+          },
+        }
+      : {}),
+    ...(d.titleCard ? { titleCard: (title: string, sub: string, seconds: number) => d.titleCard!.show(title, sub, seconds) } : {}),
+    ...(d.cameraFeeds ? { cameraFeed: (id: string, opts: CameraFeedOptions) => d.cameraFeeds!.apply(id, opts) } : {}),
 
     sfx(id, at) {
       if (!(id in SOUND_SPECS)) {
@@ -103,6 +182,37 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
       if (d.game.flags[`cp:${id}`]) return; // already taken (a replay after death)
       d.game.reachCheckpoint(id, text ?? label(id));
     },
-    endSlice: () => d.toasts.show('End of slice', 'Thanks for playing'),
+    // The slice is over (ADR-0014 beat 8): a thank-you, then back to the title with the screen un-blacked.
+    endSlice: () => {
+      d.game.flags['slice_done'] = true;
+      d.toasts.show('End of slice', 'Thanks for playing');
+      setTimeout(() => {
+        d.hud.setFade(0, 0.4);
+        d.game.showTitle();
+      }, 5000);
+    },
+    giveItem: (id) => d.inventory?.give(id, 'script') ?? false,
+    ...(d.enemies
+      ? { spawnGroup: (g: string) => d.enemies!.spawnGroup(g), despawnGroup: (g: string) => d.enemies!.despawnGroup(g), groupCleared: (g: string) => d.enemies!.groupCleared(g) }
+      : {}),
+    ...(d.npcs ? { npc: (action: string, step: Readonly<Record<string, unknown>>) => d.npcs!.command(action, step) } : {}),
+    ...(d.speech ? { say: (line: string, opts?: { overlap?: boolean }) => d.speech!.say(line, opts), stopSpeech: () => d.speech!.stopAll() } : {}),
   };
+  // NPC targets: positions through the same resolver, plus an anchor's facing (Level.anchor yaw).
+  d.npcs?.setResolver((ref) => {
+    // NPCs walk on the floor: `npc:` and `player` resolve to heads for the camera, so use feet here.
+    if (typeof ref === 'string' && ref.startsWith('npc:')) {
+      const a = d.npcs?.actor(ref.slice(4), false);
+      return a ? { pos: { x: a.position.x, y: a.position.y, z: a.position.z } } : null;
+    }
+    const pos = host.resolve(ref);
+    if (!pos) return null;
+    if (typeof ref === 'string' && ref.startsWith('anchor:')) {
+      const a = d.level?.anchor(ref.slice(7));
+      return { pos, yaw: a?.yaw };
+    }
+    if (ref === 'player') return { pos: { x: d.player.body.x, y: d.player.body.y, z: d.player.body.z } };
+    return { pos };
+  });
+  return host;
 }

@@ -4,6 +4,8 @@ import type { Input } from '../core/input.ts';
 import type { Settings } from '../core/settings.ts';
 import type { DifficultyPreset } from '../data/types/difficulty.ts';
 import type { Flashlight } from '../render/flashlight.ts';
+import type { NavGraph, P3 } from '../ai/nav.ts';
+import { clipMove, JAY_RADIUS, pushOut, removeInward, type Circle, type V2 } from './bodyPush.ts';
 import { ControlStack, isOnRails } from './control.ts';
 import type { Interactions } from './interaction.ts';
 import { DEFAULT_MOTOR, moveBody, type ColliderQuery, type MotorState } from './motor.ts';
@@ -73,6 +75,18 @@ const PITCH_LIMIT = THREE.MathUtils.degToRad(85);
 /** Radians per pixel at sensitivity 1 (same as the free camera). */
 const LOOK_SCALE = 0.0022;
 const ARRIVE = 0.12;
+/** Scripted walks advance to the next nav waypoint inside this distance, metres. */
+const WAYPOINT_REACH = 0.4;
+/** Scripted walks re-plan this often, seconds. */
+const REPATH_EVERY = 0.5;
+/** ...and when blocked (moving < a quarter of the wanted speed) this long, seconds. */
+const STALL_TIME = 0.4;
+/** Clearance used when planning scripted walks, metres. */
+const WALK_RADIUS = 0.3;
+/** A walk anchor within this of the floor is a feet position; higher ones (camera anchors) use body.y. */
+const FEET_ANCHOR_Y = 0.5;
+/** Velocity into a body is removed within this of touching, metres. */
+const BODY_MARGIN = 0.03;
 
 export interface PlayerDeps {
   camera: THREE.PerspectiveCamera;
@@ -91,6 +105,37 @@ interface LookAssist {
   weight: number;
   t: number;
 }
+
+/** A scripted shot (ADR-0017): the sequence owns the aim; the mouse only gets a small give. */
+interface Framing {
+  target: THREE.Vector3;
+  /** Re-read every frame to keep the shot on a moving subject (an NPC walking in). */
+  follow?: (out: THREE.Vector3) => boolean;
+  /** Half-size of the give, radians. */
+  give: number;
+  /** Seconds to ease onto a new target. */
+  duration: number;
+  yaw: number;
+  pitch: number;
+}
+
+interface WalkTarget {
+  pos: THREE.Vector3;
+  speed: number;
+  done: () => void;
+  /** Nav waypoints to the target (last = target), or null for a straight line. */
+  path: P3[] | null;
+  wp: number;
+  sinceRepath: number;
+  stalled: number;
+}
+
+/** Spring-back time constant for the give, seconds (~0.4 s to settle). */
+const GIVE_RETURN = 0.12;
+/** Scripted turns ease this much slower with reduced motion (ADR-0017). */
+const REDUCED_TURN_SCALE = 1.6;
+/** Roll sway on scripted walks, radians (~0.25 deg). */
+const WALK_SWAY = 0.0045;
 
 interface Grab {
   source: THREE.Vector3;
@@ -122,6 +167,10 @@ export class Player {
   private readonly d: PlayerDeps;
   private world: PlayerWorld;
   private exhausted = false;
+  /** True from running out of stamina until a second of it is back (sprint is locked meanwhile). */
+  get isExhausted(): boolean {
+    return this.exhausted;
+  }
   private sinceSprint = 99;
   private eyeHeight = PLAYER_TUNING.eyeHeight;
   private stepOffset = 0;
@@ -139,7 +188,15 @@ export class Player {
   private clampCenter: THREE.Vector3 | null = null;
   private clampHalf = THREE.MathUtils.degToRad(20);
   private clampFallback: { yaw: number; pitch: number } | null = null;
-  private walkTarget: { pos: THREE.Vector3; speed: number; done: () => void } | null = null;
+  private framing: Framing | null = null;
+  private giveYaw = 0;
+  private givePitch = 0;
+  private walkTarget: WalkTarget | null = null;
+  private nav: NavGraph | null = null;
+  private bodies: (() => Iterable<Circle>) | null = null;
+  private readonly bodyList: Circle[] = [];
+  private readonly wishDir = { x: 0, z: 0 };
+  private readonly v2: V2 = { x: 0, z: 0 };
   private grabbed: Grab | null = null;
   private stateLayer: (() => void) | null = null;
   private lastFov = 0;
@@ -197,6 +254,25 @@ export class Player {
     this.world = world;
   }
 
+  /** Nav graph scripted walks path through (null: straight lines). */
+  setNav(nav: NavGraph | null): void {
+    this.nav = nav;
+    if (this.walkTarget) this.walkTarget.sinceRepath = REPATH_EVERY;
+  }
+
+  /** Solid circles (people) Jay cannot walk through; read every step. null: none. */
+  setBodies(fn: (() => Iterable<Circle>) | null): void {
+    this.bodies = fn;
+  }
+
+  /**
+   * Unit XZ direction Jay is trying to move this step (input or scripted walk); zero when idle,
+   * locked or dead. It is the intent, so it stays non-zero while a body or wall blocks him.
+   */
+  get wish(): Readonly<{ x: number; z: number }> {
+    return this.wishDir;
+  }
+
   /** Place the player from an eye position (spawns and saves store the eye). */
   placeAtEye(eye: THREE.Vector3, yaw: number, pitch = 0): void {
     this.body.x = eye.x;
@@ -222,9 +298,12 @@ export class Player {
     this.assist = null;
     this.clampCenter = null;
     this.clampFallback = null;
+    this.framing = null;
+    this.giveYaw = this.givePitch = 0;
     this.walkTarget?.done();
     this.walkTarget = null;
     this.velocity.set(0, 0);
+    this.wishDir.x = this.wishDir.z = 0;
     this.aimBlend = 0;
     this.stamina = PLAYER_TUNING.sprintMax;
     this.exhausted = false;
@@ -252,11 +331,49 @@ export class Player {
     this.clampFallback = null;
   }
 
+  /**
+   * Scripted shot (ADR-0017): ease the view onto `target` and hold it there; the mouse can
+   * push it `give` degrees off and it springs back. Overrides look assist and clamp while
+   * set. `duration` 0 snaps at once. null releases the view where it is.
+   */
+  frameView(target: THREE.Vector3 | null, opts: { duration?: number; give?: number; follow?: (out: THREE.Vector3) => boolean } = {}): void {
+    if (!target) {
+      this.framing = null;
+      this.giveYaw = this.givePitch = 0;
+      return;
+    }
+    const duration = opts.duration ?? 0.8;
+    const give = THREE.MathUtils.degToRad(opts.give ?? 6);
+    const prev = this.framing;
+    this.framing = {
+      target: target.clone(),
+      ...(opts.follow ? { follow: opts.follow } : {}),
+      give,
+      duration,
+      // Start from the current base aim, or from the current view on the first shot.
+      yaw: prev ? prev.yaw : this.yaw - this.giveYaw,
+      pitch: prev ? prev.pitch : this.pitch - this.givePitch,
+    };
+    if (duration <= 0) {
+      const [ty, tp] = anglesTo(this.eyePosition(this.eye), this.framing.target);
+      this.framing.yaw = ty;
+      this.framing.pitch = tp;
+      this.giveYaw = this.givePitch = 0;
+      this.yaw = wrapAngle(ty);
+      this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, tp));
+    }
+  }
+
+  /** True while a scripted shot holds the view. */
+  get framed(): boolean {
+    return this.framing !== null;
+  }
+
   /** Forced walk for scripted beats; resolves on arrival (or on reset). */
   walkTo(pos: THREE.Vector3, speed = PLAYER_TUNING.walkSpeed * 0.6): Promise<void> {
     this.walkTarget?.done();
     return new Promise((resolve) => {
-      this.walkTarget = { pos: pos.clone(), speed, done: resolve };
+      this.walkTarget = { pos: pos.clone(), speed, done: resolve, path: null, wp: 0, sinceRepath: REPATH_EVERY, stalled: 0 };
     });
   }
 
@@ -365,17 +482,27 @@ export class Player {
     let wz = 0;
     let speed = 0;
     if (this.walkTarget) {
-      const dx = this.walkTarget.pos.x - this.body.x;
-      const dz = this.walkTarget.pos.z - this.body.z;
+      const w = this.walkTarget;
+      const dx = w.pos.x - this.body.x;
+      const dz = w.pos.z - this.body.z;
       const dist = Math.hypot(dx, dz);
       if (dist < ARRIVE) {
-        const done = this.walkTarget.done;
         this.walkTarget = null;
-        done();
+        w.done();
       } else {
-        wx = dx / dist;
-        wz = dz / dist;
-        speed = Math.min(this.walkTarget.speed, dist / dt);
+        this.followPath(w, dt);
+        // Steer at the current waypoint; the last one is the target itself.
+        const last = !w.path || w.wp >= w.path.length - 1;
+        const tx = last || !w.path ? w.pos.x : w.path[w.wp]!.x;
+        const tz = last || !w.path ? w.pos.z : w.path[w.wp]!.z;
+        const sx = tx - this.body.x;
+        const sz = tz - this.body.z;
+        const sd = Math.hypot(sx, sz);
+        if (sd > 1e-6) {
+          wx = sx / sd;
+          wz = sz / sd;
+        }
+        speed = last ? Math.min(w.speed, dist / dt) : w.speed;
       }
     } else if (mode !== 'locked' && !dead) {
       const f = input.axis('moveBack', 'moveForward');
@@ -419,14 +546,35 @@ export class Player {
       this.velocity.y += ez * k;
     }
 
+    this.wishDir.x = speed > 0 ? wx : 0;
+    this.wishDir.z = speed > 0 ? wz : 0;
+
+    const bodies = this.collectBodies();
     const x0 = this.body.x;
     const z0 = this.body.z;
-    const r = moveBody(this.body, this.velocity.x * dt, this.velocity.y * dt, dt, DEFAULT_MOTOR, this.world.colliders);
-    const mx = this.body.x - x0;
-    const mz = this.body.z - z0;
+    let stepX = this.velocity.x * dt;
+    let stepZ = this.velocity.y * dt;
+    // Sweep against people first so a fast step cannot tunnel through one.
+    if (bodies.length > 0) {
+      clipMove(x0, z0, stepX, stepZ, bodies, JAY_RADIUS, this.v2);
+      stepX = this.v2.x;
+      stepZ = this.v2.z;
+    }
+    const r = moveBody(this.body, stepX, stepZ, dt, DEFAULT_MOTOR, this.world.colliders);
+    let mx = this.body.x - x0;
+    let mz = this.body.z - z0;
     // Walls eat the velocity that pushes into them, so we slide instead of sticking.
     if (r.blocked) this.velocity.set(mx / dt, mz / dt);
     if (r.stepUp > 0) this.stepOffset -= r.stepUp;
+    if (bodies.length > 0) {
+      this.resolveBodies(bodies, dt);
+      // Slide round people: drop the velocity that still points into one.
+      removeInward(this.velocity.x, this.velocity.y, this.body.x, this.body.z, bodies, JAY_RADIUS, BODY_MARGIN, this.v2);
+      this.velocity.set(this.v2.x, this.v2.z);
+      mx = this.body.x - x0;
+      mz = this.body.z - z0;
+    }
+    if (this.walkTarget) this.walkTarget.stalled = Math.hypot(mx, mz) < dt * this.walkTarget.speed * 0.25 ? this.walkTarget.stalled + dt : 0;
 
     // Head bob + footsteps from distance travelled on the ground.
     const moved = Math.hypot(mx, mz);
@@ -444,6 +592,52 @@ export class Player {
       }
     }
     if (groundSpeed < 0.2) this.stride = Math.min(this.stride, PLAYER_TUNING.strideWalk * 0.5);
+  }
+
+  /** This step's body circles (reused array). */
+  private collectBodies(): Circle[] {
+    const out = this.bodyList;
+    out.length = 0;
+    if (this.bodies) for (const b of this.bodies()) out.push(b);
+    return out;
+  }
+
+  /**
+   * Push Jay out of any person he overlaps, through moveBody so a correction can never put him
+   * inside a wall. A few passes so two bodies side by side both get honoured.
+   */
+  private resolveBodies(bodies: readonly Circle[], dt: number): void {
+    for (let pass = 0; pass < 3; pass++) {
+      let moved = false;
+      for (const b of bodies) {
+        // Coincident centres leave against the wish (or along +X).
+        pushOut(this.body.x, this.body.z, b, JAY_RADIUS, -this.wishDir.x, -this.wishDir.z, this.v2);
+        if (this.v2.x === 0 && this.v2.z === 0) continue;
+        moveBody(this.body, this.v2.x, this.v2.z, dt, DEFAULT_MOTOR, this.world.colliders);
+        moved = true;
+      }
+      if (!moved) break;
+    }
+  }
+
+  /** Keep a scripted walk's nav path fresh: plan, advance waypoints, re-plan on a timer or a stall. */
+  private followPath(w: WalkTarget, dt: number): void {
+    w.sinceRepath += dt;
+    if (!this.nav) {
+      w.path = null;
+      return;
+    }
+    if (w.sinceRepath >= REPATH_EVERY || w.stalled > STALL_TIME) {
+      w.sinceRepath = 0;
+      w.stalled = 0;
+      const y = this.body.y;
+      const toY = Math.abs(w.pos.y - y) < FEET_ANCHOR_Y ? w.pos.y : y;
+      w.path = this.nav.findPath({ x: this.body.x, y, z: this.body.z }, { x: w.pos.x, y: toY, z: w.pos.z }, { radius: WALK_RADIUS });
+      w.wp = 0;
+    }
+    const p = w.path;
+    if (!p) return;
+    while (w.wp < p.length - 1 && Math.hypot(p[w.wp]!.x - this.body.x, p[w.wp]!.z - this.body.z) < WAYPOINT_REACH) w.wp++;
   }
 
   private updateStamina(dt: number): void {
@@ -533,6 +727,10 @@ export class Player {
     const { x, y } = this.d.input.consumeLook();
     const mode = this.control.state.look;
     const s = this.d.settings();
+    if (this.framing && !this.grabbed) {
+      this.lookFramed(this.framing, x, y, frameDt, mode !== 'locked', s);
+      return;
+    }
     if (mode !== 'locked') {
       const k = LOOK_SCALE * s.mouseSensitivity * (1 - 0.35 * this.aimBlend);
       this.yaw -= x * k;
@@ -584,6 +782,35 @@ export class Player {
     this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch));
   }
 
+  private lookFramed(f: Framing, x: number, y: number, frameDt: number, mouse: boolean, s: Readonly<Settings>): void {
+    if (f.follow) f.follow(f.target);
+    const [ty, tp] = anglesTo(this.eyePosition(this.eye), f.target);
+    const duration = f.duration * (s.reducedMotion ? REDUCED_TURN_SCALE : 1);
+    const pull = duration <= 0 ? 1 : 1 - Math.exp((-5 * frameDt) / duration);
+    f.yaw = wrapAngle(f.yaw + wrapAngle(ty - f.yaw) * pull);
+    f.pitch += (tp - f.pitch) * pull;
+
+    const pushed = mouse && (x !== 0 || y !== 0);
+    if (pushed) {
+      const k = LOOK_SCALE * s.mouseSensitivity;
+      this.giveYaw -= x * k;
+      this.givePitch -= y * k * (s.invertY ? -1 : 1);
+    } else {
+      // Spring back to the scripted aim when the mouse is still.
+      const decay = Math.exp(-frameDt / GIVE_RETURN);
+      this.giveYaw *= decay;
+      this.givePitch *= decay;
+    }
+    // Elliptical limit, a little tighter vertically (same shape as the look clamp).
+    const e = Math.hypot(this.giveYaw / f.give, this.givePitch / (f.give * 0.75));
+    if (e > 1) {
+      this.giveYaw /= e;
+      this.givePitch /= e;
+    }
+    this.yaw = wrapAngle(f.yaw + this.giveYaw);
+    this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, f.pitch + this.givePitch));
+  }
+
   /** Put the camera at the eye with bob, step smoothing, kick and aim FOV. */
   applyCamera(frameDt: number): void {
     const T = PLAYER_TUNING;
@@ -611,7 +838,9 @@ export class Player {
     );
     if (this.shoveWindup < 0) this.shoveLunge *= Math.exp(-10 * dt);
     const kickScale = reduced ? 0.3 : 1;
-    const roll = this.vitals.state === 'alive' ? 0 : 0.22 * (1 - this.eyeHeight / T.eyeHeight) * (reduced ? 0.3 : 1);
+    // Scripted walks get a faint roll sway so they read as walking, not a dolly (ADR-0017).
+    const sway = this.walkTarget && !reduced ? Math.sin(this.bobPhase) * WALK_SWAY * Math.min(1, this.bobAmp / T.bobWalk) : 0;
+    const roll = (this.vitals.state === 'alive' ? 0 : 0.22 * (1 - this.eyeHeight / T.eyeHeight) * (reduced ? 0.3 : 1)) + sway;
     cam.rotation.set(this.pitch + this.kick * 0.06 * kickScale, this.yaw, roll);
 
     const fov = this.d.settings().fov * (1 - (1 - T.aimFovScale) * smooth(this.aimBlend));

@@ -21,6 +21,7 @@ import { LIGHT_PATTERNS } from '../../render/lights.ts';
  * (x and z in 4 m cells, y in 4 m decks). Additions to the ADR's abridged schema:
  * room `height`, piece `cells` (one entry for many cells), trigger `prompt` (for "use"
  * triggers), light `range`, door `unlockOn` (event name that unlocks it) and `params`.
+ * ADR-0024 adds door/vent `access` (key items or sealed), `vents` and key-item `pickups`.
  */
 
 export const DOOR_KITS = ['pressure_slide', 'bulkhead', 'glass_slide'] as const;
@@ -33,6 +34,10 @@ export const AMBIENT_PRESETS = ['normal', 'emergency', 'flooded', 'dark'] as con
 export type AmbientPreset = (typeof AMBIENT_PRESETS)[number];
 export const TRIGGER_KINDS = ['enter', 'exit', 'use'] as const;
 export const SPAWN_KINDS = ['vent', 'floor', 'ceiling', 'door', 'corpse'] as const;
+/** Enemy variants a spawn point can make (ADR-0007, `data/enemies.json`). */
+export const SPAWN_VARIANTS = ['shambler', 'hero', 'playDead'] as const;
+export const SPAWN_OUTFITS = ['security', 'engineer', 'medic', 'lab', 'crew'] as const;
+
 export const SLOT_KINDS = ['auto', 'ceiling', 'wall', 'emergency'] as const;
 
 const id: Validator<string> = (v, p) => {
@@ -63,6 +68,16 @@ const rot90: Validator<0 | 90 | 180 | 270> = (v, p) => {
   if (n !== 0 && n !== 90 && n !== 180 && n !== 270) throw new ValidationError(p, `expected 0, 90, 180 or 270, got ${n}`);
   return n;
 };
+
+const vec2: Validator<[number, number]> = (v, p) => {
+  if (!Array.isArray(v) || v.length !== 2) throw new ValidationError(p, 'expected [x, z]');
+  return [num(v[0], `${p}[0]`), num(v[1], `${p}[1]`)];
+};
+
+/** Supply pickups (ADR-0005 step 6, ADR-0008). Key items use `item` instead. */
+/** `weapon_*` are weapon pickups (ADR-0005: the shotgun on the R07a armory rack), collected the same way. */
+export const SUPPLY_KINDS = ['ammo_pistol', 'ammo_shotgun', 'medkit', 'weapon_shotgun'] as const;
+export type SupplyKind = (typeof SUPPLY_KINDS)[number];
 
 const box: Validator<[[number, number, number], [number, number, number]]> = (v, p) => {
   if (!Array.isArray(v) || v.length !== 2) throw new ValidationError(p, 'expected [[minX, minY, minZ], [maxX, maxY, maxZ]]');
@@ -109,6 +124,49 @@ const triggerShape = {
   prompt: optional(str),
 };
 
+/** A named position: feet (or look-target) point in world metres, `yaw` in degrees around Y. */
+const anchorShape = {
+  id,
+  pos: vec3,
+  yaw: optional(num),
+};
+
+const anchorRef: Validator<string | [number, number, number]> = (v, p) => (typeof v === 'string' ? id(v, p) : vec3(v, p));
+
+const npcShape = {
+  id,
+  /** Look id (outfit/seed) for the humanoid builder, e.g. "giles", "botanist_2". */
+  look: id,
+  at: anchorRef,
+  /** Degrees; overrides the anchor's yaw. */
+  yaw: optional(num),
+  /** Pose name from data/poses.json, e.g. "idle", "sit". */
+  pose: optional(str),
+  /** Build the body so a `transform` action can infect it (the researcher behind the Lab B glass, ADR-0014). */
+  transformable: optional(bool),
+};
+
+/**
+ * Enemy spawn point (ADR-0007). Without `active: false` it spawns when the level starts; otherwise
+ * when its `group` is triggered (`spawnGroup` action) or its `on` event fires. `count` enemies come
+ * `interval` s apart, within the 8-active cap. `corpse` spawns default to play-deads.
+ */
+const spawnShape = {
+  id,
+  pos: vec3,
+  kind: oneOf(SPAWN_KINDS),
+  group: optional(id),
+  active: optional(bool),
+  variant: optional(oneOf(SPAWN_VARIANTS)),
+  count: optional(numRange(1, 50)),
+  interval: optional(numRange(0, 120)),
+  /** Degrees around Y. */
+  yaw: optional(num),
+  outfit: optional(oneOf(SPAWN_OUTFITS)),
+  infection: optional(numRange(0, 3)),
+  on: optional(str),
+};
+
 const roomShape = {
   id,
   name: str,
@@ -127,7 +185,34 @@ const roomShape = {
   props: optional(arr(obj(propShape))),
   lights: optional(arr(obj(lightShape))),
   triggers: optional(arr(obj(triggerShape))),
-  spawns: optional(arr(obj({ id, pos: vec3, kind: oneOf(SPAWN_KINDS) }))),
+  spawns: optional(arr(obj(spawnShape))),
+  /** Named positions for sequences (`anchor:<id>`) and NPC placement. Ids are unique per level. */
+  anchors: optional(arr(obj(anchorShape))),
+  /** NPCs standing in the level at load (`at`: an anchor id or a feet position). */
+  npcs: optional(arr(obj(npcShape))),
+  /** Map area this room belongs to (ADR-0024), e.g. "hydroponics". Map stations reveal a whole area. */
+  area: optional(id),
+  /** Never revealed by a map station; only drawn once walked (ADR-0024). */
+  hidden: optional(bool),
+  /** Map outline override: [[x, z], ...] world metres (>= 3 points). Default: derived from the kit cells. */
+  outline: optional(arr(vec2)),
+};
+
+/**
+ * Access gating (ADR-0024): `{ "requires": "card_l2" }` needs a key item from
+ * data/items.json; `{ "sealed": true, "text"?: "lockdown" }` never opens for the player
+ * (`text` picks the ui.json variant `access_sealed_<text>`).
+ */
+const accessShape = {
+  requires: optional(id),
+  sealed: optional(bool),
+  text: optional(id),
+};
+const access: Validator<Infer<typeof accessShape>> = (v, p) => {
+  const a = obj(accessShape)(v, p);
+  if ((a.requires !== undefined ? 1 : 0) + (a.sealed ? 1 : 0) !== 1) throw new ValidationError(p, 'give exactly one of "requires" or "sealed": true');
+  if (a.text !== undefined && !a.sealed) throw new ValidationError(`${p} > text`, '"text" is only for sealed doors and vents');
+  return a;
 };
 
 const doorShape = {
@@ -144,6 +229,44 @@ const doorShape = {
   task: optional(str),
   unlockOn: optional(str),
   params: optional(params),
+  access: optional(access),
+};
+
+/** A vent the player can open with a tool (ADR-0024). Visuals are a separate prop or piece. */
+const ventShape = {
+  id,
+  room: id,
+  /** Box the interact ray tests, in world metres. */
+  box,
+  access: optional(access),
+};
+
+/** A key item lying in the world (ADR-0024); taking it gives the item. */
+const pickupShape = {
+  id,
+  room: id,
+  /** A key item (ADR-0024). Give exactly one of `item` or `kind`. */
+  item: optional(id),
+  /** A supply pickup (ADR-0005 step 6 / ADR-0008): ammo or a medkit, auto-collected within 1 m. */
+  kind: optional(oneOf(SUPPLY_KINDS)),
+  /** Supply amount at Standard (rounds, shells or heal points); scaled by difficulty. Default per kind. */
+  amount: optional(numRange(1, 999)),
+  pos: vec3,
+  /** Degrees around Y. */
+  rot: optional(num),
+};
+
+/** A wall map (ADR-0024): using it fills in every non-hidden room of `reveals`. */
+const mapStationShape = {
+  id,
+  /** Feet-level position of the panel, world metres. */
+  pos: vec3,
+  /** Area name the station reveals (a room `area`). */
+  reveals: id,
+  /** Degrees around Y; 0 faces +Z. */
+  rot: optional(num),
+  /** Room it hangs in; default: the room whose cells contain `pos`. */
+  room: optional(id),
 };
 
 const levelShape = {
@@ -154,6 +277,9 @@ const levelShape = {
   squadStart: optional(record(vec3)),
   rooms: arr(obj(roomShape)),
   doors: arr(obj(doorShape)),
+  vents: optional(arr(obj(ventShape))),
+  pickups: optional(arr(obj(pickupShape))),
+  mapStations: optional(arr(obj(mapStationShape))),
   checkpoints: arr(obj({ id, room: id, pos: vec3, yaw: num })),
 };
 
@@ -164,6 +290,15 @@ export type PropData = NonNullable<RoomData['props']>[number];
 export type LightData = NonNullable<RoomData['lights']>[number];
 export type TriggerData = NonNullable<RoomData['triggers']>[number];
 export type DoorData = LevelData['doors'][number];
+export type AccessData = Infer<typeof accessShape>;
+export type VentData = NonNullable<LevelData['vents']>[number];
+export type PickupData = NonNullable<LevelData['pickups']>[number];
+export type KeyPickupData = PickupData & { item: string };
+export type MapStationData = NonNullable<LevelData['mapStations']>[number];
+/** True for key-item pickups (the rest are supplies, see `game/pickups.ts`). */
+export const isKeyPickup = (p: PickupData): p is KeyPickupData => p.item !== undefined;
+export type AnchorData = NonNullable<RoomData['anchors']>[number];
+export type NpcData = NonNullable<RoomData['npcs']>[number];
 
 export interface KitIds {
   structure: ReadonlySet<string>;
@@ -184,8 +319,16 @@ function suggest(name: string, known: ReadonlySet<string>): string {
   return (close.length ? close : list).slice(0, 8).join(', ');
 }
 
-/** Shape check plus cross-references (room ids, kit ids, unique ids). */
-export function levelValidator(kits: KitIds): Validator<LevelData> {
+/** Optional cross-reference tables; checks are skipped for any that are not given. */
+export interface LevelRefs {
+  /** Key item ids from data/items.json (ADR-0024). */
+  items?: ReadonlySet<string>;
+  /** ui.json keys, to check sealed `text` variants. */
+  uiText?: ReadonlySet<string>;
+}
+
+/** Shape check plus cross-references (room ids, kit ids, unique ids, item ids). */
+export function levelValidator(kits: KitIds, refs: LevelRefs = {}): Validator<LevelData> {
   const shape = obj(levelShape);
   return (v, p) => {
     const level = shape(v, p);
@@ -208,6 +351,59 @@ export function levelValidator(kits: KitIds): Validator<LevelData> {
     const room = (rid: string, path: string): void => {
       if (!roomIds.has(rid)) throw new ValidationError(path, `unknown room "${rid}"`);
     };
+    unique(
+      [...(level.vents ?? []).map((x) => x.id), ...(level.pickups ?? []).map((x) => x.id)],
+      `${p} > vents/pickups`,
+      'vent or pickup',
+    );
+    const item = (iid: string, path: string): void => {
+      if (refs.items && !refs.items.has(iid)) throw new ValidationError(path, `unknown item "${iid}" (known: ${[...refs.items].join(', ')})`);
+    };
+    const gate = (a: AccessData | undefined, path: string): void => {
+      if (!a) return;
+      if (a.requires !== undefined) item(a.requires, `${path} > access > requires`);
+      if (a.text !== undefined && refs.uiText && !refs.uiText.has(`access_sealed_${a.text}`)) {
+        throw new ValidationError(`${path} > access > text`, `no ui text "access_sealed_${a.text}" in data/dialogue/ui.json`);
+      }
+    };
+    level.doors.forEach((d, i) => gate(d.access, `${p} > doors[${i}]`));
+    (level.vents ?? []).forEach((x, i) => {
+      room(x.room, `${p} > vents[${i}] > room`);
+      gate(x.access, `${p} > vents[${i}]`);
+    });
+    (level.pickups ?? []).forEach((x, i) => {
+      room(x.room, `${p} > pickups[${i}] > room`);
+      if ((x.item !== undefined ? 1 : 0) + (x.kind !== undefined ? 1 : 0) !== 1) throw new ValidationError(`${p} > pickups[${i}]`, 'give exactly one of "item" (key item) or "kind" (supply)');
+      if (x.item !== undefined) item(x.item, `${p} > pickups[${i}] > item`);
+      if (x.amount !== undefined && x.kind === undefined) throw new ValidationError(`${p} > pickups[${i}] > amount`, '"amount" is only for supply pickups');
+    });
+    // ADR-0024 map: outlines, areas and stations.
+    level.rooms.forEach((r, ri) => {
+      if (r.outline && r.outline.length < 3) throw new ValidationError(`${p} > rooms[${ri}] > outline`, 'an outline needs at least 3 points');
+    });
+    const areas = new Set(level.rooms.map((r) => r.area).filter((a): a is string => a !== undefined));
+    unique(
+      (level.mapStations ?? []).map((s) => s.id),
+      `${p} > mapStations`,
+      'map station',
+    );
+    (level.mapStations ?? []).forEach((s, i) => {
+      if (!areas.has(s.reveals)) throw new ValidationError(`${p} > mapStations[${i}] > reveals`, `no room has area "${s.reveals}" (known: ${[...areas].join(', ') || 'none'})`);
+      if (s.room !== undefined) room(s.room, `${p} > mapStations[${i}] > room`);
+    });
+    const anchorIds = level.rooms.flatMap((r) => (r.anchors ?? []).map((a) => a.id));
+    unique(anchorIds, `${p} > rooms`, 'anchor');
+    unique(
+      level.rooms.flatMap((r) => (r.npcs ?? []).map((n) => n.id)),
+      `${p} > rooms`,
+      'npc',
+    );
+    const anchorSet = new Set(anchorIds);
+    level.rooms.forEach((r, ri) =>
+      (r.npcs ?? []).forEach((n, k) => {
+        if (typeof n.at === 'string' && !anchorSet.has(n.at)) throw new ValidationError(`${p} > rooms[${ri}] > npcs[${k}] > at`, `unknown anchor "${n.at}"`);
+      }),
+    );
     room(level.playerStart.room, `${p} > playerStart > room`);
     level.checkpoints.forEach((c, i) => room(c.room, `${p} > checkpoints[${i}] > room`));
     level.doors.forEach((d, i) => {

@@ -33,6 +33,10 @@ export interface SequenceTrigger {
   event: string;
   /** Only fire while this flag is set. */
   requires?: string;
+  /** Never fire once this flag is set (a beat that already finished, ADR-0014). */
+  unless?: string;
+  /** Only fire when the event payload has these field values (e.g. `{ "requires": "card_l2" }`). */
+  match?: Record<string, Scalar>;
 }
 
 export interface SequenceDef {

@@ -4,8 +4,11 @@ import type { HumanoidSpec } from './humanoid.ts';
  * Appearance of the two squadmates (ADR-0022, docs/characters.md "Looks"). Spread into a
  * HumanoidSpec wherever Giles or Okafor is spawned so they look the same everywhere.
  */
-export const GILES: Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 'look'> = {
+export const GILES: Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 'look' | 'model'> = {
   seed: 'august-giles',
+  // Imported body (ADR-0026, data/body-models.json): the "Mechanic 1" coverall model. `outfit`/`look` below only
+  // apply if it fails to load and he falls back to the procedural body.
+  model: 'mechanic',
   outfit: 'engineer',
   height: 1.82,
   build: 0.95,
@@ -27,13 +30,16 @@ export const GILES: Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 
   },
 };
 
-export const OKAFOR: Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 'look'> = {
+export const OKAFOR: Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 'look' | 'model'> = {
   seed: 'tomas-okafor',
+  // Imported body (ADR-0026, data/body-models.json): the "doctor" model in purple scrubs. `outfit`/`look` below only
+  // apply if it fails to load and he falls back to the procedural body.
+  model: 'doctor',
   outfit: 'medic',
   height: 1.8,
   build: 1.04,
   look: {
-    skin: '#5e3a26',
+    skin: '#d8b08c',
     hair: '#8e8a84',
     hairLine: 0.15,
     recede: 0.3,

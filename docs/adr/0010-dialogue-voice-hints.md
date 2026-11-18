@@ -1,6 +1,6 @@
 # ADR-0010: Dialogue, vocal emotes and hints
 
-Status: Accepted (non-verbal voices, silent player) / Proposed (synth details)
+Status: Accepted (non-verbal voices; player speaks, see amendment) / Proposed (synth details)
 
 ## Context
 Teammates talk and give audible hints when the player is stuck [Decided]. Voices are
@@ -132,3 +132,34 @@ In progress on 2026-11-15 (branch `adr/0010-dialogue`, worktree `.worktrees/adr-
   public send when ADR-0013 room switching lands); real VO files (step 6) fall back to
   `neutral`; babble is a manager flag until ADR-0012 adds the setting; voices keep playing
   under the pause menu (ADR-0012 should call `stopAll` or duck the voice bus).
+
+## Amendment (2026-11-16): Jay speaks
+- **The player, Jay, now speaks** [Decided], reversing "the player is silent in this slice".
+  Full lines in the on-rails scenes (intro ADR-0017, briefing ADR-0023): friendly, warm, kind
+  banter. Elsewhere in the slice he only makes reaction sounds ("Ah!") at explosions and jump
+  scares [Decided]. Lines in free-roam crew moments are [Open].
+- Still **no dialogue choices** in the slice; they come after it [Decided].
+- Jay's lines use the same format: subtitles (speaker label "Jay") plus non-verbal mood sounds
+  in his own voice profile (`speaker: "player"`, a lower, calm timbre) [Assumed].
+
+## Progress 2026-11-17: steps 4 and 5 (barks, hints), speech wired into the game
+- `main.ts` now builds the SpeechManager + WebAudioVoicePlayer and a subtitle box
+  (`ui/hud/subtitles.ts`, name in the speaker's colour, 2 lines, Subtitles setting); the game
+  host gains `say`/`stopSpeech`, so sequence `say` steps speak in game (unknown ids warn).
+  Squadmate lines are positional at their heads. Speech stops on title/restart.
+- Barks `dialogue/barks.ts`: rules keyed by event, pools by id (`bark_<pool>_<n>` in
+  `data/dialogue/barks01.json`), per-rule cooldown (8-40 s), 3 s global, chance rolls, never
+  the same line twice, skipped (not queued) under story/hint lines, on rails or paused.
+  Events: enemy:alerted/died/hit (severed -> limb bark; three torso hits in 6 s -> Okafor
+  "Legs!"), squad:reloading/downed (the other one calls it)/up, squad:taskProgress,
+  group:cleared, player:grabbed (+ Jay "Ah!", which skips the global cooldown),
+  player:grabEscaped/downed/revived, player:lowAmmo/lowHealth (emitted by guidance),
+  player:startled (Jay; sequences can `emit` it), idle barks after 75 s of quiet.
+  50 barks; Jay has 4 reaction-only lines.
+- Hints `dialogue/hints.ts`: per required objective, tiers from `objectives.json`; stuck clock
+  runs only while free to act (not on rails/cutscene/tutorial/combat/paused/downed); tier k at
+  d1 + k(d2-d1) (ADR-0008 hintDelay), last tier repeats every d2 and fires the nav pulse;
+  progress (objective change, new room, 3 m closer than best, map download) resets the clock
+  and steps back one tier (next variant). Waits out story and hint lines. 20 hint lines
+  (Giles questions, Okafor statements; a test enforces it).
+- Not verified by ear or in a browser. Assumed: "in combat" = any combat event in the last 8 s.

@@ -1,0 +1,213 @@
+[
+ {
+  "id": "commons_free",
+  "trigger": {
+   "event": "sequence:ended",
+   "match": {
+    "id": "intro_shift_change",
+    "cancelled": false
+   },
+   "unless": "briefingSeen"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "setFlag",
+    "flag": "commons_free",
+    "value": true
+   },
+   {
+    "do": "waitFor",
+    "event": [
+     "trigger:commons_to_gallery",
+     "trigger:gallery_enter",
+     "trigger:gallery_brief_spot"
+    ],
+    "timeout": 45,
+    "flag": "commons_early"
+   },
+   {
+    "do": "if",
+    "flag": "commons_early",
+    "then": [],
+    "else": [
+     {
+      "do": "say",
+      "line": "commons_giles_call_01"
+     },
+     {
+      "do": "npcMoveTo",
+      "npc": "giles",
+      "to": "anchor:gallery_door"
+     },
+     {
+      "do": "npcMoveTo",
+      "npc": "okafor",
+      "to": "anchor:gallery_door"
+     },
+     {
+      "do": "waitFor",
+      "event": [
+       "trigger:commons_to_gallery",
+       "trigger:gallery_enter",
+       "trigger:gallery_brief_spot"
+      ],
+      "timeout": 45,
+      "flag": "commons_near"
+     },
+     {
+      "do": "if",
+      "flag": "commons_near",
+      "then": [],
+      "else": [
+       {
+        "do": "emit",
+        "event": "commons:dawdle"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "commons_dawdle",
+  "trigger": {
+   "event": "commons:dawdle",
+   "unless": "briefingSeen"
+  },
+  "once": true,
+  "skippable": true,
+  "exclusive": "rails",
+  "steps": [
+   {
+    "do": "playerControl",
+    "move": "locked",
+    "look": "clamped",
+    "weapons": false,
+    "interact": false,
+    "flashlight": false
+   },
+   {
+    "do": "playerFrame",
+    "target": "npc:giles",
+    "duration": 0.7,
+    "wait": true
+   },
+   {
+    "do": "say",
+    "line": "commons_giles_hey_01"
+   },
+   {
+    "parallel": [
+     {
+      "do": "say",
+      "line": "commons_giles_hey_02"
+     },
+     {
+      "do": "playerWalkTo",
+      "to": "anchor:dawdle_call",
+      "wait": true,
+      "timeout": 14
+     }
+    ]
+   },
+   {
+    "do": "setFlag",
+    "flag": "dawdle_caught",
+    "value": true
+   },
+   {
+    "do": "playerControl",
+    "reset": true
+   }
+  ]
+ },
+ {
+  "id": "commons_radio_toggle",
+  "trigger": {
+   "event": "commons:radio"
+  },
+  "steps": [
+   {
+    "do": "if",
+    "flag": "radio_muted",
+    "then": [
+     {
+      "do": "radio",
+      "track": "tag_fm_01",
+      "at": "anchor:radio"
+     },
+     {
+      "do": "setFlag",
+      "flag": "radio_place",
+      "value": "commons"
+     },
+     {
+      "do": "setFlag",
+      "flag": "radio_muted",
+      "value": false
+     }
+    ],
+    "else": [
+     {
+      "do": "radio",
+      "stop": true
+     },
+     {
+      "do": "setFlag",
+      "flag": "radio_muted",
+      "value": true
+     },
+     {
+      "do": "setFlag",
+      "flag": "radio_place",
+      "value": "none"
+     }
+    ]
+   },
+   {
+    "do": "wait",
+    "s": 0.3
+   }
+  ]
+ },
+ {
+  "id": "commons_radio_return",
+  "trigger": {
+   "event": "trigger:commons_enter",
+   "unless": "drop_started"
+  },
+  "steps": [
+   {
+    "do": "if",
+    "flag": "radio_muted",
+    "then": [],
+    "else": [
+     {
+      "do": "if",
+      "flag": "radio_place",
+      "then": [],
+      "else": [
+       {
+        "do": "radio",
+        "track": "tag_fm_01",
+        "at": "anchor:radio"
+       },
+       {
+        "do": "setFlag",
+        "flag": "radio_place",
+        "value": "commons"
+       }
+      ],
+      "is": "commons"
+     }
+    ]
+   },
+   {
+    "do": "wait",
+    "s": 0.3
+   }
+  ]
+ }
+]

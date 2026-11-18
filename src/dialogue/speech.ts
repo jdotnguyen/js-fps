@@ -2,7 +2,9 @@
  * Speech manager (ADR-0010): one voice at a time, with subtitles.
  *
  * Priorities: story > hint > combat > idle. A higher priority interrupts the current
- * line; equal or lower waits in the queue. combat/idle lines are dropped instead of
+ * line; equal or lower waits in the queue. Lines said with `overlap: true` (a PA notice
+ * the squad talks over, ADR-0017) skip the queue and play alongside it on their own lane.
+ * combat/idle lines are dropped instead of
  * waiting more than `maxWait` seconds, so stale barks never play late.
  *
  * Pure logic driven by `update(dt)`; sound goes through a `VoicePlayer`, so it is
@@ -46,6 +48,8 @@ declare module '../core/events.ts' {
 export interface SayOptions {
   /** World position of the speaker's head, read every frame for `local` lines. */
   at?: () => Vec3Like;
+  /** Play now on the overlap lane, beside whatever is speaking, without queuing (ADR-0017). */
+  overlap?: boolean;
 }
 
 export interface PlayRequest {
@@ -109,6 +113,7 @@ export class SpeechManager {
   private readonly rasp = new Map<string, number>();
   private queue: Entry[] = [];
   private current: Active | null = null;
+  private overlaps: Active[] = [];
   private now = 0;
   private nextStartAt = 0;
   private seq = 0;
@@ -126,6 +131,8 @@ export class SpeechManager {
   /** Queue or play a line by id. Resolves when it finishes, is cut off or dropped. */
   say(id: string, opts: SayOptions = {}): SpeechHandle {
     if (this.current?.line.id === id) return this.current.handle;
+    const overlapping = this.overlaps.find((e) => e.line.id === id);
+    if (overlapping) return overlapping.handle;
     const queued = this.queue.find((e) => e.line.id === id);
     if (queued) return queued.handle;
 
@@ -140,6 +147,11 @@ export class SpeechManager {
       seq: this.seq++,
       handle: { id, done },
     };
+
+    if (opts.overlap) {
+      this.startOverlap(entry);
+      return entry.handle;
+    }
 
     const cur = this.current;
     if (cur && priorityRank(line.priority) > priorityRank(cur.line.priority)) {
@@ -167,6 +179,10 @@ export class SpeechManager {
       cur.playback.update?.();
       if (this.now >= cur.endsAt) this.finishCurrent('finished');
     }
+    for (const o of [...this.overlaps]) {
+      o.playback.update?.();
+      if (this.now >= o.endsAt) this.finishOverlap(o, 'finished');
+    }
     // Stale barks are dropped rather than played late.
     for (const e of [...this.queue]) {
       if (DROPPABLE.has(e.line.priority) && this.now - e.enqueuedAt > this.maxWait) {
@@ -183,6 +199,7 @@ export class SpeechManager {
   /** Stop the current line and clear the queue (pause menu, checkpoint reload, cutscene skip). */
   stopAll(): void {
     for (const e of this.queue.splice(0)) this.end(e, 'stopped');
+    for (const o of [...this.overlaps]) this.finishOverlap(o, 'stopped');
     if (this.current) this.finishCurrent('stopped');
   }
 
@@ -190,6 +207,11 @@ export class SpeechManager {
   stop(id: string): void {
     if (this.current?.line.id === id) {
       this.finishCurrent('stopped');
+      return;
+    }
+    const o = this.overlaps.find((e) => e.line.id === id);
+    if (o) {
+      this.finishOverlap(o, 'stopped');
       return;
     }
     const i = this.queue.findIndex((e) => e.line.id === id);
@@ -214,6 +236,25 @@ export class SpeechManager {
   // ---------------------------------------------------------------- internals
 
   private start(e: Entry): void {
+    const active = this.begin(e);
+    this.current = active;
+  }
+
+  /** Overlap lane: plays at once, never waits, never blocks the queue. */
+  private startOverlap(e: Entry): void {
+    this.overlaps.push(this.begin(e));
+  }
+
+  private finishOverlap(o: Active, reason: EndReason): void {
+    const i = this.overlaps.indexOf(o);
+    if (i < 0) return;
+    this.overlaps.splice(i, 1);
+    o.playback.stop(reason !== 'finished');
+    this.bus.emit('subtitle:hide', { id: o.line.id });
+    this.end(o, reason);
+  }
+
+  private begin(e: Entry): Active {
     const playback = this.player.play({
       line: e.line,
       profile: e.profile,
@@ -223,10 +264,10 @@ export class SpeechManager {
     });
     const duration = Math.max(e.duration, playback.duration ?? 0);
     const active: Active = { ...e, duration, playback, endsAt: this.now + duration };
-    this.current = active;
     const info = this.info(active);
     this.bus.emit('speech:started', info);
     this.bus.emit('subtitle:show', info);
+    return active;
   }
 
   private finishCurrent(reason: EndReason): void {

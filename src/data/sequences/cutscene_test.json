@@ -2,11 +2,16 @@
   "id": "cutscene_test",
   "skippable": true,
   "steps": [
-    { "do": "playerControl", "move": "locked", "look": "clamped", "weapons": false, "interact": false, "flashlight": false },
-    { "do": "wait", "s": 4 },
-    { "do": "setFlag", "flag": "cutscene_test_walked", "value": true },
-    { "do": "playerWalkTo", "to": [0, 0, -6], "wait": true },
-    { "do": "wait", "s": 4 },
-    { "do": "playerControl", "reset": true }
+    {"do": "playerControl", "move": "locked", "look": "clamped", "weapons": false, "interact": false, "flashlight": false},
+    {"do": "radio", "track": "tag_fm_01", "at": [3, 1.2, -5]},
+    {"do": "playerFrame", "target": [0, 1.6, -10], "duration": 1, "wait": true},
+    {"do": "wait", "s": 3},
+    {"do": "setFlag", "flag": "cutscene_test_walked", "value": true},
+    {"do": "playerWalkTo", "to": [0, 0, -6], "wait": true},
+    {"do": "playerFrame", "target": [4, 1.6, -8], "duration": 1.2, "wait": true},
+    {"do": "wait", "s": 3},
+    {"do": "playerFrame", "target": [-4, 1.2, -8], "duration": 1.2, "wait": true},
+    {"do": "wait", "s": 3},
+    {"do": "playerControl", "reset": true}
   ]
 }

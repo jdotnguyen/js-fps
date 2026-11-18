@@ -299,6 +299,171 @@ export function distantMoan(sr: number, rng: Rng): Buf {
   return fadeEdges(normalize(b, 0.8), sr, 0.01, 0.1);
 }
 
+// ------------------------------------------------------------------ the supply sub (ADR-0017)
+
+/**
+ * A very large boat gliding past the window: a pressure wave you feel more than hear. Sub-bass swells
+ * in and out (a slow drop in pitch as it passes), shaft and blade thrum beating underneath, deep water
+ * rumble and a faint ringing hull. Everything is below ~300 Hz; light saturation adds the 2nd/3rd
+ * harmonics so small speakers still carry it.
+ */
+export function subPass(sr: number, rng: Rng): Buf {
+  const dur = 11;
+  const b = makeBuf(sr, dur);
+  const rumble = new Biquad('lowpass', 110, 0.7, sr);
+  const thrumNoise = new Biquad('bandpass', 62, 2, sr);
+  const hullRing = new Biquad('bandpass', 84, 9, sr);
+  const br = brown(rng);
+  const br2 = brown(rng.fork('thrum'));
+  const br3 = brown(rng.fork('ring'));
+  const ph = rng.next() * TAU;
+  let p1 = 0;
+  let p2 = 0;
+  for (let i = 0; i < b.length; i++) {
+    const t = i / sr;
+    const u = t / dur;
+    // Swell: slow rise, a broad peak mid-way, a long fade.
+    const env = Math.sin(Math.PI * u) ** 1.4;
+    const dop = 1 - 0.07 * Math.tanh((u - 0.5) * 5); // pitch sags as it goes by
+    p1 += (27 * dop) / sr;
+    p2 += (41 * dop * (1 + 0.004 * Math.sin(TAU * 0.23 * t + ph))) / sr; // slightly detuned: slow beating
+    const sub = Math.sin(TAU * p1) * 0.9 + Math.sin(TAU * p2) * 0.6;
+    // Shaft at ~2.1 Hz, seven blades: ~14.7 Hz pulses chopping a low band of noise.
+    const blade = 0.5 + 0.5 * Math.sin(TAU * 14.7 * t * dop);
+    const thrum = thrumNoise.process(br2() * 5) * (0.35 + 0.65 * blade * blade) * 0.9;
+    if (i % 64 === 0) hullRing.set(lerp(92, 74, u), 9);
+    const ring = hullRing.process(br3() * 6) * 0.35 * Math.sin(Math.PI * u) ** 2;
+    const water = rumble.process(br()) * 1.1 * (0.6 + 0.4 * Math.sin(Math.PI * u));
+    const x = (sub + thrum + ring + water) * env;
+    b[i] = Math.tanh(x * 1.4);
+  }
+  return fadeEdges(normalize(b, 0.8), sr, 0.05, 0.3);
+}
+
+/**
+ * Four hydraulic clamps closing on the hull: a rising servo growl and stick-slip groan, then the
+ * four contacts a hair apart, each a deep boom with low struck-steel partials, and a long sub-bass
+ * tail with the water rumbling in behind. The main contact is at 1.8 s (the clamp animation is
+ * two seconds long, so start this as the clamps begin to close).
+ */
+export function subClamp(sr: number, rng: Rng): Buf {
+  const dur = 8;
+  const b = makeBuf(sr, dur);
+  const servo = new Biquad('bandpass', 150, 3, sr);
+  const servoLp = new Biquad('lowpass', 420, 0.7, sr);
+  const creakBp = new Biquad('bandpass', 310, 10, sr);
+  const tailLp = new Biquad('lowpass', 95, 0.7, sr);
+  const thudLp = new Biquad('lowpass', 380, 0.8, sr);
+  const servoNoise = brown(rng);
+  const tailNoise = brown(rng.fork('tail'));
+  const thudNoise = brown(rng.fork('thud'));
+  const hits: Array<{ t: number; a: number; f: number }> = [
+    { t: 1.62, a: 0.55, f: 64 },
+    { t: 1.7, a: 0.5, f: 58 },
+    { t: 1.83, a: 1, f: 52 },
+    { t: 1.97, a: 0.8, f: 46 },
+  ];
+  let nextImpulse = 0;
+  let gp = 0;
+  for (let i = 0; i < b.length; i++) {
+    const t = i / sr;
+    let v = 0;
+    // Servo run-up 0..1.8 s: a rising growl on a ~44 Hz groan, then it cuts as the arms seat.
+    if (t < 2) {
+      const k = clamp01(t / 1.8);
+      const runEnv = clamp01(t / 0.4) * clamp01((1.9 - t) / 0.12) * (0.35 + 0.65 * k);
+      if (i % 64 === 0) servo.set(lerp(110, 230, k), 3);
+      gp += lerp(40, 47, k) / sr;
+      const saw = 2 * (gp % 1) - 1;
+      v += (servoLp.process(servo.process(servoNoise() * 6)) * 0.9 + servoLp.process(saw) * 0.5) * runEnv;
+      let impulse = 0;
+      if (t >= nextImpulse) {
+        impulse = 1;
+        nextImpulse = t + 0.03 + 0.08 * rng.next();
+      }
+      v += creakBp.process(impulse) * 0.5 * runEnv * k;
+    }
+    // Contacts: boom (pitch drop), struck low partials, a short thud of noise.
+    for (const h of hits) {
+      const d = t - h.t;
+      if (d < 0) continue;
+      // Pitch falls from 1x to 0.55x of f over ~0.15 s; phase is the integral of that frequency.
+      const boom = Math.sin(TAU * h.f * (0.55 * d + (0.45 * (1 - Math.exp(-7 * d))) / 7)) * Math.exp(-d / 1.1);
+      const clang = modal(d, h.f * 1.2, [1, 1.52, 2.31, 3.1], [0.4, 0.3, 0.18, 0.1], [1.3, 0.9, 0.5, 0.35], [0, 1, 2, 3]);
+      const thud = thudLp.process(thudNoise() * 5) * Math.exp(-d / 0.09);
+      v += (boom * 1.3 + clang * 0.5 + thud * 0.6) * h.a;
+    }
+    // Long tail from the main contact: sub-bass hang, then water rumble.
+    const dt = t - 1.83;
+    if (dt > 0) {
+      const tailEnv = Math.exp(-dt / 2.4);
+      v += Math.sin(TAU * 31 * dt + 0.3 * Math.sin(TAU * 0.6 * dt)) * tailEnv * 0.9;
+      v += tailLp.process(tailNoise()) * 1.2 * tailEnv * clamp01(dt / 0.3);
+    }
+    b[i] = Math.tanh(v * 1.3);
+  }
+  return fadeEdges(normalize(b, 0.9), sr, 0.005, 0.4);
+}
+
+// ------------------------------------------------------------------ set-piece one-shots (ADR-0014 beats 5 and 8)
+
+/** Wet tearing: a run of crackling noise bursts through a sweeping band-pass, with a low, meaty thump under it. */
+export function fleshTear(sr: number, rng: Rng): Buf {
+  const dur = rng.range(0.9, 1.3);
+  const b = makeBuf(sr, dur);
+  const n = white(rng);
+  const bp = new Biquad('bandpass', 900, 1.4, sr);
+  const lp = new Biquad('lowpass', 220, 0.8, sr);
+  const thump = brown(rng.fork('thump'));
+  let crackle = 0;
+  for (let i = 0; i < b.length; i++) {
+    const t = i / sr;
+    const p = t / dur;
+    if (i % 64 === 0) bp.set(lerp(1500, 500, p) * (1 + 0.3 * Math.sin(TAU * 7 * t)), 1.4);
+    // Stick-slip: random sharp clicks, denser in the middle of the rip.
+    if (rng.next() < 0.004 * Math.sin(Math.PI * p) + 0.0004) crackle = 1;
+    crackle *= 0.985;
+    const wet = bp.process(n()) * (0.35 + 0.65 * Math.sin(Math.PI * p) ** 0.5) * (0.6 + crackle);
+    const low = lp.process(thump()) * Math.exp(-t / 0.25) * 1.4;
+    b[i] = (wet + low) * clamp01(t / 0.01) * clamp01((dur - t) / 0.2);
+  }
+  return fadeEdges(normalize(b, 0.85), sr, 0.002, 0.05);
+}
+
+/** A palm slapping thick glass: a dull thump and a short glassy ring. */
+export function glassThud(sr: number, rng: Rng): Buf {
+  const b = makeBuf(sr, 0.9);
+  const base = rng.range(380, 520);
+  const ratios = [1, 2.71, 5.4, 8.9];
+  const phases = ratios.map(() => rng.next() * TAU);
+  const noise = white(rng.fork('n'));
+  const lp = new Biquad('lowpass', 260, 0.9, sr);
+  for (let i = 0; i < b.length; i++) {
+    const t = i / sr;
+    const ring = modal(t, base, ratios, [0.25, 0.14, 0.07, 0.04], [0.18, 0.12, 0.08, 0.05], phases);
+    const thud = lp.process(noise()) * Math.exp(-t / 0.04) * 2.2;
+    b[i] = (ring + thud) * Math.min(1, t / 0.0015);
+  }
+  return fadeEdges(normalize(b, 0.9), sr, 0, 0.08);
+}
+
+/** A body dragged over deck plate: low scraping noise with the jerks of each pull. */
+export function bodyDrag(sr: number, rng: Rng): Buf {
+  const dur = 2.6;
+  const b = makeBuf(sr, dur);
+  const br = brown(rng);
+  const n = white(rng.fork('grit'));
+  const bp = new Biquad('bandpass', 420, 1.1, sr);
+  const lp = new Biquad('lowpass', 1800, 0.7, sr);
+  const pull = rng.range(1.3, 1.8);
+  for (let i = 0; i < b.length; i++) {
+    const t = i / sr;
+    const jerk = 0.35 + 0.65 * Math.max(0, Math.sin(TAU * pull * t)) ** 2;
+    b[i] = (bp.process(br()) * 1.2 + lp.process(n()) * 0.18) * jerk * clamp01(t / 0.08) * clamp01((dur - t) / 0.4);
+  }
+  return fadeEdges(normalize(b, 0.8), sr, 0.01, 0.1);
+}
+
 /**
  * A bank of damped band-pass resonators at log-random frequencies. Excited by a noise
  * burst it sounds like a struck plate: metallic but not pitched (no single "clank" tone).
@@ -596,6 +761,11 @@ export const SOUND_SPECS = {
   consoleBeep: { make: consoleBeep, loop: false, variants: 2 },
   klaxon: { make: klaxon, loop: false, variants: 1 },
   distantMoan: { make: distantMoan, loop: false, variants: 2 },
+  subPass: { make: subPass, loop: false, variants: 1 },
+  subClamp: { make: subClamp, loop: false, variants: 1 },
+  fleshTear: { make: fleshTear, loop: false, variants: 3 },
+  glassThud: { make: glassThud, loop: false, variants: 3 },
+  bodyDrag: { make: bodyDrag, loop: false, variants: 2 },
   footPlate: { make: footPlate, loop: false, variants: 6 },
   footGrate: { make: footGrate, loop: false, variants: 6 },
   click: { make: click, loop: false, variants: 1 },
@@ -606,7 +776,8 @@ export const SOUND_SPECS = {
 
 /**
  * Recorded one-shots loaded from public/assets/audio/. A sample with the same name as a procedural
- * sound replaces it once loaded (the procedural version stays as the fallback until then).
+ * sound replaces it once loaded (the procedural version stays as the fallback until then). An array
+ * of URLs loads as variants, one picked at random per play.
  */
 export const SAMPLE_URLS = {
   pistolShot: 'assets/audio/weapons/pistol-shot.wav',
@@ -614,10 +785,12 @@ export const SAMPLE_URLS = {
   pistolReloadIn: 'assets/audio/weapons/pistol-reload-in.wav',
   pistolReloadSlide: 'assets/audio/weapons/pistol-reload-slide.wav',
   shotgunShot: 'assets/audio/weapons/shotgun-shot.wav',
-  shotgunPump: 'assets/audio/weapons/shotgun-pump.wav',
+  shotgunPump: 'assets/audio/weapons/shotgun-pump-fit.wav', // stretched x1.1 to match the PostFire clip (scripts/fit-weapon-audio.mjs)
   shotgunShell: 'assets/audio/weapons/shotgun-shell.wav',
   dryFire: 'assets/audio/weapons/dry-fire.wav',
-} as const;
+  // Seven boot steps cut from the first ~4 s of freesound_community "metal footsteps" (14727).
+  footPlate: [1, 2, 3, 4, 5, 6, 7].map((i) => `assets/audio/footsteps/foot-metal-${i}.wav`),
+} as const satisfies Record<string, string | readonly string[]>;
 
 export type SampleName = keyof typeof SAMPLE_URLS;
 export type SoundName = keyof typeof SOUND_SPECS | SampleName;

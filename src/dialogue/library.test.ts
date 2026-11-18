@@ -8,7 +8,7 @@ const readJson = (name: string): unknown => JSON.parse(readFileSync(new URL(name
 const speakers = readJson('speakers.json');
 const chapters = Object.fromEntries(
   readdirSync(dir)
-    .filter((f) => f.endsWith('.json') && f !== 'speakers.json')
+    .filter((f) => f.endsWith('.json') && f !== 'speakers.json' && f !== 'ui.json')
     .map((f) => [`data/dialogue/${f}`, readJson(f)]),
 );
 

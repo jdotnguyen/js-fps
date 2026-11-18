@@ -24,6 +24,8 @@ export interface CutsceneDeps {
   ui: CutsceneUi;
   /** Label for the skip key, e.g. "Space". */
   skipKeyLabel: () => string;
+  /** Does this level have the opening's anchors (ADR-0017)? Default yes; kit_test and the demo room say no. */
+  hasIntro?: () => boolean;
 }
 
 /**
@@ -58,6 +60,7 @@ export class CutsceneController {
 
   playIntro(): boolean {
     const m = this.d.sequences();
+    if (this.d.hasIntro && !this.d.hasIntro()) return false;
     return m !== null && m.has(INTRO_SEQUENCE) && m.start(INTRO_SEQUENCE);
   }
 

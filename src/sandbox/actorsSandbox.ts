@@ -3,6 +3,8 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import '../ui/styles/base.css';
 import keymapJson from '../data/keymap.json';
 import posesJson from '../data/poses.json';
+import bodyModelsJson from '../data/body-models.json';
+import { BodyModelLibrary, validateBodyModelTable } from '../actors/bodyModelLibrary.ts';
 import { validateKeymap } from '../data/types/keymap.ts';
 import { loadPoseFile } from '../data/types/poses.ts';
 import { createDebugTools, readDebugFlags } from '../core/debug.ts';
@@ -137,8 +139,14 @@ async function boot(): Promise<void> {
   let engineer: Humanoid | null = null;
   let hitboxes = false;
 
+  // `?bodyModel=<id>` (ADR-0026): the crowd shamblers and the play-dead body use that imported model.
+  const modelParam = new URLSearchParams(location.search).get('bodyModel');
+  const bodyModels = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/body-models.json'));
+  await bodyModels.load(import.meta.env.BASE_URL);
+  const crowd = (spec: HumanoidSpec): HumanoidSpec => (modelParam && !spec.hero ? { ...spec, model: modelParam } : spec);
+
   const spawn = (spec: HumanoidSpec, x: number, z: number, heading: number): Humanoid => {
-    const h = new Humanoid(spec, { poses, gore });
+    const h = new Humanoid(spec.role === 'enemy' ? crowd(spec) : spec, { poses, gore, bodyModels });
     h.group.position.set(x, 0, z);
     h.heading = heading;
     h.group.rotation.y = heading;

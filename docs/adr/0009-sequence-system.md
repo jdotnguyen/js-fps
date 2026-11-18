@@ -117,3 +117,12 @@ Story: `say` (ADR-0010), `setObjective`, `completeObjective`, `checkpoint`, `end
   **Not verified:** running in the browser (`?debug&level=kit_test&seq=test_drop`), overlay
   appearance, performance. `vite build` could not run in the agent's Linux VM (the repo's
   node_modules are macOS builds).
+
+## Progress (Part B): actions added for the action half
+`waitGroup { group, timeout? }` (waits for a spawn group, at once if cleared), `gore { at, kind: burst|chunks|pool|splash, dir?, count?, size? }`
+(cosmetic, host `gore`), `titleCard { title, sub?, s?, wait? }` (host `titleCard`), `waitFor` gained `match` (payload equals)
+and `min` (numeric payload at least, e.g. a task's `progress`). `gore` takes an optional clip plane (`clipAxis`, `clipAt`, `clipKeep`) passed to `host.gore`. Restore sequences on `game:mode playing` (`action_restore`, `quiet_restore`, `reveal_restore`) must be instant or guard themselves: pause/resume fires the same event, and a death restart cancels them right after. A counted `loop` applies its body once per count when
+skipped (it is the way to write a sequential block inside a `parallel`); an `until` loop still has no end state.
+Progress (reveal restore): `if` accepts the flag name `running:<id>` (live: the sequence is running or queued). `reveal_restore` uses it to stay idle while `cliffhanger`, `title_card` or `stinger_priya` plays (pause/resume), and otherwise clears their `seq:` once-flags and replays the reveal, so a manual save taken mid-reveal (flag `seq:cliffhanger` already saved) works. `SequenceManager.onRestart` now re-fires every `game:mode playing` sequence after cancelling (the load's own restore runs were cancelled by the restart, and `npcs.reset()` ran after them), so a death restart into `cp_climax_won` and the other restores take effect; restores must stay idempotent.
+Pattern for beats that must survive a death restart: `resumeFromCheckpoint: true`, trigger with `unless: <beat>_done`,
+no `once` (level triggers latch and are not reset by a restart), and one `checkpoint` step at the end.

@@ -1,5 +1,5 @@
 import type { EventBus } from '../../core/events.ts';
-import type { Settings, SettingsStore } from '../../core/settings.ts';
+import { TUTORIAL_MODES, type Settings, type SettingsStore } from '../../core/settings.ts';
 import { DIFFICULTY_IDS, type DifficultyId, type DifficultyTable } from '../../data/types/difficulty.ts';
 import type { Game } from '../../game/game.ts';
 import { formatPlayTime, type SaveData, type SaveEntry, type SaveStore, type SlotSummary } from '../../game/save.ts';
@@ -12,6 +12,8 @@ export interface MenuDeps {
   settings: SettingsStore;
   difficulties: DifficultyTable;
   events: EventBus;
+  /** Settings > Accessibility "Reset tutorials" (ADR-0025). */
+  resetTutorials?: () => void;
 }
 
 type NumKey = { [K in keyof Settings]: Settings[K] extends number ? K : never }[keyof Settings];
@@ -160,6 +162,28 @@ export function createMenus(root: HTMLElement, deps: MenuDeps): Menu {
     return h('div', { class: 'menu-field' }, h('label', { for: id, text: 'Graphics quality' }), select);
   };
 
+  // Tutorial pop-ups (ADR-0025): mode plus a reset of the profile's "seen" list.
+  const tutorials = (): Node[] => {
+    const id = 'set-tutorialPrompts';
+    const labels: Record<Settings['tutorialPrompts'], string> = { first: 'First time only', always: 'Always', off: 'Off' };
+    const select = h(
+      'select',
+      { id },
+      ...TUTORIAL_MODES.map((m) => h('option', { value: m, text: labels[m], selected: settings.get().tutorialPrompts === m })),
+    );
+    select.addEventListener('change', () => settings.set('tutorialPrompts', select.value as Settings['tutorialPrompts']));
+    const status = h('small', { role: 'status', 'aria-live': 'polite' });
+    const reset = button(
+      'Reset tutorials',
+      () => {
+        deps.resetTutorials?.();
+        status.textContent = 'Tutorials will show again.';
+      },
+      { class: 'menu-btn small' },
+    );
+    return [h('div', { class: 'menu-field' }, h('label', { for: id, text: 'Tutorial pop-ups' }), select), h('div', { class: 'menu-field' }, reset, status)];
+  };
+
   const settingsScreen = (): Screen => ({
     title: 'Settings',
     subtitle: 'Changes apply and save immediately.',
@@ -179,6 +203,7 @@ export function createMenus(root: HTMLElement, deps: MenuDeps): Menu {
       toggle('Reduced motion', 'reducedMotion', 'Less camera bob and shake.'),
       range('Cutscene skip hold time', 'skipHoldSeconds', 1.5, 6, 0.5, (v) => `${v.toFixed(1)} s`),
       toggle('Skip assist', 'skipAssist', 'Press the skip key once to start the countdown, again to cancel, instead of holding it.'),
+      ...tutorials(),
     ],
   });
 
@@ -255,5 +280,7 @@ export function createMenus(root: HTMLElement, deps: MenuDeps): Menu {
     else menu.hide();
   });
   events.on('game:saveStation', () => menu.show(saveStationScreen()));
+  // The map overlay pauses the game but draws its own screen (ADR-0024).
+  events.on('game:map', () => menu.hide());
   return menu;
 }

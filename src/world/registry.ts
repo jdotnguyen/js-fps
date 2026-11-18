@@ -5,6 +5,7 @@ import type { KitIds } from '../data/types/level.ts';
 import type { Materials } from '../render/materials.ts';
 import { PROP_PIECES } from './kit/props.ts';
 import { STRUCTURE_PIECES } from './kit/structure.ts';
+import { SLICE_PROPS, SLICE_STRUCTURE } from './kit/slice.ts';
 import {
   LIGHT_SLOT_KINDS,
   SURFACE_MATERIALS,
@@ -40,7 +41,7 @@ export class KitRegistry {
   private readonly glbs = new Map<string, THREE.Group>();
   private readonly manifest: KitManifest;
 
-  constructor(manifest: KitManifest, defs: PieceDef[] = [...STRUCTURE_PIECES, ...PROP_PIECES]) {
+  constructor(manifest: KitManifest, defs: PieceDef[] = [...STRUCTURE_PIECES, ...PROP_PIECES, ...SLICE_STRUCTURE, ...SLICE_PROPS]) {
     this.manifest = manifest;
     for (const d of defs) {
       if (this.defs.has(d.id)) throw new Error(`kit id "${d.id}" registered twice`);

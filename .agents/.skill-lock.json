@@ -1,0 +1,66 @@
+{
+  "version": 3,
+  "skills": {
+    "openspec-apply-change": {
+      "source": "Fission-AI/OpenSpec",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/Fission-AI/OpenSpec.git",
+      "ref": "v2.1.0",
+      "skillPath": "skills/openspec-apply-change/SKILL.md",
+      "skillFolderHash": "bde866776c55fa1f9e7472c767f7f26ba31fbb57",
+      "installedAt": "2026-11-18T15:21:06.494Z",
+      "updatedAt": "2026-11-18T15:21:06.494Z"
+    },
+    "openspec-archive-change": {
+      "source": "Fission-AI/OpenSpec",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/Fission-AI/OpenSpec.git",
+      "ref": "v2.1.0",
+      "skillPath": "skills/openspec-archive-change/SKILL.md",
+      "skillFolderHash": "2f578d1e6f14cca12c205c68bc528ca43bc28bde",
+      "installedAt": "2026-11-18T15:21:06.500Z",
+      "updatedAt": "2026-11-18T15:21:06.500Z"
+    },
+    "openspec-explore": {
+      "source": "Fission-AI/OpenSpec",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/Fission-AI/OpenSpec.git",
+      "ref": "v2.1.0",
+      "skillPath": "skills/openspec-explore/SKILL.md",
+      "skillFolderHash": "e28ef0a32fff065a6f4f18e6e8d2fa3109d33eed",
+      "installedAt": "2026-11-18T15:21:06.504Z",
+      "updatedAt": "2026-11-18T15:21:06.504Z"
+    },
+    "openspec-propose": {
+      "source": "Fission-AI/OpenSpec",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/Fission-AI/OpenSpec.git",
+      "ref": "v2.1.0",
+      "skillPath": "skills/openspec-propose/SKILL.md",
+      "skillFolderHash": "3cf4ecb86a0d1d812657801ad0e0a18911a46d10",
+      "installedAt": "2026-11-18T15:21:06.509Z",
+      "updatedAt": "2026-11-18T15:21:06.509Z"
+    },
+    "openspec-sync-specs": {
+      "source": "Fission-AI/OpenSpec",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/Fission-AI/OpenSpec.git",
+      "ref": "v2.1.0",
+      "skillPath": "skills/openspec-sync-specs/SKILL.md",
+      "skillFolderHash": "c2852ab2485c68472a30fe5130d59ffc04523af3",
+      "installedAt": "2026-11-18T15:21:06.514Z",
+      "updatedAt": "2026-11-18T15:21:06.514Z"
+    },
+    "openspec-update-change": {
+      "source": "Fission-AI/OpenSpec",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/Fission-AI/OpenSpec.git",
+      "ref": "v2.1.0",
+      "skillPath": "skills/openspec-update-change/SKILL.md",
+      "skillFolderHash": "8e8250f626b3a1b04f0c0dc0f6f6b91d64168007",
+      "installedAt": "2026-11-18T15:21:06.519Z",
+      "updatedAt": "2026-11-18T15:21:06.519Z"
+    }
+  },
+  "dismissed": {}
+}

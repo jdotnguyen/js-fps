@@ -163,19 +163,25 @@ export class AudioEngine {
    * name. Failures are logged and leave the procedural fallback (or silence) in place.
    */
   async loadSamples(): Promise<void> {
-    const base = import.meta.env.BASE_URL;
     await Promise.all(
-      (Object.entries(SAMPLE_URLS) as Array<[SampleName, string]>).map(async ([name, url]) => {
-        try {
-          const res = await fetch(base + url);
-          if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-          const buffer = await this.ctx.decodeAudioData(await res.arrayBuffer());
-          this.buffers.set(name, [buffer]);
-        } catch (err) {
-          console.warn(`[audio] could not load sample "${name}" from ${url}`, err);
-        }
+      (Object.entries(SAMPLE_URLS) as Array<[SampleName, string | readonly string[]]>).map(async ([name, urls]) => {
+        const list = (await Promise.all((typeof urls === 'string' ? [urls] : urls).map((url) => this.fetchSample(name, url)))).filter(
+          (b): b is AudioBuffer => b !== null,
+        );
+        if (list.length > 0) this.buffers.set(name, list);
       }),
     );
+  }
+
+  private async fetchSample(name: SampleName, url: string): Promise<AudioBuffer | null> {
+    try {
+      const res = await fetch(import.meta.env.BASE_URL + url);
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return await this.ctx.decodeAudioData(await res.arrayBuffer());
+    } catch (err) {
+      console.warn(`[audio] could not load sample "${name}" from ${url}`, err);
+      return null;
+    }
   }
 
   /** Dull the whole mix for `seconds` (taking a hit), then open back up. */

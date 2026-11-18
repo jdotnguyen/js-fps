@@ -1,0 +1,226 @@
+{
+  "id": "briefing_gallery",
+  "trigger": { "event": "trigger:gallery_brief_spot", "requires": "introSeen", "unless": "briefingSeen" },
+  "exclusive": "rails",
+  "skippable": true,
+  "once": true,
+  "steps": [
+    {
+      "do": "playerControl",
+      "move": "locked",
+      "look": "clamped",
+      "weapons": false,
+      "interact": false,
+      "flashlight": false
+    },
+    {
+      "parallel": [
+        {
+          "do": "playerWalkTo",
+          "to": "anchor:brief_jay",
+          "wait": true
+        },
+        {
+          "do": "npcMoveTo",
+          "npc": "giles",
+          "to": "anchor:brief_giles",
+          "wait": true
+        },
+        {
+          "do": "npcMoveTo",
+          "npc": "okafor",
+          "to": "anchor:brief_okafor",
+          "wait": true
+        }
+      ]
+    },
+    {
+      "do": "playerFrame",
+      "target": "npc:heins",
+      "duration": 1.2,
+      "wait": true
+    },
+    {
+      "do": "say",
+      "line": "brief_heins_01"
+    },
+    {
+      "do": "say",
+      "line": "brief_heins_02"
+    },
+    {
+      "do": "say",
+      "line": "brief_sung_01"
+    },
+    {
+      "do": "say",
+      "line": "brief_heins_03"
+    },
+    {
+      "do": "playerFrame",
+      "target": "npc:giles",
+      "duration": 0.8,
+      "wait": true
+    },
+    {
+      "do": "say",
+      "line": "brief_giles_01"
+    },
+    {
+      "do": "say",
+      "line": "brief_heins_04"
+    },
+    {
+      "do": "say",
+      "line": "brief_giles_02"
+    },
+    {
+      "do": "playerFrame",
+      "target": "npc:heins",
+      "duration": 0.8,
+      "wait": true
+    },
+    {
+      "do": "say",
+      "line": "brief_heins_05"
+    },
+    {
+      "do": "say",
+      "line": "brief_jay_01"
+    },
+    {
+      "do": "say",
+      "line": "brief_heins_06"
+    },
+    {
+      "do": "sfx",
+      "id": "consoleBeep",
+      "at": "anchor:brief_screen"
+    },
+    {
+      "do": "emit",
+      "event": "briefing:screen",
+      "payload": {
+        "state": "on",
+        "who": "hale"
+      }
+    },
+    {
+      "do": "playerFrame",
+      "target": "anchor:brief_screen",
+      "duration": 1.0,
+      "wait": true
+    },
+    {
+      "do": "say",
+      "line": "brief_hale_01"
+    },
+    {
+      "do": "say",
+      "line": "brief_hale_02"
+    },
+    {
+      "do": "playerFrame",
+      "target": "anchor:labb_blinds",
+      "duration": 1.4,
+      "wait": true
+    },
+    {
+      "do": "say",
+      "line": "brief_hale_03"
+    },
+    {
+      "do": "playerFrame",
+      "target": "anchor:brief_screen",
+      "duration": 1.0,
+      "wait": true
+    },
+    {
+      "do": "say",
+      "line": "brief_hale_04"
+    },
+    {
+      "do": "emit",
+      "event": "briefing:screen",
+      "payload": {
+        "state": "off",
+        "who": "hale"
+      }
+    },
+    {
+      "do": "wait",
+      "s": 1.2
+    },
+    {
+      "do": "playerFrame",
+      "target": "npc:heins",
+      "duration": 0.8,
+      "wait": true
+    },
+    {
+      "do": "say",
+      "line": "brief_heins_07"
+    },
+    {
+      "do": "playerFrame",
+      "target": "npc:okafor",
+      "duration": 0.8,
+      "wait": true
+    },
+    {
+      "do": "npcAnim",
+      "npc": "okafor",
+      "anim": "glance"
+    },
+    {
+      "do": "wait",
+      "s": 1.5
+    },
+    {
+      "do": "playerFrame",
+      "target": "npc:giles",
+      "duration": 0.8,
+      "wait": true
+    },
+    {
+      "do": "say",
+      "line": "brief_giles_03"
+    },
+    {
+      "do": "playerFrame",
+      "target": "npc:heins",
+      "duration": 0.8,
+      "wait": true
+    },
+    {
+      "do": "say",
+      "line": "brief_heins_08"
+    },
+    {
+      "do": "setObjective",
+      "id": "round_hydro"
+    },
+    {
+      "do": "setObjective",
+      "id": "round_dive"
+    },
+    {
+      "do": "setObjective",
+      "id": "round_admin"
+    },
+    {
+      "do": "setFlag",
+      "flag": "briefingSeen",
+      "value": true
+    },
+    {
+      "do": "playerControl",
+      "reset": true
+    },
+    {
+      "do": "checkpoint",
+      "id": "cp_briefing",
+      "label": "Observation Gallery"
+    }
+  ]
+}

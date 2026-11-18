@@ -27,6 +27,18 @@ export interface PlaceTarget {
   z: number;
 }
 
+export interface CameraFeedOptions {
+  state: 'live' | 'static' | 'off';
+  /** Camera position and the point it looks at; null keeps the last ones. */
+  from: Vec3Like | null;
+  lookAt: Vec3Like | null;
+  /** Show the feed over the whole screen instead of (or as well as) on the `feed:<id>` mesh. */
+  fullscreen: boolean;
+  /** Top-left caption, e.g. "CAM 07  SECURITY OFFICE". */
+  label?: string;
+  fov?: number;
+}
+
 export interface SpeechLike {
   done: Promise<unknown>;
 }
@@ -45,6 +57,14 @@ export interface SequenceHost {
   pushControl?(over: ControlOverride, owner: string): () => void;
   lookAt?(at: Vec3Like, duration: number, weight: number): void;
   clampLook?(at: Vec3Like | null, degrees: number): void;
+  /** Scripted shot (ADR-0017): hold the view on `at` with `give` degrees of mouse give; null releases. */
+  frame?(at: Vec3Like | null, duration: number, give: number, follow?: () => Vec3Like | null): void;
+  /**
+   * Who to look at while `speaker` (a dialogue speaker id such as `medic` or `crew_ruiz`) talks:
+   * an `npc:<id>` target, or null for Jay and anyone without a body in the scene. Used by the
+   * `playerFrame` "speaker" shot; without it that shot never leaves its initial aim.
+   */
+  speakerTarget?(speaker: string): TargetRef | null;
   /** Resolves when the player arrives (or is released). */
   walkTo?(at: Vec3Like, speed: number | undefined): Promise<void>;
   fade?(level: number, seconds: number): void;
@@ -55,20 +75,31 @@ export interface SequenceHost {
 
   setDoor?(id: string, state: string): boolean;
   doorStates?(): Record<string, string>;
-  setLight?(room: string, pattern: string): boolean;
+  /** `tint`: "emergency", "none" (level colours) or "#rrggbb"; omitted keeps the current colour. */
+  setLight?(room: string, pattern: string, tint?: string): boolean;
   lightStates?(): Record<string, string>;
   glass?(id: string, state: string): void;
+  /** Security camera feed (render-to-texture, `render/cameraFeed.ts`). */
+  cameraFeed?(id: string, opts: CameraFeedOptions): void;
+  /** Cosmetic gore at a point (`gore` action): `dir` is the point it is thrown toward. */
+  gore?(kind: 'burst' | 'chunks' | 'pool' | 'splash', at: Vec3Like, dir: Vec3Like, count: number | undefined, size: number | undefined, clip?: { axis: 'x' | 'y' | 'z'; at: number; keep: 'above' | 'below' }): void;
+  /** Black title card over the game for `seconds`, then it fades (`titleCard` action). */
+  titleCard?(title: string, sub: string, seconds: number): void;
   water?(level: number, seconds: number): void;
   sfx?(id: string, at: Vec3Like | null): void;
   music?(id: string | null): void;
+  /** In-world radio (TAG FM): play `track` at `at`, or stop it with null. */
+  radio?(track: string | null, at: Vec3Like | null): void;
   ambience?(id: string): void;
 
   /** Speak a dialogue line (ADR-0010). */
-  say?(line: string): SpeechLike | null;
+  say?(line: string, opts?: { overlap?: boolean }): SpeechLike | null;
   /** A skipped line must not be repeated by ambient barks. */
   markLinePlayed?(line: string): void;
   /** Cut off every line still playing (a scene was skipped). */
   stopSpeech?(): void;
+  /** Give a key item (ADR-0024). False if unknown or already held. */
+  giveItem?(id: string): boolean;
   /** Record a checkpoint in the game (autosave, toast). */
   checkpoint?(id: string, label: string | undefined): void;
   endSlice?(): void;
@@ -77,6 +108,10 @@ export interface SequenceHost {
    * A skipped scene sends `instant: true`: apply the end state now (teleport, final pose).
    */
   npc?(action: string, step: Readonly<Record<string, unknown>>): Promise<void> | void;
+  /** Enemy spawn groups (ADR-0007): trigger one (false if unknown or already triggered), remove one, ask if cleared. */
+  spawnGroup?(group: string): boolean;
+  despawnGroup?(group: string): boolean;
+  groupCleared?(group: string): boolean;
 }
 
 export type { Scalar };

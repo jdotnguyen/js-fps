@@ -33,6 +33,8 @@ export interface World {
   navGraph(): NavGraph;
   /** Register this world's doors, consoles and other usables. Returns an unregister. */
   registerInteractions(interactions: Interactions): () => void;
+  /** New game: put doors, light patterns, trigger latches and pickups back as authored (data levels only). */
+  resetToData?(): void;
   /** Title-screen camera move. */
   attract(t: number, camera: THREE.PerspectiveCamera): void;
   update(t: number, dt: number, cameraPosition: THREE.Vector3, reducedFlashing: boolean): void;

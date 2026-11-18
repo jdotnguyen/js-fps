@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Rng } from '../core/rng.ts';
+import { clipCoord, sameClip, type GoreClip } from './goreClip.ts';
 
 /**
  * Severing effects (ADR-0006): rigid debris, fluid spurts and floor pools. One instance per
@@ -16,6 +17,8 @@ const MAX_PARTICLES = 1400;
 const GRAVITY = 9.8;
 const DEBRIS_SLEEP_AFTER = 3;
 const FADE_TIME = 0.6;
+const MAX_CLIPS = 16;
+const AXIS_INDEX = { x: 0, y: 1, z: 2 } as const;
 const UP = new THREE.Vector3(0, 1, 0);
 
 interface Debris {
@@ -102,11 +105,14 @@ export class GoreSystem {
   private readonly pCol: Float32Array;
   private readonly pVel: Float32Array;
   private readonly pLife: Float32Array;
+  /** Per-particle index into `clips` (-1 none), set by `burst` with a clip. */
+  private readonly pClip = new Int8Array(MAX_PARTICLES).fill(-1);
+  private readonly clips: GoreClip[] = [];
   private pCursor = 0;
 
   // Meat chunks: one InstancedMesh (one draw call), ring buffer of slots.
   private readonly chunkMesh: THREE.InstancedMesh;
-  private readonly chunkSlots: Array<{ pos: THREE.Vector3; vel: THREE.Vector3; rot: THREE.Quaternion; spin: THREE.Vector3; scale: number; live: boolean; resting: boolean }> = [];
+  private readonly chunkSlots: Array<{ pos: THREE.Vector3; vel: THREE.Vector3; rot: THREE.Quaternion; spin: THREE.Vector3; scale: number; live: boolean; resting: boolean; clip: number }> = [];
   private chunkCursor = 0;
 
   constructor(rng: Rng, floorY: (x: number, z: number) => number = () => 0) {
@@ -152,7 +158,7 @@ export class GoreSystem {
       const r = rng.next();
       col.set(r < 0.65 ? 0x4a0a0e : r < 0.88 ? 0x7a3a34 : 0xcfc3a8).multiplyScalar(0.8 + 0.4 * rng.next());
       this.chunkMesh.setColorAt(i, col);
-      this.chunkSlots.push({ pos: new THREE.Vector3(), vel: new THREE.Vector3(), rot: new THREE.Quaternion(), spin: new THREE.Vector3(), scale: 1, live: false, resting: false });
+      this.chunkSlots.push({ pos: new THREE.Vector3(), vel: new THREE.Vector3(), rot: new THREE.Quaternion(), spin: new THREE.Vector3(), scale: 1, live: false, resting: false, clip: -1 });
     }
     this.group.add(this.chunkMesh);
 
@@ -212,8 +218,18 @@ export class GoreSystem {
     this.emitters.push({ anchor, point: point.clone(), dir: dir.clone().normalize(), duration: duration * 4, age: 0, rate: 14, speed: 0.15, dark });
   }
 
-  /** Throw torn meat and bone fragments (Full gore only). */
-  chunks(at: THREE.Vector3, dir: THREE.Vector3, count: number): void {
+  /** Index of `clip` in the registry (added if new, the last slot is reused when full); -1 for none. */
+  private clipIndex(clip: GoreClip | undefined): number {
+    if (!clip) return -1;
+    const i = this.clips.findIndex((c) => sameClip(c, clip));
+    if (i >= 0) return i;
+    if (this.clips.length < MAX_CLIPS) return this.clips.push({ ...clip }) - 1;
+    this.clips[MAX_CLIPS - 1] = { ...clip };
+    return MAX_CLIPS - 1;
+  }
+
+  /** Throw torn meat and bone fragments (Full gore only). `clip` keeps them on one side of a plane. */
+  chunks(at: THREE.Vector3, dir: THREE.Vector3, count: number, clip?: GoreClip): void {
     if (this.mode === 'reduced') return;
     for (let n = 0; n < count; n++) {
       const c = this.chunkSlots[this.chunkCursor];
@@ -221,6 +237,7 @@ export class GoreSystem {
       if (!c) continue;
       c.live = true;
       c.resting = false;
+      c.clip = this.clipIndex(clip);
       c.pos.copy(at);
       c.vel.copy(dir).multiplyScalar(this.rng.range(1, 3.2));
       c.vel.x += this.rng.range(-1.3, 1.3);
@@ -229,18 +246,20 @@ export class GoreSystem {
       c.rot.setFromEuler(new THREE.Euler(this.rng.range(0, 6), this.rng.range(0, 6), this.rng.range(0, 6)));
       c.spin.set(this.rng.range(-14, 14), this.rng.range(-14, 14), this.rng.range(-14, 14));
       c.scale = this.rng.range(0.5, 1.5);
+      this.clipChunk(c);
     }
   }
 
   /** Single burst at a world point (bullet impact on flesh, ADR-0005). */
-  burst(at: THREE.Vector3, dir: THREE.Vector3, count = 30, dark = this.mode === 'reduced'): void {
+  burst(at: THREE.Vector3, dir: THREE.Vector3, count = 30, dark = this.mode === 'reduced', clip?: GoreClip): void {
     const d = new THREE.Vector3();
+    const ci = this.clipIndex(clip);
     for (let i = 0; i < count; i++) {
       d.copy(dir).multiplyScalar(this.rng.range(0.6, 2.2));
       d.x += this.rng.range(-0.9, 0.9);
       d.y += this.rng.range(-0.3, 1.2);
       d.z += this.rng.range(-0.9, 0.9);
-      this.emit(at, d, dark);
+      this.emit(at, d, dark, ci);
     }
   }
 
@@ -301,6 +320,14 @@ export class GoreSystem {
   private readonly cs = new THREE.Vector3();
   private readonly cq = new THREE.Quaternion();
 
+  private clipChunk(c: { pos: THREE.Vector3; vel: THREE.Vector3; clip: number }): void {
+    const clip = c.clip >= 0 ? this.clips[c.clip] : undefined;
+    if (!clip) return;
+    const [np, nv] = clipCoord(clip, c.pos[clip.axis], c.vel[clip.axis]);
+    c.pos[clip.axis] = np;
+    c.vel[clip.axis] = nv;
+  }
+
   private updateChunks(dt: number): void {
     let dirty = false;
     this.chunkSlots.forEach((c, i) => {
@@ -310,6 +337,7 @@ export class GoreSystem {
       c.pos.addScaledVector(c.vel, dt);
       const a = c.spin.length() * dt;
       if (a > 1e-6) c.rot.premultiply(this.cq.setFromAxisAngle(this.cs.copy(c.spin).normalize(), a));
+      this.clipChunk(c);
       const floor = this.floorY(c.pos.x, c.pos.z) + 0.012 * c.scale;
       if (c.pos.y < floor) {
         c.pos.y = floor;
@@ -432,8 +460,9 @@ export class GoreSystem {
     }
   }
 
-  private emit(at: THREE.Vector3, vel: THREE.Vector3, dark: boolean): void {
+  private emit(at: THREE.Vector3, vel: THREE.Vector3, dark: boolean, clip = -1): void {
     const i = this.pCursor;
+    this.pClip[i] = clip;
     this.pCursor = (this.pCursor + 1) % MAX_PARTICLES;
     const k = i * 3;
     this.pPos[k] = at.x;
@@ -472,6 +501,21 @@ export class GoreSystem {
       let x = (this.pPos[k] ?? 0) + (this.pVel[k] ?? 0) * dt;
       let y = (this.pPos[k + 1] ?? 0) + vy * dt;
       let z = (this.pPos[k + 2] ?? 0) + (this.pVel[k + 2] ?? 0) * dt;
+      const ci = this.pClip[i] ?? -1;
+      const clip = ci >= 0 ? this.clips[ci] : undefined;
+      if (clip) {
+        // Blood that reaches the plane (the glass) stops on it and runs down instead of passing through.
+        const ax = AXIS_INDEX[clip.axis];
+        const cur = ax === 0 ? x : ax === 1 ? y : z;
+        const [np, nv] = clipCoord(clip, cur, ax === 1 ? vy : (this.pVel[k + ax] ?? 0));
+        if (np !== cur) {
+          if (ax === 0) x = np;
+          else if (ax === 1) y = np;
+          else z = np;
+          if (ax === 1) vy = nv;
+          else this.pVel[k + ax] = nv;
+        }
+      }
       const fy = this.floorY(x, z) + 0.006;
       if (y < fy) {
         // Stick to the floor.

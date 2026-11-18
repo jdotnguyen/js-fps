@@ -1,0 +1,70 @@
+/* Tutorial pop-ups and hints (ADR-0025). Sizes in rem so they scale with the UI (200 %). */
+.tutorial {
+  position: fixed;
+  inset: 0;
+  z-index: 11;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgb(2 6 8 / 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: tutorial-in 0.25s ease-out;
+}
+.tutorial[hidden] { display: none; }
+/* Reduced motion: no blur, no fade, a plain dim. */
+.tutorial.reduced { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgb(2 6 8 / 0.7); animation: none; }
+@keyframes tutorial-in { from { opacity: 0; } to { opacity: 1; } }
+
+.tutorial-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  max-width: min(92vw, 30rem);
+  padding: 1.4rem 1.8rem 1.3rem;
+  font-family: var(--mono);
+  color: var(--visor);
+  text-align: center;
+  background: rgb(5 9 12 / 0.88);
+  border: 1px solid rgb(207 232 240 / 0.55);
+  outline: none;
+}
+.tutorial-card:focus-visible { outline: 2px solid var(--visor); outline-offset: 3px; }
+.tutorial-icon { font-size: 2rem; line-height: 1; opacity: 0.85; }
+.tutorial-title { margin: 0; font-size: 1.1rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; }
+.tutorial-body { display: grid; gap: 0.5rem; }
+.tutorial-line { margin: 0; display: grid; justify-items: center; gap: 0.35rem; font-size: 0.95rem; line-height: 1.4; overflow-wrap: anywhere; }
+.tutorial-keys { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.3rem; }
+
+.tutorial kbd,
+.tutorial-hint kbd {
+  display: inline-block;
+  min-width: 1.8em;
+  padding: 0.15em 0.45em;
+  font: inherit;
+  font-weight: 600;
+  border: 1px solid currentColor;
+  border-bottom-width: 3px;
+  border-radius: 3px;
+}
+
+.tutorial-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 26%;
+  z-index: 7;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 90vw;
+  padding: 0.45rem 0.9rem;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  color: var(--visor);
+  background: rgb(5 9 12 / 0.72);
+  border: 1px solid rgb(207 232 240 / 0.35);
+  pointer-events: none;
+}
+.tutorial-hint[hidden] { display: none; }

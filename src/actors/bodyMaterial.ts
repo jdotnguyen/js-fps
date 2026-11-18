@@ -12,9 +12,23 @@ export interface BodyUniforms {
   uDark: THREE.IUniform<Float32Array>;
 }
 
+/** A textured material for imported body models (one per model material). Textures are shared between bodies. */
+export interface SurfaceDef {
+  map: THREE.Texture | null;
+  normalMap: THREE.Texture | null;
+  /** Tint multiplied with the map (the model's base colour factor). */
+  color: THREE.Color;
+  /** 0 = opaque; otherwise cut-out alpha (hair cards). */
+  alphaTest: number;
+  doubleSided: boolean;
+  roughness: number;
+}
+
 export interface BodyMaterials {
   body: THREE.MeshStandardMaterial;
   wet: THREE.MeshStandardMaterial;
+  /** Imported-model surfaces by key (empty for procedural bodies). */
+  surfaces: Record<string, THREE.MeshStandardMaterial>;
   uniforms: BodyUniforms;
 }
 
@@ -115,8 +129,8 @@ function hook(material: THREE.MeshStandardMaterial, uniforms: BodyUniforms, key:
   material.customProgramCacheKey = () => key;
 }
 
-/** One pair per humanoid: the uniforms (infection, glow, dark limbs) are per body. */
-export function createBodyMaterials(): BodyMaterials {
+/** One set per humanoid: the uniforms (infection, glow, dark limbs) are per body. */
+export function createBodyMaterials(surfaceDefs: Readonly<Record<string, SurfaceDef>> = {}): BodyMaterials {
   const uniforms: BodyUniforms = {
     uInfect: { value: 0 },
     uGlow: { value: 0 },
@@ -128,5 +142,22 @@ export function createBodyMaterials(): BodyMaterials {
   wet.name = 'humanoid-wet';
   hook(body, uniforms, 'tag-humanoid-body-v3');
   hook(wet, uniforms, 'tag-humanoid-wet-v3');
-  return { body, wet, uniforms };
+  const surfaces: Record<string, THREE.MeshStandardMaterial> = {};
+  for (const [key, def] of Object.entries(surfaceDefs)) {
+    // Vertex colours stay on (white on imported pieces) so the infection shader reads the same inputs.
+    const m = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      color: def.color,
+      map: def.map,
+      normalMap: def.normalMap,
+      roughness: def.roughness,
+      metalness: 0,
+      alphaTest: def.alphaTest,
+      side: def.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
+    });
+    m.name = `humanoid-surface:${key}`;
+    hook(m, uniforms, 'tag-humanoid-surface-v1');
+    surfaces[key] = m;
+  }
+  return { body, wet, surfaces, uniforms };
 }

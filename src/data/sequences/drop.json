@@ -1,0 +1,257 @@
+[
+ {
+  "id": "drop",
+  "trigger": {
+   "event": "trigger:gallery_enter",
+   "requires": "rounds_done",
+   "unless": "drop_done"
+  },
+  "once": true,
+  "exclusive": "rails",
+  "steps": [
+   {
+    "do": "setFlag",
+    "flag": "drop_started",
+    "value": true
+   },
+   {
+    "do": "completeObjective",
+    "id": "round_return"
+   },
+   {
+    "do": "doorState",
+    "id": "D_R02_R03",
+    "state": "sealed"
+   },
+   {
+    "do": "playerControl",
+    "move": "slow",
+    "look": "free",
+    "weapons": false,
+    "interact": false
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "giles",
+    "to": "anchor:brief_giles"
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "okafor",
+    "to": "anchor:brief_okafor"
+   },
+   {
+    "do": "wait",
+    "s": 1.0
+   },
+   {
+    "do": "emit",
+    "event": "blinds:set",
+    "payload": {
+     "id": "labb",
+     "state": "up"
+    }
+   },
+   {
+    "do": "sfx",
+    "id": "click",
+    "at": "anchor:labb_blinds"
+   },
+   {
+    "do": "wait",
+    "s": 2.6
+   },
+   {
+    "do": "say",
+    "line": "drop_heins_01"
+   },
+   {
+    "do": "playerLookAt",
+    "target": "npc:researcher_b",
+    "duration": 1.4,
+    "weight": 0.7
+   },
+   {
+    "do": "say",
+    "line": "drop_okafor_01"
+   },
+   {
+    "do": "npcAnim",
+    "npc": "researcher_b",
+    "anim": "writhing"
+   },
+   {
+    "do": "say",
+    "line": "drop_voss_01"
+   },
+   {
+    "do": "say",
+    "line": "drop_okafor_02"
+   },
+   {
+    "parallel": [
+     {
+      "do": "transform",
+      "npc": "researcher_b",
+      "to": 3,
+      "duration": 7,
+      "wait": true
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 0.5
+       },
+       {
+        "do": "say",
+        "line": "drop_heins_02"
+       },
+       {
+        "do": "lightState",
+        "room": "R04",
+        "pattern": "flicker"
+       },
+       {
+        "do": "lightState",
+        "room": "R03",
+        "pattern": "flicker"
+       },
+       {
+        "do": "say",
+        "line": "drop_voss_02"
+       },
+       {
+        "do": "say",
+        "line": "drop_giles_01"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 2.0
+       },
+       {
+        "do": "lightState",
+        "room": "R04",
+        "pattern": "alarm",
+        "tint": "emergency"
+       },
+       {
+        "do": "lightState",
+        "room": "R03",
+        "pattern": "alarm",
+        "tint": "emergency"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 3.0
+       },
+       {
+        "do": "loop",
+        "count": 3,
+        "steps": [
+         {
+          "do": "sfx",
+          "id": "klaxon",
+          "at": "anchor:labb_glass"
+         },
+         {
+          "do": "wait",
+          "s": 2.6
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.35,
+    "s": 1.2
+   },
+   {
+    "do": "sfx",
+    "id": "glassThud",
+    "at": "anchor:labb_glass"
+   },
+   {
+    "do": "glass",
+    "id": "labb",
+    "state": "cracked"
+   },
+   {
+    "do": "wait",
+    "s": 0.9
+   },
+   {
+    "do": "say",
+    "line": "drop_pa_lockdown_01",
+    "wait": false,
+    "overlap": true
+   },
+   {
+    "do": "say",
+    "line": "drop_heins_03"
+   },
+   {
+    "do": "say",
+    "line": "drop_okafor_03"
+   },
+   {
+    "do": "npcAnim",
+    "npc": "researcher_b",
+    "anim": "shamble"
+   },
+   {
+    "do": "lightState",
+    "room": "R03",
+    "pattern": "steady",
+    "tint": "emergency"
+   },
+   {
+    "do": "emit",
+    "event": "drop:done"
+   },
+   {
+    "do": "setObjective",
+    "id": "obj_survive_lab"
+   },
+   {
+    "do": "setFlag",
+    "flag": "drop_done",
+    "value": true
+   },
+   {
+    "do": "npcFollow",
+    "npc": "giles"
+   },
+   {
+    "do": "npcFollow",
+    "npc": "okafor"
+   },
+   {
+    "do": "playerControl",
+    "reset": true
+   },
+   {
+    "do": "checkpoint",
+    "id": "cp_drop",
+    "label": "Observation Gallery"
+   }
+  ]
+ }
+]

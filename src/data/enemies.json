@@ -1,0 +1,33 @@
+{
+  "shambler": {
+    "baseHp": 45,
+    "walk": 1.3,
+    "lurch": [2.4, 0.6, 4, 7],
+    "attack": { "range": 1.4, "windup": 0.8, "recover": 0.7, "cooldown": 1.1, "damage": 15, "biteDamage": 10, "grabChance": 0.35, "grabDps": 8 },
+    "stagger": 0.9,
+    "alertDelay": [0.5, 1.2],
+    "wanderRadius": 4
+  },
+  "hero": {
+    "baseHp": 180,
+    "walk": 1.3,
+    "lurch": [1, 0, 99, 99],
+    "attack": { "range": 2.2, "windup": 0.8, "recover": 1.0, "cooldown": 2.6, "damage": 45, "biteDamage": 20, "grabChance": 0, "grabDps": 0 },
+    "stagger": 0.5,
+    "alertDelay": [0.8, 1.4],
+    "wanderRadius": 2,
+    "knockback": 4.5
+  },
+  "playDead": {
+    "baseHp": 45,
+    "walk": 1.3,
+    "lurch": [2.4, 0.6, 4, 7],
+    "attack": { "range": 1.4, "windup": 0.8, "recover": 0.7, "cooldown": 1.1, "damage": 15, "biteDamage": 10, "grabChance": 0.35, "grabDps": 8 },
+    "stagger": 0.9,
+    "alertDelay": [0.1, 0.2],
+    "wanderRadius": 0,
+    "wakeRadius": 3,
+    "wakeBehind": 6,
+    "getUp": 1.2
+  }
+}

@@ -12,7 +12,15 @@ import type { Toasts } from '../ui/toast.ts';
 import type { CutsceneController } from './cutscene.ts';
 import type { PlayerHud } from '../ui/hud/playerHud.ts';
 import type { World } from '../world/world.ts';
+import type { Inventory } from './inventory.ts';
 import { SAVE_VERSION, type SaveData, type SaveKind, type SaveStore } from './save.ts';
+
+/** Map knowledge the save carries (ADR-0024, `ui/mapModel.ts` MapState). */
+export interface MapPersistence {
+  save(): { seen: string[]; revealed: string[] };
+  restore(s: { seen: string[]; revealed: string[] } | null): void;
+  clear(): void;
+}
 
 export type GameMode = 'title' | 'playing' | 'paused';
 
@@ -21,6 +29,8 @@ declare module '../core/events.ts' {
     'game:mode': { mode: GameMode };
     'game:saveStation': Record<string, never>;
     'game:restarted': { checkpoint: string | null };
+    /** The map overlay opened (ADR-0024): the game is paused, the pause menu stays hidden. */
+    'game:map': Record<string, never>;
   }
 }
 
@@ -42,6 +52,10 @@ export interface GameDeps {
   hud: PlayerHud;
   /** Sequencer, cutscene bars and the skip prompt (ADR-0017). */
   cutscene: CutsceneController;
+  /** Key items held (ADR-0024), saved in `items`. */
+  inventory: Inventory;
+  /** Map state of the current level (ADR-0024), saved in `map` under the level id. */
+  map?: MapPersistence | null | undefined;
 }
 
 const CHAPTER = 'slice01';
@@ -61,6 +75,8 @@ export class Game {
   checkpoint: string | null = null;
   location = '';
   flags: Record<string, string | number | boolean> = {};
+  /** Map state of every level visited this playthrough, by level id (ADR-0024). */
+  private mapSaves: Record<string, { seen: string[]; revealed: string[] }> = {};
   /** Debug fly camera instead of the player. */
   flying = false;
   private readonly d: GameDeps;
@@ -94,6 +110,10 @@ export class Game {
     this.checkpoint = null;
     this.location = '';
     this.flags = {};
+    this.d.inventory.clear();
+    this.mapSaves = {};
+    this.d.map?.clear();
+    this.d.world.resetToData?.();
     this.spawnAtStart();
     this.enterPlaying();
     // The opening plays on rails and may be skipped; with none registered, play starts at once.
@@ -107,6 +127,9 @@ export class Game {
     this.checkpoint = save.checkpoint;
     this.location = save.location;
     this.flags = { ...save.flags };
+    this.d.inventory.restore(save.items);
+    this.mapSaves = { ...save.map };
+    this.d.map?.restore(save.map[this.d.world.id] ?? null);
     const { player } = this.d;
     player.reset(save.player.health);
     player.placeAtEye(new THREE.Vector3().fromArray(save.player.position), save.player.yaw, save.player.pitch);
@@ -138,6 +161,8 @@ export class Game {
         flashlightOn: this.d.flashlight.on,
       },
       flags: { ...this.flags },
+      items: this.d.inventory.list(),
+      map: this.d.map ? { ...this.mapSaves, [this.d.world.id]: this.d.map.save() } : { ...this.mapSaves },
     };
   }
 
@@ -170,6 +195,14 @@ export class Game {
     this.d.hud.setFade(0, 0);
     this.setMode('title');
     if (document.pointerLockElement) document.exitPointerLock();
+  }
+
+  /** Map overlay (ADR-0024): pause and free the mouse; the map screen listens for `game:map`. */
+  openMap(): void {
+    if (this.mode !== 'playing') return;
+    this.setMode('paused');
+    if (document.pointerLockElement) document.exitPointerLock();
+    this.d.events.emit('game:map', {});
   }
 
   openSaveStation(): void {
@@ -246,7 +279,7 @@ export class Game {
     this.d.cutscene.cancel();
     player.reset();
     player.placeAtEye(world.spawn.position, world.spawn.yaw);
-    this.d.flashlight.on = true;
+    this.d.flashlight.on = false;
   }
 
   private gameOver(): void {

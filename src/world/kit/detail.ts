@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Rng } from '../../core/rng.ts';
 import type { Materials } from '../../render/materials.ts';
+import { createSeabed } from '../../render/fx/seabed.ts';
 import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { slab } from './shapes.ts';
 import type { PieceBuilder } from './types.ts';
@@ -137,13 +138,16 @@ export function windowWall(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, o: 
   // Station truss outside, silhouetted against the water.
   for (const x of [-L * 0.4, L * 0.35]) pb.add(slab(0.35, 10, 0.35), m.paintDark, inFrame(f, x, 1.2, -2.6));
   pb.add(slab(L * 3, 0.3, 0.3), m.paintDark, inFrame(f, 0, -0.8, -2.2));
-  pb.add(slab(L * 2.2, 0.22, 0.22), m.paintDark, inFrame(f, 0, 2.9, -3.1, 0, 0, 0.5));
   if (abyss) {
     abyss.mesh.applyMatrix4(inFrame(f, 0, 1.5, -9));
     pb.dynamic(abyss.mesh);
     pb.tick((t) => {
       abyss.uniforms.uTime.value = t;
     });
+    // The sea floor under the backdrop (the abyss plane sits 9 m out).
+    const seabed = createSeabed({ length: L, depth: 9, floorY: -4.5, pad: 0.8, seed: Math.round(Math.abs(f.elements[12] * 31 + f.elements[14] * 17)) + 1 });
+    seabed.applyMatrix4(f);
+    pb.dynamic(seabed);
   }
 }
 

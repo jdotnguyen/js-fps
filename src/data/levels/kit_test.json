@@ -15,6 +15,7 @@
   {
    "id": "R01",
    "name": "Prep room",
+   "area": "prep",
    "atmosphere": { "reverb": "small_office" },
    "pieces": [
     {
@@ -231,6 +232,7 @@
   {
    "id": "R02",
    "name": "Observation corridor",
+   "area": "lab_b",
    "atmosphere": { "reverb": "metal_corridor" },
    "pieces": [
     {
@@ -264,6 +266,7 @@
   {
    "id": "R03",
    "name": "Lab B",
+   "area": "lab_b",
    "atmosphere": { "reverb": "metal_hall" },
    "pieces": [
     {
@@ -308,7 +311,7 @@
      ]
     },
     {
-     "kit": "wall_panel",
+     "kit": "wall_vent",
      "cell": [
       0,
       0,
@@ -374,15 +377,6 @@
       0
      ],
      "rot": 180
-    },
-    {
-     "kit": "wall_panel",
-     "cell": [
-      1,
-      0,
-      0
-     ],
-     "rot": 270
     }
    ],
    "props": [
@@ -463,8 +457,26 @@
    ]
   },
   {
+   "id": "R05",
+   "name": "Containment annex",
+   "area": "lab_b",
+   "hidden": true,
+   "atmosphere": { "reverb": "small_office", "ambient": "emergency" },
+   "pieces": [
+    { "kit": "floor", "cell": [2, 0, 0] },
+    { "kit": "ceiling", "cell": [2, 0, 0] },
+    { "kit": "wall_panel", "cell": [2, 0, 0], "rot": 0 },
+    { "kit": "wall_panel", "cell": [2, 0, 0], "rot": 180 },
+    { "kit": "wall_panel", "cell": [2, 0, 0], "rot": 270 }
+   ],
+   "lights": [
+    { "slot": "auto", "pattern": "dying" }
+   ]
+  },
+  {
    "id": "R04",
    "name": "Sample vault",
+   "area": "lab_b",
    "atmosphere": { "reverb": "flooded" },
    "pieces": [
     {
@@ -554,8 +566,35 @@
     -1
    ],
    "rot": 0,
-   "state": "closed"
+   "state": "closed",
+   "access": { "requires": "card_l2" }
+  },
+  {
+   "id": "D4",
+   "kit": "bulkhead",
+   "between": ["R03", "R05"],
+   "cell": [1, 0, 0],
+   "rot": 270,
+   "state": "closed",
+   "access": { "sealed": true, "text": "lockdown" }
   }
+ ],
+ "vents": [
+  {
+   "id": "V1",
+   "room": "R03",
+   "box": [[-2.05, 0.15, -1.35], [-1.45, 0.95, -0.45]],
+   "access": { "requires": "vent_driver" }
+  }
+ ],
+ "pickups": [
+  { "id": "P_card_l2", "room": "R03", "item": "card_l2", "pos": [-1.5, 0.78, -5.1], "rot": 15 },
+  { "id": "S_ammo_prep", "room": "R01", "kind": "ammo_pistol", "pos": [4, 0, 16] },
+  { "id": "S_shells_corr", "room": "R02", "kind": "ammo_shotgun", "pos": [0.6, 0, 4.5] },
+  { "id": "S_medkit_lab", "room": "R03", "kind": "medkit", "pos": [3, 0, -1] }
+ ],
+ "mapStations": [
+  { "id": "M_lab_b", "pos": [-1.4, 0, 8], "rot": 90, "reveals": "lab_b" }
  ],
  "checkpoints": [
   {

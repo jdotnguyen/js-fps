@@ -4,11 +4,11 @@ import { readFileSync } from 'node:fs';
 import { memoryStore } from '../core/storage.ts';
 import { validate } from '../core/validate.ts';
 import { validateDifficultyTable } from '../data/types/difficulty.ts';
-import { formatPlayTime, parseSave, SaveStore, type SaveData } from './save.ts';
+import { formatPlayTime, parseSave, SAVE_VERSION, SaveStore, type SaveData } from './save.ts';
 
 function sample(over: Partial<SaveData> = {}): SaveData {
   return {
-    version: 1,
+    version: SAVE_VERSION,
     kind: 'auto',
     slot: 0,
     savedAt: '2026-11-16T03:00:00.000Z',
@@ -20,6 +20,8 @@ function sample(over: Partial<SaveData> = {}): SaveData {
     location: 'Lab B',
     player: { position: [0, 1.62, 8.6], yaw: 0, pitch: 0, health: 100, flashlightOn: true },
     flags: { 'cp:cp_start': true },
+    items: [],
+    map: {},
     ...over,
   };
 }
@@ -67,6 +69,37 @@ test('migrations run in order', () => {
   const out = parseSave(JSON.stringify(v0), 'x', migrations, 1);
   assert.equal(out.location, 'Old name');
   assert.equal(out.version, 1);
+});
+
+test('v1 saves migrate to v2 with no key items (ADR-0024)', () => {
+  const { items: _items, map: _map, ...v1 } = { ...sample(), version: 1 };
+  const out = parseSave(JSON.stringify(v1), 'x');
+  assert.equal(out.version, SAVE_VERSION);
+  assert.deepEqual(out.items, []);
+});
+
+test('v2 saves migrate to v3 with an empty map (ADR-0024)', () => {
+  const { map: _map, ...v2 } = { ...sample({ items: ['card_l2'] }), version: 2 };
+  const out = parseSave(JSON.stringify(v2), 'x');
+  assert.equal(out.version, 3);
+  assert.deepEqual(out.map, {});
+  assert.deepEqual(out.items, ['card_l2']);
+});
+
+test('map state round-trips through a save (ADR-0024)', () => {
+  const s = new SaveStore(memoryStore());
+  const map = { slice01: { seen: ['R12a', 'R12b'], revealed: ['hydroponics'] } };
+  s.write(sample({ map }));
+  assert.deepEqual(s.read(0, 'auto').data?.map, map);
+  const bad = new SaveStore(memoryStore());
+  bad.write(sample({ map: { x: { seen: 'R1' } } as unknown as SaveData['map'] }));
+  assert.ok(bad.read(0, 'auto').error, 'a broken map field reports the save as damaged');
+});
+
+test('key items round-trip through a save', () => {
+  const s = new SaveStore(memoryStore());
+  s.write(sample({ items: ['card_l2'] }));
+  assert.deepEqual(s.read(0, 'auto').data?.items, ['card_l2']);
 });
 
 test('clearSlot empties a slot', () => {

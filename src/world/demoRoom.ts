@@ -7,6 +7,7 @@ import { bloodDecal, paintedDecal, stencilDecal } from '../render/decals.ts';
 import { drawTagBanner, drawTagLockup, drawTagMark } from '../render/logo.ts';
 import { createShaft } from '../render/fx/shafts.ts';
 import { createAbyss } from '../render/fx/abyss.ts';
+import { createSeabed } from '../render/fx/seabed.ts';
 import { Particulates } from '../render/fx/particulates.ts';
 import { at, boxUv, cylinderBetween, MergeBuilder, pipe, rounded } from './kit/geom.ts';
 
@@ -145,7 +146,6 @@ export function buildDemoRoom(m: Materials, rng: Rng): DemoRoom {
     // Station truss outside, silhouetted against the water.
     for (const z of [-4, 1.5, 6]) mb.add(boxUv(0.4, 9, 0.4), m.paintDark, at(5.4, 1.5, z));
     mb.add(boxUv(0.3, 0.3, 14), m.paintDark, at(5.2, -0.6, 0));
-    mb.add(boxUv(0.25, 0.25, 9), m.paintDark, at(5.8, 2.4, 0, 0.55, 0, 0));
     const abyss = createAbyss(34, 16);
     abyss.mesh.position.set(9, 1.5, 0);
     abyss.mesh.rotation.y = -Math.PI / 2;
@@ -153,6 +153,11 @@ export function buildDemoRoom(m: Materials, rng: Rng): DemoRoom {
     tickers.push((t) => {
       abyss.uniforms.uTime.value = t;
     });
+    // Sea floor between the truss and the backdrop. Seabed frame: -Z is outwards, here +X.
+    const seabed = createSeabed({ length: 5, depth: 6, floorY: -4.2, pad: 6, seed: 7 });
+    seabed.position.set(x, 0, 0);
+    seabed.rotation.y = -Math.PI / 2;
+    root.add(seabed);
   }
 
   // ---------------------------------------------------------------- structural ribs + bolts

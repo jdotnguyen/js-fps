@@ -1,0 +1,53 @@
+{
+  "zombieWalk": {
+    "url": "assets/models/infected/zombie_walk.glb",
+    "variants": [
+      "shambler",
+      "playDead"
+    ],
+    "share": 0.5,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Zombie Walk",
+      "author": "LostBoyz2078",
+      "source": "https://sketchfab.com/3d-models/zombie-walk-24fd963a21a14f4abc68fd8960f34069",
+      "license": "CC-BY-NC-4.0"
+    }
+  },
+  "mechanic": {
+    "url": "assets/models/squad/mechanic.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Mechanic 1",
+      "author": "SidewalkNZ",
+      "source": "https://sketchfab.com/3d-models/mechanic-1-e98955d94822456e96a03e692d3d8429",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "doctor": {
+    "url": "assets/models/squad/doctor.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "doctor",
+      "author": "Chenchanchong",
+      "source": "https://sketchfab.com/3d-models/doctor-cd00f4c4b7714bb88f7c1af12a91cf6e",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "priya": {
+    "url": "assets/models/squad/priya.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Mujer 2 con bolsa",
+      "author": "Roberto Domínguez (vmmaniac)",
+      "source": "https://sketchfab.com/3d-models/mujer-2-con-bolsa-a194bc4db68741c0885c85cda87d3de2",
+      "license": "CC-BY-4.0"
+    }
+  }
+}
