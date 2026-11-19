@@ -53,5 +53,7 @@ export class Flashlight {
     const goal = this.on ? 1 : 0;
     this.level += (goal - this.level) * Math.min(1, step * 18);
     this.light.intensity = this.intensity * this.level;
+    // Skip shadow-map rendering while off without toggling castShadow (which recompiles materials).
+    this.light.shadow.autoUpdate = this.level > 0.001;
   }
 }

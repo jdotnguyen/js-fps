@@ -19,7 +19,7 @@ import { SettingsStore } from './core/settings.ts';
 import { browserStore } from './core/storage.ts';
 import { validate } from './core/validate.ts';
 import { applyQuality, createRenderer } from './render/renderer.ts';
-import { createMaterials } from './render/materials.ts';
+import { createMaterialsAsync } from './render/materials.ts';
 import { createPost } from './render/post.ts';
 import { Flashlight } from './render/flashlight.ts';
 import { LIGHT_PATTERNS } from './render/lights.ts';
@@ -29,6 +29,7 @@ import { preloadSeabed } from './render/fx/seabed.ts';
 import { preloadSubModel } from './render/fx/subModel.ts';
 import { buildDemoRoom, type DemoRoom } from './world/demoRoom.ts';
 import { demoRoomWorld } from './world/demoWorld.ts';
+import { loadLabWorld } from './world/labWorld.ts';
 import { loadLevel, type Level } from './world/level.ts';
 import { KitRegistry, validateKitManifest } from './world/registry.ts';
 import { LevelOverlay, OVERLAY_LAYERS } from './world/levelDebug.ts';
@@ -60,6 +61,7 @@ import { loadWeaponModels } from './render/viewmodel/glbWeapons.ts';
 import { Viewmodel } from './render/viewmodel/viewmodel.ts';
 import { Squad } from './ai/squad.ts';
 import { NpcDirector } from './ai/npcs.ts';
+import { npcIdForSpeaker, wireSpeechActing } from './ai/speakerBodies.ts';
 import { wireSquadToEnemies } from './ai/squadEnemies.ts';
 import { setupEnemies, spawnPointsOf } from './ai/enemyGame.ts';
 import type { SpawnPointData } from './ai/spawner.ts';
@@ -150,16 +152,20 @@ async function boot(): Promise<void> {
   const camera = new THREE.PerspectiveCamera(settings.get().fov, innerWidth / innerHeight, 0.05, 120);
 
   const t0 = performance.now();
-  const materials = createMaterials(TEXTURE_SIZE, Math.min(8, renderer.capabilities.getMaxAnisotropy()));
+  const texSize = settings.get().quality === 'low' ? 256 : TEXTURE_SIZE;
   // The game is the slice (ADR-0014): no ?level loads slice01 and New game plays the intro (ADR-0017).
-  // ?level=<id> loads another data-driven kit level (ADR-0003, e.g. kit_test); ?level=demo is the hand-built demo room.
+  // ?level=<id> loads another data-driven kit level (ADR-0003, e.g. kit_test); ?level=demo is the hand-built demo room; ?level=lab is the imported underground-laboratory sandbox.
   const levelParam = new URLSearchParams(location.search).get('level');
-  const levelId = levelParam === 'demo' ? null : (levelParam ?? DEFAULT_LEVEL);
+  const levelId = levelParam === 'demo' || levelParam === 'lab' ? null : (levelParam ?? DEFAULT_LEVEL);
   let room: DemoRoom | null = null;
   let level: Level | null = null;
   let levelSpawns: SpawnPointData[] = [];
   let world: World;
-  await Promise.all([preloadSeabed(import.meta.env.BASE_URL), preloadSubModel(import.meta.env.BASE_URL)]);
+  const [materials] = await Promise.all([
+    createMaterialsAsync(texSize, Math.min(8, renderer.capabilities.getMaxAnisotropy())),
+    preloadSeabed(import.meta.env.BASE_URL),
+    preloadSubModel(import.meta.env.BASE_URL),
+  ]);
   if (levelId) {
     const file = Object.entries(LEVEL_FILES).find(([path]) => path.endsWith(`/${levelId}.json`));
     if (!file) throw new Error(`No level '${levelId}'. Known: ${Object.keys(LEVEL_FILES).map((f) => f.replace(/^.*\/|\.json$/g, '')).join(', ')}`);
@@ -171,6 +177,10 @@ async function boot(): Promise<void> {
     world = level;
     console.info(`[boot] level '${levelId}' built in ${(performance.now() - t0).toFixed(0)} ms`);
     console.table(level.roomStats());
+  } else if (levelParam === 'lab') {
+    // Sandbox: the imported underground-laboratory model with baked box collision (src/world/labWorld.ts).
+    world = await loadLabWorld(import.meta.env.BASE_URL, scene);
+    console.info(`[boot] lab map loaded in ${(performance.now() - t0).toFixed(0)} ms`);
   } else {
     room = buildDemoRoom(materials, new Rng('demo-room'));
     world = demoRoomWorld(room);
@@ -214,7 +224,6 @@ async function boot(): Promise<void> {
     world: world.playerWorld,
   });
   const post = createPost(renderer, scene, camera, settings.get().quality);
-  renderer.compile(scene, camera);
 
   const toasts = new Toasts(document.body);
   const hud = new PlayerHud(el<HTMLElement>('#ui'), el<HTMLElement>('#interact'), keymap.interact[0] ?? 'KeyE');
@@ -365,6 +374,11 @@ async function boot(): Promise<void> {
   const dialogue = loadDialogueLibrary();
   const speech = new SpeechManager(events, dialogue, new WebAudioVoicePlayer(audio));
   squad.setSpeech(speech);
+  // ADR-0027: whoever says a line acts it: mouth on the subtitle's syllables, hands and body on the emote.
+  wireSpeechActing(events, (speaker) => {
+    const id = npcIdForSpeaker(speaker);
+    return id && npcs.has(id) ? (npcs.actor(id, false)?.body ?? null) : null;
+  });
   new Subtitles(el<HTMLElement>('#ui'), events, settings);
   const say = (id: string, opts?: { overlap?: boolean; at?: () => { x: number; y: number; z: number } }) => {
     if (!dialogue.hasLine(id)) {

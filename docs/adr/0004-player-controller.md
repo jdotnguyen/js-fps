@@ -23,7 +23,7 @@ shove, and an API that sequences use to restrict or guide control.
 | Wading (water to knees) | 60% of walk, no sprint |
 | Acceleration / deceleration | 18 / 22 m/s^2 (weighty but responsive) |
 | Step height | 0.35 m |
-| Jump | **Removed** in the slice (corridor game; avoids level breaks) [Decided] |
+| Jump (Space) | Added later at the owner's request (reverses the original removal). Takeoff 5 m/s at gravity 20 = about 0.6 m, so it clears knee-high props but not a full-height wall; ground only, locked on rails, downed, wading or scripted walks; a ceiling stops the rise [Decided] |
 | Crouch | Not in slice |
 - Head bob scaled by speed (amplitude 0.03 m walk, 0.05 sprint), reduced-motion setting
   scales it to 0.

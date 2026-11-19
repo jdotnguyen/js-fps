@@ -780,7 +780,7 @@ export const SOUND_SPECS = {
  * of URLs loads as variants, one picked at random per play.
  */
 export const SAMPLE_URLS = {
-  pistolShot: 'assets/audio/weapons/pistol-shot.wav',
+  pistolShot: 'assets/audio/weapons/pistol-shot.mp3',
   pistolReloadOut: 'assets/audio/weapons/pistol-reload-out.wav',
   pistolReloadIn: 'assets/audio/weapons/pistol-reload-in.wav',
   pistolReloadSlide: 'assets/audio/weapons/pistol-reload-slide.wav',

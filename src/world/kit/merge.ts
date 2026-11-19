@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /** Ambient occlusion in [0, 1] (1 = fully lit) at a world point with its normal. */
 export type AoFn = (p: THREE.Vector3, n: THREE.Vector3) => number;
@@ -72,7 +72,12 @@ export class AoMergeBuilder {
       if (bake) for (const g of list) this.bakeAo(g, ao);
       else for (const g of list) g.deleteAttribute('color');
       const merged = mergeGeometries(list, false);
-      const meshes = merged ? [merged] : list;
+      let indexed: THREE.BufferGeometry | null = null;
+      if (merged) {
+        indexed = mergeVertices(merged);
+        merged.dispose();
+      }
+      const meshes = indexed ? [indexed] : list;
       for (const g of meshes) {
         const mesh = new THREE.Mesh(g, bake ? withVertexColors(material) : material);
         mesh.castShadow = !material.transparent;
@@ -80,7 +85,7 @@ export class AoMergeBuilder {
         mesh.name = `${name}:${material.name || material.type}`;
         group.add(mesh);
       }
-      if (merged) for (const g of list) g.dispose();
+      if (indexed) for (const g of list) g.dispose();
     }
     this.parts.clear();
     return group;

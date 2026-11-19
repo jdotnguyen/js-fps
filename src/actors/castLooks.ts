@@ -16,7 +16,7 @@ const NAMED: Record<string, CastLook> = {
   giles: GILES,
   okafor: OKAFOR,
   /**
-   * Priya Anand, 29, Okafor's nurse. Imported body (ADR-0026, data/body-models.json): the "Mujer 2 con bolsa" scan. `outfit`/`look`
+   * Priya Anand, 29, Okafor's nurse. Imported body (ADR-0026, data/body-models.json): the "Modern Indian Woman" model. `outfit`/`look`
    * below (teal scrubs under a warm plum cardigan) only apply if it fails to load and she falls back to the procedural body.
    */
   priya: {
@@ -109,9 +109,13 @@ const NAMED: Record<string, CastLook> = {
       props: ['chestPatch'],
     },
   },
-  /** Sung, a diver coming off shift: dark drysuit with a yellow harness. */
+  /**
+   * Sung, a diver coming off shift. Imported body (ADR-0026, data/body-models.json): the "Construction Worker In Safety Gear" scan.
+   * `outfit`/`look` below (dark drysuit with a yellow harness) only apply if it fails to load and he falls back to the procedural body.
+   */
   sung: {
     seed: 'diver-sung',
+    model: 'sung',
     outfit: 'crew',
     height: 1.75,
     build: 1.0,

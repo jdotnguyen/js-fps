@@ -1,6 +1,9 @@
 import * as THREE from 'three';
-import { TEXTURE_SPECS, type TextureKey } from './tex/generators.ts';
+import { TEXTURE_SPECS, type TextureKey, type TexSet } from './tex/generators.ts';
+import type { TexWorkerRequest, TexWorkerResponse } from './tex/texWorker.ts';
 import { toPbrTextures } from './textures.ts';
+
+const TEXTURE_KEYS: TextureKey[] = ['paintTeal', 'paintDark', 'paintBone', 'steel', 'diamond', 'grating', 'rubber', 'hazard'];
 
 /** Shared material instances (ADR-0002). Per-object variants are cloned from these. */
 export interface Materials {
@@ -18,9 +21,9 @@ export interface Materials {
   glowCyan: THREE.MeshStandardMaterial;
 }
 
-export function createMaterials(textureSize: number, anisotropy: number): Materials {
+function buildMaterialsFromSets(sets: Record<TextureKey, TexSet>, anisotropy: number): Materials {
   const pbr = (key: TextureKey, extra: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial => {
-    const t = toPbrTextures(TEXTURE_SPECS[key](textureSize), anisotropy);
+    const t = toPbrTextures(sets[key], anisotropy);
     const m = new THREE.MeshStandardMaterial({
       map: t.map,
       normalMap: t.normalMap,
@@ -59,6 +62,32 @@ export function createMaterials(textureSize: number, anisotropy: number): Materi
     cable: new THREE.MeshStandardMaterial({ color: 0x111214, roughness: 0.55, metalness: 0 }),
     glowCyan: new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x2fd3ff, emissiveIntensity: 2.2 }),
   };
+}
+
+export function createMaterials(textureSize: number, anisotropy: number): Materials {
+  const sets = {} as Record<TextureKey, TexSet>;
+  for (const key of TEXTURE_KEYS) sets[key] = TEXTURE_SPECS[key](textureSize);
+  return buildMaterialsFromSets(sets, anisotropy);
+}
+
+/** Generate procedural PBR textures in a Web Worker when available, falling back to sync. */
+export function createMaterialsAsync(textureSize: number, anisotropy: number): Promise<Materials> {
+  if (typeof Worker === 'undefined') return Promise.resolve(createMaterials(textureSize, anisotropy));
+  return new Promise((resolve) => {
+    const worker = new Worker(new URL('./tex/texWorker.ts', import.meta.url), { type: 'module' });
+    worker.onmessage = (e: MessageEvent<TexWorkerResponse>) => {
+      worker.terminate();
+      const sets = {} as Record<TextureKey, TexSet>;
+      for (let i = 0; i < TEXTURE_KEYS.length; i++) sets[TEXTURE_KEYS[i]!] = e.data.sets[i]!;
+      resolve(buildMaterialsFromSets(sets, anisotropy));
+    };
+    worker.onerror = () => {
+      worker.terminate();
+      resolve(createMaterials(textureSize, anisotropy));
+    };
+    const req: TexWorkerRequest = { keys: TEXTURE_KEYS, size: textureSize };
+    worker.postMessage(req);
+  });
 }
 
 /** Emissive material for a light fixture; one instance per fixture so it can flicker alone. */

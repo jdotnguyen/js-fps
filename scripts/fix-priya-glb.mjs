@@ -1,15 +1,17 @@
-// Prepares the Sketchfab "Mujer 2 con bolsa" GLB (Roberto Dominguez / vmmaniac, CC-BY 4.0) for bodyModel.ts (ADR-0026).
+// Prepares the Sketchfab "Modern Indian Woman" GLB (Pixel_Monster, CC-BY 4.0) for bodyModel.ts (ADR-0026).
 //   node scripts/fix-priya-glb.mjs <source.glb> [public/assets/models/squad/priya.glb]
-// The source is an unrigged photogrammetry-style scan: 7 body chunks of ~65k vertices (about 640k triangles), no skeleton,
-// a walking pose, and a shopping bag in one hand. What it does (24 MB -> well under 1 MB):
-//   - bakes the source's node transforms (Z-up, 1/10 mm units) into Y-up metres facing +Z, like the Mechanic and the doctor;
-//   - drops the bag (two extra meshes and their materials), merges the chunks and welds shared vertices;
-//   - decimates to TARGET_TRIS with meshoptimizer's simplifier (UV seams survive as separate vertices);
-//   - builds a Mixamo-named skeleton from the JOINTS table below (measured off the scan, in its own walking pose) and skins
-//     every vertex to the nearest bones by distance-to-segment / bone radius, smoothed over the mesh. bodyModel.ts then
-//     straightens the pose by those bones, exactly as for a rigged model;
-//   - re-encodes the 1024 px colour texture as JPEG (the source's second image belongs to the bag and is dropped).
-// Needs ImageMagick (`convert`) on the PATH for the texture and `meshoptimizer` (a dependency of three) in node_modules.
+// The source is a 20.6 MB rigged avatar (~112k triangles, 14 meshes, 24 textures, Mixamo animation, no jaw bone).
+// What it does (20.6 MB -> ~1 MB):
+//   - drops the baked animation, TANGENT, TEXCOORD_1, and unused metallicRoughness/occlusion maps (bodyMaterial.ts uses baseColor + normal);
+//   - clears the Sketchfab/FBX wrapper nodes so the skeleton sits directly in Y-up metres facing +Z, drops unused _rootJoint and end-marker
+//     bones, folds LeftEye/RightEye into Head, adds a Jaw bone under Head, and rebuilds inverseBindMatrices from the node bind pose;
+//   - weights AvatarTeethLower 100% to Jaw and weights AvatarHead's lower lip and chin (below the split mouth line) smoothly to Jaw so her
+//     mouth opens cleanly when speaking (ADR-0027);
+//   - drops AvatarLeftCornea/AvatarRightCornea (opaque JPEG layers that hide the real eyeball texture) and drops the two opaque lens
+//     components from glasses (keeping frames and temples, since bodyMaterial.ts does not alpha-blend);
+//   - merges Left+Right eyeballs, Upper+Lower teeth, and glasses frames + eyelashes (14 -> 9 materials), decimates with meshoptimizer,
+//     repacks vertex buffers (u16 indices, u8 joints, normalised u16 weights), and re-encodes textures as resized JPEGs.
+// Uses System.Drawing via PowerShell on Windows (or ImageMagick `magick`/`convert` elsewhere) and `meshoptimizer` from node_modules.
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -18,15 +20,14 @@ import { MeshoptSimplifier } from 'meshoptimizer/meshopt_simplifier.module.js';
 
 const [src, dst = 'public/assets/models/squad/priya.glb'] = process.argv.slice(2);
 if (!src) throw new Error('usage: node scripts/fix-priya-glb.mjs <source.glb> [out.glb]');
-const TARGET_TRIS = Number(process.env.TARGET_TRIS ?? 14000);
 
-// ------------------------------------------------------------------ read
+// ------------------------------------------------------------------ read source GLB
 const d = fs.readFileSync(src);
 const jsonLen = d.readUInt32LE(12);
 const j = JSON.parse(d.subarray(20, 20 + jsonLen).toString('utf8'));
 const bin = d.subarray(20 + jsonLen + 8);
 const COMP = { 5121: [1, 'getUint8'], 5123: [2, 'getUint16'], 5125: [4, 'getUint32'], 5126: [4, 'getFloat32'] };
-const NCOMP = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
+const NCOMP = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
 const dv = new DataView(bin.buffer, bin.byteOffset, bin.byteLength);
 function read(ai) {
   const a = j.accessors[ai];
@@ -40,305 +41,375 @@ function read(ai) {
   return out;
 }
 
-// node world matrices (column-major)
+// ------------------------------------------------------------------ matrix math (column-major)
 const mul = (a, b) => {
   const o = new Array(16).fill(0);
   for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k];
   return o;
 };
-const I4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-const parent = new Map();
-j.nodes.forEach((n, i) => (n.children ?? []).forEach((c) => parent.set(c, i)));
-const world = (i) => {
-  let m = j.nodes[i].matrix ?? I4;
-  for (let p = parent.get(i); p !== undefined; p = parent.get(p)) m = mul(j.nodes[p].matrix ?? I4, m);
+const localMat = (n) => {
+  if (n.matrix) return n.matrix;
+  const [x, y, z, w] = n.rotation ?? [0, 0, 0, 1];
+  const [sx, sy, sz] = n.scale ?? [1, 1, 1];
+  const [tx, ty, tz] = n.translation ?? [0, 0, 0];
+  return [
+    (1 - 2 * (y * y + z * z)) * sx, 2 * (x * y + z * w) * sx, 2 * (x * z - y * w) * sx, 0,
+    2 * (x * y - z * w) * sy, (1 - 2 * (x * x + z * z)) * sy, 2 * (y * z + x * w) * sy, 0,
+    2 * (x * z + y * w) * sz, 2 * (y * z - x * w) * sz, (1 - 2 * (x * x + y * y)) * sz, 0,
+    tx, ty, tz, 1,
+  ];
+};
+const invMat = (m) => {
+  const a = [];
+  for (let r = 0; r < 4; r++) a.push([m[r], m[4 + r], m[8 + r], m[12 + r], r === 0 ? 1 : 0, r === 1 ? 1 : 0, r === 2 ? 1 : 0, r === 3 ? 1 : 0]);
+  for (let c = 0; c < 4; c++) {
+    let p = c;
+    for (let r = c + 1; r < 4; r++) if (Math.abs(a[r][c]) > Math.abs(a[p][c])) p = r;
+    [a[c], a[p]] = [a[p], a[c]];
+    const div = a[c][c];
+    for (let k = 0; k < 8; k++) a[c][k] /= div;
+    for (let r = 0; r < 4; r++) if (r !== c) { const f = a[r][c]; for (let k = 0; k < 8; k++) a[r][k] -= f * a[c][k]; }
+  }
+  const o = new Array(16);
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) o[c * 4 + r] = a[r][4 + c];
+  return o;
+};
+
+// ------------------------------------------------------------------ skeleton cleanup + Jaw bone
+const srcSkin = j.skins[0];
+const srcJoints = srcSkin.joints;
+const cleanName = (nm) => nm.replace(/_\d+$/, '');
+const DROP_BONE = /^(_rootJoint|.*_End|.*Hand(Thumb|Index|Middle|Ring|Pinky)4|(Left|Right)Eye)$/;
+
+// Collect kept skeleton nodes (preserving parent->child relationships below Hips).
+const srcParent = new Map();
+j.nodes.forEach((n, i) => (n.children ?? []).forEach((c) => srcParent.set(c, i)));
+const keptSrcNodes = [];
+const srcToOutNode = new Map();
+for (const ni of srcJoints) {
+  const nm = cleanName(j.nodes[ni].name);
+  if (DROP_BONE.test(nm)) continue;
+  srcToOutNode.set(ni, keptSrcNodes.length);
+  keptSrcNodes.push(ni);
+}
+const outNodes = keptSrcNodes.map((ni) => {
+  const n = j.nodes[ni];
+  const out = { name: cleanName(n.name) };
+  if (n.translation) out.translation = n.translation;
+  if (n.rotation) out.rotation = n.rotation;
+  if (n.scale) out.scale = n.scale;
+  if (n.matrix) out.matrix = n.matrix;
+  const kids = (n.children ?? []).map((c) => srcToOutNode.get(c)).filter((c) => c !== undefined);
+  if (kids.length) out.children = kids;
+  return out;
+});
+const outNodeByName = new Map(outNodes.map((n, i) => [n.name, i]));
+const hipsIdx = outNodeByName.get('Hips');
+const headIdx = outNodeByName.get('Head');
+if (hipsIdx === undefined || headIdx === undefined) throw new Error('missing Hips or Head bone');
+
+// Compute world matrices for kept bones (Hips is the root, already in Y-up metres facing +Z).
+const outParent = new Map();
+outNodes.forEach((n, i) => (n.children ?? []).forEach((c) => outParent.set(c, i)));
+const worldOf = (i) => {
+  let m = localMat(outNodes[i]);
+  for (let p = outParent.get(i); p !== undefined; p = outParent.get(p)) m = mul(localMat(outNodes[p]), m);
   return m;
 };
 
-// ------------------------------------------------------------------ merge the body chunks (the bag is mesh 7 and 8)
-// Welded on position alone so the mesh is one connected surface the simplifier can work on (welding on UV too leaves every
-// UV island a locked border and decimation stalls near 150k triangles). Each welded vertex keeps the list of UVs it had;
-// the UVs of every surviving triangle are picked again after decimation.
-const BODY_MATERIAL = 0;
-const vertMap = new Map();
-let P = [], N = [];
-let CAND = []; // per welded vertex: [[u, v], ...]
-let tris = [];
-for (const [ni, node] of j.nodes.entries()) {
-  if (node.mesh === undefined) continue;
-  const prim = j.meshes[node.mesh].primitives[0];
-  if (prim.material !== BODY_MATERIAL) continue;
-  const m = world(ni);
+// Add a Jaw bone as a child of Head, hinged near the ear/TMJ (below eyes at y=1.615, behind mouth at z=0.02..0.11).
+const headWorld = worldOf(headIdx);
+const headInv = invMat(headWorld);
+const JAW_WORLD = [0, 1.575, 0.015];
+const jawLocal = [
+  headInv[0] * JAW_WORLD[0] + headInv[4] * JAW_WORLD[1] + headInv[8] * JAW_WORLD[2] + headInv[12],
+  headInv[1] * JAW_WORLD[0] + headInv[5] * JAW_WORLD[1] + headInv[9] * JAW_WORLD[2] + headInv[13],
+  headInv[2] * JAW_WORLD[0] + headInv[6] * JAW_WORLD[1] + headInv[10] * JAW_WORLD[2] + headInv[14],
+];
+const jawIdx = outNodes.length;
+outNodes.push({ name: 'Jaw', translation: jawLocal.map((x) => +x.toFixed(6)) });
+(outNodes[headIdx].children ??= []).push(jawIdx);
+outParent.set(jawIdx, headIdx);
+
+// Map source skin joint index -> new skin joint index (dropped eyes fold into Head; dropped leaves fold into nearest kept ancestor).
+const jointRemap = new Int32Array(srcJoints.length);
+srcJoints.forEach((ni, k) => {
+  let cur = ni;
+  while (cur !== undefined && !srcToOutNode.has(cur)) cur = srcParent.get(cur);
+  jointRemap[k] = cur !== undefined ? srcToOutNode.get(cur) : hipsIdx;
+});
+
+const skinJoints = outNodes.map((_, i) => i); // 0..jawIdx are all joints
+const NB = skinJoints.length;
+const ibm = new Float32Array(NB * 16);
+for (let i = 0; i < NB; i++) ibm.set(invMat(worldOf(i)), i * 16);
+
+// ------------------------------------------------------------------ mesh helpers
+function readMesh(meshIdx, filterFn = null) {
+  const prim = j.meshes[meshIdx].primitives[0];
   const pos = read(prim.attributes.POSITION);
   const nor = read(prim.attributes.NORMAL);
   const uv = read(prim.attributes.TEXCOORD_0);
+  const jts = read(prim.attributes.JOINTS_0);
+  const wts = read(prim.attributes.WEIGHTS_0);
   const idx = read(prim.indices);
-  const remap = new Int32Array(pos.length / 3).fill(-1);
-  const vertex = (v) => {
-    if (remap[v] >= 0) return remap[v];
-    const key = `${pos[v * 3]},${pos[v * 3 + 1]},${pos[v * 3 + 2]}`;
-    let id = vertMap.get(key);
-    if (id === undefined) {
-      id = P.length / 3;
-      vertMap.set(key, id);
-      const [x, y, z] = [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]];
-      P.push(m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * x + m[5] * y + m[9] * z + m[13], m[2] * x + m[6] * y + m[10] * z + m[14]);
-      const [nx, ny, nz] = [nor[v * 3], nor[v * 3 + 1], nor[v * 3 + 2]];
-      const wx = m[0] * nx + m[4] * ny + m[8] * nz, wy = m[1] * nx + m[5] * ny + m[9] * nz, wz = m[2] * nx + m[6] * ny + m[10] * nz;
-      const l = Math.hypot(wx, wy, wz) || 1;
-      N.push(wx / l, wy / l, wz / l);
-      CAND.push([]);
+  const nV = pos.length / 3;
+  // Remap skin joints and merge duplicate joint entries per vertex.
+  const rJ = new Uint8Array(nV * 4);
+  const rW = new Float32Array(nV * 4);
+  for (let v = 0; v < nV; v++) {
+    const acc = new Map();
+    for (let k = 0; k < 4; k++) {
+      const w = wts[v * 4 + k];
+      if (w <= 0) continue;
+      const nj = jointRemap[jts[v * 4 + k]];
+      acc.set(nj, (acc.get(nj) ?? 0) + w);
     }
-    const c = CAND[id];
-    const u = uv[v * 2], w = uv[v * 2 + 1];
-    if (!c.some((t) => t[0] === u && t[1] === w)) c.push([u, w]);
-    remap[v] = id;
-    return id;
-  };
-  for (let t = 0; t < idx.length; t += 3) {
-    const a = vertex(idx[t]), b = vertex(idx[t + 1]), c = vertex(idx[t + 2]);
-    if (a !== b && b !== c && a !== c) tris.push(a, b, c);
+    const top = [...acc.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const sum = top.reduce((s, t) => s + t[1], 0) || 1;
+    top.forEach(([b, w], k) => { rJ[v * 4 + k] = b; rW[v * 4 + k] = w / sum; });
+    if (top.length === 0) { rJ[v * 4] = hipsIdx; rW[v * 4] = 1; }
   }
-}
-vertMap.clear();
-console.log(`merged: ${P.length / 3} vertices, ${tris.length / 3} triangles`);
-
-// The scan is full of non-manifold fuzz (hair, cloth layers) that locks the simplifier at ~45k triangles, so first merge
-// vertices on a coarse grid (CELL metres), which turns it into a clean surface, and let the simplifier take it from there.
-{
-  const CELL = Number(process.env.CELL ?? 0.012);
-  const lo = [Infinity, Infinity, Infinity];
-  for (let v = 0; v < P.length / 3; v++) for (let k = 0; k < 3; k++) lo[k] = Math.min(lo[k], P[v * 3 + k]);
-  const cell = new Map();
-  const cid = new Int32Array(P.length / 3);
-  const sp = [], sn = [], cnt = [], cu = [];
-  for (let v = 0; v < P.length / 3; v++) {
-    const key = [0, 1, 2].map((k) => Math.floor((P[v * 3 + k] - lo[k]) / CELL)).join(',');
-    let c = cell.get(key);
-    if (c === undefined) { c = cnt.length; cell.set(key, c); sp.push(0, 0, 0); sn.push(0, 0, 0); cnt.push(0); cu.push(new Map()); }
-    cid[v] = c;
-    cnt[c]++;
-    for (let k = 0; k < 3; k++) { sp[c * 3 + k] += P[v * 3 + k]; sn[c * 3 + k] += N[v * 3 + k]; }
-    for (const [u, w] of CAND[v]) {
-      const q = `${Math.round(u * 40)},${Math.round(w * 40)}`;
-      const e = cu[c].get(q);
-      if (e) { e[0] += u; e[1] += w; e[2]++; } else cu[c].set(q, [u, w, 1]);
+  let outIdx = idx;
+  if (filterFn) {
+    const keep = filterFn(pos, idx, nV);
+    const f = [];
+    for (let t = 0; t < idx.length; t += 3) {
+      if (keep[idx[t]] && keep[idx[t + 1]] && keep[idx[t + 2]]) f.push(idx[t], idx[t + 1], idx[t + 2]);
     }
+    outIdx = Uint32Array.from(f);
   }
-  const nP = [], nN = [], nC = [];
-  for (let c = 0; c < cnt.length; c++) {
-    nP.push(sp[c * 3] / cnt[c], sp[c * 3 + 1] / cnt[c], sp[c * 3 + 2] / cnt[c]);
-    const l = Math.hypot(sn[c * 3], sn[c * 3 + 1], sn[c * 3 + 2]) || 1;
-    nN.push(sn[c * 3] / l, sn[c * 3 + 1] / l, sn[c * 3 + 2] / l);
-    nC.push([...cu[c].values()].map(([u, w, n]) => [u / n, w / n]));
-  }
-  const seen = new Set();
-  const nT = [];
-  for (let t = 0; t < tris.length; t += 3) {
-    const a = cid[tris[t]], b = cid[tris[t + 1]], c = cid[tris[t + 2]];
-    if (a === b || b === c || a === c) continue;
-    const key = [a, b, c].sort((x, y) => x - y).join(',');
-    if (seen.has(key)) continue;
-    seen.add(key);
-    nT.push(a, b, c);
-  }
-  P = nP; N = nN; CAND = nC; tris = nT;
-  console.log(`clustered: ${P.length / 3} vertices, ${tris.length / 3} triangles`);
+  return { pos: Float32Array.from(pos), nor: Float32Array.from(nor), uv: Float32Array.from(uv), jts: rJ, wts: rW, idx: Uint32Array.from(outIdx) };
 }
 
-// ------------------------------------------------------------------ decimate
+function mergeMeshes(list) {
+  let totalV = 0, totalI = 0;
+  for (const m of list) { totalV += m.pos.length / 3; totalI += m.idx.length; }
+  const pos = new Float32Array(totalV * 3);
+  const nor = new Float32Array(totalV * 3);
+  const uv = new Float32Array(totalV * 2);
+  const jts = new Uint8Array(totalV * 4);
+  const wts = new Float32Array(totalV * 4);
+  const idx = new Uint32Array(totalI);
+  let vo = 0, io = 0;
+  for (const m of list) {
+    const nv = m.pos.length / 3;
+    pos.set(m.pos, vo * 3);
+    nor.set(m.nor, vo * 3);
+    uv.set(m.uv, vo * 2);
+    jts.set(m.jts, vo * 4);
+    wts.set(m.wts, vo * 4);
+    for (let i = 0; i < m.idx.length; i++) idx[io + i] = m.idx[i] + vo;
+    vo += nv;
+    io += m.idx.length;
+  }
+  return { pos, nor, uv, jts, wts, idx };
+}
+
+function compactAndSimplify(m, targetTris, maxErr = 0.05) {
+  let idx = m.idx;
+  if (targetTris && idx.length / 3 > targetTris) {
+    const [simp] = MeshoptSimplifier.simplify(idx, m.pos, 3, targetTris * 3, maxErr);
+    idx = simp;
+  }
+  const nV = m.pos.length / 3;
+  const remap = new Int32Array(nV).fill(-1);
+  const order = [];
+  const newIdx = new Uint16Array(idx.length);
+  for (let i = 0; i < idx.length; i++) {
+    const v = idx[i];
+    let id = remap[v];
+    if (id < 0) { id = order.length; remap[v] = id; order.push(v); }
+    newIdx[i] = id;
+  }
+  const cnt = order.length;
+  if (cnt > 65535) throw new Error('too many vertices for u16 indices: ' + cnt);
+  const pos = new Float32Array(cnt * 3);
+  const nor = new Float32Array(cnt * 3);
+  const uv = new Float32Array(cnt * 2);
+  const jts = new Uint8Array(cnt * 4);
+  const wts = new Uint16Array(cnt * 4);
+  for (let i = 0; i < cnt; i++) {
+    const v = order[i];
+    pos.set(m.pos.subarray(v * 3, v * 3 + 3), i * 3);
+    nor.set(m.nor.subarray(v * 3, v * 3 + 3), i * 3);
+    uv.set(m.uv.subarray(v * 2, v * 2 + 2), i * 2);
+    jts.set(m.jts.subarray(v * 4, v * 4 + 4), i * 4);
+    let sum = 0;
+    for (let k = 0; k < 4; k++) sum += m.wts[v * 4 + k];
+    sum ||= 1;
+    const q = [0, 1, 2, 3].map((k) => Math.round((m.wts[v * 4 + k] / sum) * 65535));
+    q[0] += 65535 - q.reduce((s, x) => s + x, 0);
+    for (let k = 0; k < 4; k++) wts[i * 4 + k] = q[k];
+  }
+  return { pos, nor, uv, jts, wts, idx: newIdx, count: cnt, tris: newIdx.length / 3 };
+}
+
+function setAllWeight(m, bone) {
+  const nV = m.pos.length / 3;
+  for (let v = 0; v < nV; v++) {
+    m.jts[v * 4] = bone; m.jts[v * 4 + 1] = 0; m.jts[v * 4 + 2] = 0; m.jts[v * 4 + 3] = 0;
+    m.wts[v * 4] = 1; m.wts[v * 4 + 1] = 0; m.wts[v * 4 + 2] = 0; m.wts[v * 4 + 3] = 0;
+  }
+}
+
+// Smooth jaw weights for AvatarHead: lower lip, lower mouth interior and chin (below the split lip line at y~1.555).
+const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+function applyHeadJawWeights(m) {
+  const nV = m.pos.length / 3;
+  let weighted = 0;
+  for (let v = 0; v < nV; v++) {
+    const x = m.pos[v * 3], y = m.pos[v * 3 + 1], z = m.pos[v * 3 + 2];
+    // Lip split sits at y=1.555 at the midline and rises slightly toward the corners (~1.558 at |x|=0.03).
+    const mouthY = 1.555 + Math.min(1, (Math.abs(x) / 0.035) ** 2) * 0.004;
+    const belowMouth = smooth(mouthY + 0.002, mouthY - 0.003, y);
+    const aboveThroat = smooth(1.500, 1.522, y);
+    const inFront = smooth(0.015, 0.055, z);
+    const inWidth = smooth(0.072, 0.038, Math.abs(x));
+    const wJaw = belowMouth * aboveThroat * inFront * inWidth;
+    if (wJaw < 0.01) continue;
+    if (wJaw >= 0.5) weighted++;
+    // Blend existing weights with Jaw.
+    const acc = new Map([[jawIdx, wJaw]]);
+    for (let k = 0; k < 4; k++) {
+      const w = m.wts[v * 4 + k] * (1 - wJaw);
+      if (w <= 0) continue;
+      const b = m.jts[v * 4 + k];
+      acc.set(b, (acc.get(b) ?? 0) + w);
+    }
+    const top = [...acc.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const sum = top.reduce((s, t) => s + t[1], 0) || 1;
+    for (let k = 0; k < 4; k++) {
+      m.jts[v * 4 + k] = top[k]?.[0] ?? 0;
+      m.wts[v * 4 + k] = top[k] ? top[k][1] / sum : 0;
+    }
+  }
+  console.log(`head jaw weights: ${weighted} vertices with w>=0.5`);
+}
+
+// Drop the two small lens connected components from glasses (each ~91 verts), keeping front frame + temples.
+function dropGlassesLenses(pos, idx, nV) {
+  const par = Int32Array.from({ length: nV }, (_, i) => i);
+  const find = (x) => { while (par[x] !== x) { par[x] = par[par[x]]; x = par[x]; } return x; };
+  const uni = (a, b) => { a = find(a); b = find(b); if (a !== b) par[a] = b; };
+  for (let t = 0; t < idx.length; t += 3) { uni(idx[t], idx[t + 1]); uni(idx[t + 1], idx[t + 2]); }
+  const sizes = new Map();
+  for (let v = 0; v < nV; v++) { const r = find(v); sizes.set(r, (sizes.get(r) ?? 0) + 1); }
+  const keep = new Uint8Array(nV);
+  for (let v = 0; v < nV; v++) if (sizes.get(find(v)) > 120) keep[v] = 1;
+  return keep;
+}
+
+// ------------------------------------------------------------------ build & decimate meshes
 await MeshoptSimplifier.ready;
-const pos0 = new Float32Array(P);
-const [simp, err] = MeshoptSimplifier.simplify(new Uint32Array(tris), pos0, 3, TARGET_TRIS * 3, 0.1);
-console.log(`simplified: ${simp.length / 3} triangles (error ${err.toFixed(5)})`);
-// Rebuild vertices per (welded vertex, UV candidate): for each triangle take the three UVs that sit closest together, which
-// keeps it inside one UV island.
-const used = new Map();
-const pos = [], nor = [], uv = [];
-const indices = [];
-const uvDist = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
-for (let t = 0; t < simp.length; t += 3) {
-  const w = [simp[t], simp[t + 1], simp[t + 2]];
-  let best = null, bestD = Infinity;
-  for (let i = 0; i < CAND[w[0]].length; i++) for (let k = 0; k < CAND[w[1]].length; k++) for (let l = 0; l < CAND[w[2]].length; l++) {
-    const a = CAND[w[0]][i], b = CAND[w[1]][k], c = CAND[w[2]][l];
-    const dd = Math.max(uvDist(a, b), uvDist(b, c), uvDist(a, c));
-    if (dd < bestD) { bestD = dd; best = [i, k, l]; }
-  }
-  for (let c = 0; c < 3; c++) {
-    const key = w[c] * 64 + best[c];
-    let id = used.get(key);
-    if (id === undefined) {
-      id = pos.length / 3;
-      used.set(key, id);
-      pos.push(P[w[c] * 3], P[w[c] * 3 + 1], P[w[c] * 3 + 2]);
-      nor.push(N[w[c] * 3], N[w[c] * 3 + 1], N[w[c] * 3 + 2]);
-      uv.push(...CAND[w[c]][best[c]]);
-    }
-    indices.push(id);
-  }
-}
-const count = pos.length / 3;
-console.log(`rebuilt: ${count} vertices`);
-if (count > 65535) throw new Error('too many vertices for u16 indices: ' + count);
+const byMat = (name) => j.meshes.findIndex((m) => j.materials[m.primitives[0].material].name === name);
 
-// ------------------------------------------------------------------ skeleton (metres, Y up, facing +Z; her left is +X)
-// Measured off the scan in its own walking pose. Hips are placed symmetrically about the pelvis so that bodyModel's yaw
-// (taken from the hip line) is a clean 0, and the stride is straightened later by its limb aiming.
-const J = {
-  Hips: [-0.05, 0.86, 0.02],
-  Spine: [-0.06, 1.0, -0.02],
-  Spine1: [-0.07, 1.2, -0.03],
-  Neck: [-0.09, 1.38, -0.03],
-  Head: [-0.11, 1.46, -0.02],
-  HeadTop: [-0.12, 1.74, -0.02],
-  LeftShoulder: [-0.05, 1.34, -0.03],
-  LeftArm: [0.14, 1.32, -0.03],
-  LeftForeArm: [0.22, 1.05, -0.04],
-  LeftHand: [0.21, 0.84, -0.03],
-  LeftHandMiddle1: [0.2, 0.74, -0.02],
-  RightShoulder: [-0.11, 1.34, -0.03],
-  RightArm: [-0.2, 1.32, -0.03],
-  RightForeArm: [-0.24, 1.05, -0.04],
-  RightHand: [-0.25, 0.8, -0.02],
-  RightHandMiddle1: [-0.26, 0.7, -0.02],
-  LeftUpLeg: [0.03, 0.84, 0.02],
-  LeftLeg: [0.01, 0.45, 0.1],
-  LeftFoot: [0.118, 0.1, -0.045],
-  LeftToeBase: [0.09, 0.035, 0.05],
-  LeftToeEnd: [0.075, 0.02, 0.13],
-  RightUpLeg: [-0.13, 0.84, 0.02],
-  RightLeg: [-0.085, 0.45, -0.05],
-  RightFoot: [-0.045, 0.1, -0.05],
-  RightToeBase: [-0.11, 0.035, 0.03],
-  RightToeEnd: [-0.125, 0.02, 0.1],
-};
-// name: [parent, segment end (null: a short stub), radius in metres]
-const BONES = {
-  Hips: [null, 'Spine', 0.2],
-  Spine: ['Hips', 'Spine1', 0.2],
-  Spine1: ['Spine', 'Neck', 0.22],
-  Neck: ['Spine1', 'Head', 0.07],
-  Head: ['Neck', 'HeadTop', 0.15],
-  LeftShoulder: ['Spine1', 'LeftArm', 0.08],
-  LeftArm: ['LeftShoulder', 'LeftForeArm', 0.1],
-  LeftForeArm: ['LeftArm', 'LeftHand', 0.09],
-  LeftHand: ['LeftForeArm', 'LeftHandMiddle1', 0.07],
-  LeftHandMiddle1: ['LeftHand', null, 0.05],
-  RightShoulder: ['Spine1', 'RightArm', 0.08],
-  RightArm: ['RightShoulder', 'RightForeArm', 0.1],
-  RightForeArm: ['RightArm', 'RightHand', 0.09],
-  RightHand: ['RightForeArm', 'RightHandMiddle1', 0.07],
-  RightHandMiddle1: ['RightHand', null, 0.05],
-  LeftUpLeg: ['Hips', 'LeftLeg', 0.11],
-  LeftLeg: ['LeftUpLeg', 'LeftFoot', 0.08],
-  LeftFoot: ['LeftLeg', 'LeftToeBase', 0.07],
-  LeftToeBase: ['LeftFoot', 'LeftToeEnd', 0.06],
-  LeftToeEnd: ['LeftToeBase', null, 0.04],
-  RightUpLeg: ['Hips', 'RightLeg', 0.11],
-  RightLeg: ['RightUpLeg', 'RightFoot', 0.08],
-  RightFoot: ['RightLeg', 'RightToeBase', 0.07],
-  RightToeBase: ['RightFoot', 'RightToeEnd', 0.06],
-  RightToeEnd: ['RightToeBase', null, 0.04],
-};
-// Bones that carry skin (the end markers and the head-top point are only there to aim and to size segments).
-const names = Object.keys(BONES).filter((n) => !n.endsWith('ToeEnd'));
-const boneIndex = new Map(names.map((n, i) => [n, i]));
-const segment = (n) => {
-  const [, end] = BONES[n];
-  const a = J[n];
-  if (end) return [a, J[end]];
-  // No end bone: a short stub continuing the parent's direction.
-  const p = J[BONES[n][0]];
-  const d = [a[0] - p[0], a[1] - p[1], a[2] - p[2]];
-  const l = Math.hypot(...d) || 1;
-  return [a, [a[0] + (d[0] / l) * 0.08, a[1] + (d[1] / l) * 0.08, a[2] + (d[2] / l) * 0.08]];
-};
-const segs = names.map(segment);
-const rad = names.map((n) => BONES[n][2]);
-const distToSegment = (x, y, z, [a, b]) => {
-  const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-  const t = Math.max(0, Math.min(1, ((x - a[0]) * ab[0] + (y - a[1]) * ab[1] + (z - a[2]) * ab[2]) / (ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2] || 1)));
-  return Math.hypot(x - (a[0] + ab[0] * t), y - (a[1] + ab[1] * t), z - (a[2] + ab[2] * t));
-};
+const headM = readMesh(byMat('AvatarHead'));
+applyHeadJawWeights(headM);
 
-// ------------------------------------------------------------------ skin weights
-// Per welded position (so UV seams do not split the weights): softmax over -(distance / radius), then smoothed over the mesh.
-const NB = names.length;
-const weldKey = new Map();
-const weldOf = new Int32Array(count);
-for (let v = 0; v < count; v++) {
-  const key = `${pos[v * 3].toFixed(5)},${pos[v * 3 + 1].toFixed(5)},${pos[v * 3 + 2].toFixed(5)}`;
-  let w = weldKey.get(key);
-  if (w === undefined) { w = weldKey.size; weldKey.set(key, w); }
-  weldOf[v] = w;
-}
-const nW = weldKey.size;
-const wPos = new Float32Array(nW * 3);
-for (let v = 0; v < count; v++) wPos.set(pos.slice(v * 3, v * 3 + 3), weldOf[v] * 3);
-let W = new Float32Array(nW * NB);
-const SHARP = Number(process.env.SHARP ?? 7);
-for (let w = 0; w < nW; w++) {
-  const x = wPos[w * 3], y = wPos[w * 3 + 1], z = wPos[w * 3 + 2];
-  const s = segs.map((sg, b) => distToSegment(x, y, z, sg) / rad[b]);
-  const best = Math.min(...s);
-  let sum = 0;
-  for (let b = 0; b < NB; b++) { const e = Math.exp(-(s[b] - best) * SHARP); W[w * NB + b] = e; sum += e; }
-  for (let b = 0; b < NB; b++) W[w * NB + b] /= sum;
-}
-// Laplacian smoothing over the mesh edges.
-const nbrs = Array.from({ length: nW }, () => new Set());
-for (let t = 0; t < indices.length; t += 3) {
-  const a = weldOf[indices[t]], b = weldOf[indices[t + 1]], c = weldOf[indices[t + 2]];
-  nbrs[a].add(b).add(c); nbrs[b].add(a).add(c); nbrs[c].add(a).add(b);
-}
-for (let it = 0; it < 4; it++) {
-  const next = new Float32Array(W.length);
-  for (let w = 0; w < nW; w++) {
-    const ns = [...nbrs[w]];
-    for (let b = 0; b < NB; b++) {
-      let s = 0;
-      for (const o of ns) s += W[o * NB + b];
-      next[w * NB + b] = ns.length ? 0.5 * W[w * NB + b] + 0.5 * (s / ns.length) : W[w * NB + b];
-    }
-  }
-  W = next;
-}
-// Keep the four heaviest bones per vertex, renormalised.
-const joints = new Uint8Array(count * 4);
-const weights = new Uint16Array(count * 4);
-for (let v = 0; v < count; v++) {
-  const w = weldOf[v];
-  const top = Array.from({ length: NB }, (_, b) => [b, W[w * NB + b]]).sort((a, b) => b[1] - a[1]).slice(0, 4);
-  const sum = top.reduce((s, t) => s + t[1], 0) || 1;
-  const q = top.map((t) => Math.round((t[1] / sum) * 65535));
-  q[0] += 65535 - q.reduce((s, x) => s + x, 0);
-  top.forEach((t, k) => { joints[v * 4 + k] = t[0]; weights[v * 4 + k] = q[k]; });
-}
+const teethLowerM = readMesh(byMat('AvatarTeethLower'));
+setAllWeight(teethLowerM, jawIdx);
+const teethUpperM = readMesh(byMat('AvatarTeethUpper'));
+setAllWeight(teethUpperM, headIdx);
 
-// ------------------------------------------------------------------ nodes
-const nodes = names.map((n) => {
-  const p = BONES[n][0];
-  const o = p ? J[p] : [0, 0, 0];
-  return { name: n, translation: J[n].map((x, k) => +(x - o[k]).toFixed(6)) };
-});
-names.forEach((n, i) => { const p = BONES[n][0]; if (p) (nodes[boneIndex.get(p)].children ??= []).push(i); });
-const meshNode = nodes.length;
-nodes.push({ name: 'Priya', mesh: 0, skin: 0 });
-const ibm = new Float32Array(NB * 16);
-names.forEach((n, i) => ibm.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -J[n][0], -J[n][1], -J[n][2], 1], i * 16));
+const glassesFrameM = readMesh(byMat('glasses'), dropGlassesLenses);
+const lashesM = readMesh(byMat('AvatarEyelashes'));
 
-// ------------------------------------------------------------------ texture
+const builtMeshes = [
+  { name: 'AvatarBody', matKey: 'body', data: compactAndSimplify(readMesh(byMat('AvatarBody')), 1800) },
+  { name: 'AvatarHead', matKey: 'head', data: compactAndSimplify(headM, 3400) },
+  { name: 'AvatarEyeballs', matKey: 'eyeballs', data: compactAndSimplify(mergeMeshes([readMesh(byMat('AvatarLeftEyeball')), readMesh(byMat('AvatarRightEyeball'))]), 500) },
+  { name: 'AvatarTeeth', matKey: 'teeth', data: compactAndSimplify(mergeMeshes([teethUpperM, teethLowerM]), 500) },
+  { name: 'GlassesLashes', matKey: 'glasses_lashes', data: compactAndSimplify(mergeMeshes([glassesFrameM, lashesM]), 1000) },
+  { name: 'Haircut', matKey: 'haircut', data: compactAndSimplify(readMesh(byMat('haircut')), 4500, 0.08) },
+  { name: 'OutfitBottom', matKey: 'outfit_bottom', data: compactAndSimplify(readMesh(byMat('outfit_bottom')), 2200) },
+  { name: 'OutfitShoes', matKey: 'outfit_shoes', data: compactAndSimplify(readMesh(byMat('outfit_shoes')), 1000) },
+  { name: 'OutfitTop', matKey: 'outfit_top', data: compactAndSimplify(readMesh(byMat('outfit_top')), 1800) },
+];
+
+let totalTris = 0, totalVerts = 0;
+for (const bm of builtMeshes) {
+  totalTris += bm.data.tris;
+  totalVerts += bm.data.count;
+  console.log(`  ${bm.name.padEnd(16)} ${String(bm.data.count).padStart(5)} verts, ${String(bm.data.tris).padStart(5)} tris`);
+}
+console.log(`total geometry: ${totalVerts} verts, ${totalTris} tris`);
+
+// ------------------------------------------------------------------ re-encode textures as resized JPEGs
+const srcMat = (name) => j.materials.find((m) => m.name === name);
+const texSpecs = [
+  { key: 'body_c', img: j.textures[srcMat('AvatarBody').pbrMetallicRoughness.baseColorTexture.index].source, size: 512, q: 80 },
+  { key: 'body_n', img: j.textures[srcMat('AvatarBody').normalTexture.index].source, size: 256, q: 82 },
+  { key: 'head_c', img: j.textures[srcMat('AvatarHead').pbrMetallicRoughness.baseColorTexture.index].source, size: 768, q: 82 },
+  { key: 'head_n', img: j.textures[srcMat('AvatarHead').normalTexture.index].source, size: 512, q: 84 },
+  { key: 'eye_c', img: j.textures[srcMat('AvatarLeftEyeball').pbrMetallicRoughness.baseColorTexture.index].source, size: 256, q: 82 },
+  { key: 'teeth_c', img: j.textures[srcMat('AvatarTeethUpper').pbrMetallicRoughness.baseColorTexture.index].source, size: 256, q: 78 },
+  { key: 'hair_c', img: j.textures[srcMat('haircut').pbrMetallicRoughness.baseColorTexture.index].source, size: 512, q: 80 },
+  { key: 'hair_n', img: j.textures[srcMat('haircut').normalTexture.index].source, size: 256, q: 82 },
+  { key: 'bot_c', img: j.textures[srcMat('outfit_bottom').pbrMetallicRoughness.baseColorTexture.index].source, size: 512, q: 80 },
+  { key: 'bot_n', img: j.textures[srcMat('outfit_bottom').normalTexture.index].source, size: 256, q: 82 },
+  { key: 'shoe_c', img: j.textures[srcMat('outfit_shoes').pbrMetallicRoughness.baseColorTexture.index].source, size: 512, q: 78 },
+  { key: 'shoe_n', img: j.textures[srcMat('outfit_shoes').normalTexture.index].source, size: 256, q: 82 },
+  { key: 'top_c', img: j.textures[srcMat('outfit_top').pbrMetallicRoughness.baseColorTexture.index].source, size: 512, q: 82 },
+  { key: 'top_n', img: j.textures[srcMat('outfit_top').normalTexture.index].source, size: 256, q: 82 },
+];
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'priya-'));
-const texBv = j.bufferViews[j.images[j.textures[j.materials[BODY_MATERIAL].pbrMetallicRoughness.baseColorTexture.index].source].bufferView];
-const inp = path.join(tmp, 'in.png');
-const out = path.join(tmp, 'out.jpg');
-fs.writeFileSync(inp, bin.subarray(texBv.byteOffset ?? 0, (texBv.byteOffset ?? 0) + texBv.byteLength));
-execFileSync('convert', [inp, '-resize', '1024x1024>', '-quality', '86', '-sampling-factor', '4:2:0', '-strip', out]);
-const colorTex = fs.readFileSync(out);
-fs.rmSync(tmp, { recursive: true, force: true });
+const jobs = texSpecs.map((t) => {
+  const im = j.images[t.img];
+  const bv = j.bufferViews[im.bufferView];
+  const ext = im.mimeType === 'image/png' ? 'png' : 'jpg';
+  const inp = path.join(tmp, `${t.key}_in.${ext}`);
+  const out = path.join(tmp, `${t.key}.jpg`);
+  fs.writeFileSync(inp, bin.subarray(bv.byteOffset ?? 0, (bv.byteOffset ?? 0) + bv.byteLength));
+  return { ...t, inp, out };
+});
 
-// ------------------------------------------------------------------ pack
+if (process.platform === 'win32') {
+  const manifest = path.join(tmp, 'jobs.json');
+  fs.writeFileSync(manifest, JSON.stringify(jobs.map(({ inp, out, size, q }) => ({ inp, out, size, q }))));
+  const psScript = path.join(tmp, 'encode.ps1');
+  fs.writeFileSync(psScript, `
+Add-Type -AssemblyName System.Drawing
+$codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' } | Select-Object -First 1
+$qParam = [System.Drawing.Imaging.Encoder]::Quality
+$jobs = Get-Content -Raw '${manifest.replace(/'/g, "''")}' | ConvertFrom-Json
+foreach ($job in $jobs) {
+  $src = [System.Drawing.Bitmap]::new($job.inp)
+  $w = [Math]::Min($src.Width, [int]$job.size)
+  $h = [Math]::Min($src.Height, [int]$job.size)
+  $dst = [System.Drawing.Bitmap]::new($w, $h, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
+  $g = [System.Drawing.Graphics]::FromImage($dst)
+  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+  $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+  $g.DrawImage($src, 0, 0, $w, $h)
+  $g.Dispose()
+  $src.Dispose()
+  $ep = [System.Drawing.Imaging.EncoderParameters]::new(1)
+  $ep.Param[0] = [System.Drawing.Imaging.EncoderParameter]::new($qParam, [long]$job.q)
+  $dst.Save($job.out, $codec, $ep)
+  $dst.Dispose()
+}
+`);
+  execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', psScript]);
+} else {
+  for (const job of jobs) {
+    execFileSync('convert', [job.inp, '-resize', `${job.size}x${job.size}>`, '-quality', String(job.q), '-sampling-factor', '4:2:0', '-strip', job.out]);
+  }
+}
+
+const texBytes = new Map();
+let totalTexBytes = 0;
+for (const job of jobs) {
+  const b = fs.readFileSync(job.out);
+  texBytes.set(job.key, b);
+  totalTexBytes += b.length;
+}
+fs.rmSync(tmp, { recursive: true, force: true });
+console.log(`textures: ${jobs.length} JPEGs, ${(totalTexBytes / 1024).toFixed(0)} KB total`);
+
+// ------------------------------------------------------------------ pack GLB
 const chunks = [];
 const views = [];
 const accessors = [];
@@ -349,35 +420,76 @@ const push = (buf, extra = {}) => {
   views.push({ buffer: 0, byteOffset: off, byteLength: buf.length, ...extra });
   return views.length - 1;
 };
-const acc = (view, componentType, type, n, extra = {}) => { accessors.push({ bufferView: view, componentType, type, count: n, ...extra }); return accessors.length - 1; };
-const f32 = (a) => Buffer.from(new Float32Array(a).buffer);
-const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
-for (let v = 0; v < count; v++) for (let k = 0; k < 3; k++) { min[k] = Math.min(min[k], pos[v * 3 + k]); max[k] = Math.max(max[k], pos[v * 3 + k]); }
-const attrs = {
-  POSITION: acc(push(f32(pos), { target: 34962 }), 5126, 'VEC3', count, { min, max }),
-  NORMAL: acc(push(f32(nor), { target: 34962 }), 5126, 'VEC3', count),
-  TEXCOORD_0: acc(push(f32(uv), { target: 34962 }), 5126, 'VEC2', count),
-  JOINTS_0: acc(push(Buffer.from(joints), { target: 34962 }), 5121, 'VEC4', count),
-  WEIGHTS_0: acc(push(Buffer.from(weights.buffer), { target: 34962 }), 5123, 'VEC4', count, { normalized: true }),
+const acc = (view, componentType, type, n, extra = {}) => {
+  accessors.push({ bufferView: view, componentType, type, count: n, ...extra });
+  return accessors.length - 1;
 };
-const idx = acc(push(Buffer.from(Uint16Array.from(indices).buffer), { target: 34963 }), 5123, 'SCALAR', indices.length);
+const mm = (a, n) => {
+  const min = new Array(n).fill(Infinity), max = new Array(n).fill(-Infinity);
+  for (let i = 0; i < a.length; i++) { const k = i % n; if (a[i] < min[k]) min[k] = a[i]; if (a[i] > max[k]) max[k] = a[i]; }
+  return { min, max };
+};
+
+const texIdx = new Map();
+const images = [];
+const textures = [];
+for (const t of texSpecs) {
+  const v = push(texBytes.get(t.key));
+  texIdx.set(t.key, textures.length);
+  images.push({ bufferView: v, mimeType: 'image/jpeg' });
+  textures.push({ sampler: 0, source: images.length - 1 });
+}
+
+const matList = [
+  ['body', { name: 'AvatarBody', pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('body_c') }, metallicFactor: 0, roughnessFactor: 0.72 }, normalTexture: { index: texIdx.get('body_n') } }],
+  ['head', { name: 'AvatarHead', pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('head_c') }, metallicFactor: 0, roughnessFactor: 0.72 }, normalTexture: { index: texIdx.get('head_n') } }],
+  ['eyeballs', { name: 'AvatarEyeballs', pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('eye_c') }, metallicFactor: 0, roughnessFactor: 0.45 } }],
+  ['teeth', { name: 'AvatarTeeth', pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('teeth_c') }, metallicFactor: 0, roughnessFactor: 0.5 } }],
+  ['glasses_lashes', { name: 'GlassesLashes', doubleSided: true, pbrMetallicRoughness: { baseColorFactor: [0.05, 0.04, 0.05, 1], metallicFactor: 0, roughnessFactor: 0.5 } }],
+  ['haircut', { name: 'haircut', doubleSided: true, pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('hair_c') }, metallicFactor: 0, roughnessFactor: 0.81 }, normalTexture: { index: texIdx.get('hair_n') } }],
+  ['outfit_bottom', { name: 'outfit_bottom', doubleSided: true, pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('bot_c') }, metallicFactor: 0, roughnessFactor: 0.65 }, normalTexture: { index: texIdx.get('bot_n') } }],
+  ['outfit_shoes', { name: 'outfit_shoes', pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('shoe_c') }, metallicFactor: 0, roughnessFactor: 0.75 }, normalTexture: { index: texIdx.get('shoe_n') } }],
+  ['outfit_top', { name: 'outfit_top', doubleSided: true, pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('top_c') }, metallicFactor: 0, roughnessFactor: 0.78 }, normalTexture: { index: texIdx.get('top_n') } }],
+];
+const matIndex = new Map(matList.map(([k], i) => [k, i]));
+const materials = matList.map(([, m]) => m);
+
+const meshes = [];
+const sceneNodes = [hipsIdx];
+for (const bm of builtMeshes) {
+  const m = bm.data;
+  const attrs = {
+    POSITION: acc(push(Buffer.from(m.pos.buffer), { target: 34962 }), 5126, 'VEC3', m.count, mm(m.pos, 3)),
+    NORMAL: acc(push(Buffer.from(m.nor.buffer), { target: 34962 }), 5126, 'VEC3', m.count),
+    TEXCOORD_0: acc(push(Buffer.from(m.uv.buffer), { target: 34962 }), 5126, 'VEC2', m.count),
+    JOINTS_0: acc(push(Buffer.from(m.jts.buffer), { target: 34962 }), 5121, 'VEC4', m.count),
+    WEIGHTS_0: acc(push(Buffer.from(m.wts.buffer), { target: 34962 }), 5123, 'VEC4', m.count, { normalized: true }),
+  };
+  const idxAcc = acc(push(Buffer.from(m.idx.buffer), { target: 34963 }), 5123, 'SCALAR', m.idx.length);
+  const meshId = meshes.length;
+  meshes.push({ name: bm.name, primitives: [{ attributes: attrs, indices: idxAcc, material: matIndex.get(bm.matKey) }] });
+  const nodeId = outNodes.length;
+  outNodes.push({ name: bm.name, mesh: meshId, skin: 0 });
+  sceneNodes.push(nodeId);
+}
+
 const ibmAcc = acc(push(Buffer.from(ibm.buffer)), 5126, 'MAT4', NB);
-const imgView = push(colorTex);
 const glbJson = {
   asset: { version: '2.0', generator: 'scripts/fix-priya-glb.mjs', extras: j.asset.extras },
   scene: 0,
-  scenes: [{ nodes: [boneIndex.get('Hips'), meshNode] }],
-  nodes,
-  meshes: [{ name: 'Priya', primitives: [{ attributes: attrs, indices: idx, material: 0 }] }],
-  skins: [{ joints: names.map((_, i) => i), inverseBindMatrices: ibmAcc, skeleton: boneIndex.get('Hips') }],
-  materials: [{ name: 'skin', pbrMetallicRoughness: { baseColorTexture: { index: 0 }, metallicFactor: 0, roughnessFactor: 0.8 } }],
-  textures: [{ sampler: 0, source: 0 }],
-  samplers: j.samplers,
-  images: [{ bufferView: imgView, mimeType: 'image/jpeg' }],
+  scenes: [{ nodes: sceneNodes }],
+  nodes: outNodes,
+  meshes,
+  skins: [{ joints: skinJoints, inverseBindMatrices: ibmAcc, skeleton: hipsIdx }],
+  materials,
+  textures,
+  samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }],
+  images,
   accessors,
   bufferViews: views,
   buffers: [{ byteLength: chunks.reduce((s, c) => s + c.length, 0) }],
 };
+
 let js = Buffer.from(JSON.stringify(glbJson));
 js = Buffer.concat([js, Buffer.alloc((4 - (js.length % 4)) % 4, 0x20)]);
 const body = Buffer.concat(chunks);
@@ -387,4 +499,4 @@ glb.writeUInt32LE(js.length, 12); glb.writeUInt32LE(0x4e4f534a, 16); js.copy(glb
 glb.writeUInt32LE(body.length, 20 + js.length); glb.writeUInt32LE(0x004e4942, 24 + js.length); body.copy(glb, 28 + js.length);
 fs.mkdirSync(path.dirname(dst), { recursive: true });
 fs.writeFileSync(dst, glb);
-console.log('wrote', dst, `${(glb.length / 1024).toFixed(0)} KB, ${indices.length / 3} triangles, ${NB} bones`);
+console.log('wrote', dst, `${(glb.length / 1024).toFixed(0)} KB, ${totalTris} triangles, ${NB} bones`);

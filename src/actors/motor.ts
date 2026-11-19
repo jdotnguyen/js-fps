@@ -48,6 +48,8 @@ export interface MotorConfig {
   /** Highest drop that keeps the body glued to the floor instead of falling. */
   snapDown: number;
   gravity: number;
+  /** Takeoff speed of a jump, m/s: apex height is jumpSpeed^2 / (2 * gravity). */
+  jumpSpeed: number;
 }
 
 export const DEFAULT_MOTOR: Readonly<MotorConfig> = Object.freeze({
@@ -56,6 +58,7 @@ export const DEFAULT_MOTOR: Readonly<MotorConfig> = Object.freeze({
   stepHeight: 0.35,
   snapDown: 0.4,
   gravity: 20,
+  jumpSpeed: 5,
 });
 
 /** Feet position (x, y = soles, z) plus vertical state. Mutated in place. */
@@ -157,6 +160,22 @@ export function floorHeight(x: number, z: number, maxTop: number, cfg: MotorConf
   return best;
 }
 
+/** Lowest underside between `fromY` and `toY` (the head's path this step) under the footprint, or Infinity. */
+export function ceilingHeight(x: number, z: number, fromY: number, toY: number, cfg: MotorConfig, world: ColliderQuery): number {
+  const r = cfg.radius * FLOOR_PROBE;
+  scratch.length = 0;
+  const boxes = world.query(x - r, z - r, x + r, z + r, scratch);
+  let best = Infinity;
+  for (const b of boxes) {
+    const bottom = b.min[1];
+    if (bottom < fromY || bottom > toY || bottom >= best) continue;
+    const cx = clamp(x, b.min[0], b.max[0]);
+    const cz = clamp(z, b.min[2], b.max[2]);
+    if ((x - cx) ** 2 + (z - cz) ** 2 < r * r) best = bottom;
+  }
+  return best;
+}
+
 function settleVertical(s: MotorState, dt: number, cfg: MotorConfig, world: ColliderQuery): number {
   const ground = floorHeight(s.x, s.z, s.y + cfg.stepHeight + SKIN, cfg, world);
   if (s.grounded && ground >= s.y - cfg.snapDown) {
@@ -166,7 +185,16 @@ function settleVertical(s: MotorState, dt: number, cfg: MotorConfig, world: Coll
     return Math.max(0, up);
   }
   s.vy -= cfg.gravity * dt;
+  const headBefore = s.y + cfg.height;
   s.y += s.vy * dt;
+  if (s.vy > 0) {
+    // Rising: a ceiling above the head stops the jump instead of letting it pass through.
+    const ceiling = ceilingHeight(s.x, s.z, headBefore - SKIN, s.y + cfg.height, cfg, world);
+    if (ceiling < s.y + cfg.height) {
+      s.y = ceiling - cfg.height - SKIN;
+      s.vy = 0;
+    }
+  }
   if (s.y <= ground) {
     s.y = ground;
     s.vy = 0;

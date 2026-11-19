@@ -12,7 +12,7 @@ export const PIXEL_RATIO_CAP: Record<Settings['quality'], number> = {
  * Baseline renderer. ADR-0002 adds the post-processing chain, light pool and atmosphere.
  */
 export function createRenderer(canvas: HTMLCanvasElement, settings: Readonly<Settings>): THREE.WebGLRenderer {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.AgXToneMapping;
   renderer.toneMappingExposure = 0.85;

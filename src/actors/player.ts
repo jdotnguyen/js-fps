@@ -61,6 +61,8 @@ export const PLAYER_TUNING = {
   strideSprint: 0.95,
   aimFovScale: 0.8,
   aimTime: 0.15,
+  /** Jump takeoff speed, m/s (about 0.6 m of height at gravity 20); the motor reads DEFAULT_MOTOR.jumpSpeed. */
+  jumpSpeed: DEFAULT_MOTOR.jumpSpeed,
   hitSlowTime: 0.3,
   hitSlowScale: 0.5,
   shoveWindup: 0.25,
@@ -532,6 +534,13 @@ export class Player {
     if (!this.walkTarget && (mode === 'locked' || dead)) this.sprinting = false;
     this.updateStamina(dt);
 
+    // Jump (Space): only from the ground, and never on rails, downed, dead, wading or on a scripted walk.
+    const wasAirborne = !this.body.grounded;
+    if (mode !== 'locked' && !dead && !this.downed && !this.walkTarget && !wading && this.body.grounded && input.wasPressed('jump')) {
+      this.body.vy = T.jumpSpeed;
+      this.body.grounded = false;
+    }
+
     // Accelerate toward the wish velocity (decelerate faster than we speed up).
     const tx = wx * speed;
     const tz = wz * speed;
@@ -560,14 +569,15 @@ export class Player {
       stepX = this.v2.x;
       stepZ = this.v2.z;
     }
-    const r = moveBody(this.body, stepX, stepZ, dt, DEFAULT_MOTOR, this.world.colliders);
+    const r = moveBody(this.body, stepX, stepZ, dt, { ...DEFAULT_MOTOR, jumpSpeed: T.jumpSpeed }, this.world.colliders);
+    if (wasAirborne && this.body.grounded) this.d.events.emit('player:footstep', { surface, x: this.body.x, y: this.body.y, z: this.body.z, sprint: false });
     let mx = this.body.x - x0;
     let mz = this.body.z - z0;
     // Walls eat the velocity that pushes into them, so we slide instead of sticking.
     if (r.blocked) this.velocity.set(mx / dt, mz / dt);
     if (r.stepUp > 0) this.stepOffset -= r.stepUp;
     if (bodies.length > 0) {
-      this.resolveBodies(bodies, dt);
+      this.resolveBodies(bodies);
       // Slide round people: drop the velocity that still points into one.
       removeInward(this.velocity.x, this.velocity.y, this.body.x, this.body.z, bodies, JAY_RADIUS, BODY_MARGIN, this.v2);
       this.velocity.set(this.v2.x, this.v2.z);
@@ -606,14 +616,15 @@ export class Player {
    * Push Jay out of any person he overlaps, through moveBody so a correction can never put him
    * inside a wall. A few passes so two bodies side by side both get honoured.
    */
-  private resolveBodies(bodies: readonly Circle[], dt: number): void {
+  private resolveBodies(bodies: readonly Circle[]): void {
     for (let pass = 0; pass < 3; pass++) {
       let moved = false;
       for (const b of bodies) {
         // Coincident centres leave against the wish (or along +X).
         pushOut(this.body.x, this.body.z, b, JAY_RADIUS, -this.wishDir.x, -this.wishDir.z, this.v2);
         if (this.v2.x === 0 && this.v2.z === 0) continue;
-        moveBody(this.body, this.v2.x, this.v2.z, dt, DEFAULT_MOTOR, this.world.colliders);
+        // dt 0: pushing out of a person must not integrate gravity a second time in the same frame.
+        moveBody(this.body, this.v2.x, this.v2.z, 0, DEFAULT_MOTOR, this.world.colliders);
         moved = true;
       }
       if (!moved) break;

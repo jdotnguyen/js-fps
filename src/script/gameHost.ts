@@ -2,6 +2,7 @@
  * Connects the sequence interpreter (ADR-0009) to the running game. This is the only
  * script file that knows about three.js, the player, the world and the audio engine.
  */
+import { npcIdForSpeaker } from '../ai/speakerBodies.ts';
 import * as THREE from 'three';
 import { PLAYER_TUNING, type Player } from '../actors/player.ts';
 import type { SoundName } from '../audio/sounds.ts';
@@ -104,8 +105,7 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
 
     // Speaker ids (dialogue/speakers.json) to the NPC that speaks them; Jay, the PA and absent NPCs give null.
     speakerTarget(speaker: string): TargetRef | null {
-      const alias: Record<string, string> = { engineer: 'giles', medic: 'okafor', nurse: 'priya', chief: 'heins' };
-      const id = alias[speaker] ?? (speaker.startsWith('crew_') ? speaker.slice(5) : null);
+      const id = npcIdForSpeaker(speaker);
       return id && d.npcs?.has(id) ? `npc:${id}` : null;
     },
 

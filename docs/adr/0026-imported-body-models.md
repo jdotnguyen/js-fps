@@ -68,15 +68,15 @@ wants it as a **common infected**, not as a hero/elite [Decided]. Heroes stay pr
 - Like August, his procedural `look` (beard, stethoscope, glasses on head) is only the fallback if the model fails to load.
 
 ## Addendum: Priya Anand (Nov 18)
-- Priya's body is the CC-BY "Mujer 2 con bolsa" model (`priya` in `data/body-models.json`, `variants: []`; `model: 'priya'` on her
-  `CAST` look in `castLooks.ts`). Unlike the other two it is **not rigged**: a photogrammetry-style scan of a woman in an olive jacket,
-  denim shorts and trainers, about 668k triangles in seven chunks, in a walking pose with a shopping bag in one hand.
-  `scripts/fix-priya-glb.mjs` bakes its node transforms into Y-up metres facing +Z, drops the bag, welds the chunks, merges vertices
-  on a 2 cm grid (the scan's non-manifold fuzz locks meshoptimizer's simplifier at ~45k triangles otherwise), decimates to about 14k
-  triangles, and builds a 23-bone Mixamo-named skeleton from joint positions measured off the scan (the `J` table in the script).
-  Skin weights are a softmax over distance to each bone segment divided by the bone's radius, smoothed over the mesh. The texture is
-  re-encoded as a 1024 px JPEG. 24 MB -> about 0.9 MB.
-- `bodyModel.ts` straightens her stride and arms from those bones like any rigged model, but the weights are automatic: arms and legs
-  bend where the bones are, and the jacket sleeves share the torso mesh, so big arm swings can drag the jacket.
+- Priya's body is the CC-BY "Modern Indian Woman" model (`priya` in `data/body-models.json`, `variants: []`; `model: 'priya'` on her
+  `CAST` look in `castLooks.ts`): a rigged Mixamo-named avatar (~112k triangles across 14 meshes). `scripts/fix-priya-glb.mjs`
+  drops the baked animation, tangents, unused UV/MR/AO maps, cornea meshes and opaque glasses lenses; merges eyeballs, teeth,
+  and glasses frames + eyelashes; adds a `Jaw` bone under `Head` with lower-teeth and lower-lip/chin weights; decimates to
+  ~16.7k triangles; and re-encodes textures as resized JPEGs. 20.6 MB -> about 1.2 MB.
 - Her scrubs-and-cardigan `look` and props are the fallback only. The model is a different outfit from `docs/characters.md`.
+
+## Addendum: Sung (Nov 18)
+- Sung's body is the CC-BY "Construction Worker In Safety Gear" model (`sung` in `data/body-models.json`, `variants: []`; `model: 'sung'` on his `CAST` look in `castLooks.ts`). Like Priya's, it is an unrigged photogrammetry scan (~222k triangles across three chunks, 17 MB, wearing a hard hat, hi-vis vest and work gloves, with a rolled blueprint tube in the right hand).
+- `scripts/fix-sung-glb.mjs` bakes its node transforms and `KHR_texture_transform` into Y-up metres facing +Z, welds the chunks by `(position, UV)`, trims the protruding ends of the blueprint tube outside the right glove, decimates to about 16k triangles, builds a 24-bone Mixamo-named skeleton with smooth skin weights and a jaw mask, and re-encodes the colour (1024 px) and normal (512 px) textures as JPEG (17 MB -> about 0.97 MB).
+- His drysuit-and-harness `look` is the fallback only.
 

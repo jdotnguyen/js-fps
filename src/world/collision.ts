@@ -41,7 +41,7 @@ export class CollisionWorld implements ColliderQuery {
   readonly colliders: Collider[] = [];
   private readonly cells = new Map<number, Collider[]>();
   private stamp = 0;
-  private readonly stamps = new Map<number, number>();
+  private stamps = new Uint32Array(256);
   private readonly scratch: Collider[] = [];
   private readonly found: Collider[] = [];
 
@@ -71,14 +71,27 @@ export class CollisionWorld implements ColliderQuery {
       surface,
     };
     this.colliders.push(c);
-    this.forCells(c.minX, c.minZ, c.maxX, c.maxZ, (key) => {
-      let list = this.cells.get(key);
-      if (!list) {
-        list = [];
-        this.cells.set(key, list);
+    if (c.id >= this.stamps.length) {
+      const next = new Uint32Array(this.stamps.length * 2);
+      next.set(this.stamps);
+      this.stamps = next;
+    }
+    const s = this.cellSize;
+    const x0 = Math.floor(c.minX / s);
+    const x1 = Math.floor(c.maxX / s);
+    const z0 = Math.floor(c.minZ / s);
+    const z1 = Math.floor(c.maxZ / s);
+    for (let ix = x0; ix <= x1; ix++) {
+      for (let iz = z0; iz <= z1; iz++) {
+        const key = (ix + 32768) * 65536 + (iz + 32768);
+        let list = this.cells.get(key);
+        if (!list) {
+          list = [];
+          this.cells.set(key, list);
+        }
+        list.push(c);
       }
-      list.push(c);
-    });
+    }
     return c;
   }
 
@@ -92,16 +105,25 @@ export class CollisionWorld implements ColliderQuery {
   find(minX: number, minZ: number, maxX: number, maxZ: number, out: Collider[] = []): Collider[] {
     out.length = 0;
     const stamp = ++this.stamp;
-    this.forCells(minX, minZ, maxX, maxZ, (key) => {
-      const list = this.cells.get(key);
-      if (!list) return;
-      for (const c of list) {
-        if (!c.enabled || this.stamps.get(c.id) === stamp) continue;
-        this.stamps.set(c.id, stamp);
-        if (c.maxX < minX || c.minX > maxX || c.maxZ < minZ || c.minZ > maxZ) continue;
-        out.push(c);
+    const stamps = this.stamps;
+    const s = this.cellSize;
+    const x0 = Math.floor(minX / s);
+    const x1 = Math.floor(maxX / s);
+    const z0 = Math.floor(minZ / s);
+    const z1 = Math.floor(maxZ / s);
+    for (let ix = x0; ix <= x1; ix++) {
+      for (let iz = z0; iz <= z1; iz++) {
+        const list = this.cells.get((ix + 32768) * 65536 + (iz + 32768));
+        if (!list) continue;
+        for (let i = 0; i < list.length; i++) {
+          const c = list[i]!;
+          if (!c.enabled || stamps[c.id] === stamp) continue;
+          stamps[c.id] = stamp;
+          if (c.maxX < minX || c.minX > maxX || c.maxZ < minZ || c.minZ > maxZ) continue;
+          out.push(c);
+        }
       }
-    });
+    }
     return out;
   }
 
@@ -114,18 +136,30 @@ export class CollisionWorld implements ColliderQuery {
     dz /= len;
     let best: RayHit | null = null;
     // Walk the ray in half-cell steps and slab-test what each step's cells hold.
-    const step = this.cellSize * 0.5;
-    const seen = new Set<number>();
+    const s = this.cellSize;
+    const step = s * 0.5;
+    const stamp = ++this.stamp;
+    const stamps = this.stamps;
     for (let t = 0; t <= maxDistance + step; t += step) {
       if (best && t - step > best.distance) break;
       const x = ox + dx * t;
       const z = oz + dz * t;
-      const list = this.find(x - step, z - step, x + step, z + step, this.scratch);
-      for (const c of list) {
-        if (seen.has(c.id)) continue;
-        seen.add(c.id);
-        const d = rayBox(ox, oy, oz, dx, dy, dz, c);
-        if (d !== null && d <= maxDistance && (!best || d < best.distance)) best = { collider: c, distance: d };
+      const x0 = Math.floor((x - step) / s);
+      const x1 = Math.floor((x + step) / s);
+      const z0 = Math.floor((z - step) / s);
+      const z1 = Math.floor((z + step) / s);
+      for (let ix = x0; ix <= x1; ix++) {
+        for (let iz = z0; iz <= z1; iz++) {
+          const list = this.cells.get((ix + 32768) * 65536 + (iz + 32768));
+          if (!list) continue;
+          for (let i = 0; i < list.length; i++) {
+            const c = list[i]!;
+            if (!c.enabled || stamps[c.id] === stamp) continue;
+            stamps[c.id] = stamp;
+            const d = rayBox(ox, oy, oz, dx, dy, dz, c);
+            if (d !== null && d <= maxDistance && (!best || d < best.distance)) best = { collider: c, distance: d };
+          }
+        }
       }
     }
     return best;
@@ -140,37 +174,60 @@ export class CollisionWorld implements ColliderQuery {
     }
     return best?.surface ?? null;
   }
-
-  private forCells(minX: number, minZ: number, maxX: number, maxZ: number, fn: (key: number) => void): void {
-    const s = this.cellSize;
-    const x0 = Math.floor(minX / s);
-    const x1 = Math.floor(maxX / s);
-    const z0 = Math.floor(minZ / s);
-    const z1 = Math.floor(maxZ / s);
-    for (let ix = x0; ix <= x1; ix++) for (let iz = z0; iz <= z1; iz++) fn((ix + 32768) * 65536 + (iz + 32768));
-  }
 }
 
 /** Ray vs box slab test; returns the entry distance (0 if the origin is inside). */
 function rayBox(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, c: Collider): number | null {
   let tmin = 0;
   let tmax = Infinity;
-  const axes: Array<[number, number, number, number]> = [
-    [ox, dx, c.minX, c.maxX],
-    [oy, dy, c.minY, c.maxY],
-    [oz, dz, c.minZ, c.maxZ],
-  ];
-  for (const [o, d, lo, hi] of axes) {
-    if (Math.abs(d) < 1e-12) {
-      if (o < lo || o > hi) return null;
-      continue;
+
+  if (Math.abs(dx) < 1e-12) {
+    if (ox < c.minX || ox > c.maxX) return null;
+  } else {
+    const inv = 1 / dx;
+    let t1 = (c.minX - ox) * inv;
+    let t2 = (c.maxX - ox) * inv;
+    if (t1 > t2) {
+      const tmp = t1;
+      t1 = t2;
+      t2 = tmp;
     }
-    let t1 = (lo - o) / d;
-    let t2 = (hi - o) / d;
-    if (t1 > t2) [t1, t2] = [t2, t1];
-    tmin = Math.max(tmin, t1);
-    tmax = Math.min(tmax, t2);
+    if (t1 > tmin) tmin = t1;
+    if (t2 < tmax) tmax = t2;
     if (tmin > tmax) return null;
   }
+
+  if (Math.abs(dy) < 1e-12) {
+    if (oy < c.minY || oy > c.maxY) return null;
+  } else {
+    const inv = 1 / dy;
+    let t1 = (c.minY - oy) * inv;
+    let t2 = (c.maxY - oy) * inv;
+    if (t1 > t2) {
+      const tmp = t1;
+      t1 = t2;
+      t2 = tmp;
+    }
+    if (t1 > tmin) tmin = t1;
+    if (t2 < tmax) tmax = t2;
+    if (tmin > tmax) return null;
+  }
+
+  if (Math.abs(dz) < 1e-12) {
+    if (oz < c.minZ || oz > c.maxZ) return null;
+  } else {
+    const inv = 1 / dz;
+    let t1 = (c.minZ - oz) * inv;
+    let t2 = (c.maxZ - oz) * inv;
+    if (t1 > t2) {
+      const tmp = t1;
+      t1 = t2;
+      t2 = tmp;
+    }
+    if (t1 > tmin) tmin = t1;
+    if (t2 < tmax) tmax = t2;
+    if (tmin > tmax) return null;
+  }
+
   return tmin;
 }

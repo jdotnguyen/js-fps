@@ -120,7 +120,8 @@ export function createPost(
       grade.uResolution.value.set(width * pixelRatio, height * pixelRatio);
     },
     setQuality(q) {
-      gtao.enabled = q !== 'low';
+      gtao.enabled = q === 'high';
+      bloom.enabled = q !== 'low';
     },
     render(time) {
       grade.uTime.value = time;

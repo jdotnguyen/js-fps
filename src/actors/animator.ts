@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Rng } from '../core/rng.ts';
 import { blendPose, copyPose, emptyPose, type CompiledPose, type PoseLibrary } from './poses.ts';
 import { JOINT_INDEX, JOINTS, type JointName } from './skeleton.ts';
+import { gesture, mouthOpenAt, type SpeechPlan } from './speechActing.ts';
 
 /**
  * Procedural animation for one humanoid (ADR-0006): pose library blending (slerp), gait
@@ -100,6 +101,12 @@ export class Animator {
   private woundSide: 0 | 1 = 0;
   private woundAmount = 0;
   private chargeCur = 0;
+  /** The line being acted (ADR-0027): mouth, hands and body. Kept while it fades out after the line ends. */
+  private speech: SpeechPlan | null = null;
+  private speechT = 0;
+  private speechW = 0;
+  private speechEnding = false;
+  private readonly addSink = (joint: JointName, x: number, y: number, z: number): void => this.add(joint, x, y, z);
 
   constructor(bones: THREE.Bone[], poses: PoseLibrary, initialPose: string, rng: Rng) {
     this.bones = bones;
@@ -175,6 +182,7 @@ export class Animator {
     this.off.fill(0);
     this.updateGait(dt);
     this.updateIdleLife(dt);
+    this.updateSpeech(dt);
     this.updateLook(dt);
     this.updateInfected(dt);
     this.updateReactions(dt);
@@ -210,6 +218,57 @@ export class Animator {
     }
     seq.timer = step.blend + step.hold;
     this.startBlend(this.poses.get(step.pose), step.blend);
+  }
+
+  // ---------------------------------------------------------------- speech
+
+  /** Start acting a line; replaces any line in progress. */
+  speak(plan: SpeechPlan): void {
+    this.speech = plan;
+    this.speechT = 0;
+    this.speechEnding = false;
+  }
+
+  /** The line ended or was cut off: close the mouth and let the gestures fade. */
+  stopSpeaking(): void {
+    this.speechEnding = true;
+  }
+
+  get speaking(): boolean {
+    return this.speech !== null && !this.speechEnding;
+  }
+
+  /**
+   * Speech layer: the jaw follows the line's syllables and the emote's gestures ride on top of the current pose. The infected
+   * do not talk; arms gesture less while walking or busy with a task, and not at all on the ground.
+   */
+  private updateSpeech(dt: number): void {
+    const plan = this.speech;
+    if (!plan) return;
+    if (this.twitchy || this.infect > 0.35 || this.convulse > 0.01) {
+      this.speech = null;
+      this.speechW = 0;
+      return;
+    }
+    this.speechT += dt;
+    if (this.speechT > plan.duration) this.speechEnding = true;
+    const target = this.speechEnding ? 0 : 1;
+    this.speechW += (target - this.speechW) * Math.min(1, dt * (target ? 9 : 5));
+    if (this.speechEnding && this.speechW < 0.01) {
+      this.speech = null;
+      this.speechW = 0;
+      return;
+    }
+    const w = this.speechW;
+    const open = mouthOpenAt(plan.cues, this.speechT);
+    this.add('jaw', -plan.style.jaw * open * w, 0, 0);
+    // The head and chest ride each syllable a little.
+    this.add('head', -1.2 * open * w, 0, 0);
+    const upright = this.gait === 'none' || this.gait === 'walk' || this.gait === 'shamble' || this.gait === 'heavy';
+    if (!upright) return;
+    const busy = Animator.ARMS_BUSY.has(this.to.name) ? 0.25 : 1;
+    const armsK = busy * (1 - Math.min(1, this.amp * 1.4) * 0.85);
+    gesture(plan, this.speechT, w, armsK, this.addSink);
   }
 
   // ---------------------------------------------------------------- procedural layers

@@ -93,7 +93,7 @@ const special = {
   Spine02: 'Spine1',
   NeckTwist01: 'Neck', // CC has no Neck bone; its first twist bone sits at the neck base
   NeckTwist02: 'NeckUpper',
-  JawRoot: 'MouthRoot', // keep the jaw out of the game's jaw joint: it follows the head
+  JawRoot: 'Jaw', // the lower face, lower teeth and tongue hang off it: the game's jaw joint, so the mouth can talk
 };
 const sided = (base) =>
   base

@@ -9,7 +9,7 @@
  * Every render is seeded, so the same line id always sounds the same.
  */
 import { Rng } from '../core/rng.ts';
-import { Biquad, fadeEdges, makeBuf, normalize, OnePole, TAU, white, type Buf } from '../audio/dsp.ts';
+import { Biquad, fadeEdges, makeBuf, normalize, OnePole, pink, TAU, white, type Buf } from '../audio/dsp.ts';
 import type { Emote, VoiceProfile } from '../data/types/dialogue.ts';
 
 // ------------------------------------------------------------------ vowels
@@ -117,7 +117,7 @@ export const EMOTE_DEFS: Record<Emote, EmoteDef> = {
       };
     },
   },
-  // Sharp "hey!": aspirated onset, high, loud, falling, e -> i glide.
+  // Sharp "hey!": brief aspirated onset into a high, falling, e -> i glide.
   urgent: {
     duration: [0.24, 0.32],
     build: (_d, rng) => {
@@ -125,20 +125,23 @@ export const EMOTE_DEFS: Record<Emote, EmoteDef> = {
       return {
         pitch: (u) => top - 0.28 * u,
         amp: (u) => 1 - 0.25 * u,
-        voicing: (u) => smooth((u - 0.1) / 0.08),
-        breath: (u) => (u < 0.16 ? 1.4 : 0.06),
-        vowels: [[0, 'e'], [0.55, 'e'], [1, 'i']], tilt: 0.95, drive: 0.35, rasp: 0, bandwidth: 1.25, peak: 0.82, attack: 0.008, release: 0.05,
+        voicing: (u) => 0.25 + 0.75 * smooth((u - 0.04) / 0.08),
+        breath: (u) => (u < 0.12 ? 0.45 : 0.04),
+        vowels: [[0, 'e'], [0.55, 'e'], [1, 'i']], tilt: 0.95, drive: 0.25, rasp: 0, bandwidth: 1.25, peak: 0.82, attack: 0.008, release: 0.05,
       };
     },
   },
-  // Gasp: a fast inhaled rush of breath with only a faint high voice in it.
+  // Gasp: a fast startled vocalized intake/exclamation with soft breathiness.
   alarmed: {
     duration: [0.32, 0.44],
     build: (_d, rng) => {
-      const p = rng.range(1.5, 1.75);
+      const p = rng.range(1.45, 1.68);
       return {
-        pitch: (u) => p + 0.15 * u, amp: (u) => 0.55 + 0.45 * smooth(u / 0.25), voicing: (u) => 0.22 * smooth(u / 0.3), breath: () => 1.7,
-        vowels: [[0, 'a'], [1, '@']], tilt: 1.1, drive: 0.1, rasp: 0, bandwidth: 1.4, peak: 0.6, attack: 0.012, release: 0.025,
+        pitch: (u) => p + 0.14 * u,
+        amp: (u) => 0.5 + 0.5 * smooth(u / 0.2),
+        voicing: (u) => 0.35 + 0.55 * smooth(u / 0.22),
+        breath: () => 0.45,
+        vowels: [[0, 'a'], [1, '@']], tilt: 1.15, drive: 0.05, rasp: 0, bandwidth: 1.3, peak: 0.65, attack: 0.012, release: 0.035,
       };
     },
   },
@@ -148,32 +151,38 @@ export const EMOTE_DEFS: Record<Emote, EmoteDef> = {
     build: (_d, rng) => {
       const p = rng.range(0.86, 0.95);
       return {
-        pitch: (u) => p - 0.14 * u, amp: (u) => 1 - 0.55 * u, voicing: () => 1, breath: () => 0.18,
-        vowels: [[0, '@'], [0.35, 'u'], [1, 'm']], tilt: 1.1, drive: 0.45, rasp: 0.55, bandwidth: 1.2, peak: 0.78, attack: 0.006, release: 0.07,
+        pitch: (u) => p - 0.14 * u, amp: (u) => 1 - 0.55 * u, voicing: () => 1, breath: () => 0.08,
+        vowels: [[0, '@'], [0.35, 'u'], [1, 'm']], tilt: 1.1, drive: 0.3, rasp: 0.35, bandwidth: 1.2, peak: 0.78, attack: 0.006, release: 0.07,
       };
     },
   },
-  // Sigh: long breathy exhale, voice swells in the middle, pitch falls away.
+  // Sigh: warm breathy exhale, voiced core swells gently, pitch falls away.
   relieved: {
     duration: [0.72, 0.9],
     build: (_d, rng) => {
       const p = rng.range(1.05, 1.15);
       return {
-        pitch: (u) => p - 0.38 * u, amp: (u) => Math.sin(Math.PI * Math.min(1, u * 1.15)) ** 0.7, voicing: (u) => 0.12 + 0.38 * Math.sin(Math.PI * u),
-        breath: () => 1.0, vowels: [[0, 'a'], [0.55, '@'], [1, 'u']], tilt: 1.35, drive: 0, rasp: 0, bandwidth: 1.1, peak: 0.52, attack: 0.1, release: 0.25,
+        pitch: (u) => p - 0.36 * u,
+        amp: (u) => Math.sin(Math.PI * Math.min(1, u * 1.15)) ** 0.7,
+        voicing: (u) => 0.45 + 0.4 * Math.sin(Math.PI * u),
+        breath: () => 0.35,
+        vowels: [[0, 'a'], [0.55, '@'], [1, 'u']], tilt: 1.5, drive: 0, rasp: 0, bandwidth: 1.1, peak: 0.55, attack: 0.1, release: 0.25,
       };
     },
   },
-  // Short huff of a laugh: three quick breathy pulses, each a little softer.
+  // Short chuckle: three quick voiced pulses, each a little softer.
   laugh: {
-    duration: [0.4, 0.52],
+    duration: [0.42, 0.54],
     build: (_d, rng) => {
-      const centres = [0.13, 0.43, 0.72].map((c) => c + rng.range(-0.03, 0.03));
-      const levels = [1, 0.78, 0.55];
-      const pulses = (u: number): number => centres.reduce((s, c, i) => s + bump(u, c, 0.14) * levels[i]!, 0);
+      const centres = [0.15, 0.44, 0.73].map((c) => c + rng.range(-0.03, 0.03));
+      const levels = [1, 0.8, 0.58];
+      const pulses = (u: number): number => centres.reduce((s, c, i) => s + bump(u, c, 0.15) * levels[i]!, 0);
       return {
-        pitch: (u) => 1.28 - 0.18 * u, amp: pulses, voicing: (u) => 0.55 * pulses(u), breath: () => 0.9,
-        vowels: [[0, '@'], [0.5, 'a'], [1, '@']], tilt: 1.15, drive: 0.1, rasp: 0, bandwidth: 1.2, peak: 0.62, attack: 0.01, release: 0.04,
+        pitch: (u) => 1.25 - 0.16 * u,
+        amp: pulses,
+        voicing: () => 0.9,
+        breath: () => 0.15,
+        vowels: [[0, '@'], [0.5, 'a'], [1, '@']], tilt: 1.25, drive: 0, rasp: 0, bandwidth: 1.15, peak: 0.65, attack: 0.01, release: 0.04,
       };
     },
   },
@@ -184,8 +193,8 @@ export const EMOTE_DEFS: Record<Emote, EmoteDef> = {
       const s1 = rng.range(0.2, 0.3);
       const s2 = rng.range(0.6, 0.72);
       return {
-        pitch: () => 1, amp: (u) => 0.25 + bump(u, s1, 0.24) + 0.85 * bump(u, s2, 0.26), voicing: () => 0, breath: () => 1,
-        vowels: [[0, 'o'], [0.3, 'e'], [0.6, 'a'], [1, 'u']], tilt: 1.3, drive: 0, rasp: 0, bandwidth: 1.3, peak: 0.36, attack: 0.05, release: 0.12,
+        pitch: () => 1, amp: (u) => 0.25 + bump(u, s1, 0.24) + 0.85 * bump(u, s2, 0.26), voicing: () => 0, breath: () => 0.8,
+        vowels: [[0, 'o'], [0.3, 'u'], [0.6, 'a'], [1, 'u']], tilt: 1.3, drive: 0, rasp: 0, bandwidth: 1.05, peak: 0.34, attack: 0.06, release: 0.14,
       };
     },
   },
@@ -198,8 +207,8 @@ export const EMOTE_DEFS: Record<Emote, EmoteDef> = {
       return {
         pitch: (u, t) => (0.86 - 0.16 * u) * (1 + 0.05 * Math.sin(TAU * rate * t + ph)),
         amp: (u, t) => (0.75 + 0.25 * Math.sin(TAU * rate * t + ph)) * Math.sin(Math.PI * Math.min(1, u * 1.1)) ** 0.5,
-        voicing: () => 0.55, breath: () => 0.75,
-        vowels: [[0, 'o'], [1, 'u']], tilt: 1.45, drive: 0.05, rasp: 0.1, bandwidth: 1, peak: 0.5, attack: 0.14, release: 0.28,
+        voicing: () => 0.85, breath: () => 0.25,
+        vowels: [[0, 'o'], [1, 'u']], tilt: 1.5, drive: 0, rasp: 0.05, bandwidth: 1, peak: 0.52, attack: 0.14, release: 0.28,
       };
     },
   },
@@ -210,8 +219,8 @@ export const EMOTE_DEFS: Record<Emote, EmoteDef> = {
       const top = rng.range(2.25, 2.5);
       return {
         pitch: (u, t) => (u < 0.2 ? 1.8 + (top - 1.8) * smooth(u / 0.2) : top - (top - 1.75) * smooth((u - 0.2) / 0.8)) * (1 + 0.03 * Math.sin(TAU * 5.5 * t)),
-        amp: (u) => 0.85 + 0.15 * Math.sin(Math.PI * u), voicing: () => 1, breath: () => 0.35,
-        vowels: [[0, 'a'], [0.7, 'a'], [1, '@']], tilt: 0.85, drive: 0.6, rasp: 0.3, bandwidth: 1.8, peak: 0.9, attack: 0.04, release: 0.14,
+        amp: (u) => 0.85 + 0.15 * Math.sin(Math.PI * u), voicing: () => 1, breath: () => 0.15,
+        vowels: [[0, 'a'], [0.7, 'a'], [1, '@']], tilt: 0.9, drive: 0.35, rasp: 0.18, bandwidth: 1.7, peak: 0.9, attack: 0.04, release: 0.14,
       };
     },
   },
@@ -333,10 +342,11 @@ export function renderTrack(sr: number, profile: VoiceProfile, track: VoiceTrack
   const pitchOffset = 1 + rng.range(-0.035, 0.035);
   const formantJitter = [0, 1, 2].map(() => 1 + rng.range(-0.04, 0.04));
 
-  const noise = white(rng.fork('breath'));
+  const noise = pink(rng.fork('breath'));
   const jitterNoise = white(rng.fork('jitter'));
   const jitterLp = new OnePole(35, sr);
-  const hiss = new Biquad('highpass', 2200, 0.7, sr);
+  const breathLp = new OnePole(2800, sr);
+  const raspLp = new OnePole(1800, sr);
   const formants = [0, 1, 2].map((j) => new Biquad('bandpass', VOWEL_SHAPES.a.f[j]!, 5, sr));
   const vf = { f: [0, 0, 0], g: [0, 0, 0] };
   const jitterAmt = 0.006 + rasp * 0.045;
@@ -395,17 +405,16 @@ export function renderTrack(sr: number, profile: VoiceProfile, track: VoiceTrack
       voiced += partials(phase2, fd) * 0.6 * detune;
       voiced += Math.sin(TAU * phase * 0.5) * 0.4 * detune;
     }
-    // Rasp: period-doubling (alternate pulse strength) + pulse-synchronous noise.
-    const pulseNoise = noise();
+    // Rasp: period-doubling (alternate pulse strength) + band-limited pulse-synchronous air.
+    const pulseNoise = raspLp.process(noise());
     const glottalOpen = Math.pow(0.5 + 0.5 * Math.cos(TAU * phase), 6);
-    voiced = voiced * (1 - rasp * 0.35 * (1 - periodFlip) * 0.5) + rasp * 1.2 * pulseNoise * glottalOpen;
+    voiced = voiced * (1 - rasp * 0.35 * (1 - periodFlip) * 0.5) + rasp * 0.55 * pulseNoise * glottalOpen;
 
     const env = Math.min(1, t / attack) * Math.min(1, (dur - t) / release) * Math.max(0, track.amp(u, t));
-    const breathNoise = noise();
-    const excite = (voiced * 0.18 * track.voicing(u, t) + breathNoise * (breathBase * 0.25 + track.breath(u, t))) * env;
+    const breathNoise = breathLp.process(noise());
+    const excite = (voiced * 0.18 * track.voicing(u, t) + breathNoise * (breathBase * 0.25 + track.breath(u, t)) * 0.6) * env;
     let s = 0;
     for (let j = 0; j < 3; j++) s += formants[j]!.process(excite) * vf.g[j]!;
-    s += hiss.process(breathNoise) * track.breath(u, t) * env * 0.08;
     out[i] = s;
   }
   // Let the formants ring out into the tail.

@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '../core/rng.ts';
 import { Animator, type GaitStyle } from './animator.ts';
+import { planSpeech } from './speechActing.ts';
+import type { Emote } from '../data/types/dialogue.ts';
 import { bodyGeometryFromModel } from './bodyModel.ts';
 import type { BodyModelLibrary } from './bodyModelLibrary.ts';
 import { buildBodyGeometry, triangleCount, woundCap, type BodyGeometry, type ExtraBone, type ExtraBoneDef, type Look, type Outfit, type PartGeometry } from './bodyGeometry.ts';
@@ -227,6 +229,24 @@ export class Humanoid {
   setPose(name: string, blend = 0.4): void {
     this.idlePose = name;
     this.animator.setPose(name, blend);
+  }
+
+  /**
+   * Act out a spoken line (ADR-0027): the jaw follows the text's syllables for `duration` seconds and the emote picks the
+   * hand and body gestures. Does nothing for the dead and the infected.
+   */
+  speak(text: string, emote: Emote | null, duration: number, seed = text): void {
+    if (this.state !== 'alive' || this.infectionLevel >= 1) return;
+    this.animator.speak(planSpeech(text, emote, duration, seed));
+  }
+
+  /** The line ended or was cut off. */
+  stopSpeaking(): void {
+    this.animator.stopSpeaking();
+  }
+
+  get speaking(): boolean {
+    return this.animator.speaking;
   }
 
   setInfection(stage: number): void {
@@ -541,7 +561,6 @@ export class Humanoid {
     this.updateCloth(dt);
     const pulse = 0.7 + 0.3 * Math.sin(this.time * 2.3 + this.glowPhase) * Math.sin(this.time * 0.7 + this.glowPhase);
     this.materials.uniforms.uGlow.value = smooth(0.8, 3, this.infectionLevel) * pulse * (this.state === 'dead' ? 0.3 : 1) * 0.9;
-    this.group.updateMatrixWorld(true);
     this.solveIk();
   }
 
@@ -1011,9 +1030,13 @@ export class Humanoid {
 
   private solveIk(): void {
     if (this.state !== 'alive' || this.speed > 0.1 || this.transformAnim) return;
+    const doFeet = this.plantFeet && this.locomotion.mode === 'walk';
+    const doHands = (this.handTargets.L !== null && this.limbAttached('L', true)) || (this.handTargets.R !== null && this.limbAttached('R', true));
+    if (!doFeet && !doHands) return;
+    this.group.updateMatrixWorld(true);
     const w = this.geo.scale.w;
     let solved = false;
-    if (this.plantFeet && this.locomotion.mode === 'walk') {
+    if (doFeet) {
       for (const s of ['L', 'R'] as const) {
         if (!this.limbAttached(s, false)) continue;
         const x = (s === 'L' ? -1 : 1) * 0.11 * w;

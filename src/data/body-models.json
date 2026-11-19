@@ -44,9 +44,21 @@
     "share": 0,
     "sickTint": 0.3,
     "credit": {
-      "title": "Mujer 2 con bolsa",
-      "author": "Roberto Domínguez (vmmaniac)",
-      "source": "https://sketchfab.com/3d-models/mujer-2-con-bolsa-a194bc4db68741c0885c85cda87d3de2",
+      "title": "Modern Indian Woman",
+      "author": "Pixel_Monster",
+      "source": "https://sketchfab.com/3d-models/modern-indian-woman-830d8ed3236a4221862290b81807f408",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "sung": {
+    "url": "assets/models/squad/sung.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Construction Worker In Safety Gear",
+      "author": "restore50",
+      "source": "https://sketchfab.com/3d-models/construction-worker-in-safety-gear-f3d6999edb1e4cd99da2519c4d75bf2b",
       "license": "CC-BY-4.0"
     }
   }

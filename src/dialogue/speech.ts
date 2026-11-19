@@ -11,7 +11,7 @@
  * Node-testable with a fake player.
  */
 import type { EventBus } from '../core/events.ts';
-import { priorityRank, type Channel, type DialogueLine, type Priority, type VoiceProfile } from '../data/types/dialogue.ts';
+import { priorityRank, type Channel, type DialogueLine, type Emote, type Priority, type VoiceProfile } from '../data/types/dialogue.ts';
 import { subtitleDuration, type DialogueLibrary } from './library.ts';
 
 export interface Vec3Like {
@@ -28,6 +28,8 @@ export interface SpeechInfo {
   /** Display name for the subtitle. */
   name: string;
   text: string;
+  /** Tone of the line (ADR-0010), for acting it: null when the line only has recorded audio. */
+  emote: Emote | null;
   channel: Channel;
   priority: Priority;
   /** Seconds the subtitle stays up. */
@@ -308,6 +310,7 @@ export class SpeechManager {
       speaker: e.line.speaker,
       name: e.profile.name,
       text: e.line.text,
+      emote: e.line.emote,
       channel: e.line.channel,
       priority: e.line.priority,
       duration: e.duration,

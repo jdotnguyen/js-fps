@@ -221,8 +221,7 @@ test('doctor model: rig maps, stands straight facing -Z, shoes point forward, ke
   assert.ok(m.unmapped.every((u) => /^(_rootJoint|RL_BoneRoot|HipRoot|Waist|NeckUpper|FacialBone|MouthRoot|UpperJaw|Tongue|Teeth|(Left|Right)(Breast|Eye))/.test(u)), `only helpers and face bones unmapped: ${m.unmapped.join(',')}`);
 });
 
-// Priya Anand's body (data/body-models.json "priya"): an unrigged scan decimated, skinned to a Mixamo-named skeleton and
-// slimmed by scripts/fix-priya-glb.mjs.
+// Priya Anand's body (data/body-models.json "priya"): rigged model decimated, jaw-weighted and slimmed by scripts/fix-priya-glb.mjs.
 test('priya model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
   const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/priya.glb', import.meta.url)));
   const w = worldJoints(m);
@@ -247,3 +246,65 @@ test('priya model: rig maps, stands straight facing -Z, shoes point forward, kee
   }
   assert.deepEqual(m.unmapped, []);
 });
+
+// Sung's body (data/body-models.json "sung"): an unrigged scan decimated, skinned to a Mixamo-named skeleton and
+// slimmed by scripts/fix-sung-glb.mjs.
+test('sung model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/sung.glb', import.meta.url)));
+  const w = worldJoints(m);
+  for (const name of JOINT_NAMES) assert.ok(m.jointOffsets[name], name);
+  assert.ok(w.head.y > 1.45 && w.head.y < 1.75, `head at ${w.head.y}`);
+  for (const s of ['L', 'R'] as const) {
+    const out = s === 'L' ? -1 : 1;
+    assert.ok(w[`thigh_${s}`].x * out > 0.03, `thigh_${s} on its own side`);
+    assert.ok(w[`upperArm_${s}`].x * out > 0.1, `upperArm_${s} on its own side`);
+    for (const [a, b] of [[`upperArm_${s}`, `foreArm_${s}`], [`foreArm_${s}`, `hand_${s}`], [`thigh_${s}`, `shin_${s}`], [`shin_${s}`, `foot_${s}`]] as const) {
+      assert.ok(w[b].clone().sub(w[a]).normalize().y < -0.98, `${a} -> ${b} points down`);
+    }
+    const shoe = m.parts.filter((p) => p.joint === `foot_${s}`);
+    assert.ok(shoe.length > 0, `foot_${s} has pieces`);
+    let zSum = 0;
+    let n = 0;
+    for (const p of shoe) {
+      const pos = p.geometry.getAttribute('position');
+      for (let i = 0; i < pos.count; i++) { zSum += pos.getZ(i); n++; }
+    }
+    assert.ok(zSum / n < 0, `foot_${s} pieces centred ahead (-Z) of the ankle (${(zSum / n).toFixed(3)})`);
+  }
+  assert.deepEqual(m.unmapped, []);
+});
+
+// Talking (ADR-0027) needs a jaw: every squad model has real jaw weights on its lower face, hinged behind and below the cheek,
+// well under the eyes and ears, so the chin can drop without the skull or the throat following it.
+for (const name of ['mechanic', 'doctor', 'priya', 'sung'] as const) {
+  test(`${name} model: a jaw joint owns weight on the lower face and hinges near the ear`, async () => {
+    const m = prepareBodyModel(await loadWithoutTextures(new URL(`../../public/assets/models/squad/${name}.glb`, import.meta.url)));
+    const w = worldJoints(m);
+    // Hinge: below the head's top, behind the face (+Z is behind), within a head's height of the head joint.
+    assert.ok(w.jaw.y > 1.45 && w.jaw.y < 1.72, `${name} jaw hinge at y ${w.jaw.y}`);
+    assert.ok(Math.abs(w.jaw.x) < 0.08, `${name} jaw hinge on the midline (${w.jaw.x})`);
+    // Jaw weight: some vertices lean on the jaw joint, all below the hinge and none far above it.
+    const jaw = JOINT_INDEX.jaw;
+    let heavy = 0;
+    let highest = -Infinity;
+    let lowest = Infinity;
+    for (const p of m.parts) {
+      const pos = p.geometry.getAttribute('position');
+      const si = p.geometry.getAttribute('skinIndex');
+      const sw = p.geometry.getAttribute('skinWeight');
+      const at = worldJoints(m)[p.joint];
+      for (let i = 0; i < pos.count; i++) {
+        let wt = 0;
+        for (let k = 0; k < 4; k++) if (si.getComponent(i, k) === jaw) wt += sw.getComponent(i, k);
+        if (wt < 0.5) continue;
+        heavy++;
+        const y = pos.getY(i) + at.y;
+        highest = Math.max(highest, y);
+        lowest = Math.min(lowest, y);
+      }
+    }
+    assert.ok(heavy >= 20, `${name}: ${heavy} vertices follow the jaw`);
+    assert.ok(highest < w.jaw.y + 0.07, `${name}: jaw skin reaches y ${highest}, hinge ${w.jaw.y}`);
+    assert.ok(lowest > 1.4, `${name}: jaw skin does not hang down the throat (${lowest})`);
+  });
+}

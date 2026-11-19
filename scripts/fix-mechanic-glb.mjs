@@ -14,8 +14,10 @@ const json = JSON.parse(d.subarray(20, 20 + jsonLen).toString('utf8'));
 const names = new Map();
 const set = (i, n) => names.set(i, n);
 set(6, 'Root'); set(7, 'Hips');
-['Spine', 'Spine1', 'Spine2', 'Spine3', 'Spine4'].forEach((n, k) => set(8 + k, n));
-set(13, 'Neck'); set(14, 'Head'); set(15, 'HeadTop_End');
+['Spine', 'Spine1', 'Spine2', 'Spine3'].forEach((n, k) => set(8 + k, n));
+// Node 13 owns every head vertex and the eye bones hang off it, so it is the Head; 12 is the Neck above Spine3, and 14 is the
+// jaw hinge (no vertices are weighted to it; bodyModel.ts weights the lower face to it, see the `jaw` entry in body-models.json).
+set(12, 'Neck'); set(13, 'Head'); set(14, 'Jaw');
 const arm = (side, first) => {
   set(first, `${side}Clavicle`); set(first + 1, `${side}Arm`); set(first + 2, `${side}ForeArm`); set(first + 3, `${side}Hand`);
   // Five finger chains hang off the hand, in order: thumb, index, middle, ring (4 long), pinky.
