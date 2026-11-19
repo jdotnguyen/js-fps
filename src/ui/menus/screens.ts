@@ -14,6 +14,8 @@ export interface MenuDeps {
   events: EventBus;
   /** Settings > Accessibility "Reset tutorials" (ADR-0025). */
   resetTutorials?: () => void;
+  /** Opens the end-credits overlay from the title menu. */
+  showCredits?: () => void;
 }
 
 type NumKey = { [K in keyof Settings]: Settings[K] extends number ? K : never }[keyof Settings];
@@ -212,13 +214,14 @@ export function createMenus(root: HTMLElement, deps: MenuDeps): Menu {
     const any = saves.summaries().some((s) => !s.empty);
     return {
       title: 'THALASSA',
-      subtitle: 'Deep-sea horror · tech demo',
+      subtitle: 'Deep-sea horror',
       variant: 'title-screen',
       build: (m) => [
         latest ? button('Continue', () => game.load(latest), { autofocus: true }, h('small', { text: describe(latest) })) : null,
         button('New game', () => m.push(newGameScreen()), { autofocus: !latest }),
         button('Load game', () => m.push(loadScreen()), { disabled: !any }),
         button('Settings', () => m.push(settingsScreen())),
+        button('Credits', () => deps.showCredits?.()),
         h('p', { class: 'menu-foot', text: 'Headphones recommended.' }),
       ],
     };

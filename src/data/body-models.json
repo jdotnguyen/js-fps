@@ -5,13 +5,28 @@
       "shambler",
       "playDead"
     ],
-    "share": 0.5,
+    "share": 0.3333,
     "sickTint": 0.3,
     "credit": {
       "title": "Zombie Walk",
       "author": "LostBoyz2078",
       "source": "https://sketchfab.com/3d-models/zombie-walk-24fd963a21a14f4abc68fd8960f34069",
       "license": "CC-BY-NC-4.0"
+    }
+  },
+  "necromorphCrowd": {
+    "url": "assets/models/infected/necromorph_crowd.glb",
+    "variants": [
+      "shambler",
+      "playDead"
+    ],
+    "share": 0.5,
+    "sickTint": 0.15,
+    "credit": {
+      "title": "zombie monster slasher necromorph",
+      "author": "wojciechmiedziocha",
+      "source": "https://sketchfab.com/3d-models/zombie-monster-slasher-necromorph-d2f9be4f379a410f8c88745921bde6a0",
+      "license": "CC-BY-4.0"
     }
   },
   "mechanic": {
@@ -59,6 +74,93 @@
       "title": "Construction Worker In Safety Gear",
       "author": "restore50",
       "source": "https://sketchfab.com/3d-models/construction-worker-in-safety-gear-f3d6999edb1e4cd99da2519c4d75bf2b",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "ruiz": {
+    "url": "assets/models/squad/ruiz.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Modern Service Technician",
+      "author": "restore50",
+      "source": "https://sketchfab.com/3d-models/modern-service-technician-18479da8b89d458893cc6f614cca01a6",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "heins": {
+    "url": "assets/models/squad/heins.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "BS-V1 Cyborg",
+      "author": "Blue Spirit",
+      "source": "https://sketchfab.com/3d-models/bs-v1-cyborg-43f2e2e84fe94864bf13be2c69048597",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "hale": {
+    "url": "assets/models/squad/hale.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "A Man in suit",
+      "author": "anuragk1229",
+      "source": "https://sketchfab.com/3d-models/a-man-in-suit-5a2df7ef28bc408abf162d639e9583a8",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "necromorph": {
+    "url": "assets/models/infected/necromorph_slasher.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.15,
+    "credit": {
+      "title": "Necromorph Slasher Varient 1 Rig",
+      "author": "NO.DONT.EAT.ME.CASEOH",
+      "source": "https://sketchfab.com/3d-models/necromorph-slasher-varient-1-rig-137342e28bf947c19d347d9643b66621",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "bram": {
+    "url": "assets/models/squad/bram.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Chef T pose",
+      "author": "Imran Aziz (bayharborbutcher)",
+      "source": "https://sketchfab.com/3d-models/chef-t-pose-e63d4cf44225429a943e2d1021d6a130",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "assistant": {
+    "url": "assets/models/crew/assistant.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Lady in a trenchcoat",
+      "author": "ustoopia",
+      "source": "https://sketchfab.com/3d-models/lady-in-a-trenchcoat-0c78873c1dbf4c29b53bc8576258a74a",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "gameChar": {
+    "url": "assets/models/infected/gamechar.glb",
+    "variants": [
+      "shambler",
+      "playDead"
+    ],
+    "share": 1,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Zombie (Game character)",
+      "author": "barnusmodels",
+      "source": "https://sketchfab.com/3d-models/zombie-game-character-76760fc328ba47649d1abe929372f151",
       "license": "CC-BY-4.0"
     }
   }

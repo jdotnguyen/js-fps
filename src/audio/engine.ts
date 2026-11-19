@@ -20,6 +20,9 @@ export interface VoiceOptions {
   muffled?: boolean;
   rate?: number;
   variant?: number;
+  /** Play only a slice of the clip: start `offset` s in, for `duration` s (at rate 1), fading out at the end. */
+  offset?: number;
+  duration?: number;
 }
 
 export interface LoopHandle {
@@ -225,9 +228,20 @@ export class AudioEngine {
   }
 
   play(name: SoundName, opts: VoiceOptions = {}): void {
-    const { source, output } = this.voice(name, opts, false);
+    const { source, gain, output } = this.voice(name, opts, false);
     source.onended = () => output.disconnect();
-    source.start();
+    const length = source.buffer?.duration ?? 0;
+    if (opts.duration === undefined || length === 0) return void source.start();
+    const offset = Math.min(Math.max(0, opts.offset ?? 0), Math.max(0, length - 0.1));
+    const span = Math.min(opts.duration, length - offset);
+    const now = this.ctx.currentTime;
+    const fade = Math.min(0.3, span * 0.3);
+    const level = opts.gain ?? 1;
+    // `duration` counts clip seconds, so a faster rate finishes sooner; fade over the last bit of what is heard.
+    const heard = span / (opts.rate ?? 1);
+    gain.gain.setValueAtTime(level, now + Math.max(0, heard - fade));
+    gain.gain.linearRampToValueAtTime(0, now + heard);
+    source.start(now, offset, span);
   }
 
   /** Loop a pre-rendered stereo track on the music bus. Silent until `setGain` raises it. */

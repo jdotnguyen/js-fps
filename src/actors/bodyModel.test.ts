@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { bodyGeometryFromModel, normaliseBoneName, prepareBodyModel, type PreparedBodyModel } from './bodyModel.ts';
 import { JOINT_INDEX, JOINT_NAMES, JOINTS, type JointName } from './skeleton.ts';
 import { Humanoid } from './humanoid.ts';
@@ -17,14 +16,18 @@ async function loadWithoutTextures(url: URL): Promise<THREE.Group> {
     images?: unknown;
     textures?: unknown;
     samplers?: unknown;
-    materials?: Array<{ pbrMetallicRoughness?: { baseColorTexture?: unknown }; normalTexture?: unknown }>;
+    materials?: Array<{ pbrMetallicRoughness?: { baseColorTexture?: unknown; metallicRoughnessTexture?: unknown }; normalTexture?: unknown; occlusionTexture?: unknown; emissiveTexture?: unknown; extensions?: unknown }>;
   };
   delete json.images;
   delete json.textures;
   delete json.samplers;
   for (const m of json.materials ?? []) {
     delete m.pbrMetallicRoughness?.baseColorTexture;
+    delete m.pbrMetallicRoughness?.metallicRoughnessTexture;
     delete m.normalTexture;
+    delete m.occlusionTexture;
+    delete m.emissiveTexture;
+    delete m.extensions; // KHR_materials_specular carries textures of its own
   }
   let text = Buffer.from(JSON.stringify(json));
   while (text.length % 4) text = Buffer.concat([text, Buffer.from(' ')]);
@@ -36,7 +39,8 @@ async function loadWithoutTextures(url: URL): Promise<THREE.Group> {
   head.writeUInt32LE(text.length, 12);
   head.write('JSON', 16);
   const glb = Buffer.concat([head, text, rest]);
-  const gltf = await new GLTFLoader().parseAsync(glb.buffer.slice(glb.byteOffset, glb.byteOffset + glb.byteLength), '');
+  const { createGltfLoader } = await import('../render/gltf.ts');
+  const gltf = await (await createGltfLoader()).parseAsync(glb.buffer.slice(glb.byteOffset, glb.byteOffset + glb.byteLength), '');
   return gltf.scene;
 }
 
@@ -274,9 +278,144 @@ test('sung model: rig maps, stands straight facing -Z, shoes point forward, keep
   assert.deepEqual(m.unmapped, []);
 });
 
+// Bram's body (data/body-models.json "bram"): the unrigged T-pose chef scan decimated, skinned to a Mixamo-named skeleton
+// and slimmed by scripts/fix-bram-glb.mjs.
+test('bram model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/bram.glb', import.meta.url)));
+  const w = worldJoints(m);
+  for (const name of JOINT_NAMES) assert.ok(m.jointOffsets[name], name);
+  assert.ok(w.head.y > 1.45 && w.head.y < 1.75, `head at ${w.head.y}`);
+  for (const s of ['L', 'R'] as const) {
+    const out = s === 'L' ? -1 : 1;
+    assert.ok(w[`thigh_${s}`].x * out > 0.03, `thigh_${s} on its own side`);
+    assert.ok(w[`upperArm_${s}`].x * out > 0.1, `upperArm_${s} on its own side`);
+    for (const [a, b] of [[`upperArm_${s}`, `foreArm_${s}`], [`foreArm_${s}`, `hand_${s}`], [`thigh_${s}`, `shin_${s}`], [`shin_${s}`, `foot_${s}`]] as const) {
+      assert.ok(w[b].clone().sub(w[a]).normalize().y < -0.98, `${a} -> ${b} points down`);
+    }
+    const shoe = m.parts.filter((p) => p.joint === `foot_${s}`);
+    assert.ok(shoe.length > 0, `foot_${s} has pieces`);
+    let zSum = 0;
+    let n = 0;
+    for (const p of shoe) {
+      const pos = p.geometry.getAttribute('position');
+      for (let i = 0; i < pos.count; i++) { zSum += pos.getZ(i); n++; }
+    }
+    assert.ok(zSum / n < 0, `foot_${s} pieces centred ahead (-Z) of the ankle (${(zSum / n).toFixed(3)})`);
+  }
+  assert.deepEqual(m.unmapped, []);
+});
+
+// Ruiz's body (data/body-models.json "ruiz"): an unrigged mid-stride scan decimated and skinned to a Mixamo-named skeleton
+// by scripts/fix-ruiz-glb.mjs.
+test('ruiz model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/ruiz.glb', import.meta.url)));
+  const w = worldJoints(m);
+  for (const name of JOINT_NAMES) assert.ok(m.jointOffsets[name], name);
+  assert.ok(w.head.y > 1.45 && w.head.y < 1.75, `head at ${w.head.y}`);
+  for (const s of ['L', 'R'] as const) {
+    const out = s === 'L' ? -1 : 1;
+    assert.ok(w[`thigh_${s}`].x * out > 0.03, `thigh_${s} on its own side`);
+    assert.ok(w[`upperArm_${s}`].x * out > 0.1, `upperArm_${s} on its own side`);
+    for (const [a, b] of [[`upperArm_${s}`, `foreArm_${s}`], [`foreArm_${s}`, `hand_${s}`], [`thigh_${s}`, `shin_${s}`], [`shin_${s}`, `foot_${s}`]] as const) {
+      assert.ok(w[b].clone().sub(w[a]).normalize().y < -0.98, `${a} -> ${b} points down`);
+    }
+    const shoe = m.parts.filter((p) => p.joint === `foot_${s}`);
+    assert.ok(shoe.length > 0, `foot_${s} has pieces`);
+    let zSum = 0;
+    let n = 0;
+    for (const p of shoe) {
+      const pos = p.geometry.getAttribute('position');
+      for (let i = 0; i < pos.count; i++) { zSum += pos.getZ(i); n++; }
+    }
+    assert.ok(zSum / n < 0, `foot_${s} pieces centred ahead (-Z) of the ankle (${(zSum / n).toFixed(3)})`);
+  }
+  assert.deepEqual(m.unmapped, []);
+});
+
+// Bram's body (data/body-models.json "bram"): the unrigged T-pose chef scan decimated, skinned to a Mixamo-named skeleton
+// and slimmed by scripts/fix-bram-glb.mjs.
+test('bram model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/bram.glb', import.meta.url)));
+  const w = worldJoints(m);
+  for (const name of JOINT_NAMES) assert.ok(m.jointOffsets[name], name);
+  assert.ok(w.head.y > 1.45 && w.head.y < 1.75, `head at ${w.head.y}`);
+  for (const s of ['L', 'R'] as const) {
+    const out = s === 'L' ? -1 : 1;
+    assert.ok(w[`thigh_${s}`].x * out > 0.03, `thigh_${s} on its own side`);
+    assert.ok(w[`upperArm_${s}`].x * out > 0.1, `upperArm_${s} on its own side`);
+    for (const [a, b] of [[`upperArm_${s}`, `foreArm_${s}`], [`foreArm_${s}`, `hand_${s}`], [`thigh_${s}`, `shin_${s}`], [`shin_${s}`, `foot_${s}`]] as const) {
+      assert.ok(w[b].clone().sub(w[a]).normalize().y < -0.98, `${a} -> ${b} points down`);
+    }
+    const shoe = m.parts.filter((p) => p.joint === `foot_${s}`);
+    assert.ok(shoe.length > 0, `foot_${s} has pieces`);
+    let zSum = 0;
+    let n = 0;
+    for (const p of shoe) {
+      const pos = p.geometry.getAttribute('position');
+      for (let i = 0; i < pos.count; i++) { zSum += pos.getZ(i); n++; }
+    }
+    assert.ok(zSum / n < 0, `foot_${s} pieces centred ahead (-Z) of the ankle (${(zSum / n).toFixed(3)})`);
+  }
+  assert.deepEqual(m.unmapped, []);
+});
+
+// Katie Heins' body (data/body-models.json "heins"): an unrigged, unanimated A-pose mesh decimated per material, skinned to a
+// Mixamo-named skeleton and slimmed by scripts/fix-heins-glb.mjs.
+test('heins model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/heins.glb', import.meta.url)));
+  const w = worldJoints(m);
+  for (const name of JOINT_NAMES) assert.ok(m.jointOffsets[name], name);
+  assert.ok(w.head.y > 1.45 && w.head.y < 1.75, `head at ${w.head.y}`);
+  for (const s of ['L', 'R'] as const) {
+    const out = s === 'L' ? -1 : 1;
+    assert.ok(w[`thigh_${s}`].x * out > 0.03, `thigh_${s} on its own side`);
+    assert.ok(w[`upperArm_${s}`].x * out > 0.1, `upperArm_${s} on its own side`);
+    for (const [a, b] of [[`upperArm_${s}`, `foreArm_${s}`], [`foreArm_${s}`, `hand_${s}`], [`thigh_${s}`, `shin_${s}`], [`shin_${s}`, `foot_${s}`]] as const) {
+      assert.ok(w[b].clone().sub(w[a]).normalize().y < -0.98, `${a} -> ${b} points down`);
+    }
+    const shoe = m.parts.filter((p) => p.joint === `foot_${s}`);
+    assert.ok(shoe.length > 0, `foot_${s} has pieces`);
+    let zSum = 0;
+    let n = 0;
+    for (const p of shoe) {
+      const pos = p.geometry.getAttribute('position');
+      for (let i = 0; i < pos.count; i++) { zSum += pos.getZ(i); n++; }
+    }
+    assert.ok(zSum / n < 0, `foot_${s} pieces centred ahead (-Z) of the ankle (${(zSum / n).toFixed(3)})`);
+  }
+  assert.deepEqual(m.unmapped, []);
+});
+
+// Director Hale's body (data/body-models.json "hale"): a rigged T-pose avatar, decimated and given a jaw bone by
+// scripts/fix-hale-glb.mjs.
+test('hale model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/hale.glb', import.meta.url)));
+  const w = worldJoints(m);
+  for (const name of JOINT_NAMES) assert.ok(m.jointOffsets[name], name);
+  assert.ok(w.head.y > 1.45 && w.head.y < 1.75, `head at ${w.head.y}`);
+  for (const s of ['L', 'R'] as const) {
+    const out = s === 'L' ? -1 : 1;
+    assert.ok(w[`thigh_${s}`].x * out > 0.03, `thigh_${s} on its own side`);
+    assert.ok(w[`upperArm_${s}`].x * out > 0.1, `upperArm_${s} on its own side`);
+    for (const [a, b] of [[`upperArm_${s}`, `foreArm_${s}`], [`foreArm_${s}`, `hand_${s}`], [`thigh_${s}`, `shin_${s}`], [`shin_${s}`, `foot_${s}`]] as const) {
+      assert.ok(w[b].clone().sub(w[a]).normalize().y < -0.98, `${a} -> ${b} points down`);
+    }
+    const shoe = m.parts.filter((p) => p.joint === `foot_${s}`);
+    assert.ok(shoe.length > 0, `foot_${s} has pieces`);
+    let zSum = 0;
+    let n = 0;
+    for (const p of shoe) {
+      const pos = p.geometry.getAttribute('position');
+      for (let i = 0; i < pos.count; i++) { zSum += pos.getZ(i); n++; }
+    }
+    assert.ok(zSum / n < 0, `foot_${s} pieces centred ahead (-Z) of the ankle (${(zSum / n).toFixed(3)})`);
+  }
+  assert.deepEqual(m.unmapped, []);
+});
+
 // Talking (ADR-0027) needs a jaw: every squad model has real jaw weights on its lower face, hinged behind and below the cheek,
 // well under the eyes and ears, so the chin can drop without the skull or the throat following it.
-for (const name of ['mechanic', 'doctor', 'priya', 'sung'] as const) {
+for (const name of ['mechanic', 'doctor', 'priya', 'sung', 'ruiz', 'bram', 'heins', 'hale'] as const) {
   test(`${name} model: a jaw joint owns weight on the lower face and hinges near the ear`, async () => {
     const m = prepareBodyModel(await loadWithoutTextures(new URL(`../../public/assets/models/squad/${name}.glb`, import.meta.url)));
     const w = worldJoints(m);
@@ -308,3 +447,81 @@ for (const name of ['mechanic', 'doctor', 'priya', 'sung'] as const) {
     assert.ok(lowest > 1.4, `${name}: jaw skin does not hang down the throat (${lowest})`);
   });
 }
+
+// The hero's body (data/body-models.json "necromorph"): a 67-bone rig kept as supplied except that its animation clips were dropped.
+test('necromorph model: rig maps, stands straight facing -Z, keeps every limb piece', async () => {
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/infected/necromorph_slasher.glb', import.meta.url)));
+  const j = worldJoints(m);
+  assert.ok(j.head.y > j.pelvis.y && j.pelvis.y > j.foot_L.y, 'head over pelvis over feet');
+  assert.ok(j.foot_L.x < j.foot_R.x, 'left at -X');
+  const parts = new Set(m.parts.map((p) => p.joint));
+  for (const need of ['head', 'upperArm_L', 'upperArm_R', 'foreArm_L', 'foreArm_R', 'thigh_L', 'thigh_R', 'shin_L', 'shin_R'] as JointName[]) assert.ok(parts.has(need), `piece for ${need}`);
+});
+
+test('hero tier on the necromorph body: model used, hero gait and slam state kept, 2.15 m tall', async () => {
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/infected/necromorph_slasher.glb', import.meta.url)));
+  const library = { get: (id: string) => (id === 'necromorph' ? m : undefined) } as unknown as BodyModelLibrary;
+  const h = new Humanoid({ seed: 'hero-model', outfit: 'lab', role: 'enemy', infection: 2, hero: true, height: 2.15, build: 1.25, pose: 'hulk', model: 'necromorph' }, { ...enemyCtx(), bodyModels: library });
+  assert.equal(h.modelId, 'necromorph');
+  assert.ok(h.slam, 'slam state kept');
+  const box = new THREE.Box3().setFromObject(h.group);
+  assert.ok(box.max.y - box.min.y > 1.9 && box.max.y - box.min.y < 2.6, `height ${box.max.y - box.min.y}`);
+});
+
+// The admin assistant's body (data/body-models.json "assistant"): the "Lady in a trenchcoat" Mixamo rig, duplicate copy dropped and
+// textures re-encoded by scripts/fix-trenchcoat-glb.mjs.
+test('assistant model: rig maps, stands straight, keeps every limb piece', async () => {
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/crew/assistant.glb', import.meta.url)));
+  const w = worldJoints(m);
+  for (const name of JOINT_NAMES) assert.ok(m.jointOffsets[name], name);
+  assert.ok(w.head.y > 1.45 && w.head.y < 1.8, `head at ${w.head.y}`);
+  for (const s of ['L', 'R'] as const) {
+    const out = s === 'L' ? -1 : 1;
+    assert.ok(w[`thigh_${s}`].x * out > 0.03, `thigh_${s} on its own side`);
+    assert.ok(w[`upperArm_${s}`].x * out > 0.1, `upperArm_${s} on its own side`);
+    assert.ok(m.parts.some((p) => p.joint === `foot_${s}`), `foot_${s} has pieces`);
+  }
+  assert.deepEqual(m.unmapped, []);
+});
+
+// Crowd necromorph (data/body-models.json "necromorphCrowd"): a Mixamo-named 34-bone rig, animation dropped and textures re-encoded.
+test('necromorphCrowd model: rig maps, stands straight facing -Z, keeps every limb piece', async () => {
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/infected/necromorph_crowd.glb', import.meta.url)));
+  const j = worldJoints(m);
+  assert.ok(j.head.y > j.pelvis.y && j.pelvis.y > j.foot_L.y, 'head over pelvis over feet');
+  assert.ok(j.foot_L.x < j.foot_R.x, 'left at -X');
+  const parts = new Set(m.parts.map((p) => p.joint));
+  for (const need of ['head', 'upperArm_L', 'upperArm_R', 'foreArm_L', 'foreArm_R', 'thigh_L', 'thigh_R', 'shin_L', 'shin_R'] as JointName[]) assert.ok(parts.has(need), `piece for ${need}`);
+  assert.ok(m.triangles > 4000, `${m.triangles} triangles`);
+});
+
+test('the crowd picks a model every time: no procedural shamblers or play-dead bodies are left', async () => {
+  const { BodyModelLibrary } = await import('./bodyModelLibrary.ts');
+  const { Rng } = await import('../core/rng.ts');
+  const table = JSON.parse(readFileSync(new URL('../data/body-models.json', import.meta.url), 'utf8')) as ConstructorParameters<typeof BodyModelLibrary>[0];
+  const lib = new BodyModelLibrary(table);
+  const prepared = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/infected/necromorph_crowd.glb', import.meta.url)));
+  const loaded = (lib as unknown as { loaded: Map<string, unknown> }).loaded;
+  for (const id of Object.keys(table)) loaded.set(id, prepared);
+  const rng = new Rng(7);
+  const seen = new Set<string>();
+  for (let i = 0; i < 400; i++) for (const v of ['shambler', 'playDead']) {
+    const id = lib.pick(v, rng.fork(`s${i}${v}`));
+    assert.ok(id, `${v} spawn ${i} got no model`);
+    seen.add(id);
+  }
+  assert.ok(seen.has('zombieWalk') && seen.has('necromorphCrowd'));
+  assert.ok(!seen.has('priya'), 'squad bodies never join the crowd');
+});
+
+// Crowd game character (data/body-models.json "gameChar"): Mixamo-named 41-bone rig, decimated by scripts/fix-gamechar-glb.mjs.
+test('gameChar model: rig maps, stands straight facing -Z, keeps every limb piece, within the crowd budget', async () => {
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/infected/gamechar.glb', import.meta.url)));
+  const j = worldJoints(m);
+  assert.ok(j.head.y > j.pelvis.y && j.pelvis.y > j.foot_L.y, 'head over pelvis over feet');
+  assert.ok(j.foot_L.x < j.foot_R.x, 'left at -X');
+  const parts = new Set(m.parts.map((p) => p.joint));
+  // The source zombie has lost most of its right arm (a stub of shoulder and upper arm), so only the left arm is required.
+  for (const need of ['head', 'upperArm_L', 'foreArm_L', 'hand_L', 'thigh_L', 'thigh_R', 'shin_L', 'shin_R'] as JointName[]) assert.ok(parts.has(need), `piece for ${need}`);
+  assert.ok(m.triangles < 25000, `${m.triangles} triangles`);
+});

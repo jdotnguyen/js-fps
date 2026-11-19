@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test \"src/**/*.test.ts\"",
+    "textures": "node --experimental-strip-types scripts/textures/import.ts",
     "textures:preview": "node --experimental-strip-types scripts/textures-preview.ts",
     "sounds:preview": "node --experimental-strip-types scripts/sounds-preview.ts",
     "music:preview": "node --experimental-strip-types scripts/music-preview.ts",

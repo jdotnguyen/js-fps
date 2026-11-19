@@ -168,8 +168,8 @@ export class GlbWeapon {
 
 /** Load both weapon models (the GLTF loader is split out of the main bundle). */
 export async function loadWeaponModels(): Promise<Record<WeaponId, GlbWeapon>> {
-  const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
-  const loader = new GLTFLoader();
+  const { createGltfLoader } = await import('../gltf.ts');
+  const loader = await createGltfLoader();
   const ids = Object.keys(WEAPON_MODELS) as WeaponId[];
   const gltfs = await Promise.all(ids.map((id) => loader.loadAsync(WEAPON_MODELS[id].url)));
   const out = {} as Record<WeaponId, GlbWeapon>;

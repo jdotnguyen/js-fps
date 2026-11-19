@@ -86,7 +86,7 @@ test('gestures stay inside sane angles for every emote, and the other arm mirror
   void left;
 });
 
-test('arms gesture less when busy and not at all with armsK 0, but the body still moves', () => {
+test('arms gesture less when busy and not at all with armsK 0, and the body stays still', () => {
   const plan = planSpeech('Quiet now', 'urgent', 2, 'busy');
   const sum = (armsK: number): { arm: number; body: number } => {
     const r = { arm: 0, body: 0 };
@@ -99,7 +99,7 @@ test('arms gesture less when busy and not at all with armsK 0, but the body stil
   };
   assert.equal(sum(0).arm, 0);
   assert.ok(sum(0.25).arm < sum(1).arm);
-  assert.ok(sum(0).body > 0);
+  assert.equal(sum(1).body, 0);
 });
 
 // ---------------------------------------------------------------- on a real body

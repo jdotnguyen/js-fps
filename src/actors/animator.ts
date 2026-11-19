@@ -17,11 +17,11 @@ const J = JOINT_INDEX;
 const N = JOINTS.length;
 
 /** Full gait cycle length (two steps) in metres, and the speed it is tuned for. */
-const STRIDE: Record<GaitStyle, number> = { none: 1, walk: 1.3, shamble: 1.05, heavy: 1.55, crawl: 0.55, drag: 0.5, flail: 1.0 };
+const STRIDE: Record<GaitStyle, number> = { none: 1, walk: 1.3, shamble: 1.05, heavy: 1.6, crawl: 0.55, drag: 0.5, flail: 1.0 };
 /** Ground speed (m/s) a crawler's limbs act as if they were making per rad/s of turn while pivoting. */
 const PIVOT_DRIVE_CRAWL = 0.28;
 const PIVOT_DRIVE_DRAG = 0.22;
-const REF_SPEED: Record<GaitStyle, number> = { none: 1, walk: 1.4, shamble: 1.3, heavy: 0.95, crawl: 0.72, drag: 0.52, flail: 0.8 };
+const REF_SPEED: Record<GaitStyle, number> = { none: 1, walk: 1.4, shamble: 1.3, heavy: 0.64, crawl: 0.72, drag: 0.52, flail: 0.8 };
 
 /** Spring stiffness/damping for additive hit reactions. */
 const REACT_K = 140;
@@ -263,7 +263,6 @@ export class Animator {
     const open = mouthOpenAt(plan.cues, this.speechT);
     this.add('jaw', -plan.style.jaw * open * w, 0, 0);
     // The head and chest ride each syllable a little.
-    this.add('head', -1.2 * open * w, 0, 0);
     const upright = this.gait === 'none' || this.gait === 'walk' || this.gait === 'shamble' || this.gait === 'heavy';
     if (!upright) return;
     const busy = Animator.ARMS_BUSY.has(this.to.name) ? 0.25 : 1;

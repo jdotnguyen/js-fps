@@ -60,8 +60,8 @@ export class KitRegistry {
   async preload(ids: Iterable<string>): Promise<void> {
     const wanted = [...new Set(ids)].filter((id) => this.manifest.glb[id] && !this.glbs.has(id));
     if (!wanted.length) return;
-    const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
-    const loader = new GLTFLoader();
+    const { createGltfLoader } = await import('../render/gltf.ts');
+    const loader = await createGltfLoader();
     await Promise.all(
       wanted.map(async (id) => {
         const url = this.manifest.glb[id]!;

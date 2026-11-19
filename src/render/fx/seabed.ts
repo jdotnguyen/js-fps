@@ -44,8 +44,8 @@ export interface SeabedOptions {
 export function preloadSeabed(baseUrl = '/'): Promise<void> {
   if (source) return Promise.resolve();
   loading ??= (async () => {
-    const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
-    const gltf = await new GLTFLoader().loadAsync(baseUrl + MODEL_URL);
+    const { createGltfLoader } = await import('../gltf.ts');
+    const gltf = await (await createGltfLoader()).loadAsync(baseUrl + MODEL_URL);
     source = prepare(gltf.scene);
     for (const fn of waiting.splice(0)) fn();
   })().catch((err: unknown) => {

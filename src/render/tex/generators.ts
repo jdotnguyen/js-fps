@@ -345,7 +345,82 @@ export function hazardStripes(size: number, seed: number): TexSet {
   return w.finish('hazard', 3);
 }
 
-/** Every texture the demo room uses, keyed for the material library and previews. */
+/**
+ * 0.5 m x 0.5 m laboratory epoxy/ceramic floor tiles with grout seams, subtle per-tile
+ * tint variation, and light scuffing.
+ */
+export function labTile(size: number, seed: number): TexSet {
+  const w = new Writer(size);
+  const cell = size / 2;
+  const px = size / 512;
+  const scratch = scratchField(size, 45, seed + 17, 6 * px, 36 * px);
+  const GROUT: RGB = [0.18, 0.19, 0.2];
+
+  for (let y = 0; y < size; y++) {
+    const v = (y + 0.5) / size;
+    const ty = Math.floor(((y + 0.5) / size) * 2);
+    for (let x = 0; x < size; x++) {
+      const i = y * size + x;
+      const u = (x + 0.5) / size;
+      const tx = Math.floor(((x + 0.5) / size) * 2);
+      const cx = (x + 0.5) % cell;
+      const cy = (y + 0.5) % cell;
+      const de = Math.min(cx, cell - cx, cy, cell - cy) / px;
+
+      const grout = 1 - smoothstep(1.5, 4.5, de);
+      const bevel = smoothstep(4.5, 9, de);
+      const tileTint = (((tx * 37 + ty * 91 + seed) & 7) - 3.5) * 0.012;
+      const blotch = fbm(u, v, 4, 4, 4, seed + 5);
+      const fine = valueNoise(u * 256, v * 256, 256, 256, seed + 9);
+      const sc = scratch[i]!;
+      const grime = smoothstep(0.45, 0.85, fbm(u, v, 3, 3, 4, seed + 29)) * 0.38;
+
+      w.height[i] = bevel * 0.2 - grout * 0.5 - sc * 0.06 + fine * 0.02;
+
+      const k = 0.94 + tileTint + (blotch - 0.5) * 0.1 + fine * 0.04;
+      const c = [0.56 * k, 0.59 * k, 0.61 * k];
+      mixInto(c, [0.42, 0.44, 0.46], sc * 0.45);
+      mixInto(c, GROUT, grout);
+      mixInto(c, GRIME, grime * 0.5);
+      w.color(i, c);
+
+      const rough = lerp(0.36 + fine * 0.08 + sc * 0.25 + grime * 0.35, 0.88, grout);
+      w.surface(i, rough, 0);
+    }
+  }
+  return w.finish('labTile', 2.5);
+}
+
+/** Poured underground concrete with aggregate grain, subtle pour seams, and dampness. */
+export function concrete(size: number, seed: number): TexSet {
+  const w = new Writer(size);
+  const px = size / 512;
+
+  for (let y = 0; y < size; y++) {
+    const v = (y + 0.5) / size;
+    const seamDist = Math.min(y + 0.5, size - (y + 0.5)) / px;
+    const seam = 1 - smoothstep(0, 3.5, seamDist);
+    for (let x = 0; x < size; x++) {
+      const i = y * size + x;
+      const u = (x + 0.5) / size;
+      const macro = fbm(u, v, 3, 3, 4, seed);
+      const mid = fbm(u, v, 12, 12, 4, seed + 13);
+      const grain = valueNoise(u * 256, v * 256, 256, 256, seed + 29);
+      const damp = smoothstep(0.55, 0.85, macro);
+
+      w.height[i] = (mid - 0.5) * 0.25 + (grain - 0.5) * 0.12 - seam * 0.4;
+
+      const base = 0.34 + (macro - 0.5) * 0.1 + (mid - 0.5) * 0.08 + (grain - 0.5) * 0.06;
+      const c = [base, base * 1.01, base * 1.03];
+      mixInto(c, GRIME, damp * 0.35 + seam * 0.5);
+      w.color(i, c);
+      w.surface(i, lerp(0.92, 0.72, damp * 0.6), 0);
+    }
+  }
+  return w.finish('concrete', 3.5);
+}
+
+/** Every texture the demo room and lab use, keyed for the material library and previews. */
 export const TEXTURE_SPECS = {
   paintTeal: (s: number) => paintedMetal(s, { seed: 101, paint: [0.3, 0.4, 0.41], subdiv: 2, wear: 0.7, grime: 0.7, rivets: true }),
   paintDark: (s: number) => paintedMetal(s, { seed: 202, paint: [0.16, 0.18, 0.19], subdiv: 2, wear: 0.9, grime: 0.8, rivets: true }),
@@ -355,6 +430,11 @@ export const TEXTURE_SPECS = {
   grating: (s: number) => grating(s, 606),
   rubber: (s: number) => rubberStuds(s, 707),
   hazard: (s: number) => hazardStripes(s, 808),
+  /** Clean procedural stripes; kept as `hazardClean` once `hazard` becomes the rusty photo set. */
+  hazardClean: (s: number) => hazardStripes(s, 808),
+  labTile: (s: number) => labTile(s, 909),
+  labPanel: (s: number) => paintedMetal(s, { seed: 1010, paint: [0.7, 0.73, 0.75], subdiv: 2, wear: 0.25, grime: 0.35, rivets: false }),
+  concrete: (s: number) => concrete(s, 1111),
 } as const satisfies Record<string, (size: number) => TexSet>;
 
 export type TextureKey = keyof typeof TEXTURE_SPECS;

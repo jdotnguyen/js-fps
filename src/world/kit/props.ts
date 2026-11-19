@@ -202,6 +202,18 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     pb.light([0, 0.1, 0], 'emergency');
   },
 
+  /**
+   * Rusted DANGER / DO NOT ENTER plate (photo slot `signDanger`, a non-tiling decal): one quad with
+   * full 0..1 UVs. Wall-mounted like other wall props: origin on the floor at the wall face, the
+   * front faces -Z, so rotate it to face into the room. `y` is the centre height, default 1.6 m.
+   */
+  sign_danger(p, _rng, m, pb) {
+    const w = numParam(p, 'width', 0.6);
+    const h = numParam(p, 'height', 0.45);
+    const y = numParam(p, 'y', 1.6);
+    pb.add(new THREE.PlaneGeometry(w, h), m.signDanger, at(0, y, -0.006, 0, PI, 0));
+  },
+
   vent_grate(p, _rng, m, pb) {
     const s = numParam(p, 'size', 0.8);
     for (const dz of [-s / 2, s / 2]) pb.add(rounded(s + 0.08, 0.05, 0.08, 0.01), m.steel, at(0, 0.02, dz));
@@ -213,7 +225,7 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
 
   valve(_p, _rng, m, pb) {
     pb.add(lathe([[0, 0], [0.12, 0], [0.12, 0.05], [0.09, 0.08], [0.11, 0.3], [0.06, 0.38], [0.03, 0.55], [0, 0.55]], 18), m.paintDark);
-    pb.add(new THREE.TorusGeometry(0.18, 0.018, 8, 28), m.hazard, at(0, 0.55, 0, PI / 2, 0, 0));
+    pb.add(new THREE.TorusGeometry(0.18, 0.018, 8, 28), m.hazardClean, at(0, 0.55, 0, PI / 2, 0, 0));
     for (let k = 0; k < 3; k++) pb.add(slab(0.36, 0.014, 0.02), m.steel, at(0, 0.55, 0, 0, (k * PI) / 3, 0));
     pb.solid(-0.2, 0, -0.2, 0.2, 0.6, 0.2, 'metal');
   },

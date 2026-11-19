@@ -5,7 +5,7 @@
 Status: decided via design Q&A. The current INKSHOT wave-shooter is a throwaway prototype; reuse only the Three.js/Vite scaffolding, input and audio plumbing.
 
 ## Pitch
-A Dead Space-style survival-horror FPS. You are a security officer on a deep-sea base overrun by an infection. You are the best fighter on the team, but two specialist squadmates unlock doors and systems you can't, and feed you spoken hints. Tech demo: a 10-15 minute vertical slice, built so later chapters are just new data. Long-term: a multi-chapter game of a few hours, built as a hobby over time.
+A Dead Space-style survival-horror FPS. You are a security officer on a deep-sea base overrun by an infection. You are the best fighter on the team, but two specialist squadmates unlock doors and systems you can't, and feed you spoken hints. First release: a 10-15 minute vertical slice, built so later chapters are just new data. Long-term: a multi-chapter game of a few hours, built as a hobby over time.
 
 ## Scope of this slice
 - Quiet opening in real-time first person (Half-Life style): the base feels eerily normal, then "the drop" when the first infected appears.

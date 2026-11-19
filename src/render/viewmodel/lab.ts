@@ -1,25 +1,20 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { createHandMaterials, type HandPose } from './hand.ts';
-import { createWeaponMaterials } from './parts.ts';
-import { buildPistol, type PistolOptions } from './pistol.ts';
-import { buildShotgun, type ShotgunOptions } from './shotgun.ts';
-import { basisPlacement, elbowBend, type Placement, type WeaponRig } from './rig.ts';
+import { loadWeaponModels, type ClipName, type GlbWeapon, type PlayOptions } from './glbWeapons.ts';
+import type { WeaponId } from './rig.ts';
 
 /**
- * ?vmlab: a bare turntable for the viewmodels (no game, no post) with a scriptable camera,
- * so hand poses and weapon parts can be inspected from any angle. Drive it from the console
+ * ?vmlab: a bare turntable for the imported weapon viewmodels (no game, no post) with a scriptable
+ * camera, so models and animation clips can be inspected from any angle. Drive it from the console
  * through `window.vmlab`.
  */
 export interface Lab {
-  show(id: 'pistol' | 'shotgun', opts?: PistolOptions & ShotgunOptions): WeaponRig;
+  show(id: WeaponId): GlbWeapon;
+  play(clip: ClipName, opts?: PlayOptions): void;
   cam(px: number, py: number, pz: number, tx?: number, ty?: number, tz?: number, fov?: number): void;
-  rig: WeaponRig | null;
-  basis: typeof basisPlacement;
-  elbow: typeof elbowBend;
+  weapon: GlbWeapon | null;
   /** Slice everything above this height (metres), or null to clear. */
   clip(y: number | null): void;
-  place(hand: 'left' | 'right', p: Placement): void;
 }
 
 declare global {
@@ -42,30 +37,25 @@ export async function runLab(renderer: THREE.WebGLRenderer): Promise<void> {
   scene.add(key, rim, fill);
 
   const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.01, 20);
-  const wm = createWeaponMaterials();
-  const hm = createHandMaterials();
-  let rig: WeaponRig | null = null;
+  const t0 = performance.now();
+  const weapons = await loadWeaponModels();
+  console.info(`[vmlab] loaded weapon GLBs in ${(performance.now() - t0).toFixed(0)} ms`);
+
+  let active: GlbWeapon | null = null;
   const lab: Lab = {
-    rig: null,
-    basis: basisPlacement,
-    elbow: elbowBend,
+    weapon: null,
     clip(y) {
       renderer.clippingPlanes = y === null ? [] : [new THREE.Plane(new THREE.Vector3(0, -1, 0), y)];
     },
-    place(hand, p) {
-      const g = rig?.root.getObjectByName(hand === 'right' ? 'hand-right' : 'hand-left');
-      if (!g) return;
-      g.position.set(...p.pos);
-      g.rotation.set(...p.rot);
+    show(id) {
+      if (active) scene.remove(active.root);
+      active = weapons[id];
+      scene.add(active.root);
+      lab.weapon = active;
+      return active;
     },
-    show(id, opts) {
-      if (rig) scene.remove(rig.root);
-      const t0 = performance.now();
-      rig = id === 'pistol' ? buildPistol(wm, hm, opts) : buildShotgun(wm, hm, opts);
-      console.info(`[vmlab] built ${rig.id} in ${(performance.now() - t0).toFixed(0)} ms`);
-      scene.add(rig.root);
-      lab.rig = rig;
-      return rig;
+    play(clip, opts) {
+      active?.play(clip, opts);
     },
     cam(px, py, pz, tx = 0, ty = 0, tz = 0, fov = 40) {
       camera.position.set(px, py, pz);
@@ -82,7 +72,12 @@ export async function runLab(renderer: THREE.WebGLRenderer): Promise<void> {
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
   });
-  renderer.setAnimationLoop(() => renderer.render(scene, camera));
+  let last = performance.now();
+  renderer.setAnimationLoop(() => {
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    active?.update(dt);
+    renderer.render(scene, camera);
+  });
 }
-
-export type { HandPose };

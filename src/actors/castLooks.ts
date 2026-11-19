@@ -38,9 +38,13 @@ const NAMED: Record<string, CastLook> = {
       props: ['penlight', 'chestPatch'],
     },
   },
-  /** Katie Heins, security chief: Jay's uniform with a lighter jacket, short purple hair. */
+  /**
+   * Katie Heins, security chief: Jay's uniform with a lighter jacket, short purple hair. Imported body (ADR-0026, data/body-models.json):
+   * the "BS-V1 Cyborg" model (cybernetic right arm, dark jacket). `outfit`/`look` below only apply if it fails to load.
+   */
   heins: {
     seed: 'katie-heins',
+    model: 'heins',
     outfit: 'security',
     height: 1.7,
     build: 0.97,
@@ -58,9 +62,13 @@ const NAMED: Record<string, CastLook> = {
       props: ['chestPatch'],
     },
   },
-  /** Director Hale: a charcoal suit jacket, nervous, tired. */
+  /**
+   * Director Hale: a charcoal suit jacket, nervous, tired. Imported body (ADR-0026, data/body-models.json): the "A Man in suit" model.
+   * `outfit`/`look` below only apply if it fails to load.
+   */
   hale: {
     seed: 'director-hale',
+    model: 'hale',
     outfit: 'crew',
     height: 1.76,
     build: 1.02,
@@ -77,9 +85,13 @@ const NAMED: Record<string, CastLook> = {
       outfitColors: { suit: '#24262b', over: '#2f3238', coat: true, boots: '#0e0e10', belt: '#0e0e10' },
     },
   },
-  /** Bram, the cook (`crew_cook`): white kitchen jacket over checked-grey trousers. */
+  /**
+   * Bram, the cook (`crew_cook`). Imported body (ADR-0026, data/body-models.json): the "Chef T pose" scan.
+   * `outfit`/`look` below (white kitchen jacket over checked-grey trousers) only apply if it fails to load and he falls back to the procedural body.
+   */
   cook: {
     seed: 'bram-cook',
+    model: 'bram',
     outfit: 'crew',
     height: 1.78,
     build: 1.15,
@@ -94,9 +106,13 @@ const NAMED: Record<string, CastLook> = {
       outfitColors: { suit: '#4a4c50', over: '#d6d3cb' },
     },
   },
-  /** Ines Ruiz, comms technician: crew blues with a tool vest. */
+  /**
+   * Ines Ruiz, comms technician. Imported body (ADR-0026, data/body-models.json): the "Modern Service Technician" scan.
+   * `outfit`/`look`/`props` below (crew blues with a tool vest) only apply if it fails to load and she falls back to the procedural body.
+   */
   ruiz: {
     seed: 'ines-ruiz',
+    model: 'ruiz',
     outfit: 'crew',
     height: 1.66,
     build: 0.93,
@@ -148,6 +164,22 @@ const CREW: Readonly<Record<string, Pick<CastLook, 'outfit' | 'look'>>> = {
 export const CREW_LOOKS: readonly string[] = Object.keys(CREW);
 
 /**
+ * Imported bodies (ADR-0026, `data/body-models.json`) for generic crew looks: each NPC of the look gets one of these, picked by its id so
+ * the same NPC keeps the same body. The procedural outfit above is the fallback if a model fails to load.
+ */
+const CREW_MODELS: Readonly<Record<string, readonly string[]>> = {
+  botanist: ['botanist1', 'botanist2', 'botanist3'],
+  assistant: ['assistant'],
+};
+
+/** FNV-1a: a stable, well-spread hash of an NPC id. */
+function hashId(id: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+}
+
+/**
  * The body spec for a look id. Named cast ignore `npcId`; generic crew use it as the seed.
  * Unknown ids fall back to plain crew (and say so through `warn`).
  */
@@ -157,7 +189,8 @@ export function castSpec(lookId: string, npcId: string, warn?: (m: string) => vo
   const crew = CREW[lookId];
   if (!crew) warn?.(`npc "${npcId}": unknown look "${lookId}", using crew`);
   const c = crew ?? CREW['crew']!;
-  return { seed: `crew:${npcId}`, outfit: c.outfit, ...(c.look ? { look: c.look } : {}) };
+  const model = CREW_MODELS[lookId];
+  return { seed: `crew:${npcId}`, outfit: c.outfit, ...(c.look ? { look: c.look } : {}), ...(model ? { model: model[hashId(npcId) % model.length]! } : {}) };
 }
 
 export function isKnownLook(lookId: string): boolean {

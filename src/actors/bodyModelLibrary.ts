@@ -36,8 +36,8 @@ export class BodyModelLibrary {
 
   /** Load and prepare every model. Never throws: failures are warned about and the model is left out. */
   async load(baseUrl: string): Promise<void> {
-    const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
-    const loader = new GLTFLoader();
+    const { createGltfLoader } = await import('../render/gltf.ts');
+    const loader = await createGltfLoader();
     await Promise.all(
       Object.entries(this.table).map(async ([id, def]) => {
         try {

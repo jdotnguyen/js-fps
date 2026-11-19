@@ -7,7 +7,7 @@ export type AoFn = (p: THREE.Vector3, n: THREE.Vector3) => number;
 const vertexColorVariants = new WeakMap<THREE.Material, THREE.Material>();
 
 /** Shared clone of a material that multiplies by vertex colours (the baked AO). */
-function withVertexColors(material: THREE.Material): THREE.Material {
+export function withVertexColors(material: THREE.Material): THREE.Material {
   let v = vertexColorVariants.get(material);
   if (!v) {
     v = material.clone();

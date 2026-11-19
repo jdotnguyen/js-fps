@@ -17,10 +17,16 @@ export class MenuMusic {
   private readonly engine: AudioEngine;
   private mode: GameMode;
   private handle: LoopHandle | null = null;
+  private resolveReady!: () => void;
+  /** Resolves once the menu theme has finished rendering (or failed to render). */
+  readonly ready: Promise<void>;
 
   constructor(engine: AudioEngine, mode: GameMode) {
     this.engine = engine;
     this.mode = mode;
+    this.ready = new Promise<void>((r) => {
+      this.resolveReady = r;
+    });
   }
 
   start(): void {
@@ -31,8 +37,12 @@ export class MenuMusic {
       this.handle = this.engine.loopStereo(e.data.left, e.data.right, e.data.sampleRate);
       console.info(`[boot] menu music rendered in ${(performance.now() - t0).toFixed(0)} ms`);
       this.apply();
+      this.resolveReady();
     };
-    worker.onerror = (e): void => console.warn('[audio] menu music failed to render', e.message);
+    worker.onerror = (e): void => {
+      console.warn('[audio] menu music failed to render', e.message);
+      this.resolveReady();
+    };
     worker.postMessage('render');
   }
 

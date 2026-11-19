@@ -9,6 +9,8 @@ import { levelValidator, type LevelData } from '../data/types/level.ts';
 import { validateUiText } from '../data/types/uiText.ts';
 import { Inventory } from '../game/inventory.ts';
 import type { Materials } from '../render/materials.ts';
+import { withVertexColors } from './kit/merge.ts';
+import { Rng } from '../core/rng.ts';
 import type { Interactable, Interactions } from '../actors/interaction.ts';
 import { DEFAULT_MOTOR, moveBody, type MotorState } from '../actors/motor.ts';
 import type { P3 } from '../ai/nav.ts';
@@ -41,7 +43,12 @@ function fakeMaterials(): Materials {
   const s = (color: number): THREE.MeshStandardMaterial => new THREE.MeshStandardMaterial({ color });
   return {
     paintTeal: s(0x2f6f70), paintDark: s(0x222222), paintBone: s(0xccccbb), steel: s(0x888888), diamond: s(0x777777),
-    grating: s(0x666666), rubber: s(0x111111), hazard: s(0xccaa00), glass: new THREE.MeshPhysicalMaterial({ transparent: true }),
+    grating: s(0x666666), rubber: s(0x111111), hazard: s(0xccaa00),
+    labTile: s(0x889096), labPanel: s(0xb2b8bc), concrete: s(0x55585a),
+    diamondHazard: s(0x886622), diamondRusty: s(0x775544), hazardClean: s(0xccaa00), rustHeavy: s(0x664433),
+    rustDrip: s(0x775533), rustBlotch: s(0x887766), concreteFloor: s(0x55585a), concretePainted: s(0x333537),
+    tileBroken: s(0x889096), tileWall: s(0xaaaaaa), tileWashroom: s(0x667777), signDanger: s(0xaa4422),
+    glass: new THREE.MeshPhysicalMaterial({ transparent: true }),
     black: s(0x000000), cable: s(0x111111), glowCyan: s(0x00ffff),
   };
 }
@@ -307,3 +314,82 @@ function meshesByName(level: InstanceType<typeof Level>, prefix: string): THREE.
   });
   return out;
 }
+
+// ---------------------------------------------------------------- photo textures: palettes, Lab B, signs
+
+function buildWith(materials: Materials): { level: InstanceType<typeof Level>; events: EventBus } {
+  const events = new EventBus();
+  const level = new Level(data, { materials, registry, events, scene: new THREE.Scene(), inventory: null, uiText: ui });
+  return { level, events };
+}
+
+function roomMaterials(level: InstanceType<typeof Level>, room: string): Set<THREE.Material> {
+  const out = new Set<THREE.Material>();
+  level.group.getObjectByName(`room:${room}`)!.traverse((o) => {
+    if (o instanceof THREE.Mesh) out.add(o.material as THREE.Material);
+  });
+  return out;
+}
+
+test('area palettes reach the pieces: the nutrient room override and the kitchen / lab tile materials', () => {
+  const mats = fakeMaterials();
+  const { level } = buildWith(mats);
+  const has = (room: string, key: keyof Materials): boolean => {
+    const set = roomMaterials(level, room);
+    return set.has(mats[key]) || set.has(withVertexColors(mats[key]));
+  };
+  assert.ok(has('R12d', 'tileWashroom'), 'R12d walls use tileWashroom via params.material');
+  assert.ok(!has('R12d', 'paintTeal') || has('R12d', 'tileWashroom'));
+  assert.ok(has('R04', 'labTile') && has('R04', 'tileWall'), 'Lab B: tile floor and tile walls');
+  assert.ok(has('R08b', 'tileWall'), 'surgery tile walls');
+  assert.ok(has('R02', 'tileWall'), 'kitchen tile walls');
+  assert.ok(has('R09', 'rustHeavy'), 'tunnel walls');
+  assert.ok(has('R13b', 'rustBlotch') && has('R13b', 'diamondRusty') && has('R13b', 'hazard'), 'dive bay palette, rusty hazard');
+  assert.ok(!has('R01', 'hazard') && has('R01', 'hazardClean'), 'dock uses the clean hazard stripes');
+  assert.ok(has('R01', 'concretePainted'), 'dock floor');
+});
+
+test('Lab B floor swaps labTile -> tileBroken on the glass:set labb cracked event and back on level:reset', () => {
+  const mats = fakeMaterials();
+  const { level, events } = buildWith(mats);
+  const floor = (): { clean: boolean; broken: boolean } => {
+    const set = roomMaterials(level, 'R04');
+    return { clean: set.has(withVertexColors(mats.labTile)) || set.has(mats.labTile), broken: set.has(withVertexColors(mats.tileBroken)) || set.has(mats.tileBroken) };
+  };
+  assert.deepEqual(floor(), { clean: true, broken: false });
+  events.emit('glass:set' as never, { id: 'gallery_other', state: 'cracked' } as never);
+  assert.deepEqual(floor(), { clean: true, broken: false }, 'other glass does not trigger it');
+  events.emit('glass:set' as never, { id: 'labb', state: 'cracked' } as never);
+  assert.deepEqual(floor(), { clean: false, broken: true });
+  events.emit('level:reset', {});
+  assert.deepEqual(floor(), { clean: true, broken: false });
+  level.breakLabBFloor();
+  assert.deepEqual(floor(), { clean: false, broken: true });
+});
+
+test('sign_danger props sit on the wall beside the Lab B and pressure-door-hall doors', () => {
+  const doorFace = (doorId: string, side: 'cell' | 'far', lx: number): { pos: [number, number]; rot: number } => {
+    const d = data.doors.find((x) => x.id === doorId)!;
+    const th = (d.rot * Math.PI) / 180;
+    // Door frame slab is 0.5 m thick centred on the cell's local -Z edge; the sign hugs one face, 1.66 m off-centre (beside the jamb, on the side with no perpendicular wall).
+    const lz = side === 'cell' ? -1.75 : -2.25;
+    const x = d.cell[0] * 4 + lx * Math.cos(th) + lz * Math.sin(th);
+    const z = d.cell[2] * 4 - lx * Math.sin(th) + lz * Math.cos(th);
+    return { pos: [Math.round(x * 100) / 100, Math.round(z * 100) / 100], rot: (d.rot + (side === 'cell' ? 180 : 0)) % 360 };
+  };
+  const expect: Array<[string, string, 'cell' | 'far', number]> = [
+    ['R04', 'D_R04_R05', 'cell', -1.66],
+    ['R06', 'D_R05_R06', 'far', 1.66],
+    ['R06', 'D_R06_R07', 'cell', 1.66],
+  ];
+  for (const [room, door, side, lx] of expect) {
+    const e = doorFace(door, side, lx);
+    const sign = data.rooms.find((r) => r.id === room)!.props!.find((p) => p.kit === 'sign_danger' && Math.abs(p.pos[0] - e.pos[0]) < 0.02 && Math.abs(p.pos[2] - e.pos[1]) < 0.02);
+    assert.ok(sign, `${room} sign for ${door} at ${e.pos.join(',')}`);
+    assert.equal(sign.rot ?? 0, e.rot, `${door} sign faces into ${room}`);
+    assert.equal(sign.pos[1], 0);
+  }
+  // The prop is a single textured quad.
+  const out = registry.create('sign_danger', {}, new Rng('sign'), fakeMaterials());
+  assert.equal(out.object.children.length, 1);
+});

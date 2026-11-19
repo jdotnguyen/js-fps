@@ -21,7 +21,7 @@ declare module '../../core/events.ts' {
 }
 
 /** Sound moments, each emitted at a fixed point of a GLB clip (seconds into it, see CUES). */
-export type WeaponCue = 'magOut' | 'magIn' | 'slide' | 'slideSoft' | 'pump';
+export type WeaponCue = 'magOut' | 'magIn' | 'slide' | 'slideSoft' | 'cockBack' | 'pump';
 
 /**
  * First-person weapon viewmodels (ADR-0005): the animated pistol and shotgun GLBs (skinned arms + gun,
@@ -42,6 +42,8 @@ export const CUES = {
     slide: 1.29,
     /** The same slide move in a normal reload (ReloadClip), played softly. */
     slideSoft: 0.7,
+    /** Real seconds after Weild starts at which the rack sound starts (the pull-back click is 0.06 s into the sample, the slide moves back at ~0.34 s). */
+    cockBack: 0.28,
   },
   shotgun: {
     /** Delay from the shot to PostFire starting; PostFire racks the pump. */
@@ -490,6 +492,7 @@ export class Viewmodel {
     const len = rig.duration(clip) / speed;
     this.restAt = this.time + len;
     this.busyUntil = this.time + Math.min(len, 0.5);
+    if (id === 'pistol' && clip === 'Weild') this.schedule(CUES.pistol.cockBack, 'pistol', 'cockBack');
     if (id === 'shotgun') this.schedule(clip === 'Weild' ? CUES.shotgun.pumpWield : CUES.shotgun.pumpDraw, 'shotgun', 'pump');
   }
 

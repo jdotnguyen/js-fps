@@ -13,7 +13,7 @@ import type { AudioEngine } from './engine.ts';
 
 /** Tracks by id, as sequences name them (`{ "do": "radio", "track": "tag_fm_01" }`). */
 export const RADIO_TRACKS: Record<string, string> = {
-  tag_fm_01: 'assets/audio/music/tag-fm/tag-fm-01.wav',
+  tag_fm_01: 'assets/audio/music/tag-fm/tag-fm-01.mp3',
 };
 
 export const RADIO_FX = {

@@ -229,6 +229,11 @@ export function planSpeech(text: string, emote: Emote | null, duration: number, 
   };
 }
 
+/** Speech should read as talking, not thrashing: torso movement, start jolts and tremor are switched off (only the jaw and the arms and hands act). */
+const TORSO_K = 0;
+const KICK_K = 0.5;
+const TREMOR_K = 0;
+
 const smooth01 = (x: number): number => {
   const k = Math.min(1, Math.max(0, x));
   return k * k * (3 - 2 * k);
@@ -268,7 +273,8 @@ export function gesture(plan: SpeechPlan, t: number, w: number, armsK: number, o
       out(name, x * k * armsK, y * k * armsK * sign(side), z * k * armsK * sign(side));
     } else {
       // The tilt of a cocked head leans a random way per line.
-      out(joint as JointName, x * k, y * k, z * k * (s.tilt && (joint === 'head' || joint === 'neck') ? plan.tilt : 1));
+      const bodyK = TORSO_K;
+      out(joint as JointName, x * k * bodyK, y * k * bodyK, z * k * bodyK * (s.tilt && (joint === 'head' || joint === 'neck') ? plan.tilt : 1));
     }
   };
   for (const [joint, v] of Object.entries(s.hold) as Array<[GestureJoint, readonly [number, number, number]]>) put(joint, v, w * settle);
@@ -278,9 +284,9 @@ export function gesture(plan: SpeechPlan, t: number, w: number, armsK: number, o
     const k = joint.endsWith('_S') && !s.both ? beatK * 0.25 : beatK;
     put(joint, v, k);
   }
-  for (const [joint, v] of Object.entries(s.kick) as Array<[GestureJoint, readonly [number, number, number]]>) put(joint, v, w * kick);
+  for (const [joint, v] of Object.entries(s.kick) as Array<[GestureJoint, readonly [number, number, number]]>) put(joint, v, w * kick * KICK_K);
   if (s.tremor > 0) {
-    const a = s.tremor * w;
+    const a = s.tremor * w * TREMOR_K;
     const f = t * 31 + hash01(plan.seed, 7) * 10;
     out('head', Math.sin(f) * a, Math.sin(f * 1.31 + 1) * a * 0.7, Math.sin(f * 0.83 + 2) * a * 0.5);
     out('chest', Math.sin(f * 1.1 + 3) * a * 0.4, 0, 0);
@@ -290,7 +296,7 @@ export function gesture(plan: SpeechPlan, t: number, w: number, armsK: number, o
     }
   }
   if (s.bounce > 0) {
-    const f = Math.sin(t * Math.PI * 2 * s.beatHz) * s.bounce * w;
+    const f = Math.sin(t * Math.PI * 2 * s.beatHz) * s.bounce * w * TORSO_K;
     out('chest', -Math.abs(f) * 0.6, 0, 0);
     out('head', -Math.abs(f) * 0.8, 0, 0);
     out('pelvis', 0, 0, f * 0.15);

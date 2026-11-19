@@ -12,7 +12,7 @@ import { fixtureMaterial, type Materials } from '../render/materials.ts';
 import { CollisionWorld, type Collider } from './collision.ts';
 import { at } from './kit/geom.ts';
 import { buildDoor, type DoorVisual } from './kit/doors.ts';
-import { AoMergeBuilder, type AoFn } from './kit/merge.ts';
+import { AoMergeBuilder, withVertexColors, type AoFn } from './kit/merge.ts';
 import { CELL, CORRIDOR_H, DECK_H, ROOM_H, transformBox, type BoxSpec, type LightSlotKind, type PieceOutput, type PieceParams } from './kit/types.ts';
 import { LightPool, type PooledSlot } from './lightPool.ts';
 import type { KitRegistry } from './registry.ts';
@@ -47,6 +47,9 @@ declare module '../core/events.ts' {
     'level:reset': Record<string, never>;
   }
 }
+
+/** The Lab B outbreak: room R04's floor breaks when the glass partition `labb` cracks (drop.json). */
+const LAB_B = { room: 'R04', glass: 'labb' } as const;
 
 export interface LevelDeps {
   materials: Materials;
@@ -240,6 +243,8 @@ export class Level implements World {
   private atmosphereReady = false;
   private readonly scratch2 = new THREE.Vector3();
   private feetY = 0;
+  /** Merged Lab B floor meshes (labTile) that swap to tileBroken after the outbreak. */
+  private readonly labbFloor: THREE.Mesh[] = [];
 
   constructor(data: LevelData, deps: LevelDeps) {
     this.deps = deps;
@@ -271,6 +276,11 @@ export class Level implements World {
         }
       });
     }
+    this.collectLabBFloor();
+    this.deps.events.on('glass:set' as EventName, ((e: { id?: string; state?: string } | undefined) => {
+      if (e?.id === LAB_B.glass && (e.state === 'cracked' || e.state === 'shattered')) this.breakLabBFloor(true);
+    }) as never);
+    this.deps.events.on('level:reset', () => this.breakLabBFloor(false));
     for (const door of this.doors) {
       const mb = new AoMergeBuilder();
       for (const mesh of door.staticMeshes) mb.addMesh(mesh);
@@ -346,7 +356,7 @@ export class Level implements World {
       for (const cell of cells) {
         const rot = piece.rot ?? 0;
         const matrix = cellMatrix(cell, rot);
-        const params: PieceParams = { height, ...(piece.params ?? {}) };
+        const params: PieceParams = { height, ...(r.area !== undefined ? { area: r.area } : {}), ...(piece.params ?? {}) };
         const out = registry.create(piece.kit, params, rng.fork(`${r.id}:${piece.kit}:${cell.join(',')}`), m);
         this.integrate(room, out, matrix, deg(rot), rawSlots);
         const key = cell.join(',');
@@ -362,7 +372,7 @@ export class Level implements World {
     for (const prop of r.props ?? []) {
       const ry = deg(prop.rot ?? 0);
       const matrix = at(prop.pos[0], prop.pos[1], prop.pos[2], 0, ry, 0);
-      const params: PieceParams = { ceiling: height - prop.pos[1], ...(prop.params ?? {}) };
+      const params: PieceParams = { ceiling: height - prop.pos[1], ...(r.area !== undefined ? { area: r.area } : {}), ...(prop.params ?? {}) };
       const out = registry.create(prop.kit, params, rng.fork(`${r.id}:${prop.kit}:${prop.pos.join(',')}`), m);
       this.integrate(room, out, matrix, ry, rawSlots);
     }
@@ -434,6 +444,29 @@ export class Level implements World {
       const box = new THREE.Box3(new THREE.Vector3(...t.box[0]), new THREE.Vector3(...t.box[1]));
       this.triggers.push({ data: t, room, box, inside: false, fired: false });
       this.debug.triggers.push(box);
+    }
+  }
+
+  /** Find the merged labTile meshes of Lab B once the rooms are built. */
+  private collectLabBFloor(): void {
+    const room = this.roomById.get(LAB_B.room);
+    const { labTile } = this.deps.materials;
+    if (!room) return;
+    room.group.traverse((o) => {
+      if (o instanceof THREE.Mesh && (o.material === labTile || o.material === withVertexColors(labTile))) this.labbFloor.push(o);
+    });
+  }
+
+  /**
+   * Lab B outbreak (the `glass labb cracked` beat of the drop sequence): the floor swaps from clean
+   * `labTile` to `tileBroken` (same tile grid, tiles missing). `false` restores it (new game).
+   */
+  breakLabBFloor(broken = true): void {
+    const { labTile, tileBroken } = this.deps.materials;
+    const to = broken ? tileBroken : labTile;
+    for (const mesh of this.labbFloor) {
+      const baked = mesh.material !== labTile && mesh.material !== tileBroken;
+      mesh.material = baked ? withVertexColors(to) : to;
     }
   }
 

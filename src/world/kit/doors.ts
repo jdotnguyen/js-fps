@@ -62,7 +62,7 @@ export function buildDoor(kit: DoorKit, height: number, state: () => DoorState, 
       mb.add(rounded(2.1, 2.5, 0.24, 0.04), m.paintDark, at(0, 0, 0));
       for (const y of [-0.8, 0, 0.8]) mb.add(rounded(2.02, 0.12, 0.32, 0.02), m.steel, at(0, y, 0));
       for (const fz of [-1, 1]) {
-        mb.add(slab(1.9, 0.22, 0.02, 0.5), m.hazard, at(0, -1.05, fz * 0.13));
+        mb.add(slab(1.9, 0.22, 0.02, 0.5), m.hazardClean, at(0, -1.05, fz * 0.13));
         mb.add(new THREE.TorusGeometry(0.26, 0.03, 8, 32), m.steel, at(0, 0.4, fz * 0.2));
         for (let k = 0; k < 3; k++) mb.add(slab(0.52, 0.025, 0.03), m.steel, at(0, 0.4, fz * 0.2, 0, 0, (k * PI) / 3));
         mb.add(slab(0.3, 0.12, 0.02), m.black, at(0.7, 0.9, fz * 0.13));
@@ -82,12 +82,12 @@ export function buildDoor(kit: DoorKit, height: number, state: () => DoorState, 
           mb.add(rounded(1.02, 0.18, 0.1, 0.02), m.steel, at(0, -1.11, 0));
           mb.add(rounded(0.08, 2.4, 0.1, 0.02), m.steel, at(-0.47, 0, 0));
           mb.add(rounded(0.08, 2.4, 0.12, 0.02), m.steel, at(0.47, 0, 0));
-          mb.add(slab(0.86, 0.06, 0.104), m.hazard, at(0, -0.15, 0));
+          mb.add(slab(0.86, 0.06, 0.104), m.hazardClean, at(0, -0.15, 0));
         } else {
           mb.add(rounded(1.02, 2.4, 0.14, 0.03), m.paintDark, at(0, 0, 0));
           mb.add(rounded(0.06, 2.4, 0.18, 0.02), m.steel, at(-s * 0.48, 0, 0));
           for (const fz of [-1, 1]) {
-            mb.add(slab(0.96, 0.22, 0.02, 0.5), m.hazard, at(0, -0.4, fz * 0.075));
+            mb.add(slab(0.96, 0.22, 0.02, 0.5), m.hazardClean, at(0, -0.4, fz * 0.075));
             mb.add(slab(0.3, 0.16, 0.02), m.black, at(s * 0.1, 0.7, fz * 0.075));
             mb.add(rounded(0.7, 0.05, 0.03, 0.01), m.steel, at(0, 0.3, fz * 0.08));
           }

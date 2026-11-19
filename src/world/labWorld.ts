@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PLAYER_TUNING, type PlayerWorld } from '../actors/player.ts';
 import { gridNodes, NavGraph } from '../ai/nav.ts';
 import { LightController, type ControlledLight } from '../render/lights.ts';
+import type { Materials } from '../render/materials.ts';
 import { CollisionWorld } from './collision.ts';
 import { LightPool, type PooledSlot } from './lightPool.ts';
 import type { World } from './world.ts';
@@ -26,19 +27,91 @@ interface LabMeta {
 }
 
 const DIR = 'assets/models/lab/';
-const LAMP = { color: '#dcefff', intensity: 10, range: 10 };
+const LAMP = { color: '#dcefff', intensity: 45, range: 18 };
 
-export async function loadLabWorld(baseUrl: string, scene: THREE.Scene): Promise<World> {
+function applyLabMaterials(root: THREE.Object3D, materials: Materials): void {
+  // Imported architectural meshes often have single-sided planes; DoubleSide prevents
+  // upper floors/catwalks from looking transparent when viewed from below.
+  const doubleCache = new Map<THREE.MeshStandardMaterial, THREE.MeshStandardMaterial>();
+  const doubleSided = (base: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial => {
+    let m = doubleCache.get(base);
+    if (!m) {
+      m = base.clone();
+      m.side = THREE.DoubleSide;
+      doubleCache.set(base, m);
+    }
+    return m;
+  };
+
+  const blueGlass = materials.glass.clone();
+  blueGlass.color.setHex(0x6eaee0);
+  blueGlass.opacity = 0.24;
+
+  const byName: Record<string, { mat: THREE.Material; shadow: boolean }> = {
+    lab_hub_floor: { mat: doubleSided(materials.labTile), shadow: true },
+    lab_hub_wall: { mat: doubleSided(materials.labPanel), shadow: true },
+    lab_hub_ceiling: { mat: doubleSided(materials.paintDark), shadow: true },
+    lab_hub_prop: { mat: doubleSided(materials.steel), shadow: true },
+    lab_east_floor: { mat: doubleSided(materials.labTile), shadow: true },
+    lab_east_upper_floor: { mat: doubleSided(materials.diamond), shadow: true },
+    lab_east_wall: { mat: doubleSided(materials.paintBone), shadow: true },
+    lab_east_ceiling: { mat: doubleSided(materials.paintDark), shadow: true },
+    lab_east_prop: { mat: doubleSided(materials.steel), shadow: true },
+    lab_west_floor: { mat: doubleSided(materials.rubber), shadow: true },
+    lab_west_wall: { mat: doubleSided(materials.paintTeal), shadow: true },
+    lab_west_ceiling: { mat: doubleSided(materials.concrete), shadow: true },
+    lab_west_prop: { mat: doubleSided(materials.steel), shadow: true },
+    lab_north_floor: { mat: doubleSided(materials.concrete), shadow: true },
+    lab_north_wall: { mat: doubleSided(materials.concrete), shadow: true },
+    lab_north_ceiling: { mat: doubleSided(materials.paintDark), shadow: true },
+    lab_north_prop: { mat: doubleSided(materials.paintDark), shadow: true },
+    glass: { mat: materials.glass, shadow: false },
+    Material_44: { mat: blueGlass, shadow: false },
+  };
+
+  root.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    const m = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+    const entry = m?.name ? byName[m.name] : undefined;
+    if (!entry) return;
+    obj.material = entry.mat;
+    obj.castShadow = entry.shadow;
+    obj.receiveShadow = entry.shadow;
+  });
+}
+
+export async function loadLabWorld(baseUrl: string, scene: THREE.Scene, materials: Materials): Promise<World> {
   const base = baseUrl + DIR;
   const [meta, boxes, gltf] = await Promise.all([
     fetch(`${base}underground_lab.json`).then((r) => r.json() as Promise<LabMeta>),
     fetch(`${base}underground_lab.colliders.bin`).then((r) => r.arrayBuffer()),
-    import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => new GLTFLoader().loadAsync(`${base}underground_lab.glb`)),
+    import('../render/gltf.ts').then(({ createGltfLoader }) => createGltfLoader().then((l) => l.loadAsync(`${base}underground_lab.glb`))),
   ]);
 
+  applyLabMaterials(gltf.scene, materials);
   const group = new THREE.Group();
   group.name = 'lab';
   group.add(gltf.scene);
+
+  // Add a full-bounds ceiling cap so open-top cutaway areas don't show the void above.
+  const [minX, , minZ] = meta.bounds.min;
+  const [maxX, maxY, maxZ] = meta.bounds.max;
+  const ceilW = maxX - minX;
+  const ceilD = maxZ - minZ;
+  const ceilGeo = new THREE.PlaneGeometry(ceilW, ceilD);
+  const ceilUv = ceilGeo.getAttribute('uv');
+  for (let i = 0; i < ceilUv.count; i++) {
+    ceilUv.setXY(i, ceilUv.getX(i) * ceilW, ceilUv.getY(i) * ceilD);
+  }
+  const ceilMat = materials.paintDark.clone();
+  ceilMat.side = THREE.DoubleSide;
+  const ceiling = new THREE.Mesh(ceilGeo, ceilMat);
+  ceiling.name = 'lab_roof_ceiling';
+  ceiling.rotation.x = Math.PI / 2;
+  ceiling.position.set((minX + maxX) / 2, maxY, (minZ + maxZ) / 2);
+  ceiling.receiveShadow = true;
+  ceiling.castShadow = false;
+  group.add(ceiling);
   // Collision: the baked boxes are int16 centimetres relative to the grid origin.
   const colliders = new CollisionWorld();
   const q = new Int16Array(boxes);
@@ -49,16 +122,16 @@ export async function loadLabWorld(baseUrl: string, scene: THREE.Scene): Promise
   }
   const playerWorld: PlayerWorld = { colliders, surfaceAt: () => 'metal' };
 
-  // Lighting: a dim ambient plus the pool's eight nearest ceiling lamps (ADR-0002).
-  group.add(new THREE.HemisphereLight(0x8fb0bd, 0x0e1215, 0.22));
+  // Lighting: bright ambient + hemisphere fill plus the pool's 12 nearest ceiling lamps.
+  group.add(new THREE.HemisphereLight(0xaad0de, 0x2a3338, 1.1));
   const lights = new LightController();
-  const pool = new LightPool(group, 8);
+  const pool = new LightPool(group, 12);
   const slots: PooledSlot[] = meta.lamps.map((p, i) => {
     const item: ControlledLight = { name: `lab-lamp-${i}`, light: null, base: LAMP.intensity, pattern: 'steady', seed: i, emissives: [], emissiveBase: 0, shafts: [], shaftBase: 0, level: 1 };
     lights.items.push(item);
     return { item, position: new THREE.Vector3(p.x, p.y, p.z), color: new THREE.Color(LAMP.color), range: LAMP.range, priority: 0, score: 0 };
   });
-  if (scene.fog instanceof THREE.FogExp2) scene.fog.density = 0.03;
+  if (scene.fog instanceof THREE.FogExp2) scene.fog.density = 0.014;
 
   const floor = meta.mainFloorY;
   let nav: NavGraph | null = null;

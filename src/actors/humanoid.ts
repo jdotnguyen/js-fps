@@ -37,7 +37,7 @@ export const STAGGER_SPEED = 0.3;
 const PIVOT_REACH_CRAWL = 0.32;
 const PIVOT_REACH_DRAG = 0.4;
 /** Hero tier (ADR-0021): walk speed share, turn speed (rad/s), and how generous the weak-spot hit area is. */
-const HERO_SPEED = 0.72;
+const HERO_SPEED = 0.49; // x WALK_SPEED.enemy 1.3 = 0.64 m/s: one 1.6 m heavy stride per 2.5 s, the necromorph's own walk-clip cycle
 const HERO_TURN = 1.2;
 const WEAK_SPOT_SLACK = 1.25;
 /** Merge group for a piece: its imported surface, else its layer. Surface keys never clash with the layers (bodyModel.ts). */

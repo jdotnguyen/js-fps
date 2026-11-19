@@ -56,6 +56,8 @@ export interface EnemyDirectorDeps {
 /** Corpses kept before the oldest is removed (ADR-0007: 16). */
 export const MAX_CORPSES = 16;
 const PLAYER_RADIUS = 0.35;
+/** Hero tier body (data/body-models.json): the necromorph slasher. If it fails to load the sculpted procedural hero is used. */
+const HERO_MODEL = 'necromorph';
 
 const tmpV = new THREE.Vector3();
 const tmpW = new THREE.Vector3();
@@ -186,7 +188,7 @@ export class EnemyDirector implements EnemyHost {
       ...(hero ? { hero: true, height: 2.15, build: 1.25, pose: 'hulk' } : {}),
     };
     // Imported bodies for the crowd only (ADR-0026). Own rng fork, so procedural spawns stay as they were.
-    const model = hero ? null : opts.model !== undefined ? opts.model : (this.d.ctx.bodyModels?.pick(variant, rng.fork('model')) ?? null);
+    const model = opts.model !== undefined ? opts.model : hero ? (this.d.ctx.bodyModels?.get(HERO_MODEL) ? HERO_MODEL : null) : (this.d.ctx.bodyModels?.pick(variant, rng.fork('model')) ?? null);
     if (model) spec.model = model;
     const start = opts.start ?? (variant === 'playDead' ? 'playDead' : 'stand');
     const e = new Enemy({ id, variant, tuning, group: opts.group ?? null, pos, yaw, spec, start }, this.d.ctx, rng, (this.list.length * 0.037) % 0.2);

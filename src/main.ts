@@ -27,16 +27,10 @@ import { CameraFeeds } from './render/cameraFeed.ts';
 import { createFeedGl } from './render/cameraFeedGl.ts';
 import { preloadSeabed } from './render/fx/seabed.ts';
 import { preloadSubModel } from './render/fx/subModel.ts';
-import { buildDemoRoom, type DemoRoom } from './world/demoRoom.ts';
-import { demoRoomWorld } from './world/demoWorld.ts';
-import { loadLabWorld } from './world/labWorld.ts';
-import { loadLevel, type Level } from './world/level.ts';
-import { KitRegistry, validateKitManifest } from './world/registry.ts';
-import { LevelOverlay, OVERLAY_LAYERS } from './world/levelDebug.ts';
-import { levelValidator } from './data/types/level.ts';
-import kitManifestJson from './data/kit-manifest.json';
+import type { DemoRoom } from './world/demoRoom.ts';
+import type { Level } from './world/level.ts';
 import type { World } from './world/world.ts';
-import { DemoRoomAudio } from './world/demoRoomAudio.ts';
+import type { DemoRoomAudio } from './world/demoRoomAudio.ts';
 import { AudioEngine } from './audio/engine.ts';
 import { MenuMusic } from './audio/menuMusic.ts';
 import { Game } from './game/game.ts';
@@ -45,15 +39,14 @@ import { CutsceneUi } from './ui/hud/cutsceneUi.ts';
 import { TitleCard } from './ui/titleCard.ts';
 import { Interactions } from './actors/interaction.ts';
 import { Player, PLAYER_TUNING } from './actors/player.ts';
-import { DEBUG_SEQUENCES } from './actors/debugSequences.ts';
 import { createGameHost } from './script/gameHost.ts';
 import { loadSequences } from './script/load.ts';
-import { SequenceOverlay } from './script/overlay.ts';
 import { SequenceManager } from './script/runtime.ts';
-import { DEMO_INTERACT_BOXES } from './world/demoRoomColliders.ts';
 import { PlayerHud, keyLabel } from './ui/hud/playerHud.ts';
 import { SaveStore } from './game/save.ts';
 import { createMenus } from './ui/menus/screens.ts';
+import type { EndCredits } from './ui/credits.ts';
+import { startSplash } from './ui/splash.ts';
 import { Toasts } from './ui/toast.ts';
 import { TutorialPrompts } from './ui/tutorialPrompts.ts';
 import { TutorialProfile } from './ui/tutorials.ts';
@@ -79,7 +72,7 @@ import { Inventory } from './game/inventory.ts';
 // ADR-0024 map + objectives, ADR-0010 speech, barks and hints, ADR-0005/0008 supplies.
 import objectivesJson from './data/objectives.json';
 import { objectivesValidator } from './data/types/objectives.ts';
-import { buildMapModel, MapState } from './ui/mapModel.ts';
+import type { MapModel, MapState } from './ui/mapModel.ts';
 import { Guidance } from './game/guidance.ts';
 import { loadDialogueLibrary } from './dialogue/load.ts';
 import { SpeechManager } from './dialogue/speech.ts';
@@ -88,7 +81,7 @@ import { Subtitles } from './ui/hud/subtitles.ts';
 
 /** The level New game plays (ADR-0014). */
 const DEFAULT_LEVEL = 'slice01';
-const LEVEL_FILES = import.meta.glob<unknown>('./data/levels/*.json', { eager: true, import: 'default' });
+const LEVEL_FILES = import.meta.glob<unknown>('./data/levels/*.json', { import: 'default' });
 const TEXTURE_SIZE = 512;
 const FOG_COLOR = 0x04080a;
 const GRAIN = 0.035;
@@ -141,6 +134,18 @@ async function boot(): Promise<void> {
     await runLab(renderer);
     return;
   }
+  // Start audio and menu theme rendering immediately so "Pressure" builds in parallel with
+  // texture/level loading and plays before the splash screens begin.
+  const audio = new AudioEngine();
+  console.info(`[boot] sounds rendered in ${audio.renderSounds().toFixed(0)} ms`);
+  void audio.loadSamples();
+  splash.attachAudio(audio);
+  const menuMusic = new MenuMusic(audio, 'title');
+  menuMusic.start();
+  splash.attachMusicReady(menuMusic.ready);
+  addEventListener('pointerdown', () => void audio.resume(), { capture: true });
+  addEventListener('keydown', () => void audio.resume(), { capture: true });
+
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(FOG_COLOR);
   scene.fog = new THREE.FogExp2(FOG_COLOR, 0.05);
@@ -166,36 +171,58 @@ async function boot(): Promise<void> {
     preloadSeabed(import.meta.env.BASE_URL),
     preloadSubModel(import.meta.env.BASE_URL),
   ]);
+  let mapModel: MapModel | null = null;
+  let mapState: MapState | null = null;
   if (levelId) {
     const file = Object.entries(LEVEL_FILES).find(([path]) => path.endsWith(`/${levelId}.json`));
     if (!file) throw new Error(`No level '${levelId}'. Known: ${Object.keys(LEVEL_FILES).map((f) => f.replace(/^.*\/|\.json$/g, '')).join(', ')}`);
+    const [
+      levelJson,
+      { loadLevel },
+      { KitRegistry, validateKitManifest },
+      { levelValidator },
+      { default: kitManifestJson },
+      { buildMapModel, MapState },
+    ] = await Promise.all([
+      file[1](),
+      import('./world/level.ts'),
+      import('./world/registry.ts'),
+      import('./data/types/level.ts'),
+      import('./data/kit-manifest.json'),
+      import('./ui/mapModel.ts'),
+    ]);
     const registry = new KitRegistry(validate(validateKitManifest, kitManifestJson, 'data/kit-manifest.json'), undefined);
     const refs = { items: new Set(Object.keys(itemTable)), uiText: new Set(Object.keys(uiText)) };
-    const data = validate(levelValidator(registry.ids(), refs), file[1], `data/levels/${levelId}.json`);
+    const data = validate(levelValidator(registry.ids(), refs), levelJson, `data/levels/${levelId}.json`);
     level = await loadLevel(data, { materials, registry, events, scene, inventory, uiText });
     levelSpawns = spawnPointsOf(data);
     world = level;
+    mapModel = buildMapModel(level.source);
+    mapState = new MapState(mapModel);
     console.info(`[boot] level '${levelId}' built in ${(performance.now() - t0).toFixed(0)} ms`);
     console.table(level.roomStats());
   } else if (levelParam === 'lab') {
     // Sandbox: the imported underground-laboratory model with baked box collision (src/world/labWorld.ts).
-    world = await loadLabWorld(import.meta.env.BASE_URL, scene);
+    const { loadLabWorld } = await import('./world/labWorld.ts');
+    world = await loadLabWorld(import.meta.env.BASE_URL, scene, materials);
     console.info(`[boot] lab map loaded in ${(performance.now() - t0).toFixed(0)} ms`);
   } else {
+    const [{ buildDemoRoom }, { demoRoomWorld }] = await Promise.all([
+      import('./world/demoRoom.ts'),
+      import('./world/demoWorld.ts'),
+    ]);
     room = buildDemoRoom(materials, new Rng('demo-room'));
     world = demoRoomWorld(room);
     console.info(`[boot] textures + room built in ${(performance.now() - t0).toFixed(0)} ms`);
   }
   scene.add(world.group);
 
-  // Audio starts suspended; the first click anywhere resumes it (browser rule).
-  const audio = new AudioEngine();
-  console.info(`[boot] sounds rendered in ${audio.renderSounds().toFixed(0)} ms`);
-  void audio.loadSamples();
-  const roomAudio = room ? new DemoRoomAudio(audio, room, new Rng('room-audio')) : null;
-  roomAudio?.start();
-  addEventListener('pointerdown', () => void audio.resume(), { capture: true });
-  addEventListener('keydown', () => void audio.resume(), { capture: true });
+  let roomAudio: DemoRoomAudio | null = null;
+  if (room) {
+    const { DemoRoomAudio } = await import('./world/demoRoomAudio.ts');
+    roomAudio = new DemoRoomAudio(audio, room, new Rng('room-audio'));
+    roomAudio.start();
+  }
 
   camera.position.copy(world.spawn.position);
   const input = new Input(canvas, keymap, events);
@@ -242,8 +269,6 @@ async function boot(): Promise<void> {
     hasIntro: () => level?.anchor('post_front') != null,
   });
   // Map knowledge (ADR-0024): outlines from the level data, saved with the game.
-  const mapModel = level ? buildMapModel(level.source) : null;
-  const mapState = mapModel ? new MapState(mapModel) : null;
   const game = new Game({
     events,
     settings,
@@ -446,9 +471,76 @@ async function boot(): Promise<void> {
     holds: (id) => inventory.satisfies(id),
     keys: (a) => keymap[a],
   });
-  createMenus(el<HTMLElement>('#menu'), { game, saves, settings, difficulties, events, resetTutorials: () => tutorials.reset() });
-  const menuMusic = new MenuMusic(audio, game.mode);
-  menuMusic.start();
+  const menuRoot = el<HTMLElement>('#menu');
+  let credits: EndCredits | null = null;
+  const showCredits = (): void => {
+    void (async () => {
+      if (!credits) {
+        const [{ EndCredits }] = await Promise.all([
+          import('./ui/credits.ts'),
+          import('./ui/styles/credits.css'),
+        ]);
+        credits = new EndCredits(document.body, {
+          reducedMotion: () => settings.get().reducedMotion,
+          reducedFlashing: () => settings.get().reducedFlashing,
+        });
+      }
+      credits.show(() => {
+        if (!menuRoot.hidden) {
+          menuRoot.querySelector<HTMLElement>('[autofocus], button, input, select')?.focus();
+        }
+      });
+    })();
+  };
+  createMenus(menuRoot, { game, saves, settings, difficulties, events, resetTutorials: () => tutorials.reset(), showCredits });
+  // Menu UI sounds: hover/keyboard focus on a control, and a chirp when it's activated.
+  const menuControl = (t: EventTarget | null): HTMLElement | null =>
+    t instanceof Element ? t.closest<HTMLElement>('button:not([disabled]), select, input') : null;
+  let lastMenuHover: HTMLElement | null = null;
+  menuRoot.addEventListener('pointerover', (e) => {
+    const c = menuControl(e.target);
+    if (!c || c === lastMenuHover) return;
+    lastMenuHover = c;
+    audio.play('uiHover', { bus: 'ui', gain: 0.8, rate: 0.97 + Math.random() * 0.06 });
+  });
+  menuRoot.addEventListener('pointerout', (e) => {
+    if (menuControl(e.target) === lastMenuHover && !menuControl(e.relatedTarget)) lastMenuHover = null;
+  });
+  menuRoot.addEventListener('keydown', (e) => {
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && menuControl(e.target)) audio.play('uiHover', { bus: 'ui', gain: 0.8, rate: 0.97 + Math.random() * 0.06 });
+  });
+  // Menu open sting: at boot and whenever the menu reappears (Esc, or alt-tab dropping pointer lock).
+  // Browsers keep audio suspended until the first gesture, so a boot-time open waits for it.
+  const playMenuOpen = (): void => {
+    try {
+      audio.play('uiMenuOpen', { bus: 'ui', gain: 0.8, reverb: 0.1 });
+    } catch {
+      /* sample not loaded (yet) */
+    }
+  };
+  let menuOpenPending = false;
+  const onMenuShown = (): void => {
+    if (audio.ctx.state === 'running') playMenuOpen();
+    else menuOpenPending = true;
+  };
+  new MutationObserver(() => {
+    if (!menuRoot.hidden) onMenuShown();
+  }).observe(menuRoot, { attributes: true, attributeFilter: ['hidden'] });
+  const flushPendingMenuOpen = (): void => {
+    if (!menuOpenPending) return;
+    void audio.resume().then(() => {
+      if (!menuOpenPending) return;
+      menuOpenPending = false;
+      if (!menuRoot.hidden) playMenuOpen();
+    });
+  };
+  addEventListener('pointerdown', flushPendingMenuOpen, { capture: true, once: false });
+  addEventListener('keydown', flushPendingMenuOpen, { capture: true, once: false });
+  if (!menuRoot.hidden) onMenuShown();
+  menuRoot.addEventListener('click', (e) => {
+    if (menuControl(e.target)?.tagName === 'BUTTON') audio.play('uiSelect', { bus: 'ui', gain: 0.65, reverb: 0.1 });
+  });
+  menuMusic.setMode(game.mode);
   events.on('game:mode', ({ mode }) => menuMusic.setMode(mode));
   events.on('player:flashlight', () => roomAudio?.flashlightClick());
   events.on('player:footstep', (f) => roomAudio?.footstep(f.surface, f.x, f.z, f.sprint));
@@ -477,6 +569,9 @@ async function boot(): Promise<void> {
       case 'slideSoft':
         audio.play('pistolReloadSlide', { bus: 'sfx', gain: 0.45, reverb: 0.2, rate: 1.04 });
         break;
+      case 'cockBack':
+        audio.play('pistolCock', { bus: 'sfx', gain: 0.8, reverb: 0.2 });
+        break;
       case 'pump':
         audio.play('shotgunPump', { bus: 'sfx', gain: 0.8, reverb: 0.2 });
         break;
@@ -499,6 +594,7 @@ async function boot(): Promise<void> {
     events.on('access:denied', (d) => hud.showHint(d.hint));
   } else {
     // Demo room interactables (ADR-0004).
+    const { DEMO_INTERACT_BOXES } = await import('./world/demoRoomColliders.ts');
     interactions.add({ id: 'save_station', prompt: 'Use save station', box: DEMO_INTERACT_BOXES.saveStation, use: () => game.openSaveStation() });
     interactions.add({
       id: 'locker_sec07',
@@ -527,13 +623,15 @@ async function boot(): Promise<void> {
   }
 
   const runSequence = (id: string): void => {
-    const seq = DEBUG_SEQUENCES[id];
-    if (!seq) {
-      if (sequences?.has(id)) sequences.start(id, { debug: true });
-      else console.warn(`[debug] unknown sequence '${id}'. Known: ${[...Object.keys(DEBUG_SEQUENCES), ...(sequences?.ids() ?? [])].join(', ')}`);
-      return;
-    }
-    seq({ player, say: (t, b) => toasts.show(t, b ?? ''), focus: room?.anchors.door ?? world.spawn.position }).catch((err: unknown) => console.error(err));
+    void import('./actors/debugSequences.ts').then(({ DEBUG_SEQUENCES }) => {
+      const seq = DEBUG_SEQUENCES[id];
+      if (!seq) {
+        if (sequences?.has(id)) sequences.start(id, { debug: true });
+        else console.warn(`[debug] unknown sequence '${id}'. Known: ${[...Object.keys(DEBUG_SEQUENCES), ...(sequences?.ids() ?? [])].join(', ')}`);
+        return;
+      }
+      seq({ player, say: (t, b) => toasts.show(t, b ?? ''), focus: room?.anchors.door ?? world.spawn.position }).catch((err: unknown) => console.error(err));
+    });
   };
 
   // Apply settings now and whenever they change.
@@ -656,6 +754,7 @@ async function boot(): Promise<void> {
       });
     }
     if (level) {
+      const { LevelOverlay, OVERLAY_LAYERS } = await import('./world/levelDebug.ts');
       const overlay = new LevelOverlay(level);
       scene.add(overlay.group);
       const lf = gui.addFolder('Level');
@@ -748,6 +847,7 @@ async function boot(): Promise<void> {
       cameraFeeds,
       gore,
       titleCard: new TitleCard(el<HTMLElement>('#ui')),
+      showCredits,
       speech: { say: (id: string, opts?: { overlap?: boolean }) => say(id, opts), stopAll: () => speech.stopAll() },
       anchors: room ? { door: room.anchors.door, window: room.anchors.window, vent: room.anchors.vent, console: room.anchors.console, abyss: room.anchors.abyss } : undefined,
       setTimeScale: (scale) => {
@@ -761,6 +861,7 @@ async function boot(): Promise<void> {
     if (mode === 'title') sequences?.cancelAll();
   });
   if (flags.enabled) {
+    const { SequenceOverlay } = await import('./script/overlay.ts');
     const overlay = new SequenceOverlay(sequences);
     events.on('game:mode', () => overlay.update());
     const tickOverlay = (): void => {
@@ -776,4 +877,10 @@ async function boot(): Promise<void> {
   loop.start();
 }
 
-boot().catch(showBootError);
+const splash = startSplash(document.querySelector<HTMLElement>('#splash'));
+boot()
+  .then(() => splash.finish())
+  .catch((err: unknown) => {
+    splash.abort();
+    showBootError(err);
+  });

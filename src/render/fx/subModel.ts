@@ -33,8 +33,8 @@ let loading: Promise<void> | null = null;
 export function preloadSubModel(baseUrl = '/'): Promise<void> {
   if (model) return Promise.resolve();
   loading ??= (async () => {
-    const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
-    const gltf = await new GLTFLoader().loadAsync(baseUrl + MODEL_URL);
+    const { createGltfLoader } = await import('../gltf.ts');
+    const gltf = await (await createGltfLoader()).loadAsync(baseUrl + MODEL_URL);
     model = prepare(gltf.scene);
   })().catch((err: unknown) => {
     console.warn('[sub] model failed to load; the supply sub keeps its procedural hull', err);

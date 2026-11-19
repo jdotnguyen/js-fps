@@ -1,0 +1,206 @@
+{
+  "_comment": "Paths are relative to the raw texture folder. desaturate = colour saturation percent (modulate). null ao/metalness become constants (AO white, metalness black).",
+  "slots": {
+    "paintBone": {
+      "set": "PaintedMetal012",
+      "color": "PaintedMetal012_2K-JPG/PaintedMetal012_2K-JPG_Color.jpg",
+      "normal": "PaintedMetal012_2K-JPG/PaintedMetal012_2K-JPG_NormalGL.jpg",
+      "ao": "PaintedMetal012_2K-JPG/PaintedMetal012_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "PaintedMetal012_2K-JPG/PaintedMetal012_2K-JPG_Roughness.jpg",
+      "metalness": "PaintedMetal012_2K-JPG/PaintedMetal012_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "paintDark": {
+      "set": "PaintedMetal013",
+      "color": "PaintedMetal013_2K-JPG/PaintedMetal013_2K-JPG_Color.jpg",
+      "normal": "PaintedMetal013_2K-JPG/PaintedMetal013_2K-JPG_NormalGL.jpg",
+      "ao": "PaintedMetal013_2K-JPG/PaintedMetal013_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "PaintedMetal013_2K-JPG/PaintedMetal013_2K-JPG_Roughness.jpg",
+      "metalness": "PaintedMetal013_2K-JPG/PaintedMetal013_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "paintTeal": {
+      "set": "PaintedMetal006",
+      "color": "PaintedMetal006_2K-JPG/PaintedMetal006_2K-JPG_Color.jpg",
+      "normal": "PaintedMetal006_2K-JPG/PaintedMetal006_2K-JPG_NormalGL.jpg",
+      "ao": "PaintedMetal006_2K-JPG/PaintedMetal006_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "PaintedMetal006_2K-JPG/PaintedMetal006_2K-JPG_Roughness.jpg",
+      "metalness": "PaintedMetal006_2K-JPG/PaintedMetal006_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "labPanel": {
+      "set": "PaintedMetal012",
+      "color": "PaintedMetal012_2K-JPG/PaintedMetal012_2K-JPG_Color.jpg",
+      "normal": "PaintedMetal012_2K-JPG/PaintedMetal012_2K-JPG_NormalGL.jpg",
+      "ao": "PaintedMetal012_2K-JPG/PaintedMetal012_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "PaintedMetal012_2K-JPG/PaintedMetal012_2K-JPG_Roughness.jpg",
+      "metalness": "PaintedMetal012_2K-JPG/PaintedMetal012_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "diamond": {
+      "set": "DiamondPlate008A",
+      "color": "DiamondPlate008A_2K-JPG/DiamondPlate008A_2K-JPG_Color.jpg",
+      "normal": "DiamondPlate008A_2K-JPG/DiamondPlate008A_2K-JPG_NormalGL.jpg",
+      "ao": "DiamondPlate008A_2K-JPG/DiamondPlate008A_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "DiamondPlate008A_2K-JPG/DiamondPlate008A_2K-JPG_Roughness.jpg",
+      "metalness": "DiamondPlate008A_2K-JPG/DiamondPlate008A_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "diamondHazard": {
+      "set": "DiamondPlate006C",
+      "color": "DiamondPlate006C_2K-JPG/DiamondPlate006C_2K-JPG_Color.jpg",
+      "normal": "DiamondPlate006C_2K-JPG/DiamondPlate006C_2K-JPG_NormalGL.jpg",
+      "ao": "DiamondPlate006C_2K-JPG/DiamondPlate006C_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "DiamondPlate006C_2K-JPG/DiamondPlate006C_2K-JPG_Roughness.jpg",
+      "metalness": "DiamondPlate006C_2K-JPG/DiamondPlate006C_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "diamondRusty": {
+      "set": "metal_0001",
+      "color": "metal_0001_2k_tH2gc4/metal_0001_color_2k.jpg",
+      "normal": "metal_0001_2k_tH2gc4/metal_0001_normal_opengl_2k.png",
+      "ao": "metal_0001_2k_tH2gc4/metal_0001_ao_2k.jpg",
+      "roughness": "metal_0001_2k_tH2gc4/metal_0001_roughness_2k.jpg",
+      "metalness": "metal_0001_2k_tH2gc4/metal_0001_metallic_2k.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "hazard": {
+      "set": "PaintedMetal016",
+      "color": "PaintedMetal016_2K-JPG/PaintedMetal016_2K-JPG_Color.jpg",
+      "normal": "PaintedMetal016_2K-JPG/PaintedMetal016_2K-JPG_NormalGL.jpg",
+      "ao": "PaintedMetal016_2K-JPG/PaintedMetal016_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "PaintedMetal016_2K-JPG/PaintedMetal016_2K-JPG_Roughness.jpg",
+      "metalness": "PaintedMetal016_2K-JPG/PaintedMetal016_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "rubber": {
+      "set": "Rubber001",
+      "color": "Rubber001_2K-JPG/Rubber001_2K-JPG_Color.jpg",
+      "normal": "Rubber001_2K-JPG/Rubber001_2K-JPG_NormalGL.jpg",
+      "ao": null,
+      "roughness": "Rubber001_2K-JPG/Rubber001_2K-JPG_Roughness.jpg",
+      "metalness": null,
+      "arm": null,
+      "size": 1024
+    },
+    "rustHeavy": {
+      "set": "PaintedMetal011",
+      "color": "PaintedMetal011_2K-JPG/PaintedMetal011_2K-JPG_Color.jpg",
+      "normal": "PaintedMetal011_2K-JPG/PaintedMetal011_2K-JPG_NormalGL.jpg",
+      "ao": "PaintedMetal011_2K-JPG/PaintedMetal011_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "PaintedMetal011_2K-JPG/PaintedMetal011_2K-JPG_Roughness.jpg",
+      "metalness": "PaintedMetal011_2K-JPG/PaintedMetal011_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "rustDrip": {
+      "set": "metal_0053",
+      "color": "metal_0053_2k_vlh8dC/metal_0053_color_2k.jpg",
+      "normal": "metal_0053_2k_vlh8dC/metal_0053_normal_opengl_2k.png",
+      "ao": "metal_0053_2k_vlh8dC/metal_0053_ao_2k.jpg",
+      "roughness": "metal_0053_2k_vlh8dC/metal_0053_roughness_2k.jpg",
+      "metalness": null,
+      "arm": null,
+      "size": 1024
+    },
+    "rustBlotch": {
+      "set": "metal_0051",
+      "color": "metal_0051_2k_iZRfbX/metal_0051_color_2k.jpg",
+      "normal": "metal_0051_2k_iZRfbX/metal_0051_normal_opengl_2k.png",
+      "ao": "metal_0051_2k_iZRfbX/metal_0051_ao_2k.jpg",
+      "roughness": "metal_0051_2k_iZRfbX/metal_0051_roughness_2k.jpg",
+      "metalness": null,
+      "arm": null,
+      "size": 1024
+    },
+    "concrete": {
+      "set": "concrete_wall_008",
+      "color": "concrete_wall_008_diff_2k.jpg",
+      "normal": "concrete_wall_008_nor_gl_2k.jpg",
+      "ao": null,
+      "roughness": null,
+      "metalness": null,
+      "arm": "concrete_wall_008_arm_2k.jpg",
+      "size": 1024
+    },
+    "concreteFloor": {
+      "set": "brushed_concrete_2",
+      "color": "brushed_concrete_2_diff_2k.jpg",
+      "normal": "brushed_concrete_2_nor_gl_2k.jpg",
+      "ao": null,
+      "roughness": null,
+      "metalness": null,
+      "arm": "brushed_concrete_2_arm_2k.jpg",
+      "size": 1024
+    },
+    "concretePainted": {
+      "set": "painted_concrete_02",
+      "color": "painted_concrete_02_diff_2k.jpg",
+      "normal": "painted_concrete_02_nor_gl_2k.jpg",
+      "ao": null,
+      "roughness": null,
+      "metalness": null,
+      "arm": "painted_concrete_02_arm_2k.jpg",
+      "size": 1024
+    },
+    "labTile": {
+      "set": "Tiles133B",
+      "color": "Tiles133B_2K-JPG/Tiles133B_2K-JPG_Color.jpg",
+      "normal": "Tiles133B_2K-JPG/Tiles133B_2K-JPG_NormalGL.jpg",
+      "ao": "Tiles133B_2K-JPG/Tiles133B_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "Tiles133B_2K-JPG/Tiles133B_2K-JPG_Roughness.jpg",
+      "metalness": null,
+      "arm": null,
+      "size": 1024
+    },
+    "tileBroken": {
+      "set": "Tiles133D",
+      "color": "Tiles133D_2K-JPG/Tiles133D_2K-JPG_Color.jpg",
+      "normal": "Tiles133D_2K-JPG/Tiles133D_2K-JPG_NormalGL.jpg",
+      "ao": "Tiles133D_2K-JPG/Tiles133D_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "Tiles133D_2K-JPG/Tiles133D_2K-JPG_Roughness.jpg",
+      "metalness": null,
+      "arm": null,
+      "size": 1024
+    },
+    "tileWall": {
+      "set": "Tiles136B",
+      "color": "Tiles136B_2K-JPG/Tiles136B_2K-JPG_Color.jpg",
+      "normal": "Tiles136B_2K-JPG/Tiles136B_2K-JPG_NormalGL.jpg",
+      "ao": "Tiles136B_2K-JPG/Tiles136B_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "Tiles136B_2K-JPG/Tiles136B_2K-JPG_Roughness.jpg",
+      "metalness": null,
+      "arm": null,
+      "size": 1024
+    },
+    "tileWashroom": {
+      "set": "Tiles132B",
+      "color": "Tiles132B_2K-JPG/Tiles132B_2K-JPG_Color.jpg",
+      "normal": "Tiles132B_2K-JPG/Tiles132B_2K-JPG_NormalGL.jpg",
+      "ao": "Tiles132B_2K-JPG/Tiles132B_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "Tiles132B_2K-JPG/Tiles132B_2K-JPG_Roughness.jpg",
+      "metalness": null,
+      "arm": null,
+      "size": 1024,
+      "desaturate": 35
+    },
+    "signDanger": {
+      "set": "PaintedMetal017",
+      "color": "PaintedMetal017_2K-JPG/PaintedMetal017_2K-JPG_Color.jpg",
+      "normal": "PaintedMetal017_2K-JPG/PaintedMetal017_2K-JPG_NormalGL.jpg",
+      "ao": "PaintedMetal017_2K-JPG/PaintedMetal017_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "PaintedMetal017_2K-JPG/PaintedMetal017_2K-JPG_Roughness.jpg",
+      "metalness": "PaintedMetal017_2K-JPG/PaintedMetal017_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    }
+  }
+}

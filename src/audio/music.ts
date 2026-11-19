@@ -3,15 +3,15 @@
  * so it is identical on every machine and needs no audio files.
  *
  * "Pressure" - the main menu theme and base mood for the station. A 64 s loop in D, built from
- * a sub drone, slow chord pads that clash on purpose (b2, tritone), a sonar ping into a long
- * dark echo, a sparse detuned bell motif, hull groans and a faint double-thump heartbeat.
+ * a sub drone, a growling lower-octave horror bass, slow chord pads that clash on purpose (b2,
+ * tritone), bowed bass swells, hull groans and a faint double-thump heartbeat.
  *
  * Loop strategy: every periodic part uses frequencies snapped to whole cycles per loop, and
  * everything is rendered with a tail that is folded back onto the start, so reverb and echo
  * tails ring across the seam.
  */
 import type { Rng } from '../core/rng.ts';
-import { makeBuf, OnePole, TAU, white, type Buf } from './dsp.ts';
+import { Biquad, makeBuf, OnePole, TAU, white, type Buf } from './dsp.ts';
 
 export interface StereoBuf {
   readonly left: Buf;
@@ -62,23 +62,107 @@ function chordWeight(k: number, t: number): number {
 function drone(sr: number, n: number, rng: Rng): { l: Buf; r: Buf } {
   const l = new Float32Array(n);
   const r = new Float32Array(n);
-  const rumble = new OnePole(70, sr);
+  const rumble = new OnePole(65, sr);
   const noise = white(rng.fork('drone-noise'));
   const f0 = snap(midi(26)); // D1 pedal, constant under every chord
+  const fDetUp = snap(midi(26) * cents(9));
+  const fDetDn = snap(midi(26) * cents(-11));
   for (let i = 0; i < n; i++) {
     const t = i / sr;
     const swell = 0.75 + 0.25 * Math.sin(TAU * (2 / MENU_LOOP_SECONDS) * t);
-    let s = Math.sin(TAU * f0 * t) * 0.5 + Math.sin(TAU * 2 * f0 * t + 0.6) * 0.14 * swell;
-    // slowly beating partner a few cents away: the "breathing" of the floor
-    s += Math.sin(TAU * snap(midi(26) * cents(9)) * t) * 0.28;
-    // chord roots
+    const s = Math.sin(TAU * f0 * t) * 0.48 + Math.sin(TAU * 2 * f0 * t + 0.6) * 0.12 * swell;
+    // slowly beating partners a few cents away: the "breathing" of the floor
+    const beatL = Math.sin(TAU * fDetUp * t) * 0.24;
+    const beatR = Math.sin(TAU * fDetDn * t) * 0.24;
+    // chord roots in true lower-octave bass (24.5-36.7 Hz) with subtle upper-bass definition
+    let root = 0;
     for (let k = 0; k < CHORDS.length; k++) {
       const w = chordWeight(k, t);
-      if (w > 0) s += Math.sin(TAU * snap(midi(CHORDS[k]!.bass + 12)) * t) * 0.22 * w;
+      if (w > 0) {
+        const bassNote = CHORDS[k]!.bass;
+        const subNote = bassNote >= 30 ? bassNote - 12 : bassNote;
+        root += Math.sin(TAU * snap(midi(subNote)) * t) * 0.34 * w;
+        root += Math.sin(TAU * snap(midi(bassNote)) * t) * 0.22 * w;
+        root += Math.sin(TAU * snap(midi(bassNote + 12)) * t) * 0.08 * w;
+      }
     }
     const rb = rumble.process(noise()) * 1.2;
-    l[i] = (s + rb) * 0.55;
-    r[i] = (s - rb * 0.5) * 0.55;
+    l[i] = (s + beatL + root + rb) * 0.52;
+    r[i] = (s + beatR + root - rb * 0.5) * 0.52;
+  }
+  return { l, r };
+}
+
+/**
+ * Deep, growling lower-octave horror bass: detuned harmonic-rich oscillators + tritone tension
+ * rub, driven through tanh saturation and a slowly breathing resonant low-pass filter.
+ */
+function horrorBass(sr: number, n: number, rng: Rng): { l: Buf; r: Buf } {
+  const l = new Float32Array(n);
+  const r = new Float32Array(n);
+  const lpL = new Biquad('lowpass', 110, 2.3, sr);
+  const lpR = new Biquad('lowpass', 110, 2.3, sr);
+  const gritFilter = new OnePole(140, sr);
+  const noise = white(rng.fork('horror-bass'));
+
+  const chordFreqs = CHORDS.map((ch) => {
+    const subNote = ch.bass >= 30 ? ch.bass - 12 : ch.bass;
+    return {
+      fSub: snap(midi(subNote)),
+      fDetL: snap(midi(ch.bass) * cents(-13)),
+      fDetR: snap(midi(ch.bass) * cents(14)),
+      fRub: snap(midi(ch.bass + 6)),
+    };
+  });
+
+  const warmup = Math.min(n, Math.round(sr * 2));
+  const HARM = 7;
+
+  for (let i = -warmup; i < n; i++) {
+    // Wrap negative warmup time onto the end of the loop so filter state matches at i = 0
+    const idx = i < 0 ? n + i : i;
+    const t = idx / sr;
+
+    if (i === -warmup || (idx & 15) === 0) {
+      const sweepL = 0.5 + 0.5 * Math.sin(TAU * (2 / MENU_LOOP_SECONDS) * t + 0.4);
+      const sweepR = 0.5 + 0.5 * Math.sin(TAU * (3 / MENU_LOOP_SECONDS) * t + 1.9);
+      lpL.set(72 + 135 * sweepL * sweepL, 2.3);
+      lpR.set(72 + 135 * sweepR * sweepR, 2.3);
+    }
+
+    let rawL = 0;
+    let rawR = 0;
+    let sub = 0;
+
+    for (let k = 0; k < chordFreqs.length; k++) {
+      const w = chordWeight(k, t);
+      if (w < 1e-4) continue;
+      const cf = chordFreqs[k]!;
+
+      sub += Math.sin(TAU * cf.fSub * t) * 0.28 * w;
+
+      let oscL = 0;
+      let oscR = 0;
+      for (let h = 1; h <= HARM; h++) {
+        const amp = 1 / Math.pow(h, 0.85);
+        oscL += Math.sin(TAU * cf.fDetL * h * t + h * 0.3) * amp;
+        oscR += Math.sin(TAU * cf.fDetR * h * t + h * 0.7) * amp;
+      }
+      const rubEnv = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(TAU * (4 / MENU_LOOP_SECONDS) * t));
+      const rub = Math.sin(TAU * cf.fRub * t) * 0.18 * rubEnv;
+
+      rawL += (oscL * 0.42 + rub) * w;
+      rawR += (oscR * 0.42 - rub * 0.8) * w;
+    }
+
+    const growl = 1 + 0.18 * gritFilter.process(noise());
+    const fl = lpL.process(Math.tanh(rawL * 2.1 * growl));
+    const fr = lpR.process(Math.tanh(rawR * 2.1 * growl));
+
+    if (i >= 0) {
+      l[i] = (fl * 0.48 + sub) * 0.62;
+      r[i] = (fr * 0.48 + sub) * 0.62;
+    }
   }
   return { l, r };
 }
@@ -127,30 +211,6 @@ function pads(sr: number, n: number): { l: Buf; r: Buf } {
   return { l, r };
 }
 
-/** Out-of-tune high shimmer: a tritone cluster that breathes in and out of hearing. */
-function shimmer(sr: number, n: number): { l: Buf; r: Buf } {
-  const l = new Float32Array(n);
-  const r = new Float32Array(n);
-  const tones = [midi(86), midi(92), midi(87) * cents(18), midi(81) * cents(-23)];
-  for (let i = 0; i < n; i++) {
-    const t = i / sr;
-    let sl = 0;
-    let sr_ = 0;
-    tones.forEach((f, j) => {
-      const ff = snap(f);
-      const breathL = Math.pow(0.5 + 0.5 * Math.sin(TAU * ((j + 1) / MENU_LOOP_SECONDS) * t + j), 3);
-      const breathR = Math.pow(0.5 + 0.5 * Math.sin(TAU * ((j + 2) / MENU_LOOP_SECONDS) * t + j * 2), 3);
-      const s = Math.sin(TAU * ff * t + j);
-      sl += s * breathL;
-      sr_ += s * breathR;
-    });
-    const gate = smooth((t - 14) / 10) * (1 - smooth((t - 56) / 6)) + 0.35 * smooth((t - 36) / 4) * (1 - smooth((t - 52) / 6));
-    l[i] = sl * 0.012 * (0.4 + gate);
-    r[i] = sr_ * 0.012 * (0.4 + gate);
-  }
-  return { l, r };
-}
-
 function heartbeat(sr: number, n: number): Buf {
   const out = new Float32Array(n);
   const period = MENU_LOOP_SECONDS / 50; // 50 beats per loop, ~47 bpm
@@ -160,8 +220,8 @@ function heartbeat(sr: number, n: number): Buf {
     const pulse = (at: number, amp: number): number => {
       const dt = beatT - at;
       if (dt < 0) return 0;
-      const f = 38 + 22 * Math.exp(-dt / 0.05);
-      return Math.sin(TAU * f * dt) * Math.exp(-dt / 0.11) * amp * Math.min(1, dt / 0.004);
+      const f = 32 + 20 * Math.exp(-dt / 0.06);
+      return Math.sin(TAU * f * dt) * Math.exp(-dt / 0.12) * amp * Math.min(1, dt / 0.004);
     };
     // present from the middle of the loop, receding before the seam
     const level = smooth((t - 18) / 14) * (1 - smooth((t - 54) / 8));
@@ -171,38 +231,6 @@ function heartbeat(sr: number, n: number): Buf {
 }
 
 // ------------------------------------------------------------------ one-shots (into length N+tail)
-
-function addPing(l: Buf, r: Buf, sr: number, at: number, f: number, pan: number): void {
-  const len = Math.min(l.length - Math.floor(at * sr), Math.floor(2.2 * sr));
-  const start = Math.floor(at * sr);
-  const gl = Math.sqrt(0.5 - 0.5 * pan);
-  const gr = Math.sqrt(0.5 + 0.5 * pan);
-  for (let i = 0; i < len; i++) {
-    const t = i / sr;
-    const fi = f * (1 + 0.012 * Math.exp(-t / 0.05));
-    const s = (Math.sin(TAU * fi * t) + 0.22 * Math.sin(TAU * fi * 2.01 * t)) * Math.exp(-t / 0.5) * Math.min(1, t / 0.003);
-    l[start + i]! += s * 0.2 * gl;
-    r[start + i]! += s * 0.2 * gr;
-  }
-}
-
-function addBell(l: Buf, r: Buf, sr: number, at: number, f: number, vel: number, pan: number): void {
-  const start = Math.floor(at * sr);
-  const len = Math.min(l.length - start, Math.floor(7 * sr));
-  const gl = Math.sqrt(0.5 - 0.5 * pan);
-  const gr = Math.sqrt(0.5 + 0.5 * pan);
-  for (let i = 0; i < len; i++) {
-    const t = i / sr;
-    // wow: the pitch sags, like a failing music box
-    const fi = f * (1 - 0.004 * (1 - Math.exp(-t / 1.5)));
-    const idx = 2.2 * Math.exp(-t / 0.5);
-    const m = Math.sin(TAU * fi * 3.5 * t) * idx;
-    const s = Math.sin(TAU * fi * t + m) * Math.exp(-t / 2.3) + 0.25 * Math.sin(TAU * fi * 5.43 * t) * Math.exp(-t / 0.35);
-    const e = s * vel * Math.min(1, t / 0.002);
-    l[start + i]! += e * gl;
-    r[start + i]! += e * gr;
-  }
-}
 
 function addGroan(l: Buf, r: Buf, sr: number, rng: Rng, at: number, dur: number, f0: number, f1: number, pan: number): void {
   const start = Math.floor(at * sr);
@@ -229,23 +257,51 @@ function addGroan(l: Buf, r: Buf, sr: number, rng: Rng, at: number, dur: number,
   }
 }
 
-// ------------------------------------------------------------------ space
-
-/** Ping-pong echo (lowpassed repeats) applied to a bus. */
-function pingPong(l: Buf, r: Buf, sr: number, delay: number, fb: number): { l: Buf; r: Buf } {
-  const d = Math.round(delay * sr);
-  const ol = new Float32Array(l.length);
-  const or = new Float32Array(r.length);
-  const lpl = new OnePole(2200, sr);
-  const lpr = new OnePole(2200, sr);
-  for (let i = 0; i < l.length; i++) {
-    const fl = i >= d ? lpr.process(or[i - d]!) * fb : 0;
-    const fr = i >= d ? lpl.process(ol[i - d]!) * fb : 0;
-    ol[i] = l[i]! + fl;
-    or[i] = r[i]! + fr;
+/** Ominous low-octave bowed horror bass swell: slow pitch sag, resonant LP sweep, and grit. */
+function addBassSwell(
+  l: Buf,
+  r: Buf,
+  sr: number,
+  rng: Rng,
+  at: number,
+  dur: number,
+  f0: number,
+  f1: number,
+  pan: number,
+): void {
+  const start = Math.floor(at * sr);
+  const len = Math.min(l.length - start, Math.floor(dur * sr));
+  if (len <= 0) return;
+  const lp = new Biquad('lowpass', 80, 2.6, sr);
+  const noise = white(rng);
+  const bow = new OnePole(35, sr);
+  const gl = Math.sqrt(0.5 - 0.5 * pan);
+  const gr = Math.sqrt(0.5 + 0.5 * pan);
+  let p1 = 0;
+  let p2 = 0;
+  for (let i = 0; i < len; i++) {
+    const p = i / len;
+    const env = Math.sin(Math.PI * p) ** 1.7;
+    const f = f0 + (f1 - f0) * smooth(p);
+    p1 += (TAU * f) / sr;
+    p2 += (TAU * f * cents(-16)) / sr;
+    if ((i & 15) === 0) {
+      lp.set(65 + 210 * env, 2.6);
+    }
+    let s = 0;
+    for (let h = 1; h <= 8; h++) {
+      s += (Math.sin(p1 * h) + Math.sin(p2 * h + 0.5)) / Math.pow(h, 0.8);
+    }
+    const scrape = 0.85 + 0.15 * bow.process(noise()) * 5;
+    const body = lp.process(Math.tanh(s * 0.55 * scrape));
+    const sub = Math.sin(p1) * 0.45;
+    const e = (body * 0.75 + sub) * env * 0.24;
+    l[start + i]! += e * gl;
+    r[start + i]! += e * gr;
   }
-  return { l: ol, r: or };
 }
+
+// ------------------------------------------------------------------ space
 
 /** Compact stereo Schroeder/Moorer reverb: 4 damped combs + 2 allpasses per channel. */
 function reverb(l: Buf, r: Buf, sr: number, rt60: number, damp: number): { l: Buf; r: Buf } {
@@ -301,38 +357,25 @@ export function renderMenuTheme(sr: number, rng: Rng): StereoBuf {
     }
   };
   add(drone(sr, n, rng.fork('drone')), 1);
+  add(horrorBass(sr, n, rng.fork('horror-bass')), 1);
   add(pads(sr, n), 1);
-  add(shimmer(sr, n), 1);
   const hb = heartbeat(sr, n);
   for (let i = 0; i < n; i++) {
     dry.l[i]! += hb[i]!;
     dry.r[i]! += hb[i]!;
   }
 
-  // sonar: one ping at the top of each chord, alternating sides
-  const pings = makeBus(total);
-  [3, 19, 35, 51].forEach((t, i) => addPing(pings.l, pings.r, sr, t, midi(i % 2 ? 88 : 91), i % 2 ? 0.5 : -0.5));
-  const pingEcho = pingPong(pings.l, pings.r, sr, 0.82, 0.58);
-
-  // bells: a lonely motif that leans on the minor second
-  const bells = makeBus(total);
-  const motif: readonly [number, number, number][] = [
-    [6, 74, 0.1], [9.5, 75, 0.09], [13, 74, 0.08],
-    [24, 77, 0.1], [27.5, 75, 0.08], [30, 72, 0.09],
-    [41, 69, 0.1], [44.5, 70, 0.09], [48, 69, 0.08],
-    [58, 75, 0.09], [60.5, 74, 0.07],
-  ];
-  motif.forEach(([t, note, vel], i) => {
-    const pan = ((i % 5) - 2) * 0.22;
-    addBell(bells.l, bells.r, sr, t, midi(note), vel, pan);
-    addBell(bells.l, bells.r, sr, t + 0.045, midi(note) * cents(14), vel * 0.4, -pan); // ghost
-  });
-
-  // hull groans
+  // hull groans & deep horror bass swells
   const groans = makeBus(total);
   addGroan(groans.l, groans.r, sr, rng.fork('g1'), 14, 6, 58, 41, -0.4);
   addGroan(groans.l, groans.r, sr, rng.fork('g2'), 37, 7.5, 47, 36, 0.35);
   addGroan(groans.l, groans.r, sr, rng.fork('g3'), 55.5, 5, 62, 44, -0.1);
+
+  const bassSwells = makeBus(total);
+  addBassSwell(bassSwells.l, bassSwells.r, sr, rng.fork('bs1'), 1.5, 8.5, midi(26), midi(26) * cents(-35), -0.15);
+  addBassSwell(bassSwells.l, bassSwells.r, sr, rng.fork('bs2'), 17.5, 9, midi(22), midi(22) * cents(-25), 0.15);
+  addBassSwell(bassSwells.l, bassSwells.r, sr, rng.fork('bs3'), 33.5, 8.5, midi(19), midi(19) * cents(18), -0.12);
+  addBassSwell(bassSwells.l, bassSwells.r, sr, rng.fork('bs4'), 49.5, 9, midi(21), midi(20), 0.12);
 
   // sends into the room
   const send = makeBus(total);
@@ -343,16 +386,15 @@ export function renderMenuTheme(sr: number, rng: Rng): StereoBuf {
     }
   };
   mixInto(send, dry, 0.5);
-  mixInto(send, pingEcho, 1);
-  mixInto(send, bells, 1.3);
   mixInto(send, groans, 0.8);
+  mixInto(send, bassSwells, 0.75);
   const wet = reverb(send.l, send.r, sr, 8, 0.45);
 
   const mixL = makeBuf(sr, total / sr);
   const mixR = makeBuf(sr, total / sr);
   for (let i = 0; i < total; i++) {
-    mixL[i] = dry.l[i]! + pingEcho.l[i]! * 0.9 + bells.l[i]! * 0.7 + groans.l[i]! + wet.l[i]! * 0.9;
-    mixR[i] = dry.r[i]! + pingEcho.r[i]! * 0.9 + bells.r[i]! * 0.7 + groans.r[i]! + wet.r[i]! * 0.9;
+    mixL[i] = dry.l[i]! + groans.l[i]! + bassSwells.l[i]! + wet.l[i]! * 0.9;
+    mixR[i] = dry.r[i]! + groans.r[i]! + bassSwells.r[i]! + wet.r[i]! * 0.9;
   }
 
   // fold the tail onto the head so the loop is seamless

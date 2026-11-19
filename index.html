@@ -4,6 +4,106 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Deep-sea horror FPS (working title)</title>
+    <style>
+      /* Boot splash (src/ui/splash.ts). Inline so it paints before any JS loads. */
+      #splash {
+        position: fixed; inset: 0; z-index: 100; overflow: hidden;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4vh;
+        background: radial-gradient(ellipse at 50% 48%, #0d151d 0%, #05090c 72%, #020406 100%);
+        transition: opacity 700ms ease;
+      }
+      /* Worn security visor glass vignette and faint scanlines. */
+      #splash::before {
+        content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 3;
+        background:
+          repeating-linear-gradient(to bottom, rgb(207 232 240 / 0.025) 0 1px, transparent 1px 3px),
+          radial-gradient(ellipse at 50% 50%, transparent 56%, rgb(2 4 6 / 0.72) 100%);
+        box-shadow: inset 0 0 90px rgb(0 0 0 / 0.85);
+      }
+      #splash-loader, #splash-engine, #splash-dev {
+        position: relative; z-index: 1;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.1rem;
+      }
+      #splash-loader[hidden], #splash-engine[hidden], #splash-dev[hidden] { display: none; }
+      #splash-loader {
+        font: 12px ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        letter-spacing: .16em; text-transform: uppercase; color: #cfe8f0;
+      }
+      .splash-boot-label { opacity: .72; }
+      .splash-bar {
+        position: relative; width: min(260px, 60vw); height: 2px; overflow: hidden;
+        background: rgb(207 232 240 / 0.14);
+      }
+      .splash-bar::after {
+        content: ''; position: absolute; inset: 0 auto 0 0; width: 38%;
+        background: linear-gradient(90deg, transparent, #a3e635, #cfe8f0, transparent);
+        animation: splash-scan 1.3s ease-in-out infinite;
+      }
+      .splash-bar.ready::after { width: 100%; animation: none; background: #a3e635; opacity: .75; }
+      #splash-status {
+        margin: 0; min-height: 1.2em; font: 12px ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        letter-spacing: .1em; color: #9AA4B2; text-align: center;
+      }
+      #splash-status.prompt { color: #a3e635; animation: splash-pulse 1.5s ease-in-out infinite; }
+      #splash-engine {
+        text-align: center; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        opacity: 0; animation: splash-in 750ms cubic-bezier(.2,.7,.2,1) 80ms forwards;
+      }
+      .engine-lockup {
+        display: flex; align-items: center; justify-content: center; gap: clamp(18px, 3vw, 30px);
+        padding: 18px 28px;
+        background: linear-gradient(135deg, rgb(16 24 34 / 0.72) 0%, rgb(7 12 18 / 0.85) 100%);
+        border: 1px solid rgb(207 232 240 / 0.16);
+        box-shadow: inset 0 0 32px rgb(163 230 53 / 0.05), 0 16px 48px rgb(0 0 0 / 0.65);
+        clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+      }
+      .engine-mark { width: clamp(84px, 13vw, 116px); height: auto; flex-shrink: 0; overflow: visible; }
+      .engine-ring-spin { transform-origin: 60px 60px; animation: engine-spin 14s linear infinite; }
+      .engine-hand-spin { transform-origin: 60px 60px; animation: engine-spin 4.2s cubic-bezier(.4,0,.2,1) infinite; }
+      .engine-core-pulse { transform-origin: 60px 60px; animation: engine-pulse 2.1s ease-in-out infinite; }
+      .engine-copy { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 6px; }
+      .engine-kicker {
+        display: flex; align-items: center; gap: 10px; width: 100%;
+        font-size: 10px; letter-spacing: .32em; color: #9AA4B2;
+      }
+      .engine-kicker::after {
+        content: ''; flex: 1; height: 1px;
+        background: linear-gradient(90deg, rgb(207 232 240 / 0.28), transparent);
+      }
+      .engine-title {
+        font-size: clamp(28px, 4.8vw, 48px); font-weight: 900; letter-spacing: .12em;
+        color: #F5F7FA; line-height: 1;
+        text-shadow: 0 2px 18px rgb(207 232 240 / 0.18);
+      }
+      .engine-title .jit-accent {
+        display: inline-block; margin-left: 4px; padding: 2px 10px 3px;
+        color: #070c10; background: #A3E635;
+        clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+        text-shadow: none;
+      }
+      .engine-meta {
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        margin-top: 2px; font-size: 11px; letter-spacing: .22em; color: #cfe8f0; opacity: .82;
+      }
+      .engine-tag {
+        padding: 2px 7px; font-size: 9px; letter-spacing: .18em;
+        color: #A3E635; background: rgb(163 230 53 / 0.1);
+        border: 1px solid rgb(163 230 53 / 0.35);
+      }
+      @keyframes engine-spin { to { transform: rotate(360deg); } }
+      @keyframes engine-pulse { 0%, 100% { opacity: .78; transform: scale(.96); } 50% { opacity: 1; transform: scale(1.03); } }
+      #splash-dev img { width: min(560px, 72vw); height: auto; opacity: 0; animation: splash-in 800ms cubic-bezier(.2,.7,.2,1) 80ms forwards; }
+      #splash.out { opacity: 0; pointer-events: none; }
+      @keyframes splash-in { from { opacity: 0; transform: scale(.97); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+      @keyframes splash-fade { to { opacity: 1; } }
+      @keyframes splash-scan { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+      @keyframes splash-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) {
+        #splash-engine, #splash-dev img { animation: splash-fade 500ms ease 100ms forwards; }
+        .splash-bar::after { animation: none; width: 100%; opacity: .4; }
+        #splash-status.prompt { animation: none; }
+      }
+    </style>
   </head>
   <body>
     <canvas id="game"></canvas>
@@ -13,6 +113,64 @@
       <div id="crosshair" aria-hidden="true" hidden></div>
     </div>
     <div id="menu" hidden></div>
+    <div id="splash" role="region" aria-label="Loading and studio credits">
+      <div id="splash-loader">
+        <span class="splash-boot-label">VISOR OS // INITIALIZING</span>
+        <div class="splash-bar" aria-hidden="true"></div>
+        <p id="splash-status" aria-live="polite"></p>
+      </div>
+      <div id="splash-engine" hidden>
+        <div class="engine-lockup">
+          <svg class="engine-mark" viewBox="0 0 120 120" aria-hidden="true">
+            <!-- Chamfered armor frame -->
+            <polygon points="24,6 96,6 114,24 114,96 96,114 24,114 6,96 6,24" fill="#101720" stroke="#2A3644" stroke-width="2" />
+            <!-- Rotating chronometer / depth ring -->
+            <g class="engine-ring-spin">
+              <circle cx="60" cy="60" r="46" fill="none" stroke="#CFE8F0" stroke-opacity="0.28" stroke-width="1.5" stroke-dasharray="6 5 2 5" />
+              <circle cx="60" cy="60" r="39" fill="none" stroke="#A3E635" stroke-opacity="0.22" stroke-width="1" stroke-dasharray="18 14" />
+            </g>
+            <!-- Outer isometric 3D wireframe cube -->
+            <g stroke="#CFE8F0" stroke-width="1.8" stroke-linejoin="round" fill="none" opacity="0.88">
+              <polygon points="60,22 92,40 92,78 60,96 28,78 28,40" />
+              <polyline points="28,40 60,58 92,40" />
+              <line x1="60" y1="58" x2="60" y2="96" />
+            </g>
+            <!-- Perspective tesseract struts -->
+            <g stroke="#A3E635" stroke-width="1.2" stroke-opacity="0.55">
+              <line x1="60" y1="22" x2="60" y2="39" />
+              <line x1="92" y1="40" x2="77" y2="49" />
+              <line x1="92" y1="78" x2="77" y2="69" />
+              <line x1="60" y1="96" x2="60" y2="79" />
+              <line x1="28" y1="78" x2="43" y2="69" />
+              <line x1="28" y1="40" x2="43" y2="49" />
+            </g>
+            <!-- Inner pulsing 3D core -->
+            <g class="engine-core-pulse">
+              <polygon points="60,39 77,49 77,69 60,79 43,69 43,49" fill="#A3E635" fill-opacity="0.18" stroke="#A3E635" stroke-width="2" stroke-linejoin="round" />
+              <polyline points="43,49 60,59 77,49" fill="none" stroke="#A3E635" stroke-width="1.6" />
+              <line x1="60" y1="59" x2="60" y2="79" stroke="#A3E635" stroke-width="1.6" />
+              <circle cx="60" cy="59" r="3" fill="#F5F7FA" />
+            </g>
+            <!-- Sweeping real-time chronometer vector -->
+            <g class="engine-hand-spin">
+              <line x1="60" y1="60" x2="60" y2="16" stroke="#A3E635" stroke-width="1.8" stroke-linecap="round" />
+              <circle cx="60" cy="16" r="2.4" fill="#A3E635" />
+            </g>
+          </svg>
+          <div class="engine-copy">
+            <div class="engine-kicker">POWERED BY</div>
+            <div class="engine-title">JUST&#8209;IN&#8209;<span class="jit-accent">TIME</span></div>
+            <div class="engine-meta">
+              <span>REAL-TIME 3D ENGINE</span>
+              <span class="engine-tag">JIT // WEBGL2 · PBR</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="splash-dev" hidden>
+        <img src="/assets/brand/j00k80-logo.svg" alt="J00K80" width="611" height="168" />
+      </div>
+    </div>
     <div id="boot-error" role="alert" hidden></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

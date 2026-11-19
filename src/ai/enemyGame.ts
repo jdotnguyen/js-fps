@@ -9,6 +9,7 @@ import enemiesJson from '../data/enemies.json';
 import type { World } from '../world/world.ts';
 import { ENEMY_VARIANT_IDS, validateEnemyTable, type EnemyVariantId } from './enemyData.ts';
 import { EnemyDirector } from './enemyDirector.ts';
+import { ZombieVoices } from '../audio/zombieVoices.ts';
 import { playerTarget, squadTarget } from './enemyTargets.ts';
 import type { P3 } from './nav.ts';
 import { spawnPointsOf, type SpawnPointData } from './spawner.ts';
@@ -109,8 +110,23 @@ export function setupEnemies(d: EnemyGameDeps): EnemyGame {
 
   // Cheap audio: a groan when one notices you, a heavy knock when a hero slams.
   const audio = d.audio;
+  // Recorded zombie voices take turns; until the clips have loaded, an alert falls back to the synthesised moan.
+  const zombieVoices = new ZombieVoices({
+    play: (c) => {
+      if (!audio) return;
+      const position = new THREE.Vector3(c.x, c.y, c.z);
+      try {
+        audio.play('zombieVoice', { bus: 'sfx', gain: c.gain, rate: c.rate, variant: c.variant, offset: c.offset, duration: c.duration, position, reverb: 0.3 });
+      } catch {
+        audio.play('distantMoan', { bus: 'sfx', gain: 0.55, rate: 1.25 + Math.random() * 0.2, position, reverb: 0.3 });
+      }
+    },
+  });
   if (audio) {
-    ev.on('enemy:alerted', (a) => audio.play('distantMoan', { bus: 'sfx', gain: 0.55, rate: 1.25 + Math.random() * 0.2, position: new THREE.Vector3(a.x, a.y + 1.5, a.z), reverb: 0.3 }));
+    ev.on('enemy:alerted', (a) => {
+      const e = director.list.find((x) => x.id === a.id);
+      zombieVoices.alerted({ x: a.x, y: a.y + 1.5, z: a.z }, e?.hero ?? false);
+    });
     ev.on('enemy:slam', (s) => audio.play('metalKnock', { bus: 'sfx', gain: 1, rate: 0.45, position: new THREE.Vector3(s.x, s.y, s.z), reverb: 0.5 }));
   }
 
@@ -136,6 +152,7 @@ export function setupEnemies(d: EnemyGameDeps): EnemyGame {
       }
       d.camera.getWorldPosition(tmp);
       director.update(dt, tmp);
+      if (audio && mode === 'playing') zombieVoices.update(dt, director.list, tmp);
     },
     addDebug(gui) {
       const f = gui.addFolder('Enemies');

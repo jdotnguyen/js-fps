@@ -11,6 +11,7 @@ import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { lathe, slab } from './shapes.ts';
 import { inFrame, panelWall, wallFrame } from './detail.ts';
 import { AoMergeBuilder } from './merge.ts';
+import { TILE_FLOOR_KEYS, resolvePalette } from './palettes.ts';
 import { PieceBuilder, WALL_T, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams } from './types.ts';
 
 /**
@@ -457,7 +458,7 @@ const GEN: Record<string, Gen> = {
       // Viewport bubble at the bow and the hull band.
       mb.add(new THREE.SphereGeometry(0.75, 18, 12, 0, PI * 2, 0, PI / 2), m.black, at(L / 2 - 0.55, 0.15, 0, 0, 0, -PI / 2));
       for (const x of [-1.6, 1.4]) mb.add(new THREE.TorusGeometry(R + 0.02, 0.05, 6, 32), MAT.subDark(), at(x, 0, 0, 0, PI / 2, 0));
-      mb.add(slab(0.8, 0.5, 0.02), m.hazard, at(-0.6, 0.4, R + 0.01));
+      mb.add(slab(0.8, 0.5, 0.02), m.hazardClean, at(-0.6, 0.4, R + 0.01));
       group.add(mb.build('supply_sub:hull', null));
     }
     // Lights: headlamps, beams, running lights.
@@ -501,7 +502,7 @@ const GEN: Record<string, Gen> = {
         arm.userData['side'] = s;
         const amb = new AoMergeBuilder();
         amb.add(rounded(0.34 * K, 2.9 * K, 0.34 * K, 0.04 * K), m.steel, at(0, 1.45 * K, 0));
-        amb.add(rounded(0.7 * K, 0.3 * K, 0.4 * K, 0.05 * K), m.hazard, at(0, 2.9 * K, -s * 0.4 * K));
+        amb.add(rounded(0.7 * K, 0.3 * K, 0.4 * K, 0.05 * K), m.hazardClean, at(0, 2.9 * K, -s * 0.4 * K));
         amb.add(cylinderBetween(V(-0.25 * K, 0, 0), V(0.25 * K, 0, 0), 0.2 * K, 12), m.steel);
         arm.add(amb.build('supply_sub:arm', null));
         arms.push(arm);
@@ -1015,7 +1016,7 @@ const GEN: Record<string, Gen> = {
     notice.position.set(-w / 2 + 0.32, y + 0.05, -0.062);
     notice.rotation.set(0, PI, 0.03);
     pb.dynamic(notice);
-    pb.add(new THREE.SphereGeometry(0.012, 6, 4), m.hazard, at(-w / 2 + 0.32, y + 0.31, -0.065));
+    pb.add(new THREE.SphereGeometry(0.012, 6, 4), m.hazardClean, at(-w / 2 + 0.32, y + 0.31, -0.065));
     pb.solid(-w / 2 - 0.04, y - h / 2, -0.07, w / 2 + 0.04, y + h / 2, 0);
   },
 
@@ -1052,13 +1053,13 @@ const GEN: Record<string, Gen> = {
     // Gauge beside it.
     pb.add(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 18), m.steel, at(0.55, y + 0.35, -0.04, PI / 2, 0, 0));
     pb.add(new THREE.CircleGeometry(0.1, 18), MAT.paper(), at(0.55, y + 0.35, -0.066, 0, PI, 0));
-    const needle = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.085, 0.004), m.hazard);
+    const needle = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.085, 0.004), m.hazardClean);
     needle.geometry.translate(0, 0.04, 0);
     needle.position.set(0.55, y + 0.35, -0.07);
     needle.rotation.z = 2.2;
     const wheel = new THREE.Group();
     const wb = new AoMergeBuilder();
-    wb.add(new THREE.TorusGeometry(r, 0.035, 10, 36), m.hazard);
+    wb.add(new THREE.TorusGeometry(r, 0.035, 10, 36), m.hazardClean);
     for (let k = 0; k < 3; k++) wb.add(slab(r * 2, 0.04, 0.03), m.steel, at(0, 0, 0, 0, 0, (k * PI) / 3));
     wb.add(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 12), m.steel, at(0, 0, 0, PI / 2, 0, 0));
     wheel.add(wb.build(`valve:${id}`, null));
@@ -1460,13 +1461,10 @@ const STRUCT: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceB
   floor_tiles(p, rng, m, pb) {
     const wet = boolParam(p, 'wet', false);
     pb.add(slab(4, 0.1, 4), m.paintDark, at(0, -0.17, 0));
-    for (let i = 0; i < 4; i++) {
-      for (let k = 0; k < 4; k++) {
-        const mat = (i + k) % 2 === 0 ? MAT.tileWhite() : MAT.tileGrey();
-        pb.add(slab(0.98, 0.08, 0.98), mat, at(-1.5 + i, -0.04, -1.5 + k));
-      }
-    }
-    pb.add(slab(4, 0.07, 4), MAT.grout(), at(0, -0.045, 0));
+    // One metre-UV slab: the photo tile texture carries its own grout lines (manifest metersPerTile).
+    const pal = resolvePalette(p, m);
+    const tileMat = pal.overridden || TILE_FLOOR_KEYS.some((k) => m[k] === pal.floor) ? pal.floor : m.labTile;
+    pb.add(slab(4, 0.08, 4), tileMat, at(0, -0.04, 0));
     if (wet) {
       const puddle = cached('puddle', () => new THREE.MeshStandardMaterial({ color: 0x0a1416, roughness: 0.02, metalness: 0.2, transparent: true, opacity: 0.55, depthWrite: false }));
       for (let i = 0; i < 2; i++) {
@@ -1497,9 +1495,9 @@ const STRUCT: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceB
   wall_tiles(p, _rng, m, pb) {
     const h = numParam(p, 'height', 3.2);
     const f = wallBack(pb, m, h);
-    pb.add(slab(4, Math.min(2.4, h), 0.02), MAT.tileWhite(), inFrame(f, 0, Math.min(2.4, h) / 2, 0.01));
-    for (let y = 0.3; y < Math.min(2.4, h); y += 0.3) pb.add(slab(4, 0.008, 0.024), MAT.grout(), inFrame(f, 0, y, 0.01));
-    for (let x = -1.7; x < 2; x += 0.3) pb.add(slab(0.008, Math.min(2.4, h), 0.024), MAT.grout(), inFrame(f, x, Math.min(2.4, h) / 2, 0.01));
+    // One metre-UV slab; the tileWall texture carries its own grout lines.
+    const mat = p.material !== undefined ? resolvePalette(p, m).wallMain : m.tileWall;
+    pb.add(slab(4, Math.min(2.4, h), 0.02), mat, inFrame(f, 0, Math.min(2.4, h) / 2, 0.01));
     pb.add(slab(4, 0.06, 0.05), m.steel, inFrame(f, 0, Math.min(2.4, h) + 0.03, 0.025));
   },
 
@@ -1507,7 +1505,7 @@ const STRUCT: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceB
   wall_greenhouse(p, rng, m, pb) {
     const h = numParam(p, 'height', 3.2);
     const f = wallFrame(0, -HALF + WALL_T, 0);
-    panelWall(pb, m, rng, f, { length: 4, height: h, depth: WALL_T, pilaster: true, cables: false });
+    panelWall(pb, m, rng, f, { length: 4, height: h, depth: WALL_T, pilaster: true, cables: false, pal: resolvePalette(p, m) });
     pb.add(rounded(2.4, 1.2, 0.06, 0.02), m.steel, inFrame(f, 0, 1.6, 0.03));
     pb.add(slab(2.2, 1.0, 0.02), glow('greenhouse', 0x3a8a4a, 0.8), inFrame(f, 0, 1.6, 0.065));
     const greens = [MAT.leaf(), MAT.leafLight()];
@@ -1516,27 +1514,28 @@ const STRUCT: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceB
   },
 
   /** A floor tile with the dive bay's moon pool cut in it, railed so nobody falls in. */
-  floor_moonpool(_p, _rng, m, pb) {
+  floor_moonpool(p, _rng, m, pb) {
+    const pal = resolvePalette(p, m);
     const hole = 2.4;
     const rim = (4 - hole) / 2;
     for (const s of [-1, 1]) {
-      pb.add(slab(4, 0.1, rim), m.diamond, at(0, -0.05, s * (hole / 2 + rim / 2)));
-      pb.add(slab(rim, 0.1, hole), m.diamond, at(s * (hole / 2 + rim / 2), -0.05, 0));
+      pb.add(slab(4, 0.1, rim), pal.floor, at(0, -0.05, s * (hole / 2 + rim / 2)));
+      pb.add(slab(rim, 0.1, hole), pal.floor, at(s * (hole / 2 + rim / 2), -0.05, 0));
       pb.solid(-2, -0.2, s > 0 ? hole / 2 : -2, 2, 0, s > 0 ? 2 : -hole / 2, 'grate');
       pb.solid(s > 0 ? hole / 2 : -2, -0.2, -hole / 2, s > 0 ? 2 : -hole / 2, 0, hole / 2, 'grate');
       // Shaft walls and hazard lip.
       pb.add(slab(hole, 3, 0.1), m.paintDark, at(0, -1.6, s * (hole / 2 + 0.05)));
       pb.add(slab(0.1, 3, hole), m.paintDark, at(s * (hole / 2 + 0.05), -1.6, 0));
-      pb.add(slab(hole + 0.2, 0.02, 0.12), m.hazard, at(0, 0.005, s * (hole / 2 + 0.06)));
-      pb.add(slab(0.12, 0.02, hole), m.hazard, at(s * (hole / 2 + 0.06), 0.005, 0));
+      pb.add(slab(hole + 0.2, 0.02, 0.12), pal.hazard, at(0, 0.005, s * (hole / 2 + 0.06)));
+      pb.add(slab(0.12, 0.02, hole), pal.hazard, at(s * (hole / 2 + 0.06), 0.005, 0));
     }
     // Railing (colliders keep bodies out of the water).
     const r = hole / 2 + 0.25;
     for (const [x, z] of [[-r, -r], [r, -r], [r, r], [-r, r]] as const) pb.add(cylinderBetween(V(x, 0, z), V(x, 1.05, z), 0.03, 8), m.steel);
     for (const y of [0.55, 1.05]) {
       for (const s of [-1, 1]) {
-        pb.add(cylinderBetween(V(-r, y, s * r), V(r, y, s * r), 0.022, 8), m.hazard);
-        pb.add(cylinderBetween(V(s * r, y, -r), V(s * r, y, r), 0.022, 8), m.hazard);
+        pb.add(cylinderBetween(V(-r, y, s * r), V(r, y, s * r), 0.022, 8), pal.hazard);
+        pb.add(cylinderBetween(V(s * r, y, -r), V(s * r, y, r), 0.022, 8), pal.hazard);
       }
     }
     for (const s of [-1, 1]) {

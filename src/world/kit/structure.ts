@@ -5,6 +5,7 @@ import { createAbyss } from '../../render/fx/abyss.ts';
 import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { slab } from './shapes.ts';
 import { bolts, ceilingHousing, inFrame, panelWall, pipeRun, plainWall, wallFrame, windowWall } from './detail.ts';
+import { resolvePalette, type ResolvedPalette } from './palettes.ts';
 import { CORRIDOR_H, CORRIDOR_W, ROOM_H, WALL_T, PieceBuilder, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams } from './types.ts';
 
 /**
@@ -48,8 +49,9 @@ interface CorridorOptions {
   window: boolean;
 }
 
-function corridor(o: CorridorOptions, rng: Rng, m: Materials): PieceOutput {
+function corridor(o: CorridorOptions, rng: Rng, m: Materials, p: PieceParams = {}): PieceOutput {
   const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
   const { open } = o;
   const isOpen = (s: Side): boolean => open.has(s);
 
@@ -68,7 +70,7 @@ function corridor(o: CorridorOptions, rng: Rng, m: Materials): PieceOutput {
     }
     // Inspection hatch in the middle.
     pb.add(rounded(1.3, 0.03, 1.3, 0.01), m.steel, at(0, 0.006, 0));
-    pb.add(slab(1.1, 0.02, 1.1, 0.5), m.paintDark, at(0, 0.02, 0));
+    pb.add(slab(1.1, 0.02, 1.1), m.paintDark, at(0, 0.02, 0));
     bolts(pb, m, at(0, 0.03, 0, -PI / 2, 0, 0), [-0.6, 0.6], [-0.6, 0.6], 0);
   }
   for (const [x0, z0, x1, z1] of regions) {
@@ -101,13 +103,13 @@ function corridor(o: CorridorOptions, rng: Rng, m: Materials): PieceOutput {
       else if (side === 'n') f = wallFrame(c, -HW, 0);
       else f = wallFrame(c, HW, PI);
       if (side === 'e' && o.window) {
-        windowWall(pb, m, f, { length: L, height: H, depth: 0.2 }, createAbyss(34, 16));
+        windowWall(pb, m, f, { length: L, height: H, depth: 0.2, pal }, createAbyss(34, 16));
       } else if (L >= 1) {
         const cables = !trayDone && L >= 3 && (side === (o.window ? 'w' : 'e') || side === 'n' || side === 's');
         if (cables) trayDone = true;
-        panelWall(pb, m, rng, f, { length: L, height: H, depth: 0.2, cables });
+        panelWall(pb, m, rng, f, { length: L, height: H, depth: 0.2, cables, pal });
       } else {
-        plainWall(pb, m, rng, f, { length: L, height: H, depth: 0.2 });
+        plainWall(pb, m, rng, f, { length: L, height: H, depth: 0.2, pal });
       }
       const t = 0.25;
       if (side === 'e') pb.solid(HW, 0, a, HW + t, H, b);
@@ -185,7 +187,7 @@ function rib(pb: PieceBuilder, m: Materials, x: number, z: number, ry: number): 
 }
 
 function valveWheel(pb: PieceBuilder, m: Materials, x: number, y: number, z: number): void {
-  const red = m.hazard;
+  const red = m.hazardClean;
   pb.add(cylinderBetween(V(x, y + 0.24, z), V(x, y, z), 0.022), m.steel);
   pb.add(new THREE.TorusGeometry(0.14, 0.016, 8, 28), red, at(x, y, z, PI / 2, 0, 0));
   for (let k = 0; k < 3; k++) pb.add(slab(0.28, 0.012, 0.02), m.steel, at(x, y, z, 0, (k * PI) / 3, 0));
@@ -263,7 +265,7 @@ function corridorDef(id: string, open: Side[], trench: boolean, window: boolean)
     id,
     family: 'structure',
     footprint: [1, 1],
-    generate: (_p, rng, m) => corridor({ open: new Set(open), trench, window }, rng, m),
+    generate: (p, rng, m) => corridor({ open: new Set(open), trench, window }, rng, m, p),
   };
 }
 
@@ -273,12 +275,13 @@ const height = (p: PieceParams): number => numParam(p, 'height', ROOM_H);
 
 function floorTile(p: PieceParams, rng: Rng, m: Materials, grate: boolean): PieceOutput {
   const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
   pb.add(slab(4, 0.1, 4), m.paintDark, at(0, -0.17, 0));
   if (grate || strParam(p, 'style', '') === 'grate') {
-    pb.add(slab(4, 0.06, 0.12), m.steel, at(0, -0.03, -1.94));
-    pb.add(slab(4, 0.06, 0.12), m.steel, at(0, -0.03, 1.94));
-    pb.add(slab(0.12, 0.06, 3.76), m.steel, at(-1.94, -0.03, 0));
-    pb.add(slab(0.12, 0.06, 3.76), m.steel, at(1.94, -0.03, 0));
+    pb.add(slab(4, 0.06, 0.12), pal.floorAlt, at(0, -0.03, -1.94));
+    pb.add(slab(4, 0.06, 0.12), pal.floorAlt, at(0, -0.03, 1.94));
+    pb.add(slab(0.12, 0.06, 3.76), pal.floorAlt, at(-1.94, -0.03, 0));
+    pb.add(slab(0.12, 0.06, 3.76), pal.floorAlt, at(1.94, -0.03, 0));
     pb.add(slab(3.76, 0.03, 3.76, 1), m.grating, at(0, -0.015, 0));
     for (const x of [-0.94, 0, 0.94]) pb.add(slab(0.06, 0.08, 3.76), m.steel, at(x, -0.07, 0));
     pb.add(slab(3.8, 0.05, 3.8), m.black, at(0, -0.75, 0));
@@ -299,7 +302,7 @@ function floorTile(p: PieceParams, rng: Rng, m: Materials, grate: boolean): Piec
           pb.add(rounded(1.9, 0.04, 1.9, 0.01), m.steel, at(sx, -0.02, sz));
           pb.add(slab(1.7, 0.03, 1.7, 1), m.grating, at(sx, 0.004, sz));
         } else {
-          pb.add(slab(1.96, 0.08, 1.96), m.diamond, at(sx, -0.04, sz));
+          pb.add(slab(1.96, 0.08, 1.96), pal.floor, at(sx, -0.04, sz));
         }
       }
     }
@@ -330,9 +333,10 @@ type WallStyle = 'plain' | 'panel' | 'window' | 'glass' | 'vent';
 
 function wallTile(p: PieceParams, rng: Rng, m: Materials, style: WallStyle): PieceOutput {
   const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
   const h = height(p);
   const f = wallFrame(0, -HALF + WALL_T, 0);
-  const o = { length: 4, height: h, depth: WALL_T, pilaster: true };
+  const o = { length: 4, height: h, depth: WALL_T, pilaster: true, pal };
   if (style === 'plain' || style === 'vent') plainWall(pb, m, rng, f, o);
   else if (style === 'panel') panelWall(pb, m, rng, f, { ...o, cables: rng.chance(0.5) });
   else if (style === 'window') {
@@ -404,7 +408,9 @@ function mergeFan(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
  * 2 m x 2.4 m opening. `width` fills the rest of the edge, `height` the space above.
  * Door leaves are added by world/kit/doors.ts.
  */
-export function doorFrame(pb: PieceBuilder, m: Materials, width: number, h: number): void {
+export function doorFrame(pb: PieceBuilder, m: Materials, width: number, h: number, pal?: ResolvedPalette): void {
+  const haz = pal?.hazard ?? m.hazardClean;
+  const hazTile = pal?.hazardTile ?? 0.5;
   const z = -HALF;
   const t = WALL_T * 2;
   const side = (width - 2.56) / 2;
@@ -415,13 +421,13 @@ export function doorFrame(pb: PieceBuilder, m: Materials, width: number, h: numb
   for (const s of [-1, 1]) {
     pb.add(rounded(0.32, 2.76, 0.6, 0.03), m.steel, at(s * 1.16, 1.38, z));
     for (const fz of [-1, 1]) {
-      pb.add(slab(0.2, 2.2, 0.02, 0.5), m.hazard, at(s * 1.16, 1.2, z + fz * 0.305));
+      pb.add(slab(0.2, 2.2, 0.02, hazTile), haz, at(s * 1.16, 1.2, z + fz * 0.305));
       bolts(pb, m, at(s * 1.16, 0, z + fz * 0.31, 0, fz > 0 ? 0 : PI, 0), [-0.1, 0.1], [0.25, 2.25], 0);
     }
   }
   pb.add(rounded(2.64, 0.36, 0.6, 0.03), m.steel, at(0, 2.58, z));
   pb.add(rounded(2.0, 0.04, 0.56, 0.01), m.steel, at(0, 0, z));
-  for (const fz of [-1, 1]) pb.add(slab(1.9, 0.16, 0.02, 0.5), m.hazard, at(0, 2.58, z + fz * 0.305));
+  for (const fz of [-1, 1]) pb.add(slab(1.9, 0.16, 0.02, hazTile), haz, at(0, 2.58, z + fz * 0.305));
   const half = width / 2;
   pb.solid(-half, 0, z - WALL_T, -1, h, z + WALL_T);
   pb.solid(1, 0, z - WALL_T, half, h, z + WALL_T);
@@ -452,7 +458,7 @@ function stairs(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
     const zb = zf - tread;
     pb.add(slab(w - 0.1, 0.05, tread - 0.02), m.diamond, at(0, top - 0.025, (zf + zb) / 2));
     pb.add(slab(w - 0.1, rise / n, 0.03), m.paintDark, at(0, top - rise / n / 2, zf - 0.015));
-    pb.add(slab(w - 0.12, 0.03, 0.04), m.hazard, at(0, top - 0.01, zf - 0.03));
+    pb.add(slab(w - 0.12, 0.03, 0.04), m.hazardClean, at(0, top - 0.01, zf - 0.03));
     pb.solid(-hw, 0, zb, hw, top, zf, 'metal');
     profile.lineTo(-zf, top);
     profile.lineTo(-zb, top);
@@ -495,6 +501,7 @@ function stairs(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
 /** Grating platform at `height` with posts, bracing and railings on `rails` (e.g. "s,w"). */
 function catwalk(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
   const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
   const h = numParam(p, 'height', 2);
   const w = numParam(p, 'width', 4);
   const d = numParam(p, 'depth', 4);
@@ -528,7 +535,7 @@ function catwalk(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
     }
     pb.add(cylinderBetween(V(x0, h + railH, z0), V(x1, h + railH, z1), 0.03, 8), m.steel);
     pb.add(cylinderBetween(V(x0, h + 0.55, z0), V(x1, h + 0.55, z1), 0.02, 8), m.steel);
-    pb.add(slab(Math.abs(x1 - x0) + 0.04, 0.12, Math.abs(z1 - z0) + 0.04), m.hazard, at((x0 + x1) / 2, h + 0.06, (z0 + z1) / 2));
+    pb.add(slab(Math.abs(x1 - x0) + 0.04, 0.12, Math.abs(z1 - z0) + 0.04), pal.hazard, at((x0 + x1) / 2, h + 0.06, (z0 + z1) / 2));
     pb.solid(Math.min(x0, x1) - 0.05, h, Math.min(z0, z1) - 0.05, Math.max(x0, x1) + 0.05, h + railH, Math.max(z0, z1) + 0.05);
   };
   const e = 0.05;
@@ -564,7 +571,7 @@ export const STRUCTURE_PIECES: PieceDef[] = [
   tile('wall_vent', (p, rng, m) => wallTile(p, rng, m, 'vent')),
   tile('door_frame', (p, _rng, m) => {
     const pb = new PieceBuilder();
-    doorFrame(pb, m, numParam(p, 'width', 4), height(p));
+    doorFrame(pb, m, numParam(p, 'width', 4), height(p), resolvePalette(p, m));
     return pb.build();
   }),
   tile('stairs', stairs),

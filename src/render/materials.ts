@@ -1,29 +1,50 @@
 import * as THREE from 'three';
 import { TEXTURE_SPECS, type TextureKey, type TexSet } from './tex/generators.ts';
 import type { TexWorkerRequest, TexWorkerResponse } from './tex/texWorker.ts';
-import { toPbrTextures } from './textures.ts';
+import { loadPhotoTextures, toPbrTextures, type PbrTextures, type PhotoTextures } from './textures.ts';
+import { PHOTO_SLOTS, PHOTO_SLOT_KEYS, type PhotoSlotKey } from './tex/manifest.ts';
 
-const TEXTURE_KEYS: TextureKey[] = ['paintTeal', 'paintDark', 'paintBone', 'steel', 'diamond', 'grating', 'rubber', 'hazard'];
+const TEXTURE_KEYS: TextureKey[] = [
+  'paintTeal',
+  'paintDark',
+  'paintBone',
+  'steel',
+  'diamond',
+  'grating',
+  'rubber',
+  'hazard',
+  'hazardClean',
+  'labTile',
+  'labPanel',
+  'concrete',
+];
 
 /** Shared material instances (ADR-0002). Per-object variants are cloned from these. */
-export interface Materials {
-  paintTeal: THREE.MeshStandardMaterial;
-  paintDark: THREE.MeshStandardMaterial;
-  paintBone: THREE.MeshStandardMaterial;
+export interface Materials extends Record<PhotoSlotKey, THREE.MeshStandardMaterial> {
   steel: THREE.MeshStandardMaterial;
-  diamond: THREE.MeshStandardMaterial;
   grating: THREE.MeshStandardMaterial;
-  rubber: THREE.MeshStandardMaterial;
-  hazard: THREE.MeshStandardMaterial;
+  hazardClean: THREE.MeshStandardMaterial;
   glass: THREE.MeshPhysicalMaterial;
   black: THREE.MeshStandardMaterial;
   cable: THREE.MeshStandardMaterial;
   glowCyan: THREE.MeshStandardMaterial;
 }
 
-function buildMaterialsFromSets(sets: Record<TextureKey, TexSet>, anisotropy: number): Materials {
-  const pbr = (key: TextureKey, extra: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial => {
-    const t = toPbrTextures(sets[key], anisotropy);
+/** Photo slot textures by slot; a missing entry (load failure or sync path) uses the procedural fallback. */
+type PhotoLoads = Partial<Record<PhotoSlotKey, PhotoTextures>>;
+
+function buildMaterialsFromSets(sets: Record<TextureKey, TexSet>, anisotropy: number, photos: PhotoLoads = {}): Materials {
+  const procCache = new Map<TextureKey, PbrTextures>();
+  const procTextures = (key: TextureKey): PbrTextures => {
+    let t = procCache.get(key);
+    if (!t) {
+      t = toPbrTextures(sets[key], anisotropy);
+      procCache.set(key, t);
+    }
+    return t;
+  };
+  const pbr = (name: string, key: TextureKey, extra: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial => {
+    const t = procTextures(key);
     const m = new THREE.MeshStandardMaterial({
       map: t.map,
       normalMap: t.normalMap,
@@ -33,19 +54,37 @@ function buildMaterialsFromSets(sets: Record<TextureKey, TexSet>, anisotropy: nu
       metalness: 1,
       ...extra,
     });
-    m.name = key;
+    m.name = name;
+    return m;
+  };
+  const photo = (slot: PhotoSlotKey): THREE.MeshStandardMaterial => {
+    const spec = PHOTO_SLOTS[slot];
+    const t = photos[slot];
+    if (!t) return pbr(slot, spec.fallback);
+    // aoMap reads the R channel of the ORM on uv channel 0 (texture.channel default), so no uv1 is needed.
+    const m = new THREE.MeshStandardMaterial({
+      map: t.map,
+      normalMap: t.normalMap,
+      roughnessMap: t.orm,
+      metalnessMap: t.orm,
+      aoMap: t.orm,
+      color: spec.tint,
+      roughness: spec.roughnessScale,
+      metalness: 1,
+    });
+    if (spec.normalScale !== undefined) m.normalScale.set(spec.normalScale, spec.normalScale);
+    m.name = slot;
     return m;
   };
 
+  const photoMats = {} as Record<PhotoSlotKey, THREE.MeshStandardMaterial>;
+  for (const k of PHOTO_SLOT_KEYS) photoMats[k] = photo(k);
+
   return {
-    paintTeal: pbr('paintTeal'),
-    paintDark: pbr('paintDark'),
-    paintBone: pbr('paintBone'),
-    steel: pbr('steel'),
-    diamond: pbr('diamond'),
-    grating: pbr('grating', { alphaTest: 0.5, side: THREE.DoubleSide }),
-    rubber: pbr('rubber'),
-    hazard: pbr('hazard'),
+    ...photoMats,
+    steel: pbr('steel', 'steel'),
+    grating: pbr('grating', 'grating', { alphaTest: 0.5, side: THREE.DoubleSide }),
+    hazardClean: pbr('hazardClean', 'hazardClean'),
     glass: new THREE.MeshPhysicalMaterial({
       color: 0x9fbac2,
       roughness: 0.04,
@@ -70,24 +109,54 @@ export function createMaterials(textureSize: number, anisotropy: number): Materi
   return buildMaterialsFromSets(sets, anisotropy);
 }
 
-/** Generate procedural PBR textures in a Web Worker when available, falling back to sync. */
-export function createMaterialsAsync(textureSize: number, anisotropy: number): Promise<Materials> {
-  if (typeof Worker === 'undefined') return Promise.resolve(createMaterials(textureSize, anisotropy));
+/** Load all photo slots in parallel; a failing slot logs once and is left out (procedural fallback). */
+async function loadPhotos(anisotropy: number, baseUrl: string): Promise<PhotoLoads> {
+  const out: PhotoLoads = {};
+  // ?proctex: skip photo textures for a before/after comparison with the procedural set.
+  if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('proctex')) return out;
+  await Promise.all(
+    PHOTO_SLOT_KEYS.map(async (key) => {
+      try {
+        out[key] = await loadPhotoTextures(PHOTO_SLOTS[key], baseUrl, anisotropy);
+      } catch (err) {
+        console.warn(`[textures] slot '${key}' failed to load; using procedural '${PHOTO_SLOTS[key].fallback}'`, err);
+      }
+    }),
+  );
+  return out;
+}
+
+function generateSetsAsync(textureSize: number): Promise<Record<TextureKey, TexSet>> {
+  const sync = (): Record<TextureKey, TexSet> => {
+    const sets = {} as Record<TextureKey, TexSet>;
+    for (const key of TEXTURE_KEYS) sets[key] = TEXTURE_SPECS[key](textureSize);
+    return sets;
+  };
+  if (typeof Worker === 'undefined') return Promise.resolve(sync());
   return new Promise((resolve) => {
     const worker = new Worker(new URL('./tex/texWorker.ts', import.meta.url), { type: 'module' });
     worker.onmessage = (e: MessageEvent<TexWorkerResponse>) => {
       worker.terminate();
       const sets = {} as Record<TextureKey, TexSet>;
       for (let i = 0; i < TEXTURE_KEYS.length; i++) sets[TEXTURE_KEYS[i]!] = e.data.sets[i]!;
-      resolve(buildMaterialsFromSets(sets, anisotropy));
+      resolve(sets);
     };
     worker.onerror = () => {
       worker.terminate();
-      resolve(createMaterials(textureSize, anisotropy));
+      resolve(sync());
     };
     const req: TexWorkerRequest = { keys: TEXTURE_KEYS, size: textureSize };
     worker.postMessage(req);
   });
+}
+
+/**
+ * Procedural sets (worker) and photo textures (images) load in parallel; resolves when both settle.
+ * Slots whose images fail use their manifest fallback generator.
+ */
+export async function createMaterialsAsync(textureSize: number, anisotropy: number, baseUrl: string = import.meta.env.BASE_URL): Promise<Materials> {
+  const [sets, photos] = await Promise.all([generateSetsAsync(textureSize), loadPhotos(anisotropy, baseUrl)]);
+  return buildMaterialsFromSets(sets, anisotropy, photos);
 }
 
 /** Emissive material for a light fixture; one instance per fixture so it can flicker alone. */

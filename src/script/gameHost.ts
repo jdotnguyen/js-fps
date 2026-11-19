@@ -43,6 +43,8 @@ export interface GameHostDeps {
   enemies?: { spawnGroup(group: string): boolean; despawnGroup(group: string): boolean; groupCleared(group: string): boolean } | null | undefined;
   /** Speech manager (ADR-0010) for `say`; without it lines are skipped with a warning. */
   speech?: { say(id: string, opts?: { overlap?: boolean }): { done: Promise<unknown> } | null; stopAll(): void } | null | undefined;
+  /** End-credits overlay triggered when the slice finishes. */
+  showCredits?: () => void;
   /** Security camera feeds (`render/cameraFeed.ts`) for the `cameraFeed` action. */
   cameraFeeds?: { apply(id: string, opts: CameraFeedOptions): void } | null | undefined;
   /** Gore particles and pools (`gore` action). */
@@ -182,14 +184,12 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
       if (d.game.flags[`cp:${id}`]) return; // already taken (a replay after death)
       d.game.reachCheckpoint(id, text ?? label(id));
     },
-    // The slice is over (ADR-0014 beat 8): a thank-you, then back to the title with the screen un-blacked.
+    // The slice is over (ADR-0014 beat 8): show the end credits with the theme song, then land on the title.
     endSlice: () => {
       d.game.flags['slice_done'] = true;
-      d.toasts.show('End of slice', 'Thanks for playing');
-      setTimeout(() => {
-        d.hud.setFade(0, 0.4);
-        d.game.showTitle();
-      }, 5000);
+      d.game.quitToTitle();
+      if (d.showCredits) d.showCredits();
+      else d.toasts.show('End of slice', 'Thanks for playing');
     },
     giveItem: (id) => d.inventory?.give(id, 'script') ?? false,
     ...(d.enemies

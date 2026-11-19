@@ -121,6 +121,11 @@
       "to": "anchor:walkby_stop"
     },
     {
+      "do": "npcMoveTo",
+      "npc": "sung",
+      "to": "anchor:walkby_queue"
+    },
+    {
       "do": "playerFrame",
       "target": "npc:ruiz",
       "duration": 1.0,
@@ -144,34 +149,6 @@
       "to": "anchor:crew_ruiz_commons"
     },
     {
-      "do": "playerFrame",
-      "target": "anchor:dock_door",
-      "duration": 1.2
-    },
-    {
-      "do": "doorState",
-      "id": "D_dock",
-      "state": "locked"
-    },
-    {
-      "do": "wait",
-      "s": 2.0
-    },
-    {
-      "do": "sfx",
-      "id": "click",
-      "at": "anchor:dock_door"
-    },
-    {
-      "do": "doorState",
-      "id": "D_dock",
-      "state": "open"
-    },
-    {
-      "do": "wait",
-      "s": 0.6
-    },
-    {
       "do": "npcMoveTo",
       "npc": "sung",
       "to": "anchor:walkby_stop"
@@ -181,6 +158,10 @@
       "target": "npc:sung",
       "duration": 1.0,
       "wait": true
+    },
+    {
+      "do": "wait",
+      "s": 0.8
     },
     {
       "do": "say",
@@ -202,7 +183,8 @@
     {
       "do": "playerFrame",
       "target": "anchor:dock_door",
-      "duration": 1.2
+      "duration": 1.2,
+      "wait": true
     },
     {
       "do": "doorState",
@@ -225,7 +207,7 @@
     },
     {
       "do": "wait",
-      "s": 0.6
+      "s": 1.0
     },
     {
       "parallel": [
@@ -288,26 +270,14 @@
       "line": "intro_okafor_03"
     },
     {
-      "do": "say",
-      "line": "intro_giles_04"
-    },
-    {
-      "do": "say",
-      "line": "intro_jay_05"
-    },
-    {
-      "do": "say",
-      "line": "intro_giles_05"
-    },
-    {
       "do": "npcMoveTo",
       "npc": "okafor",
-      "to": "anchor:window_okafor"
+      "to": "anchor:counter_okafor"
     },
     {
       "do": "npcMoveTo",
       "npc": "giles",
-      "to": "anchor:window_giles"
+      "to": "anchor:counter_giles"
     },
     {
       "do": "wait",
@@ -324,15 +294,27 @@
       "parallel": [
         {
           "do": "playerWalkTo",
-          "to": "anchor:window_jay",
+          "to": "anchor:kitchen_stand",
           "speed": 1.3,
-          "timeout": 25,
+          "timeout": 45,
           "wait": true
         },
         {
           "do": "loop",
           "count": 1,
           "steps": [
+            {
+              "do": "say",
+              "line": "intro_giles_04"
+            },
+            {
+              "do": "say",
+              "line": "intro_jay_05"
+            },
+            {
+              "do": "say",
+              "line": "intro_giles_05"
+            },
             {
               "do": "say",
               "line": "pa_quarantine_01",
@@ -377,48 +359,6 @@
           ]
         }
       ]
-    },
-    {
-      "do": "playerFrame",
-      "target": "anchor:abyss_window_walk",
-      "duration": 1.6,
-      "wait": true
-    },
-    {
-      "do": "emit",
-      "event": "intro:abyss_shadow"
-    },
-    {
-      "do": "sfx",
-      "id": "hullGroan",
-      "at": "anchor:abyss_window_walk"
-    },
-    {
-      "do": "wait",
-      "s": 4
-    },
-    {
-      "do": "playerFrame",
-      "target": "anchor:kitchen_door",
-      "duration": 1.2,
-      "wait": true
-    },
-    {
-      "do": "npcMoveTo",
-      "npc": "okafor",
-      "to": "anchor:counter_okafor"
-    },
-    {
-      "do": "npcMoveTo",
-      "npc": "giles",
-      "to": "anchor:counter_giles"
-    },
-    {
-      "do": "playerWalkTo",
-      "to": "anchor:kitchen_stand",
-      "wait": true,
-      "speed": 1.3,
-      "timeout": 25
     },
     {
       "do": "radio",

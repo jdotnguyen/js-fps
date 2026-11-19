@@ -34,9 +34,35 @@ test('collider file matches its sidecar', () => {
 test('the GLB is a valid merged scene', () => {
   const d = fs.readFileSync(new URL('underground_lab.glb', DIR));
   assert.equal(d.toString('ascii', 0, 4), 'glTF');
-  const j = JSON.parse(d.subarray(20, 20 + d.readUInt32LE(12)).toString('utf8')) as { meshes: unknown[]; textures?: unknown[]; extensionsRequired?: string[] };
+  const j = JSON.parse(d.subarray(20, 20 + d.readUInt32LE(12)).toString('utf8')) as {
+    meshes: Array<{ primitives: Array<{ attributes: Record<string, number> }> }>;
+    materials: Array<{ name: string }>;
+    textures?: unknown[];
+    extensionsRequired?: string[];
+  };
   assert.ok(j.meshes.length < 60, 'meshes merged into tiles');
-  assert.equal(j.extensionsRequired, undefined, 'no spec/gloss extension left for GLTFLoader to choke on');
+  assert.ok(
+    !j.extensionsRequired?.includes('KHR_materials_pbrSpecularGlossiness'),
+    'no spec/gloss extension left for GLTFLoader to choke on',
+  );
+  assert.ok(
+    j.meshes.every((m) => m.primitives.every((p) => p.attributes.TEXCOORD_0 !== undefined)),
+    'every primitive has baked TEXCOORD_0 UVs',
+  );
+  const matNames = new Set(j.materials.map((m) => m.name));
+  for (const name of [
+    'lab_hub_floor',
+    'lab_hub_wall',
+    'lab_east_floor',
+    'lab_east_upper_floor',
+    'lab_west_floor',
+    'lab_west_wall',
+    'lab_north_floor',
+    'glass',
+    'Material_44',
+  ]) {
+    assert.ok(matNames.has(name), `material ${name} present`);
+  }
 });
 
 test('the player stands on the hub floor at the spawn point and can walk around', () => {

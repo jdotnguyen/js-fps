@@ -60,17 +60,29 @@ test('only Jay, the squad, Priya, crew and the PA speak', () => {
   });
 });
 
-test('at the window Okafor, Giles and Jay each get their own spot, ~0.9 m apart', () => {
-  const targets: Record<string, string[]> = { okafor: [], giles: [] };
+test('Ruiz and Sung both come in at once, Sung queues until Ruiz is done', () => {
+  const moves: string[] = [];
+  walk(intro.steps, (s) => {
+    if (s['do'] === 'npcMoveTo' && (s['npc'] === 'ruiz' || s['npc'] === 'sung')) moves.push(`${String(s['npc'])}>${String(s['to'])}`);
+  });
+  assert.deepEqual(moves, [
+    'ruiz>anchor:walkby_stop',
+    'sung>anchor:walkby_queue',
+    'ruiz>anchor:crew_ruiz_commons',
+    'sung>anchor:walkby_stop',
+    'sung>anchor:crew_sung_commons',
+  ]);
+});
+
+test('the walk to the kitchen is one banter walk, no window stop', () => {
   const walks: Record<string, unknown>[] = [];
   walk(intro.steps, (s) => {
-    if (s['do'] === 'npcMoveTo' && String(s['to']).includes('window')) targets[s['npc'] as string]!.push(String(s['to']));
-    if (s['do'] === 'playerWalkTo' && String(s['to']).includes('window')) walks.push(s);
+    assert.ok(!String(s['to'] ?? '').includes('window'), 'no window anchors');
+    assert.ok(!String(s['target'] ?? '').includes('window') || s['target'] === 'anchor:dock_window', 'no abyss window shot');
+    if (s['do'] === 'playerWalkTo') walks.push(s);
   });
-  assert.deepEqual(targets, { okafor: ['anchor:window_okafor'], giles: ['anchor:window_giles'] });
-  assert.equal(walks.length, 1);
-  assert.equal(walks[0]!['to'], 'anchor:window_jay');
-  assert.equal(typeof walks[0]!['timeout'], 'number', 'a blocked walk times out instead of hanging the intro');
+  assert.equal(walks.filter((w) => w['to'] === 'anchor:kitchen_stand').length, 1);
+  assert.equal(typeof walks.find((w) => w['to'] === 'anchor:kitchen_stand')!['timeout'], 'number', 'a blocked walk times out instead of hanging the intro');
 });
 
 test('Ruiz and Sung walk to their own Commons spots, never the kitchen_door aim point', () => {
@@ -90,17 +102,15 @@ test('Ruiz and Sung walk to their own Commons spots, never the kitchen_door aim 
   }
 });
 
-test('Jay walks to the window in one continuous walk at the NPCs speed, no walk_mid stop', () => {
+test('Jay walks to the kitchen in one continuous walk at the NPCs speed, no walk_mid stop', () => {
   const walks: Record<string, unknown>[] = [];
   walk(intro.steps, (s) => {
     if (s['do'] === 'playerWalkTo') walks.push(s);
   });
   assert.ok(!walks.some((w) => w['to'] === 'anchor:walk_mid'));
-  const toWindow = walks.filter((w) => w['to'] === 'anchor:window_jay');
-  assert.equal(toWindow.length, 1);
-  assert.equal(toWindow[0]!['speed'], 1.3);
-  assert.equal(toWindow[0]!['wait'], true);
-  assert.equal(walks.find((w) => w['to'] === 'anchor:kitchen_stand')!['speed'], 1.3);
+  assert.equal(walks.length, 1);
+  assert.equal(walks[0]!['speed'], 1.3);
+  assert.equal(walks[0]!['wait'], true);
 });
 
 test('the intro uses speaker shots for its group conversations', () => {

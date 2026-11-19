@@ -5,6 +5,7 @@ import { createSeabed } from '../../render/fx/seabed.ts';
 import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { slab } from './shapes.ts';
 import type { PieceBuilder } from './types.ts';
+import type { ResolvedPalette } from './palettes.ts';
 
 /**
  * Reusable detail for kit pieces. Walls are authored in a canonical frame (running
@@ -33,6 +34,8 @@ export interface WallOptions {
   pilaster?: boolean;
   /** Cable tray with sagging cables near the top. */
   cables?: boolean;
+  /** Area palette (kit/palettes.ts); omitted = the original dark-panel look with clean hazard stripes. */
+  pal?: ResolvedPalette;
 }
 
 /** Back slab, skirting and trim common to every wall style. */
@@ -41,7 +44,7 @@ function wallBase(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Matrix4, o:
   const h = o.height;
   const depth = o.depth ?? 0.12;
   pb.add(slab(L, h + 0.1, depth), backing, inFrame(f, 0, h / 2 - 0.05, -depth / 2));
-  pb.add(slab(L - 0.08, 0.24, 0.03, 0.5), m.hazard, inFrame(f, 0, 0.12, 0.015));
+  pb.add(slab(L - 0.08, 0.24, 0.03, o.pal?.hazardTile ?? 0.5), o.pal?.hazard ?? m.hazardClean, inFrame(f, 0, 0.12, 0.015));
   pb.add(slab(L, 0.06, 0.06), m.steel, inFrame(f, 0, Math.min(2.55, h - 0.5), 0.03));
   if (o.pilaster) pilaster(pb, m, f, -L / 2 + 0.11, h);
   if (o.cables) cableTray(pb, m, rng, f, L, Math.min(h, 3.2) - 0.55, 0.3);
@@ -69,7 +72,7 @@ export function cableTray(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Mat
 
 /** Plain wall: big plates with seams. */
 export function plainWall(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Matrix4, o: WallOptions): void {
-  wallBase(pb, m, rng, f, o, m.paintDark);
+  wallBase(pb, m, rng, f, o, o.pal?.wallMain ?? m.paintDark);
   const L = o.length;
   const h = o.height;
   const rows = h > 3.4 ? [0.3, 1.45, 2.7, 3.7] : [0.3, 1.45, 2.6];
@@ -77,7 +80,7 @@ export function plainWall(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Mat
     const y0 = rows[i]!;
     const y1 = Math.min(rows[i + 1] ?? h - 0.1, h - 0.1);
     if (y1 - y0 < 0.3) continue;
-    const mat = rng.chance(0.15) ? m.paintBone : m.paintDark;
+    const mat = rng.chance(0.15) ? (o.pal?.wallAlt ?? m.paintBone) : (o.pal?.wallMain ?? m.paintDark);
     pb.add(rounded(L - 0.3, y1 - y0 - 0.06, 0.04, 0.015), mat, inFrame(f, 0, (y0 + y1) / 2, 0.02));
   }
 }
@@ -85,6 +88,8 @@ export function plainWall(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Mat
 /** Panelled wall in ~2 m bays: dark lower panels, teal upper panels, ribs at bay ends. */
 export function panelWall(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Matrix4, o: WallOptions): void {
   wallBase(pb, m, rng, f, o, m.black);
+  const lower = o.pal?.wallMain ?? m.paintDark;
+  const upper = o.pal?.wallAlt ?? m.paintTeal;
   const L = o.length;
   const h = o.height;
   const bays = Math.max(1, Math.round(L / 2));
@@ -94,7 +99,7 @@ export function panelWall(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Mat
     const pw = bayW / 2 - 0.1;
     for (const dx of [-bayW / 4, bayW / 4]) {
       const x = xc + dx;
-      pb.add(rounded(pw, 1.0, 0.06), m.paintDark, inFrame(f, x, 0.82, 0.03));
+      pb.add(rounded(pw, 1.0, 0.06), lower, inFrame(f, x, 0.82, 0.03));
       if (rng.chance(0.1)) {
         // Missing upper panel: exposed conduit behind.
         for (let k = 0; k < 3; k++) {
@@ -102,9 +107,9 @@ export function panelWall(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Mat
           pb.add(cylinderBetween(V(cx, 1.36, -0.03).applyMatrix4(f), V(cx, 2.48, -0.03).applyMatrix4(f), 0.025 + k * 0.006, 8), k === 1 ? m.paintTeal : m.cable);
         }
       } else {
-        pb.add(rounded(pw, 1.1, 0.06), rng.chance(0.2) ? m.paintBone : m.paintTeal, inFrame(f, x, 1.92, 0.03));
+        pb.add(rounded(pw, 1.1, 0.06), rng.chance(0.2) ? (o.pal?.wallMain ?? m.paintBone) : upper, inFrame(f, x, 1.92, 0.03));
       }
-      if (h > 3.4) pb.add(rounded(pw, Math.min(1.2, h - 2.95), 0.06), m.paintDark, inFrame(f, x, 2.65 + Math.min(1.2, h - 2.95) / 2, 0.03));
+      if (h > 3.4) pb.add(rounded(pw, Math.min(1.2, h - 2.95), 0.06), lower, inFrame(f, x, 2.65 + Math.min(1.2, h - 2.95) / 2, 0.03));
     }
     if (b > 0) pilaster(pb, m, f, -L / 2 + bayW * b, h);
   }
@@ -121,8 +126,8 @@ export function windowWall(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, o: 
   const head = 2.4;
   pb.add(slab(L, sill + 0.1, 0.12), m.black, inFrame(f, 0, sill / 2 - 0.05, -0.06));
   pb.add(slab(L, h - head + 0.1, 0.12), m.black, inFrame(f, 0, (h + head) / 2 + 0.05, -0.06));
-  pb.add(slab(L - 0.08, 0.24, 0.03, 0.5), m.hazard, inFrame(f, 0, 0.12, 0.015));
-  pb.add(rounded(L - 0.1, 0.48, 0.06), m.paintDark, inFrame(f, 0, 0.58, 0.03));
+  pb.add(slab(L - 0.08, 0.24, 0.03, o.pal?.hazardTile ?? 0.5), o.pal?.hazard ?? m.hazardClean, inFrame(f, 0, 0.12, 0.015));
+  pb.add(rounded(L - 0.1, 0.48, 0.06), o.pal?.wallMain ?? m.paintDark, inFrame(f, 0, 0.58, 0.03));
   pb.add(rounded(L, 0.14, 0.3, 0.03), m.steel, inFrame(f, 0, sill - 0.02, 0.06));
   pb.add(rounded(L, 0.18, 0.3, 0.03), m.steel, inFrame(f, 0, head + 0.06, 0.06));
   const mullions = Math.max(2, Math.round(L / 2) + 1);

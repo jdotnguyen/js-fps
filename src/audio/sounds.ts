@@ -251,6 +251,60 @@ export function consoleBeep(sr: number, rng: Rng): Buf {
   return normalize(b, 0.35);
 }
 
+/** Menu hover: a low, dissonant descending groan with a breath of rasp, something stirring in the dark. */
+export function uiHover(sr: number, rng: Rng): Buf {
+  const b = makeBuf(sr, 0.24);
+  const f0 = rng.range(150, 175);
+  const noise = white(rng);
+  const bp = new Biquad('bandpass', 420, 2.5, sr);
+  const lp = new Biquad('lowpass', 1100, 0.8, sr);
+  let p1 = 0;
+  let p2 = 0;
+  for (let i = 0; i < b.length; i++) {
+    const t = i / sr;
+    const glide = 1 - 0.22 * Math.min(1, t / 0.2);
+    // A minor-second pair beats against itself, which reads as wrong rather than pleasant.
+    p1 += (TAU * f0 * glide) / sr;
+    p2 += (TAU * f0 * 1.0595 * glide) / sr;
+    const env = Math.min(1, t / 0.02) * Math.exp(-t / 0.09);
+    const tone = Math.tanh(3 * (Math.sin(p1) + Math.sin(p2)) * 0.6);
+    const rasp = bp.process(noise()) * Math.min(1, t / 0.03) * Math.exp(-t / 0.07) * 0.9;
+    b[i] = lp.process(tone + rasp) * env;
+  }
+  return fadeEdges(normalize(b, 0.6), sr, 0.003, 0.05);
+}
+
+/** Menu select: a heavy, detuned downward lurch with a metallic scrape and a tritone sting, dread, not a chime. */
+export function uiSelect(sr: number, rng: Rng): Buf {
+  const b = makeBuf(sr, 0.7);
+  const noise = white(rng);
+  const lpThud = new Biquad('lowpass', 1500, 0.7, sr);
+  const lpTone = new Biquad('lowpass', 1400, 0.8, sr);
+  const scrapeBp = new Biquad('bandpass', 1900, 3, sr);
+  let pa = 0;
+  let pb = 0;
+  let pc = 0;
+  let drop = 0;
+  for (let i = 0; i < b.length; i++) {
+    const t = i / sr;
+    // Falling groan: root and a detuned tritone, both sliding down.
+    const slide = Math.exp(-t / 0.35);
+    const root = 200 * (0.55 + 0.45 * slide);
+    pa += (TAU * root) / sr;
+    pb += (TAU * root * 1.4142) / sr;
+    pc += (TAU * root * 1.0595 * 0.5) / sr;
+    const env = Math.min(1, t / 0.006) * Math.exp(-t / 0.2);
+    const groan = Math.tanh(3.5 * (Math.sin(pa) + 0.7 * Math.sin(pb) + 0.8 * Math.sin(pc))) * env;
+    // Ring-modulated metal scrape, like a bulkhead dragging.
+    const scrape = scrapeBp.process(noise()) * (0.5 + 0.5 * Math.sin(TAU * 37 * t)) * Math.exp(-t / 0.12) * 0.9;
+    drop += (TAU * (60 + 150 * Math.exp(-t / 0.06))) / sr;
+    const sub = Math.sin(drop) * Math.min(1, t / 0.004) * Math.exp(-t / 0.2) * 1.3;
+    const thud = lpThud.process(noise()) * Math.exp(-t / 0.008) * 0.7;
+    b[i] = lpTone.process(groan) * 0.8 + scrape + sub + thud;
+  }
+  return fadeEdges(normalize(b, 0.7), sr, 0.0005, 0.1);
+}
+
 /** Lockdown klaxon (heard muffled through the door). */
 export function klaxon(sr: number, rng: Rng): Buf {
   const b = makeBuf(sr, 2.4);
@@ -760,6 +814,8 @@ export const SOUND_SPECS = {
   zap: { make: zap, loop: false, variants: 3 },
   consoleBeep: { make: consoleBeep, loop: false, variants: 2 },
   klaxon: { make: klaxon, loop: false, variants: 1 },
+  uiHover: { make: uiHover, loop: false, variants: 3 },
+  uiSelect: { make: uiSelect, loop: false, variants: 2 },
   distantMoan: { make: distantMoan, loop: false, variants: 2 },
   subPass: { make: subPass, loop: false, variants: 1 },
   subClamp: { make: subClamp, loop: false, variants: 1 },
@@ -781,16 +837,32 @@ export const SOUND_SPECS = {
  */
 export const SAMPLE_URLS = {
   pistolShot: 'assets/audio/weapons/pistol-shot.mp3',
-  pistolReloadOut: 'assets/audio/weapons/pistol-reload-out.wav',
-  pistolReloadIn: 'assets/audio/weapons/pistol-reload-in.wav',
-  pistolReloadSlide: 'assets/audio/weapons/pistol-reload-slide.wav',
-  shotgunShot: 'assets/audio/weapons/shotgun-shot.wav',
-  shotgunPump: 'assets/audio/weapons/shotgun-pump-fit.wav', // stretched x1.1 to match the PostFire clip (scripts/fit-weapon-audio.mjs)
-  shotgunShell: 'assets/audio/weapons/shotgun-shell.wav',
-  dryFire: 'assets/audio/weapons/dry-fire.wav',
+  pistolReloadOut: 'assets/audio/weapons/pistol-reload-out.mp3',
+  pistolReloadIn: 'assets/audio/weapons/pistol-reload-in.mp3',
+  pistolReloadSlide: 'assets/audio/weapons/pistol-reload-slide.mp3',
+  pistolCock: 'assets/audio/weapons/pistol-cock-fit.mp3', // pull-back + slide-home, gap trimmed to the Weild clip (scripts/fit-pistol-cock.mjs)
+  shotgunShot: 'assets/audio/weapons/shotgun-shot.mp3',
+  shotgunPump: 'assets/audio/weapons/shotgun-pump-fit.mp3', // stretched x1.1 to match the PostFire clip (scripts/fit-weapon-audio.mjs)
+  shotgunShell: 'assets/audio/weapons/shotgun-shell.mp3',
+  dryFire: 'assets/audio/weapons/dry-fire.mp3',
+  // Menu UI one-shots (trimmed from Universfield "interface click" and Dragon Studio "menu open").
+  // uiHover / uiSelect replace the procedural versions once loaded; uiMenuOpen has no procedural fallback.
+  uiHover: 'assets/audio/ui/ui-hover.mp3',
+  uiSelect: 'assets/audio/ui/ui-click.mp3',
+  uiMenuOpen: 'assets/audio/ui/ui-menu-open.mp3',
+  // Zombie voices (Dragon Studio, see CREDITS.md). Variant order is [sound-2, call, sfx]; src/audio/zombieVoices.ts
+  // plays them in turn and the boot splash uses ZOMBIE_SPLASH_VARIANT.
+  zombieVoice: [
+    'assets/audio/zombies/zombie-sound-2.mp3',
+    'assets/audio/zombies/zombie-call.mp3',
+    'assets/audio/zombies/zombie-sfx.mp3',
+  ],
   // Seven boot steps cut from the first ~4 s of freesound_community "metal footsteps" (14727).
-  footPlate: [1, 2, 3, 4, 5, 6, 7].map((i) => `assets/audio/footsteps/foot-metal-${i}.wav`),
+  footPlate: [1, 2, 3, 4, 5, 6, 7].map((i) => `assets/audio/footsteps/foot-metal-${i}.mp3`),
 } as const satisfies Record<string, string | readonly string[]>;
+
+/** The `zombieVoice` clip the boot splash plays while the logo shambles in. */
+export const ZOMBIE_SPLASH_VARIANT = 2;
 
 export type SampleName = keyof typeof SAMPLE_URLS;
 export type SoundName = keyof typeof SOUND_SPECS | SampleName;
