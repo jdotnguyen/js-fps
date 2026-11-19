@@ -23,6 +23,77 @@ function takesAo(material: THREE.Material): boolean {
 }
 
 /**
+ * Box-project world-space UVs so 1 UV unit = `tileMeters` metres and a texture runs
+ * continuously across neighbouring kit pieces (no restart at every tile or trim edge).
+ *
+ * - Projection axis is chosen once per triangle from its face normal, so bevelled
+ *   `rounded()` edges never mix two projections inside one triangle (no smearing).
+ * - U is signed by facing so the texture reads left-to-right from in front of every
+ *   face: opposite walls are not mirrored, floors read the right way up from above.
+ * - Indexed geometry (shared vertices) falls back to per-vertex normals.
+ */
+export function applyWorldMeterUvs(g: THREE.BufferGeometry, tileMeters = 1): void {
+  const pos = g.getAttribute('position');
+  if (!pos) return;
+  const nor = g.getAttribute('normal');
+  let uv = g.getAttribute('uv');
+  if (!uv || uv.count !== pos.count) {
+    uv = new THREE.Float32BufferAttribute(new Float32Array(pos.count * 2), 2);
+    g.setAttribute('uv', uv);
+  }
+  const inv = 1 / tileMeters;
+  const project = (i: number, nx: number, ny: number, nz: number): void => {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const ax = Math.abs(nx);
+    const ay = Math.abs(ny);
+    const az = Math.abs(nz);
+    if (ay >= ax && ay >= az) uv.setXY(i, x * inv, (ny >= 0 ? -z : z) * inv);
+    else if (ax >= az) uv.setXY(i, (nx >= 0 ? -z : z) * inv, y * inv);
+    else uv.setXY(i, (nz >= 0 ? x : -x) * inv, y * inv);
+  };
+  if (g.index || pos.count % 3 !== 0) {
+    if (!nor) return;
+    for (let i = 0; i < pos.count; i++) project(i, nor.getX(i), nor.getY(i), nor.getZ(i));
+  } else {
+    for (let i = 0; i < pos.count; i += 3) {
+      _a.fromBufferAttribute(pos, i);
+      _b.fromBufferAttribute(pos, i + 1).sub(_a);
+      _c.fromBufferAttribute(pos, i + 2).sub(_a);
+      _b.cross(_c);
+      if (_b.lengthSq() < 1e-14) {
+        if (nor) _b.fromBufferAttribute(nor, i);
+        else _b.set(0, 1, 0);
+      }
+      for (let k = 0; k < 3; k++) project(i + k, _b.x, _b.y, _b.z);
+    }
+  }
+  uv.needsUpdate = true;
+}
+
+const _a = new THREE.Vector3();
+const _b = new THREE.Vector3();
+const _c = new THREE.Vector3();
+
+/**
+ * World-UV scale (metres per UV unit) for the procedural materials that were authored at a
+ * finer tile than 1 m. Photo slots stay at 1: their loader applies `1 / metersPerTile`.
+ */
+const WORLD_TILE_METERS: Record<string, number> = { hazardClean: 0.5, grating: 0.5 };
+
+export function worldTileMeters(material: THREE.Material): number {
+  return WORLD_TILE_METERS[material.name] ?? 1;
+}
+
+/** True when a material's textures repeat (photo/procedural tiling sets), so world UVs suit it. */
+export function takesWorldUvs(material: THREE.Material): boolean {
+  if (material.transparent || material.name.startsWith('signDanger')) return false;
+  const map = (material as THREE.MeshStandardMaterial).map;
+  return !map || map.wrapS === THREE.RepeatWrapping;
+}
+
+/**
  * Merges static kit geometry per material for one room (ADR-0003), baking per-vertex
  * ambient occlusion into a colour attribute so corners and contact points darken
  * without extra draw calls.
@@ -69,8 +140,12 @@ export class AoMergeBuilder {
     group.name = name;
     for (const [material, list] of this.parts) {
       const bake = ao !== null && takesAo(material);
-      if (bake) for (const g of list) this.bakeAo(g, ao);
-      else for (const g of list) g.deleteAttribute('color');
+      const worldTile = takesWorldUvs(material);
+      for (const g of list) {
+        if (worldTile) applyWorldMeterUvs(g, worldTileMeters(material));
+        if (bake) this.bakeAo(g, ao);
+        else g.deleteAttribute('color');
+      }
       const merged = mergeGeometries(list, false);
       let indexed: THREE.BufferGeometry | null = null;
       if (merged) {

@@ -5,8 +5,9 @@ Status: Accepted (Nov 18)
 ## Context
 Bodies are procedural (ADR-0006), with the plan from the start that real models could replace
 pieces later. Justin found a rigged, textured zombie on Sketchfab ("Zombie Walk", CC-BY-NC) and
-wants it as a **common infected**, not as a hero/elite [Decided]. Heroes stay procedural
-(sculpted, ADR-0021).
+wants it as a **common infected**, not as a hero/elite [Decided]. Amended Nov 18: the hero tier now
+uses the imported `necromorph` slasher body (`HERO_MODEL` in `enemyDirector.ts`; its clips are dropped like every model's, textures
+re-encoded, 7.1 MB -> 0.74 MB); the sculpted procedural hero (ADR-0021) is the fallback if it fails to load.
 
 ## Decision
 - A rigged GLB becomes a normal `Humanoid` body: same 21-joint skeleton, same procedural
@@ -80,3 +81,55 @@ wants it as a **common infected**, not as a hero/elite [Decided]. Heroes stay pr
 - `scripts/fix-sung-glb.mjs` bakes its node transforms and `KHR_texture_transform` into Y-up metres facing +Z, welds the chunks by `(position, UV)`, trims the protruding ends of the blueprint tube outside the right glove, decimates to about 16k triangles, builds a 24-bone Mixamo-named skeleton with smooth skin weights and a jaw mask, and re-encodes the colour (1024 px) and normal (512 px) textures as JPEG (17 MB -> about 0.97 MB).
 - His drysuit-and-harness `look` is the fallback only.
 
+## Addendum: Katie Heins (Nov 18)
+- Heins' body is the CC-BY "BS-V1 Cyborg" model by Blue Spirit (`heins` in `data/body-models.json`, `variants: []`; `model: 'heins'` on her `CAST`
+  look in `castLooks.ts`): a cybernetic-armed woman in a dark jacket, an unrigged, unanimated A-pose mesh (~147k triangles, 10 materials, 35 PNGs, 35 MB).
+  The file has no skeleton and no clips, so there was no baked animation to keep: the procedural animator drives it like every other body.
+- `scripts/fix-heins-glb.mjs` bakes its Z-up root, merges the meshes per material, decimates each with its own budget (hair cards, face and
+  hands get the largest share), builds a 24-bone Mixamo-named skeleton with smooth weights, adds a jaw (Head-material lower face and lower teeth only,
+  so the high jacket collar does not follow it), drops emissive/metal-rough/specular maps, and re-encodes textures (the hair colour map stays a PNG
+  because its strand cards are alpha-tested): 35 MB -> about 1.8 MB, ~24k triangles.
+- Emissive circuitry on the arm and head is not rendered (the body shader has no emissive input). Her procedural look (security uniform) is the fallback only.
+- The model's hair atlas (black roots, green tips) is recoloured by the script to a root-to-tip purple -> blue gradient, keeping the strand lines and
+  alpha (`HAIR_GRADIENT`, default `#1c0a3d,#7a2fd0,#4f8cff`; `HAIR_GRADIENT=off` keeps the original green).
+
+## Addendum: Director Hale (Nov 18)
+- Hale's body is the CC-BY "A Man in suit" model by anuragk1229 (`hale` in `data/body-models.json`, `variants: []`; `model: 'hale'` on his `CAST`
+  look in `castLooks.ts`). It is a rigged, unanimated T-pose avatar (~119k triangles, 11 meshes, 14 images, 15 MB) from the same exporter family as the old Priya model.
+- `scripts/fix-hale-glb.mjs` clears the Sketchfab/FBX wrapper nodes, drops the end/eye bones, tangents, UV1 and the opaque cornea layers, adds a `Jaw` bone
+  (lower lip/chin and lower teeth, ADR-0027), merges eyeballs and teeth, decimates (hair 4.5k, outfit 7k, head 3.4k, body 1.8k) and re-encodes textures as
+  resized JPEGs: 15 MB -> about 1.1 MB, ~18k triangles.
+- His procedural look (charcoal jacket, receding hair) is the fallback only.
+
+## Addendum: Bram the cook (Nov 18)
+- Bram's body (`bram` in `data/body-models.json`, `variants: []`; `model: 'bram'` on the `cook` `CAST` look in `castLooks.ts`, which `bram` aliases) is
+  now the CC-BY "Chef T pose" model by Imran Aziz (bayharborbutcher), replacing his procedural body. It is an unrigged, unanimated T-pose scan
+  (~551k triangles in 6 chunks, one material, 32 MB) in a cap, rolled-sleeve jacket and apron.
+- `scripts/fix-bram-glb.mjs` (adapted from `fix-sung-glb.mjs`) bakes the wrapper nodes into Y-up metres facing +Z, welds the chunks, decimates to 16k
+  triangles, builds a 24-bone Mixamo-named skeleton measured off the scan (arms along X) with smooth skin weights and a jaw mask, and re-encodes the colour
+  (1024 px) and normal (512 px) textures as JPEG: 32 MB -> about 0.9 MB. The source is kept in `previews/chef_t_pose_src.glb`.
+- His procedural kitchen-whites `look` is the fallback only.
+
+## Addendum: Ines Ruiz (Nov 18)
+- Ruiz's body is the CC-BY "Modern Service Technician" model by restore50 (`ruiz` in `data/body-models.json`, `variants: []`; `model: 'ruiz'` on her
+  `CAST` look in `castLooks.ts`), replacing the procedural crew body. Same exporter as Sung's scan: unrigged, ~237k triangles across three chunks, 17 MB.
+  It is a man in a vest and tie caught mid-stride (right leg planted, left leg trailing with the heel raised, left forearm raised holding a phone).
+- `scripts/fix-ruiz-glb.mjs` is Sung's pipeline with this scan's skeleton: bakes transforms and `KHR_texture_transform`, welds the chunks, decimates to
+  16k triangles, builds a 24-bone Mixamo-named skeleton and smooth skin weights with a jaw mask, and re-encodes the textures as JPEG (17 MB -> 0.91 MB).
+  Both legs are measured to the same length so the feet land level once `bodyModel.ts` straightens them (ankles 1 mm apart; the trailing shoe still sits ~2 cm high).
+- Her crew-blues `look` is the fallback only. The model's gender and outfit differ from `docs/characters.md`; the phone stays in her straightened left hand.
+  The source is kept in `previews/modern_service_technician_src.glb`.
+
+## Addendum: botanist crew bodies (Nov 18)
+- The generic `botanist` crew look (`CREW` in `castLooks.ts`) now uses three CC-BY Half-Life-style scientist models (`botanist1`..`botanist3` in `data/body-models.json`, `variants: []`;
+  `public/assets/models/crew/`): Geont's "scientist", "source scientist" and Scientist Broken's "Scientist". `castSpec` picks one per NPC id (`CREW_MODELS`, FNV-1a hash), so a botanist keeps the same body everywhere.
+- All three are rigged ValveBiped avatars of ~5k triangles. `scripts/fix-scientist-glb.mjs` renames the bones to Mixamo-style names, drops the baked clip, tangents, UV1/UV2 and metallic-roughness maps
+  (and the head normal map of "source scientist", which needs UV1), skins the loose glasses of "Scientist" to the Head bone, repacks the vertex buffers and re-encodes textures as JPEG: 3.2 / 1.8 / 7.3 MB -> 0.51 / 0.46 / 0.58 MB.
+- Their procedural look (rolled olive coveralls) is the fallback only. Other crew looks (diver, exec, ...) stay procedural.
+
+## Addendum: admin assistant (Nov 18)
+- The generic `assistant` crew look (`CREW_MODELS` in `castLooks.ts`) now uses the CC-BY "Lady in a trenchcoat" model (`assistant` in `data/body-models.json`,
+  `public/assets/models/crew/assistant.glb`). `scripts/fix-trenchcoat-glb.mjs` drops the file's duplicate second copy and re-encodes textures (hair/eyelash sheet stays PNG so its alpha cut-out survives). It has no jaw bone, so she does not mouth her lines yet.
+
+## Amendment (Nov 18): no procedural crowd bodies
+The crowd now rolls through three models in table order (`data/body-models.json`): Zombie Walk 1/3, then Zombie Monster Slasher Necromorph 1/2 of the rest, then the Zombie game character (the remainder), so every shambler and play-dead body is a model (a third each). The game character's right arm is mostly missing in the source. Costs: 5 draw calls per model body against 2 procedural, so a full room of 24 is the case to re-measure (ADR-0015). A procedural crowd is still reachable with `?bodyModels=off`.

@@ -1,13 +1,16 @@
-# js-fps: deep-sea horror FPS (working title)
+# Thalassa
+
+Deep-sea horror FPS (repo: `js-fps`).
 
 A story-driven, Dead Space-style survival-horror FPS that runs in the browser.
 You are a security officer on a deep-sea research station overrun by an infection,
 fighting alongside two specialists. Built with Three.js, TypeScript and Vite.
-Everything is procedural for now: no models, textures or audio files.
+Level geometry is a procedural modular kit dressed with CC0 PBR textures; characters, weapons and audio
+mix procedural assets with imported models and recorded sounds (credits in [CREDITS.md](CREDITS.md)).
 
 - Design summary: [DESIGN.md](DESIGN.md)
 - Executable decisions, in build order: [docs/adr/](docs/adr/README.md)
-- The previous prototype (INKSHOT, an arena wave shooter) is kept in `legacy/inkshot/` for reference only.
+- Level texturing and dressing rules: [docs/surface-dressing-standard.md](docs/surface-dressing-standard.md)
 
 ## Run
 

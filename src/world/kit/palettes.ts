@@ -35,7 +35,7 @@ export interface AreaPalette {
 }
 
 export const AREA_PALETTES: Record<string, AreaPalette> = {
-  dock: { wallMain: 'paintDark', floor: 'concretePainted', floorAlt: 'diamond', hazard: 'hazardClean' },
+  dock: { wallMain: 'paintDark', wallAlt: 'steel', floor: 'concretePainted', floorAlt: 'diamond', hazard: 'hazardClean' },
   commons: { wallMain: 'paintBone', wallAlt: 'paintTeal', floor: 'rubber', hazard: 'hazardClean' },
   gallery: { wallMain: 'paintDark', floor: 'rubber', hazard: 'hazardClean' },
   labs: { wallMain: 'labPanel', floor: 'labTile', hazard: 'hazardClean' },

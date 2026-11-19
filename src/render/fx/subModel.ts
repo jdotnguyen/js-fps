@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { dequantizeForTransform } from '../gltf.ts';
 
 /**
  * The supply sub (ADR-0017): the "Kilo-class Submarine" GLB (public/assets/models/vehicles/, CC BY 4.0, see
@@ -56,7 +57,7 @@ function prepare(scene: THREE.Object3D): THREE.Group {
   root.name = 'supply_sub:kilo';
   scene.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
-    const geometry = (o.geometry as THREE.BufferGeometry).clone().applyMatrix4(o.matrixWorld).applyMatrix4(frame);
+    const geometry = dequantizeForTransform((o.geometry as THREE.BufferGeometry).clone()).applyMatrix4(o.matrixWorld).applyMatrix4(frame);
     const material = o.material as THREE.MeshStandardMaterial;
     material.side = THREE.DoubleSide;
     root.add(new THREE.Mesh(geometry, material));

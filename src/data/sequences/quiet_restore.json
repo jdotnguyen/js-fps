@@ -143,11 +143,6 @@
       "room": "R03",
       "pattern": "steady",
       "tint": "emergency"
-     },
-     {
-      "do": "glass",
-      "id": "labb",
-      "state": "cracked"
      }
     ]
    },

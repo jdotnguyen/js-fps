@@ -7,7 +7,7 @@
 //   - drops tangents, TEXCOORD_1..3, metallic-roughness maps and the normal maps (the author set their scale to 0 on the body and hair);
 //   - repacks vertex buffers (u16 indices, normalised u16 weights) and re-encodes the textures resized: opaque ones as JPEG, the hair and
 //     eyelash sheet (alphaMode BLEND, which bodyModel.ts turns into an alpha-tested cut-out) as a resized PNG so its alpha survives.
-// Bone names (`mixamorig:Hips_64`...) and the node hierarchy are left alone (the exporter's `*_rootJoint` wrapper bone is taken out of the skin): bodyModel.ts maps and re-poses them itself.
+// Bone names (`mixamorig:Hips_64`...) and the node hierarchy are left alone (the exporter's `*_rootJoint` wrapper bone stays in the skin: taking it out blows up the hair, eyes and shoes; bodyModel.ts just logs it as unmapped): bodyModel.ts maps and re-poses them itself.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -77,17 +77,6 @@ function addAccessor(typed, componentType, type, target, extra = {}) {
 const matOldList = [...new Set(meshOldList.flatMap((mi) => j.meshes[mi].primitives.map((p) => p.material)))];
 const matMap = new Map(matOldList.map((m, k) => [m, k]));
 
-// The exporter's `*_rootJoint` wrapper bone has no parent bone for bodyModel.ts to fold it into, so it leaves the skin (it stays a plain node
-// above Hips, so every joint's world matrix and inverse bind matrix is unchanged). Any weight it carried goes to Hips.
-const ROOT_JOINT = (n) => /rootJoint$/.test(j.nodes[n].name ?? '');
-const hipsNode = skinSrc.joints.find((n) => /Hips/.test(j.nodes[n].name ?? ''));
-if (hipsNode === undefined) throw new Error('no Hips bone');
-const jointKeep = skinSrc.joints.map((n) => !ROOT_JOINT(n));
-const jointNew = new Int32Array(skinSrc.joints.length);
-{ let k = 0; skinSrc.joints.forEach((n, i) => { jointNew[i] = jointKeep[i] ? k++ : -1; }); }
-const hipsJoint = jointNew[skinSrc.joints.indexOf(hipsNode)];
-let rootWeight = 0;
-
 const meshes = meshOldList.map((mi) => ({
   name: j.meshes[mi].name,
   primitives: j.meshes[mi].primitives.map((p) => {
@@ -103,9 +92,7 @@ const meshes = meshOldList.map((mi) => ({
       for (let k = 0; k < 4; k++) sum += wr[v * 4 + k];
       let q = 0, big = 0;
       for (let k = 0; k < 4; k++) {
-        const nj = jointNew[jr[v * 4 + k]];
-        if (nj < 0 && wr[v * 4 + k] > 0) rootWeight++;
-        joints[v * 4 + k] = nj < 0 ? hipsJoint : nj;
+        joints[v * 4 + k] = jr[v * 4 + k];
         weights[v * 4 + k] = Math.round((wr[v * 4 + k] / (sum || 1)) * 65535);
         q += weights[v * 4 + k];
         if (weights[v * 4 + k] > weights[v * 4 + big]) big = k;
@@ -128,14 +115,11 @@ const meshes = meshOldList.map((mi) => ({
 }));
 
 // inverse bind matrices
-const ibmAll = read(skinSrc.inverseBindMatrices);
-const ibmKeep = [];
-skinSrc.joints.forEach((_, i) => { if (jointKeep[i]) ibmKeep.push(...ibmAll.subarray(i * 16, i * 16 + 16)); });
-const ibm = Float32Array.from(ibmKeep);
+const ibm = Float32Array.from(read(skinSrc.inverseBindMatrices));
 const newSkin = {
-  joints: skinSrc.joints.filter((_, i) => jointKeep[i]).map((n) => nodeMap.get(n)),
+  joints: skinSrc.joints.map((n) => nodeMap.get(n)),
   inverseBindMatrices: addAccessor(ibm, 5126, 'MAT4'),
-  skeleton: nodeMap.get(hipsNode),
+  ...(skinSrc.skeleton !== undefined ? { skeleton: nodeMap.get(skinSrc.skeleton) } : {}),
 };
 
 // nodes
@@ -227,5 +211,4 @@ padBin.copy(glb, 28 + js.length);
 fs.mkdirSync(path.dirname(dst), { recursive: true });
 fs.writeFileSync(dst, glb);
 const tris = meshes.reduce((s, m) => s + m.primitives.reduce((t, p) => t + accessors[p.indices].count / 3, 0), 0);
-console.log(`root-joint weight folded into Hips: ${rootWeight} influences`);
 console.log(`wrote ${dst}: ${(glb.length / 1024).toFixed(0)} KB, ${tris} triangles, ${meshes.length} meshes, ${mats.length} materials, ${newImages.length} textures`);

@@ -14,8 +14,8 @@ export const PIXEL_RATIO_CAP: Record<Settings['quality'], number> = {
 export function createRenderer(canvas: HTMLCanvasElement, settings: Readonly<Settings>): THREE.WebGLRenderer {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.AgXToneMapping;
-  renderer.toneMappingExposure = 0.85;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.95;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   applyQuality(renderer, settings.quality);

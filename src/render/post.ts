@@ -87,6 +87,17 @@ export function createPost(
 
   const gtao = new GTAOPass(scene, camera, size.x, size.y);
   gtao.blendIntensity = 0.9;
+  // Exclude transparent / non-depth-writing meshes (e.g. volumetric light shafts, decals, glass)
+  // from the GTAO normal/depth pass so they don't cast solid AO shadows onto the floor.
+  const origOverride = gtao.overrideVisibility.bind(gtao);
+  gtao.overrideVisibility = () => {
+    origOverride();
+    scene.traverse((obj) => {
+      if (!obj.visible || !(obj instanceof THREE.Mesh)) return;
+      const mat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+      if (mat && (mat.transparent || !mat.depthWrite)) obj.visible = false;
+    });
+  };
   composer.addPass(gtao);
 
   const bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.55, 0.45, 0.85);

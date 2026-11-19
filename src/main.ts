@@ -194,7 +194,8 @@ async function boot(): Promise<void> {
     const registry = new KitRegistry(validate(validateKitManifest, kitManifestJson, 'data/kit-manifest.json'), undefined);
     const refs = { items: new Set(Object.keys(itemTable)), uiText: new Set(Object.keys(uiText)) };
     const data = validate(levelValidator(registry.ids(), refs), levelJson, `data/levels/${levelId}.json`);
-    level = await loadLevel(data, { materials, registry, events, scene, inventory, uiText });
+    const debugChecker = new URLSearchParams(location.search).has('checker');
+    level = await loadLevel(data, { materials, registry, events, scene, inventory, uiText, debugChecker });
     levelSpawns = spawnPointsOf(data);
     world = level;
     mapModel = buildMapModel(level.source);
@@ -758,6 +759,7 @@ async function boot(): Promise<void> {
       const overlay = new LevelOverlay(level);
       scene.add(overlay.group);
       const lf = gui.addFolder('Level');
+      lf.add({ checker: level.debugCheckerEnabled }, 'checker').name('debug checkerboard').onChange((on: boolean) => level.setDebugChecker(on));
       for (const layer of OVERLAY_LAYERS) lf.add(overlay.visible, layer).name(layer).onChange((on: boolean) => overlay.set(layer, on));
       lf.add({ unlockAll: () => level.unlock('D2', 'script') }, 'unlockAll').name('unlock D2');
       for (const id of Object.keys(itemTable)) lf.add({ give: () => inventory.give(id, 'debug') }, 'give').name(`give ${inventory.name(id)}`);

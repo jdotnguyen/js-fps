@@ -435,9 +435,7 @@ test('the drop: seals the door, blinds up, Voss transforms, red lights and glass
   assert.ok(at('event blinds:set') >= 0, 'blinds up');
   assert.ok(at('npc transform researcher_b') >= 0, 'Voss changes');
   assert.ok(g.log.some((e) => e.startsWith('light ') && e.endsWith('alarm emergency')), 'red lights');
-  assert.ok(g.log.includes('glass labb cracked'));
-  assert.ok(g.log.includes('sfx glassThud') && g.log.includes('shake'));
-  assert.ok(at('glass labb cracked') > at('npc transform researcher_b'), 'the glass cracks after the transformation starts');
+  assert.equal(g.log.includes('glass labb cracked'), false);
   assert.equal(count(g, 'event drop:done'), 1);
   assert.equal(count(g, 'checkpoint cp_drop'), 1);
   assert.ok(g.log.indexOf('checkpoint cp_drop') > g.log.indexOf('event drop:done'));
@@ -485,7 +483,8 @@ test('quiet_restore on a load: radio, commons changes and the drop aftermath com
   assert.ok(g.log.includes('npc npcMoveTo cook instant') && g.log.includes('npc npcMoveTo crew_1 instant') && g.log.includes('npc npcAnim crew_1 idle_mug instant'));
   assert.ok(g.log.includes('event blinds:set'));
   assert.ok(g.log.includes('npc transform researcher_b instant') && g.log.includes('npc npcAnim researcher_b shamble instant'));
-  assert.ok(g.log.includes('light R04 alarm emergency') && g.log.includes('light R03 steady emergency') && g.log.includes('glass labb cracked'));
+  assert.ok(g.log.includes('light R04 alarm emergency') && g.log.includes('light R03 steady emergency'));
+  assert.equal(g.log.includes('glass labb cracked'), false);
   noWarnings(g);
   // Muted stays muted; only the mid-quiet pieces apply before the drop.
   const muted = makeGame(['quiet_restore']);

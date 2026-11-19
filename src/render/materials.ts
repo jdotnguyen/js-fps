@@ -50,6 +50,8 @@ function buildMaterialsFromSets(sets: Record<TextureKey, TexSet>, anisotropy: nu
       normalMap: t.normalMap,
       roughnessMap: t.orm,
       metalnessMap: t.orm,
+      aoMap: t.orm,
+      aoMapIntensity: 0.85,
       roughness: 1,
       metalness: 1,
       ...extra,
@@ -101,6 +103,79 @@ function buildMaterialsFromSets(sets: Record<TextureKey, TexSet>, anisotropy: nu
     cable: new THREE.MeshStandardMaterial({ color: 0x111214, roughness: 0.55, metalness: 0 }),
     glowCyan: new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x2fd3ff, emissiveIntensity: 2.2 }),
   };
+}
+
+/** Procedural industrial brick PBR material (DataTexture albedo, normal, roughness/AO) tiled at 1 m. */
+export function createProceduralBrickMaterial(anisotropy = 4): THREE.MeshStandardMaterial {
+  const size = 128;
+  const albedo = new Uint8Array(new ArrayBuffer(size * size * 4));
+  const normal = new Uint8Array(new ArrayBuffer(size * size * 4));
+  const orm = new Uint8Array(new ArrayBuffer(size * size * 4));
+  const rows = 4;
+  const cols = 2;
+  const rowH = size / rows;
+  const colW = size / cols;
+  for (let y = 0; y < size; y++) {
+    const row = Math.floor(y / rowH);
+    const ry = y % rowH;
+    const mortarY = ry < 3 || ry >= rowH - 2;
+    const xShift = (row % 2) * (colW / 2);
+    for (let x = 0; x < size; x++) {
+      const sx = (x + xShift) % size;
+      const rx = sx % colW;
+      const mortarX = rx < 3 || rx >= colW - 2;
+      const mortar = mortarY || mortarX;
+      const hash = (((x * 73856093) ^ (y * 19349663)) >>> 0) & 255;
+      const n = (hash / 255 - 0.5) * 18;
+      const idx = (y * size + x) * 4;
+      if (mortar) {
+        albedo[idx] = 88 + n * 0.5;
+        albedo[idx + 1] = 86 + n * 0.5;
+        albedo[idx + 2] = 82 + n * 0.5;
+        orm[idx] = 175; // AO
+        orm[idx + 1] = 235; // roughness
+      } else {
+        const brickTone = ((row * 3 + Math.floor(sx / colW)) % 3) * 8;
+        albedo[idx] = Math.min(255, Math.max(0, 118 + brickTone + n));
+        albedo[idx + 1] = Math.min(255, Math.max(0, 62 + brickTone * 0.5 + n * 0.6));
+        albedo[idx + 2] = Math.min(255, Math.max(0, 52 + brickTone * 0.4 + n * 0.5));
+        orm[idx] = 235; // AO
+        orm[idx + 1] = 205; // roughness
+      }
+      albedo[idx + 3] = 255;
+      orm[idx + 2] = 0; // metalness
+      orm[idx + 3] = 255;
+      normal[idx] = mortar ? 128 : 128 + (rx < 6 ? -18 : rx > colW - 6 ? 18 : 0);
+      normal[idx + 1] = mortar ? 128 : 128 + (ry < 5 ? -18 : ry > rowH - 5 ? 18 : 0);
+      normal[idx + 2] = 248;
+      normal[idx + 3] = 255;
+    }
+  }
+  const makeTex = (data: Uint8Array<ArrayBuffer>, srgb: boolean): THREE.DataTexture => {
+    const t = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.UnsignedByteType);
+    t.wrapS = THREE.RepeatWrapping;
+    t.wrapT = THREE.RepeatWrapping;
+    t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.generateMipmaps = true;
+    t.anisotropy = anisotropy;
+    t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    t.needsUpdate = true;
+    return t;
+  };
+  const ormTex = makeTex(orm, false);
+  const m = new THREE.MeshStandardMaterial({
+    map: makeTex(albedo, true),
+    normalMap: makeTex(normal, false),
+    roughnessMap: ormTex,
+    metalnessMap: ormTex,
+    aoMap: ormTex,
+    aoMapIntensity: 0.85,
+    roughness: 1,
+    metalness: 1,
+  });
+  m.name = 'brick';
+  return m;
 }
 
 export function createMaterials(textureSize: number, anisotropy: number): Materials {
@@ -162,4 +237,59 @@ export async function createMaterialsAsync(textureSize: number, anisotropy: numb
 /** Emissive material for a light fixture; one instance per fixture so it can flicker alone. */
 export function fixtureMaterial(color: THREE.ColorRepresentation, intensity: number): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ color: 0x000000, emissive: color, emissiveIntensity: intensity, roughness: 0.4 });
+}
+
+/**
+ * Uniform 1 m UV debug checkerboard material for verifying modular grid scale, sightlines,
+ * and zero wall overlap. Headless-safe when `document` is absent or stubbed.
+ */
+export function createDebugCheckerMaterial(anisotropy = 4): THREE.MeshStandardMaterial {
+  if (typeof document === 'undefined') {
+    const fallback = new THREE.MeshStandardMaterial({ color: 0x808a94, roughness: 0.78, metalness: 0.08 });
+    fallback.name = 'debugChecker';
+    return fallback;
+  }
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const half = size / 2;
+    const q = size / 4;
+    // 0.5 m primary checker squares
+    ctx.fillStyle = '#6f7780';
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#9aa4ae';
+    ctx.fillRect(0, 0, half, half);
+    ctx.fillRect(half, half, half, half);
+    // 0.25 m subtle sub-grid
+    ctx.strokeStyle = 'rgba(20, 26, 32, 0.22)';
+    ctx.lineWidth = 2;
+    for (let i = 1; i < 4; i++) {
+      const p = i * q;
+      ctx.beginPath();
+      ctx.moveTo(p, 0);
+      ctx.lineTo(p, size);
+      ctx.moveTo(0, p);
+      ctx.lineTo(size, p);
+      ctx.stroke();
+    }
+    // 1.0 m major border
+    ctx.strokeStyle = '#1f262d';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(0, 0, size, size);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = anisotropy;
+  const mat = new THREE.MeshStandardMaterial({
+    map: tex,
+    roughness: 0.78,
+    metalness: 0.08,
+  });
+  mat.name = 'debugChecker';
+  return mat;
 }

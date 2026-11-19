@@ -1,7 +1,7 @@
 # Architecture Decision Records
 
 These ADRs turn `DESIGN.md` into executable, ordered work for the first vertical slice
-(10-15 min tech demo). Execute them **in numeric order**; each lists its dependencies.
+(10-15 min vertical slice). Execute them **in numeric order**; each lists its dependencies.
 
 ## Provenance tags
 

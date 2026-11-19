@@ -8,12 +8,14 @@ import { accessOpen, checkAccess, type AccessHint, type GateKind } from './acces
 import { createShaft } from '../render/fx/shafts.ts';
 import { Particulates } from '../render/fx/particulates.ts';
 import { LightController, type LightPattern, type ShaftUniforms } from '../render/lights.ts';
-import { fixtureMaterial, type Materials } from '../render/materials.ts';
+import { createDebugCheckerMaterial, fixtureMaterial, type Materials } from '../render/materials.ts';
 import { CollisionWorld, type Collider } from './collision.ts';
 import { at } from './kit/geom.ts';
 import { buildDoor, type DoorVisual } from './kit/doors.ts';
-import { AoMergeBuilder, withVertexColors, type AoFn } from './kit/merge.ts';
-import { CELL, CORRIDOR_H, DECK_H, ROOM_H, transformBox, type BoxSpec, type LightSlotKind, type PieceOutput, type PieceParams } from './kit/types.ts';
+import { GridOccupancy } from './kit/grid.ts';
+import { AoMergeBuilder, applyWorldMeterUvs, withVertexColors, type AoFn } from './kit/merge.ts';
+import { snapModelToSocket, type SnapOptions } from './kit/modelSnap.ts';
+import { CELL, CORRIDOR_H, DECK_H, ROOM_H, transformBox, type BoxSpec, type LightSlotKind, type PieceOutput, type PieceParams, type Socket, type SocketKind } from './kit/types.ts';
 import { LightPool, type PooledSlot } from './lightPool.ts';
 import type { KitRegistry } from './registry.ts';
 import type { Interactable, Interactions } from '../actors/interaction.ts';
@@ -60,6 +62,8 @@ export interface LevelDeps {
   inventory?: Inventory | null;
   /** data/dialogue/ui.json, for access hint text. */
   uiText?: UiText;
+  /** Apply a uniform 1 m UV debug checkerboard to all procedural structural room geometry. */
+  debugChecker?: boolean;
 }
 
 const AMBIENT: Record<AmbientPreset, { sky: number; ground: number; intensity: number }> = {
@@ -245,6 +249,10 @@ export class Level implements World {
   private feetY = 0;
   /** Merged Lab B floor meshes (labTile) that swap to tileBroken after the outbreak. */
   private readonly labbFloor: THREE.Mesh[] = [];
+  private readonly roomSockets: Array<Socket & { room: string }> = [];
+  private readonly checkerTargets: Array<{ mesh: THREE.Mesh; origMat: THREE.Material; origUv: THREE.BufferAttribute | null }> = [];
+  private checkerMat: THREE.Material | null = null;
+  private checkerActive = false;
 
   constructor(data: LevelData, deps: LevelDeps) {
     this.deps = deps;
@@ -257,8 +265,18 @@ export class Level implements World {
     this.pool = new LightPool(this.group, 8);
     this.hemi = new THREE.HemisphereLight(AMBIENT.normal.sky, AMBIENT.normal.ground, AMBIENT.normal.intensity);
     this.group.add(this.hemi);
+    const keyFill = new THREE.DirectionalLight(0x88a9bd, 0.28);
+    keyFill.name = 'level-key-fill';
+    keyFill.position.set(12, 24, 16);
+    keyFill.castShadow = false;
+    this.group.add(keyFill);
 
-    for (const [index, r] of data.rooms.entries()) this.buildRoom(r, index, rng);
+    const occupancy = new GridOccupancy();
+    for (const d of data.doors) {
+      const claim = occupancy.claimDoor(d.id, d.cell, d.rot);
+      if (!claim.ok) console.warn(`[level] ${claim.reason}`);
+    }
+    for (const [index, r] of data.rooms.entries()) this.buildRoom(r, index, rng, occupancy);
     for (const d of data.doors) this.buildDoor(d, rng);
     this.initialPatterns = this.lights.items.map((it) => it.pattern);
     // Bake AO and merge once every collider exists, so walls shade across room seams.
@@ -287,6 +305,7 @@ export class Level implements World {
       door.staticMeshes.length = 0;
       door.group.add(mb.build(`door:${door.data.id}`, ao));
     }
+    if (deps.debugChecker) this.setDebugChecker(true);
     for (const v of data.vents ?? []) {
       const [min, max] = v.box;
       this.vents.push({ data: v, box: { min, max }, open: false, granted: false });
@@ -324,7 +343,7 @@ export class Level implements World {
 
   // ---------------------------------------------------------------- building
 
-  private buildRoom(r: RoomData, index: number, rng: Rng): void {
+  private buildRoom(r: RoomData, index: number, rng: Rng, occupancy: GridOccupancy): void {
     const { materials: m, registry } = this.deps;
     const height = r.height ?? ROOM_H;
     const preset = AMBIENT[r.atmosphere?.ambient ?? 'normal'];
@@ -355,6 +374,13 @@ export class Level implements World {
       const cells = piece.cells ?? (piece.cell ? [piece.cell] : []);
       for (const cell of cells) {
         const rot = piece.rot ?? 0;
+        if (piece.kit.startsWith('wall_')) {
+          const claim = occupancy.claimWall(r.id, piece.kit, cell, rot);
+          if (!claim.ok) {
+            console.warn(`[level] skipping overlapping wall: ${claim.reason}`);
+            continue;
+          }
+        }
         const matrix = cellMatrix(cell, rot);
         const params: PieceParams = { height, ...(r.area !== undefined ? { area: r.area } : {}), ...(piece.params ?? {}) };
         const out = registry.create(piece.kit, params, rng.fork(`${r.id}:${piece.kit}:${cell.join(',')}`), m);
@@ -447,6 +473,59 @@ export class Level implements World {
     }
   }
 
+  /** World-space floor, wall, and door sockets collected from built kit pieces. */
+  sockets(roomId?: string, kind?: SocketKind): Array<Socket & { room: string }> {
+    return this.roomSockets.filter((s) => (!roomId || s.room === roomId) && (!kind || s.kind === kind));
+  }
+
+  /**
+   * Snap a 3D model onto a named room socket at true-to-life FPS scale and attach it to the room.
+   * Returns true when the socket and room exist.
+   */
+  snapModelToSocket(model: THREE.Object3D, roomId: string, socketName: string, options?: SnapOptions): boolean {
+    const room = this.roomById.get(roomId);
+    const socket = this.roomSockets.find((s) => s.room === roomId && s.name === socketName);
+    if (!room || !socket) return false;
+    snapModelToSocket(model, socket, options);
+    room.group.add(model);
+    return true;
+  }
+
+  get debugCheckerEnabled(): boolean {
+    return this.checkerActive;
+  }
+
+  /** Toggle the uniform 1 m UV debug checkerboard material across all static procedural room & doorframe geometry. */
+  setDebugChecker(enabled: boolean): void {
+    if (enabled === this.checkerActive) return;
+    if (!this.checkerTargets.length) {
+      const collect = (group: THREE.Group): void => {
+        group.traverse((o) => {
+          if (!(o instanceof THREE.Mesh)) return;
+          const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+          if (!mat || mat.transparent) return;
+          if (mat instanceof THREE.MeshStandardMaterial && mat.emissiveIntensity > 0.5 && mat.color.getHex() === 0) return;
+          const uv = o.geometry.getAttribute('uv');
+          const origUv = uv instanceof THREE.BufferAttribute ? uv.clone() : null;
+          this.checkerTargets.push({ mesh: o, origMat: mat, origUv });
+        });
+      };
+      for (const room of this.rooms) collect(room.group);
+      for (const door of this.doors) collect(door.group);
+    }
+    this.checkerMat ??= withVertexColors(createDebugCheckerMaterial());
+    this.checkerActive = enabled;
+    for (const t of this.checkerTargets) {
+      if (enabled) {
+        applyWorldMeterUvs(t.mesh.geometry, 1);
+        t.mesh.material = this.checkerMat;
+      } else {
+        if (t.origUv) t.mesh.geometry.setAttribute('uv', t.origUv.clone());
+        t.mesh.material = t.origMat;
+      }
+    }
+  }
+
   /** Find the merged labTile meshes of Lab B once the rooms are built. */
   private collectLabBFloor(): void {
     const room = this.roomById.get(LAB_B.room);
@@ -498,9 +577,15 @@ export class Level implements World {
     this.addColliders(out, matrix, `room:${room.data.id}`);
     for (const s of out.lightSlots) slots.push({ pos: new THREE.Vector3(...s.pos).applyMatrix4(matrix), kind: s.kind, ry: s.ry + ry });
     for (const s of out.sockets) {
-      this.debug.sockets.push({
-        pos: new THREE.Vector3(...s.pos).applyMatrix4(matrix),
-        dir: new THREE.Vector3(...s.dir).transformDirection(matrix),
+      const pos = new THREE.Vector3(...s.pos).applyMatrix4(matrix);
+      const dir = new THREE.Vector3(...s.dir).transformDirection(matrix);
+      this.debug.sockets.push({ pos, dir });
+      this.roomSockets.push({
+        room: room.data.id,
+        name: s.name,
+        pos: [pos.x, pos.y, pos.z],
+        dir: [dir.x, dir.y, dir.z],
+        ...(s.kind ? { kind: s.kind } : {}),
       });
     }
     for (const n of out.navNodes) this.debug.nav.push(new THREE.Vector3(...n.pos).applyMatrix4(matrix));

@@ -179,21 +179,6 @@
     ]
    },
    {
-    "do": "cameraShake",
-    "amount": 0.35,
-    "s": 1.2
-   },
-   {
-    "do": "sfx",
-    "id": "glassThud",
-    "at": "anchor:labb_glass"
-   },
-   {
-    "do": "glass",
-    "id": "labb",
-    "state": "cracked"
-   },
-   {
     "do": "wait",
     "s": 0.9
    },

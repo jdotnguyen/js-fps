@@ -35,7 +35,7 @@ torso capsule. In the hunched pose the chest and pelvis capsules cover the belly
 the spine capsule missed every belly shot.
 
 ### Movement
-- Walk speed 72% of a shambler's (about 0.94 m/s), turn speed 1.2 rad/s (shambler 2.2). No lurch bursts.
+- Walk speed 49% of a shambler's (0.64 m/s; was 72%, 0.94 m/s, Nov 18): one 1.6 m heavy stride per 2.5 s, the cycle length of the necromorph's own walk clips, so the feet do not slide, turn speed 1.2 rad/s (shambler 2.2). No lurch bursts.
 - Heavy gait: 1.55 m strides, the knee lifted through the swing and the foot driven down, a big pelvis roll
   onto the planted leg with the shoulders countering, arms hanging and swinging late. The body drops sharply
   as each foot lands. `Humanoid.footfall` reports each landing; the sandbox shakes the camera within 8 m.

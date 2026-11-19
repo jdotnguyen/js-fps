@@ -949,6 +949,37 @@ const GEN: Record<string, Gen> = {
     pb.solid(-w / 2, 0, -0.43, w / 2, 0.85, 0.43, 'rubber');
   },
 
+  /** Non-full-height partition wall (waist-high divider with steel cap rail and matching collider). */
+  half_wall(p, _rng, m, pb) {
+    const w = numParam(p, 'width', 3.2);
+    const h = numParam(p, 'height', 1.15);
+    const d = 0.2;
+    const pal = resolvePalette(p, m);
+    pb.add(rounded(w - 0.04, h - 0.08, d, 0.02), pal.wallMain, at(0, (h - 0.08) / 2, 0));
+    pb.add(rounded(w, 0.08, d + 0.06, 0.015), m.steel, at(0, h - 0.04, 0));
+    for (const sx of [-1, 1]) {
+      pb.add(rounded(0.14, h, d + 0.04, 0.02), m.steel, at(sx * (w / 2 - 0.07), h / 2, 0));
+    }
+    for (const fz of [-1, 1]) {
+      pb.add(slab(w - 0.16, 0.16, 0.02, pal.hazardTile), pal.hazard, at(0, 0.08, fz * (d / 2 + 0.01)));
+    }
+    pb.solid(-w / 2, 0, -d / 2 - 0.03, w / 2, h, d / 2 + 0.03, 'metal');
+  },
+
+  /** Low lounge coffee table with steel frame and tabletop. */
+  coffee_table(p, _rng, m, pb) {
+    const w = numParam(p, 'width', 1.4);
+    const d = numParam(p, 'depth', 0.7);
+    const h = 0.44;
+    pb.add(rounded(w, 0.05, d, 0.015), MAT.woodLight(), at(0, h - 0.025, 0));
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        pb.add(cylinderBetween(V(sx * (w / 2 - 0.08), 0, sz * (d / 2 - 0.08)), V(sx * (w / 2 - 0.08), h - 0.05, sz * (d / 2 - 0.08)), 0.022, 8), m.steel);
+      }
+    }
+    pb.solid(-w / 2, 0, -d / 2, w / 2, h, d / 2, 'metal');
+  },
+
   bookshelf(p, rng, _m, pb) {
     const w = numParam(p, 'width', 1.2);
     const h = numParam(p, 'height', 2);

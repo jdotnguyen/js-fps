@@ -481,7 +481,12 @@ test('assistant model: rig maps, stands straight, keeps every limb piece', async
     assert.ok(w[`upperArm_${s}`].x * out > 0.1, `upperArm_${s} on its own side`);
     assert.ok(m.parts.some((p) => p.joint === `foot_${s}`), `foot_${s} has pieces`);
   }
-  assert.deepEqual(m.unmapped, []);
+  assert.ok(m.unmapped.every((n) => /rootJoint$/.test(n)), `unmapped ${m.unmapped.join(', ')}`); // only the exporter's wrapper bone
+  // Nothing is blown up: hair, eyes and shoes were once 6x too big after a bad skin rewrite.
+  for (const p of m.parts) {
+    const s = new THREE.Box3().setFromBufferAttribute(p.geometry.getAttribute('position') as THREE.BufferAttribute).getSize(new THREE.Vector3());
+    assert.ok(Math.max(s.x, s.y, s.z) < 0.7, `${p.joint}/${p.surface} is ${s.toArray().map((x) => x.toFixed(2)).join(' x ')} m`);
+  }
 });
 
 // Crowd necromorph (data/body-models.json "necromorphCrowd"): a Mixamo-named 34-bone rig, animation dropped and textures re-encoded.

@@ -70,22 +70,22 @@ export function cableTray(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Mat
   }
 }
 
-/** Plain wall: big plates with seams. */
+/** Plain wall: consistent plates with clean horizontal seams. */
 export function plainWall(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Matrix4, o: WallOptions): void {
   wallBase(pb, m, rng, f, o, o.pal?.wallMain ?? m.paintDark);
   const L = o.length;
   const h = o.height;
+  const mat = o.pal?.wallMain ?? m.paintDark;
   const rows = h > 3.4 ? [0.3, 1.45, 2.7, 3.7] : [0.3, 1.45, 2.6];
   for (let i = 0; i < rows.length; i++) {
     const y0 = rows[i]!;
     const y1 = Math.min(rows[i + 1] ?? h - 0.1, h - 0.1);
     if (y1 - y0 < 0.3) continue;
-    const mat = rng.chance(0.15) ? (o.pal?.wallAlt ?? m.paintBone) : (o.pal?.wallMain ?? m.paintDark);
     pb.add(rounded(L - 0.3, y1 - y0 - 0.06, 0.04, 0.015), mat, inFrame(f, 0, (y0 + y1) / 2, 0.02));
   }
 }
 
-/** Panelled wall in ~2 m bays: dark lower panels, teal upper panels, ribs at bay ends. */
+/** Panelled wall in ~2 m bays: consistent lower panels, upper accent panels, ribs at bay ends. */
 export function panelWall(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Matrix4, o: WallOptions): void {
   wallBase(pb, m, rng, f, o, m.black);
   const lower = o.pal?.wallMain ?? m.paintDark;
@@ -100,15 +100,7 @@ export function panelWall(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Mat
     for (const dx of [-bayW / 4, bayW / 4]) {
       const x = xc + dx;
       pb.add(rounded(pw, 1.0, 0.06), lower, inFrame(f, x, 0.82, 0.03));
-      if (rng.chance(0.1)) {
-        // Missing upper panel: exposed conduit behind.
-        for (let k = 0; k < 3; k++) {
-          const cx = x - 0.25 + k * 0.25;
-          pb.add(cylinderBetween(V(cx, 1.36, -0.03).applyMatrix4(f), V(cx, 2.48, -0.03).applyMatrix4(f), 0.025 + k * 0.006, 8), k === 1 ? m.paintTeal : m.cable);
-        }
-      } else {
-        pb.add(rounded(pw, 1.1, 0.06), rng.chance(0.2) ? (o.pal?.wallMain ?? m.paintBone) : upper, inFrame(f, x, 1.92, 0.03));
-      }
+      pb.add(rounded(pw, 1.1, 0.06), upper, inFrame(f, x, 1.92, 0.03));
       if (h > 3.4) pb.add(rounded(pw, Math.min(1.2, h - 2.95), 0.06), lower, inFrame(f, x, 2.65 + Math.min(1.2, h - 2.95) / 2, 0.03));
     }
     if (b > 0) pilaster(pb, m, f, -L / 2 + bayW * b, h);

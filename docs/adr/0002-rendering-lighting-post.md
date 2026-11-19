@@ -125,3 +125,14 @@ Texture sizes: 512 px, repeat-wrapped, mipmapped, anisotropy 4.
   Verified in sandbox: 31 unit tests (texture maps valid/deterministic/tileable, pattern
   ranges, reduced flashing <= 3 changes/s), all files parse, textures inspected visually.
   **Not yet verified:** typecheck, in-browser look, 60 fps on the M2.
+
+## Addendum (2026-11): photoscanned textures
+
+Most surfaces now use CC0 photoscanned PBR sets instead of procedural textures (OpenSpec change
+`adopt-photoscanned-textures`). Each material slot loads `public/assets/textures/<slot>/{color,normal,orm}.jpg`
+(ORM: R AO, G roughness, B metalness; AO now enabled). `src/render/tex/manifest.ts` gives each slot its
+physical tile size, tint and procedural fallback; a slot that fails to load falls back to its generator.
+`steel`, `grating` and `hazardClean` stay procedural. Kit UVs are in metres for photo slots; the texture
+repeat carries the scale. Areas pick materials from `src/world/kit/palettes.ts`. `?proctex` skips the photo
+sets for a before/after comparison. Texture memory and KTX2 compression are deferred to a later
+optimization pass.

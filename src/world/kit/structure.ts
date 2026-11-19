@@ -6,7 +6,7 @@ import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { slab } from './shapes.ts';
 import { bolts, ceilingHousing, inFrame, panelWall, pipeRun, plainWall, wallFrame, windowWall } from './detail.ts';
 import { resolvePalette, type ResolvedPalette } from './palettes.ts';
-import { CORRIDOR_H, CORRIDOR_W, ROOM_H, WALL_T, PieceBuilder, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams } from './types.ts';
+import { CORRIDOR_H, CORRIDOR_W, ROOM_H, WALL_INSET, WALL_T, PieceBuilder, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams } from './types.ts';
 
 /**
  * Structural kit (ADR-0003): corridors, room tiles, door frames, stairs, catwalks.
@@ -145,9 +145,11 @@ function corridor(o: CorridorOptions, rng: Rng, m: Materials, p: PieceParams = {
   for (const s of SIDES) {
     if (!isOpen(s)) continue;
     const [dx, dz] = DIR[s];
-    pb.socket(s, [dx * HALF, 0, dz * HALF], [dx, 0, dz]);
+    pb.socket(s, [dx * HALF, 0, dz * HALF], [dx, 0, dz], 'door');
     pb.nav(dx * 1.6, 0, dz * 1.6);
   }
+  pb.socket('floor_center', [0, 0, 0], [0, 0, -1], 'floor');
+  pb.socket('floor_center', [0, 0, 0], [0, 0, -1], 'floor');
   pb.nav(0, 0, 0);
   return pb.build();
 }
@@ -298,16 +300,12 @@ function floorTile(p: PieceParams, rng: Rng, m: Materials, grate: boolean): Piec
   } else {
     for (const sx of [-1, 1]) {
       for (const sz of [-1, 1]) {
-        if (rng.chance(0.1)) {
-          pb.add(rounded(1.9, 0.04, 1.9, 0.01), m.steel, at(sx, -0.02, sz));
-          pb.add(slab(1.7, 0.03, 1.7, 1), m.grating, at(sx, 0.004, sz));
-        } else {
-          pb.add(slab(1.96, 0.08, 1.96), pal.floor, at(sx, -0.04, sz));
-        }
+        pb.add(slab(1.98, 0.08, 1.98), pal.floor, at(sx, -0.04, sz));
       }
     }
     pb.solid(-2, -0.2, -2, 2, 0, 2, 'metal');
   }
+  pb.socket('floor_center', [0, 0, 0], [0, 0, -1], 'floor');
   pb.nav(0, 0, 0);
   return pb.build();
 }
@@ -336,15 +334,18 @@ function wallTile(p: PieceParams, rng: Rng, m: Materials, style: WallStyle): Pie
   const pal = resolvePalette(p, m);
   const h = height(p);
   const f = wallFrame(0, -HALF + WALL_T, 0);
-  const o = { length: 4, height: h, depth: WALL_T, pilaster: true, pal };
+  const o = { length: 4, height: h, depth: WALL_T - WALL_INSET, pilaster: true, pal };
   if (style === 'plain' || style === 'vent') plainWall(pb, m, rng, f, o);
-  else if (style === 'panel') panelWall(pb, m, rng, f, { ...o, cables: rng.chance(0.5) });
+  else if (style === 'panel') panelWall(pb, m, rng, f, { ...o, cables: boolParam(p, 'cables', false) });
   else if (style === 'window') {
     windowWall(pb, m, f, o, createAbyss(34, 16));
   } else {
     glassPartition(pb, m, f, h);
   }
   if (style === 'vent') wallVent(pb, m, inFrame(f, 0.9, 0.55, 0.0));
+  if (style === 'plain' || style === 'panel' || style === 'vent') {
+    pb.socket('wall_center', [0, 1.4, -HALF + WALL_T], [0, 0, 1], 'wall');
+  }
   pb.solid(-HALF, 0, -HALF, HALF, h, -HALF + WALL_T);
   return pb.build();
 }
@@ -432,7 +433,7 @@ export function doorFrame(pb: PieceBuilder, m: Materials, width: number, h: numb
   pb.solid(-half, 0, z - WALL_T, -1, h, z + WALL_T);
   pb.solid(1, 0, z - WALL_T, half, h, z + WALL_T);
   pb.solid(-1, 2.4, z - WALL_T, 1, h, z + WALL_T);
-  pb.socket('north', [0, 0, z], [0, 0, -1]);
+  pb.socket('north', [0, 0, z], [0, 0, -1], 'door');
   pb.nav(0, 0, z + 0.9);
   pb.nav(0, 0, z - 0.9);
 }
@@ -544,6 +545,7 @@ function catwalk(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
   if (rails.has('w')) railLine(-hw + e, -hd + e, -hw + e, hd - e);
   if (rails.has('e')) railLine(hw - e, -hd + e, hw - e, hd - e);
   pb.nav(0, h, 0);
+  pb.socket('floor_center', [0, 0, 0], [0, 0, -1], 'floor');
   pb.nav(0, 0, 0);
   return pb.build();
 }

@@ -19,6 +19,8 @@ export const DOOR_W = 2;
 export const DOOR_H = 2.4;
 /** Depth of a room wall tile, measured inward from the cell edge. */
 export const WALL_T = 0.25;
+/** Outer back-face inset (m) so back-to-back walls on shared cell edges never z-fight. */
+export const WALL_INSET = 0.002;
 
 export type Vec3 = [number, number, number];
 
@@ -33,10 +35,13 @@ export type SurfaceMaterial = (typeof SURFACE_MATERIALS)[number];
 export const LIGHT_SLOT_KINDS = ['ceiling', 'wall', 'emergency'] as const;
 export type LightSlotKind = (typeof LIGHT_SLOT_KINDS)[number];
 
+export type SocketKind = 'door' | 'floor' | 'wall';
+
 export interface Socket {
   name: string;
   pos: Vec3;
   dir: Vec3;
+  kind?: SocketKind;
 }
 
 export interface LightSlot {
@@ -136,8 +141,8 @@ export class PieceBuilder {
     this.solid(cx - w / 2, cy - h / 2, cz - d / 2, cx + w / 2, cy + h / 2, cz + d / 2, surface);
   }
 
-  socket(name: string, pos: Vec3, dir: Vec3): void {
-    this.sockets.push({ name, pos, dir });
+  socket(name: string, pos: Vec3, dir: Vec3, kind?: SocketKind): void {
+    this.sockets.push(kind ? { name, pos, dir, kind } : { name, pos, dir });
   }
 
   light(pos: Vec3, kind: LightSlotKind, ry = 0): void {

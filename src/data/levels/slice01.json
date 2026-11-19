@@ -1221,7 +1221,7 @@
      "rot": 270
     },
     {
-     "kit": "wall_window",
+     "kit": "wall_plain",
      "cells": [
       [
        4,
@@ -1331,6 +1331,30 @@
      }
     },
     {
+     "kit": "half_wall",
+     "pos": [
+      30.6,
+      0,
+      14
+     ],
+     "params": {
+      "width": 4.8,
+      "height": 1.15
+     }
+    },
+    {
+     "kit": "half_wall",
+     "pos": [
+      28.2,
+      0,
+      21.5
+     ],
+     "params": {
+      "width": 4.6,
+      "height": 1.15
+     }
+    },
+    {
      "kit": "vending_machine",
      "pos": [
       33.2,
@@ -1344,7 +1368,7 @@
      "pos": [
       18.5,
       0,
-      17
+      16.5
      ],
      "params": {
       "width": 2.2,
@@ -1355,9 +1379,9 @@
     {
      "kit": "dining_table",
      "pos": [
-      25,
+      23.8,
       0,
-      17.5
+      16.5
      ],
      "params": {
       "width": 2.2,
@@ -1370,7 +1394,33 @@
      "pos": [
       30.5,
       0,
-      18.5
+      16.5
+     ],
+     "params": {
+      "width": 1.8,
+      "seats": 4,
+      "mugs": 1
+     }
+    },
+    {
+     "kit": "dining_table",
+     "pos": [
+      18.5,
+      0,
+      19.6
+     ],
+     "params": {
+      "width": 2.2,
+      "seats": 6,
+      "mugs": 1
+     }
+    },
+    {
+     "kit": "dining_table",
+     "pos": [
+      30.5,
+      0,
+      19.6
      ],
      "params": {
       "width": 1.8,
@@ -1381,31 +1431,44 @@
     {
      "kit": "sofa",
      "pos": [
-      16.4,
+      28,
       0,
-      23.6
+      22.8
      ],
+     "rot": 180,
      "params": {
-      "width": 2.4,
+      "width": 2.6,
       "tone": "warm"
      }
     },
     {
      "kit": "sofa",
      "pos": [
-      19.6,
+      25.8,
       0,
-      24.6
+      24.15
      ],
-     "rot": 300,
+     "rot": 270,
      "params": {
       "width": 1.8
      }
     },
     {
+     "kit": "coffee_table",
+     "pos": [
+      28,
+      0,
+      24.15
+     ],
+     "params": {
+      "width": 1.4,
+      "depth": 0.7
+     }
+    },
+    {
      "kit": "notice_board",
      "pos": [
-      20,
+      17.4,
       0,
       10.31
      ],
@@ -1418,13 +1481,27 @@
     {
      "kit": "tag_poster",
      "pos": [
-      16.6,
+      15,
       0,
       10.31
      ],
      "rot": 180,
      "params": {
       "slogan": "DEEPER. FURTHER. TOGETHER."
+     }
+    },
+    {
+     "kit": "wall_screen",
+     "pos": [
+      20.2,
+      0,
+      10.31
+     ],
+     "rot": 180,
+     "params": {
+      "id": "commons_board_screen",
+      "width": 2,
+      "state": "off"
      }
     },
     {
@@ -1509,9 +1586,9 @@
     {
      "kit": "hanging_plant",
      "pos": [
-      18,
+      18.5,
       0,
-      17
+      16.5
      ],
      "params": {
       "drop": 0.9
@@ -1520,9 +1597,9 @@
     {
      "kit": "hanging_plant",
      "pos": [
-      25,
+      23.8,
       0,
-      17.5
+      16.5
      ],
      "params": {
       "drop": 0.7

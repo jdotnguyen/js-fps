@@ -5,7 +5,7 @@ Status: Accepted (structure, language) / Proposed (loop details)
 ## Context
 The repo contains INKSHOT, a cel-shaded arena wave shooter generated without input. The
 target is now a story-driven Dead Space-style horror FPS in interior corridors [Decided],
-delivered first as a 10-15 min tech demo that must grow into many chapters [Decided].
+delivered first as a 10-15 min vertical slice that must grow into many chapters [Decided].
 The architecture must make new chapters mostly *data*, not code.
 
 ## Decision

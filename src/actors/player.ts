@@ -41,7 +41,7 @@ declare module '../core/events.ts' {
  * can tune them live.
  */
 export const PLAYER_TUNING = {
-  eyeHeight: 1.62,
+  eyeHeight: 1.7,
   downedEyeHeight: 0.35,
   walkSpeed: 3.2,
   sprintSpeed: 5.0,

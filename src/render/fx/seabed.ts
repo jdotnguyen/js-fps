@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { dequantizeForTransform } from '../gltf.ts';
 
 /**
  * The sea floor outside the station windows: the "Ocean floor scene" GLB (public/assets/models/seabed/,
@@ -60,7 +61,7 @@ function prepare(scene: THREE.Object3D): SeabedSource {
   const baked: Array<{ name: string; geometry: THREE.BufferGeometry; material: THREE.Material }> = [];
   scene.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
-    const geometry = (o.geometry as THREE.BufferGeometry).clone().applyMatrix4(o.matrixWorld);
+    const geometry = dequantizeForTransform((o.geometry as THREE.BufferGeometry).clone()).applyMatrix4(o.matrixWorld);
     // Only what the shader reads; the export carries five UV sets and tangents.
     for (const name of ['tangent', 'uv2', 'uv3', 'uv4']) geometry.deleteAttribute(name);
     baked.push({ name: `${o.parent?.parent?.name ?? ''}${o.name}`, geometry, material: o.material as THREE.Material });
