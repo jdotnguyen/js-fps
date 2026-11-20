@@ -915,6 +915,14 @@ export const SAMPLE_URLS = {
   archPass: 'assets/audio/ambience/oneshot-arch-pass.mp3',
   archAlarm: 'assets/audio/ambience/oneshot-arch-alarm.mp3',
   wandBeep: 'assets/audio/ambience/oneshot-wand-beep.mp3',
+  // Dive bay launch hall (rebuild-dive-bay): `npm run ambience:generate -- --id <name>` for each. Until a file exists
+  // the `launch_bay` bed falls back to the procedural water rumble and the trunk / leak one-shots stay silent.
+  ambLaunchBay: 'assets/audio/ambience/bed-launch-bay.mp3',
+  winchClunk: 'assets/audio/ambience/oneshot-winch-clunk.mp3',
+  trunkChirp: 'assets/audio/ambience/oneshot-trunk-chirp.mp3',
+  trunkHatch: 'assets/audio/ambience/oneshot-trunk-hatch.mp3',
+  trunkVent: 'assets/audio/ambience/oneshot-trunk-vent.mp3',
+  leakHiss: 'assets/audio/ambience/oneshot-leak-hiss.mp3',
 
   // Door motion and access feedback (ElevenLabs, scripts/doors-generate.ts).
   doorPressureOpen: 'assets/audio/doors/door-pressure-open.mp3',

@@ -1,0 +1,127 @@
+# Spec Delta
+
+## Purpose
+
+Defines the dive bay suite behind the Commons (R13a–e) as a believable deep-sea launch-and-recovery facility: what each room is for, how its launch trunk works at 3,000 m, how it looks, and what it must keep for the quiet-half script.
+
+## ADDED Requirements
+
+### Requirement: Room roles
+The dive bay SHALL consist of five rooms with these names and roles: R13a "Wet Vestibule" (the transition from the dry station), R13b "Moon Pool" (launch-and-recovery hall around the launch trunk), R13c "ROV Workshop" (vehicle maintenance), R13e "Sample Store" (cold storage and chain of custody for recovered samples) and R13d "Maintenance Corridor" (dark service corridor). The station map SHALL show these names when the dive bay map station is used.
+
+#### Scenario: Map shows the new names
+- **WHEN** Jay uses the dive bay map station
+- **THEN** the map reveals all five rooms, labelled Wet Vestibule, Moon Pool, ROV Workshop, Maintenance Corridor and Sample Store
+
+#### Scenario: No dive suits for open-water diving
+- **WHEN** slice01 is built
+- **THEN** no dive-suit rack stands in R13a, R13b or R13c
+
+### Requirement: Launch trunk
+The moon pool SHALL be a closed vertical lock, not an open pool at deck level. It SHALL have an inner hatch at deck level, a drained shaft with depth marks and standing water at its foot, and a closed outer hatch with a lit viewport at the bottom. A rail with a closed gate SHALL surround it. No player or NPC SHALL be able to enter the shaft.
+
+#### Scenario: Looking into the trunk
+- **WHEN** Jay stands at the rail while the inner hatch is open
+- **THEN** he sees down a drained steel shaft to standing water and a blue-lit viewport in the outer hatch, and no water surface at deck level
+
+#### Scenario: Shaft is not enterable
+- **WHEN** Jay walks or jumps toward the trunk from any side
+- **THEN** the rail and gate stop him before the shaft opening
+
+#### Scenario: Hull from outside
+- **WHEN** the station's exterior hull is built
+- **THEN** the trunk shows as a closed skirt and hatch under the hull, with no open hole
+
+### Requirement: Trunk secure event
+The trunk SHALL start the quiet half with its inner hatch open. After Sung's dive-bay lines first finish, the trunk SHALL be secured: an amber beacon turns, a two-tone chirp and a vent hiss play from the trunk, the inner hatch closes, and the status screen reads "TRUNK SECURED". The event SHALL NOT overlap a dialogue line. The closed hatch SHALL keep a viewport showing the blue glow below.
+
+#### Scenario: First visit
+- **WHEN** Jay enters the dive bay after the briefing and Sung's lines play
+- **THEN** the secure event starts only after the last of those lines ends, and the hatch is closed and the screen reads "TRUNK SECURED" when it finishes
+
+#### Scenario: Before the briefing
+- **WHEN** Jay enters the dive bay before the briefing has been seen
+- **THEN** the trunk stays open and the secure event does not run
+
+### Requirement: Secured trunk persists
+Once secured, the trunk SHALL stay secured after a save load or a death restart, and the secure event SHALL NOT replay.
+
+#### Scenario: Load after securing
+- **WHEN** a save taken after the secure event is loaded
+- **THEN** the hatch is already closed, the screen reads "TRUNK SECURED", and no beacon, chirp or hiss plays
+
+### Requirement: Working equipment
+R13b SHALL contain a gantry crane on rails over the trunk area, a recovered ROV on a deck cradle with a basket of sediment cores, a tether winch, a pilot console facing the trunk with status screens, a dive-log whiteboard, a wet bench, an eyewash station and a tool shadow-board. The status screens SHALL show the outside pressure as 302 bar, the trunk state, tether length and a sonar display.
+
+#### Scenario: Reading the console
+- **WHEN** Jay looks at the pilot console
+- **THEN** he can read the outside pressure (302 BAR), the trunk state and the tether length
+
+#### Scenario: Recovered vehicle
+- **WHEN** Jay enters R13b
+- **THEN** the ROV sits on its cradle with water dripping from it, and the gantry hook hangs above it
+
+### Requirement: Sample errand route
+The sample case SHALL be picked up in R13b at `dive_case_pickup` and stowed in R13e at a chain-of-custody cold store at `dive_case_locker`, with the existing "Stow sample case" prompt and the existing lines. The store SHALL be marked for Lab B and SHALL include a pressure sample cabinet labelled "HOLD AT 302 BAR".
+
+#### Scenario: Stowing the case
+- **WHEN** Jay uses the stow point in R13e while carrying the sample case
+- **THEN** the round completes exactly as before, and the stow point is a cold-store unit marked for Lab B
+
+### Requirement: Clean finish with decay only in the corridor
+R13a, R13b, R13c and R13e SHALL use clean painted steel walls, clean treadplate or grating floors and clean hazard paint, with no rust textures. R13d SHALL keep rusty walls and floors and its dark lighting. Wear in the clean rooms SHALL come from placed decals (wet sheen, puddles, drip and salt stains), within the dressing standard's decal budget.
+
+#### Scenario: Walking in from the Commons
+- **WHEN** Jay walks from the Commons through R13a into R13b
+- **THEN** no wall, floor or ceiling surface in those rooms uses a rust texture
+
+#### Scenario: The corridor stays decayed
+- **WHEN** Jay enters R13d
+- **THEN** its walls and floor show rust, its single dying light still runs, and the `area:dark` flashlight prompt still fires
+
+#### Scenario: Wet floor where water is
+- **WHEN** Jay looks at the deck around the trunk and under the ROV
+- **THEN** the floor there reads wet, with puddles, while floors away from them read dry
+
+### Requirement: Lighting and atmosphere
+R13a, R13b, R13c and R13e SHALL be lit by neutral white work lights, with fog density at or below 0.02. In R13b the strongest blue light SHALL come from the trunk: an upward shaft and moving caustics on the ceiling and gantry above it, and a thin mist over the shaft water. R13d SHALL keep its current dark atmosphere.
+
+#### Scenario: Trunk as the focal point
+- **WHEN** Jay enters R13b from R13a
+- **THEN** the trunk area is the only strongly blue-lit part of the room, with caustics moving on the ceiling above it
+
+#### Scenario: Visibility in the hall
+- **WHEN** Jay stands at the R13a door
+- **THEN** the far wall of R13b is clearly visible through the fog
+
+### Requirement: Station signage in the dive bay
+Each room in R13a–e SHALL have a room plate by its entry door. R13a, R13b, R13c and R13e SHALL each have a life-support panel showing oxygen, CO₂, cabin pressure and humidity. Pipes in R13b and R13d SHALL carry labels with flow arrows.
+
+#### Scenario: Entering the hall
+- **WHEN** Jay walks through the R13a–R13b door
+- **THEN** a plate reading "R13B · LAUNCH TRUNK 1" is beside the door
+
+### Requirement: Script hooks are preserved
+The rebuilt bay SHALL keep the anchors `dive_entry`, `priya_start`, `moon_pool`, `cp_round_dive`, `diver_1_spot`, `dive_case_pickup`, `dive_case_locker`, `dive_radio` and `dark_corridor` where they still serve their scenes. It SHALL keep the triggers `trigger:dive_enter`, `area:dark`, `round:dive_case` and `trigger:dive_lockers_enter`, the NPCs `priya`, `diver_1`, `maint_1` and `diver_2`, the `dive_map` station, every door id, and `D_R13d_R11` sealed for lockdown.
+
+#### Scenario: Whole critical path still walks
+- **WHEN** the headless critical-path walk runs
+- **THEN** it reaches `cp_round_dive` and `dive_case_locker` through the real colliders and doors, as before
+
+### Requirement: Nothing outside the dive bay changes
+Generating slice01 SHALL change nothing outside R13a–e.
+
+#### Scenario: Nothing else moves
+- **WHEN** slice01 is regenerated with this change
+- **THEN** every room, door, anchor, NPC and trigger outside R13a–e is identical to the previous level file, including `D_R02_R13a`
+
+### Requirement: Budgets and clearance
+Each room in R13a–e SHALL stay within 60 draw calls, and no room in slice01 SHALL see more than 300. A clear path of at least 1.2 m SHALL run between every pair of doors in R13b and around the stow point, the case pickup and the map station.
+
+#### Scenario: Draw calls after dressing
+- **WHEN** the slice01 budget test runs
+- **THEN** each R13 room reports 60 draw calls or fewer
+
+#### Scenario: Squad-width paths
+- **WHEN** two 0.35 m capsules walk side by side from the R13a door to the R13e door
+- **THEN** they pass the trunk rail, the bench and the console without stalling

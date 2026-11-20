@@ -30,7 +30,11 @@ Wall and floor pieces SHALL take their materials from the room's area palette un
 
 #### Scenario: Dive bay floors
 - **WHEN** the dive bay area is built
-- **THEN** its floors use the rusty treadplate and hazard treadplate materials, not the default diamond plate
+- **THEN** its floors use clean treadplate, with grating around the launch trunk, and no rusty treadplate
+
+#### Scenario: Dive bay maintenance corridor
+- **WHEN** the dive bay's maintenance corridor (R13d) is built
+- **THEN** the level data overrides its walls and floor with rust materials, so it alone in the dive bay looks decayed
 
 #### Scenario: Lab B after the outbreak
 - **WHEN** the outbreak sequence event fires

@@ -197,6 +197,22 @@ export const AMBIENCE_PRESETS = {
       { sound: 'distantMoan', every: [55, 110], gain: 0.35, placement: 'far', muffled: true, reverb: 0.9, rateRange: [0.94, 1.04] },
     ],
   },
+  // The Moon Pool launch hall (rebuild-dive-bay): hydraulic plant hum and water moving in the trunk, winch and
+  // pressure noises; no distant moans, so the quiet half stays calm here.
+  launch_bay: {
+    beds: [
+      { sample: 'ambLaunchBay', fallback: 'waterRumble', gain: 0.55 },
+      { sample: 'waterRumble', fallback: 'waterRumble', gain: 0.2, rate: 0.9, cutoff: 420 },
+    ],
+    breathing: { depth: 0.08, periodA: 19, periodB: 33 },
+    oneshots: [
+      { sound: 'drip', every: [2.6, 7.5], gain: 0.3, placement: 'perimeter', reverb: 0.6, rateRange: [0.88, 1.14] },
+      { sound: 'winchClunk', every: [20, 45], gain: 0.34, placement: 'ceiling', reverb: 0.55, rateRange: [0.9, 1.05] },
+      { sound: 'metalKnock', every: [35, 70], gain: 0.22, placement: 'ceiling', reverb: 0.55, rateRange: [0.85, 1.0] },
+      { sound: 'pressurePing', every: [26, 56], gain: 0.22, placement: 'far', muffled: true, reverb: 0.85, rateRange: [0.94, 1.05] },
+      { sound: 'hullGroan', every: [40, 80], gain: 0.32, placement: 'far', muffled: true, reverb: 0.7, rateRange: [0.88, 1.02] },
+    ],
+  },
   silent: {
     beds: [],
     breathing: { depth: 0, periodA: 20, periodB: 31 },

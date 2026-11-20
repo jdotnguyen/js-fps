@@ -318,6 +318,67 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     prompt:
       'handheld security metal detector wand being swept over a person, quiet rising and falling electronic hum with two short soft beeps, close and dry, no alarm, no music, no voice',
   },
+  // Dive bay launch hall (rebuild-dive-bay, dive-bay spec): the `launch_bay` bed and the trunk secure event.
+  {
+    id: 'ambLaunchBay',
+    file: 'bed-launch-bay.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 20,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of a large clean steel submersible launch hall inside a deep-sea research station, steady low hydraulic power pack hum, faint water moving and lapping deep inside a narrow steel shaft below the floor, distant ventilation airflow, calm working atmosphere, no music, no voice, no melody, constant steady loop',
+  },
+  {
+    id: 'winchClunk',
+    file: 'oneshot-winch-clunk.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.8,
+    promptInfluence: 0.65,
+    prompt:
+      'single heavy deep metallic clunk of an industrial steel hoist winch lock engaging, followed by a brief low taut steel cable tension creak, inside a large metal hall with light reverb, slow heavy machinery foley, no rapid clicking, no music, no voice',
+  },
+  {
+    id: 'trunkChirp',
+    file: 'oneshot-trunk-chirp.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.2,
+    promptInfluence: 0.7,
+    prompt:
+      'short industrial two-tone electronic warning chirp, two clean notes high then low, from a wall speaker in a large steel hall, slight reverb, not a siren, no music, no voice',
+  },
+  {
+    id: 'trunkHatch',
+    file: 'oneshot-trunk-hatch.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 4.5,
+    promptInfluence: 0.55,
+    prompt:
+      'hydraulic rams whine steadily as a heavy steel pressure hatch slowly swings shut over four seconds, ending in a deep metallic clunk and a latch locking, large metal hall reverb, no music, no voice',
+  },
+  {
+    id: 'trunkVent',
+    file: 'oneshot-trunk-vent.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2.0,
+    promptInfluence: 0.6,
+    prompt:
+      'short pressurised air vent hiss tapering off quickly, followed by a few water drips into a steel shaft, metal hall reverb, no music, no voice',
+  },
+  {
+    id: 'leakHiss',
+    file: 'oneshot-leak-hiss.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2.5,
+    promptInfluence: 0.6,
+    prompt:
+      'thin irregular hissing steam leak from a pipe joint in a narrow dark metal corridor, two to three seconds, with a faint drip, close and dry, no music, no voice',
+  },
 ];
 
 function loadApiKey(): string {
