@@ -23,11 +23,11 @@ shove, and an API that sequences use to restrict or guide control.
 | Wading (water to knees) | 60% of walk, no sprint |
 | Acceleration / deceleration | 18 / 22 m/s^2 (weighty but responsive) |
 | Step height | 0.35 m |
-| Jump (Space) | Added later at the owner's request (reverses the original removal). Takeoff 5 m/s at gravity 20 = about 0.6 m, so it clears knee-high props but not a full-height wall; ground only, locked on rails, downed, wading or scripted walks; a ceiling stops the rise [Decided] |
+| Jump (Space) | Added later at the owner's request (reverses the original removal). Takeoff 5 m/s at gravity 20 (about 0.58 m of arc at 60 Hz). **Reach 1.00 m** above the takeoff floor [Decided]: while jumping the motor's step allowance rises to ~0.42 m, sized from the arc so the top 4 frames reach 1.00 m (peak ~1.006 m), so desks (0.75) and counters (0.90) can be mounted and anything from ~1.02 m blocks. Only tops with standing headroom (1.75 m clear above) count. Ground only, locked on rails, downed, wading or scripted walks; a ceiling stops the rise. Spec: `openspec/.../player-movement` [Decided] |
 | Crouch | Not in slice |
 - Head bob scaled by speed (amplitude 0.03 m walk, 0.05 sprint), reduced-motion setting
   scales it to 0.
-- Footsteps driven by distance travelled, surface from ADR-0003 `surfaces`.
+- Footsteps driven by distance travelled, surface from ADR-0003 `surfaces`. How they sound: [openspec/specs/in-world-audio](../../openspec/specs/in-world-audio/spec.md).
 
 ### Aim and look
 - Mouse look with pointer lock; sensitivity, invert Y, FOV (70-95, default 80) in settings.
@@ -41,8 +41,8 @@ shove, and an API that sequences use to restrict or guide control.
 
 ### Health and damage
 - 100 HP, no armour. Healing from med packs only (ADR-0008); the medic revives, he does not heal (ADR-0011).
-- Damage feedback: red edge tint uniform, short camera kick, muffled audio low-pass for
-  0.4 s, 0.3 s movement slow. Below 30 HP: heartbeat, desaturation, heavier breathing.
+- Damage feedback: red edge tint uniform, short camera kick, 0.3 s movement slow. Below 30 HP:
+  desaturation. Audio feedback (the damage muffle): [openspec/specs/audio-mix](../../openspec/specs/audio-mix/spec.md).
 - Grab: when an enemy grabs (ADR-0007), camera is turned toward it, movement locked,
   "Mash E" struggle prompt; a teammate can shoot it off.
 - **Downed instead of death** [Decided]: at 0 HP the player collapses into a Downed state.
@@ -83,7 +83,10 @@ this via a control stack).
   Gamepad [Open].
 
 ## Consequences
-- No jump means level design never relies on it; dodge is the only burst move.
+- Jay can stand on any top up to 1.00 m with headroom (desks, counters, crates). Anything meant to stop him must be
+  taller than 1.00 m or have something low over it. Dodge is still the only burst move.
+- Enemies step up only 0.35 m (the navmesh climb), so they cannot follow Jay onto a counter. Accepted for now
+  [Decided]; revisit if playtests show fights being cheesed (options: enemies reach up, no-climb props).
 
 ## Alternatives rejected
 - Arcade movement from INKSHOT (fast, jumpy): wrong genre feel.
@@ -123,10 +126,11 @@ Not yet verified: in-browser feel, `npm run build` on macOS, `?debug` budget sta
 Test with `npm run dev`, then `/?debug&seq=control-test` (DoD: lock + soft-lock + restore).
 
 Gaps / decisions taken:
-- Collision is a linear box scan; ADR-0003's spatial hash should implement `ColliderQuery`.
+- ~~Collision is a linear box scan~~ Done: `world/collision.ts` `CollisionWorld` (2 m spatial hash) implements
+  `ColliderQuery`; `BoxColliders` remains for hand-built test rooms.
 - Revive comes from the debug panel until the medic (ADR-0011). Revives reset per checkpoint.
 - Death restarts from the slot's autosave, healed to `checkpointHeal` (ADR-0008 number).
-- No heartbeat or breathing sound yet (ADR-0013); low HP shows as a pulsing red grade.
+- Low HP shows as a pulsing red grade.
 - Interact ray is not occluded by walls; fine while interactables sit on wall faces.
 - Shove emits `player:shove`; enemy push and stagger is ADR-0007. Dodge still deferred.
 - Game over is a 1.4 s fade, 1 s hold, restart.

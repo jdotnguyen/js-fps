@@ -62,7 +62,7 @@ export const PLAYER_TUNING = {
   strideSprint: 0.95,
   aimFovScale: 0.8,
   aimTime: 0.15,
-  /** Jump takeoff speed, m/s (about 0.6 m of height at gravity 20); the motor reads DEFAULT_MOTOR.jumpSpeed. */
+  /** Jump takeoff speed, m/s (about 0.58 m of arc at gravity 20); with the motor's air step it reaches 1.00 m tops. */
   jumpSpeed: DEFAULT_MOTOR.jumpSpeed,
   hitSlowTime: 0.3,
   hitSlowScale: 0.5,
@@ -572,6 +572,8 @@ export class Player {
     const r = moveBody(this.body, stepX, stepZ, dt, { ...DEFAULT_MOTOR, jumpSpeed: T.jumpSpeed }, this.world.colliders);
     if (wasAirborne && this.body.grounded) this.d.events.emit('player:footstep', { surface, x: this.body.x, y: this.body.y, z: this.body.z, sprint: false, landing: true });
     let mx = this.body.x - x0;
+      // While jumping the motor lets Jay climb onto tops up to its jumpReach (player-movement spec).
+      this.body.jumping = true;
     let mz = this.body.z - z0;
     // Walls eat the velocity that pushes into them, so we slide instead of sticking.
     if (r.blocked) this.velocity.set(mx / dt, mz / dt);

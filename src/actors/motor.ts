@@ -12,6 +12,8 @@
  * When ADR-0003's spatial hash lands it only has to implement `ColliderQuery`.
  */
 
+import { SIM_STEP } from '../core/loop.ts';
+
 /** ADR-0003 collider: `{ min:[x,y,z], max:[x,y,z] }`, world space. */
 export interface Aabb {
   min: readonly [number, number, number];
@@ -48,8 +50,14 @@ export interface MotorConfig {
   /** Highest drop that keeps the body glued to the floor instead of falling. */
   snapDown: number;
   gravity: number;
-  /** Takeoff speed of a jump, m/s: apex height is jumpSpeed^2 / (2 * gravity). */
+  /** Takeoff speed of a jump, m/s: apex height is about jumpSpeed^2 / (2 * gravity). */
   jumpSpeed: number;
+  /**
+   * Highest top a jump gets the body onto, metres above the takeoff floor (player-movement spec). While `jumping`
+   * the body may climb `airStep(cfg)` above its feet instead of `stepHeight`, sized so the top of the arc reaches
+   * exactly this.
+   */
+  jumpReach: number;
 }
 
 export const DEFAULT_MOTOR: Readonly<MotorConfig> = Object.freeze({
@@ -59,6 +67,7 @@ export const DEFAULT_MOTOR: Readonly<MotorConfig> = Object.freeze({
   snapDown: 0.4,
   gravity: 20,
   jumpSpeed: 5,
+  jumpReach: 1,
 });
 
 /** Feet position (x, y = soles, z) plus vertical state. Mutated in place. */
@@ -68,6 +77,8 @@ export interface MotorState {
   z: number;
   vy: number;
   grounded: boolean;
+  /** Set by the jumper with `vy` when a jump starts; the motor clears it on landing. Absent means false. */
+  jumping?: boolean;
 }
 
 export interface MoveResult {
@@ -84,6 +95,51 @@ const FLOOR_PROBE = 0.6;
 const LOWEST_Y = -50;
 
 const scratch: Aabb[] = [];
+const headScratch: Aabb[] = [];
+
+/**
+ * Frames at the top of a jump during which the full `jumpReach` holds. A body only gets onto a top once its floor
+ * probe is over it, which takes about 3 frames past the edge at walking speed, so the 2 apex frames alone would only
+ * let a sprint reach it (jump-reach-1m design, Decision 1).
+ */
+export const REACH_FRAMES = 4;
+
+const arcCache = new Map<string, { apex: number; hold: number }>();
+
+/** Heights of a jump as the motor integrates it at the fixed step (semi-implicit Euler, as `settleVertical`). */
+function jumpArc(jumpSpeed: number, gravity: number, step: number): { apex: number; hold: number } {
+  const key = `${jumpSpeed}|${gravity}|${step}`;
+  const hit = arcCache.get(key);
+  if (hit) return hit;
+  const heights: number[] = [];
+  let vy = jumpSpeed;
+  let y = 0;
+  for (let i = 0; i < 10000; i++) {
+    vy -= gravity * step;
+    y += vy * step;
+    if (y <= 0) break;
+    heights.push(y);
+  }
+  heights.sort((a, b) => b - a);
+  const arc = { apex: heights[0] ?? 0, hold: heights[Math.min(REACH_FRAMES, heights.length) - 1] ?? 0 };
+  arcCache.set(key, arc);
+  return arc;
+}
+
+/** Highest point of a jump at the fixed step. About 4 cm under the analytic jumpSpeed^2 / 2g at 60 Hz. */
+export function jumpApex(jumpSpeed: number, gravity: number, step = SIM_STEP): number {
+  return jumpArc(jumpSpeed, gravity, step).apex;
+}
+
+/** Height a jump keeps for its `REACH_FRAMES` highest frames at the fixed step. */
+export function jumpHold(jumpSpeed: number, gravity: number, step = SIM_STEP): number {
+  return jumpArc(jumpSpeed, gravity, step).hold;
+}
+
+/** How far above its feet a jumping body may climb: for the top `REACH_FRAMES` of the arc this reaches `jumpReach`. */
+export function airStep(cfg: MotorConfig): number {
+  return Math.max(cfg.stepHeight, cfg.jumpReach - jumpHold(cfg.jumpSpeed, cfg.gravity));
+}
 
 /**
  * Move by (dx, dz) metres this step, then settle vertically. `dt` is only used for
@@ -106,13 +162,14 @@ export function moveBody(s: MotorState, dx: number, dz: number, dt: number, cfg:
 /** Push the footprint out of walls. Returns true if anything pushed. */
 export function resolveHorizontal(s: MotorState, cfg: MotorConfig, world: ColliderQuery): boolean {
   const r = cfg.radius;
+  const climb = climbLimit(s, cfg);
   let pushed = false;
   for (let it = 0; it < ITERATIONS; it++) {
     scratch.length = 0;
     const boxes = world.query(s.x - r, s.z - r, s.x + r, s.z + r, scratch);
     let moved = false;
     for (const b of boxes) {
-      if (!blocksBody(b, s.y, cfg)) continue;
+      if (!blocksBody(b, s, climb, cfg, world)) continue;
       const cx = clamp(s.x, b.min[0], b.max[0]);
       const cz = clamp(s.z, b.min[2], b.max[2]);
       const ex = s.x - cx;
@@ -177,13 +234,15 @@ export function ceilingHeight(x: number, z: number, fromY: number, toY: number, 
 }
 
 function settleVertical(s: MotorState, dt: number, cfg: MotorConfig, world: ColliderQuery): number {
-  const ground = floorHeight(s.x, s.z, s.y + cfg.stepHeight + SKIN, cfg, world);
+  const ground = standHeight(s, s.y + climbLimit(s, cfg) + SKIN, cfg, world);
   if (s.grounded && ground >= s.y - cfg.snapDown) {
     const up = ground - s.y;
     s.y = ground;
     s.vy = 0;
+    if (s.jumping) s.jumping = false;
     return Math.max(0, up);
   }
+  const feetBefore = s.y;
   s.vy -= cfg.gravity * dt;
   const headBefore = s.y + cfg.height;
   s.y += s.vy * dt;
@@ -196,9 +255,13 @@ function settleVertical(s: MotorState, dt: number, cfg: MotorConfig, world: Coll
     }
   }
   if (s.y <= ground) {
+    // Landing on a top above the feet (a jump onto a counter) is a step up the camera can ease, like a walking step.
+    const up = ground - Math.max(feetBefore, s.y);
     s.y = ground;
     s.vy = 0;
     s.grounded = true;
+    if (s.jumping) s.jumping = false;
+    return Math.max(0, up);
   } else {
     s.grounded = false;
   }
@@ -209,9 +272,61 @@ function settleVertical(s: MotorState, dt: number, cfg: MotorConfig, world: Coll
   return 0;
 }
 
-/** A box blocks sideways movement when it overlaps the body above step height. */
-function blocksBody(b: Aabb, feetY: number, cfg: MotorConfig): boolean {
-  return b.max[1] > feetY + cfg.stepHeight + SKIN && b.min[1] < feetY + cfg.height;
+/** How far above its feet the body may climb this step: the jump's air step while jumping, else the step height. */
+function climbLimit(s: MotorState, cfg: MotorConfig): number {
+  return s.jumping ? airStep(cfg) : cfg.stepHeight;
+}
+
+/**
+ * A box blocks sideways movement when it overlaps the body above what it can climb, or when it is low enough to
+ * climb but there is no room to stand on it (a counter under a wall cabinet).
+ */
+function blocksBody(b: Aabb, s: MotorState, climb: number, cfg: MotorConfig, world: ColliderQuery): boolean {
+  if (b.min[1] >= s.y + cfg.height) return false;
+  const top = b.max[1];
+  if (top > s.y + climb + SKIN) return true;
+  return top > s.y + SKIN && !hasHeadroom(b, s.x, s.z, cfg, world);
+}
+
+/**
+ * True if nothing has its underside within a standing height above `b`'s top, over the part of `b` under the body's
+ * footprint. Boxes that rise from below the top (a wall beside a counter) are not undersides.
+ */
+function hasHeadroom(b: Aabb, x: number, z: number, cfg: MotorConfig, world: ColliderQuery): boolean {
+  const r = cfg.radius;
+  const top = b.max[1];
+  const minX = Math.max(b.min[0], x - r);
+  const maxX = Math.min(b.max[0], x + r);
+  const minZ = Math.max(b.min[2], z - r);
+  const maxZ = Math.min(b.max[2], z + r);
+  headScratch.length = 0;
+  const boxes = world.query(minX, minZ, maxX, maxZ, headScratch);
+  for (const o of boxes) {
+    if (o === b) continue;
+    const bottom = o.min[1];
+    if (bottom <= top + SKIN || bottom >= top + cfg.height) continue;
+    if (o.max[0] <= minX + SKIN || o.min[0] >= maxX - SKIN || o.max[2] <= minZ + SKIN || o.min[2] >= maxZ - SKIN) continue;
+    return false;
+  }
+  return true;
+}
+
+/** `floorHeight` for this body: tops above its feet only count if it has room to stand on them. */
+function standHeight(s: MotorState, maxTop: number, cfg: MotorConfig, world: ColliderQuery): number {
+  const r = cfg.radius * FLOOR_PROBE;
+  scratch.length = 0;
+  const boxes = world.query(s.x - r, s.z - r, s.x + r, s.z + r, scratch);
+  let best = -Infinity;
+  for (const b of boxes) {
+    const top = b.max[1];
+    if (top > maxTop || top <= best) continue;
+    const cx = clamp(s.x, b.min[0], b.max[0]);
+    const cz = clamp(s.z, b.min[2], b.max[2]);
+    if ((s.x - cx) ** 2 + (s.z - cz) ** 2 >= r * r) continue;
+    if (top > s.y + SKIN && !hasHeadroom(b, s.x, s.z, cfg, world)) continue;
+    best = top;
+  }
+  return best;
 }
 
 function clamp(v: number, lo: number, hi: number): number {

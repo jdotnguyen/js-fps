@@ -17,6 +17,9 @@ export interface LoopHooks {
   render(alpha: number, frameDt: number): void;
 }
 
+/** The fixed simulation step, seconds. Physics that depends on the step (the motor's jump reach) reads this. */
+export const SIM_STEP = 1 / 60;
+
 /** Longest real frame we accept, so a backgrounded tab doesn't explode the sim. */
 const MAX_FRAME = 0.25;
 
@@ -28,7 +31,7 @@ export class Loop {
   private last = -1;
   private raf = 0;
 
-  constructor(hooks: LoopHooks, step = 1 / 60, maxSteps = 5) {
+  constructor(hooks: LoopHooks, step = SIM_STEP, maxSteps = 5) {
     this.hooks = hooks;
     this.maxSteps = maxSteps;
     this.clock = { step, scale: 1, elapsed: 0, steps: 0 };
