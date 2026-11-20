@@ -312,6 +312,14 @@ function hasHeadroom(b: Aabb, x: number, z: number, cfg: MotorConfig, world: Col
 }
 
 /** `floorHeight` for this body: tops above its feet only count if it has room to stand on them. */
+/**
+ * The highest walkable top at or below the body's feet, or -Infinity when there is none. Unlike the step-up
+ * search it never looks above the feet, so a body placed just under a ceiling slab finds the floor, not the slab.
+ */
+export function floorBelow(s: MotorState, world: ColliderQuery, cfg: MotorConfig = DEFAULT_MOTOR): number {
+  return standHeight(s, s.y + SKIN, cfg, world);
+}
+
 function standHeight(s: MotorState, maxTop: number, cfg: MotorConfig, world: ColliderQuery): number {
   const r = cfg.radius * FLOOR_PROBE;
   scratch.length = 0;

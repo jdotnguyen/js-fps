@@ -159,3 +159,15 @@ export function pickTarget<T extends { weight: number; x: number; z: number }>(f
   }
   return best;
 }
+
+/**
+ * Whether Jay could see a body at `p` (its feet): in front of him (`forward` is his flat view direction) and
+ * with a clear line from his eye to the body's chest, by the caller's `clear` test. Used before moving a
+ * squadmate out of sight (restart placement) and before removing an enemy that can't reach anyone.
+ */
+export function inPlayerView(eye: P3, forward: { x: number; z: number }, p: P3, clear: (a: P3, b: P3) => boolean): boolean {
+  const tx = p.x - eye.x;
+  const tz = p.z - eye.z;
+  if (tx * forward.x + tz * forward.z < 0) return false;
+  return clear({ x: eye.x, y: eye.y - 1.25, z: eye.z }, { x: p.x, y: p.y, z: p.z });
+}

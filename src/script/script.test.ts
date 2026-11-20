@@ -277,6 +277,60 @@ test('triggers honour `requires`', () => {
   void m;
 });
 
+const GATED_ROOM = { id: 'armory', trigger: { event: 'trigger:r07_enter', requires: 'cover_done', unless: 'armory_open' }, steps: [{ do: 'setFlag', flag: 'ran_count', value: 1 }] };
+/** A level trigger as the level announces it: `trigger:fired` plus the emit name on the bus (ADR-0003). */
+function enterTrigger(t: ReturnType<typeof makeHost>, emit: string): void {
+  t.host.events.emit('trigger:fired', { id: `trig_${emit}`, event: `trigger:${emit}` });
+  t.host.events.emit(`trigger:${emit}`, {});
+}
+
+test('a level trigger reached before `requires` is held, and starts once the flag is set', () => {
+  const { t, m } = manager([GATED_ROOM]);
+  enterTrigger(t, 'r07_enter');
+  tick(m, 0.5);
+  assert.ok(!t.host.flags.ran_count, 'not yet');
+  t.host.flags.cover_done = true;
+  tick(m, 0.1);
+  assert.equal(t.host.flags.ran_count, 1);
+  // At most once, even though it reached the sequence by both routes.
+  t.host.flags.ran_count = 0;
+  tick(m, 1);
+  assert.equal(t.host.flags.ran_count, 0);
+});
+
+test('a held level trigger is dropped when `unless` is set first', () => {
+  const { t, m } = manager([GATED_ROOM]);
+  enterTrigger(t, 'r07_enter');
+  t.host.flags.armory_open = true;
+  tick(m, 0.1);
+  t.host.flags.cover_done = true;
+  tick(m, 0.5);
+  assert.ok(!t.host.flags.ran_count);
+});
+
+test('a repeatable bus event is not held', () => {
+  const { t, m } = manager([{ id: 'medlab', trigger: { event: 'door:denied', match: { id: 'D_R07_R09' }, requires: 'sec_done' }, steps: [{ do: 'setFlag', flag: 'ran' }] }]);
+  t.host.events.emit('door:denied', { id: 'D_R07_R09' });
+  t.host.flags.sec_done = true;
+  tick(m, 0.5);
+  assert.ok(!t.host.flags.ran, 'the early try is not replayed');
+  t.host.events.emit('door:denied', { id: 'D_R07_R09' });
+  assert.equal(t.host.flags.ran, true, 'a try after sec_done starts it');
+});
+
+test('death and checkpoint restart drop held level triggers', () => {
+  const { t, m } = manager([GATED_ROOM]);
+  enterTrigger(t, 'r07_enter');
+  t.host.events.emit('player:died', {});
+  t.host.events.emit('game:restarted', { checkpoint: null });
+  t.host.flags.cover_done = true;
+  tick(m, 0.5);
+  assert.ok(!t.host.flags.ran_count, 'nothing held after the restart');
+  enterTrigger(t, 'r07_enter');
+  tick(m, 0.1);
+  assert.equal(t.host.flags.ran_count, 1, 'entering again works under the flags as they stand');
+});
+
 // -------------------------------------------------------------------------- checkpoints
 
 test('dying mid-sequence restores a consistent state', () => {

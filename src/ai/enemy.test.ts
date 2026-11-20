@@ -296,3 +296,31 @@ test('player shots: walls stop the hitscan; the shot is heard', () => {
   assert.ok(e2.body.damage.hpOf('torso') < e2.body.damage.maxHp.torso);
   assert.equal(e2.state, 'alerted', 'shot from behind: it turns on the shooter');
 });
+
+test('reach: an enemy on a ceiling slab above Jay never winds up, hits or grabs him through it', () => {
+  // A roof slab over the whole room at 4.00-4.12: the enemy stands on it, 1 m from Jay horizontally.
+  const { dir } = director(room([{ min: [-10, 4, -10], max: [10, 4.12, 10] }]));
+  const p = stubTarget('player', [0, 0, 0]);
+  dir.addTarget(p);
+  const e = dir.spawn('shambler', { x: 1, y: 4.12, z: 0 }, Math.PI / 2);
+  e.sense(p.pos, 'sound', 'player', dir);
+  const states = new Set<string>();
+  run(dir, 10, undefined, () => {
+    states.add(e.state);
+    e.sense(p.pos, 'sound', 'player', dir);
+  });
+  assert.ok(Math.abs(e.motor.y - 4.12) < 1e-3, `stayed on the slab (y ${e.motor.y})`);
+  assert.ok(!states.has('windup'), `states: ${[...states].join(', ')}`);
+  assert.equal(p.hits.length, 0);
+  assert.equal(p.grabbed, false);
+});
+
+test('reach: Jay on a 1 m crate is still in reach of an enemy beside it', () => {
+  const { dir } = director(room([{ min: [-0.5, 0, -0.5], max: [0.5, 1, 0.5] }]));
+  const p = stubTarget('player', [0, 1, 0], { grabbable: false });
+  dir.addTarget(p);
+  const e = dir.spawn('shambler', { x: 1.1, y: 0, z: 0 }, Math.PI / 2);
+  e.sense(p.pos, 'sound', 'player', dir);
+  run(dir, 10, () => p.hits.length > 0, () => e.sense(p.pos, 'sound', 'player', dir));
+  assert.ok(p.hits.length > 0, `no hit (state ${e.state})`);
+});

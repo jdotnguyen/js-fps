@@ -123,6 +123,12 @@ export class SequenceManager {
   private queue: string[] = [];
   private dying: string[] = [];
   private snapshot: ScriptSnapshot | null = null;
+  /**
+   * Sequences a one-shot level trigger reached before their `requires` flag was set (sequence-triggers spec).
+   * Each starts once that flag is set, if its `unless` flag is still clear; checked at the top of `update`.
+   * Dropped on cancelAll (death, restart, new game): the level re-arms its triggers then.
+   */
+  private readonly held = new Set<string>();
 
   constructor(host: SequenceHost, defs: SequenceDef[]) {
     this.host = host;
@@ -201,6 +207,7 @@ export class SequenceManager {
   }
 
   update(dt: number): void {
+    if (this.held.size) this.releaseHeld();
     for (const run of [...this.runs]) {
       if (!this.runs.includes(run)) continue;
       try {
@@ -220,6 +227,7 @@ export class SequenceManager {
   /** Stop everything (quit to title, new game). */
   cancelAll(): void {
     this.queue = [];
+    this.held.clear();
     for (const run of [...this.runs]) this.end(run, true);
   }
 
@@ -238,7 +246,9 @@ export class SequenceManager {
       list.push(d);
       byEvent.set(d.trigger.event, list);
     }
-    const fire = (list: SequenceDef[], payload?: unknown): void => {
+    // `hold`: the event is a one-shot level trigger, so a sequence held back only by its `requires` flag is kept
+    // for later instead of dropped (it can't fire again). Repeatable bus events are dropped as before.
+    const fire = (list: SequenceDef[], payload?: unknown, hold = false): void => {
       for (const d of list) {
         const want = d.trigger?.match;
         if (want) {
@@ -246,9 +256,12 @@ export class SequenceManager {
           if (!Object.entries(want).every(([k, v]) => got[k] === v)) continue;
         }
         const need = d.trigger?.requires;
-        if (need && !this.host.flags[need]) continue;
         const done = d.trigger?.unless;
         if (done && this.host.flags[done]) continue;
+        if (need && !this.host.flags[need]) {
+          if (hold) this.held.add(d.id);
+          continue;
+        }
         this.begin(d, false);
       }
     };
@@ -263,11 +276,30 @@ export class SequenceManager {
         const emitted = (p as { event?: string } | null)?.event ?? '';
         if (!emitted) return;
         const prefixed = byEvent.get(`trigger:${emitted}`);
-        if (prefixed) fire(prefixed, p);
+        if (prefixed) fire(prefixed, p, true);
         const plain = byEvent.get(emitted);
-        if (plain) fire(plain, p);
+        if (plain) fire(plain, p, true);
       }),
     );
+  }
+
+  /** Start held sequences whose `requires` flag is now set; forget those whose `unless` flag got set first. */
+  private releaseHeld(): void {
+    for (const id of [...this.held]) {
+      const d = this.defs.get(id);
+      const t = d?.trigger;
+      if (!d || !t) {
+        this.held.delete(id);
+        continue;
+      }
+      if (t.unless && this.host.flags[t.unless]) {
+        this.held.delete(id);
+        continue;
+      }
+      if (t.requires && !this.host.flags[t.requires]) continue;
+      this.held.delete(id);
+      this.begin(d, false);
+    }
   }
 
   // ------------------------------------------------------------------ lifecycle

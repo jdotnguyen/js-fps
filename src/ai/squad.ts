@@ -3,6 +3,8 @@ import { DEFAULT_MOTOR, floorHeight, moveBody, type MotorConfig, type MotorState
 import { Humanoid, type HumanoidContext, type HumanoidSpec } from '../actors/humanoid.ts';
 import { GILES, OKAFOR } from '../actors/squadLooks.ts';
 import { tellsFor } from '../actors/castTells.ts';
+import { REACH_DY } from './enemy.ts';
+import { inPlayerView } from './perception.ts';
 import { GIVE_WAY, GiveWay, type WayEnv } from './giveWay.ts';
 import type { Navigator, P3 } from './nav.ts';
 import {
@@ -11,6 +13,8 @@ import {
   REVIVE,
   ReviveJob,
   SquadTask,
+  TASK_ARRIVE,
+  TASK_GIVE_UP,
   TASK_THREAT,
   aimFor,
   enemyWeight,
@@ -154,6 +158,8 @@ export class SquadMate {
   downedT = 0;
   /** Current panel job (Giles's bypass, Okafor's biometric lock). */
   task: SquadTask | null = null;
+  /** Walking to a task's spot: the task watched, the closest he has got and how long since he got closer. */
+  private approach: { task: SquadTask | null; best: number; stall: number } = { task: null, best: Infinity, stall: 0 };
   /** Okafor's revive in progress. */
   revive: ReviveJob | null = null;
   /** Combat target id. */
@@ -313,15 +319,32 @@ export class SquadMate {
       }
     } else this.grabbedT = 0;
 
-    // Task progress: pauses while an enemy is within 3 m of the worker; never resets.
+    // Task progress: pauses while an enemy on his level is within 3 m of the worker; never resets. Enemies above
+    // a ceiling or below a floor are no threat to the work (and could otherwise hold it paused for good).
     const t = this.task;
     if (t && !t.done) {
-      if (t.state === 'walking' && (!t.at || Math.hypot(t.at.x - me.x, t.at.z - me.z) <= SQUAD_TUNING.arrive + 0.15)) {
-        t.arrive();
-        if (t.yaw !== undefined) this.body.setHeading(t.yaw);
-        this.body.setPose(t.pose, 0.5);
+      if (t.state === 'walking') {
+        // Start close to the spot, or, after TASK_GIVE_UP s without getting closer (blocked, crowded), where he stands.
+        const ap = this.approach;
+        if (ap.task !== t) {
+          ap.task = t;
+          ap.best = Infinity;
+          ap.stall = 0;
+        }
+        const d = t.at ? Math.hypot(t.at.x - me.x, t.at.z - me.z) : 0;
+        if (d < ap.best - 0.1) {
+          ap.best = d;
+          ap.stall = 0;
+        } else ap.stall += dt;
+        const gaveUp = ap.stall >= TASK_GIVE_UP;
+        if (d <= TASK_ARRIVE || gaveUp) {
+          t.arrive();
+          if (gaveUp && t.at && d > 1e-3) this.body.setHeading(Math.atan2(-(t.at.x - me.x), -(t.at.z - me.z)));
+          else if (t.yaw !== undefined) this.body.setHeading(t.yaw);
+          this.body.setPose(t.pose, 0.5);
+        }
       }
-      const threat = enemies.some((e) => e.alive && Math.hypot(e.position.x - me.x, e.position.z - me.z) < TASK_THREAT);
+      const threat = enemies.some((e) => e.alive && Math.hypot(e.position.x - me.x, e.position.z - me.z) < TASK_THREAT && Math.abs(e.position.y - me.y) <= REACH_DY);
       const before = t.state;
       t.update(dt, threat, true);
       if (before === 'working' && t.state === 'paused') this.body.setPose('aim_pistol', 0.3);
@@ -1001,9 +1024,6 @@ export class Squad {
 
   /** Is a point in front of Jay with a clear line from his eyes? */
   canSee(p: THREE.Vector3): boolean {
-    const eye = this.playerHead;
-    const to = tmpB.set(p.x - eye.x, p.y + 1.2 - eye.y, p.z - eye.z);
-    if (to.x * this.forward.x + to.z * this.forward.z < 0) return false;
-    return this.nav.direct({ x: eye.x, y: eye.y - 1.25, z: eye.z }, { x: p.x, y: p.y, z: p.z }, 0);
+    return inPlayerView(this.playerHead, this.forward, p, (a, b) => this.nav.direct(a, b, 0));
   }
 }

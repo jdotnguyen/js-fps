@@ -6,7 +6,7 @@ import { validate } from '../core/validate.ts';
 import type { Level } from '../world/level.ts';
 import { levelValidator } from '../data/types/level.ts';
 import { EnemyDirector } from './enemyDirector.ts';
-import { ctx, kitTest, run, stubTarget, TABLE } from './enemyTestKit.ts';
+import { ctx, director, kitTest, room, run, stubTarget, TABLE } from './enemyTestKit.ts';
 import { spawnPointsOf } from './spawner.ts';
 import { SequenceManager } from '../script/runtime.ts';
 import { validateSequences } from '../script/schema.ts';
@@ -117,4 +117,75 @@ test('kit_test spawns: level-start and grouped spawn points, spawnGroup waits fo
   assert.deepEqual(cleared, ['wave']);
   assert.equal(flags['wave_done'], true);
   assert.ok(level);
+});
+
+test('emerging spawns come out on the floor, not on the ceiling slab within step height above them', () => {
+  // A 4 m room like R06: the ceiling slab spans 4.00-4.12, so a point at 3.8 is within step height of its top.
+  const world = room([{ min: [-10, 4, -10], max: [10, 4.12, 10] }]);
+  const { dir } = director(world);
+  const ceiling = dir.spawn('shambler', { x: -2, y: 3.8, z: 0 }, 0, { start: 'emerge' });
+  const vent = dir.spawn('shambler', { x: 4, y: 2.7, z: 0 }, 0, { start: 'emerge' });
+  run(dir, 3);
+  assert.ok(Math.abs(ceiling.motor.y) < 1e-3, `ceiling spawn at y ${ceiling.motor.y}`);
+  assert.ok(Math.abs(vent.motor.y) < 1e-3, `vent spawn at y ${vent.motor.y}`);
+});
+
+/** A room roofed by a slab at 4.00-4.12, and a two-enemy group: one on the floor, one standing on the slab. */
+function strandedGroup(opts: { jaySees?: boolean } = {}) {
+  const { dir, events } = director(room([{ min: [-10, 4, -10], max: [10, 4.12, 10] }]));
+  const player = stubTarget('player', [0, 0, 0], { grabbable: false });
+  // Without a view direction the director has to assume Jay can see it (the 30 s rule).
+  if (opts.jaySees) delete (player as { view?: unknown }).view;
+  dir.addTarget(player);
+  dir.setSpawns([
+    { id: 'g_floor', pos: [3, 0, 3], kind: 'floor', group: 'g', active: false },
+    { id: 'g_roof', pos: [-5, 4.12, -5], kind: 'floor', group: 'g', active: false },
+  ]);
+  const culled: string[] = [];
+  const cleared: string[] = [];
+  events.on('enemy:culled', (p) => culled.push(p.id));
+  events.on('group:cleared', (p) => cleared.push(p.group));
+  dir.spawnGroup('g');
+  run(dir, 0.5);
+  dir.list.find((e) => e.id === 'g_floor')!.body.hurt('torso', 1e6);
+  return { dir, culled, cleared, roof: dir.list.find((e) => e.id === 'g_roof')! };
+}
+
+test('a group enemy stuck on a roof slab is removed after 10 s out of view, and its group clears', () => {
+  const { dir, culled, cleared, roof } = strandedGroup();
+  assert.ok(Math.abs(roof.motor.y - 4.12) < 1e-3, `on the slab (y ${roof.motor.y})`);
+  run(dir, 8);
+  assert.deepEqual(culled, [], 'not before 10 s');
+  assert.equal(dir.groupCleared('g'), false);
+  const t = run(dir, 6, () => culled.length > 0);
+  assert.deepEqual(culled, ['g_roof']);
+  assert.ok(t < 4, `culled ${t.toFixed(1)} s after the 8 s mark`);
+  assert.deepEqual(cleared, ['g']);
+  assert.equal(dir.groupCleared('g'), true);
+  assert.ok(!dir.list.includes(roof), 'the body is gone');
+});
+
+test('an unreachable group enemy Jay can see is removed only at 30 s', () => {
+  const { dir, culled } = strandedGroup({ jaySees: true });
+  run(dir, 25);
+  assert.deepEqual(culled, [], 'kept while in view');
+  run(dir, 8, () => culled.length > 0);
+  assert.deepEqual(culled, ['g_roof']);
+});
+
+test('a group enemy with a route to Jay is never removed, however long it chases', () => {
+  const { dir, events } = director();
+  const culled: string[] = [];
+  events.on('enemy:culled', (p) => culled.push(p.id));
+  const player = stubTarget('player', [6, 0, 6], { grabbable: false });
+  dir.addTarget(player);
+  dir.setSpawns([{ id: 'chaser', pos: [-6, 0, -6], kind: 'door', group: 'c', active: false }]);
+  dir.spawnGroup('c');
+  // Jay keeps moving round the room, so the chase lasts.
+  let k = 0;
+  run(dir, 25, undefined, () => {
+    if (++k % 120 === 0) player.pos.set(-player.pos.x, 0, player.pos.z);
+  });
+  assert.deepEqual(culled, []);
+  assert.equal(dir.list.filter((e) => e.alive).length, 1);
 });

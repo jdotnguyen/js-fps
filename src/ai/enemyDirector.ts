@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { HumanoidContext, HumanoidSpec, BodyHit } from '../actors/humanoid.ts';
 import type { HitResult } from '../actors/damage.ts';
 import { OUTFITS, type Outfit } from '../actors/bodyGeometry.ts';
-import type { ColliderQuery } from '../actors/motor.ts';
+import { floorBelow, type ColliderQuery } from '../actors/motor.ts';
 import { separate, type SepBody } from '../actors/separation.ts';
 import { SLAM, slamFalloff } from '../actors/slam.ts';
 import type { EventBus } from '../core/events.ts';
@@ -10,7 +10,7 @@ import { Rng } from '../core/rng.ts';
 import { Enemy, type AttackKind, type EnemyHost, type EnemyState, type EnemyTarget } from './enemy.ts';
 import type { EnemyTable, EnemyVariantId } from './enemyData.ts';
 import { segmentHit, type Navigator, type P3 } from './nav.ts';
-import { hears, PERCEPTION, type NoiseKind, type SenseSource } from './perception.ts';
+import { hears, inPlayerView, PERCEPTION, type NoiseKind, type SenseSource } from './perception.ts';
 import { Spawner, type SpawnPointData, type SpawnRequest } from './spawner.ts';
 import { fireShot, WEAPON_HITS, type ShotReport } from '../actors/shots.ts';
 
@@ -37,8 +37,16 @@ declare module '../core/events.ts' {
     'enemy:hit': { id: string; region: string; amount: number; severed: string | null; killed: boolean; weakSpot: boolean; by: string };
     /** Every enemy a spawn group produced is dead (sequences `waitFor` it; also `group:cleared:<group>`). */
     'group:cleared': { group: string };
+    /** A spawn-group enemy that could not walk to any target was removed and counted dead (enemy-encounters spec). */
+    'enemy:culled': { id: string; group: string | null };
   }
 }
+
+/**
+ * Removing group enemies that can't reach anyone (enemy-encounters spec), so a scripted fight always ends.
+ * Checked every `every` s; removed after `outOfView` s unreachable while Jay can't see it, or `always` s regardless.
+ */
+export const UNREACHABLE = { every: 1, outOfView: 10, always: 30, nodeAcross: 1.0, nodeDy: 0.6 } as const;
 
 export interface EnemyDirectorDeps {
   ctx: HumanoidContext;
@@ -191,6 +199,12 @@ export class EnemyDirector implements EnemyHost {
     const model = opts.model !== undefined ? opts.model : hero ? (this.d.ctx.bodyModels?.get(HERO_MODEL) ? HERO_MODEL : null) : (this.d.ctx.bodyModels?.pick(variant, rng.fork('model')) ?? null);
     if (model) spec.model = model;
     const start = opts.start ?? (variant === 'playDead' ? 'playDead' : 'stand');
+    if (start === 'emerge') {
+      // Out of a vent or through the ceiling: come out on the floor below the point, never on a slab above it
+      // (a point just under a ceiling is within step height of the slab's top).
+      const floor = floorBelow({ x: pos.x, y: pos.y, z: pos.z, vy: 0, grounded: true }, this.d.colliders);
+      if (Number.isFinite(floor)) pos = { x: pos.x, y: floor, z: pos.z };
+    }
     const e = new Enemy({ id, variant, tuning, group: opts.group ?? null, pos, yaw, spec, start }, this.d.ctx, rng, (this.list.length * 0.037) % 0.2);
     this.list.push(e);
     this.group.add(e.body.group);
@@ -241,6 +255,66 @@ export class EnemyDirector implements EnemyHost {
       e.commit(dt, b.x, b.z, cameraPos, this);
     }
     this.fadeCorpses();
+    this.reachCheckT -= dt;
+    if (this.reachCheckT <= 0) {
+      this.reachCheckT += UNREACHABLE.every;
+      this.cullUnreachable(UNREACHABLE.every);
+    }
+  }
+
+  private reachCheckT: number = UNREACHABLE.every;
+  /** Seconds each spawn-group enemy has been unable to walk to any target. */
+  private readonly unreachableT = new Map<Enemy, number>();
+
+  /** Can this enemy walk to any living target? Its feet must be on the walkable floor (not on a slab above it). */
+  private reachable(e: Enemy): boolean {
+    const me = e.motor;
+    const onFloor = this.d.nav.nodes.some((n) => Math.abs(n.y - me.y) <= UNREACHABLE.nodeDy && Math.abs(n.x - me.x) <= UNREACHABLE.nodeAcross && Math.abs(n.z - me.z) <= UNREACHABLE.nodeAcross);
+    if (!onFloor) return false;
+    for (const t of this.targets) {
+      if (!t.alive()) continue;
+      t.feet(tmpV);
+      if (this.d.nav.findPath(me, tmpV, { radius: 0.25 })) return true;
+    }
+    return false;
+  }
+
+  /** Whether Jay could see this enemy now (in front of him, clear line to its chest). */
+  private playerSees(e: Enemy): boolean {
+    const p = this.targets.find((t) => t.kind === 'player' && t.alive());
+    if (!p) return false;
+    p.feet(tmpV);
+    const eye = { x: tmpV.x, y: tmpV.y + PERCEPTION.eyeHeight, z: tmpV.z };
+    const fwd = p.view ? p.view(tmpW) : null;
+    if (!fwd) return true;
+    const chest = { x: e.motor.x, y: e.motor.y + 1.2, z: e.motor.z };
+    return inPlayerView(eye, fwd, chest, (a, b) => !this.blocked(a, b));
+  }
+
+  private cullUnreachable(step: number): void {
+    for (const k of [...this.unreachableT.keys()]) if (!this.list.includes(k)) this.unreachableT.delete(k);
+    const gone: Enemy[] = [];
+    for (const e of this.list) {
+      if (!e.alive || !e.group) {
+        this.unreachableT.delete(e);
+        continue;
+      }
+      if (this.reachable(e)) {
+        this.unreachableT.delete(e);
+        continue;
+      }
+      const t = (this.unreachableT.get(e) ?? 0) + step;
+      this.unreachableT.set(e, t);
+      if (t >= UNREACHABLE.always || (t >= UNREACHABLE.outOfView && !this.playerSees(e))) gone.push(e);
+    }
+    for (const e of gone) {
+      this.unreachableT.delete(e);
+      this.d.events.emit('enemy:culled', { id: e.id, group: e.group });
+      e.cull(this);
+      e.dispose();
+      const i = this.list.indexOf(e);
+      if (i >= 0) this.list.splice(i, 1);
+    }
   }
 
   private sepN = 0;

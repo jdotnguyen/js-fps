@@ -448,6 +448,34 @@ test('the glass scene starts when BOTH the armory is open and Jay is at the glas
   assert.equal(b.m.isRunning('sec_glass'), true, 'and starts the moment the door is open');
 });
 
+test('walking into Security before the cover fight ends: the armory bypass and the glass scene still play once each', async () => {
+  const g = makeGame();
+  setFlags(g, { drop_done: true, contact_done: true });
+  fire(g, 'trigger:r06_door');
+  await until(g, () => g.tasks.length === 1);
+  g.finishTask();
+  await advance(g, 0.2);
+  assert.ok(at(g, 'door D_R06_R07 open') >= 0, 'the pressure door is open mid-fight');
+  // Jay goes straight through while r06_cover is still alive: both one-shot triggers fire before cover_done.
+  fire(g, 'trigger:r07_enter');
+  fire(g, 'trigger:r08_glass');
+  assert.equal(g.m.isRunning('armory_auto'), false);
+  assert.equal(g.host.flags['cover_done'], undefined);
+  g.clear('r06_cover');
+  await until(g, () => !g.m.isRunning('cover_me'));
+  assert.equal(g.host.flags['cover_done'], true);
+  await until(g, () => g.tasks.length === 1);
+  assert.equal(g.tasks[0]!.step['task'], 'bypass_short', 'Giles goes to the armory panel');
+  g.finishTask();
+  await until(g, () => g.m.isRunning('sec_glass'));
+  g.clear('r07_playdead');
+  await until(g, () => !g.m.isRunning('sec_glass'), 120);
+  assert.equal(g.host.flags['sec_done'], true);
+  assert.equal(count(g, 'checkpoint cp_security_done'), 1);
+  assert.equal(count(g, 'say sec_giles_01'), 1, 'the armory beat ran once');
+  noWarnings(g);
+});
+
 test('trying the biometric door early starts the glass scene anyway (a latched trigger cannot strand the player)', async () => {
   const g = makeGame();
   setFlags(g, COVER_DONE);

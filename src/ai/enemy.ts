@@ -108,6 +108,11 @@ const STAND_OFF = 0.75;
 const STUCK_TIME = 1.0;
 /** Crawlers and draggers bite low and close. */
 const CRAWL_REACH = 1.0;
+/**
+ * Most a target's feet may be above or below the enemy's for an attack to start or land: Jay on a 1 m crate is
+ * in reach, anyone through a floor or ceiling (every gap in the slice is 3.2 m or more) is not.
+ */
+export const REACH_DY = 1.2;
 /** Damage taken while holding the player that makes the grabber let go (a teammate shooting it off). */
 export const GRAB_BREAK_DAMAGE = 30;
 const GRAB_TICK = 0.25;
@@ -379,7 +384,7 @@ export class Enemy {
         if (this.lurchLeft > 0) body.speedScale = this.tuning.lurch[0] / this.tuning.walk;
         body.charge = recent && !loc.blind && dist < 2.6 ? 1 : 0;
         const reach = this.reach();
-        if (recent && dist <= reach && this.canStartAttack(toX, toZ)) {
+        if (recent && dist <= reach && this.sameLevel() && this.canStartAttack(toX, toZ)) {
           this.setState('windup', this.tuning.attack.windup);
           this.strikeSide = loc.canGrabR ? (loc.canGrabL && host.rng.chance(0.5) ? 'L' : 'R') : 'L';
           break;
@@ -480,6 +485,15 @@ export class Enemy {
     this.body.nudgeImpulse(this.motor.x - x0, this.motor.z - z0, 1 / 60);
   }
 
+  /**
+   * Count it dead without a kill (the director removing an enemy that can't reach anyone): lets go of any grab
+   * and reports `onDied` like any death, so its spawn group can clear. The caller removes the body.
+   */
+  cull(host: EnemyHost): void {
+    if (this.state === 'dead') return;
+    this.die(host);
+  }
+
   /** Remove from the scene and free GPU resources. */
   dispose(): void {
     this.body.group.removeFromParent();
@@ -572,6 +586,11 @@ export class Enemy {
   }
 
   /** End of the windup: swipe, bite, or grab the player (35% with both arms, ADR-0007). */
+  /** The target's feet (as last read this step) are within REACH_DY of this body's feet. */
+  private sameLevel(): boolean {
+    return Math.abs(this.targetFeet.y - this.motor.y) <= REACH_DY;
+  }
+
   private strike(host: EnemyHost, dist: number, toX: number, toZ: number): void {
     const body = this.body;
     const loc = body.locomotion;
@@ -579,7 +598,7 @@ export class Enemy {
     this.attackCd = this.tuning.attack.cooldown;
     let diff = Math.atan2(-toX, -toZ) - body.heading;
     diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-    const connects = t !== null && t.alive() && dist <= this.reach() * 1.2 && Math.abs(diff) < 1.0;
+    const connects = t !== null && t.alive() && dist <= this.reach() * 1.2 && this.sameLevel() && Math.abs(diff) < 1.0;
     const canGrab = loc.mode === 'walk' && loc.canGrabL && loc.canGrabR && !loc.biteOnly && host.grabber === null && t?.grab !== undefined && !(t.isGrabbed?.() ?? false);
     if (connects && canGrab && host.rng.chance(this.tuning.attack.grabChance) && t!.grab!(this.headPos(tmpB))) {
       this.setState('grab');

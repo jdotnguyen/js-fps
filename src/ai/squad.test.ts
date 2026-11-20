@@ -342,3 +342,66 @@ test('a standing squadmate steps out of Jay\'s line when he walks at him, and Ja
   assert.ok(clear >= 0 && clear - contact <= 0.6, `out of his line ${(clear - contact).toFixed(2)} s after contact`);
   assert.ok(player.body.z > restZ + 0.8, 'Jay walked past without being stopped for long');
 });
+
+test('task threat: an enemy on the slab above Giles does not pause his bypass; one on his floor does', () => {
+  const { list, source } = horde([[0, -30]]);
+  const { squad } = setup({ enemies: source });
+  const dt = 1 / 60;
+  squad.update(dt, null);
+  const task = squad.startTask('engineer', 'bypass_long', { at: { x: 1.5, y: 0, z: 2 }, panel: 'D2' });
+  for (let t = 0; t < 12; t += dt) squad.update(dt, null);
+  assert.equal(task.state, 'working');
+  const e = list[0]!;
+  e.hp = 1e9;
+  // Standing on a ceiling slab right over him.
+  const me = squad.mate('engineer').position;
+  e.position.x = me.x;
+  e.position.y = 4.12;
+  e.position.z = me.z;
+  const before = task.progress;
+  for (let k = 0; k < 120; k++) squad.update(dt, null);
+  assert.equal(task.state, 'working', 'above the ceiling: no threat');
+  assert.ok(task.progress > before + 0.05, 'still progressing');
+  // Down on his floor, within 3 m: pauses, progress kept.
+  e.position.y = 0;
+  e.position.z = me.z - 1.5;
+  for (let k = 0; k < 60; k++) squad.update(dt, null);
+  assert.equal(task.state, 'paused');
+  const held = task.progress;
+  for (let k = 0; k < 60; k++) squad.update(dt, null);
+  assert.ok(Math.abs(task.progress - held) < 1e-6, 'held while threatened');
+});
+
+test('task arrival: with Jay standing on the panel spot, Giles starts within 1.5 m of it and finishes', () => {
+  const { squad, player } = setup();
+  const dt = 1 / 60;
+  squad.update(dt, null);
+  player.body.x = 0;
+  player.body.z = 2;
+  const task = squad.startTask('engineer', 'bypass_short', { at: { x: 0, y: 0, z: 2 }, panel: 'D2' });
+  let startedAt: number | null = null;
+  for (let t = 0; t < 30 && !task.done; t += dt) {
+    squad.update(dt, null);
+    if (startedAt === null && task.state !== 'walking') {
+      const me = squad.mate('engineer').position;
+      startedAt = Math.hypot(me.x - 0, me.z - 2);
+    }
+  }
+  assert.ok(startedAt !== null, 'never started');
+  assert.ok(startedAt! <= 1.5 + 1e-6, `started ${startedAt!.toFixed(2)} m from the spot`);
+  assert.equal(task.done, true);
+});
+
+test('task arrival: a spot he cannot get to is worked from where he stands after about 3 s without progress', () => {
+  const { squad } = setup();
+  const dt = 1 / 60;
+  squad.update(dt, null);
+  // Beyond the demo room's east wall: there is no way to it.
+  const task = squad.startTask('engineer', 'bypass_short', { at: { x: 8, y: 0, z: 2 }, panel: 'D2' });
+  let t = 0;
+  for (; t < 30 && task.state === 'walking'; t += dt) squad.update(dt, null);
+  assert.notEqual(task.state, 'walking', 'still walking after 30 s');
+  assert.ok(t < 15, `took ${t.toFixed(1)} s to give up`);
+  for (let k = 0; k < 60 * 12 && !task.done; k++) squad.update(dt, null);
+  assert.equal(task.done, true);
+});

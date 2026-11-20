@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BoxColliders, DEFAULT_MOTOR, moveBody, type Aabb, type MotorState } from './motor.ts';
+import { BoxColliders, DEFAULT_MOTOR, floorBelow, moveBody, type Aabb, type MotorState } from './motor.ts';
 
 const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): Aabb => ({
   min: [x0, y0, z0],
@@ -115,4 +115,15 @@ test('falls off a high ledge under gravity and lands', () => {
   assert.ok(airborne);
   assert.equal(s.y, 0);
   assert.ok(s.grounded);
+});
+
+test('floorBelow finds the floor under a ceiling slab, never the slab above the feet', () => {
+  // A 4 m room's ceiling slab spans 4.00-4.12 (ceilingTile); a body at 3.8 is within step height of its top.
+  const world = new BoxColliders([FLOOR, box(-5, 4, -5, 5, 4.12, 5)]);
+  assert.equal(floorBelow(at(0, 0, 3.8), world), 0);
+});
+
+test('floorBelow finds a crate top the body stands on', () => {
+  const world = new BoxColliders([FLOOR, box(-1, 0, -1, 1, 1, 1)]);
+  assert.equal(floorBelow(at(0, 0, 1), world), 1);
 });

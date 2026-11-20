@@ -163,6 +163,12 @@ export const TASKS: Readonly<Record<string, { duration: number; who: SquadId; po
 /** An enemy within this of the worker pauses the task (he calls for help and defends). */
 export const TASK_THREAT = 3;
 
+/** A worker starts the job within this of its spot: beyond the room he keeps from Jay, so Jay on the spot can't hold him off. */
+export const TASK_ARRIVE = 1.5;
+
+/** Seconds without getting 0.1 m closer to the spot before he starts the job where he stands. */
+export const TASK_GIVE_UP = 3;
+
 export type TaskState = 'walking' | 'working' | 'paused' | 'done';
 
 export interface TaskEvents {
