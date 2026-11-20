@@ -1388,12 +1388,17 @@ const GEN: Record<string, Gen> = {
     pb.surfaces.push({ box: { min: [-w / 2, -0.05, -d / 2], max: [w / 2, 0.014, d / 2] }, material: 'rubber' });
   },
 
-  /** Pendant lamps on cables: dark cone shades with a warm bulb (emissive only, no point light). `count` along X. */
+  /**
+   * Pendant lamps on cables: dark cone shades with a warm bulb. `count` along X. By default the bulbs are a static
+   * glow (emissive only, no light). `slots: true` instead offers one `pendant` light slot per bulb, so the room's
+   * `lights` can claim them as real lights that follow patterns and tints (render-lighting spec).
+   */
   pendant_light(p, _rng, m, pb) {
     const ceil = numParam(p, 'ceiling', 3.2);
     const drop = numParam(p, 'drop', 1.2);
     const n = Math.max(1, Math.round(numParam(p, 'count', 1)));
     const gap = numParam(p, 'spacing', 1);
+    const slotted = boolParam(p, 'slots', false);
     const y = ceil - drop;
     for (let i = 0; i < n; i++) {
       const x = (i - (n - 1) / 2) * gap;
@@ -1401,7 +1406,8 @@ const GEN: Record<string, Gen> = {
       pb.add(new THREE.CylinderGeometry(0.04, 0.04, 0.04, 10), m.steel, at(x, ceil - 0.02, 0));
       pb.add(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 10), m.steel, at(x, y + 0.21, 0));
       pb.add(new THREE.ConeGeometry(0.21, 0.22, 20, 1, true), MAT.shade(), at(x, y + 0.11, 0));
-      pb.add(new THREE.SphereGeometry(0.055, 12, 8), glow('pendant-bulb', 0xffd6a0, 2.6), at(x, y + 0.06, 0));
+      if (slotted) pb.light([x, y + 0.06, 0], 'pendant');
+      else pb.add(new THREE.SphereGeometry(0.055, 12, 8), glow('pendant-bulb', 0xffd6a0, 2.6), at(x, y + 0.06, 0));
     }
   },
 
@@ -1798,15 +1804,37 @@ function wallBack(pb: PieceBuilder, m: Materials, h: number, back: THREE.Materia
 }
 
 const STRUCT: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuilder) => void> = {
-  /** Office carpet over the deck; soft footsteps. */
-  floor_carpet(_p, _rng, m, pb) {
+  /**
+   * Office carpet over the deck; soft footsteps. `bareEdge` ('n' | 'e' | 's' | 'w', piece space: n = -Z) with
+   * `bareWidth` (m, from the cell edge) leaves a band of the area palette's `floorAlt` metal along that edge,
+   * with hard footsteps and the carpet border on the seam (level-kit spec, the gallery's strip by the glass).
+   */
+  floor_carpet(p, _rng, m, pb) {
     pb.add(slab(4, 0.1, 4), m.paintDark, at(0, -0.17, 0));
-    pb.add(slab(4, 0.08, 4), m.carpet, at(0, -0.04, 0));
-    for (const s of [-1, 1]) {
-      pb.add(slab(4, 0.081, 0.12), MAT.carpetBorder(), at(0, -0.04, s * 1.94));
-      pb.add(slab(0.12, 0.081, 4), MAT.carpetBorder(), at(s * 1.94, -0.04, 0));
+    const edge = strParam(p, 'bareEdge', '');
+    const bw = edge === 'n' || edge === 'e' || edge === 's' || edge === 'w' ? Math.min(3.5, Math.max(0, numParam(p, 'bareWidth', 1))) : 0;
+    // Carpet rectangle [x0, x1] x [z0, z1]; the bare band is the rest of the cell.
+    let [x0, x1, z0, z1] = [-2, 2, -2, 2];
+    if (bw > 0) {
+      if (edge === 'n') z0 = -2 + bw;
+      else if (edge === 's') z1 = 2 - bw;
+      else if (edge === 'w') x0 = -2 + bw;
+      else x1 = 2 - bw;
+      const [bx0, bx1, bz0, bz1] = edge === 'n' ? [-2, 2, -2, z0] : edge === 's' ? [-2, 2, z1, 2] : edge === 'w' ? [-2, x0, -2, 2] : [x1, 2, -2, 2];
+      pb.add(slab(bx1 - bx0, 0.08, bz1 - bz0), resolvePalette(p, m).floorAlt, at((bx0 + bx1) / 2, -0.04, (bz0 + bz1) / 2));
+      pb.solid(bx0, -0.2, bz0, bx1, 0, bz1, 'metal');
     }
-    pb.solid(-2, -0.2, -2, 2, 0, 2, 'rubber');
+    const w = x1 - x0;
+    const d = z1 - z0;
+    const mx = (x0 + x1) / 2;
+    const mz = (z0 + z1) / 2;
+    pb.add(slab(w, 0.08, d), m.carpet, at(mx, -0.04, mz));
+    // Border all round the carpet: along the walls as before, and along the seam with the bare band.
+    pb.add(slab(w, 0.081, 0.12), MAT.carpetBorder(), at(mx, -0.04, z0 + 0.06));
+    pb.add(slab(w, 0.081, 0.12), MAT.carpetBorder(), at(mx, -0.04, z1 - 0.06));
+    pb.add(slab(0.12, 0.081, d), MAT.carpetBorder(), at(x0 + 0.06, -0.04, mz));
+    pb.add(slab(0.12, 0.081, d), MAT.carpetBorder(), at(x1 - 0.06, -0.04, mz));
+    pb.solid(x0, -0.2, z0, x1, 0, z1, 'rubber');
     pb.nav(0, 0, 0);
   },
 

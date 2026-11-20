@@ -33,7 +33,8 @@ export interface BoxSpec {
 export const SURFACE_MATERIALS = ['concrete', 'metal', 'grate', 'rubber', 'water'] as const;
 export type SurfaceMaterial = (typeof SURFACE_MATERIALS)[number];
 
-export const LIGHT_SLOT_KINDS = ['ceiling', 'wall', 'emergency'] as const;
+/** `pendant`: a hanging lamp bulb (warm, short range, the light sits just under the bulb); see `pendant_light` `slots`. */
+export const LIGHT_SLOT_KINDS = ['ceiling', 'wall', 'emergency', 'pendant'] as const;
 export type LightSlotKind = (typeof LIGHT_SLOT_KINDS)[number];
 
 export type SocketKind = 'door' | 'floor' | 'wall';
@@ -79,7 +80,12 @@ export interface PieceOutput {
   listeners?: Array<{ event: string; fn: (payload: unknown) => void }>;
   /** Activity spots (ADR-0029): seats and lean places for ambient crew. */
   spots?: SpotSlot[];
+  /** Protruding wall structure (pilasters, trim rails, cable trays) that wall-mounted props must stay clear of, in piece space. */
+  keepouts?: BoxSpec[];
 }
+
+/** Props hung on a wall (back on their local z = 0): they must not overlap any wall piece's `keepouts`. */
+export const WALL_MOUNTED_PROPS: readonly string[] = ['wall_screen', 'tag_poster', 'notice_board', 'wall_clock', 'menu_board', 'cctv_wall'];
 
 export type PieceParams = Record<string, string | number | boolean>;
 
@@ -121,6 +127,7 @@ export class PieceBuilder {
   readonly navNodes: Array<{ pos: Vec3 }> = [];
   readonly surfaces: Array<{ box: BoxSpec; material: SurfaceMaterial }> = [];
   readonly spots: SpotSlot[] = [];
+  readonly keepouts: BoxSpec[] = [];
   private readonly ticks: Array<(t: number, dt: number) => void> = [];
   private readonly listeners: Array<{ event: string; fn: (payload: unknown) => void }> = [];
 
@@ -167,6 +174,11 @@ export class PieceBuilder {
     this.spots.push(seat !== undefined ? { kind, pos: [x, y, z], yaw, seat } : { kind, pos: [x, y, z], yaw });
   }
 
+  /** Mark protruding wall structure that wall-mounted props must not overlap (piece space). */
+  keepout(box: BoxSpec): void {
+    this.keepouts.push(box);
+  }
+
   nav(x: number, y: number, z: number): void {
     this.navNodes.push({ pos: [x, y, z] });
   }
@@ -192,6 +204,7 @@ export class PieceBuilder {
     }
     if (this.listeners.length) out.listeners = this.listeners;
     if (this.spots.length) out.spots = this.spots;
+    if (this.keepouts.length) out.keepouts = this.keepouts;
     return out;
   }
 }

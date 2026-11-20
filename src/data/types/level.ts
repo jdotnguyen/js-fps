@@ -30,7 +30,7 @@ export const DOOR_STATES = ['open', 'closed', 'locked', 'jammed', 'sealed'] as c
 export type DoorState = (typeof DOOR_STATES)[number];
 export const UNLOCK_SOURCES = ['player', 'engineer', 'medic', 'script'] as const;
 export type UnlockSource = (typeof UNLOCK_SOURCES)[number];
-export const AMBIENT_PRESETS = ['normal', 'emergency', 'flooded', 'dark'] as const;
+export const AMBIENT_PRESETS = ['normal', 'emergency', 'flooded', 'dark', 'gallery'] as const;
 export type AmbientPreset = (typeof AMBIENT_PRESETS)[number];
 
 /**
@@ -45,7 +45,7 @@ export const SPAWN_KINDS = ['vent', 'floor', 'ceiling', 'door', 'corpse'] as con
 export const SPAWN_VARIANTS = ['shambler', 'hero', 'playDead'] as const;
 export const SPAWN_OUTFITS = ['security', 'engineer', 'medic', 'lab', 'crew'] as const;
 
-export const SLOT_KINDS = ['auto', 'ceiling', 'wall', 'emergency'] as const;
+export const SLOT_KINDS = ['auto', 'ceiling', 'wall', 'emergency', 'pendant'] as const;
 
 const id: Validator<string> = (v, p) => {
   const s = str(v, p);
@@ -120,6 +120,8 @@ const lightShape = {
   color: optional(color),
   intensity: optional(numRange(0, 500)),
   range: optional(numRange(1, 40)),
+  /** false: glow-only. The fixture glows and follows patterns and tints but never takes a pooled real light. */
+  pool: optional(bool),
 };
 
 const triggerShape = {

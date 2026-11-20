@@ -1543,7 +1543,7 @@
     {
      "kit": "notice_board",
      "pos": [
-      20,
+      19.05,
       0,
       10.31
      ],
@@ -2135,12 +2135,12 @@
      "id": "trig_commons_notice",
      "box": [
       [
-       19.2,
+       18.25,
        0,
        9.8
       ],
       [
-       20.8,
+       19.85,
        2.2,
        11.4
       ]
@@ -2368,7 +2368,8 @@
     "fog": "#06090b",
     "fogDensity": 0.03,
     "reverb": "metal_hall",
-    "ambience": "hull_hum"
+    "ambience": "hull_hum",
+    "ambient": "gallery"
    },
    "pieces": [
     {
@@ -2436,21 +2437,6 @@
        3,
        0,
        4
-      ],
-      [
-       1,
-       0,
-       5
-      ],
-      [
-       2,
-       0,
-       5
-      ],
-      [
-       3,
-       0,
-       5
       ]
      ]
     },
@@ -2463,6 +2449,11 @@
        4
       ],
       [
+       2,
+       0,
+       4
+      ],
+      [
        3,
        0,
        4
@@ -2470,14 +2461,28 @@
      ]
     },
     {
-     "kit": "wall_panel",
+     "kit": "floor_carpet",
      "cells": [
+      [
+       1,
+       0,
+       5
+      ],
       [
        2,
        0,
-       4
+       5
+      ],
+      [
+       3,
+       0,
+       5
       ]
-     ]
+     ],
+     "params": {
+      "bareEdge": "s",
+      "bareWidth": 1.25
+     }
     },
     {
      "kit": "wall_glass_partition",
@@ -2576,34 +2581,118 @@
      }
     },
     {
-     "kit": "sofa",
+     "kit": "credenza",
      "pos": [
-      12.3,
+      4.2,
       0,
-      15.4
+      14.53
      ],
      "rot": 180,
      "params": {
-      "width": 1.8
+      "width": 2
+     }
+    },
+    {
+     "kit": "wall_clock",
+     "pos": [
+      8,
+      0,
+      14.31
+     ],
+     "rot": 180,
+     "params": {
+      "y": 3.05
+     }
+    },
+    {
+     "kit": "tag_poster",
+     "pos": [
+      11.8,
+      0,
+      14.31
+     ],
+     "rot": 180,
+     "params": {
+      "slogan": "OBSERVE. RECORD. REPORT."
+     }
+    },
+    {
+     "kit": "console",
+     "pos": [
+      3.9,
+      0,
+      20.75
+     ],
+     "params": {
+      "screen": "status"
+     }
+    },
+    {
+     "kit": "chair",
+     "pos": [
+      3.9,
+      0,
+      19.75
+     ],
+     "rot": 180,
+     "params": {
+      "fixed": true
+     }
+    },
+    {
+     "kit": "notice_board",
+     "pos": [
+      2.31,
+      0,
+      19.6
+     ],
+     "rot": 270,
+     "params": {
+      "text": "OBSERVATION GALLERY",
+      "detail": "DO NOT TAP THE GLASS"
      }
     },
     {
      "kit": "potted_plant",
      "pos": [
-      2.6,
+      2.65,
       0,
-      14.8
+      21.35
      ],
      "params": {
       "kind": "fern"
      }
     },
     {
+     "kit": "sofa",
+     "pos": [
+      12,
+      0,
+      18.7
+     ],
+     "rot": 180,
+     "params": {
+      "width": 2
+     }
+    },
+    {
+     "kit": "coffee_table",
+     "pos": [
+      12,
+      0,
+      19.9
+     ],
+     "params": {
+      "width": 1.2,
+      "depth": 0.6
+     }
+    },
+    {
      "kit": "potted_plant",
      "pos": [
-      13.4,
+      13.35,
       0,
-      21.2
+      21.3
      ],
      "params": {
       "kind": "tall",
@@ -2611,14 +2700,29 @@
      }
     },
     {
-     "kit": "console",
+     "kit": "pendant_light",
      "pos": [
-      3.6,
+      3.9,
       0,
-      20.6
+      20.35
      ],
      "params": {
-      "screen": "status"
+      "drop": 1.55,
+      "slots": true
+     }
+    },
+    {
+     "kit": "pendant_light",
+     "pos": [
+      12,
+      0,
+      19.9
+     ],
+     "params": {
+      "drop": 1.55,
+      "count": 2,
+      "spacing": 0.9,
+      "slots": true
      }
     }
    ],
@@ -2626,20 +2730,55 @@
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#d6ecff",
-     "intensity": 9
+     "color": "#eef1f4"
     },
     {
      "slot": 2,
      "pattern": "steady",
-     "color": "#d6ecff",
-     "intensity": 9
+     "color": "#eef1f4"
+    },
+    {
+     "slot": 3,
+     "pattern": "steady",
+     "color": "#eef1f4"
+    },
+    {
+     "slot": 5,
+     "pattern": "steady",
+     "color": "#eef1f4"
+    },
+    {
+     "slot": 1,
+     "pattern": "steady",
+     "color": "#eef1f4",
+     "intensity": 5,
+     "range": 8
     },
     {
      "slot": 4,
      "pattern": "steady",
-     "color": "#d6ecff",
-     "intensity": 8
+     "color": "#eef1f4",
+     "intensity": 5,
+     "range": 8
+    },
+    {
+     "slot": 6,
+     "pattern": "steady",
+     "color": "#ffcf99",
+     "intensity": 4,
+     "range": 4.5
+    },
+    {
+     "slot": 7,
+     "pattern": "steady",
+     "color": "#ffcf99",
+     "intensity": 4,
+     "range": 4.5
+    },
+    {
+     "slot": 8,
+     "pattern": "steady",
+     "color": "#ffcf99"
     }
    ],
    "triggers": [

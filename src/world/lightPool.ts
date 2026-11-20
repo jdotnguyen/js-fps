@@ -9,6 +9,8 @@ export interface PooledSlot {
   range: number;
   /** Larger = keep it lit before nearer slots (current room first). */
   priority: number;
+  /** false: glow-only (render-lighting spec). The slot keeps its fixture glow but is never offered to the pool. */
+  pooled?: boolean;
   /** Scratch: score used while sorting. */
   score: number;
 }

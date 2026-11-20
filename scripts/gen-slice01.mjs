@@ -62,6 +62,8 @@ function room(id, name, cells, o = {}) {
     atmosphere: o.atmosphere,
     floor: o.floor ?? 'floor',
     floorOverride: o.floorOverride ?? {},
+    /** Floor-tile params per cell, keyed `x,z` (e.g. floor_carpet `bareEdge` / `bareWidth`). */
+    floorParams: o.floorParams ?? {},
     ceiling: o.ceiling ?? 'ceiling',
     walls: o.walls ?? ['wall_panel', 'wall_plain'],
     wallOverride: {},
@@ -329,9 +331,10 @@ prop(R02, 'mug', [27.6, 0.92, counterZ - 0.12], 0, { color: 'teal' });
 prop(R02, 'servery', [30.3, 0, 13.7], 180, { width: 3.8, pans: 5 });
 wallProp(R02, 'menu_board', 7, 3, 'n', 1.2, { width: 3.6, height: 1.0, y: 3.0, title: 'GALLEY' });
 wallProp(R02, 'wall_clock', 8, 3, 'n', 0.9, { y: 2.95 });
-// Self-serve wall (NW): drinks, the quarantine notice (its trigger sits at x 20), bins by the entry.
+// Self-serve wall (NW): drinks, the quarantine notice (in the west bay of the panel tile, clear of
+// its mid rib at x 20; its trigger sits at x 19.05), bins by the entry.
 prop(R02, 'drink_station', [16.3, 0, R02_N + 0.33], 180, { width: 1.8 });
-wallProp(R02, 'notice_board', 5, 3, 'n', 0, { text: 'QUARANTINE NOTICE', detail: 'LAB B - ROUTINE' });
+wallProp(R02, 'notice_board', 5, 3, 'n', -0.95, { text: 'QUARANTINE NOTICE', detail: 'LAB B - ROUTINE' });
 prop(R02, 'bin_station', [21.45, 0, R02_N + 0.3], 180, { count: 2 });
 wallProp(R02, 'tag_poster', 4, 3, 'w', -0.6, { slogan: 'DEEPER. FURTHER. TOGETHER.' });
 wallProp(R02, 'tag_poster', 8, 4, 'e', 0, { slogan: 'SAFETY IS A SHIFT, NOT A DAY.' });
@@ -395,15 +398,27 @@ trigger(R02, 'trig_commons_enter', cellBox(6, 6, 3, 3), 'trigger:commons_enter',
 trigger(R02, 'trig_commons_to_gallery', cellBox(4, 4, 4, 4), 'trigger:commons_to_gallery', { once: false });
 trigger(R02, 'trig_commons_radio', around([31.6, 0, counterZ - 0.4], 0.6, 1.6), 'commons:radio', { on: 'use', prompt: 'Listen', once: false });
 trigger(R02, 'trig_commons_coffee', around([26.8, 0, counterZ - 0.4], 0.5, 1.6), 'commons:coffee', { on: 'use', prompt: 'Pour coffee', once: false });
-trigger(R02, 'trig_commons_notice', around([20, 0, 10.6], 0.8, 2.2), 'commons:notice', { on: 'use', prompt: 'Read notice', once: false });
+trigger(R02, 'trig_commons_notice', around([19.05, 0, 10.6], 0.8, 2.2), 'commons:notice', { on: 'use', prompt: 'Read notice', once: false });
 
 // ---------------------------------------------------------------- R03 observation gallery, R04 Lab B
 const R03 = room('R03', 'Observation Gallery', rect(1, 3, 4, 5), {
   area: 'gallery',
   height: 3.6,
-  atmosphere: { fog: '#06090b', fogDensity: 0.03, reverb: 'metal_hall', ambience: 'hull_hum' },
+  atmosphere: { fog: '#06090b', fogDensity: 0.03, reverb: 'metal_hall', ambience: 'hull_hum', ambient: 'gallery' },
   floor: 'floor_carpet',
-  lights: [L(0, 'steady', '#d6ecff', 9), L(2, 'steady', '#d6ecff', 9), L(4, 'steady', '#d6ecff', 8)],
+  // 1 m of bare brushed metal along the Lab B glass (1.25 from the cell edge; the partition takes 0.25).
+  floorParams: Object.fromEntries([1, 2, 3].map((x) => [`${x},5`, { bareEdge: 's', bareWidth: 1.25 }])),
+  // Every fixture lit, within the 8-light pool: real light from the ceiling over the team (1) and over Heins (4)
+  // and from two low warm lamps (6 west, 7 east); the rest glow only (`pool: false`), so Lab B keeps its 3 lights
+  // through the glass. Slots: ceilings 0-5 in cell order, then the pendant_light bulbs in prop order (6, 7, 8).
+  lights: [
+    ...[0, 2, 3, 5].map((i) => L(i, 'steady', '#eef1f4', undefined, undefined, { pool: false })),
+    L(1, 'steady', '#eef1f4', 5, 8),
+    L(4, 'steady', '#eef1f4', 5, 8),
+    L(6, 'steady', '#ffcf99', 4, 4.5),
+    L(7, 'steady', '#ffcf99', 4, 4.5),
+    L(8, 'steady', '#ffcf99', undefined, undefined, { pool: false }),
+  ],
 });
 const R04 = room('R04', 'Lab B', rect(1, 3, 6, 7), {
   area: 'labs',
@@ -415,6 +430,8 @@ const R04 = room('R04', 'Lab B', rect(1, 3, 6, 7), {
   lights: [L(0, 'steady', '#e8f4ff', 9), L(2, 'steady', '#e8f4ff', 9), L(4, 'flicker', '#e8f4ff', 7)],
 });
 for (const x of [1, 2, 3]) glass('R03', x, 5, 's');
+// Plain wall behind the briefing screen: a panel tile's mid-bay rib would cross it (level-kit clearance test).
+wallKit(R03, 2, 4, 'n', 'wall_plain');
 door('D_R02_R03', 'R02', 'R03', 4, 4, 'w');
 door('D_R03_R05', 'R03', 'R05', 1, 4, 'w', { state: 'locked', unlockBy: 'script', unlockOn: 'drop:done' });
 door('D_R04_R05', 'R04', 'R05', 1, 6, 'w', { kit: 'bulkhead', state: 'closed', access: { sealed: true, text: 'lockdown' } });
@@ -422,10 +439,24 @@ wallProp(R03, 'wall_screen', 2, 4, 'n', 0, { id: 'brief_screen', channel: 'brief
 // Crack overlays on the gallery side of the three panes (`glass` action, id "labb").
 for (const [i, x] of [1, 2, 3].entries()) wallProp(R03, 'glass_cracks', x, 5, 's', 0, { id: 'labb', seed: i + 1 }, 0.02);
 for (const x of [1, 2, 3]) prop(R04, 'blinds', [cx(x), 0, cx(5) + 2 + 0.32], 0, { id: 'labb', width: 3.8, height: 2.25, top: 2.6, state: 'down' });
-prop(R03, 'sofa', [12.3, 0, 15.4], 180, { width: 1.8 });
-prop(R03, 'potted_plant', [2.6, 0, 14.8], 0, { kind: 'fern' });
-prop(R03, 'potted_plant', [13.4, 0, 21.2], 0, { kind: 'tall', pot: 'white' });
-prop(R03, 'console', [3.6, 0, 20.6], 0, { screen: 'status' });
+// Gallery layout (openspec refresh-observation-gallery): a clear lane door to door along the back wall (z 14.8..17.6),
+// a clear stage between the team and Heins (x 5.4..10.6, z 17 to the strip), furniture only in the glass corners.
+// Back wall: coffee credenza (west), clock over the screen, a TAG poster (east).
+prop(R03, 'credenza', [4.2, 0, 14.53], 180, { width: 2 });
+wallProp(R03, 'wall_clock', 2, 4, 'n', 0, { y: 3.05 });
+wallProp(R03, 'tag_poster', 3, 4, 'n', -0.2, { slogan: 'OBSERVE. RECORD. REPORT.' });
+// West glass corner: the observation station facing Lab B, its chair, a notice, a fern.
+prop(R03, 'console', [3.9, 0, 20.75], 0, { screen: 'status' });
+prop(R03, 'chair', [3.9, 0, 19.75], 180, { fixed: true });
+wallProp(R03, 'notice_board', 1, 5, 'w', 0.4, { text: 'OBSERVATION GALLERY', detail: 'DO NOT TAP THE GLASS' });
+prop(R03, 'potted_plant', [2.65, 0, 21.35], 0, { kind: 'fern' });
+// East glass corner: the sofa facing the glass, a coffee table, the tall plant.
+prop(R03, 'sofa', [12, 0, 18.7], 180, { width: 2 });
+prop(R03, 'coffee_table', [12, 0, 19.9], 0, { width: 1.2, depth: 0.6 });
+prop(R03, 'potted_plant', [13.35, 0, 21.3], 0, { kind: 'tall', pot: 'white' });
+// Low warm lamps (real light slots, claimed above): one over the observation station, a pair over the coffee table.
+prop(R03, 'pendant_light', [3.9, 0, 20.35], 0, { drop: 1.55, slots: true });
+prop(R03, 'pendant_light', [12, 0, 19.9], 0, { drop: 1.55, count: 2, spacing: 0.9, slots: true });
 prop(R04, 'lab_bench', [5.5, 0, 26.8], 90, { width: 3 });
 prop(R04, 'lab_bench', [12.2, 0, 29.4], 0, { width: 3 });
 prop(R04, 'specimen_tank', [9.5, 0, 28.6]);
@@ -939,7 +970,7 @@ function build() {
       pieces.push(c);
     });
     for (const [x, z] of r.cells) {
-      put(r.floorOverride[`${x},${z}`] ?? r.floor, [x, 0, z], 0);
+      put(r.floorOverride[`${x},${z}`] ?? r.floor, [x, 0, z], 0, r.floorParams[`${x},${z}`]);
       for (const s of ['n', 'e', 's', 'w']) {
         const [nx, nz] = neighbour(x, z, s);
         if (inRoom.has(`${nx},${nz}`)) continue;

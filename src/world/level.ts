@@ -15,7 +15,7 @@ import { buildDoor, type DoorVisual } from './kit/doors.ts';
 import { GridOccupancy } from './kit/grid.ts';
 import { AoMergeBuilder, applyWorldMeterUvs, withVertexColors, type AoFn } from './kit/merge.ts';
 import { snapModelToSocket, type SnapOptions } from './kit/modelSnap.ts';
-import { CELL, CORRIDOR_H, DECK_H, ROOM_H, transformBox, type BoxSpec, type LightSlotKind, type PieceOutput, type PieceParams, type Socket, type SocketKind } from './kit/types.ts';
+import { CELL, CORRIDOR_H, DECK_H, ROOM_H, WALL_MOUNTED_PROPS, transformBox, type BoxSpec, type LightSlotKind, type PieceOutput, type PieceParams, type Socket, type SocketKind } from './kit/types.ts';
 import { LightPool, type PooledSlot } from './lightPool.ts';
 import type { KitRegistry } from './registry.ts';
 import type { Interactable, Interactions } from '../actors/interaction.ts';
@@ -73,11 +73,13 @@ export interface LevelDeps {
   debugChecker?: boolean;
 }
 
-const AMBIENT: Record<AmbientPreset, { sky: number; ground: number; intensity: number }> = {
+export const AMBIENT: Record<AmbientPreset, { sky: number; ground: number; intensity: number }> = {
   normal: { sky: 0x8fb0bd, ground: 0x0e1215, intensity: 0.22 },
   emergency: { sky: 0xb04a3a, ground: 0x120606, intensity: 0.16 },
   flooded: { sky: 0x2f7a80, ground: 0x031012, intensity: 0.24 },
   dark: { sky: 0x4a5a64, ground: 0x050606, intensity: 0.07 },
+  // Observation gallery (R03): dim and neutral, so its lamps and two ceiling pools carry the room and Lab B glows through the glass.
+  gallery: { sky: 0x9ea6ab, ground: 0x0d0f11, intensity: 0.12, keyColor: 0xa4adb3, keyIntensity: 0.16 },
 };
 const DEFAULT_FOG = '#04080a';
 const DEFAULT_FOG_DENSITY = 0.05;
@@ -86,6 +88,8 @@ const SLOT_DEFAULTS: Record<LightSlotKind, { color: string; intensity: number; r
   ceiling: { color: '#dcefff', intensity: 10, range: 10, emissive: 3.2, drop: 0.22 },
   wall: { color: '#ffd9a8', intensity: 6, range: 7, emissive: 2.6, drop: 0.12 },
   emergency: { color: '#ff2a1a', intensity: 7, range: 8, emissive: 3, drop: -0.1 },
+  // Hanging lamp bulb: warm, short range, the light just under the bulb so it pools on the table below.
+  pendant: { color: '#ffcf99', intensity: 4, range: 4.5, emissive: 3, drop: 0.15 },
 };
 
 /** Distance from a point to a box (0 inside). */
@@ -128,7 +132,7 @@ interface RoomRuntime {
   height: number;
   group: THREE.Group;
   cells: THREE.Box3[];
-  slots: PooledSlot[];
+  slots: Array<PooledSlot & { kind: LightSlotKind }>;
   ticks: Array<(t: number, dt: number) => void>;
   staticMeshes: THREE.Mesh[];
   merger: AoMergeBuilder;
@@ -189,6 +193,10 @@ export interface LevelDebugData {
   rooms: Array<{ id: string; name: string; cells: THREE.Box3[] }>;
   triggers: THREE.Box3[];
   bounds: THREE.Box3;
+  /** Protruding wall structure, in world space: `source` is `<kit>@<cell>`. */
+  keepouts: Array<{ room: string; source: string; box: THREE.Box3 }>;
+  /** Mesh bounds of wall-mounted props (`WALL_MOUNTED_PROPS`), in world space: `source` is `<kit>[:<id>]@<pos>`. */
+  wallProps: Array<{ room: string; source: string; boxes: THREE.Box3[] }>;
 }
 
 export interface RoomStats {
@@ -311,7 +319,7 @@ export class Level implements World {
     this.name = data.name ?? data.id;
     this.group.name = `level:${data.id}`;
     const rng = new Rng(`${data.id}:${data.seed}`);
-    this.debug = { sockets: [], slots: [], nav: [], rooms: [], triggers: [], bounds: new THREE.Box3() };
+    this.debug = { sockets: [], slots: [], nav: [], rooms: [], triggers: [], bounds: new THREE.Box3(), keepouts: [], wallProps: [] };
     this.pool = new LightPool(this.group, 8);
     this.hemi = new THREE.HemisphereLight(AMBIENT.normal.sky, AMBIENT.normal.ground, AMBIENT.normal.intensity);
     this.group.add(this.hemi);
@@ -458,6 +466,10 @@ export class Level implements World {
         const matrix = cellMatrix(cell, rot);
         const params: PieceParams = { height, ...(r.area !== undefined ? { area: r.area } : {}), ...(piece.params ?? {}) };
         const out = registry.create(piece.kit, params, rng.fork(`${r.id}:${piece.kit}:${cell.join(',')}`), m);
+        for (const k of out.keepouts ?? []) {
+          const box = new THREE.Box3(new THREE.Vector3(...k.min), new THREE.Vector3(...k.max)).applyMatrix4(matrix);
+          this.debug.keepouts.push({ room: r.id, source: `${piece.kit}@${cell.join(',')}`, box });
+        }
         this.integrate(room, out, matrix, deg(rot), rawSlots);
         const key = cell.join(',');
         if (!cellKeys.has(key)) {
@@ -474,6 +486,16 @@ export class Level implements World {
       const matrix = at(prop.pos[0], prop.pos[1], prop.pos[2], 0, ry, 0);
       const params: PieceParams = { ceiling: height - prop.pos[1], ...(r.area !== undefined ? { area: r.area } : {}), ...(prop.params ?? {}) };
       const out = registry.create(prop.kit, params, rng.fork(`${r.id}:${prop.kit}:${prop.pos.join(',')}`), m);
+      if (WALL_MOUNTED_PROPS.includes(prop.kit)) {
+        // One box per mesh: a prop's overall bounds would join its wall bracket to its face and flag trim it only sits in front of.
+        out.object.updateMatrixWorld(true);
+        const boxes: THREE.Box3[] = [];
+        out.object.traverse((c) => {
+          if (c instanceof THREE.Mesh) boxes.push(new THREE.Box3().setFromObject(c).applyMatrix4(matrix));
+        });
+        const id = typeof prop.params?.['id'] === 'string' ? `:${prop.params['id']}` : '';
+        this.debug.wallProps.push({ room: r.id, source: `${prop.kit}${id}@${prop.pos.join(',')}`, boxes });
+      }
       (out.spots ?? []).forEach((s, i) => {
         this.spotList.push({
           id: `${r.id}:${pi}:${i}`,
@@ -540,6 +562,8 @@ export class Level implements World {
         color,
         range: light.range ?? def.range,
         priority: 0,
+        kind: slot.kind,
+        ...(light.pool === false ? { pooled: false } : {}),
         score: 0,
       });
     }
@@ -1202,11 +1226,11 @@ export class Level implements World {
     return box.getCenter(new THREE.Vector3());
   }
 
-  /** Controlled light fixtures in a room (for positional fluorescent buzz and flicker arcs). */
-  roomLights(roomId: string): ReadonlyArray<{ position: THREE.Vector3; light: ControlledLight }> {
+  /** Controlled light fixtures in a room (for positional fluorescent buzz and flicker arcs), with their slot kind. */
+  roomLights(roomId: string): ReadonlyArray<{ position: THREE.Vector3; light: ControlledLight; kind: LightSlotKind }> {
     const room = this.rooms.find((r) => r.data.id === roomId);
     if (!room) return [];
-    return room.slots.map((s) => ({ position: s.position, light: s.item }));
+    return room.slots.map((s) => ({ position: s.position, light: s.item, kind: s.kind }));
   }
 
   // ---------------------------------------------------------------- door + trigger logic
@@ -1381,6 +1405,10 @@ export class Level implements World {
         continue;
       }
       for (const s of r.slots) {
+        if (s.pooled === false) {
+          s.item.light = null; // glow-only: patterns and tints still drive its fixture
+          continue;
+        }
         s.priority = r === cur ? 1 : 0;
         slots.push(s);
       }
@@ -1413,5 +1441,6 @@ export class Level implements World {
 function glowGeometry(kind: LightSlotKind): THREE.BufferGeometry {
   if (kind === 'ceiling') return new THREE.BoxGeometry(1.2, 0.02, 0.24);
   if (kind === 'emergency') return new THREE.SphereGeometry(0.075, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+  if (kind === 'pendant') return new THREE.SphereGeometry(0.06, 12, 8); // the bulb inside the pendant_light shade
   return new THREE.SphereGeometry(0.07, 12, 8);
 }

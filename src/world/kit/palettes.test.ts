@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import type { Materials } from '../../render/materials.ts';
 import { PHOTO_SLOT_KEYS } from '../../render/tex/manifest.ts';
+import { Rng } from '../../core/rng.ts';
+import { STRUCTURE_PIECES } from './structure.ts';
 import { AREA_PALETTES, DEFAULT_PALETTE, PALETTE_MATERIAL_KEYS, isPaletteMaterialKey, paletteFor, resolvePalette } from './palettes.ts';
 
 // Area palettes (openspec adopt-photoscanned-textures, group 5): every slice01 area has one, every entry names a
@@ -106,4 +108,28 @@ test('slice01 piece overrides name valid palette materials; the nutrient room us
   const walls = level.rooms.find((r) => r.id === 'R12d')!.pieces.filter((p) => p.kit.startsWith('wall_'));
   assert.ok(walls.length > 0);
   for (const w of walls) assert.equal(w.params?.material, 'tileWashroom');
+});
+
+test('the observation gallery palette is clean: no rusty paintDark on its walls, ceiling or glass partition, and its console is the clean variant', () => {
+  const m = stubMaterials();
+  const used = (kit: string, pieces: typeof STRUCTURE_PIECES): Set<string> => {
+    const out = pieces.find((p) => p.id === kit)!.generate({ area: 'gallery', height: 3.6 }, new Rng(kit), m);
+    const names = new Set<string>();
+    out.object.traverse((c) => {
+      if (c instanceof THREE.Mesh) names.add((Array.isArray(c.material) ? c.material[0] : c.material).name);
+    });
+    return names;
+  };
+  for (const kit of ['wall_plain', 'wall_panel', 'wall_glass_partition', 'ceiling']) {
+    const names = used(kit, STRUCTURE_PIECES);
+    assert.ok(!names.has('paintDark'), `${kit} in the gallery uses no paintDark (${[...names].join(', ')})`);
+  }
+  assert.ok(used('wall_plain', STRUCTURE_PIECES).has('cleanSlate'), 'gallery walls are clean slate');
+  assert.ok(used('wall_panel', STRUCTURE_PIECES).has('cleanTeal'), 'gallery upper panels are clean teal');
+  assert.ok(used('wall_glass_partition', STRUCTURE_PIECES).has('cleanSlate'), 'glass partition sill and header are clean slate');
+  assert.ok(used('ceiling', STRUCTURE_PIECES).has('officeCeiling'), 'gallery ceiling is the office ceiling');
+  const pal = resolvePalette({ area: 'gallery' }, m);
+  // props.ts `console` builds its clean variant (cleanWall base) whenever the area's doorPanel is not paintDark.
+  assert.notEqual(pal.doorPanel, m.paintDark, 'gallery console is the clean variant');
+  assert.equal(pal.floorAlt, m.steelBrushed, 'bare strip material');
 });

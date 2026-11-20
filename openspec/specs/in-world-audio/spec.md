@@ -25,11 +25,15 @@ Each ambience preset SHALL combine looping beds whose level drifts slowly with o
 - **THEN** distant hull groans and knocks are heard at irregular times from different directions, over a bed that never sounds like a static loop
 
 ### Requirement: Light buzz follows the lights
-Rooms with lit fixtures SHALL have positional fluorescent buzz at up to four fixtures. Flickering fixtures SHALL buzz louder and can spark (`zap`) in time with the flicker.
+Rooms with lit fixtures SHALL have positional fluorescent buzz at up to four fixtures. Flickering fixtures SHALL buzz louder and can spark (`zap`) in time with the flicker. Lamp lights SHALL NOT buzz or zap and SHALL NOT count toward the four.
 
 #### Scenario: Flickering tube
 - **WHEN** a fixture in the current room flickers
 - **THEN** its buzz is louder than steady fixtures and comes from the fixture's position
+
+#### Scenario: Lamp in a lit room
+- **WHEN** the current room has ceiling lights and a lit lamp
+- **THEN** buzz comes only from ceiling fixtures and none from the lamp
 
 ### Requirement: Ambience follows the game mode
 Ambience SHALL be silent on the title screen, reduced to about 35% while paused, and at full level during play.

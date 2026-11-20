@@ -42,7 +42,22 @@ export const AREA_PALETTES: Record<string, AreaPalette> = {
   dock: { wallMain: 'hullPlate', wallAlt: 'boltPanel', ceiling: 'deckCorrugated', trim: 'steelBrushed', floor: 'concretePainted', floorAlt: 'diamond', hazard: 'hazardClean' },
   // The cafeteria lounge (R02): upholstered vinyl lower walls, bone paint upper band, perforated acoustic ceiling, tiled floor.
   commons: { wallMain: 'vinylPanel', wallAlt: 'paintBone', ceiling: 'acousticCeiling', trim: 'steelBrushed', floor: 'labTile', hazard: 'hazardClean' },
-  gallery: { wallMain: 'paintDark', floor: 'rubber', hazard: 'hazardClean' },
+  // The observation gallery (R03): a clean, dim lounge before the drop. Slate walls, teal upper band, the commons'
+  // acoustic ceiling, brushed trim; `floorAlt` is the bare metal strip along the Lab B glass (floor_carpet `bare`).
+  gallery: {
+    wallMain: 'cleanSlate',
+    wallAlt: 'cleanTeal',
+    ceiling: 'officeCeiling',
+    trim: 'steelBrushed',
+    floor: 'rubber',
+    floorAlt: 'steelBrushed',
+    hazard: 'hazardClean',
+    doorSurround: 'cleanSlate',
+    doorPanel: 'steelDark',
+    doorGlassBar: 'steelBrushed',
+    pipeAccent: 'cleanTeal',
+    pipeMain: 'steelDark',
+  },
   labs: { wallMain: 'labPanel', floor: 'labTile', hazard: 'hazardClean' },
   security: { wallMain: 'paintDark', floor: 'rubber', hazard: 'hazardClean' },
   medbay: { wallMain: 'paintBone', floor: 'labTile', hazard: 'hazardClean' },

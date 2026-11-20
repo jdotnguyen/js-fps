@@ -63,6 +63,23 @@ test('structural kit pieces emit floor, wall, and door sockets with non-coplanar
   assert.ok(box.min.z >= -2 + WALL_INSET - 1e-5, `wall back face inset from -2 (${box.min.z})`);
 });
 
+test('wall tiles report pilasters and trim rails as keep-outs for wall-mounted props', () => {
+  const m = fakeMaterials();
+  const posts = (id: string): number[] => {
+    const out = STRUCTURE_PIECES.find((p) => p.id === id)!.generate({ height: 3.6 }, new Rng('keepout'), m);
+    const boxes = out.keepouts ?? [];
+    // Every keep-out sits on the room side of the wall face and stays within the tile.
+    for (const b of boxes) {
+      assert.ok(b.min[2] >= -2 + WALL_T - 1e-6, `${id} keep-out starts at the wall face (${b.min[2]})`);
+      assert.ok(b.min[0] >= -2 - 1e-6 && b.max[0] <= 2 + 1e-6, `${id} keep-out inside the tile`);
+    }
+    assert.ok(boxes.some((b) => b.max[0] - b.min[0] > 3.9), `${id} has a full-width trim rail keep-out`);
+    return boxes.filter((b) => b.max[0] - b.min[0] < 0.5).map((b) => Math.round(((b.min[0] + b.max[0]) / 2) * 100) / 100).sort((a, b) => a - b);
+  };
+  assert.deepEqual(posts('wall_panel'), [-1.89, 0], 'panel wall: tile-end pilaster and mid-bay rib');
+  assert.deepEqual(posts('wall_plain'), [-1.89], 'plain wall: tile-end pilaster only');
+});
+
 test('snapModelToSocket normalizes scale and snaps cleanly onto floor and wall sockets', () => {
   // Centimeter-scale humanoid mesh (180 units tall, centered at origin)
   const human = new THREE.Mesh(new THREE.BoxGeometry(60, 180, 40), new THREE.MeshBasicMaterial());

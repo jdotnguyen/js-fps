@@ -37,10 +37,23 @@ export interface DoorHandle {
 }
 
 export function loadSlice01(): { level: HeadlessLevel; events: InstanceType<typeof EventBus>; doors: DoorHandle[] } {
+  return loadLevel('slice01');
+}
+
+/** Every level file id under `data/levels/` (`slice01`, `kit_test`, ...). */
+export function levelFileIds(): string[] {
+  return readdirSync(new URL('../data/levels/', import.meta.url))
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => f.slice(0, -'.json'.length))
+    .sort();
+}
+
+/** Build any level under `data/levels/<id>.json` headlessly. */
+export function loadLevel(id: string): { level: HeadlessLevel; events: InstanceType<typeof EventBus>; doors: DoorHandle[] } {
   const items = validate(validateItemTable, json('items.json'), 'data/items.json');
   const ui = validate(validateUiText, json('dialogue/ui.json'), 'data/dialogue/ui.json');
   const registry = new KitRegistry({ glb: {} });
-  const data = validate(levelValidator(registry.ids(), { items: new Set(Object.keys(items)), uiText: new Set(Object.keys(ui)) }), json('levels/slice01.json'), 'slice01');
+  const data = validate(levelValidator(registry.ids(), { items: new Set(Object.keys(items)), uiText: new Set(Object.keys(ui)) }), json(`levels/${id}.json`), id);
   const mats = new Proxy({} as Record<string | symbol, THREE.Material>, {
     get: (t, k) => (t[k] ??= k === 'glass' ? new THREE.MeshPhysicalMaterial({ transparent: true }) : new THREE.MeshStandardMaterial()),
   });

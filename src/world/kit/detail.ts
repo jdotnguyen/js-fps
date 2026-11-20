@@ -15,6 +15,13 @@ import type { ResolvedPalette } from './palettes.ts';
 
 const V = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3(x, y, z);
 
+/** Record a box (centre and size in the wall frame `f`) as a wall keep-out, as its axis-aligned bounds in piece space. */
+function keepoutIn(pb: PieceBuilder, f: THREE.Matrix4, cx: number, cy: number, cz: number, w: number, h: number, d: number): void {
+  const box = new THREE.Box3();
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) box.expandByPoint(V(cx + (sx * w) / 2, cy + (sy * h) / 2, cz + (sz * d) / 2).applyMatrix4(f));
+  pb.keepout({ min: [box.min.x, box.min.y, box.min.z], max: [box.max.x, box.max.y, box.max.z] });
+}
+
 /** Matrix for a canonical wall whose inner face sits at (x, z) facing `facing` (radians). */
 export function wallFrame(x: number, z: number, facing: number): THREE.Matrix4 {
   return at(x, 0, z, 0, facing, 0);
@@ -47,12 +54,18 @@ function wallBase(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Matrix4, o:
   pb.add(slab(L, h + 0.1, depth), backing, inFrame(f, 0, h / 2 - 0.05, -depth / 2));
   pb.add(slab(L - 0.08, 0.24, 0.03, o.pal?.hazardTile ?? 0.5), o.pal?.hazard ?? m.hazardClean, inFrame(f, 0, 0.12, 0.015));
   pb.add(slab(L, 0.06, 0.06), trim, inFrame(f, 0, Math.min(2.55, h - 0.5), 0.03));
+  keepoutIn(pb, f, 0, Math.min(2.55, h - 0.5), 0.03, L, 0.06, 0.06);
   if (o.pilaster) pilaster(pb, trim, f, -L / 2 + 0.11, h);
-  if (o.cables) cableTray(pb, m, rng, f, L, Math.min(h, 3.2) - 0.55, 0.3);
+  if (o.cables) {
+    const trayY = Math.min(h, 3.2) - 0.55;
+    cableTray(pb, m, rng, f, L, trayY, 0.3);
+    keepoutIn(pb, f, 0, trayY - 0.1, 0.15, L, 0.25, 0.3); // tray plus sagging cables
+  }
 }
 
 function pilaster(pb: PieceBuilder, trim: THREE.Material, f: THREE.Matrix4, x: number, h: number): void {
   pb.add(rounded(0.22, h, 0.16, 0.03), trim, inFrame(f, x, h / 2, 0.08));
+  keepoutIn(pb, f, x, h / 2, 0.08, 0.22, h, 0.16);
   for (let y = 0.45; y < h - 0.3; y += 0.65) {
     for (const dx of [-0.06, 0.06]) pb.add(new THREE.CylinderGeometry(0.018, 0.018, 0.02, 6), trim, inFrame(f, x + dx, y, 0.165, Math.PI / 2, 0, 0));
   }

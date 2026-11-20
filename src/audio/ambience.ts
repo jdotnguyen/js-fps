@@ -20,6 +20,8 @@ export interface AmbienceAudio {
 export interface AmbienceLightSource {
   readonly position: THREE.Vector3;
   readonly light: { readonly level: number; readonly pattern?: string };
+  /** Light-slot kind; `pendant` lamps are not fluorescent and never buzz (in-world-audio spec). */
+  readonly kind?: string;
 }
 
 export interface BedLayerSpec {
@@ -472,8 +474,9 @@ export class AmbienceDirector {
     }
   }
 
-  private bindRoomLights(lights: readonly AmbienceLightSource[]): void {
+  private bindRoomLights(all: readonly AmbienceLightSource[]): void {
     this.clearBuzzers(0.35);
+    const lights = all.filter((l) => l.kind !== 'pendant'); // lamps are not fluorescent tubes
     if (lights.length === 0 || !this.audio.hasSound('fluorescentBuzz')) return;
 
     // Prioritize flickering/failing tubes so faulty fixtures are always audible, then steady fixtures.

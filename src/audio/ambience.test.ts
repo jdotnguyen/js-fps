@@ -156,6 +156,21 @@ test('scripted override wins over room changes until cleared', () => {
   assert.equal(audio.loops.filter((l) => l.stoppedWith === null).length, AMBIENCE_PRESETS.pipes_knock.beds.length);
 });
 
+test('lamps never buzz: only the fluorescent fixtures in a room with ceiling lights and a lamp get buzz loops', () => {
+  const audio = new MockAmbienceAudio();
+  const dir = new AmbienceDirector(audio, new Rng('lamp-buzz'));
+  dir.setMode('playing');
+  const tube = new THREE.Vector3(1, 3.5, 2);
+  const lamp = new THREE.Vector3(4, 2, 2);
+  dir.enterRoom('hull_hum', [
+    { position: tube, light: { level: 1, pattern: 'steady' }, kind: 'ceiling' },
+    { position: lamp, light: { level: 1, pattern: 'flicker' }, kind: 'pendant' },
+  ]);
+  const buzz = audio.loops.filter((l) => l.name === 'fluorescentBuzz');
+  assert.equal(buzz.length, 1, 'one buzzer, for the ceiling tube');
+  dir.dispose();
+});
+
 test('flickering room lights drive buzz gain and fire zap arcs on re-ignition', () => {
   const audio = new MockAmbienceAudio();
   const dir = new AmbienceDirector(audio, new Rng('light-test'));
