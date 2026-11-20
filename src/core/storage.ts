@@ -49,3 +49,16 @@ export function memoryStore(): KeyValueStore {
     keys: () => [...map.keys()],
   };
 }
+
+/**
+ * `?slot=scratch`: saves and the tutorial profile live in memory for this page only, so automated
+ * sessions (memory measurement, spec runtime-memory) never read or overwrite the player's slots.
+ */
+export function isScratchSession(search: string): boolean {
+  return new URLSearchParams(search).get('slot') === 'scratch';
+}
+
+/** The store for persisted player data: in memory for a scratch session, localStorage otherwise. */
+export function persistentStore(scratch: boolean): KeyValueStore {
+  return scratch ? memoryStore() : browserStore();
+}

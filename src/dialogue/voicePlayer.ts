@@ -278,6 +278,19 @@ export class WebAudioVoicePlayer implements VoicePlayer {
     };
   }
 
+  /** Bytes of decoded audio held: recorded VO, cached procedural renders, squelch and static. */
+  decodedBytes(): number {
+    let bytes = 0;
+    const add = (b: AudioBuffer): void => {
+      bytes += b.length * b.numberOfChannels * 4;
+    };
+    for (const b of this.recorded.values()) add(b);
+    for (const b of this.cache.values()) add(b);
+    add(this.squelch);
+    add(this.staticBuf);
+    return bytes;
+  }
+
   /** Clear cached procedural renders (e.g. after a speaker's rasp changes a lot). */
   clear(): void {
     this.cache.clear();

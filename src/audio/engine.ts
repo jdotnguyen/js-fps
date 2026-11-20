@@ -53,6 +53,24 @@ interface ReverbNode {
   connected: boolean;
 }
 
+/**
+ * Fixed context rate. Left unset, the browser uses the output device's rate, and some Windows headsets and
+ * interfaces run at 96 or 192 kHz: every decoded sample, VO line and procedural buffer is then stored at that
+ * rate, 2-4x the memory for no audible gain. 48 kHz is the native rate of most devices, so the browser
+ * resamples only where the device differs.
+ */
+export const AUDIO_SAMPLE_RATE = 48000;
+
+export function createAudioContext(): AudioContext {
+  try {
+    return new AudioContext({ latencyHint: 'interactive', sampleRate: AUDIO_SAMPLE_RATE });
+  } catch (err) {
+    // An engine that refuses a forced rate still gets audio at the device rate.
+    console.warn(`[audio] ${AUDIO_SAMPLE_RATE} Hz context refused, using the device rate`, err);
+    return new AudioContext({ latencyHint: 'interactive' });
+  }
+}
+
 export class AudioEngine {
   readonly ctx: AudioContext;
   readonly master: GainNode;
@@ -75,7 +93,7 @@ export class AudioEngine {
   private readonly up = new THREE.Vector3();
 
   constructor() {
-    this.ctx = new AudioContext({ latencyHint: 'interactive' });
+    this.ctx = createAudioContext();
     const limiter = new DynamicsCompressorNode(this.ctx, { threshold: -8, knee: 6, ratio: 12, attack: 0.003, release: 0.25 });
     limiter.connect(this.ctx.destination);
     this.master = new GainNode(this.ctx, { gain: 0.8 });
@@ -199,6 +217,14 @@ export class AudioEngine {
   /** True once the recorded sample for `name` has finished decoding. */
   hasSample(name: SampleName): boolean {
     return this.loadedSamples.has(name);
+  }
+
+  /** Bytes of decoded audio this engine holds: every sound's buffers plus the reverb impulse responses. */
+  decodedBytes(): number {
+    let bytes = 0;
+    for (const list of this.buffers.values()) for (const b of list) bytes += b.length * b.numberOfChannels * 4;
+    for (const r of this.reverbs.values()) if (r.conv.buffer) bytes += r.conv.buffer.length * r.conv.buffer.numberOfChannels * 4;
+    return bytes;
   }
 
   /** Duration in seconds of the first loaded buffer for `name`, or 0 if unavailable. */

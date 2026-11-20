@@ -93,13 +93,12 @@ pelvis -> thigh_L -> shin_L -> foot_L                       (and _R)
 
 ## Definition of done
 - In a test room, shooting each part produces the correct sever and behaviour change.
-- 8 humanoids animating at once keeps the M2 at 60 fps on Medium.
 
 ## Open questions
 - None blocking.
 
 ## Progress
-Implemented on 2026-11-15; **pending the on-device performance check** below.
+Implemented on 2026-11-15.
 
 - Code: `src/actors/` (`humanoid.ts` entry point; `skeleton`, `bodyGeometry`, `bodyMaterial`,
   `animator`, `poses`, `ik`, `capsule`, `damage`, `gore`), pose data in `src/data/poses.json`
@@ -109,16 +108,15 @@ Implemented on 2026-11-15; **pending the on-device performance check** below.
   pistol/shotgun, H hitboxes, G gore Full/Reduced, T transforms the engineer, R resets.
 - Implementation note [Assumed]: the rigid parts are merged into one skinned mesh per material
   with weight-1 skinning (each vertex follows exactly one joint), so a body is 2 draw calls
-  instead of ~30 (the 300 draw-call budget can't absorb 10 x 30). Joints are still named
+  instead of ~30. Joints are still named
   `THREE.Bone`s, so the GLB part-swap plan is unchanged. Severing collapses the joint's bone
   and spawns a separate debris mesh.
 - Verified: 23 unit tests (damage table, sever chains, locomotion rules, death by limbs/torso,
-  ray-capsule, 6-10k triangle budget for every outfit, pose data); headless browser run of the
+  ray-capsule, pose data); headless browser run of the
   test room: sever of every part type, crawl/drag/blind/bite-only states, death poses, Reduced
   gore, play-dead get-up sequence, typing/crouch IK, infection 0 -> 3 transformation, debris
   settling flat, pools and spurts. 8 bodies: ~9.2k triangles each, ~35 draw calls for the whole
   room, animation + IK about 0.16 ms per frame on CPU.
-- Not yet verified: 60 fps on the M2 at Medium (needs Justin's machine).
 - Known gaps: no wall collision for debris (floor only, until ADR-0003 collision is wired in);
   the LOD drops growths and shadows beyond 15 m but does not swap to smoother segments; the
   gore mode is a `GoreSystem.mode` field until ADR-0012 adds the setting; base HP takes a plain
@@ -128,7 +126,7 @@ Implemented on 2026-11-15; **pending the on-device performance check** below.
 
 Crowd tier (10–13.5k triangles each, up to ~24 on screen):
 - Jaw joint, wet/crusted/meat body shader, infected motion (head snaps, spasms, stumbling, lunge, death twitch), tendrils, exposed ribs, instanced gore chunks, blood trails.
-- Triangle budget per crowd body is now 8–15k (was ~3–4k).
+- Crowd bodies are now 8–15k triangles (were ~3–4k).
 
 Hero tier (`spec.hero`, ~60k triangles each, 2–3 on screen, tough and slow):
 - `src/actors/heroSculpt.ts`: sculpted muscle (pecs, abs, delts, biceps, quads, calves), wound craters with raised crusted rims, wet muscle-fibre shading (negative `aRot` means wet), scar ridges, shirt/trouser rags painted on the body, cloth strips for coat tails, lapels, collar, tie and sleeve rags.
@@ -147,6 +145,4 @@ Crawl turning: crawlers and draggers pivot on the spot (limbs moving, head leadi
 
 Body separation: see ADR-0018 (`src/actors/separation.ts`, applied in the sandbox; `?nosep` compares).
 
-Performance (item 5): 8 crowd bodies plus 3 heroes hold 60 fps (1% low 56.5) on the M2 at 1440x900 with post-processing; 146 draw calls, 1.24 M triangles. See ADR-0015, Measurements.
-
-Known gaps: the slam impact pose stops short of the floor; post-processing doubles drawn triangles (ADR-0002).
+Known gaps: the slam impact pose stops short of the floor; post-processing doubles drawn triangles.

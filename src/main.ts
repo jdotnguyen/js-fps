@@ -16,7 +16,7 @@ import { Input } from './core/input.ts';
 import { Loop } from './core/loop.ts';
 import { Rng } from './core/rng.ts';
 import { SettingsStore } from './core/settings.ts';
-import { browserStore } from './core/storage.ts';
+import { isScratchSession, persistentStore } from './core/storage.ts';
 import { validate } from './core/validate.ts';
 import { applyQuality, createRenderer } from './render/renderer.ts';
 import { createMaterialsAsync } from './render/materials.ts';
@@ -120,7 +120,16 @@ async function boot(): Promise<void> {
   // All data goes through validators so bad JSON fails here with a readable path.
   const keymap = validate(validateKeymap, keymapJson, 'data/keymap.json');
   const difficulties = validate(validateDifficultyTable, difficultyJson, 'data/difficulty.json');
-  const saves = new SaveStore(browserStore());
+  // `?slot=scratch` (memory runs, spec runtime-memory): saves and tutorial progress stay in memory, never in localStorage.
+  const scratch = isScratchSession(location.search);
+  const saves = new SaveStore(persistentStore(scratch));
+  if (scratch) {
+    const badge = document.createElement('div');
+    badge.textContent = 'SCRATCH SESSION · SAVES NOT KEPT';
+    badge.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:30;font:11px monospace;letter-spacing:.08em;color:#9fd;opacity:.7;pointer-events:none;';
+    document.body.appendChild(badge);
+    console.info('[save] scratch session: saves and tutorial progress stay in memory');
+  }
   // Key items and access hint text (ADR-0024).
   const itemTable = validate(validateItemTable, itemsJson, 'data/items.json');
   const uiText = validate(validateUiText, uiTextJson, 'data/dialogue/ui.json');
@@ -131,6 +140,8 @@ async function boot(): Promise<void> {
   await nextFrame();
   await nextFrame();
 
+  // `?memprobe` (memory runs, spec runtime-memory): count WebGL objects and uploads from the first context on.
+  const memProbe = new URLSearchParams(location.search).has('memprobe') ? (await import('./core/memProbe.ts')).installMemProbe() : null;
   const renderer = createRenderer(canvas, settings.get());
   if (new URLSearchParams(location.search).has('vmlab')) {
     prompt.hidden = true;
@@ -313,7 +324,7 @@ async function boot(): Promise<void> {
     events,
     settings,
     input,
-    profile: new TutorialProfile(browserStore()),
+    profile: new TutorialProfile(persistentStore(scratch)),
     bindings: (a) => keymap[a],
     mode: () => game.mode,
     playTime: () => game.playTime,
@@ -442,6 +453,7 @@ async function boot(): Promise<void> {
   const dialogue = loadDialogueLibrary();
   // Dialogue plays on the engine's voice bus (audio-mix: Mix buses), keeping the room reverb send.
   const voicePlayer = new WebAudioVoicePlayer({ ctx: audio.ctx, master: audio.buses.voice, reverbIn: audio.reverbIn });
+  memProbe?.attach({ threeInfo: () => renderer.info.memory, audioBytes: () => audio.decodedBytes() + voicePlayer.decodedBytes() });
   void voicePlayer.loadLines(dialogue.allLines()).then((n) => {
     if (n > 0) console.info(`[boot] loaded ${n} VO clips`);
   });

@@ -120,14 +120,13 @@ beacons, vent grates, valves, debris piles, corpse poses (uses ADR-0006 humanoid
 2. Structural kit pieces with AO vertex colours and merged geometry.
 3. Collision (spatial hash, capsule vs AABB, steps) ported from legacy `level.js`.
 4. Doors and triggers with events.
-5. Room adjacency culling + light-slot assignment to the ADR-0002 pool.
+5. Room adjacency culling + light-slot assignment to the light pool.
 6. Prop kit pieces.
 7. A test level with 4 rooms, one locked door and one window.
 
 ## Definition of done
 - Test level loads from JSON, can be walked end to end, debug overlays work.
 - Changing one piece ID in JSON changes the geometry with no code change.
-- Draw calls per visible room <= 60 after merging.
 
 ## Open questions
 - Visual level editor (later chapters).
@@ -146,7 +145,7 @@ beacons, vent grates, valves, debris piles, corpse poses (uses ADR-0006 humanoid
   `range`, door `unlockOn`/`params`.
 - Checks: `tsc --noEmit` clean, 109 tests pass, walked prep room -> corridor -> locked
   bulkhead (hold E) -> Lab B -> vault with all three checkpoints, console clean,
-  50 visible draw calls with all four rooms in view (limit 60 per room), swapping a piece ID
+  50 visible draw calls with all four rooms in view, swapping a piece ID
   in the JSON boots with different geometry and no code change.
 - Not run: `npm run build` (the Linux VM lacks the rollup binary); run it on the Mac.
 - GLB swap path (`data/kit-manifest.json`) is in place but untested with a real GLB.

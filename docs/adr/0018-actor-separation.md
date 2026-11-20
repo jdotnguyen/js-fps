@@ -77,7 +77,6 @@ across, which is wider than the old fixed 0.8 m spacing.
 2. Sandbox integration with `?nosep`. Done.
 3. ADR-0007 AI calls `separate()` after steering, and its fixed 0.8 m figure is replaced by this ADR's radii.
 4. Hero: slam attack and knockback reuse the same mass model (hero item 4 in the ADR-0006 progress list).
-5. Measure the cost on the M2 with 8 crowd bodies and 3 heroes (ADR-0015).
 
 ## Definition of done
 - In the sandbox, 8 crowd bodies and the hero converging on the camera end up in a ring with no visible

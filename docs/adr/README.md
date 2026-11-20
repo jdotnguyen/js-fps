@@ -28,7 +28,6 @@ and ADR-0013 (audio) were retired on 2026-11-20 by the `establish-audio-spec` ch
 | # | Title | Depends on |
 |---|---|---|
 | 0001 | Project reset and code architecture | - |
-| 0002 | Rendering, lighting and post-processing | 0001 |
 | 0003 | Modular level kit and data-driven levels | 0001, 0002 |
 | 0004 | Player controller and interaction | 0003 |
 | 0005 | Weapons | 0004 |
@@ -39,7 +38,6 @@ and ADR-0013 (audio) were retired on 2026-11-20 by the `establish-audio-spec` ch
 | 0011 | Squad AI and specialists | 0006, 0007, 0009 |
 | 0012 | HUD, menus, settings and accessibility | 0004, 0005 |
 | 0014 | Slice content: map, beat sheet and script | all above |
-| 0015 | Performance budget, verification and workflow | applies to all |
 | 0016 | Save system and game state | 0001, 0008, 0012 |
 | 0017 | New-game intro cutscene (skippable, on rails) | 0004, 0006, 0009 |
 | 0018 | Actor separation (body-vs-body collision) | 0004, 0006, 0007 |
@@ -54,8 +52,6 @@ and ADR-0013 (audio) were retired on 2026-11-20 by the `establish-audio-spec` ch
 | 0027 | Speech acting: talking mouths and tone-matched gestures | 0006, 0026 |
 | 0028 | Navmesh pathing and authored walks | 0007, 0009, 0017 |
 | 0029 | Ambient life: activity spots, conversations, ambient director | 0006, 0009, 0027, 0028 |
-
-0015 is a standing rule set: read it before starting any ADR.
 
 ## Language
 
