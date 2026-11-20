@@ -179,6 +179,8 @@ async function boot(): Promise<void> {
 
   const stress = new URLSearchParams(location.search).has('stress');
   let castMode = new URLSearchParams(location.search).has('cast');
+  // Declared before spawnAll, which writes it for the cast showcase (it used to throw on `?cast`).
+  let lastHit = 'Shoot a body part.';
   const spawnCast = (spec: HumanoidSpec, x: number, z: number, heading: number, demo: NonNullable<Actor['demo']>): Humanoid => {
     const h = spawn(spec, x, z, heading);
     actors[actors.length - 1]!.demo = demo;
@@ -268,7 +270,6 @@ async function boot(): Promise<void> {
 
   // ---------------------------------------------------------------- shooting
   let weapon = PISTOL;
-  let lastHit = 'Shoot a body part.';
   const raycaster = new THREE.Raycaster();
   const ray = new THREE.Vector3();
   const fwd = new THREE.Vector3();

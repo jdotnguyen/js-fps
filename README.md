@@ -9,7 +9,6 @@ Level geometry is a procedural modular kit dressed with CC0 PBR textures; charac
 mix procedural assets with imported models and recorded sounds (credits in [CREDITS.md](CREDITS.md)).
 
 - Design summary: [DESIGN.md](DESIGN.md)
-- Executable decisions, in build order: [docs/adr/](docs/adr/README.md)
 - Level texturing and dressing rules: [docs/surface-dressing-standard.md](docs/surface-dressing-standard.md)
 
 ## Run

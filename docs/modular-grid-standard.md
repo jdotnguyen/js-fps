@@ -1,7 +1,7 @@
 # Modular Grid & Asset Scale Standard
 
 > Compact architecture reference for `js-fps` levels, procedural kit pieces, and imported GLBs.
-> Complements [ADR-0003](adr/0003-level-kit-and-data.md) and [registry.ts](../src/world/registry.ts).
+> Complements [registry.ts](../src/world/registry.ts).
 
 ## 1. Canonical World Units & Coordinate Frame
 

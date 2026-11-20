@@ -2,32 +2,36 @@ import type { HumanoidSpec } from './humanoid.ts';
 import { GILES, OKAFOR } from './squadLooks.ts';
 
 /**
- * Appearance of the supporting cast (docs/characters.md, ADR-0017/0022/0023 amendments) and
+ * Appearance of the supporting cast (docs/characters.md, intro-sequence spec, ADR-0022/0023 amendments) and
  * the generic crew looks the levels place (`npcs: [{ look: 'botanist' }]`). Named characters
  * keep a fixed seed so they look the same everywhere; generic crew are seeded per NPC id, so
  * a room of `crew` is a room of different faces in the same clothes.
  *
  * Outfits are the five body outfits (ADR-0006) recoloured through `look.outfitColors`.
  */
-export type CastLook = Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 'look' | 'pose' | 'model'>;
+export type CastLook = Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 'look' | 'pose' | 'model' | 'motions'>;
 
 /** Named characters, by look id. */
 const NAMED: Record<string, CastLook> = {
   giles: GILES,
   okafor: OKAFOR,
   /**
-   * Priya Anand, 29, Okafor's nurse. Imported body (ADR-0026, data/body-models.json): the "Modern Indian Woman" model. `outfit`/`look`
-   * below (teal scrubs under a warm plum cardigan) only apply if it fails to load and she falls back to the procedural body.
+   * Priya Anand, 29, Okafor's nurse. Imported body (data/body-models.json): the "elegant woman" Character Creator model (light blue
+   * rolled-sleeve blouse, white knee-length skirt, shoulder-length light-brown hair). `outfit`/`look` below only apply if it fails to
+   * load and she falls back to the procedural body; the skin and hair colours follow the model.
    */
   priya: {
     seed: 'priya-anand',
     model: 'priya',
+    // Her own motion set. Until her clips are baked (priya_idle, priya_talk, priya_walk) she runs the library's calm set, but with
+    // the procedural arm layers turned down like every character that has one.
+    motions: { idle: 'idle', talk: 'idle_talk', walk: 'walk_formal', jog: 'jog' },
     outfit: 'medic',
     height: 1.63,
     build: 0.9,
     look: {
-      skin: '#b07650',
-      hair: '#17120e',
+      skin: '#a57563',
+      hair: '#6d5441',
       hairLine: 0.138,
       facial: null,
       mouth: 0.017,
@@ -107,8 +111,9 @@ const NAMED: Record<string, CastLook> = {
     },
   },
   /**
-   * Ines Ruiz, comms technician. Imported body (ADR-0026, data/body-models.json): the "Modern Service Technician" scan.
-   * `outfit`/`look`/`props` below (crew blues with a tool vest) only apply if it fails to load and she falls back to the procedural body.
+   * Ines Ruiz, comms technician. Imported body (ADR-0026, data/body-models.json): the "Blue Overalls Technician" scan (navy coveralls,
+   * tool belt, long curly dark hair). `outfit`/`look`/`props` below (navy crew suit) only apply if it fails to load and she falls back
+   * to the procedural body.
    */
   ruiz: {
     seed: 'ines-ruiz',
@@ -117,11 +122,12 @@ const NAMED: Record<string, CastLook> = {
     height: 1.66,
     build: 0.93,
     look: {
-      skin: '#b07650',
-      hair: '#2c1f15',
+      skin: '#d3a083',
+      hair: '#1d1510',
+      hairStyle: 'curly',
       facial: null,
       mouth: 0.017,
-      outfitColors: { suit: '#2d3a4e', over: '#3e4a3a' },
+      outfitColors: { suit: '#1c2433', over: '#1c2433' },
       props: ['chestPatch'],
     },
   },
@@ -168,16 +174,16 @@ export const CREW_LOOKS: readonly string[] = Object.keys(CREW);
  * the same NPC keeps the same body. The procedural outfit above is the fallback if a model fails to load.
  */
 const CREW_MODELS: Readonly<Record<string, readonly string[]>> = {
-  crew: ['ruiz', 'sung', 'assistant', 'bram', 'botanist1', 'botanist2', 'botanist3'],
-  security: ['heins'],
-  engineer: ['mechanic', 'ruiz'],
+  crew: ['ruiz', 'sung', 'assistant', 'bram', 'botanist1', 'botanist2', 'botanist3', 'office1', 'office2', 'office3'],
+  security: ['guard1'], // not Heins: the chief's own body stays hers
+  engineer: ['botanist1', 'ruiz'],
   medic: ['doctor', 'priya'],
-  lab: ['botanist1', 'botanist2', 'botanist3'],
+  lab: ['botanist1', 'botanist2', 'botanist3', 'scientist1'],
   botanist: ['botanist1', 'botanist2', 'botanist3'],
   diver: ['sung'],
-  exec: ['hale'],
-  assistant: ['assistant'],
-  maintenance: ['mechanic', 'ruiz'],
+  exec: ['office1', 'office3'], // not Hale: the director's own body stays his
+  assistant: ['assistant', 'office2', 'office3'],
+  maintenance: ['botanist1', 'botanist2', 'botanist3'],
 };
 
 /** FNV-1a: a stable, well-spread hash of an NPC id. */

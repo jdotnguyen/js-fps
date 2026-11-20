@@ -1,8 +1,7 @@
 # Surface Dressing Standard
 
 > How textures, trim, decals and props are placed on `js-fps` rooms.
-> Companion to [modular-grid-standard.md](modular-grid-standard.md) (geometry and scale) and
-> [ADR-0003](adr/0003-level-kit-and-data.md) (kit and level data).
+> Companion to [modular-grid-standard.md](modular-grid-standard.md) (geometry and scale).
 > Status column: **live** = enforced in code today, **rule** = follow by hand until tooling exists.
 
 ## 1. UV contract

@@ -1,6 +1,6 @@
 # Design Brief (working title TBD)
 
-> Detailed, executable decisions live in [docs/adr/](docs/adr/README.md). This file is the summary.
+> Detailed requirements live in `openspec/specs/`. This file is the summary.
 
 Status: decided via design Q&A. The current INKSHOT wave-shooter is a throwaway prototype; reuse only the Three.js/Vite scaffolding, input and audio plumbing.
 

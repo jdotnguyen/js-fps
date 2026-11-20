@@ -29,7 +29,6 @@ export const HEADLINE_CREDITS: readonly HeadlineCredit[] = [
   {
     eyebrow: 'SECTION 07 // DEPTH 3,840M',
     title: 'THALASSA',
-    subtitle: 'DEEP-SEA HORROR',
     accent: true,
   },
   {
@@ -79,10 +78,10 @@ export const MODEL_CREDITS: readonly ModelCredit[] = [
   { asset: 'Necromorph Slasher Varient 1 Rig', author: 'NO.DONT.EAT.ME.CASEOH', licence: 'CC BY 4.0', usedAs: 'Hero Infected' },
   { asset: 'BS-V1 Cyborg', author: 'Blue Spirit', licence: 'CC BY 4.0', usedAs: "Katie Heins' Body" },
   { asset: 'Mechanic 1', author: 'SidewalkNZ', licence: 'CC BY 4.0', usedAs: "August Giles' Body" },
-  { asset: 'doctor', author: 'Chenchanchong', licence: 'CC BY 4.0', usedAs: "Dr. Tomas Okafor's Body" },
-  { asset: 'Modern Indian Woman', author: 'Pixel_Monster', licence: 'CC BY 4.0', usedAs: "Priya Anand's Body" },
+  { asset: "Doctor - Sketchfab Weekly - 13 Mar'23", author: 'BrushDip', licence: 'CC BY 4.0', usedAs: "Dr. Tomas Okafor's Body" },
+  { asset: 'elegant woman', author: 'adri8restuz', licence: 'CC BY 4.0', usedAs: "Priya Anand's Body" },
   { asset: 'Construction Worker In Safety Gear', author: 'restore50', licence: 'CC BY 4.0', usedAs: "Sung's Body" },
-  { asset: 'Modern Service Technician', author: 'restore50', licence: 'CC BY 4.0', usedAs: "Ines Ruiz's Body" },
+  { asset: 'Blue Overalls Technician', author: 'restore50', licence: 'CC BY 4.0', usedAs: "Ines Ruiz's Body" },
   { asset: 'A Man in suit', author: 'anuragk1229', licence: 'CC BY 4.0', usedAs: "Director Hale's Body" },
   { asset: 'Chef T pose', author: 'Imran Aziz (bayharborbutcher)', licence: 'CC BY 4.0', usedAs: "Bram's Body" },
   { asset: 'scientist', author: 'Geont', licence: 'CC BY 4.0', usedAs: 'Botanist Crew 1' },

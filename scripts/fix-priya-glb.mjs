@@ -1,54 +1,66 @@
-// Prepares the Sketchfab "Modern Indian Woman" GLB (Pixel_Monster, CC-BY 4.0) for bodyModel.ts (ADR-0026).
+// Prepares the Sketchfab "elegant woman" GLB (adri8restuz, CC-BY 4.0; a Character Creator rig) as Priya Anand's body for bodyModel.ts.
 //   node scripts/fix-priya-glb.mjs <source.glb> [public/assets/models/squad/priya.glb]
-// The source is a 20.6 MB rigged avatar (~112k triangles, 14 meshes, 24 textures, Mixamo animation, no jaw bone).
-// What it does (20.6 MB -> ~1 MB):
-//   - drops the baked animation, TANGENT, TEXCOORD_1, and unused metallicRoughness/occlusion maps (bodyMaterial.ts uses baseColor + normal);
-//   - clears the Sketchfab/FBX wrapper nodes so the skeleton sits directly in Y-up metres facing +Z, drops unused _rootJoint and end-marker
-//     bones, folds LeftEye/RightEye into Head, adds a Jaw bone under Head, and rebuilds inverseBindMatrices from the node bind pose;
-//   - weights AvatarTeethLower 100% to Jaw and weights AvatarHead's lower lip and chin (below the split mouth line) smoothly to Jaw so her
-//     mouth opens cleanly when speaking (ADR-0027);
-//   - drops AvatarLeftCornea/AvatarRightCornea (opaque JPEG layers that hide the real eyeball texture) and drops the two opaque lens
-//     components from glasses (keeping frames and temples, since bodyMaterial.ts does not alpha-blend);
-//   - merges Left+Right eyeballs, Upper+Lower teeth, and glasses frames + eyelashes (14 -> 9 materials), decimates with meshoptimizer,
-//     repacks vertex buffers (u16 indices, u8 joints, normalised u16 weights), and re-encodes textures as resized JPEGs.
-// Uses System.Drawing via PowerShell on Windows (or ImageMagick `magick`/`convert` elsewhere) and `meshoptimizer` from node_modules.
+// The source is a rigged, unanimated A-pose avatar: 24 meshes / materials, ~76k triangles, 102 CC_Base_* bones, 40 textures (24 MB).
+// Nothing visible is simplified: no decimation, every texture keeps its size. What it does:
+//   - bakes the Sketchfab/FBX wrapper nodes (Z-up centimetres) into the skeleton root, so the bones sit in Y-up metres;
+//   - rebuilds the 17 inverse bind matrices the source wrote as identity (i.e. wrong) from the node pose, keeps the other 85,
+//     sets the rest pose to the bind pose and moves the vertices into the same frame (Y-up metres);
+//   - renames the CC_Base_* bones to names bodyModel.ts maps (as the retired fix-doctor-glb.mjs did for the old Okafor body):
+//     JawRoot becomes Jaw, so the lower face, lower teeth and tongue follow the game's jaw joint when she talks;
+//   - drops layers the body shader cannot draw (it alpha-tests, never blends): tear lines, eye-occlusion shadows and the
+//     brow base are soft transparent films that would render as hard-edged patches, and the corneas are an extra layer over
+//     the eyeballs (Priya's old corneas hid the iris);
+//   - converts the specular-glossiness materials (no longer read by three.js) to metal-rough: diffuse -> base colour,
+//     roughness = 1 - glossiness, metallic 0; soft-edged cards (hair, scalp, brows, lashes) become alpha cut-outs;
+//   - drops data nothing reads (vertex colours, tangents, extra UV sets), moves each part's UV tile (CC lays the skin
+//     out in tiles 1..5) back into 0..1, and packs the geometry like the other bodies (meshopt + quantised normals/UVs);
+//   - re-encodes the textures as WebP at their full size (colour q92, normal maps q95, alpha kept).
+// Needs ImageMagick (`convert`, with WebP) on the PATH.
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
-import { execFileSync } from 'node:child_process';
-import { MeshoptSimplifier } from 'meshoptimizer/meshopt_simplifier.module.js';
+import { MeshoptEncoder } from 'meshoptimizer/meshopt_encoder.module.js';
+import { encodeWebp } from './lib/scan-body.mjs';
 
 const [src, dst = 'public/assets/models/squad/priya.glb'] = process.argv.slice(2);
 if (!src) throw new Error('usage: node scripts/fix-priya-glb.mjs <source.glb> [out.glb]');
 
-// ------------------------------------------------------------------ read source GLB
+// ------------------------------------------------------------------ read
 const d = fs.readFileSync(src);
 const jsonLen = d.readUInt32LE(12);
 const j = JSON.parse(d.subarray(20, 20 + jsonLen).toString('utf8'));
 const bin = d.subarray(20 + jsonLen + 8);
-const COMP = { 5121: [1, 'getUint8'], 5123: [2, 'getUint16'], 5125: [4, 'getUint32'], 5126: [4, 'getFloat32'] };
-const NCOMP = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
 const dv = new DataView(bin.buffer, bin.byteOffset, bin.byteLength);
+const COMP = { 5121: [1, 'getUint8', 255], 5123: [2, 'getUint16', 65535], 5125: [4, 'getUint32', 0], 5126: [4, 'getFloat32', 0] };
+const NCOMP = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
 function read(ai) {
   const a = j.accessors[ai];
   const bv = j.bufferViews[a.bufferView];
-  const [size, fn] = COMP[a.componentType];
+  const [size, fn, norm] = COMP[a.componentType];
   const n = NCOMP[a.type];
   const stride = bv.byteStride ?? size * n;
   const base = (bv.byteOffset ?? 0) + (a.byteOffset ?? 0);
-  const out = new (a.componentType === 5126 ? Float32Array : Uint32Array)(a.count * n);
-  for (let i = 0; i < a.count; i++) for (let k = 0; k < n; k++) out[i * n + k] = dv[fn](base + i * stride + k * size, true);
+  const out = new Float64Array(a.count * n);
+  for (let i = 0; i < a.count; i++) {
+    for (let k = 0; k < n; k++) {
+      const v = dv[fn](base + i * stride + k * size, true);
+      out[i * n + k] = a.normalized && norm ? v / norm : v;
+    }
+  }
   return out;
 }
+const imageBytes = (imageIndex) => {
+  const bv = j.bufferViews[j.images[imageIndex].bufferView];
+  return bin.subarray(bv.byteOffset ?? 0, (bv.byteOffset ?? 0) + bv.byteLength);
+};
 
-// ------------------------------------------------------------------ matrix math (column-major)
+// ------------------------------------------------------------------ matrices (column-major)
 const mul = (a, b) => {
   const o = new Array(16).fill(0);
   for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k];
   return o;
 };
-const localMat = (n) => {
-  if (n.matrix) return n.matrix;
+const local = (n) => {
+  if (n.matrix) return n.matrix.slice();
   const [x, y, z, w] = n.rotation ?? [0, 0, 0, 1];
   const [sx, sy, sz] = n.scale ?? [1, 1, 1];
   const [tx, ty, tz] = n.translation ?? [0, 0, 0];
@@ -59,438 +71,257 @@ const localMat = (n) => {
     tx, ty, tz, 1,
   ];
 };
-const invMat = (m) => {
+const inv = (m) => {
   const a = [];
   for (let r = 0; r < 4; r++) a.push([m[r], m[4 + r], m[8 + r], m[12 + r], r === 0 ? 1 : 0, r === 1 ? 1 : 0, r === 2 ? 1 : 0, r === 3 ? 1 : 0]);
   for (let c = 0; c < 4; c++) {
     let p = c;
     for (let r = c + 1; r < 4; r++) if (Math.abs(a[r][c]) > Math.abs(a[p][c])) p = r;
     [a[c], a[p]] = [a[p], a[c]];
-    const div = a[c][c];
-    for (let k = 0; k < 8; k++) a[c][k] /= div;
+    const dd = a[c][c];
+    for (let k = 0; k < 8; k++) a[c][k] /= dd;
     for (let r = 0; r < 4; r++) if (r !== c) { const f = a[r][c]; for (let k = 0; k < 8; k++) a[r][k] -= f * a[c][k]; }
   }
   const o = new Array(16);
   for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) o[c * 4 + r] = a[r][4 + c];
   return o;
 };
+const parentOf = new Map();
+j.nodes.forEach((n, i) => (n.children ?? []).forEach((c) => parentOf.set(c, i)));
+const worldOf = (i) => { let m = local(j.nodes[i]); for (let p = parentOf.get(i); p !== undefined; p = parentOf.get(p)) m = mul(local(j.nodes[p]), m); return m; };
 
-// ------------------------------------------------------------------ skeleton cleanup + Jaw bone
-const srcSkin = j.skins[0];
-const srcJoints = srcSkin.joints;
-const cleanName = (nm) => nm.replace(/_\d+$/, '');
-const DROP_BONE = /^(_rootJoint|.*_End|.*Hand(Thumb|Index|Middle|Ring|Pinky)4|(Left|Right)Eye)$/;
-
-// Collect kept skeleton nodes (preserving parent->child relationships below Hips).
-const srcParent = new Map();
-j.nodes.forEach((n, i) => (n.children ?? []).forEach((c) => srcParent.set(c, i)));
-const keptSrcNodes = [];
-const srcToOutNode = new Map();
-for (const ni of srcJoints) {
-  const nm = cleanName(j.nodes[ni].name);
-  if (DROP_BONE.test(nm)) continue;
-  srcToOutNode.set(ni, keptSrcNodes.length);
-  keptSrcNodes.push(ni);
-}
-const outNodes = keptSrcNodes.map((ni) => {
-  const n = j.nodes[ni];
-  const out = { name: cleanName(n.name) };
-  if (n.translation) out.translation = n.translation;
-  if (n.rotation) out.rotation = n.rotation;
-  if (n.scale) out.scale = n.scale;
-  if (n.matrix) out.matrix = n.matrix;
-  const kids = (n.children ?? []).map((c) => srcToOutNode.get(c)).filter((c) => c !== undefined);
-  if (kids.length) out.children = kids;
-  return out;
+// ------------------------------------------------------------------ skeleton
+const skin = j.skins[0];
+const jointNodes = skin.joints;
+const jointSet = new Set(jointNodes);
+const srcIbm = read(skin.inverseBindMatrices);
+const world = jointNodes.map(worldOf);
+const ibmOf = (k) => Array.from(srcIbm.subarray(k * 16, k * 16 + 16));
+const isIdentity = (m) => m.every((x, i) => Math.abs(x - (i % 5 === 0 ? 1 : 0)) < 1e-6);
+// Mesh space -> node-pose world: W_j * IBM_j, the same for every joint whose inverse bind matrix is real.
+let meshToWorld = null;
+let spread = 0;
+jointNodes.forEach((_, k) => {
+  const m = ibmOf(k);
+  if (isIdentity(m)) return;
+  const t = mul(world[k], m);
+  if (!meshToWorld) meshToWorld = t;
+  else spread = Math.max(spread, ...t.map((x, i) => Math.abs(x - meshToWorld[i])));
 });
-const outNodeByName = new Map(outNodes.map((n, i) => [n.name, i]));
-const hipsIdx = outNodeByName.get('Hips');
-const headIdx = outNodeByName.get('Head');
-if (hipsIdx === undefined || headIdx === undefined) throw new Error('missing Hips or Head bone');
+// The jaw, teeth and eye bones are posed up to 1.5 mm off their bind pose; anything larger means a different frame.
+if (!meshToWorld || spread > 5e-3) throw new Error(`inverse bind matrices disagree with the node pose (spread ${spread})`);
+// Bind pose in world: from the real inverse bind matrices, from the node pose where the source wrote identity.
+const bindWorld = jointNodes.map((_, k) => (isIdentity(ibmOf(k)) ? world[k] : mul(meshToWorld, inv(ibmOf(k)))));
+console.log(`bind frame: ${jointNodes.filter((_, k) => isIdentity(ibmOf(k))).length} identity inverse bind matrices rebuilt from the node pose; ` +
+  `the rest agree with it within ${(spread * 1000).toFixed(1)} mm`);
 
-// Compute world matrices for kept bones (Hips is the root, already in Y-up metres facing +Z).
-const outParent = new Map();
-outNodes.forEach((n, i) => (n.children ?? []).forEach((c) => outParent.set(c, i)));
-const worldOf = (i) => {
-  let m = localMat(outNodes[i]);
-  for (let p = outParent.get(i); p !== undefined; p = outParent.get(p)) m = mul(localMat(outNodes[p]), m);
-  return m;
+const special = {
+  Hip: 'HipRoot', // CC has Hip above Pelvis: the pelvis is the pivot the thighs hang from
+  Pelvis: 'Hips',
+  Waist: 'Waist',
+  Spine01: 'Spine',
+  Spine02: 'Spine1',
+  NeckTwist01: 'Neck', // CC has no Neck bone; its first twist bone sits at the neck base
+  NeckTwist02: 'NeckUpper',
+  JawRoot: 'Jaw',
 };
-
-// Add a Jaw bone as a child of Head, hinged near the ear/TMJ (below eyes at y=1.615, behind mouth at z=0.02..0.11).
-const headWorld = worldOf(headIdx);
-const headInv = invMat(headWorld);
-const JAW_WORLD = [0, 1.575, 0.015];
-const jawLocal = [
-  headInv[0] * JAW_WORLD[0] + headInv[4] * JAW_WORLD[1] + headInv[8] * JAW_WORLD[2] + headInv[12],
-  headInv[1] * JAW_WORLD[0] + headInv[5] * JAW_WORLD[1] + headInv[9] * JAW_WORLD[2] + headInv[13],
-  headInv[2] * JAW_WORLD[0] + headInv[6] * JAW_WORLD[1] + headInv[10] * JAW_WORLD[2] + headInv[14],
-];
-const jawIdx = outNodes.length;
-outNodes.push({ name: 'Jaw', translation: jawLocal.map((x) => +x.toFixed(6)) });
-(outNodes[headIdx].children ??= []).push(jawIdx);
-outParent.set(jawIdx, headIdx);
-
-// Map source skin joint index -> new skin joint index (dropped eyes fold into Head; dropped leaves fold into nearest kept ancestor).
-const jointRemap = new Int32Array(srcJoints.length);
-srcJoints.forEach((ni, k) => {
-  let cur = ni;
-  while (cur !== undefined && !srcToOutNode.has(cur)) cur = srcParent.get(cur);
-  jointRemap[k] = cur !== undefined ? srcToOutNode.get(cur) : hipsIdx;
+const sided = (base) =>
+  base
+    .replace(/^Mid(\d)/, 'Middle$1')
+    .replace(/^ToeBaseShareBone$/, 'FootShare')
+    .replace(/^BigToe1$/, 'FootT1').replace(/^IndexToe1$/, 'FootT2').replace(/^MidToe1$/, 'FootT3')
+    .replace(/^RingToe1$/, 'FootT4').replace(/^PinkyToe1$/, 'FootT5');
+const rename = (name) => {
+  if (!name.startsWith('CC_Base_')) return name;
+  const n = name.slice(8).replace(/_\d+$/, '');
+  const m = /^([LR])_(.+)$/.exec(n);
+  if (m) return (m[1] === 'L' ? 'Left' : 'Right') + sided(m[2]);
+  return special[n] ?? n;
+};
+const boneNames = jointNodes.map((i) => rename(j.nodes[i].name));
+if (new Set(boneNames).size !== boneNames.length) throw new Error('duplicate bone names after renaming');
+const outIndex = new Map(jointNodes.map((n, k) => [n, k]));
+const rootK = jointNodes.findIndex((n) => !jointSet.has(parentOf.get(n)));
+const parentK = jointNodes.map((n) => outIndex.get(parentOf.get(n)));
+const outBones = jointNodes.map((n, k) => {
+  // Rest pose = bind pose: each bone's local transform is taken between bind poses; the root carries the wrapper chain.
+  const m = parentK[k] === undefined ? bindWorld[k] : mul(inv(bindWorld[parentK[k]]), bindWorld[k]);
+  const children = (j.nodes[n].children ?? []).filter((c) => jointSet.has(c)).map((c) => outIndex.get(c));
+  return { name: boneNames[k], matrix: m.map((x) => +x.toFixed(7)), ...(children.length ? { children } : {}) };
 });
+const ibm = new Float32Array(jointNodes.length * 16);
+bindWorld.forEach((w, k) => ibm.set(inv(w), k * 16));
 
-const skinJoints = outNodes.map((_, i) => i); // 0..jawIdx are all joints
-const NB = skinJoints.length;
-const ibm = new Float32Array(NB * 16);
-for (let i = 0; i < NB; i++) ibm.set(invMat(worldOf(i)), i * 16);
-
-// ------------------------------------------------------------------ mesh helpers
-function readMesh(meshIdx, filterFn = null) {
-  const prim = j.meshes[meshIdx].primitives[0];
-  const pos = read(prim.attributes.POSITION);
-  const nor = read(prim.attributes.NORMAL);
-  const uv = read(prim.attributes.TEXCOORD_0);
-  const jts = read(prim.attributes.JOINTS_0);
-  const wts = read(prim.attributes.WEIGHTS_0);
-  const idx = read(prim.indices);
-  const nV = pos.length / 3;
-  // Remap skin joints and merge duplicate joint entries per vertex.
-  const rJ = new Uint8Array(nV * 4);
-  const rW = new Float32Array(nV * 4);
-  for (let v = 0; v < nV; v++) {
-    const acc = new Map();
-    for (let k = 0; k < 4; k++) {
-      const w = wts[v * 4 + k];
-      if (w <= 0) continue;
-      const nj = jointRemap[jts[v * 4 + k]];
-      acc.set(nj, (acc.get(nj) ?? 0) + w);
+// ------------------------------------------------------------------ parts
+const DROP = /^(Std_Tearline_[LR]|Std_Eye_Occlusion_[LR]|Std_Cornea_[LR]|Female_Brow_Base_Transparency)$/;
+const meshNodes = j.nodes.map((n, i) => ({ n, i })).filter(({ n }) => n.mesh !== undefined);
+const L3 = meshToWorld; // affine, applied to positions; its upper 3x3 (renormalised) to normals
+const parts = [];
+for (const { n } of meshNodes) {
+  if (n.skin !== 0) throw new Error('unexpected unskinned or second-skin mesh node ' + n.name);
+  for (const p of j.meshes[n.mesh].primitives) {
+    const mat = j.materials[p.material];
+    if (DROP.test(mat.name)) { console.log('dropped', mat.name); continue; }
+    if ((p.mode ?? 4) !== 4) throw new Error('non-triangle primitive in ' + mat.name);
+    const P = read(p.attributes.POSITION), N = read(p.attributes.NORMAL), UV = read(p.attributes.TEXCOORD_0);
+    const JN = read(p.attributes.JOINTS_0), W = read(p.attributes.WEIGHTS_0);
+    const idx = p.indices !== undefined ? read(p.indices) : Float64Array.from({ length: P.length / 3 }, (_, i) => i);
+    const count = P.length / 3;
+    const pos = new Float32Array(count * 3), nor = new Float32Array(count * 3), uv = new Float32Array(count * 2);
+    let u0 = Infinity, v0 = Infinity;
+    for (let v = 0; v < count; v++) { u0 = Math.min(u0, UV[v * 2]); v0 = Math.min(v0, UV[v * 2 + 1]); }
+    u0 = Math.floor(u0); v0 = Math.floor(v0);
+    for (let v = 0; v < count; v++) {
+      const [x, y, z] = [P[v * 3], P[v * 3 + 1], P[v * 3 + 2]];
+      for (let r = 0; r < 3; r++) pos[v * 3 + r] = L3[r] * x + L3[4 + r] * y + L3[8 + r] * z + L3[12 + r];
+      const [nx, ny, nz] = [N[v * 3], N[v * 3 + 1], N[v * 3 + 2]];
+      let a = L3[0] * nx + L3[4] * ny + L3[8] * nz, b = L3[1] * nx + L3[5] * ny + L3[9] * nz, c = L3[2] * nx + L3[6] * ny + L3[10] * nz;
+      const len = Math.hypot(a, b, c) || 1;
+      nor[v * 3] = a / len; nor[v * 3 + 1] = b / len; nor[v * 3 + 2] = c / len;
+      uv[v * 2] = UV[v * 2] - u0; uv[v * 2 + 1] = UV[v * 2 + 1] - v0;
     }
-    const top = [...acc.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
-    const sum = top.reduce((s, t) => s + t[1], 0) || 1;
-    top.forEach(([b, w], k) => { rJ[v * 4 + k] = b; rW[v * 4 + k] = w / sum; });
-    if (top.length === 0) { rJ[v * 4] = hipsIdx; rW[v * 4] = 1; }
-  }
-  let outIdx = idx;
-  if (filterFn) {
-    const keep = filterFn(pos, idx, nV);
-    const f = [];
-    for (let t = 0; t < idx.length; t += 3) {
-      if (keep[idx[t]] && keep[idx[t + 1]] && keep[idx[t + 2]]) f.push(idx[t], idx[t + 1], idx[t + 2]);
+    const joints = new Uint8Array(count * 4), weights = new Uint16Array(count * 4);
+    for (let v = 0; v < count; v++) {
+      const s = W[v * 4] + W[v * 4 + 1] + W[v * 4 + 2] + W[v * 4 + 3] || 1;
+      let acc = 0, heavy = 0;
+      for (let k = 0; k < 4; k++) {
+        joints[v * 4 + k] = JN[v * 4 + k];
+        weights[v * 4 + k] = Math.round((W[v * 4 + k] / s) * 65535);
+        acc += weights[v * 4 + k];
+        if (weights[v * 4 + k] > weights[v * 4 + heavy]) heavy = k;
+      }
+      weights[v * 4 + heavy] += 65535 - acc; // exact sum
     }
-    outIdx = Uint32Array.from(f);
-  }
-  return { pos: Float32Array.from(pos), nor: Float32Array.from(nor), uv: Float32Array.from(uv), jts: rJ, wts: rW, idx: Uint32Array.from(outIdx) };
-}
-
-function mergeMeshes(list) {
-  let totalV = 0, totalI = 0;
-  for (const m of list) { totalV += m.pos.length / 3; totalI += m.idx.length; }
-  const pos = new Float32Array(totalV * 3);
-  const nor = new Float32Array(totalV * 3);
-  const uv = new Float32Array(totalV * 2);
-  const jts = new Uint8Array(totalV * 4);
-  const wts = new Float32Array(totalV * 4);
-  const idx = new Uint32Array(totalI);
-  let vo = 0, io = 0;
-  for (const m of list) {
-    const nv = m.pos.length / 3;
-    pos.set(m.pos, vo * 3);
-    nor.set(m.nor, vo * 3);
-    uv.set(m.uv, vo * 2);
-    jts.set(m.jts, vo * 4);
-    wts.set(m.wts, vo * 4);
-    for (let i = 0; i < m.idx.length; i++) idx[io + i] = m.idx[i] + vo;
-    vo += nv;
-    io += m.idx.length;
-  }
-  return { pos, nor, uv, jts, wts, idx };
-}
-
-function compactAndSimplify(m, targetTris, maxErr = 0.05) {
-  let idx = m.idx;
-  if (targetTris && idx.length / 3 > targetTris) {
-    const [simp] = MeshoptSimplifier.simplify(idx, m.pos, 3, targetTris * 3, maxErr);
-    idx = simp;
-  }
-  const nV = m.pos.length / 3;
-  const remap = new Int32Array(nV).fill(-1);
-  const order = [];
-  const newIdx = new Uint16Array(idx.length);
-  for (let i = 0; i < idx.length; i++) {
-    const v = idx[i];
-    let id = remap[v];
-    if (id < 0) { id = order.length; remap[v] = id; order.push(v); }
-    newIdx[i] = id;
-  }
-  const cnt = order.length;
-  if (cnt > 65535) throw new Error('too many vertices for u16 indices: ' + cnt);
-  const pos = new Float32Array(cnt * 3);
-  const nor = new Float32Array(cnt * 3);
-  const uv = new Float32Array(cnt * 2);
-  const jts = new Uint8Array(cnt * 4);
-  const wts = new Uint16Array(cnt * 4);
-  for (let i = 0; i < cnt; i++) {
-    const v = order[i];
-    pos.set(m.pos.subarray(v * 3, v * 3 + 3), i * 3);
-    nor.set(m.nor.subarray(v * 3, v * 3 + 3), i * 3);
-    uv.set(m.uv.subarray(v * 2, v * 2 + 2), i * 2);
-    jts.set(m.jts.subarray(v * 4, v * 4 + 4), i * 4);
-    let sum = 0;
-    for (let k = 0; k < 4; k++) sum += m.wts[v * 4 + k];
-    sum ||= 1;
-    const q = [0, 1, 2, 3].map((k) => Math.round((m.wts[v * 4 + k] / sum) * 65535));
-    q[0] += 65535 - q.reduce((s, x) => s + x, 0);
-    for (let k = 0; k < 4; k++) wts[i * 4 + k] = q[k];
-  }
-  return { pos, nor, uv, jts, wts, idx: newIdx, count: cnt, tris: newIdx.length / 3 };
-}
-
-function setAllWeight(m, bone) {
-  const nV = m.pos.length / 3;
-  for (let v = 0; v < nV; v++) {
-    m.jts[v * 4] = bone; m.jts[v * 4 + 1] = 0; m.jts[v * 4 + 2] = 0; m.jts[v * 4 + 3] = 0;
-    m.wts[v * 4] = 1; m.wts[v * 4 + 1] = 0; m.wts[v * 4 + 2] = 0; m.wts[v * 4 + 3] = 0;
+    parts.push({ mat, pos, nor, uv, joints, weights, indices: Uint32Array.from(idx), uvShift: [u0, v0] });
   }
 }
 
-// Smooth jaw weights for AvatarHead: lower lip, lower mouth interior and chin (below the split lip line at y~1.555).
-const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-function applyHeadJawWeights(m) {
-  const nV = m.pos.length / 3;
-  let weighted = 0;
-  for (let v = 0; v < nV; v++) {
-    const x = m.pos[v * 3], y = m.pos[v * 3 + 1], z = m.pos[v * 3 + 2];
-    // Lip split sits at y=1.555 at the midline and rises slightly toward the corners (~1.558 at |x|=0.03).
-    const mouthY = 1.555 + Math.min(1, (Math.abs(x) / 0.035) ** 2) * 0.004;
-    const belowMouth = smooth(mouthY + 0.002, mouthY - 0.003, y);
-    const aboveThroat = smooth(1.500, 1.522, y);
-    const inFront = smooth(0.015, 0.055, z);
-    const inWidth = smooth(0.072, 0.038, Math.abs(x));
-    const wJaw = belowMouth * aboveThroat * inFront * inWidth;
-    if (wJaw < 0.01) continue;
-    if (wJaw >= 0.5) weighted++;
-    // Blend existing weights with Jaw.
-    const acc = new Map([[jawIdx, wJaw]]);
-    for (let k = 0; k < 4; k++) {
-      const w = m.wts[v * 4 + k] * (1 - wJaw);
-      if (w <= 0) continue;
-      const b = m.jts[v * 4 + k];
-      acc.set(b, (acc.get(b) ?? 0) + w);
-    }
-    const top = [...acc.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
-    const sum = top.reduce((s, t) => s + t[1], 0) || 1;
-    for (let k = 0; k < 4; k++) {
-      m.jts[v * 4 + k] = top[k]?.[0] ?? 0;
-      m.wts[v * 4 + k] = top[k] ? top[k][1] / sum : 0;
-    }
+// ------------------------------------------------------------------ materials and textures
+const textureOf = (info) => (info ? j.textures[info.index].source : null);
+const images = []; // { bytes }
+const imageSlot = new Map();
+const addImage = (imageIndex, quality) => {
+  const key = `${imageIndex}:${quality}`;
+  if (!imageSlot.has(key)) {
+    imageSlot.set(key, images.length);
+    images.push(encodeWebp(imageBytes(imageIndex), 8192, quality));
   }
-  console.log(`head jaw weights: ${weighted} vertices with w>=0.5`);
+  return imageSlot.get(key);
+};
+const CUTOUT = /Eyelash|Brow|Scalp|Hair/;
+const outMaterials = [];
+const matSlot = new Map();
+for (const part of parts) {
+  const m = part.mat;
+  if (matSlot.has(m)) { part.material = matSlot.get(m); continue; }
+  const sg = m.extensions?.KHR_materials_pbrSpecularGlossiness ?? {};
+  const diffuse = textureOf(sg.diffuseTexture);
+  const normal = textureOf(m.normalTexture);
+  const cutout = CUTOUT.test(m.name);
+  const out = {
+    name: m.name,
+    pbrMetallicRoughness: {
+      ...(diffuse !== null ? { baseColorTexture: { index: addImage(diffuse, 92) } } : {}),
+      ...(sg.diffuseFactor && sg.diffuseFactor.some((x) => x !== 1) ? { baseColorFactor: sg.diffuseFactor } : {}),
+      metallicFactor: 0,
+      roughnessFactor: +(1 - (sg.glossinessFactor ?? 0.2)).toFixed(3),
+    },
+    ...(normal !== null ? { normalTexture: { index: addImage(normal, 95) } } : {}),
+    ...(cutout ? { alphaMode: 'MASK', alphaCutoff: 0.4, doubleSided: true } : {}),
+    ...(m.doubleSided && !cutout ? { doubleSided: true } : {}),
+  };
+  part.material = outMaterials.length;
+  matSlot.set(m, part.material);
+  outMaterials.push(out);
 }
 
-// Drop the two small lens connected components from glasses (each ~91 verts), keeping front frame + temples.
-function dropGlassesLenses(pos, idx, nV) {
-  const par = Int32Array.from({ length: nV }, (_, i) => i);
-  const find = (x) => { while (par[x] !== x) { par[x] = par[par[x]]; x = par[x]; } return x; };
-  const uni = (a, b) => { a = find(a); b = find(b); if (a !== b) par[a] = b; };
-  for (let t = 0; t < idx.length; t += 3) { uni(idx[t], idx[t + 1]); uni(idx[t + 1], idx[t + 2]); }
-  const sizes = new Map();
-  for (let v = 0; v < nV; v++) { const r = find(v); sizes.set(r, (sizes.get(r) ?? 0) + 1); }
-  const keep = new Uint8Array(nV);
-  for (let v = 0; v < nV; v++) if (sizes.get(find(v)) > 120) keep[v] = 1;
-  return keep;
-}
-
-// ------------------------------------------------------------------ build & decimate meshes
-await MeshoptSimplifier.ready;
-const byMat = (name) => j.meshes.findIndex((m) => j.materials[m.primitives[0].material].name === name);
-
-const headM = readMesh(byMat('AvatarHead'));
-applyHeadJawWeights(headM);
-
-const teethLowerM = readMesh(byMat('AvatarTeethLower'));
-setAllWeight(teethLowerM, jawIdx);
-const teethUpperM = readMesh(byMat('AvatarTeethUpper'));
-setAllWeight(teethUpperM, headIdx);
-
-const glassesFrameM = readMesh(byMat('glasses'), dropGlassesLenses);
-const lashesM = readMesh(byMat('AvatarEyelashes'));
-
-const builtMeshes = [
-  { name: 'AvatarBody', matKey: 'body', data: compactAndSimplify(readMesh(byMat('AvatarBody')), 1800) },
-  { name: 'AvatarHead', matKey: 'head', data: compactAndSimplify(headM, 3400) },
-  { name: 'AvatarEyeballs', matKey: 'eyeballs', data: compactAndSimplify(mergeMeshes([readMesh(byMat('AvatarLeftEyeball')), readMesh(byMat('AvatarRightEyeball'))]), 500) },
-  { name: 'AvatarTeeth', matKey: 'teeth', data: compactAndSimplify(mergeMeshes([teethUpperM, teethLowerM]), 500) },
-  { name: 'GlassesLashes', matKey: 'glasses_lashes', data: compactAndSimplify(mergeMeshes([glassesFrameM, lashesM]), 1000) },
-  { name: 'Haircut', matKey: 'haircut', data: compactAndSimplify(readMesh(byMat('haircut')), 4500, 0.08) },
-  { name: 'OutfitBottom', matKey: 'outfit_bottom', data: compactAndSimplify(readMesh(byMat('outfit_bottom')), 2200) },
-  { name: 'OutfitShoes', matKey: 'outfit_shoes', data: compactAndSimplify(readMesh(byMat('outfit_shoes')), 1000) },
-  { name: 'OutfitTop', matKey: 'outfit_top', data: compactAndSimplify(readMesh(byMat('outfit_top')), 1800) },
-];
-
-let totalTris = 0, totalVerts = 0;
-for (const bm of builtMeshes) {
-  totalTris += bm.data.tris;
-  totalVerts += bm.data.count;
-  console.log(`  ${bm.name.padEnd(16)} ${String(bm.data.count).padStart(5)} verts, ${String(bm.data.tris).padStart(5)} tris`);
-}
-console.log(`total geometry: ${totalVerts} verts, ${totalTris} tris`);
-
-// ------------------------------------------------------------------ re-encode textures as resized JPEGs
-const srcMat = (name) => j.materials.find((m) => m.name === name);
-const texSpecs = [
-  { key: 'body_c', img: j.textures[srcMat('AvatarBody').pbrMetallicRoughness.baseColorTexture.index].source, size: 512, q: 80 },
-  { key: 'body_n', img: j.textures[srcMat('AvatarBody').normalTexture.index].source, size: 256, q: 82 },
-  { key: 'head_c', img: j.textures[srcMat('AvatarHead').pbrMetallicRoughness.baseColorTexture.index].source, size: 768, q: 82 },
-  { key: 'head_n', img: j.textures[srcMat('AvatarHead').normalTexture.index].source, size: 512, q: 84 },
-  { key: 'eye_c', img: j.textures[srcMat('AvatarLeftEyeball').pbrMetallicRoughness.baseColorTexture.index].source, size: 256, q: 82 },
-  { key: 'teeth_c', img: j.textures[srcMat('AvatarTeethUpper').pbrMetallicRoughness.baseColorTexture.index].source, size: 256, q: 78 },
-  { key: 'hair_c', img: j.textures[srcMat('haircut').pbrMetallicRoughness.baseColorTexture.index].source, size: 512, q: 80 },
-  { key: 'hair_n', img: j.textures[srcMat('haircut').normalTexture.index].source, size: 256, q: 82 },
-  { key: 'bot_c', img: j.textures[srcMat('outfit_bottom').pbrMetallicRoughness.baseColorTexture.index].source, size: 512, q: 80 },
-  { key: 'bot_n', img: j.textures[srcMat('outfit_bottom').normalTexture.index].source, size: 256, q: 82 },
-  { key: 'shoe_c', img: j.textures[srcMat('outfit_shoes').pbrMetallicRoughness.baseColorTexture.index].source, size: 512, q: 78 },
-  { key: 'shoe_n', img: j.textures[srcMat('outfit_shoes').normalTexture.index].source, size: 256, q: 82 },
-  { key: 'top_c', img: j.textures[srcMat('outfit_top').pbrMetallicRoughness.baseColorTexture.index].source, size: 512, q: 82 },
-  { key: 'top_n', img: j.textures[srcMat('outfit_top').normalTexture.index].source, size: 256, q: 82 },
-];
-
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'priya-'));
-const jobs = texSpecs.map((t) => {
-  const im = j.images[t.img];
-  const bv = j.bufferViews[im.bufferView];
-  const ext = im.mimeType === 'image/png' ? 'png' : 'jpg';
-  const inp = path.join(tmp, `${t.key}_in.${ext}`);
-  const out = path.join(tmp, `${t.key}.jpg`);
-  fs.writeFileSync(inp, bin.subarray(bv.byteOffset ?? 0, (bv.byteOffset ?? 0) + bv.byteLength));
-  return { ...t, inp, out };
-});
-
-if (process.platform === 'win32') {
-  const manifest = path.join(tmp, 'jobs.json');
-  fs.writeFileSync(manifest, JSON.stringify(jobs.map(({ inp, out, size, q }) => ({ inp, out, size, q }))));
-  const psScript = path.join(tmp, 'encode.ps1');
-  fs.writeFileSync(psScript, `
-Add-Type -AssemblyName System.Drawing
-$codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' } | Select-Object -First 1
-$qParam = [System.Drawing.Imaging.Encoder]::Quality
-$jobs = Get-Content -Raw '${manifest.replace(/'/g, "''")}' | ConvertFrom-Json
-foreach ($job in $jobs) {
-  $src = [System.Drawing.Bitmap]::new($job.inp)
-  $w = [Math]::Min($src.Width, [int]$job.size)
-  $h = [Math]::Min($src.Height, [int]$job.size)
-  $dst = [System.Drawing.Bitmap]::new($w, $h, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
-  $g = [System.Drawing.Graphics]::FromImage($dst)
-  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
-  $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-  $g.DrawImage($src, 0, 0, $w, $h)
-  $g.Dispose()
-  $src.Dispose()
-  $ep = [System.Drawing.Imaging.EncoderParameters]::new(1)
-  $ep.Param[0] = [System.Drawing.Imaging.EncoderParameter]::new($qParam, [long]$job.q)
-  $dst.Save($job.out, $codec, $ep)
-  $dst.Dispose()
-}
-`);
-  execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', psScript]);
-} else {
-  for (const job of jobs) {
-    execFileSync('convert', [job.inp, '-resize', `${job.size}x${job.size}>`, '-quality', String(job.q), '-sampling-factor', '4:2:0', '-strip', job.out]);
-  }
-}
-
-const texBytes = new Map();
-let totalTexBytes = 0;
-for (const job of jobs) {
-  const b = fs.readFileSync(job.out);
-  texBytes.set(job.key, b);
-  totalTexBytes += b.length;
-}
-fs.rmSync(tmp, { recursive: true, force: true });
-console.log(`textures: ${jobs.length} JPEGs, ${(totalTexBytes / 1024).toFixed(0)} KB total`);
-
-// ------------------------------------------------------------------ pack GLB
+// ------------------------------------------------------------------ pack (EXT_meshopt_compression + KHR_mesh_quantization + EXT_texture_webp)
+await MeshoptEncoder.ready;
 const chunks = [];
 const views = [];
 const accessors = [];
-const push = (buf, extra = {}) => {
-  const pad = (4 - (buf.length % 4)) % 4;
-  const off = chunks.reduce((s, c) => s + c.length, 0);
-  chunks.push(Buffer.concat([buf, Buffer.alloc(pad)]));
-  views.push({ buffer: 0, byteOffset: off, byteLength: buf.length, ...extra });
+let packed = 0, raw = 0;
+const pad4 = (n) => (n + 3) & ~3;
+const addRaw = (bytes) => {
+  const b = Buffer.from(bytes.buffer ?? bytes, bytes.byteOffset ?? 0, bytes.byteLength);
+  chunks.push(b, Buffer.alloc(pad4(b.length) - b.length));
+  views.push({ buffer: 0, byteOffset: packed, byteLength: b.length });
+  packed += pad4(b.length);
   return views.length - 1;
 };
-const acc = (view, componentType, type, n, extra = {}) => {
-  accessors.push({ bufferView: view, componentType, type, count: n, ...extra });
-  return accessors.length - 1;
+const addCompressed = (typed, n, stride, mode, target) => {
+  const srcBytes = new Uint8Array(typed.buffer, typed.byteOffset, typed.byteLength);
+  const enc = Buffer.from(MeshoptEncoder.encodeGltfBuffer(srcBytes, n, stride, mode));
+  chunks.push(enc, Buffer.alloc(pad4(enc.length) - enc.length));
+  views.push({
+    buffer: 1, byteOffset: raw, byteLength: n * stride, ...(mode === 'ATTRIBUTES' ? { byteStride: stride } : {}), target,
+    extensions: { EXT_meshopt_compression: { buffer: 0, byteOffset: packed, byteLength: enc.length, byteStride: stride, mode, count: n } },
+  });
+  packed += pad4(enc.length);
+  raw += pad4(n * stride);
+  return views.length - 1;
 };
-const mm = (a, n) => {
-  const min = new Array(n).fill(Infinity), max = new Array(n).fill(-Infinity);
-  for (let i = 0; i < a.length; i++) { const k = i % n; if (a[i] < min[k]) min[k] = a[i]; if (a[i] > max[k]) max[k] = a[i]; }
-  return { min, max };
-};
+const acc = (view, componentType, type, n, extra = {}) => { accessors.push({ bufferView: view, componentType, type, count: n, ...extra }); return accessors.length - 1; };
 
-const texIdx = new Map();
-const images = [];
-const textures = [];
-for (const t of texSpecs) {
-  const v = push(texBytes.get(t.key));
-  texIdx.set(t.key, textures.length);
-  images.push({ bufferView: v, mimeType: 'image/jpeg' });
-  textures.push({ sampler: 0, source: images.length - 1 });
-}
-
-const matList = [
-  ['body', { name: 'AvatarBody', pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('body_c') }, metallicFactor: 0, roughnessFactor: 0.72 }, normalTexture: { index: texIdx.get('body_n') } }],
-  ['head', { name: 'AvatarHead', pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('head_c') }, metallicFactor: 0, roughnessFactor: 0.72 }, normalTexture: { index: texIdx.get('head_n') } }],
-  ['eyeballs', { name: 'AvatarEyeballs', pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('eye_c') }, metallicFactor: 0, roughnessFactor: 0.45 } }],
-  ['teeth', { name: 'AvatarTeeth', pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('teeth_c') }, metallicFactor: 0, roughnessFactor: 0.5 } }],
-  ['glasses_lashes', { name: 'GlassesLashes', doubleSided: true, pbrMetallicRoughness: { baseColorFactor: [0.05, 0.04, 0.05, 1], metallicFactor: 0, roughnessFactor: 0.5 } }],
-  ['haircut', { name: 'haircut', doubleSided: true, pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('hair_c') }, metallicFactor: 0, roughnessFactor: 0.81 }, normalTexture: { index: texIdx.get('hair_n') } }],
-  ['outfit_bottom', { name: 'outfit_bottom', doubleSided: true, pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('bot_c') }, metallicFactor: 0, roughnessFactor: 0.65 }, normalTexture: { index: texIdx.get('bot_n') } }],
-  ['outfit_shoes', { name: 'outfit_shoes', pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('shoe_c') }, metallicFactor: 0, roughnessFactor: 0.75 }, normalTexture: { index: texIdx.get('shoe_n') } }],
-  ['outfit_top', { name: 'outfit_top', doubleSided: true, pbrMetallicRoughness: { baseColorTexture: { index: texIdx.get('top_c') }, metallicFactor: 0, roughnessFactor: 0.78 }, normalTexture: { index: texIdx.get('top_n') } }],
-];
-const matIndex = new Map(matList.map(([k], i) => [k, i]));
-const materials = matList.map(([, m]) => m);
-
-const meshes = [];
-const sceneNodes = [hipsIdx];
-for (const bm of builtMeshes) {
-  const m = bm.data;
-  const attrs = {
-    POSITION: acc(push(Buffer.from(m.pos.buffer), { target: 34962 }), 5126, 'VEC3', m.count, mm(m.pos, 3)),
-    NORMAL: acc(push(Buffer.from(m.nor.buffer), { target: 34962 }), 5126, 'VEC3', m.count),
-    TEXCOORD_0: acc(push(Buffer.from(m.uv.buffer), { target: 34962 }), 5126, 'VEC2', m.count),
-    JOINTS_0: acc(push(Buffer.from(m.jts.buffer), { target: 34962 }), 5121, 'VEC4', m.count),
-    WEIGHTS_0: acc(push(Buffer.from(m.wts.buffer), { target: 34962 }), 5123, 'VEC4', m.count, { normalized: true }),
+let triangles = 0, vertices = 0;
+const primitives = parts.map((part) => {
+  const count = part.pos.length / 3;
+  const [remap, unique] = MeshoptEncoder.reorderMesh(part.indices, true, false);
+  const P = new Float32Array(unique * 3), Nq = new Int8Array(unique * 4), Uq = new Uint16Array(unique * 2);
+  const Jq = new Uint8Array(unique * 4), Wq = new Uint16Array(unique * 4);
+  const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+  for (let v = 0; v < count; v++) {
+    const r = remap[v];
+    if (r === 0xffffffff) continue;
+    for (let k = 0; k < 3; k++) {
+      P[r * 3 + k] = part.pos[v * 3 + k];
+      min[k] = Math.min(min[k], part.pos[v * 3 + k]); max[k] = Math.max(max[k], part.pos[v * 3 + k]);
+      Nq[r * 4 + k] = Math.round(Math.max(-1, Math.min(1, part.nor[v * 3 + k])) * 127);
+    }
+    for (let k = 0; k < 2; k++) Uq[r * 2 + k] = Math.round(Math.max(0, Math.min(1, part.uv[v * 2 + k])) * 65535);
+    for (let k = 0; k < 4; k++) { Jq[r * 4 + k] = part.joints[v * 4 + k]; Wq[r * 4 + k] = part.weights[v * 4 + k]; }
+  }
+  const index = unique > 65535 ? part.indices : Uint16Array.from(part.indices);
+  triangles += part.indices.length / 3;
+  vertices += unique;
+  return {
+    attributes: {
+      POSITION: acc(addCompressed(P, unique, 12, 'ATTRIBUTES', 34962), 5126, 'VEC3', unique, { min, max }),
+      NORMAL: acc(addCompressed(Nq, unique, 4, 'ATTRIBUTES', 34962), 5120, 'VEC3', unique, { normalized: true }),
+      TEXCOORD_0: acc(addCompressed(Uq, unique, 4, 'ATTRIBUTES', 34962), 5123, 'VEC2', unique, { normalized: true }),
+      JOINTS_0: acc(addCompressed(Jq, unique, 4, 'ATTRIBUTES', 34962), 5121, 'VEC4', unique),
+      WEIGHTS_0: acc(addCompressed(Wq, unique, 8, 'ATTRIBUTES', 34962), 5123, 'VEC4', unique, { normalized: true }),
+    },
+    indices: acc(addCompressed(index, index.length, index.BYTES_PER_ELEMENT, 'TRIANGLES', 34963), index.BYTES_PER_ELEMENT === 2 ? 5123 : 5125, 'SCALAR', index.length),
+    material: part.material,
   };
-  const idxAcc = acc(push(Buffer.from(m.idx.buffer), { target: 34963 }), 5123, 'SCALAR', m.idx.length);
-  const meshId = meshes.length;
-  meshes.push({ name: bm.name, primitives: [{ attributes: attrs, indices: idxAcc, material: matIndex.get(bm.matKey) }] });
-  const nodeId = outNodes.length;
-  outNodes.push({ name: bm.name, mesh: meshId, skin: 0 });
-  sceneNodes.push(nodeId);
-}
+});
+const ibmAcc = acc(addRaw(ibm), 5126, 'MAT4', jointNodes.length);
+const imageViews = images.map((b) => addRaw(b));
 
-const ibmAcc = acc(push(Buffer.from(ibm.buffer)), 5126, 'MAT4', NB);
-const glbJson = {
-  asset: { version: '2.0', generator: 'scripts/fix-priya-glb.mjs', extras: j.asset.extras },
+const meshNode = outBones.length;
+const json = {
+  asset: {
+    version: '2.0',
+    generator: 'scripts/fix-priya-glb.mjs',
+    extras: { ...j.asset.extras, note: 'Repacked by scripts/fix-priya-glb.mjs' },
+  },
+  extensionsUsed: ['EXT_meshopt_compression', 'EXT_texture_webp', 'KHR_mesh_quantization'],
+  extensionsRequired: ['EXT_meshopt_compression', 'EXT_texture_webp', 'KHR_mesh_quantization'],
   scene: 0,
-  scenes: [{ nodes: sceneNodes }],
-  nodes: outNodes,
-  meshes,
-  skins: [{ joints: skinJoints, inverseBindMatrices: ibmAcc, skeleton: hipsIdx }],
-  materials,
-  textures,
+  scenes: [{ nodes: [rootK, meshNode] }],
+  nodes: [...outBones, { name: 'Priya', mesh: 0, skin: 0 }],
+  meshes: [{ name: 'Priya', primitives }],
+  skins: [{ joints: outBones.map((_, k) => k), inverseBindMatrices: ibmAcc, skeleton: rootK }],
+  materials: outMaterials,
   samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }],
-  images,
+  textures: images.map((_, k) => ({ sampler: 0, extensions: { EXT_texture_webp: { source: k } } })),
+  images: imageViews.map((bufferView) => ({ bufferView, mimeType: 'image/webp' })),
   accessors,
   bufferViews: views,
-  buffers: [{ byteLength: chunks.reduce((s, c) => s + c.length, 0) }],
+  buffers: [{ byteLength: packed }, { byteLength: raw, extensions: { EXT_meshopt_compression: { fallback: true } } }],
 };
-
-let js = Buffer.from(JSON.stringify(glbJson));
+let js = Buffer.from(JSON.stringify(json));
 js = Buffer.concat([js, Buffer.alloc((4 - (js.length % 4)) % 4, 0x20)]);
 const body = Buffer.concat(chunks);
 const glb = Buffer.alloc(12 + 8 + js.length + 8 + body.length);
@@ -499,4 +330,5 @@ glb.writeUInt32LE(js.length, 12); glb.writeUInt32LE(0x4e4f534a, 16); js.copy(glb
 glb.writeUInt32LE(body.length, 20 + js.length); glb.writeUInt32LE(0x004e4942, 24 + js.length); body.copy(glb, 28 + js.length);
 fs.mkdirSync(path.dirname(dst), { recursive: true });
 fs.writeFileSync(dst, glb);
-console.log('wrote', dst, `${(glb.length / 1024).toFixed(0)} KB, ${totalTris} triangles, ${NB} bones`);
+console.log('wrote', dst, `${(glb.length / 1024 / 1024).toFixed(2)} MB (${(d.length / 1024 / 1024).toFixed(1)} MB source), ` +
+  `${triangles} triangles, ${vertices} vertices, ${parts.length} parts, ${outMaterials.length} materials, ${images.length} textures, ${outBones.length} bones`);

@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { Humanoid } from './humanoid.ts';
-import { sampleClip, sampleLocomotion, sampleZombieLocomotion, sharedMocapLibrary, type LocomotionSample } from './mocap.ts';
+import { DEFAULT_MOTIONS, FORMAL_MOTIONS, resolveMotions, sampleClip, sampleLocomotion, sampleZombieLocomotion, sharedMocapLibrary, type LocomotionSample } from './mocap.ts';
+import { Animator } from './animator.ts';
+import { CAST } from './castLooks.ts';
 import { emptyPose } from './poses.ts';
 import { Spring1D, settleUprightTurn, stepUprightTurn, type UprightTurnState } from './springs.ts';
 import { GILES, OKAFOR } from './squadLooks.ts';
@@ -85,6 +87,37 @@ test('shipped mocap-clips.json compiles all 10 clips (human + zombie) with unit 
   sampleLocomotion(lib, 3.2, 0.2, 0, {}, out, info);
   assert.ok(info.jogWeight > 0.9, '3.2 m/s blends into jog');
   assert.ok(info.stride > walkStride + 0.4, `jog stride (${info.stride}) > walk stride (${walkStride})`);
+});
+
+test('motion sets: own clips over the default or formal set; unknown ids fall back; the walk clip drives the stride', () => {
+  const lib = sharedMocapLibrary();
+  assert.deepEqual(resolveMotions(lib, undefined), DEFAULT_MOTIONS);
+  assert.deepEqual(resolveMotions(lib, undefined, true), FORMAL_MOTIONS);
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const set = resolveMotions(lib, { walk: 'walk_formal', idle: 'no_such_clip' });
+    assert.equal(set.walk, 'walk_formal');
+    assert.equal(set.idle, 'idle', 'a missing clip falls back to the default slot');
+  } finally {
+    console.warn = warn;
+  }
+  const out = emptyPose('loco');
+  const info: LocomotionSample = { stride: 1, moveWeight: 0, jogWeight: 0, contactL: 1, contactR: 1 };
+  sampleLocomotion(lib, 1.3, 0.2, 0, { motions: { ...DEFAULT_MOTIONS, walk: 'walk_formal' } }, out, info);
+  assert.ok(Math.abs(info.stride - lib.get('walk_formal').stride) < 1e-6, 'walking at 1.3 m/s uses the set\'s walk clip');
+});
+
+test('a character with its own motion set gets damped procedural arm layers; others keep them whole', () => {
+  const priya = new Humanoid({ ...CAST['priya']!, role: 'npc' }, ctx());
+  const giles = new Humanoid({ ...GILES, role: 'npc' }, ctx());
+  const okafor = new Humanoid({ ...OKAFOR, role: 'npc' }, ctx());
+  const anim = (h: Humanoid): Animator => h['animator'];
+  assert.equal(anim(priya).armLayer, Animator.OWN_MOTION_ARMS);
+  assert.equal(anim(priya).motions.walk, 'walk_formal');
+  assert.equal(anim(giles).armLayer, 1);
+  assert.deepEqual(anim(giles).motions, DEFAULT_MOTIONS);
+  assert.equal(anim(okafor).motions.walk, 'walk_formal', 'medics keep the formal walk without a set of their own');
 });
 
 test('standing and walking NPCs pin feet to the floor via FootIk without dipping below deck', () => {

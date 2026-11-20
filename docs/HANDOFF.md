@@ -1,7 +1,7 @@
 # Handoff: continue building the js-fps slice (written 2026-11-17)
 
-Read this first in a new session. Design decisions live in `docs/adr/` (index in
-`docs/adr/README.md`; [Decided] = Justin chose it, [Assumed] = Claude's default, overrulable).
+Read this first in a new session. Requirements live in `openspec/specs/` (the old `docs/adr/` decision records were removed;
+ADR-00xx numbers below and in code comments refer to them).
 Nothing below is committed to git; Justin reviews and commits himself. Never run git.
 
 ## Working rules that matter
