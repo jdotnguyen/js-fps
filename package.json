@@ -10,12 +10,18 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test \"src/**/*.test.ts\"",
     "textures": "node --experimental-strip-types scripts/textures/import.ts",
+    "walks:suggest": "node --experimental-strip-types --no-warnings scripts/walk-suggest.ts",
     "textures:preview": "node --experimental-strip-types scripts/textures-preview.ts",
     "sounds:preview": "node --experimental-strip-types scripts/sounds-preview.ts",
     "music:preview": "node --experimental-strip-types scripts/music-preview.ts",
-    "voice:preview": "node --experimental-strip-types scripts/voice-preview.ts"
+    "voice:preview": "node --experimental-strip-types scripts/voice-preview.ts",
+    "vo:generate": "node --experimental-strip-types scripts/vo-generate.ts",
+    "ambience:generate": "node --experimental-strip-types scripts/ambience-generate.ts",
+    "doors:generate": "node --experimental-strip-types scripts/doors-generate.ts",
+    "footsteps:generate": "node --experimental-strip-types scripts/footsteps-generate.ts"
   },
   "dependencies": {
+    "recast-navigation": "^0.44.0",
     "three": "^0.170.0"
   },
   "devDependencies": {

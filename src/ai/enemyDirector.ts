@@ -9,7 +9,7 @@ import type { EventBus } from '../core/events.ts';
 import { Rng } from '../core/rng.ts';
 import { Enemy, type AttackKind, type EnemyHost, type EnemyState, type EnemyTarget } from './enemy.ts';
 import type { EnemyTable, EnemyVariantId } from './enemyData.ts';
-import { segmentHit, type NavGraph, type P3 } from './nav.ts';
+import { segmentHit, type Navigator, type P3 } from './nav.ts';
 import { hears, PERCEPTION, type NoiseKind, type SenseSource } from './perception.ts';
 import { Spawner, type SpawnPointData, type SpawnRequest } from './spawner.ts';
 import { fireShot, WEAPON_HITS, type ShotReport } from '../actors/shots.ts';
@@ -42,7 +42,7 @@ declare module '../core/events.ts' {
 
 export interface EnemyDirectorDeps {
   ctx: HumanoidContext;
-  nav: NavGraph;
+  nav: Navigator;
   colliders: ColliderQuery;
   events: EventBus;
   table: EnemyTable;
@@ -66,7 +66,7 @@ export class EnemyDirector implements EnemyHost {
   readonly group = new THREE.Group();
   readonly list: Enemy[] = [];
   readonly targets: EnemyTarget[] = [];
-  readonly nav: NavGraph;
+  readonly nav: Navigator;
   readonly colliders: ColliderQuery;
   readonly rng: Rng;
   navEpoch = 0;
@@ -488,7 +488,7 @@ export class EnemyDirector implements EnemyHost {
 }
 
 /** Walking route length a -> b through the navgraph (open doors only), or Infinity. */
-export function routeLength(nav: NavGraph, a: P3, b: P3): number {
+export function routeLength(nav: Navigator, a: P3, b: P3): number {
   const path = nav.findPath(a, b, { radius: 0 });
   if (!path) return Infinity;
   let len = 0;

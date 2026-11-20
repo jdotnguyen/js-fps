@@ -12,11 +12,14 @@ import { rayCapsule } from './capsule.ts';
 import { BodyDamage, DEFAULT_PROFILE, HERO_BASE_HP, HERO_PROFILE, POISE_WINDOW, SHAMBLER_BASE_HP, type HitResult, type LocomotionState } from './damage.ts';
 import { BELLY_WOUND } from './heroSculpt.ts';
 import { CastTells, NO_TELLS, type Tells } from './castTells.ts';
+import { FootIkSolver } from './footIk.ts';
 import { SLAM, SlamState } from './slam.ts';
 import type { GoreSystem } from './gore.ts';
 import { solveTwoBone } from './ik.ts';
+import type { MocapLibrary } from './mocap.ts';
 import type { PoseLibrary } from './poses.ts';
 import { footprintOf } from './separation.ts';
+import { settleUprightTurn, stepUprightTurn, type UprightTurnState } from './springs.ts';
 import { CRAWL_TURN, DRAG_TURN, newTurnState, settleTurn, stepTurn, type TurnState } from './turning.ts';
 import { JOINT_INDEX, JOINTS, SEVER_JOINT, subtree, type JointName, type Region, type SeverableRegion, type Side } from './skeleton.ts';
 
@@ -37,7 +40,7 @@ export const STAGGER_SPEED = 0.3;
 const PIVOT_REACH_CRAWL = 0.32;
 const PIVOT_REACH_DRAG = 0.4;
 /** Hero tier (ADR-0021): walk speed share, turn speed (rad/s), and how generous the weak-spot hit area is. */
-const HERO_SPEED = 0.49; // x WALK_SPEED.enemy 1.3 = 0.64 m/s: one 1.6 m heavy stride per 2.5 s, the necromorph's own walk-clip cycle
+const HERO_SPEED = 0.78; // x WALK_SPEED.enemy 0.8 = 0.62 m/s: one 1.6 m heavy stride per ~2.5 s
 const HERO_TURN = 1.2;
 const WEAK_SPOT_SLACK = 1.25;
 /** Merge group for a piece: its imported surface, else its layer. Surface keys never clash with the layers (bodyModel.ts). */
@@ -74,11 +77,27 @@ export interface HumanoidSpec {
   model?: string;
 }
 
+export type FootstepKind = 'walk' | 'jog' | 'pivot' | 'shamble' | 'heavy';
+
+export interface FootstepEvent {
+  x: number;
+  y: number;
+  z: number;
+  side: Side;
+  speed: number;
+  kind: FootstepKind;
+  actor: string;
+}
+
 export interface HumanoidContext {
   poses: PoseLibrary;
   gore: GoreSystem;
   /** Loaded imported body models (ADR-0026); bodies without one are procedural. */
   bodyModels?: BodyModelLibrary;
+  /** Retargeted mocap clip library (Tier B); defaults to the shared compiled library. */
+  mocap?: MocapLibrary;
+  /** Optional world-space footstep callback fired on foot plants (audio / perception). */
+  onFootstep?: (step: FootstepEvent) => void;
 }
 
 export interface BodyHit {
@@ -91,7 +110,7 @@ export interface BodyHit {
 
 const LOD_DISTANCE = 15;
 const TINY = 1e-4;
-const WALK_SPEED: Record<Role, number> = { enemy: 1.3, npc: 1.4, corpse: 0 };
+const WALK_SPEED: Record<Role, number> = { enemy: 0.8, npc: 1.4, corpse: 0 };
 
 const smooth = (e0: number, e1: number, x: number): number => {
   const t = THREE.MathUtils.clamp((x - e0) / (e1 - e0), 0, 1);
@@ -191,9 +210,10 @@ export class Humanoid {
     this.bones = this.buildSkeleton();
     this.buildMeshes();
     this.buildCapsules();
-    this.animator = new Animator(this.jointBones(), ctx.poses, this.idlePose, this.rng.fork('anim'));
+    this.animator = new Animator(this.jointBones(), ctx.poses, this.idlePose, this.rng.fork('anim'), ctx.mocap);
     this.applyBoneScales();
     this.group.updateMatrixWorld(true);
+    this.prevWorldPos.copy(this.group.position);
   }
 
   // ---------------------------------------------------------------- queries
@@ -334,8 +354,8 @@ export class Humanoid {
         this.turnError = diff;
         target = max * step.speedFactor;
       } else {
-        const turn = (opts.turnRate ?? (this.spec.hero ? HERO_TURN : 2.2)) * dt;
-        this.heading += THREE.MathUtils.clamp(diff, -turn, turn);
+        const rate = opts.turnRate ?? (this.spec.hero ? HERO_TURN : 2.2);
+        this.heading += stepUprightTurn(this.uprightTurn, diff, rate, dt);
         this.turn.vel = 0;
         this.turn.inPlace = false;
         target = max * THREE.MathUtils.clamp(Math.cos(diff), 0, 1);
@@ -343,6 +363,7 @@ export class Humanoid {
     } else if (heavy) {
       this.heading += settleTurn(this.turn, dt, turnParams);
     } else {
+      this.heading += settleUprightTurn(this.uprightTurn, dt);
       this.turn.vel = 0;
       this.turn.inPlace = false;
     }
@@ -365,7 +386,31 @@ export class Humanoid {
     this.heading = h;
     this.speed = 0;
     this.velocity.set(0, 0, 0);
+    this.uprightTurn.vel = 0;
+    this.uprightTurn.error = 0;
+    this.prevWorldPos.copy(this.group.position);
+    this.prevWorldVel.set(0, 0, 0);
+    this.footIk.reset();
+    this.resetFootsteps();
     this.group.rotation.y = h;
+  }
+
+  /** Feed an external separation push (world XZ metres) so the torso reacts with a subtle counter-lean. */
+  nudgeImpulse(dx: number, dz: number, dt = 1 / 60): void {
+    if (this.state !== 'alive' || dt <= 0) return;
+    const vx = dx / dt;
+    const vz = dz / dt;
+    const s = Math.sin(this.heading);
+    const c = Math.cos(this.heading);
+    // Character right = (+cos, -sin), forward = (-sin, -cos).
+    const localX = vx * c - vz * s;
+    const localZ = -vx * s - vz * c;
+    this.animator.nudgeImpulse(localX, localZ);
+  }
+
+  /** World-space foot-locking weight (0..1) for diagnostics and unit tests. */
+  footLockWeight(side: Side): number {
+    return this.footIk.lockWeight(side);
   }
 
   // ---------------------------------------------------------------- hits
@@ -534,12 +579,17 @@ export class Humanoid {
       }
     }
     this.updateInfection(dt);
+    this.updateKinematics(dt);
     this.chooseAnimation();
     const moving = this.state === 'alive' || this.state === 'falling' || this.state === 'gettingUp';
+    const lying = Humanoid.LYING_POSE.test(this.idlePose) || this.carried !== null;
     this.animator.setWound(this.locomotion.limpSide, this.locomotion.limp);
     this.animator.infect = this.infectionLevel / 3;
     this.animator.twitchy = moving && (this.spec.role === 'enemy' || this.infectionLevel >= 1);
-    this.animator.idleLife = this.state === 'alive' && this.spec.role === 'npc' && !this.locomotion.blind ? 1 : 0;
+    this.animator.idleLife = this.state === 'alive' && this.spec.role === 'npc' && !this.locomotion.blind && !lying ? 1 : 0;
+    const uprightAlive = this.state === 'alive' && this.locomotion.mode === 'walk' && !lying && this.spec.role !== 'corpse';
+    this.animator.useMocap = uprightAlive && !(this.spec.role === 'npc' && this.locomotion.blind) && this.slam?.busy !== true;
+    this.animator.formalWalk = this.spec.role === 'npc' && (this.spec.outfit === 'medic' || this.spec.seed === 'director-hale');
     this.animator.charge = this.state === 'alive' && this.locomotion.mode === 'walk' ? Math.max(this.charge, this.speedScale > 1.2 ? 1 : 0) : 0;
     this.updateBloodTrail(dt);
     if (this.lookTarget && this.state === 'alive' && !this.locomotion.blind) {
@@ -561,7 +611,157 @@ export class Humanoid {
     this.updateCloth(dt);
     const pulse = 0.7 + 0.3 * Math.sin(this.time * 2.3 + this.glowPhase) * Math.sin(this.time * 0.7 + this.glowPhase);
     this.materials.uniforms.uGlow.value = smooth(0.8, 3, this.infectionLevel) * pulse * (this.state === 'dead' ? 0.3 : 1) * 0.9;
-    this.solveIk();
+    this.solveIk(dt);
+    this.updateFootsteps(dt);
+  }
+
+  private static readonly LYING_POSE = /^(corpse|squad_downed|squad_getUp|writhing|crawl|dragging|getUp)/;
+  private static readonly SEATED_POSE = /^sit_/;
+  private readonly uprightTurn: UprightTurnState = { vel: 0, error: 0 };
+  private readonly prevWorldPos = new THREE.Vector3();
+  private readonly prevWorldVel = new THREE.Vector3();
+  private readonly curWorldVel = new THREE.Vector3();
+  private readonly footIk = new FootIkSolver();
+  private readonly footPlanted: [boolean, boolean] = [true, true];
+  private readonly footCooldown: [number, number] = [0, 0];
+  private readonly footPosTmp = new THREE.Vector3();
+  private footReady = false;
+  private fallbackStride = 0;
+  private fallbackSide: Side = 'L';
+
+  private resetFootsteps(): void {
+    this.footPlanted[0] = true;
+    this.footPlanted[1] = true;
+    this.footCooldown[0] = 0;
+    this.footCooldown[1] = 0;
+    this.footReady = false;
+    this.fallbackStride = 0;
+  }
+
+  /**
+   * Fire footstep events synced to actual foot-plant contacts from mocap/pivot curves
+   * (plus hero stomp `footfall` and a stride-distance fallback for non-mocap upright gaits).
+   */
+  private updateFootsteps(dt: number): void {
+    this.footCooldown[0] = Math.max(0, this.footCooldown[0] - dt);
+    this.footCooldown[1] = Math.max(0, this.footCooldown[1] - dt);
+
+    const onFootstep = this.ctx.onFootstep;
+    if (!onFootstep || !this.group.visible || this.state !== 'alive' || this.carried !== null || this.spec.role === 'corpse') {
+      this.footReady = false;
+      return;
+    }
+    const lying = Humanoid.LYING_POSE.test(this.idlePose);
+    if (this.locomotion.mode !== 'walk' || lying || this.transformAnim) {
+      this.footReady = false;
+      return;
+    }
+
+    const contacts = this.animator.footContacts;
+    if (!this.footReady) {
+      this.footPlanted[0] = contacts[0] >= 0.5;
+      this.footPlanted[1] = contacts[1] >= 0.5;
+      this.footReady = true;
+      return;
+    }
+
+    const emitStep = (side: Side, kind: FootstepKind): void => {
+      const idx = side === 'L' ? 0 : 1;
+      this.bones[`foot_${side}`].getWorldPosition(this.footPosTmp);
+      onFootstep({
+        x: this.footPosTmp.x,
+        y: this.group.position.y + 0.05,
+        z: this.footPosTmp.z,
+        side,
+        speed: this.speed,
+        kind,
+        actor: this.spec.seed,
+      });
+      this.footCooldown[idx] = 0.22;
+    };
+
+    // Hero heavy gait drives its own stomp timing via `animator.footfall`.
+    if (this.animator.gait === 'heavy') {
+      if (this.animator.footfall) {
+        const side = this.fallbackSide;
+        this.fallbackSide = side === 'L' ? 'R' : 'L';
+        emitStep(side, 'heavy');
+      }
+      return;
+    }
+
+    // Contact-synced footsteps for mocap walks/jogs/shambles and turn-in-place pivot steps.
+    if (this.animator.useMocap || this.animator.pivotWeight > 0.2) {
+      for (let idx = 0; idx < 2; idx++) {
+        const side: Side = idx === 0 ? 'L' : 'R';
+        if (!this.limbAttached(side, false)) {
+          this.footPlanted[idx] = false;
+          continue;
+        }
+        const c = contacts[idx]!;
+        if (this.footPlanted[idx]) {
+          if (c < 0.42) this.footPlanted[idx] = false;
+        } else if (c >= 0.58) {
+          this.footPlanted[idx] = true;
+          const stepping = this.speed > 0.15 || this.animator.pivotWeight > 0.25;
+          if (stepping && this.footCooldown[idx]! <= 0) {
+            const kind: FootstepKind =
+              this.speed <= 0.2
+                ? 'pivot'
+                : this.animator.gait === 'shamble' || this.animator.gait === 'flail'
+                  ? 'shamble'
+                  : this.animator.jogWeight > 0.45
+                    ? 'jog'
+                    : 'walk';
+            emitStep(side, kind);
+          }
+        }
+      }
+      return;
+    }
+
+    // Stride-distance fallback for non-mocap upright gaits (e.g. blind flailing NPCs).
+    if (this.speed > 0.15) {
+      this.fallbackStride += this.speed * dt;
+      if (this.fallbackStride >= 0.68) {
+        this.fallbackStride -= 0.68;
+        const side = this.fallbackSide;
+        this.fallbackSide = side === 'L' ? 'R' : 'L';
+        if (this.limbAttached(side, false)) {
+          emitStep(side, this.animator.gait === 'shamble' || this.animator.gait === 'flail' ? 'shamble' : 'walk');
+        }
+      }
+    }
+  }
+
+  /** Derive character-local forward/lateral acceleration from actual world movement for inertial lean/bank. */
+  private updateKinematics(dt: number): void {
+    const pos = this.group.position;
+    if (dt <= 1e-5) return;
+    const dx = pos.x - this.prevWorldPos.x;
+    const dz = pos.z - this.prevWorldPos.z;
+    const dist = Math.hypot(dx, dz);
+    this.prevWorldPos.copy(pos);
+    if (dist > 2.5) {
+      // Teleport: reset velocity & foot pins cleanly without a lean spike.
+      this.prevWorldVel.set(0, 0, 0);
+      this.animator.accelFwd = 0;
+      this.animator.accelLat = 0;
+      this.footIk.reset();
+      this.resetFootsteps();
+      return;
+    }
+    // Fall back to commanded steering velocity when caller updates `steer()` without moving `group.position`.
+    const vx = dist > 1e-5 ? dx / dt : this.velocity.x;
+    const vz = dist > 1e-5 ? dz / dt : this.velocity.z;
+    this.curWorldVel.set(vx, 0, vz);
+    const ax = THREE.MathUtils.clamp((vx - this.prevWorldVel.x) / dt, -14, 14);
+    const az = THREE.MathUtils.clamp((vz - this.prevWorldVel.z) / dt, -14, 14);
+    this.prevWorldVel.lerp(this.curWorldVel, 1 - Math.exp(-12 * dt));
+    const s = Math.sin(this.heading);
+    const c = Math.cos(this.heading);
+    this.animator.accelFwd = -ax * s - az * c;
+    this.animator.accelLat = ax * c - az * s;
   }
 
   private readonly swayQ = new THREE.Quaternion();
@@ -845,8 +1045,9 @@ export class Humanoid {
     }
     this.animator.gait = gait;
     this.animator.speed = this.carried ? 0 : this.speed;
-    this.animator.turnRate = gait === 'crawl' || gait === 'drag' ? this.turn.vel : 0;
-    this.animator.turnError = gait === 'crawl' || gait === 'drag' ? this.turnError : 0;
+    const crawling = gait === 'crawl' || gait === 'drag';
+    this.animator.turnRate = crawling ? this.turn.vel : this.uprightTurn.vel;
+    this.animator.turnError = crawling ? this.turnError : this.uprightTurn.error;
     if (this.state !== 'alive' || this.animator.sequencePlaying) return;
     const phase = this.slam?.phase ?? 'idle';
     if (phase !== this.slamPhaseShown) {
@@ -1018,9 +1219,7 @@ export class Humanoid {
     }
   }
 
-  private readonly ikTarget = new THREE.Vector3();
   private readonly ikPole = new THREE.Vector3();
-  private readonly qTmp = new THREE.Quaternion();
 
   private limbAttached(side: Side, arm: boolean): boolean {
     const a = arm ? `upperArm_${side}` as const : `thigh_${side}` as const;
@@ -1028,38 +1227,43 @@ export class Humanoid {
     return !this.damage.isSevered(a) && !this.damage.isSevered(b);
   }
 
-  private solveIk(): void {
-    if (this.state !== 'alive' || this.speed > 0.1 || this.transformAnim) return;
-    const doFeet = this.plantFeet && this.locomotion.mode === 'walk';
-    const doHands = (this.handTargets.L !== null && this.limbAttached('L', true)) || (this.handTargets.R !== null && this.limbAttached('R', true));
-    if (!doFeet && !doHands) return;
-    this.group.updateMatrixWorld(true);
-    const w = this.geo.scale.w;
-    let solved = false;
-    if (doFeet) {
-      for (const s of ['L', 'R'] as const) {
-        if (!this.limbAttached(s, false)) continue;
-        const x = (s === 'L' ? -1 : 1) * 0.11 * w;
-        this.group.localToWorld(this.ikTarget.set(x, 0.065 * this.geo.scale.y, s === 'L' ? -0.05 : 0.12));
-        this.group.localToWorld(this.ikPole.set(x * 1.5, 0.6, -1.5));
-        solveTwoBone(this.bones[`thigh_${s}`], this.bones[`shin_${s}`], this.bones[`foot_${s}`], this.ikTarget, this.ikPole);
-        // Foot flat on the floor.
-        const foot = this.bones[`foot_${s}`];
-        const parent = foot.parent;
-        if (parent) {
-          parent.getWorldQuaternion(this.qTmp).invert();
-          foot.quaternion.copy(this.qTmp.multiply(this.group.quaternion));
-        }
-        solved = true;
-      }
+  private solveIk(dt: number): void {
+    if (this.state !== 'alive' || this.transformAnim) {
+      this.footIk.reset();
+      return;
     }
-    for (const s of ['L', 'R'] as const) {
-      const target = this.handTargets[s];
-      if (!target || !this.limbAttached(s, true)) continue;
-      const x = s === 'L' ? -1 : 1;
-      this.group.localToWorld(this.ikPole.set(x * 0.7, 0.9, 0.8));
-      solveTwoBone(this.bones[`upperArm_${s}`], this.bones[`foreArm_${s}`], this.bones[`hand_${s}`], target, this.ikPole);
-      solved = true;
+    const lying = Humanoid.LYING_POSE.test(this.idlePose) || this.carried !== null;
+    const seated = Humanoid.SEATED_POSE.test(this.idlePose);
+    const uprightAlive = this.spec.role !== 'corpse' && this.locomotion.mode === 'walk' && !lying && !seated && !this.animator.sequencePlaying;
+    const forcePlant = this.plantFeet && this.locomotion.mode === 'walk' && this.speed <= 0.1;
+    // Continuous world-space foot-locking IK for upright living humanoids (cast, crew, and enemies).
+    let solved = this.footIk.solve({
+      group: this.group,
+      bones: this.bones,
+      scaleY: this.geo.scale.y,
+      scaleW: this.geo.scale.w,
+      contactL: this.animator.footContacts[0],
+      contactR: this.animator.footContacts[1],
+      attachedL: this.limbAttached('L', false),
+      attachedR: this.limbAttached('R', false),
+      enabled: uprightAlive && this.near,
+      forcePlant,
+      dt,
+    });
+
+    if (this.speed <= 0.1) {
+      const doHands = (this.handTargets.L !== null && this.limbAttached('L', true)) || (this.handTargets.R !== null && this.limbAttached('R', true));
+      if (doHands) {
+        if (!solved) this.group.updateMatrixWorld(true);
+        for (const s of ['L', 'R'] as const) {
+          const target = this.handTargets[s];
+          if (!target || !this.limbAttached(s, true)) continue;
+          const x = s === 'L' ? -1 : 1;
+          this.group.localToWorld(this.ikPole.set(x * 0.7, 0.9, 0.8));
+          solveTwoBone(this.bones[`upperArm_${s}`], this.bones[`foreArm_${s}`], this.bones[`hand_${s}`], target, this.ikPole);
+          solved = true;
+        }
+      }
     }
     if (solved) this.group.updateMatrixWorld(true);
   }

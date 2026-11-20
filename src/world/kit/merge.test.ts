@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { applyWorldMeterUvs, takesWorldUvs, worldTileMeters } from './merge.ts';
+import { AoMergeBuilder, applyWorldMeterUvs, isFlatColor, isFlatGlow, takesWorldUvs, worldTileMeters } from './merge.ts';
 
 /** World-space box as non-indexed triangles, the shape AoMergeBuilder hands to applyWorldMeterUvs. */
 function worldBox(w: number, h: number, d: number, x: number, y: number, z: number): THREE.BufferGeometry {
@@ -99,4 +99,70 @@ test('procedural stripes and grating keep their 0.5 m tile under world UVs', () 
   const photo = new THREE.MeshStandardMaterial();
   photo.name = 'paintBone';
   assert.equal(worldTileMeters(photo), 1);
+});
+
+test('flat colours share a roughness bucket draw call and carry their albedo (times AO) in vertex colours', () => {
+  const flat = (color: number, roughness: number, extra: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial => {
+    const m = new THREE.MeshStandardMaterial({ color, roughness, ...extra });
+    m.userData['flat'] = true;
+    return m;
+  };
+  const red = flat(0xff0000, 0.62);
+  const green = flat(0x00ff00, 0.6);
+  const leaf = flat(0x00ff00, 0.65, { side: THREE.DoubleSide });
+  const rough = flat(0x0000ff, 0.97);
+  const textured = flat(0xffffff, 0.6);
+  textured.map = new THREE.Texture();
+  const optedOut = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+  assert.ok(isFlatColor(red) && !isFlatColor(textured) && !isFlatColor(optedOut));
+  assert.ok(!isFlatColor(flat(0xffffff, 0.5, { transparent: true, opacity: 0.5 })), 'transparent stays its own material');
+  assert.ok(!isFlatColor(flat(0x000000, 0.5, { emissive: 0xffffff, emissiveIntensity: 1 })), 'glows stay their own material');
+
+  const mb = new AoMergeBuilder();
+  for (const [i, m] of [red, green, leaf, rough, textured, optedOut].entries()) mb.add(new THREE.BoxGeometry(1, 1, 1), m, new THREE.Matrix4().makeTranslation(i * 2, 0.5, 0));
+  const group = mb.build('t', () => 0.5);
+  const meshes = group.children as THREE.Mesh[];
+  // red + green (0.62 / 0.6 -> 0.65), leaf (0.65, double-sided), rough (0.95), textured, optedOut.
+  assert.equal(meshes.length, 5);
+  const bucket = meshes.find((m) => (m.material as THREE.Material).name === `flat:r0.65:m0:s${THREE.FrontSide}`)!;
+  assert.ok(bucket, 'shared 0.65 bucket');
+  const bm = bucket.material as THREE.MeshStandardMaterial;
+  assert.ok(bm.vertexColors && bm.color.getHex() === 0xffffff && bm.roughness === 0.65);
+  const col = bucket.geometry.getAttribute('color');
+  const pos = bucket.geometry.getAttribute('position');
+  for (let i = 0; i < pos.count; i++) {
+    const expect = pos.getX(i) < 1 ? [0.5, 0, 0] : [0, 0.5, 0];
+    assert.deepEqual([col.getX(i), col.getY(i), col.getZ(i)].map((v) => Math.round(v * 1000) / 1000), expect, `vertex ${i}`);
+  }
+  // Without an AO function the colour is the plain albedo.
+  const mb2 = new AoMergeBuilder();
+  mb2.add(new THREE.BoxGeometry(1, 1, 1), red);
+  const c2 = (mb2.build('t2', null).children[0] as THREE.Mesh).geometry.getAttribute('color');
+  assert.equal(c2.getX(0), 1);
+  assert.equal(c2.getY(0), 0);
+});
+
+test('static glows share one emissive draw call; their colour x intensity rides in the vertex colour', () => {
+  const glow = (color: number, intensity: number): THREE.MeshStandardMaterial => {
+    const m = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: color, emissiveIntensity: intensity });
+    m.userData['glow'] = true;
+    return m;
+  };
+  const amber = glow(0xff0000, 2);
+  const cyan = glow(0x00ffff, 0.5);
+  const animated = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveIntensity: 1 });
+  assert.ok(isFlatGlow(amber) && !isFlatGlow(animated) && !isFlatColor(amber));
+  const mb = new AoMergeBuilder();
+  mb.add(new THREE.BoxGeometry(0.1, 0.1, 0.1), amber, new THREE.Matrix4().makeTranslation(0, 0, 0));
+  mb.add(new THREE.BoxGeometry(0.1, 0.1, 0.1), cyan, new THREE.Matrix4().makeTranslation(5, 0, 0));
+  mb.add(new THREE.BoxGeometry(0.1, 0.1, 0.1), animated, new THREE.Matrix4().makeTranslation(9, 0, 0));
+  const meshes = mb.build('g', () => 0.25).children as THREE.Mesh[];
+  assert.equal(meshes.length, 2, 'two static glows -> one call, the animated one keeps its own');
+  const merged = meshes.find((m) => (m.material as THREE.Material).name === 'flat:glow')!;
+  const col = merged.geometry.getAttribute('color');
+  const pos = merged.geometry.getAttribute('position');
+  for (let i = 0; i < pos.count; i++) {
+    const expect = pos.getX(i) < 1 ? [2, 0, 0] : [0, 0.5, 0.5];
+    assert.deepEqual([col.getX(i), col.getY(i), col.getZ(i)], expect, 'no AO darkening on emitters');
+  }
 });

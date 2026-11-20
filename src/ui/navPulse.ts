@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { NavGraph, P3 } from '../ai/nav.ts';
+import type { Navigator, P3 } from '../ai/nav.ts';
 
 /** ADR-0012 nav pulse: seconds visible, cooldown after it fades. */
 export const PULSE_SECONDS = 3;
@@ -14,13 +14,13 @@ const MAX_LENGTH = 40;
  */
 export class NavPulse {
   readonly group = new THREE.Group();
-  private readonly nav: () => NavGraph | null;
+  private readonly nav: () => Navigator | null;
   private readonly material: THREE.ShaderMaterial;
   private line: THREE.Mesh | null = null;
   private t = 0;
   private cooldown = 0;
 
-  constructor(nav: () => NavGraph | null) {
+  constructor(nav: () => Navigator | null) {
     this.nav = nav;
     this.group.name = 'navPulse';
     this.material = new THREE.ShaderMaterial({

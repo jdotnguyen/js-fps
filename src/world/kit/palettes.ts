@@ -1,7 +1,7 @@
 import type * as THREE from 'three';
 import type { Materials } from '../../render/materials.ts';
 import { PHOTO_SLOT_KEYS } from '../../render/tex/manifest.ts';
-import type { PieceParams } from './types.ts';
+import type { PieceParams, SurfaceMaterial } from './types.ts';
 
 /**
  * Per-area material palettes (openspec: adopt-photoscanned-textures, "Per-area palette").
@@ -26,6 +26,10 @@ export interface AreaPalette {
   wallMain: PaletteMaterialKey;
   /** Upper panels and the occasional accent panel; defaults to `wallMain`. */
   wallAlt?: PaletteMaterialKey;
+  /** Ceiling slab; defaults to `paintDark`. */
+  ceiling?: PaletteMaterialKey;
+  /** Structural trim (pilasters, rails, ceiling beams, window/door frames); defaults to `steel`. */
+  trim?: PaletteMaterialKey;
   /** Floor plates. */
   floor: PaletteMaterialKey;
   /** Floor trim (grate rims, inlays); defaults to `steel`. */
@@ -35,8 +39,9 @@ export interface AreaPalette {
 }
 
 export const AREA_PALETTES: Record<string, AreaPalette> = {
-  dock: { wallMain: 'paintDark', wallAlt: 'steel', floor: 'concretePainted', floorAlt: 'diamond', hazard: 'hazardClean' },
-  commons: { wallMain: 'paintBone', wallAlt: 'paintTeal', floor: 'rubber', hazard: 'hazardClean' },
+  dock: { wallMain: 'hullPlate', wallAlt: 'boltPanel', ceiling: 'deckCorrugated', trim: 'steelBrushed', floor: 'concretePainted', floorAlt: 'diamond', hazard: 'hazardClean' },
+  // The cafeteria lounge (R02): upholstered vinyl lower walls, bone paint upper band, perforated acoustic ceiling, tiled floor.
+  commons: { wallMain: 'vinylPanel', wallAlt: 'paintBone', ceiling: 'acousticCeiling', trim: 'steelBrushed', floor: 'labTile', hazard: 'hazardClean' },
   gallery: { wallMain: 'paintDark', floor: 'rubber', hazard: 'hazardClean' },
   labs: { wallMain: 'labPanel', floor: 'labTile', hazard: 'hazardClean' },
   security: { wallMain: 'paintDark', floor: 'rubber', hazard: 'hazardClean' },
@@ -45,8 +50,8 @@ export const AREA_PALETTES: Record<string, AreaPalette> = {
   control: { wallMain: 'paintDark', floor: 'concretePainted', hazard: 'hazardClean' },
   hydroponics: { wallMain: 'paintTeal', floor: 'labTile', hazard: 'hazardClean' },
   dive_bay: { wallMain: 'rustBlotch', wallAlt: 'paintDark', floor: 'diamondRusty', floorAlt: 'diamondHazard', hazard: 'hazard' },
-  // Admin keeps its procedural wood and carpet (wall_wood / floor_carpet); the plain walls are bone.
-  admin: { wallMain: 'paintBone', floor: 'diamond', hazard: 'hazardClean' },
+  // Admin uses corporate drop ceiling, wood panelling (wall_wood / wall_window) and navy carpet (floor_carpet).
+  admin: { wallMain: 'woodPanel', wallAlt: 'vinylPanel', ceiling: 'officeCeiling', trim: 'steelBrushed', floor: 'diamond', hazard: 'hazardClean' },
 };
 
 /** Used when a piece has no area (corridors, test rooms): the docking ring look. */
@@ -55,13 +60,25 @@ export const DEFAULT_PALETTE: AreaPalette = AREA_PALETTES.dock!;
 export interface ResolvedPalette {
   wallMain: THREE.MeshStandardMaterial;
   wallAlt: THREE.MeshStandardMaterial;
+  ceiling: THREE.MeshStandardMaterial;
+  trim: THREE.MeshStandardMaterial;
   floor: THREE.MeshStandardMaterial;
   floorAlt: THREE.MeshStandardMaterial;
+  /** Acoustic footstep surface matching the visual `floor` material. */
+  floorSurface: SurfaceMaterial;
   hazard: THREE.MeshStandardMaterial;
   /** Tile argument for thin hazard strips: photo `hazard` needs metre UVs, the procedural stripes want 0.5. */
   hazardTile: number;
   /** True when `params.material` replaced the area's main surfaces. */
   overridden: boolean;
+}
+
+/** Derive the acoustic footstep surface from a floor's visual palette material key. */
+export function floorSurfaceForKey(key: PaletteMaterialKey): SurfaceMaterial {
+  if (key === 'concrete' || key === 'concreteFloor' || key === 'concretePainted') return 'concrete';
+  if (key === 'rubber' || key === 'carpet') return 'rubber';
+  if (key === 'grating') return 'grate';
+  return 'metal';
 }
 
 /** Palette for an area name (unknown or missing areas get the default). */
@@ -71,7 +88,7 @@ export function paletteFor(area: string | undefined): AreaPalette {
 
 /**
  * Materials for a piece from `params.area` (injected by the level builder) and the optional
- * `params.material` override, which replaces wallMain/wallAlt/floor (not the hazard or trim).
+ * `params.material` override, which replaces wallMain/wallAlt/ceiling/floor (not the hazard or trim).
  */
 export function resolvePalette(params: PieceParams, m: Materials): ResolvedPalette {
   const area = typeof params.area === 'string' ? params.area : undefined;
@@ -86,12 +103,17 @@ export function resolvePalette(params: PieceParams, m: Materials): ResolvedPalet
   }
   const main = overrideKey ?? pal.wallMain;
   const alt = overrideKey ?? pal.wallAlt ?? pal.wallMain;
+  const ceiling = overrideKey ?? pal.ceiling ?? 'paintDark';
+  const trim = pal.trim ?? 'steel';
   const floor = overrideKey ?? pal.floor;
   return {
     wallMain: m[main],
     wallAlt: m[alt],
+    ceiling: m[ceiling],
+    trim: m[trim],
     floor: m[floor],
     floorAlt: m[pal.floorAlt ?? 'steel'],
+    floorSurface: floorSurfaceForKey(floor),
     hazard: m[pal.hazard],
     hazardTile: pal.hazard === 'hazard' ? 1 : 0.5,
     overridden: overrideKey !== undefined,

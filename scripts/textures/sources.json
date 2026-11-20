@@ -201,6 +201,98 @@
       "metalness": "PaintedMetal017_2K-JPG/PaintedMetal017_2K-JPG_Metalness.jpg",
       "arm": null,
       "size": 1024
+    },
+    "hullPlate": {
+      "set": "MetalPlates014",
+      "color": "MetalPlates014_2K-JPG/MetalPlates014_2K-JPG_Color.jpg",
+      "normal": "MetalPlates014_2K-JPG/MetalPlates014_2K-JPG_NormalGL.jpg",
+      "ao": "MetalPlates014_2K-JPG/MetalPlates014_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "MetalPlates014_2K-JPG/MetalPlates014_2K-JPG_Roughness.jpg",
+      "metalness": "MetalPlates014_2K-JPG/MetalPlates014_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "boltPanel": {
+      "set": "MetalPlates001",
+      "color": "MetalPlates001_2K-JPG/MetalPlates001_2K-JPG_Color.jpg",
+      "normal": "MetalPlates001_2K-JPG/MetalPlates001_2K-JPG_NormalGL.jpg",
+      "ao": null,
+      "roughness": "MetalPlates001_2K-JPG/MetalPlates001_2K-JPG_Roughness.jpg",
+      "metalness": "MetalPlates001_2K-JPG/MetalPlates001_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "steelBrushed": {
+      "set": "Metal009",
+      "color": "Metal009_2K-JPG/Metal009_2K-JPG_Color.jpg",
+      "normal": "Metal009_2K-JPG/Metal009_2K-JPG_NormalGL.jpg",
+      "ao": null,
+      "roughness": "Metal009_2K-JPG/Metal009_2K-JPG_Roughness.jpg",
+      "metalness": "Metal009_2K-JPG/Metal009_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "deckCorrugated": {
+      "set": "CorrugatedSteel005",
+      "color": "CorrugatedSteel005_2K-JPG/CorrugatedSteel005_2K-JPG_Color.jpg",
+      "normal": "CorrugatedSteel005_2K-JPG/CorrugatedSteel005_2K-JPG_NormalGL.jpg",
+      "ao": "CorrugatedSteel005_2K-JPG/CorrugatedSteel005_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "CorrugatedSteel005_2K-JPG/CorrugatedSteel005_2K-JPG_Roughness.jpg",
+      "metalness": "CorrugatedSteel005_2K-JPG/CorrugatedSteel005_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "acousticCeiling": {
+      "set": "SheetMetal002",
+      "color": "SheetMetal002_2K-JPG/SheetMetal002_2K-JPG_Color.jpg",
+      "normal": "SheetMetal002_2K-JPG/SheetMetal002_2K-JPG_NormalGL.jpg",
+      "ao": null,
+      "roughness": "SheetMetal002_2K-JPG/SheetMetal002_2K-JPG_Roughness.jpg",
+      "metalness": "SheetMetal002_2K-JPG/SheetMetal002_2K-JPG_Metalness.jpg",
+      "opacity": "SheetMetal002_2K-JPG/SheetMetal002_2K-JPG_Opacity.jpg",
+      "opacityBake": true,
+      "arm": null,
+      "size": 1024
+    },
+    "vinylPanel": {
+      "set": "Leather018",
+      "color": "Leather018_2K-JPG/Leather018_2K-JPG_Color.jpg",
+      "normal": "Leather018_2K-JPG/Leather018_2K-JPG_NormalGL.jpg",
+      "ao": "Leather018_2K-JPG/Leather018_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "Leather018_2K-JPG/Leather018_2K-JPG_Roughness.jpg",
+      "metalness": null,
+      "arm": null,
+      "size": 1024
+    },
+    "officeCeiling": {
+      "set": "OfficeCeiling006",
+      "color": "OfficeCeiling006_2K-JPG/OfficeCeiling006_2K-JPG_Color.jpg",
+      "normal": "OfficeCeiling006_2K-JPG/OfficeCeiling006_2K-JPG_NormalGL.jpg",
+      "ao": "OfficeCeiling006_2K-JPG/OfficeCeiling006_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "OfficeCeiling006_2K-JPG/OfficeCeiling006_2K-JPG_Roughness.jpg",
+      "metalness": "OfficeCeiling006_2K-JPG/OfficeCeiling006_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "woodPanel": {
+      "set": "Wood027",
+      "color": "Wood027_2K-JPG/Wood027_2K-JPG_Color.jpg",
+      "normal": "Wood027_2K-JPG/Wood027_2K-JPG_NormalGL.jpg",
+      "ao": null,
+      "roughness": "Wood027_2K-JPG/Wood027_2K-JPG_Roughness.jpg",
+      "metalness": null,
+      "arm": null,
+      "size": 1024
+    },
+    "carpet": {
+      "set": "Carpet012",
+      "color": "Carpet012_2K-JPG/Carpet012_2K-JPG_Color.jpg",
+      "normal": "Carpet012_2K-JPG/Carpet012_2K-JPG_NormalGL.jpg",
+      "ao": "Carpet012_2K-JPG/Carpet012_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "Carpet012_2K-JPG/Carpet012_2K-JPG_Roughness.jpg",
+      "metalness": null,
+      "arm": null,
+      "size": 1024
     }
   }
 }

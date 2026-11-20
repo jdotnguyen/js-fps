@@ -7,7 +7,7 @@ import type { Aabb, ColliderQuery } from '../actors/motor.ts';
  * No three.js, so it runs in Node tests.
  */
 
-export type ColliderSurface = 'metal' | 'grate' | 'rubber' | 'water';
+export type ColliderSurface = 'concrete' | 'metal' | 'grate' | 'rubber' | 'water';
 
 export interface Collider extends Aabb {
   readonly id: number;

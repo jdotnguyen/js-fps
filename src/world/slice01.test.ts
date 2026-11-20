@@ -10,6 +10,7 @@ import { validateUiText } from '../data/types/uiText.ts';
 import { Inventory } from '../game/inventory.ts';
 import type { Materials } from '../render/materials.ts';
 import { withVertexColors } from './kit/merge.ts';
+import { floorSurfaceForKey } from './kit/palettes.ts';
 import { Rng } from '../core/rng.ts';
 import type { Interactable, Interactions } from '../actors/interaction.ts';
 import { DEFAULT_MOTOR, moveBody, type MotorState } from '../actors/motor.ts';
@@ -48,6 +49,8 @@ function fakeMaterials(): Materials {
     diamondHazard: s(0x886622), diamondRusty: s(0x775544), hazardClean: s(0xccaa00), rustHeavy: s(0x664433),
     rustDrip: s(0x775533), rustBlotch: s(0x887766), concreteFloor: s(0x55585a), concretePainted: s(0x333537),
     tileBroken: s(0x889096), tileWall: s(0xaaaaaa), tileWashroom: s(0x667777), signDanger: s(0xaa4422),
+    hullPlate: s(0x667076), boltPanel: s(0x778088), steelBrushed: s(0x88929a), deckCorrugated: s(0x444a50),
+    acousticCeiling: s(0x9a9e9a), vinylPanel: s(0xb8b0a0), officeCeiling: s(0xccccca), woodPanel: s(0x6a4a30), carpet: s(0x2e3440),
     glass: new THREE.MeshPhysicalMaterial({ transparent: true }),
     black: s(0x000000), cable: s(0x111111), glowCyan: s(0x00ffff),
   };
@@ -347,6 +350,14 @@ test('area palettes reach the pieces: the nutrient room override and the kitchen
   assert.ok(has('R13b', 'rustBlotch') && has('R13b', 'diamondRusty') && has('R13b', 'hazard'), 'dive bay palette, rusty hazard');
   assert.ok(!has('R01', 'hazard') && has('R01', 'hazardClean'), 'dock uses the clean hazard stripes');
   assert.ok(has('R01', 'concretePainted'), 'dock floor');
+  assert.ok(has('R01', 'hullPlate') && has('R01', 'boltPanel') && has('R01', 'deckCorrugated') && has('R01', 'steelBrushed'), 'dock hull plate, bolted upper, corrugated ceiling and brushed trim');
+  assert.ok(has('R01a', 'boltPanel'), 'airlock bolted ceiling');
+  assert.ok(has('R02', 'vinylPanel') && has('R02', 'paintBone') && has('R02', 'acousticCeiling') && has('R02', 'steelBrushed'), 'commons vinyl/bone walls, acoustic ceiling and brushed trim');
+  assert.ok(has('R14a', 'officeCeiling') && has('R14a', 'woodPanel') && has('R14a', 'carpet') && has('R14a', 'steelBrushed'), 'admin office ceiling, wood panelling, carpet and brushed trim');
+  assert.ok(has('R14e', 'boltPanel'), 'admin security booth bolted ceiling');
+  // Acoustic surfaces match the visual floor materials (Room 1 painted concrete; the Commons is tiled since the cafeteria pass, and tile reads as a hard floor).
+  assert.equal(level.collision.surfaceAt(6, 0, 2.6), 'concrete', 'R01 Docking Ring floor is concrete');
+  assert.equal(level.collision.surfaceAt(24, 0, 18), floorSurfaceForKey('labTile'), 'R02 Commons tile floor');
 });
 
 test('Lab B floor swaps labTile -> tileBroken on the glass:set labb cracked event and back on level:reset', () => {
@@ -392,4 +403,68 @@ test('sign_danger props sit on the wall beside the Lab B and pressure-door-hall 
   // The prop is a single textured quad.
   const out = registry.create('sign_danger', {}, new Rng('sign'), fakeMaterials());
   assert.equal(out.object.children.length, 1);
+});
+
+test('admin hub (R14a-R14e) props stay inside room bounds, do not overlap, and seat desk NPCs cleanly', () => {
+  const mats = fakeMaterials();
+  const deg = THREE.MathUtils.degToRad;
+  const adminIds = ['R14a', 'R14b', 'R14c', 'R14d', 'R14e'];
+  for (const id of adminIds) {
+    const r = data.rooms.find((x) => x.id === id)!;
+    const cells = r.pieces.flatMap((p) => p.cells ?? (p.cell ? [p.cell] : []));
+    const minX = Math.min(...cells.map((c) => c[0] * 4 - 1.75));
+    const maxX = Math.max(...cells.map((c) => c[0] * 4 + 1.75));
+    const minZ = Math.min(...cells.map((c) => c[2] * 4 - 1.75));
+    const maxZ = Math.max(...cells.map((c) => c[2] * 4 + 1.75));
+    const propBoxes: Array<{ label: string; min: [number, number, number]; max: [number, number, number] }> = [];
+    for (const p of r.props ?? []) {
+      const m = new THREE.Matrix4().compose(
+        new THREE.Vector3(...p.pos),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, deg(p.rot ?? 0), 0, 'YXZ')),
+        new THREE.Vector3(1, 1, 1),
+      );
+      const out = registry.create(p.kit, { ceiling: r.height ?? 3.2, area: r.area ?? 'admin', ...(p.params ?? {}) }, new Rng(`${id}:${p.kit}:${p.pos.join(',')}`), mats);
+      for (const c of out.colliders) {
+        const b = new THREE.Box3(new THREE.Vector3(...c.min), new THREE.Vector3(...c.max)).applyMatrix4(m);
+        // Every solid prop stays inside the room's inner wall envelope (allow 0.08 m for flush wall mounts).
+        assert.ok(b.min.x >= minX - 0.08 && b.max.x <= maxX + 0.08, `${id} ${p.kit} X [${b.min.x.toFixed(2)}, ${b.max.x.toFixed(2)}] inside [${minX}, ${maxX}]`);
+        assert.ok(b.min.z >= minZ - 0.08 && b.max.z <= maxZ + 0.08, `${id} ${p.kit} Z [${b.min.z.toFixed(2)}, ${b.max.z.toFixed(2)}] inside [${minZ}, ${maxZ}]`);
+        propBoxes.push({ label: `${p.kit}@${p.pos.join(',')}`, min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] });
+      }
+    }
+    // No two distinct props overlap each other's collider boxes.
+    for (let i = 0; i < propBoxes.length; i++) {
+      for (let j = i + 1; j < propBoxes.length; j++) {
+        const a = propBoxes[i]!;
+        const b = propBoxes[j]!;
+        if (a.label === b.label) continue;
+        const overlap =
+          a.min[0] < b.max[0] - 0.01 && a.max[0] > b.min[0] + 0.01 &&
+          a.min[1] < b.max[1] - 0.01 && a.max[1] > b.min[1] + 0.01 &&
+          a.min[2] < b.max[2] - 0.01 && a.max[2] > b.min[2] + 0.01;
+        assert.ok(!overlap, `${id}: ${a.label} overlaps ${b.label}`);
+      }
+    }
+    // Standing NPCs stay clear of furniture colliders; seated NPCs align with a chair.
+    for (const n of r.npcs ?? []) {
+      const pos = typeof n.at === 'string' ? r.anchors!.find((a) => a.id === n.at)!.pos : n.at;
+      const seated = (n.pose ?? '').startsWith('sit_');
+      if (seated) {
+        assert.ok(r.props!.some((p) => p.kit === 'chair' && Math.hypot(p.pos[0] - pos[0], p.pos[2] - pos[2]) < 0.05), `${id} seated ${n.id} has a chair`);
+      } else {
+        for (const b of propBoxes) {
+          const cx = Math.max(b.min[0], Math.min(pos[0], b.max[0]));
+          const cz = Math.max(b.min[2], Math.min(pos[2], b.max[2]));
+          assert.ok(Math.hypot(pos[0] - cx, pos[2] - cz) >= 0.28, `${id} standing ${n.id} clips ${b.label}`);
+        }
+      }
+    }
+  }
+  const { level } = build();
+  const npcs = new Map(level.npcSpawns().map((n) => [n.id, n]));
+  assert.equal(npcs.get('assistant')?.pose, 'sit_typing');
+  assert.equal(npcs.get('exec_2')?.pose, 'sit_typing');
+  // Chair collider covers the backrest height (F1).
+  const chair = registry.create('chair', { fixed: true }, new Rng('chair'), mats);
+  assert.ok(chair.colliders[0]!.max[1] >= 1.0, 'chair collider covers backrest');
 });

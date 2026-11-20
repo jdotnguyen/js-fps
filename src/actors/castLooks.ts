@@ -168,8 +168,16 @@ export const CREW_LOOKS: readonly string[] = Object.keys(CREW);
  * the same NPC keeps the same body. The procedural outfit above is the fallback if a model fails to load.
  */
 const CREW_MODELS: Readonly<Record<string, readonly string[]>> = {
+  crew: ['ruiz', 'sung', 'assistant', 'bram', 'botanist1', 'botanist2', 'botanist3'],
+  security: ['heins'],
+  engineer: ['mechanic', 'ruiz'],
+  medic: ['doctor', 'priya'],
+  lab: ['botanist1', 'botanist2', 'botanist3'],
   botanist: ['botanist1', 'botanist2', 'botanist3'],
+  diver: ['sung'],
+  exec: ['hale'],
   assistant: ['assistant'],
+  maintenance: ['mechanic', 'ruiz'],
 };
 
 /** FNV-1a: a stable, well-spread hash of an NPC id. */

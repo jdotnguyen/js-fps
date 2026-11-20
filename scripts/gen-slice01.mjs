@@ -65,12 +65,16 @@ function room(id, name, cells, o = {}) {
     ceiling: o.ceiling ?? 'ceiling',
     walls: o.walls ?? ['wall_panel', 'wall_plain'],
     wallOverride: {},
+    /** `params.material` on every wall tile / every ceiling tile (a palette slot, e.g. "steel"). */
+    wallMaterial: o.wallMaterial,
+    ceilingMaterial: o.ceilingMaterial,
     props: [],
     lights: o.lights ?? [],
     triggers: [],
     spawns: [],
     anchors: [],
     npcs: [],
+    walks: [],
     visibleFrom: o.visibleFrom,
   };
   rooms.push(r);
@@ -144,11 +148,32 @@ function wallProp(r, kit, x, z, s, along = 0, params, inset) {
   prop(r, kit, w.pos, w.rot, params);
   return w;
 }
+/**
+ * Desk + aligned chair (+ optional seated NPC) placed from one origin so they never face backwards
+ * or clip. `rot` is the desk rotation (degrees); local -Z is the sitter/keyboard side, so the chair
+ * sits `chairDist` m along local -Z facing back toward the desk (`(rot + 180) % 360`).
+ */
+function workstation(r, pos, rot = 0, o = {}) {
+  const { chairDist = 0.72, fixedChair = Boolean(o.npc), npc: who, ...deskParams } = o;
+  prop(r, 'office_desk', pos, rot, deskParams);
+  const rad = (rot * Math.PI) / 180;
+  const seatPos = [r2(pos[0] - Math.sin(rad) * chairDist), pos[1], r2(pos[2] - Math.cos(rad) * chairDist)];
+  const seatRot = (rot + 180) % 360;
+  prop(r, 'chair', seatPos, seatRot, fixedChair ? { fixed: true } : undefined);
+  if (who) npc(r, who.id, who.look, seatPos, who.pose ?? 'sit_typing', { yaw: seatRot, ...(who.extra ?? {}) });
+  return { seatPos, seatRot };
+}
 function anchor(r, id, pos, yaw) {
   const a = { id, pos: pos.map(r2) };
   if (yaw !== undefined) a.yaw = r2(yaw);
   r.anchors.push(a);
   return pos;
+}
+/** Authored curve walk (ADR-0028): anchor ids or [x, 0, z] points. Suggest one with `npm run walks:suggest`. */
+function walk(r, id, points, speed) {
+  const w = { id, points: points.map((p) => (typeof p === 'string' ? p : p.map(r2))) };
+  if (speed !== undefined) w.speed = speed;
+  r.walks.push(w);
 }
 function npc(r, id, look, at, pose, extra = {}) {
   const n = { id, look, at, ...extra };
@@ -199,7 +224,7 @@ const R01 = room('R01', 'Docking Ring', rect(0, 3, 0, 1), {
   area: 'dock',
   atmosphere: { ...QUIET_FOG, reverb: 'metal_hall', ambience: 'hull_hum' },
   ceiling: 'ceiling_pipes',
-  lights: [L(1, 'steady', '#dcefff'), L(3, 'steady', '#dcefff'), L(6, 'steady')],
+  lights: [L(1, 'steady', '#dcefff'), L(3, 'steady', '#dcefff'), L(5, 'steady', '#ffe2bf'), L(6, 'steady')],
 });
 // The walk to the commons: its own room (culling, draw-call budget), open to the dock hall.
 const R01w = room('R01w', 'Docking Ring Walk', [[4, 0], [5, 0], [6, 0], [6, 1], [6, 2]], {
@@ -212,29 +237,40 @@ opening('R01', 'R01w', 3, 0, 'e');
 for (const x of [1, 2, 3]) wallKit(R01, x, 0, 'n', 'wall_window'); // the big dock window
 for (const x of [5, 6]) wallKit(R01w, x, 0, 'n', 'wall_window'); // abyss window on the walk
 wallKit(R01w, 6, 1, 'e', 'wall_window');
-const R01a = room('R01a', 'Dock Airlock', [[-1, 0]], { area: 'dock', atmosphere: { ...QUIET_FOG, reverb: 'small_office' }, walls: ['wall_plain'], lights: [L(0, 'steady', '#ffe9c8', 7)] });
+const R01a = room('R01a', 'Dock Airlock', [[-1, 0]], { area: 'dock', atmosphere: { ...QUIET_FOG, reverb: 'small_office' }, ceilingMaterial: 'boltPanel', walls: ['wall_plain'], lights: [L(0, 'steady', '#ffe9c8', 7)] });
 wallKit(R01a, -1, 0, 'w', 'wall_vent');
 const dockDoor = door('D_dock', 'R01', 'R01a', 0, 0, 'w');
 prop(R01, 'supply_sub', [8, 0.4, -7.2], 0, { state: 'away', dockTime: 10 });
-prop(R01, 'desk', [3.4, 0, 5.2], 0, { width: 1.6 });
-prop(R01, 'chair', [3.4, 0, 6.0]);
-prop(R01, 'console', [-0.6, 0, 5.3], 0, { screen: 'status' });
-prop(R01, 'locker', [-1.45, 0, 3.0], 270, { count: 2, label: 'DOCK SEC' });
-wallProp(R01, 'tag_poster', 0, 1, 's', -0.8, { slogan: 'WELCOME TO THALASSA' });
-wallProp(R01, 'notice_board', 2, 1, 's', 0, { text: 'SHIFT ROSTER', detail: '06:40 CHANGEOVER' });
-prop(R01, 'crate_stack', [12.8, 0, 5.4], 15);
+// Jay's security post: a waist-high teal counter in front of the dock window, a monitor on the back wall.
+prop(R01, 'half_wall', [5.9, 0, 1.8], 0, { width: 3.0, height: 1.08, material: 'paintTeal' });
+prop(R01, 'mug', [6.75, 1.08, 1.86], 0, { color: 'teal' });
+prop(R01, 'security_monitor', [6, 0, 5.3], 0, { id: 'dock_post', camera: 'CAM 02  DOCK AIRLOCK' });
+prop(R01, 'chair', [6, 0, 4.35], 180);
+wallProp(R01, 'tag_poster', 0, 1, 's', -0.9, { slogan: 'WELCOME TO THALASSA' });
+wallProp(R01, 'notice_board', 1, 1, 's', 1.1, { text: 'SHIFT ROSTER', detail: '06:40 CHANGEOVER' });
+prop(R01, 'crate', [-1.2, 0, 4.4], 0, { size: 0.7 });
+prop(R01, 'vending_machine', [10.6, 0, 5.35]);
+prop(R01, 'potted_plant', [11.6, 0, 5.3], 0, { kind: 'palm', pot: 'dark' });
+prop(R01, 'crate_stack', [12.9, 0, 5.2], 15);
 prop(R01, 'potted_plant', [13.2, 0, 3.2], 0, { kind: 'palm', pot: 'dark' });
 prop(R01w, 'pipe_run', [18, 0, 1.4], 0, { length: 7, height: 0.35, paint: 'teal' });
 prop(R01, 'cable_bundle', [8, 0, 5.6], 0, { length: 12, height: 2.9 });
-prop(R01, 'crate', [-1.2, 0, 4.4], 0, { size: 0.7 });
+prop(R01, 'locker', [-1.45, 0, 3.0], 270, { count: 2, label: 'DOCK SEC' });
 prop(R01a, 'locker', [-4, 0, -1.4], 180, { count: 2, label: 'EVA' });
 anchor(R01, 'post_front', [6, 0, 2.6], 0);
 anchor(R01, 'dock_window', [8, 1.5, -2.2]);
 anchor(R01, 'dock_door', dockDoor.center);
 anchor(R01, 'walkby_stop', [4.4, 0, 1.0], face([4.4, 0, 1], [6, 0, 2.6]));
+anchor(R01, 'walkby_queue', [3.4, 0, 0.2], 225);
 anchor(R01, 'post_okafor', [5.3, 0, 0.9], face([5.3, 0, 0.9], [6, 0, 2.6]));
 anchor(R01, 'post_giles', [6.9, 0, 1.0], face([6.9, 0, 1], [6, 0, 2.6]));
 anchor(R01, 'walk_mid', [14, 0, 0.6], 270);
+// Intro walks (ADR-0028): curves down the middle of the passage, Giles a step to Okafor's side.
+walk(R01, 'intro_jay_kitchen', ['post_front', [7.9, 0, 3], [14.3, 0, 0], [22.1, 0, 0.3], [23.4, 0, 2], [24, 0, 10.5], 'kitchen_stand']);
+walk(R01, 'intro_okafor_arrive', ['dock_door', 'post_okafor']);
+walk(R01, 'intro_giles_arrive', ['dock_door', [6.1, 0, 0.5], 'post_giles']);
+walk(R01, 'intro_okafor_counter', ['post_okafor', [7, 0, 0.3], [14.3, 0, 0], [22.1, 0, 0.3], [24, 0, 3.2], [24, 0, 10.5], [25.1, 0, 11.6], 'counter_okafor']);
+walk(R01, 'intro_giles_counter', ['post_giles', [11, 0, -0.75], [20.5, 0, -0.75], [22, 0, 0.15], [23.4, 0, 2.05], [24.2, 0, 10.85], [26, 0, 12.05], 'counter_giles']);
 anchor(R01w, 'walk_window', [20, 0, -0.4], 0);
 // Separate spots at the window so the two NPCs and Jay stand side by side (~0.9 m apart); Jay is on the west so his walk in does not cross them.
 anchor(R01w, 'window_jay', [18.9, 0, -0.9], 0);
@@ -253,35 +289,83 @@ npc(R01a, 'sung', 'sung', 'sung_start');
 trigger(R01w, 'trig_walk_window', cellBox(5, 5, 0, 0), 'trigger:walk_window', { once: false });
 
 // ---------------------------------------------------------------- R02 commons + kitchen (commons)
+// The cafeteria lounge. Inner faces x 14.25..33.75, z 10.25..25.75, 4 m ceiling. Zones:
+//   NE galley: back counter (coffee, radio) + servery hot line, menu board above; staff passage
+//      down the east wall from the TAG reception glass door.
+//   NW self-serve wall: drinks, the quarantine notice, bins; one table.
+//   Centre: dining tables under pendant lamps, either side of a straight N-S aisle (x 23..25)
+//      between the dock door and the dive-bay door. Kept clear: the gallery lane (z 15..17, west),
+//      the hydroponics lane (z 19..21, east), the servery queue (z 14.4..15.6).
+//   South wall: windows onto the abyss (the accent wall, facing the entry). SW: a window bar with
+//      stools. SE: a rug lounge behind a planter, sofas facing the window, the TV on the east wall.
 const R02 = room('R02', 'Commons', rect(4, 8, 3, 6), {
   area: 'commons',
   height: 4,
-  atmosphere: { fog: '#0a0c0d', fogDensity: 0.022, reverb: 'metal_hall', ambience: 'commons_murmur' },
-  floorOverride: { '7,3': 'floor_tiles', '8,3': 'floor_tiles', '6,3': 'floor_tiles' },
-  lights: [L(2, 'steady', '#ffe6c8', 12), L(4, 'steady', '#ffe6c8', 11), L(6, 'steady', '#fff1dc', 10), L(11, 'steady', '#ffe6c8', 11), L(13, 'steady', '#ffe6c8', 11), L(17, 'steady', '#ffe0c0', 10)],
+  atmosphere: { fog: '#0a0c0d', fogDensity: 0.02, reverb: 'metal_hall', ambience: 'commons_murmur' },
+  floorOverride: { '7,3': 'floor_tiles', '8,3': 'floor_tiles' },
+  // Ceiling slots follow the cell order (z rows of x 4..8): galley 3-4, dining 6/8/11, bar 15, lounge 18.
+  lights: [
+    L(3, 'steady', '#ffe6c8', 15, 12),
+    L(4, 'steady', '#ffdcb4', 14, 12),
+    L(6, 'steady', '#fff1dc', 14, 12),
+    L(8, 'steady', '#fff1dc', 14, 12),
+    L(11, 'steady', '#ffe6c8', 13, 12),
+    L(15, 'steady', '#ffd6a8', 13, 11),
+    L(18, 'steady', '#ffcf9a', 15, 11),
+  ],
 });
-for (const x of [6, 7, 8]) wallKit(R02, x, 3, 'n', 'wall_tiles');
-wallKit(R02, 4, 5, 'w', 'wall_window');
+for (const x of [7, 8]) wallKit(R02, x, 3, 'n', 'wall_tiles');
+for (const x of [4, 5, 7, 8]) wallKit(R02, x, 6, 's', 'wall_window'); // the abyss behind the bar and the lounge
 door('D_R01_R02', 'R02', 'R01w', 6, 3, 'n');
+const R02_CEIL = 4;
+const R02_N = cx(3) - WALL_FACE; // north wall inner face (z 10.25)
+// Galley: back counter against the north wall (coffee, radio: intro beats), servery 2.4 m in front of it.
 const counterZ = cx(3) - WALL_FACE + 0.34;
 prop(R02, 'kitchen_counter', [29.2, 0, counterZ], 180, { width: 6.4, sink: true });
 prop(R02, 'coffee_machine', [26.8, 0.92, counterZ - 0.02], 180);
 prop(R02, 'tray', [29.0, 0.92, counterZ + 0.05], 180, { mugs: 3 });
 prop(R02, 'radio', [31.6, 0.92, counterZ + 0.1], 200);
 prop(R02, 'mug', [27.6, 0.92, counterZ - 0.12], 0, { color: 'teal' });
-prop(R02, 'vending_machine', [33.2, 0, 23.4], 90);
-prop(R02, 'dining_table', [18.5, 0, 17], 0, { width: 2.2, seats: 6, mugs: 2 });
-prop(R02, 'dining_table', [25, 0, 17.5], 0, { width: 2.2, seats: 6, mugs: 1 });
-prop(R02, 'dining_table', [30.5, 0, 18.5], 0, { width: 1.8, seats: 4, mugs: 0 });
-prop(R02, 'sofa', [16.4, 0, 23.6], 0, { width: 2.4, tone: 'warm' });
-prop(R02, 'sofa', [19.6, 0, 24.6], 300, { width: 1.8 });
+prop(R02, 'servery', [30.3, 0, 13.7], 180, { width: 3.8, pans: 5 });
+wallProp(R02, 'menu_board', 7, 3, 'n', 1.2, { width: 3.6, height: 1.0, y: 3.0, title: 'GALLEY' });
+wallProp(R02, 'wall_clock', 8, 3, 'n', 0.9, { y: 2.95 });
+// Self-serve wall (NW): drinks, the quarantine notice (its trigger sits at x 20), bins by the entry.
+prop(R02, 'drink_station', [16.3, 0, R02_N + 0.33], 180, { width: 1.8 });
 wallProp(R02, 'notice_board', 5, 3, 'n', 0, { text: 'QUARANTINE NOTICE', detail: 'LAB B - ROUTINE' });
-wallProp(R02, 'tag_poster', 4, 3, 'n', 0.6, { slogan: 'DEEPER. FURTHER. TOGETHER.' });
-wallProp(R02, 'tag_poster', 8, 6, 's', 0, { slogan: 'SAFETY IS A SHIFT, NOT A DAY.' });
-wallProp(R02, 'wall_screen', 7, 6, 's', 0, { id: 'commons_tv', width: 2.2, state: 'off' });
-for (const [x, z, kind] of [[14.8, 10.8, 'palm'], [33.2, 25.2, 'fern'], [14.8, 25.2, 'tall'], [22, 25.3, 'shrub'], [33.2, 17.6, 'fern']]) prop(R02, 'potted_plant', [x, 0, z], 0, { kind });
-prop(R02, 'hanging_plant', [18, 0, 17], 0, { drop: 0.9 });
-prop(R02, 'hanging_plant', [25, 0, 17.5], 0, { drop: 0.7 });
+prop(R02, 'bin_station', [21.45, 0, R02_N + 0.3], 180, { count: 2 });
+wallProp(R02, 'tag_poster', 4, 3, 'w', -0.6, { slogan: 'DEEPER. FURTHER. TOGETHER.' });
+wallProp(R02, 'tag_poster', 8, 4, 'e', 0, { slogan: 'SAFETY IS A SHIFT, NOT A DAY.' });
+// Dining: 2.2 m six-seat tables (2.0 m deep with chairs), each under a pair of pendants.
+const R02_TABLES = [
+  [16.6, 13.0, 2],
+  [17.2, 18.6, 1],
+  [20.9, 18.6, 2],
+  [17.2, 21.8, 0],
+  [20.9, 21.8, 1],
+  [27.0, 16.9, 1],
+  [30.9, 16.9, 2],
+];
+for (const [x, z, mugs] of R02_TABLES) {
+  prop(R02, 'dining_table', [x, 0, z], 0, { width: 2.2, seats: 6, mugs, caddy: true });
+  prop(R02, 'pendant_light', [x, 0, z], 0, { ceiling: R02_CEIL, drop: 1.7, count: 2, spacing: 1.1 });
+}
+prop(R02, 'vending_machine', [14.67, 0, 19.7], 270);
+// SW window bar: a high ledge in front of the glass, stools facing out.
+prop(R02, 'bar_counter', [18.3, 0, 25.32], 0, { width: 4.6, stools: 6, mugs: 2 });
+prop(R02, 'pendant_light', [18.3, 0, 25.1], 0, { ceiling: R02_CEIL, drop: 1.75, count: 4, spacing: 1.15, shade: 'dark' });
+// SE lounge: planter edge, rug, a sofa and two armchairs facing the window, the TV on the east wall.
+prop(R02, 'planter', [28.6, 0, 21.35], 0, { width: 4.4 });
+prop(R02, 'rug', [29.6, 0, 23.75], 0, { width: 5.2, depth: 3.2, tone: 'teal' });
+prop(R02, 'sofa', [29.6, 0, 22.6], 180, { width: 2.6, tone: 'warm' });
+prop(R02, 'coffee_table', [29.6, 0, 23.9], 0, { width: 1.4, depth: 0.7 });
+prop(R02, 'mug', [29.3, 0.44, 23.8], 0, { color: 'red' });
+prop(R02, 'sofa', [27.5, 0, 24.1], 225, { width: 1.0 });
+prop(R02, 'sofa', [31.7, 0, 24.1], 135, { width: 1.0 });
+wallProp(R02, 'wall_screen', 8, 6, 'e', -0.4, { id: 'commons_tv', width: 2.2, state: 'off' });
+// Greens: corner pots, hanging baskets by the windows.
+for (const [x, z, kind] of [[14.8, 10.8, 'palm'], [14.9, 25.2, 'tall'], [21.2, 25.25, 'shrub'], [33.2, 25.2, 'fern']]) prop(R02, 'potted_plant', [x, 0, z], 0, { kind, pot: 'white' });
+prop(R02, 'hanging_plant', [26.2, 0, 24.9], 0, { ceiling: R02_CEIL, drop: 1.1 });
+prop(R02, 'hanging_plant', [32.9, 0, 22.4], 0, { ceiling: R02_CEIL, drop: 1.0 });
 station(R02, 'commons_map', 'commons', 4, 6, 'w');
 anchor(R02, 'kitchen_door', [24, 1.2, 10]);
 anchor(R02, 'counter', [29.2, 0.95, counterZ]);
@@ -295,18 +379,18 @@ anchor(R02, 'priya_enter', [24, 0, 24.6], 0);
 anchor(R02, 'priya_stand', [27.4, 0, 13.6], face([27.4, 0, 13.6], [25.6, 0, 13.4]));
 anchor(R02, 'priya_offer', [26.5, 0, 13.0], face([26.5, 0, 13], [25.6, 0, 13.4]));
 anchor(R02, 'priya_exit', [24, 0, 25.4], 180);
-anchor(R02, 'priya_chair', [26.1, 0, 18.4], 0);
+anchor(R02, 'priya_chair', [26.1, 0, 18.6], 0); // a standing spot beside the east tables (crew_1 moves here)
 anchor(R02, 'gallery_door', [14, 1.2, 16]);
 anchor(R02, 'cp_intro', [25.6, 0, 13.4], face([25.6, 0, 13.4], [28, 0, 11.5]));
-anchor(R02, 'commons_tv', [28, 1.75, 25.6]);
+anchor(R02, 'commons_tv', [33.6, 1.75, 23.6]);
 anchor(R02, 'dawdle_call', [16.2, 0, 15.2], 270);
 // Ruiz and Sung's background spots after the dock walk-by: floor cells west of the door (24,10), >= 2.5 m from it, clear of Jay's door-to-kitchen_stand line and of the cast.
 anchor(R02, 'crew_ruiz_commons', [19.6, 0, 12.0], face([19.6, 0, 12], [21.6, 0, 12.6]));
 anchor(R02, 'crew_sung_commons', [21.6, 0, 12.6], face([21.6, 0, 12.6], [19.6, 0, 12]));
 npc(R02, 'cook', 'cook', 'cook_stand', 'idle');
 npc(R02, 'crew_1', 'crew', [19.4, 0, 15.6], 'idle_mug');
-npc(R02, 'crew_2', 'lab', [17.4, 0, 18.6], 'idle_weight');
-npc(R02, 'crew_3', 'maintenance', [32.2, 0, 19.6], 'idle_crossed');
+npc(R02, 'crew_2', 'lab', [18.4, 0, 24.2], 'idle_weight', { yaw: 180 }); // behind the bar stools, looking out
+npc(R02, 'crew_3', 'maintenance', [29.9, 0, 25.0], 'idle_crossed', { yaw: 180 }); // between the armchairs, looking out of the lounge window
 trigger(R02, 'trig_commons_enter', cellBox(6, 6, 3, 3), 'trigger:commons_enter', { once: false });
 trigger(R02, 'trig_commons_to_gallery', cellBox(4, 4, 4, 4), 'trigger:commons_to_gallery', { once: false });
 trigger(R02, 'trig_commons_radio', around([31.6, 0, counterZ - 0.4], 0.6, 1.6), 'commons:radio', { on: 'use', prompt: 'Listen', once: false });
@@ -348,6 +432,7 @@ prop(R04, 'specimen_tank', [9.5, 0, 28.6]);
 prop(R04, 'gurney', [8, 0, 25.2], 90);
 prop(R04, 'console', [12.8, 0, 25.6], 270, { screen: 'log' });
 prop(R04, 'chair', [7.4, 0, 27.2]);
+prop(R04, 'sign_danger', [2.25, 0, 25.66], 270); // beside the Lab B bulkhead (slice01.test: sign_danger)
 anchor(R03, 'brief_screen', [8, 1.85, 14.4]);
 anchor(R03, 'labb_blinds', [8, 1.5, 22.3]);
 anchor(R03, 'labb_glass', [8, 1.5, 21.8]);
@@ -396,6 +481,8 @@ prop(R06, 'pipe_run', [-5.4, 0, 32], 90, { length: 10, height: 0.5, paint: 'dark
 prop(R06, 'valve', [1.0, 0, 28.6]);
 prop(R06, 'emergency_beacon', [1.7, 2.8, 36], 270, { wall: true });
 prop(R06, 'emergency_beacon', [-5.7, 2.8, 30], 90, { wall: true });
+prop(R06, 'sign_danger', [-1.66, 0, 26.25], 180); // beside the doors in and out of the hall
+prop(R06, 'sign_danger', [-1.66, 0, 37.75], 0);
 anchor(R05, 'r05_entry', [-1.6, 0, 16.2], 180);
 anchor(R05, 'ammo_r05', [-4.8, 0.9, 14.6]);
 // TAG FM is still playing in the ruined junction after the first fight (ADR-0023); the radio sits on the console.
@@ -598,7 +685,7 @@ const R12b = room('R12b', 'Grow Hall', rect(10, 12, 4, 6), {
   lights: [L(1, 'steady', '#d8ffd0', 10), L(3, 'steady', '#d8ffd0', 9), L(5, 'steady', '#d8ffd0', 9), L(7, 'steady', '#e8ffe0', 10)],
 });
 const R12c = room('R12c', 'Seed Lab', [[13, 4], [13, 5]], { area: 'hydroponics', atmosphere: HYDRO, floor: 'floor_tiles', walls: ['wall_tiles', 'wall_greenhouse'], lights: [L(0, 'steady', '#f0fff0', 8), L(1, 'steady', '#f0fff0', 7)] });
-const R12d = room('R12d', 'Nutrient Room', [[11, 7], [12, 7]], { area: 'hydroponics', atmosphere: { ...HYDRO, reverb: 'metal_corridor' }, ceiling: 'ceiling_pipes', walls: ['wall_plain', 'wall_panel'], lights: [L(0, 'steady', '#c8ffd8', 7), L(1, 'flicker', '#c8ffd8', 6)] });
+const R12d = room('R12d', 'Nutrient Room', [[11, 7], [12, 7]], { area: 'hydroponics', atmosphere: { ...HYDRO, reverb: 'metal_corridor' }, ceiling: 'ceiling_pipes', walls: ['wall_plain', 'wall_panel'], wallMaterial: 'tileWashroom', lights: [L(0, 'steady', '#c8ffd8', 7), L(1, 'flicker', '#c8ffd8', 6)] });
 const R12e = room('R12e', 'Hydroponics Storeroom', [[10, 7]], { area: 'hydroponics', atmosphere: { ...HYDRO, reverb: 'small_office' }, walls: ['wall_plain'], lights: [L(0, 'steady', '#ffe2b8', 6)] });
 wallKit(R12d, 12, 7, 'e', 'wall_vent');
 door('D_R02_R12a', 'R02', 'R12a', 8, 5, 'e');
@@ -722,10 +809,10 @@ trigger(R13e, 'trig_dive_lockers', cellBox(4, 4, 10, 10), 'trigger:dive_lockers_
 const ADMIN = { fog: '#0b0a08', fogDensity: 0.02, reverb: 'small_office', ambience: 'office_hvac' };
 const WARM = '#ffe2c0';
 const R14a = room('R14a', 'TAG Reception', [[9, 2], [9, 3]], { area: 'admin', atmosphere: ADMIN, floor: 'floor_carpet', walls: ['wall_wood'], lights: [L(0, 'steady', WARM, 8), L(1, 'steady', WARM, 8)] });
-const R14b = room('R14b', 'Open Office', rect(10, 12, 1, 2), { area: 'admin', atmosphere: ADMIN, floor: 'floor_carpet', walls: ['wall_wood', 'wall_plain'], lights: [L(0, 'steady', WARM, 8), L(2, 'steady', WARM, 8), L(4, 'steady', WARM, 8)] });
+const R14b = room('R14b', 'Open Office', rect(10, 12, 1, 2), { area: 'admin', atmosphere: ADMIN, floor: 'floor_carpet', walls: ['wall_wood'], lights: [L(0, 'steady', WARM, 8), L(2, 'steady', WARM, 8), L(4, 'steady', WARM, 8)] });
 const R14c = room('R14c', "Director's Office", [[13, 1], [13, 2]], { area: 'admin', atmosphere: ADMIN, floor: 'floor_carpet', walls: ['wall_wood'], lights: [L(0, 'steady', '#ffd9a8', 7), L(1, 'steady', '#ffd9a8', 6)] });
 const R14d = room('R14d', 'Meeting Room', [[10, 0], [11, 0]], { area: 'admin', atmosphere: ADMIN, floor: 'floor_carpet', walls: ['wall_wood'], lights: [L(0, 'steady', WARM, 7), L(1, 'steady', WARM, 7)] });
-const R14e = room('R14e', 'Security Booth', [[9, 1]], { area: 'admin', atmosphere: { ...ADMIN, fogDensity: 0.03 }, floor: 'floor_carpet', walls: ['wall_plain'], lights: [L(0, 'steady', '#cfe0ff', 5)] });
+const R14e = room('R14e', 'Security Booth', [[9, 1]], { area: 'admin', atmosphere: { ...ADMIN, fogDensity: 0.03 }, ceilingMaterial: 'boltPanel', floor: 'floor_carpet', walls: ['wall_wood'], lights: [L(0, 'steady', '#cfe0ff', 5)] });
 wallKit(R14c, 13, 1, 'n', 'wall_window');
 wallKit(R14c, 13, 1, 'e', 'wall_window');
 wallKit(R14d, 10, 0, 'n', 'wall_window');
@@ -740,42 +827,51 @@ door('D_R14a_R14e', 'R14a', 'R14e', 9, 2, 'n');
 R14c.visibleFrom = ['R14b'];
 R14d.visibleFrom = ['R14b'];
 station(R14a, 'admin_map', 'admin', 9, 3, 's');
-prop(R14a, 'office_desk', [36.4, 0, 10], 270, { width: 2, papers: 4 });
-prop(R14a, 'chair', [37.3, 0, 10]);
-prop(R14a, 'sofa', [34.6, 0, 6.6], 90, { width: 1.8, tone: 'warm' });
-wallProp(R14a, 'tag_poster', 9, 2, 'w', 0.8, { slogan: 'THE FUTURE IS DEEP.' });
-for (const [x, z, kind] of [[34.6, 4.6, 'palm'], [37.4, 13.4, 'fern'], [37.4, 4.6, 'tall']]) prop(R14a, 'potted_plant', [x, 0, z], 0, { kind, pot: 'white', size: 1.1 });
-for (const [x, z] of [[41.2, 3.4], [45, 3.4], [41.2, 7.8], [45, 7.8]]) {
-  prop(R14b, 'office_desk', [x, 0, z], 0, { width: 1.6, papers: 2 });
-  prop(R14b, 'chair', [x, 0, z + 0.9]);
-}
-prop(R14b, 'bookshelf', [48.8, 0, 9.5], 0, { width: 1.6 });
-for (const [x, z, kind] of [[38.6, 2.4, 'tall'], [50.4, 6.4, 'fern'], [38.6, 9.6, 'shrub'], [43.6, 9.8, 'palm']]) prop(R14b, 'potted_plant', [x, 0, z], 0, { kind, pot: 'white' });
-prop(R14b, 'hanging_plant', [43.6, 0, 6], 0, { drop: 0.7, pot: 'white' });
-prop(R14c, 'office_desk', [52.6, 0, 6.2], 90, { width: 2.2, exec: true, papers: 4 });
-prop(R14c, 'chair', [53.5, 0, 6.2]);
-prop(R14c, 'bookshelf', [53.6, 0, 9.2], 270, { width: 1.8, height: 2.2 });
-prop(R14c, 'sofa', [51.4, 0, 9.4], 0, { width: 1.8, tone: 'warm' });
-prop(R14c, 'potted_plant', [50.4, 0, 2.6], 0, { kind: 'palm', pot: 'dark', size: 1.3 });
-prop(R14c, 'potted_plant', [53.4, 0, 2.6], 0, { kind: 'fern', pot: 'dark' });
+// Reception desk on the east side of [9,3]: monitor faces east toward the seated assistant, who faces west toward arriving visitors.
+workstation(R14a, [36.5, 0, 10.7], 270, {
+  width: 2,
+  papers: 4,
+  npc: { id: 'assistant', look: 'assistant', pose: 'sit_typing' },
+});
+// Waiting sofa flush against the west wall of [9,2], facing east (rot 270) into reception, poster centred above it.
+prop(R14a, 'sofa', [34.72, 0, 8.4], 270, { width: 1.8, tone: 'warm' });
+wallProp(R14a, 'tag_poster', 9, 2, 'w', 0.4, { slogan: 'THE FUTURE IS DEEP.' });
+for (const [x, z, kind] of [[34.65, 6.65, 'palm'], [37.35, 13.35, 'fern'], [37.35, 6.65, 'tall']]) prop(R14a, 'potted_plant', [x, 0, z], 0, { kind, pot: 'white', size: 1.0 });
+// Open office: four workstations facing north (rot 180 puts sitter/chair on south side facing the screen), leaving clear aisles to all 3 doors.
+workstation(R14b, [40.6, 0, 3.2], 180, {
+  width: 1.6,
+  papers: 2,
+  npc: { id: 'exec_2', look: 'exec', pose: 'sit_typing' },
+});
+workstation(R14b, [46.8, 0, 3.2], 180, { width: 1.6, papers: 2 });
+workstation(R14b, [41.6, 0, 7.4], 180, { width: 1.6, papers: 2 });
+workstation(R14b, [45.6, 0, 7.4], 180, { width: 1.6, papers: 2 });
+prop(R14b, 'bookshelf', [48.4, 0, 9.52], 0, { width: 1.6 });
+for (const [x, z, kind] of [[38.65, 2.65, 'tall'], [49.35, 2.65, 'fern'], [38.65, 9.35, 'shrub'], [43.6, 9.35, 'palm']]) prop(R14b, 'potted_plant', [x, 0, z], 0, { kind, pot: 'white' });
+prop(R14b, 'hanging_plant', [43.6, 0, 5.6], 0, { drop: 0.7, pot: 'white' });
+// Director's office: executive desk faces west toward the door (rot 270 puts Hale's chair on the east side facing west).
+workstation(R14c, [52.4, 0, 6.2], 270, { width: 2.2, exec: true, papers: 4, fixedChair: true });
+prop(R14c, 'bookshelf', [53.52, 0, 8.6], 90, { width: 1.6, height: 2.2 });
+prop(R14c, 'sofa', [51.4, 0, 9.28], 0, { width: 1.8, tone: 'warm' });
+prop(R14c, 'potted_plant', [50.65, 0, 2.65], 0, { kind: 'palm', pot: 'dark', size: 1.2 });
+prop(R14c, 'potted_plant', [53.35, 0, 2.65], 0, { kind: 'fern', pot: 'dark' });
 wallProp(R14c, 'tag_poster', 13, 2, 's', 0, { slogan: 'TAG INDUSTRIES - 40 YEARS DEEP', width: 1.1 });
-prop(R14d, 'dining_table', [42, 0, 0.2], 0, { width: 3.2, seats: 6, mugs: 3 });
+// Meeting room: conference table clear of the west presentation screen and the south-east entry door.
+prop(R14d, 'dining_table', [41.8, 0, -0.15], 0, { width: 2.8, seats: 6, mugs: 3 });
 wallProp(R14d, 'wall_screen', 10, 0, 'w', 0, { id: 'admin_tv', width: 2 });
-prop(R14d, 'potted_plant', [46.4, 0, -1.2], 0, { kind: 'tall', pot: 'white' });
+prop(R14d, 'potted_plant', [45.35, 0, -1.35], 0, { kind: 'tall', pot: 'white' });
 prop(R14e, 'security_monitor', [36, 0, 2.8], 180, { id: 'admin_cam', camera: 'CAM 04  MEDICAL BAY', feed: 'live' });
-prop(R14e, 'chair', [35, 0, 3.9]);
-pickups.push({ id: 'P_card_l2', room: 'R14c', item: 'card_l2', pos: [52.5, 0.78, 5.5], rot: 15 });
+prop(R14e, 'chair', [35.2, 0, 3.9], 0, { fixed: true });
+pickups.push({ id: 'P_card_l2', room: 'R14c', item: 'card_l2', pos: [52.4, 0.78, 5.5], rot: 15 });
 // The divers' sample case (ADR-0023 dive round): lies at the moon pool's rim until Jay takes it.
 pickups.push({ id: 'P_sample_case', room: 'R13b', item: 'sample_case', pos: [21.4, 0.02, 37.2], rot: 80 });
 anchor(R14a, 'admin_entry', [35, 0, 12], 90);
-anchor(R14c, 'hale_desk', [52.6, 0.8, 6.2]);
-anchor(R14c, 'hale_stand', [52.4, 0, 8.4], 90);
+anchor(R14c, 'hale_desk', [52.4, 0.8, 6.2]);
+anchor(R14c, 'hale_stand', [52.4, 0, 8.3], 90);
 anchor(R14c, 'cp_round_admin', [51, 0, 5.4], 270);
 anchor(R14e, 'admin_cam_monitor', [36, 1.4, 2.6]);
 anchor(R14e, 'admin_cam_view', [36.4, 0, 4.2], 0);
-npc(R14a, 'assistant', 'assistant', [37.3, 0, 10], 'typing');
-npc(R14b, 'exec_1', 'exec', [45.6, 0, 6], 'talk_gesture');
-npc(R14b, 'exec_2', 'exec', [41.6, 0, 4.1], 'typing');
+npc(R14b, 'exec_1', 'exec', [44.0, 0, 5.6], 'talk_gesture', { yaw: 90 });
 npc(R14c, 'hale', 'hale', 'hale_stand', 'idle_hips');
 trigger(R14a, 'trig_admin_enter', cellBox(9, 9, 3, 3), 'trigger:admin_enter', { once: false });
 trigger(R14c, 'trig_hale_office', cellBox(13, 13, 1, 2), 'trigger:hale_office', { once: false });
@@ -829,13 +925,19 @@ function build() {
     const inRoom = new Set(r.cells.map(([x, z]) => `${x},${z}`));
     const pieces = [];
     const group = new Map();
-    const put = (kit, cell, rot) => {
-      const key = `${kit}|${rot}`;
-      if (!group.has(key)) group.set(key, { kit, rot, cells: [] });
+    const put = (kit, cell, rot, params) => {
+      const key = `${kit}|${rot}|${params ? JSON.stringify(params) : ''}`;
+      if (!group.has(key)) group.set(key, { kit, rot, params, cells: [] });
       group.get(key).cells.push(cell);
     };
+    const ceilParams = r.ceilingMaterial ? { material: r.ceilingMaterial } : undefined;
+    const wallParams = r.wallMaterial ? { material: r.wallMaterial } : undefined;
     // Ceilings first, one entry per cell, so numeric light slots follow the cell order.
-    r.cells.forEach(([x, z], i) => pieces.push({ kit: r.ceiling === 'ceiling_pipes' && i % 2 === 0 ? 'ceiling' : r.ceiling, cell: [x, 0, z] }));
+    r.cells.forEach(([x, z], i) => {
+      const c = { kit: r.ceiling === 'ceiling_pipes' && i % 2 === 0 ? 'ceiling' : r.ceiling, cell: [x, 0, z] };
+      if (ceilParams) c.params = ceilParams;
+      pieces.push(c);
+    });
     for (const [x, z] of r.cells) {
       put(r.floorOverride[`${x},${z}`] ?? r.floor, [x, 0, z], 0);
       for (const s of ['n', 'e', 's', 'w']) {
@@ -844,11 +946,12 @@ function build() {
         const ek = edgeKey(x, z, s);
         if (doorEdges.has(ek) || glassEdges.has(ek) || openEdges.has(ek)) continue;
         const kit = r.wallOverride[ek] ?? r.walls[Math.abs(x * 7 + z * 3 + s.charCodeAt(0)) % r.walls.length];
-        put(kit, [x, 0, z], WALL_ROT[s]);
+        put(kit, [x, 0, z], WALL_ROT[s], wallParams);
       }
     }
     for (const g of group.values()) {
       const p = { kit: g.kit, cells: g.cells };
+      if (g.params) p.params = g.params;
       if (g.rot) p.rot = g.rot;
       pieces.push(p);
     }
@@ -871,6 +974,7 @@ function build() {
     }
     if (r.anchors.length) o.anchors = r.anchors;
     if (r.npcs.length) o.npcs = r.npcs;
+    if (r.walks.length) o.walks = r.walks;
     out.push(o);
   }
   return {

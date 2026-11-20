@@ -431,3 +431,26 @@ test('actor separation: a dragged body is excluded, a lent squadmate is pushed o
   assert.ok(r.towed);
   assert.ok(r.position.distanceTo(before) < 0.2, 'a towed body is moved by the rope only');
 });
+
+test('two people walking head-on pass each other without bumping, and both arrive (ADR-0028)', async () => {
+  const { npcs } = setup();
+  npcs.spawnFromLevel([
+    { id: 'ruiz', look: 'ruiz', pos: new THREE.Vector3(0, 0, -5), yaw: 0 },
+    { id: 'sung', look: 'sung', pos: new THREE.Vector3(0.1, 0, 5), yaw: Math.PI },
+  ]);
+  let done = 0;
+  void npcs.command('npcMoveTo', { npc: 'ruiz', to: [0, 0, 5] }).then(() => done++);
+  void npcs.command('npcMoveTo', { npc: 'sung', to: [0.1, 0, -5] }).then(() => done++);
+  const a = npcs.actor('ruiz')!;
+  const b = npcs.actor('sung')!;
+  const touch = a.body.footprint.r + b.body.footprint.r;
+  let minGap = Infinity;
+  for (let i = 0; i < 60 * 25 && done < 2; i++) {
+    npcs.update(1 / 60, null);
+    minGap = Math.min(minGap, Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z) - touch);
+    if (i % 3 === 0) await Promise.resolve();
+  }
+  assert.equal(done, 2, 'both arrived');
+  assert.ok(minGap > 0.05, `kept apart while passing (closest gap ${minGap.toFixed(2)} m)`);
+  assert.ok(Math.hypot(a.position.x, a.position.z - 5) < 0.4 && Math.hypot(b.position.x - 0.1, b.position.z + 5) < 0.4, 'each at its spot');
+});

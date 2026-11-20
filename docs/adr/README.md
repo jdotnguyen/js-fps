@@ -48,6 +48,8 @@ Execution steps, Definition of done, Open questions.
 | 0025 | Tutorial prompts | 0004, 0012, 0016 |
 | 0026 | Imported body models for the crowd | 0006, 0007 |
 | 0027 | Speech acting: talking mouths and tone-matched gestures | 0006, 0010, 0026 |
+| 0028 | Navmesh pathing and authored walks | 0007, 0009, 0017 |
+| 0029 | Ambient life: activity spots, conversations, ambient director | 0006, 0009, 0027, 0028 |
 
 0013 (audio) can run in parallel with 0004-0008 once 0003 exists.
 0015 is a standing rule set: read it before starting any ADR.

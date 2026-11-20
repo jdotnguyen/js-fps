@@ -215,12 +215,14 @@
           "do": "npcMoveTo",
           "npc": "okafor",
           "to": "anchor:post_okafor",
+          "via": "intro_okafor_arrive",
           "wait": true
         },
         {
           "do": "npcMoveTo",
           "npc": "giles",
           "to": "anchor:post_giles",
+          "via": "intro_giles_arrive",
           "wait": true
         }
       ]
@@ -272,12 +274,14 @@
     {
       "do": "npcMoveTo",
       "npc": "okafor",
-      "to": "anchor:counter_okafor"
+      "to": "anchor:counter_okafor",
+      "via": "intro_okafor_counter"
     },
     {
       "do": "npcMoveTo",
       "npc": "giles",
-      "to": "anchor:counter_giles"
+      "to": "anchor:counter_giles",
+      "via": "intro_giles_counter"
     },
     {
       "do": "wait",
@@ -295,6 +299,7 @@
         {
           "do": "playerWalkTo",
           "to": "anchor:kitchen_stand",
+          "via": "intro_jay_kitchen",
           "speed": 1.3,
           "timeout": 45,
           "wait": true

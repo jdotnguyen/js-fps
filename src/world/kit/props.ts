@@ -92,8 +92,8 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     pb.solid(-0.85, 0, -0.45, 0.85, 1.0, 0.36, 'metal');
   },
 
-  chair(_p, rng, m, pb) {
-    const ry = rng.range(-0.5, 0.5);
+  chair(p, rng, m, pb) {
+    const ry = boolParam(p, 'fixed', false) ? 0 : rng.range(-0.5, 0.5);
     const f = at(0, 0, 0, 0, ry, 0);
     pb.add(rounded(0.48, 0.08, 0.46, 0.03), m.rubber, inFrame(f, 0, 0.5, 0));
     pb.add(rounded(0.46, 0.5, 0.06, 0.03), m.rubber, inFrame(f, 0, 0.82, 0.22, -0.12, 0, 0));
@@ -102,7 +102,7 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
       const a = (k * 2 * PI) / 5 + ry;
       pb.add(cylinderBetween(V(0, 0.08, 0), V(Math.cos(a) * 0.3, 0.04, Math.sin(a) * 0.3), 0.018), m.steel);
     }
-    pb.solid(-0.28, 0, -0.28, 0.28, 0.6, 0.28, 'rubber');
+    pb.solid(-0.28, 0, -0.28, 0.28, 1.07, 0.28, 'rubber');
   },
 
   desk(p, _rng, m, pb) {

@@ -3,7 +3,7 @@ import type { TextureKey } from './generators.ts';
 /**
  * Photoscanned texture slots (openspec: adopt-photoscanned-textures).
  *
- * Files live at `public/assets/textures/<dir>/{color,normal,orm}.jpg`
+ * Files live at `public/assets/textures/<dir>/{color,normal,orm}.webp`
  * (ORM: R = AO, G = roughness, B = metalness).
  *
  * UV / repeat contract: kit geometry UVs are in metres when a kit piece's `tile`
@@ -66,6 +66,15 @@ const RAW = {
   tileWall: slot(1.2, 0xa6a6a6, 'labTile'),
   tileWashroom: slot(1.5, 0xa6a6a6, 'labTile'),
   signDanger: slot(1, 0xb0b0b0, 'paintBone', { tiling: false }),
+  hullPlate: slot(2, 0x7c848a, 'paintDark'),
+  boltPanel: slot(2.4, 0x8e949a, 'steel', { normalScale: 1.2 }),
+  steelBrushed: slot(1.5, 0x9aa2a8, 'steel', { roughnessScale: 0.9 }),
+  deckCorrugated: slot(2, 0x585e64, 'paintDark', { normalScale: 1.3 }),
+  acousticCeiling: slot(0.65, 0xa8aca8, 'paintBone'),
+  vinylPanel: slot(1.5, 0xa29d90, 'paintBone', { roughnessScale: 0.95, normalScale: 0.6 }),
+  officeCeiling: slot(4, 0xa8a69e, 'paintBone'),
+  woodPanel: slot(2, 0xc8b298, 'paintBone', { roughnessScale: 0.9 }),
+  carpet: slot(1.5, 0x8e98a6, 'rubber'),
 } satisfies Record<string, PhotoSlot>;
 
 export type PhotoSlotKey = keyof typeof RAW;

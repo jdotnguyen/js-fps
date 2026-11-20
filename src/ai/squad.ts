@@ -4,7 +4,7 @@ import { Humanoid, type HumanoidContext, type HumanoidSpec } from '../actors/hum
 import { GILES, OKAFOR } from '../actors/squadLooks.ts';
 import { tellsFor } from '../actors/castTells.ts';
 import { GIVE_WAY, GiveWay, type WayEnv } from './giveWay.ts';
-import type { NavGraph, P3 } from './nav.ts';
+import type { Navigator, P3 } from './nav.ts';
 import {
   COMBAT,
   KillShare,
@@ -204,13 +204,16 @@ export class SquadMate {
   }
 
   /** Soft push from actor separation (the director clears overlap with Jay): slides through level collision. */
-  nudge(dx: number, dz: number, colliders: NavGraph['world'] | null): void {
+  nudge(dx: number, dz: number, colliders: Navigator['world'] | null): void {
+    const x0 = this.motor.x;
+    const z0 = this.motor.z;
     if (colliders) moveBody(this.motor, dx, dz, 1 / 60, MOTOR, colliders);
     else {
       this.motor.x += dx;
       this.motor.z += dz;
     }
     this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
+    this.body.nudgeImpulse(this.motor.x - x0, this.motor.z - z0, 1 / 60);
   }
 
   /** Re-decide on the next step (a task or script just changed). */
@@ -696,7 +699,7 @@ const tmpF = new THREE.Vector3();
 
 export interface SquadDeps {
   ctx: HumanoidContext;
-  nav: NavGraph;
+  nav: Navigator;
   player: SquadPlayer;
   /** Live enemies (ADR-0007); can also be set later with `setEnemies`. */
   enemies?: SquadEnemySource | null;
@@ -716,7 +719,7 @@ const STANDARD: SquadDifficulty = { squadDamage: 0.45, squadAccuracy: 0.45, medi
 export class Squad {
   readonly group = new THREE.Group();
   readonly mates: SquadMate[];
-  readonly nav: NavGraph;
+  readonly nav: Navigator;
   readonly playerFeet = new THREE.Vector3();
   readonly playerHead = new THREE.Vector3();
   readonly forward = new THREE.Vector3();
@@ -751,7 +754,7 @@ export class Squad {
     for (const m of this.mates) this.group.add(m.body.group);
   }
 
-  get colliders(): NavGraph['world'] {
+  get colliders(): Navigator['world'] {
     return this.nav.world;
   }
 

@@ -31,8 +31,13 @@ import type { DemoRoom } from './world/demoRoom.ts';
 import type { Level } from './world/level.ts';
 import type { World } from './world/world.ts';
 import type { DemoRoomAudio } from './world/demoRoomAudio.ts';
+import { AMBIENCE_PRESETS, AmbienceDirector } from './audio/ambience.ts';
+import { DoorAudio } from './audio/doorAudio.ts';
 import { AudioEngine } from './audio/engine.ts';
+import { FootstepAudio } from './audio/footsteps.ts';
 import { MenuMusic } from './audio/menuMusic.ts';
+import type { FootstepEvent } from './actors/humanoid.ts';
+import { CollisionWorld } from './world/collision.ts';
 import { Game } from './game/game.ts';
 import { CutsceneController } from './game/cutscene.ts';
 import { CutsceneUi } from './ui/hud/cutsceneUi.ts';
@@ -159,9 +164,9 @@ async function boot(): Promise<void> {
   const t0 = performance.now();
   const texSize = settings.get().quality === 'low' ? 256 : TEXTURE_SIZE;
   // The game is the slice (ADR-0014): no ?level loads slice01 and New game plays the intro (ADR-0017).
-  // ?level=<id> loads another data-driven kit level (ADR-0003, e.g. kit_test); ?level=demo is the hand-built demo room; ?level=lab is the imported underground-laboratory sandbox.
+  // ?level=<id> loads another data-driven kit level (ADR-0003, e.g. kit_test); ?level=demo is the hand-built demo room; ?level=lab is the imported underground-laboratory sandbox; ?level=corner is the texture-tiling corner test.
   const levelParam = new URLSearchParams(location.search).get('level');
-  const levelId = levelParam === 'demo' || levelParam === 'lab' ? null : (levelParam ?? DEFAULT_LEVEL);
+  const levelId = levelParam === 'demo' || levelParam === 'lab' || levelParam === 'corner' ? null : (levelParam ?? DEFAULT_LEVEL);
   let room: DemoRoom | null = null;
   let level: Level | null = null;
   let levelSpawns: SpawnPointData[] = [];
@@ -190,6 +195,8 @@ async function boot(): Promise<void> {
       import('./data/types/level.ts'),
       import('./data/kit-manifest.json'),
       import('./ui/mapModel.ts'),
+      // Navmesh WASM (ADR-0028): kit levels path on a Recast navmesh.
+      import('./ai/navmesh.ts').then((m) => m.initNavmesh()),
     ]);
     const registry = new KitRegistry(validate(validateKitManifest, kitManifestJson, 'data/kit-manifest.json'), undefined);
     const refs = { items: new Set(Object.keys(itemTable)), uiText: new Set(Object.keys(uiText)) };
@@ -207,6 +214,11 @@ async function boot(): Promise<void> {
     const { loadLabWorld } = await import('./world/labWorld.ts');
     world = await loadLabWorld(import.meta.env.BASE_URL, scene, materials);
     console.info(`[boot] lab map loaded in ${(performance.now() - t0).toFixed(0)} ms`);
+  } else if (levelParam === 'corner') {
+    // Sandbox: L-shaped corner for checking texture tiling (src/world/cornerTest.ts; ?uv=world|repeat|local).
+    const { loadCornerWorld } = await import('./world/cornerTest.ts');
+    world = await loadCornerWorld(scene, materials, new URLSearchParams(location.search));
+    console.info(`[boot] corner test built in ${(performance.now() - t0).toFixed(0)} ms`);
   } else {
     const [{ buildDemoRoom }, { demoRoomWorld }] = await Promise.all([
       import('./world/demoRoom.ts'),
@@ -219,10 +231,14 @@ async function boot(): Promise<void> {
   scene.add(world.group);
 
   let roomAudio: DemoRoomAudio | null = null;
+  let ambience: AmbienceDirector | null = null;
   if (room) {
     const { DemoRoomAudio } = await import('./world/demoRoomAudio.ts');
     roomAudio = new DemoRoomAudio(audio, room, new Rng('room-audio'));
     roomAudio.start();
+  } else {
+    ambience = new AmbienceDirector(audio, new Rng('level-ambience'));
+    if (!level) ambience.enterRoom('hull_hum');
   }
 
   camera.position.copy(world.spawn.position);
@@ -318,8 +334,32 @@ async function boot(): Promise<void> {
   if (bodyModelsParam === 'all') bodyModels.forceShare = 1;
   if (bodyModelsParam === 'off') bodyModels.forceShare = 0;
   await bodyModels.load(import.meta.env.BASE_URL);
+  const collisionWorld = world.playerWorld.colliders instanceof CollisionWorld ? world.playerWorld.colliders : null;
+  const footsteps = new FootstepAudio({
+    audio,
+    rng: new Rng('footsteps'),
+    listener: () => camera.position,
+    surfaceAt: (x, y, z) => (collisionWorld ? collisionWorld.surfaceAt(x, y, z) : world.playerWorld.surfaceAt(x, z)),
+    ...(collisionWorld
+      ? {
+          isOccluded: (from: THREE.Vector3, to: THREE.Vector3): boolean => {
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            const dz = to.z - from.z;
+            const dist = Math.hypot(dx, dy, dz);
+            if (dist <= 0.5) return false;
+            const hit = collisionWorld.raycast(from.x, from.y, from.z, dx, dy, dz, dist - 0.35);
+            // Only full-height barriers (walls, closed doors >= 2 m) muffle sound; low counters/crates diffract over.
+            return hit !== null && hit.collider.maxY >= 2.0;
+          },
+        }
+      : {}),
+  });
+  const onCharacterFootstep = (step: FootstepEvent): void => {
+    if (game.mode === 'playing' && !game.flying) footsteps.playCharacter(step);
+  };
   const squad = new Squad({
-    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels },
+    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels, onFootstep: onCharacterFootstep },
     nav: world.navGraph(),
     player,
     difficulty: () => game.preset,
@@ -336,7 +376,7 @@ async function boot(): Promise<void> {
     squad.group.visible = mode !== 'title';
   });
   // Enemies (ADR-0007): level spawns, player hits, noise; `?enemies=shambler:2,hero` for a quick fight.
-  const enemies = setupEnemies({ events, ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels }, world, player, camera, flashlightOn: () => flashlight.on, game, audio, spawns: levelSpawns, squad, search: location.search });
+  const enemies = setupEnemies({ events, ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels, onFootstep: onCharacterFootstep }, world, player, camera, flashlightOn: () => flashlight.on, game, audio, spawns: levelSpawns, squad, search: location.search });
   scene.add(enemies.director.group);
   wireSquadToEnemies(squad, enemies.director, events);
   // Enemies and squadmates open unlocked auto doors as they walk up (level.setActors).
@@ -345,7 +385,7 @@ async function boot(): Promise<void> {
   const npcFeet = new THREE.Vector3();
   const npcHead = new THREE.Vector3();
   const npcs = new NpcDirector({
-    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels },
+    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels, onFootstep: onCharacterFootstep },
     nav: world.navGraph(),
     colliders: world.playerWorld.colliders,
     squad,
@@ -353,6 +393,7 @@ async function boot(): Promise<void> {
     interact: (item) => interactions.add(item),
     emit: (name, payload) => events.emit(name as never, payload as never),
     sequenceRunning: () => (sequences?.running().length ?? 0) > 0,
+    walk: (id) => level?.walk(id) ?? null,
   });
   scene.add(npcs.group);
   // Scripted walks path round corners, and everyone (cast, spawned NPCs, squad) is solid to Jay.
@@ -398,7 +439,11 @@ async function boot(): Promise<void> {
   renderer.compile(scene, camera);
   // Speech (ADR-0010): one voice at a time with subtitles; lines unknown to the library are skipped.
   const dialogue = loadDialogueLibrary();
-  const speech = new SpeechManager(events, dialogue, new WebAudioVoicePlayer(audio));
+  const voicePlayer = new WebAudioVoicePlayer(audio);
+  void voicePlayer.loadLines(dialogue.allLines()).then((n) => {
+    if (n > 0) console.info(`[boot] loaded ${n} VO clips`);
+  });
+  const speech = new SpeechManager(events, dialogue, voicePlayer);
   squad.setSpeech(speech);
   // ADR-0027: whoever says a line acts it: mouth on the subtitle's syllables, hands and body on the emote.
   wireSpeechActing(events, (speaker) => {
@@ -542,9 +587,16 @@ async function boot(): Promise<void> {
     if (menuControl(e.target)?.tagName === 'BUTTON') audio.play('uiSelect', { bus: 'ui', gain: 0.65, reverb: 0.1 });
   });
   menuMusic.setMode(game.mode);
-  events.on('game:mode', ({ mode }) => menuMusic.setMode(mode));
+  ambience?.setMode(game.mode);
+  events.on('game:mode', ({ mode }) => {
+    menuMusic.setMode(mode);
+    ambience?.setMode(mode);
+  });
+  events.on('level:reset', () => ambience?.reset());
   events.on('player:flashlight', () => roomAudio?.flashlightClick());
-  events.on('player:footstep', (f) => roomAudio?.footstep(f.surface, f.x, f.z, f.sprint));
+  events.on('player:footstep', (f) => {
+    if (game.mode === 'playing' && !game.flying) footsteps.playPlayer(f);
+  });
   events.on('player:damaged', () => audio.muffle(0.4));
   const crosshair = el<HTMLElement>('#crosshair');
   crosshair.hidden = game.mode !== 'playing';
@@ -585,14 +637,34 @@ async function boot(): Promise<void> {
     if (weapon === 'pistol') audio.play('pistolShot', { bus: 'sfx', gain: 0.6, reverb: 0.35, rate });
     else audio.play('shotgunShot', { bus: 'sfx', gain: 0.9, reverb: 0.4, rate });
   });
-  events.on('room:entered', (r) => audio.setRoomReverb(r.reverb));
+  events.on('room:entered', (r) => {
+    audio.setRoomReverb(r.reverb);
+    ambience?.enterRoom(r.ambience, level?.roomLights(r.id) ?? []);
+  });
 
   events.on('item:given', (it) => toasts.show('Picked up', it.name));
   if (level) {
+    const doorAudio = new DoorAudio(audio);
     level.registerInteractions(interactions);
-    events.on('door:denied', (d) => toasts.show('Door', d.reason));
-    events.on('door:unlocked', (d) => toasts.show('Door unlocked', d.id));
-    events.on('access:denied', (d) => hud.showHint(d.hint));
+    events.on('door:move', (e) => {
+      if (game.mode === 'playing') doorAudio.onMove(e);
+    });
+    events.on('door:denied', (d) => {
+      toasts.show('Door', d.reason);
+      doorAudio.onDenied(d.id, level.anchorPosition('door', d.id));
+    });
+    events.on('door:unlocked', (d) => {
+      toasts.show('Door unlocked', d.id);
+      doorAudio.onUnlocked(d.id, level.anchorPosition('door', d.id));
+    });
+    events.on('access:denied', (d) => {
+      hud.showHint(d.hint);
+      if (d.kind === 'door') doorAudio.onDenied(d.id, level.anchorPosition('door', d.id));
+    });
+    events.on('level:reset', () => doorAudio.stopAll());
+    events.on('game:mode', ({ mode }) => {
+      if (mode === 'title') doorAudio.stopAll();
+    });
   } else {
     // Demo room interactables (ADR-0004).
     const { DEMO_INTERACT_BOXES } = await import('./world/demoRoomColliders.ts');
@@ -681,6 +753,13 @@ async function boot(): Promise<void> {
     sound.add(audio.buses.ambience.gain, 'value', 0, 2, 0.01).name('ambience');
     sound.add(audio.buses.sfx.gain, 'value', 0, 2, 0.01).name('footsteps / sfx');
     sound.add(audio.buses.music.gain, 'value', 0, 1, 0.01).name('music');
+    if (ambience) {
+      const ambDebug = { preset: 'auto' };
+      sound
+        .add(ambDebug, 'preset', ['auto', ...Object.keys(AMBIENCE_PRESETS)])
+        .name('ambience preset')
+        .onChange((val: string) => ambience.setOverride(val === 'auto' ? null : val, 1.0));
+    }
     gui.addFolder('Camera').add(freeCam, 'speed', 1, 20, 0.5).name('fly speed (F1)');
     const pf = gui.addFolder('Player');
     const actions = {
@@ -826,6 +905,7 @@ async function boot(): Promise<void> {
       }
       audio.updateListener(camera);
       roomAudio?.update(simTime);
+      ambience?.update(simTime, camera.position);
       post.grade.uDamage.value = game.mode === 'title' || game.flying ? 0 : player.damageFx;
       post.render(simTime);
       feedGl.overlay(game.mode === 'playing' ? cameraFeeds.fullscreen : null);
@@ -841,6 +921,7 @@ async function boot(): Promise<void> {
       world,
       level,
       audio,
+      ambience,
       hud,
       toasts,
       inventory,

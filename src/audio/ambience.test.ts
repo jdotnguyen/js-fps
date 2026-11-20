@@ -1,0 +1,176 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import * as THREE from 'three';
+import { Rng } from '../core/rng.ts';
+import type { LoopHandle, VoiceOptions } from './engine.ts';
+import { SOUND_SPECS, type SampleName, type SoundName } from './sounds.ts';
+import { AMBIENCE_PRESETS, AmbienceDirector, isAmbiencePreset, resolveAmbience, type AmbienceAudio } from './ambience.ts';
+
+interface MockLoop {
+  name: SoundName;
+  opts: VoiceOptions;
+  gains: number[];
+  stoppedWith: number | null;
+}
+
+class MockAmbienceAudio implements AmbienceAudio {
+  readonly loops: MockLoop[] = [];
+  readonly plays: Array<{ name: SoundName; opts: VoiceOptions }> = [];
+  readonly loaded = new Set<SampleName>();
+  private readonly listeners = new Set<(name: SampleName) => void>();
+
+  hasSound(name: SoundName): boolean {
+    return name in SOUND_SPECS || this.loaded.has(name as SampleName);
+  }
+
+  hasSample(name: SampleName): boolean {
+    return this.loaded.has(name);
+  }
+
+  onSampleLoaded(fn: (name: SampleName) => void): () => void {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+
+  emitSampleLoaded(name: SampleName): void {
+    this.loaded.add(name);
+    for (const fn of this.listeners) fn(name);
+  }
+
+  loop(name: SoundName, opts: VoiceOptions = {}): LoopHandle {
+    const rec: MockLoop = { name, opts, gains: [opts.gain ?? 1], stoppedWith: null };
+    this.loops.push(rec);
+    return {
+      setGain: (v: number) => rec.gains.push(v),
+      stop: (fade = 0) => {
+        rec.stoppedWith = fade;
+      },
+    };
+  }
+
+  play(name: SoundName, opts: VoiceOptions = {}): void {
+    this.plays.push({ name, opts });
+  }
+}
+
+test('every ambience id authored in slice01.json resolves to an explicit preset', () => {
+  const raw = JSON.parse(readFileSync(resolve(import.meta.dirname, '../data/levels/slice01.json'), 'utf8')) as {
+    rooms: Array<{ id: string; atmosphere?: { ambience?: string } }>;
+  };
+  const ids = new Set<string>();
+  for (const room of raw.rooms) {
+    if (room.atmosphere?.ambience) ids.add(room.atmosphere.ambience);
+  }
+  assert.ok(ids.size >= 8, `expected authored ambience presets in slice01.json, found ${ids.size}`);
+  for (const id of ids) {
+    assert.ok(isAmbiencePreset(id), `slice01 ambience "${id}" missing from AMBIENCE_PRESETS`);
+  }
+  assert.equal(resolveAmbience(undefined), 'hull_hum');
+  assert.equal(resolveAmbience('none'), 'silent');
+});
+
+test('room transitions crossfade beds cleanly without stacking active loops', () => {
+  const audio = new MockAmbienceAudio();
+  audio.emitSampleLoaded('ambHullHum');
+  audio.emitSampleLoaded('ambFlooded');
+  audio.emitSampleLoaded('waterRumble');
+
+  const dir = new AmbienceDirector(audio, new Rng('amb-test'));
+  dir.setMode('playing');
+  dir.enterRoom('hull_hum', [], 1.5);
+
+  assert.equal(dir.currentPreset, 'hull_hum');
+  assert.equal(audio.loops.length, 2);
+  assert.equal(audio.loops[0]!.name, 'ambHullHum');
+  assert.equal(audio.loops[1]!.name, 'waterRumble');
+  assert.equal(audio.loops[0]!.stoppedWith, null);
+
+  dir.enterRoom('water_drip', [], 1.5);
+  assert.equal(dir.currentPreset, 'water_drip');
+  assert.equal(audio.loops[0]!.stoppedWith, 1.5);
+  assert.equal(audio.loops[1]!.stoppedWith, 1.5);
+  const active = audio.loops.filter((l) => l.stoppedWith === null);
+  assert.equal(active.length, 2);
+  assert.equal(active[0]!.name, 'ambFlooded');
+});
+
+test('fallback beds hot-swap to recorded ElevenLabs samples once decoded', () => {
+  const audio = new MockAmbienceAudio();
+  const dir = new AmbienceDirector(audio, new Rng('swap-test'));
+  dir.setMode('playing');
+  dir.enterRoom('office_hvac');
+
+  // Before ambOfficeHvac decodes, it starts on the procedural roomTone fallback.
+  assert.equal(audio.loops[0]!.name, 'roomTone');
+  assert.equal(audio.loops[0]!.stoppedWith, null);
+
+  // When the ElevenLabs bed finishes decoding, it crossfades out the fallback and swaps in the sample.
+  audio.emitSampleLoaded('ambOfficeHvac');
+  assert.equal(audio.loops[0]!.stoppedWith, 1.0);
+  const active = audio.loops.filter((l) => l.stoppedWith === null);
+  assert.ok(active.some((l) => l.name === 'ambOfficeHvac'));
+});
+
+test('game mode silences ambience on title, ducks on pause, and suppresses non-playing one-shots', () => {
+  const audio = new MockAmbienceAudio();
+  const dir = new AmbienceDirector(audio, new Rng('mode-test'));
+  dir.enterRoom('water_drip');
+
+  // Title mode: initial target gain is 0 and stepping time fires no one-shots.
+  assert.equal(audio.loops[0]!.gains.at(-1), 0);
+  for (let t = 0; t < 40; t += 1) dir.update(t, new THREE.Vector3(0, 1.6, 0));
+  assert.equal(audio.plays.length, 0);
+
+  // Playing mode: gain rises and drips/groans begin firing spatially.
+  dir.setMode('playing');
+  assert.ok((audio.loops[0]!.gains.at(-1) ?? 0) > 0.3);
+  for (let t = 40; t < 80; t += 1) dir.update(t, new THREE.Vector3(2, 1.6, -3));
+  assert.ok(audio.plays.length > 0);
+  assert.ok(audio.plays.every((p) => p.opts.bus === 'ambience' && p.opts.position !== undefined));
+
+  // Paused mode: bed ducks down smoothly.
+  const fullGain = audio.loops[0]!.gains.at(-1)!;
+  dir.setMode('paused');
+  const pausedGain = audio.loops[0]!.gains.at(-1)!;
+  assert.ok(pausedGain > 0 && pausedGain < fullGain * 0.5);
+});
+
+test('scripted override wins over room changes until cleared', () => {
+  const audio = new MockAmbienceAudio();
+  const dir = new AmbienceDirector(audio, new Rng('override-test'));
+  dir.setMode('playing');
+  dir.enterRoom('hull_hum');
+  dir.setOverride('silent');
+  assert.equal(dir.currentPreset, 'silent');
+  assert.equal(audio.loops.filter((l) => l.stoppedWith === null).length, 0);
+
+  // Walking into another room keeps the scripted override.
+  dir.enterRoom('pipes_knock');
+  assert.equal(dir.currentPreset, 'silent');
+
+  // Clearing override restores the room's preset.
+  dir.setOverride(null);
+  assert.equal(dir.currentPreset, 'pipes_knock');
+  assert.equal(audio.loops.filter((l) => l.stoppedWith === null).length, AMBIENCE_PRESETS.pipes_knock.beds.length);
+});
+
+test('flickering room lights drive buzz gain and fire zap arcs on re-ignition', () => {
+  const audio = new MockAmbienceAudio();
+  const dir = new AmbienceDirector(audio, new Rng('light-test'));
+  dir.setMode('playing');
+  const lamp = { level: 0.2, pattern: 'flicker' };
+  dir.enterRoom('hull_hum', [{ position: new THREE.Vector3(1, 3, 2), light: lamp }]);
+
+  const buzz = audio.loops.find((l) => l.name === 'fluorescentBuzz');
+  assert.ok(buzz, 'expected fluorescentBuzz loop for flickering room fixture');
+
+  dir.update(1.0, new THREE.Vector3(0, 1.6, 0));
+  lamp.level = 0.95;
+  dir.update(1.1, new THREE.Vector3(0, 1.6, 0));
+
+  assert.ok(audio.plays.some((p) => p.name === 'zap'), 'expected zap when flickering light snaps back on');
+  dir.dispose();
+  assert.equal(buzz.stoppedWith, 0);
+});

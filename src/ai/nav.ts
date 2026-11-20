@@ -97,7 +97,24 @@ export interface PathOptions {
   radius?: number;
 }
 
-export class NavGraph {
+/**
+ * What AI and scripted walks need from navigation: the navmesh for kit levels (ADR-0028,
+ * ai/navmesh.ts) or this navgraph for the hand-built sandboxes and tests.
+ */
+export interface Navigator {
+  readonly world: ColliderQuery;
+  readonly doors: NavDoor[];
+  /** Walkable sample points (spot searches). */
+  readonly nodes: P3[];
+  /** Waypoints ending at `to`, or null when there is no route. */
+  findPath(from: P3, to: P3, opts?: PathOptions): P3[] | null;
+  /** Can a body of `radius` walk straight from a to b right now? */
+  direct(a: P3, b: P3, radius: number): boolean;
+  /** Size of the graph (edges, or navmesh polygons), for logs. */
+  edgeCount(): number;
+}
+
+export class NavGraph implements Navigator {
   readonly nodes: P3[];
   readonly edges: NavEdge[][];
   readonly doors: NavDoor[];

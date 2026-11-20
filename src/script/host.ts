@@ -66,7 +66,7 @@ export interface SequenceHost {
    */
   speakerTarget?(speaker: string): TargetRef | null;
   /** Resolves when the player arrives (or is released). */
-  walkTo?(at: Vec3Like, speed: number | undefined): Promise<void>;
+  walkTo?(at: Vec3Like, speed: number | undefined, via?: string): Promise<void>;
   fade?(level: number, seconds: number): void;
   /** Teleport the player, cancelling any forced walk (skipped scenes, `playerPlace`). */
   placePlayer?(at: PlaceTarget, yaw: number | undefined, pitch: number | undefined): void;

@@ -4,7 +4,7 @@ import { DEFAULT_MOTOR, moveBody, type ColliderQuery, type MotorConfig, type Mot
 import { SLAM } from '../actors/slam.ts';
 import type { Rng } from '../core/rng.ts';
 import type { EnemyVariant, EnemyVariantId } from './enemyData.ts';
-import type { NavGraph, P3 } from './nav.ts';
+import type { Navigator, P3 } from './nav.ts';
 import { Memory, PERCEPTION, canSee, type SenseSource } from './perception.ts';
 
 /**
@@ -64,7 +64,7 @@ export interface EnemyTarget {
 
 /** What an enemy needs from its director. */
 export interface EnemyHost {
-  readonly nav: NavGraph;
+  readonly nav: Navigator;
   readonly colliders: ColliderQuery;
   readonly rng: Rng;
   readonly targets: readonly EnemyTarget[];
@@ -473,8 +473,11 @@ export class Enemy {
   /** Push the body (shove, slam) through the motor. */
   push(dx: number, dz: number, host: EnemyHost): void {
     if (!this.mobile) return;
+    const x0 = this.motor.x;
+    const z0 = this.motor.z;
     moveBody(this.motor, dx, dz, 1 / 60, MOTOR, host.colliders);
     this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
+    this.body.nudgeImpulse(this.motor.x - x0, this.motor.z - z0, 1 / 60);
   }
 
   /** Remove from the scene and free GPU resources. */

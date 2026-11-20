@@ -4,7 +4,8 @@ import type { Input } from '../core/input.ts';
 import type { Settings } from '../core/settings.ts';
 import type { DifficultyPreset } from '../data/types/difficulty.ts';
 import type { Flashlight } from '../render/flashlight.ts';
-import type { NavGraph, P3 } from '../ai/nav.ts';
+import type { Navigator, P3 } from '../ai/nav.ts';
+import { PathFollower, planWalk } from '../ai/walkPath.ts';
 import { clipMove, JAY_RADIUS, pushOut, removeInward, type Circle, type V2 } from './bodyPush.ts';
 import { ControlStack, isOnRails } from './control.ts';
 import type { Interactions } from './interaction.ts';
@@ -12,7 +13,7 @@ import { DEFAULT_MOTOR, moveBody, type ColliderQuery, type MotorState } from './
 import { MAX_HP, Vitals, type VitalsChange } from './vitals.ts';
 
 /** Footstep / wading surfaces (ADR-0003 `surfaces`). */
-export type Surface = 'metal' | 'grate' | 'rubber' | 'water';
+export type Surface = 'concrete' | 'metal' | 'grate' | 'rubber' | 'water';
 
 /** What the player needs from the level. ADR-0003's loader provides both. */
 export interface PlayerWorld {
@@ -22,7 +23,7 @@ export interface PlayerWorld {
 
 declare module '../core/events.ts' {
   interface EventMap {
-    'player:footstep': { surface: Surface; x: number; y: number; z: number; sprint: boolean };
+    'player:footstep': { surface: Surface; x: number; y: number; z: number; sprint: boolean; landing?: boolean };
     'player:flashlight': { on: boolean };
     'player:damaged': { amount: number; hp: number };
     'player:downed': { bleedOut: number };
@@ -77,14 +78,10 @@ const PITCH_LIMIT = THREE.MathUtils.degToRad(85);
 /** Radians per pixel at sensitivity 1 (same as the free camera). */
 const LOOK_SCALE = 0.0022;
 const ARRIVE = 0.12;
-/** Scripted walks advance to the next nav waypoint inside this distance, metres. */
-const WAYPOINT_REACH = 0.4;
 /** Scripted walks re-plan this often, seconds. */
 const REPATH_EVERY = 0.5;
 /** ...and when blocked (moving < a quarter of the wanted speed) this long, seconds. */
 const STALL_TIME = 0.4;
-/** Clearance used when planning scripted walks, metres. */
-const WALK_RADIUS = 0.3;
 /** A walk anchor within this of the floor is a feet position; higher ones (camera anchors) use body.y. */
 const FEET_ANCHOR_Y = 0.5;
 /** Velocity into a body is removed within this of touching, metres. */
@@ -125,9 +122,11 @@ interface WalkTarget {
   pos: THREE.Vector3;
   speed: number;
   done: () => void;
-  /** Nav waypoints to the target (last = target), or null for a straight line. */
-  path: P3[] | null;
-  wp: number;
+  /** The planned walk (ADR-0028): speed profile and steering point; null = plan this frame. */
+  follower: PathFollower | null;
+  /** An authored walk's control points (ADR-0028), walked as a smooth curve; null = nav route. */
+  curve: P3[] | null;
+  warned: boolean;
   sinceRepath: number;
   stalled: number;
 }
@@ -194,7 +193,7 @@ export class Player {
   private giveYaw = 0;
   private givePitch = 0;
   private walkTarget: WalkTarget | null = null;
-  private nav: NavGraph | null = null;
+  private nav: Navigator | null = null;
   private bodies: (() => Iterable<Circle>) | null = null;
   private readonly bodyList: Circle[] = [];
   private readonly wishDir = { x: 0, z: 0 };
@@ -257,9 +256,9 @@ export class Player {
   }
 
   /** Nav graph scripted walks path through (null: straight lines). */
-  setNav(nav: NavGraph | null): void {
+  setNav(nav: Navigator | null): void {
     this.nav = nav;
-    if (this.walkTarget) this.walkTarget.sinceRepath = REPATH_EVERY;
+    if (this.walkTarget) this.walkTarget.follower = null;
   }
 
   /** Solid circles (people) Jay cannot walk through; read every step. null: none. */
@@ -372,10 +371,10 @@ export class Player {
   }
 
   /** Forced walk for scripted beats; resolves on arrival (or on reset). */
-  walkTo(pos: THREE.Vector3, speed = PLAYER_TUNING.walkSpeed * 0.6): Promise<void> {
+  walkTo(pos: THREE.Vector3, speed = PLAYER_TUNING.walkSpeed * 0.6, curve?: P3[]): Promise<void> {
     this.walkTarget?.done();
     return new Promise((resolve) => {
-      this.walkTarget = { pos: pos.clone(), speed, done: resolve, path: null, wp: 0, sinceRepath: REPATH_EVERY, stalled: 0 };
+      this.walkTarget = { pos: pos.clone(), speed, done: resolve, follower: null, curve: curve?.length ? curve.map((p) => ({ ...p })) : null, warned: false, sinceRepath: 0, stalled: 0 };
     });
   }
 
@@ -488,15 +487,16 @@ export class Player {
       const dx = w.pos.x - this.body.x;
       const dz = w.pos.z - this.body.z;
       const dist = Math.hypot(dx, dz);
-      if (dist < ARRIVE) {
+      // As close as the body gets counts too (a spot by furniture, ADR-0028): the follower ran out of route, or stalled at its end.
+      const nearEnd = w.follower !== null && w.follower.length - w.follower.progress < 0.6 && dist < 1.6;
+      if (dist < ARRIVE || (nearEnd && w.stalled > STALL_TIME)) {
         this.walkTarget = null;
         w.done();
       } else {
-        this.followPath(w, dt);
-        // Steer at the current waypoint; the last one is the target itself.
-        const last = !w.path || w.wp >= w.path.length - 1;
-        const tx = last || !w.path ? w.pos.x : w.path[w.wp]!.x;
-        const tz = last || !w.path ? w.pos.z : w.path[w.wp]!.z;
+        const st = this.followPath(w, dt);
+        // Steer at the follower's point a little ahead on the route (ADR-0028).
+        const tx = st.tx;
+        const tz = st.tz;
         const sx = tx - this.body.x;
         const sz = tz - this.body.z;
         const sd = Math.hypot(sx, sz);
@@ -504,7 +504,7 @@ export class Player {
           wx = sx / sd;
           wz = sz / sd;
         }
-        speed = last ? Math.min(w.speed, dist / dt) : w.speed;
+        speed = Math.min(Math.max(st.speed, 0.2), dist / dt);
       }
     } else if (mode !== 'locked' && !dead) {
       const f = input.axis('moveBack', 'moveForward');
@@ -570,7 +570,7 @@ export class Player {
       stepZ = this.v2.z;
     }
     const r = moveBody(this.body, stepX, stepZ, dt, { ...DEFAULT_MOTOR, jumpSpeed: T.jumpSpeed }, this.world.colliders);
-    if (wasAirborne && this.body.grounded) this.d.events.emit('player:footstep', { surface, x: this.body.x, y: this.body.y, z: this.body.z, sprint: false });
+    if (wasAirborne && this.body.grounded) this.d.events.emit('player:footstep', { surface, x: this.body.x, y: this.body.y, z: this.body.z, sprint: false, landing: true });
     let mx = this.body.x - x0;
     let mz = this.body.z - z0;
     // Walls eat the velocity that pushes into them, so we slide instead of sticking.
@@ -631,24 +631,26 @@ export class Player {
     }
   }
 
-  /** Keep a scripted walk's nav path fresh: plan, advance waypoints, re-plan on a timer or a stall. */
-  private followPath(w: WalkTarget, dt: number): void {
+  /** Keep a scripted walk's route fresh (ADR-0028): plan, re-plan nav routes on a timer, and re-route on a stall. */
+  private followPath(w: WalkTarget, dt: number): ReturnType<PathFollower['update']> {
     w.sinceRepath += dt;
-    if (!this.nav) {
-      w.path = null;
-      return;
-    }
-    if (w.sinceRepath >= REPATH_EVERY || w.stalled > STALL_TIME) {
+    const stalled = w.stalled > STALL_TIME;
+    if (!w.follower || stalled || (!w.curve && w.sinceRepath >= REPATH_EVERY)) {
+      // Stuck on an authored line (Jay was shoved off it): route straight to the spot instead.
+      if (stalled) w.curve = null;
       w.sinceRepath = 0;
       w.stalled = 0;
       const y = this.body.y;
       const toY = Math.abs(w.pos.y - y) < FEET_ANCHOR_Y ? w.pos.y : y;
-      w.path = this.nav.findPath({ x: this.body.x, y, z: this.body.z }, { x: w.pos.x, y: toY, z: w.pos.z }, { radius: WALK_RADIUS });
-      w.wp = 0;
+      const from = { x: this.body.x, y, z: this.body.z };
+      const plan = planWalk(from, { x: w.pos.x, y: toY, z: w.pos.z }, { nav: this.nav, world: this.world.colliders, radius: DEFAULT_MOTOR.radius }, w.curve ?? undefined);
+      if (!plan.routed && this.nav && !w.warned) {
+        w.warned = true;
+        console.warn(`[nav] Jay: no route from ${from.x.toFixed(1)},${from.z.toFixed(1)} to ${w.pos.x.toFixed(1)},${w.pos.z.toFixed(1)}; walking straight`);
+      }
+      w.follower = new PathFollower(plan.points, { speed: w.speed, v0: w.follower?.speed ?? 0 });
     }
-    const p = w.path;
-    if (!p) return;
-    while (w.wp < p.length - 1 && Math.hypot(p[w.wp]!.x - this.body.x, p[w.wp]!.z - this.body.z) < WAYPOINT_REACH) w.wp++;
+    return w.follower.update(this.body.x, this.body.z, dt);
   }
 
   private updateStamina(dt: number): void {

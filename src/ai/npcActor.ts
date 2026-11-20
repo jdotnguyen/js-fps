@@ -3,7 +3,8 @@ import { DEFAULT_MOTOR, moveBody, type ColliderQuery, type MotorConfig, type Mot
 import type { Humanoid } from '../actors/humanoid.ts';
 import { Rng } from '../core/rng.ts';
 import { GIVE_WAY, GiveWay, PLAYER_RADIUS, type WayEnv } from './giveWay.ts';
-import type { NavGraph, P3 } from './nav.ts';
+import type { Navigator, P3 } from './nav.ts';
+import { PathFollower, planWalk, roundCorners } from './walkPath.ts';
 
 /**
  * One scriptable NPC body (ADR-0009 NPC actions, ADR-0017 intro, ADR-0023 crew). Wraps a
@@ -23,6 +24,8 @@ export const NPC_ANIMS: Readonly<Record<string, { pose: string; hold: number; bl
   cough: { pose: 'cough', hold: 0.9, blend: 0.15 },
   gesture: { pose: 'talk_gesture', hold: 1.4 },
   typing: { pose: 'typing', hold: Infinity },
+  sit_idle: { pose: 'sit_idle', hold: Infinity },
+  sit_typing: { pose: 'sit_typing', hold: Infinity },
   crouchWork: { pose: 'crouchWork', hold: Infinity },
   kneel: { pose: 'kneel_revive', hold: Infinity },
   idle: { pose: 'idle', hold: 0 },
@@ -52,13 +55,13 @@ export const NPC_TUNING = {
   turnRate: 3.2,
 } as const;
 
-/** Base poses of someone working in place: never shoved off their station. */
-const WORK_POSES: ReadonlySet<string> = new Set(['typing', 'crouchWork', 'kneel_revive']);
+/** Base poses of someone working or seated in place: never shoved off their station. */
+const WORK_POSES: ReadonlySet<string> = new Set(['typing', 'sit_idle', 'sit_typing', 'crouchWork', 'kneel_revive']);
 
 const MOTOR: MotorConfig = { ...DEFAULT_MOTOR, radius: 0.3 };
 
 export interface NpcEnv {
-  nav: NavGraph | null;
+  nav: Navigator | null;
   colliders: ColliderQuery | null;
   playerHead: THREE.Vector3;
   playerFeet: THREE.Vector3;
@@ -67,13 +70,20 @@ export interface NpcEnv {
   playerWish?: { x: number; z: number };
   /** Is another body standing in this circle (give-way spots)? `self` is excluded. */
   occupied?: (x: number, z: number, r: number, self: NpcActor) => boolean;
+  /** Every other standing or walking body (cast and squad, not Jay), for steering round them on a walk (ADR-0028). */
+  bodies?: (self: NpcActor, fn: (x: number, z: number, r: number) => void) => void;
 }
 
 interface MoveCmd {
   target: THREE.Vector3;
-  /** Remaining points (a path or a track); the last is the target. */
-  points: P3[] | null;
-  index: number;
+  /** Walking the planned route (ADR-0028): speed profile, steering point. Null = plan next frame. */
+  follower: PathFollower | null;
+  /** A preplanned polyline (attachToTrack refs) walked as given, corners rounded. */
+  track: P3[] | null;
+  /** An authored walk's control points (ADR-0028), walked as a smooth curve. */
+  curve: P3[] | null;
+  /** Already warned that this move has no route. */
+  warned: boolean;
   speed: number;
   yaw: number | undefined;
   repathT: number;
@@ -82,6 +92,8 @@ interface MoveCmd {
   blockT: number;
   /** Side (+1/-1) committed to while steering round Jay, 0 = not steering round him. */
   avoidSide: number;
+  /** Side committed to while passing another body (ADR-0028), 0 = nobody in the way. */
+  passSide: number;
   usePath: boolean;
   resolve: () => void;
 }
@@ -95,6 +107,8 @@ interface Tow {
 
 /** A scripted walker keeps this clear of Jay's body edge ahead of it before it slows and steers round him. */
 const AVOID_RANGE = 1.2;
+/** A walker starts bending round another body this far ahead of the gap between them, metres (ADR-0028). */
+const PASS_RANGE = 2.0;
 /** Longest a scripted walker waits on Jay in its way before giving up (s). */
 const BLOCKED_GIVE_UP = 8;
 /** Longest a give-way sidestep or return walk may take before it is dropped (s). */
@@ -205,12 +219,15 @@ export class NpcActor {
 
   /** Soft push from actor separation: slides the body (through level collision), never a teleport. */
   nudge(dx: number, dz: number, colliders: ColliderQuery | null): void {
+    const x0 = this.motor.x;
+    const z0 = this.motor.z;
     if (colliders) moveBody(this.motor, dx, dz, 1 / 60, MOTOR, colliders);
     else {
       this.motor.x += dx;
       this.motor.z += dz;
     }
     this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
+    this.body.nudgeImpulse(this.motor.x - x0, this.motor.z - z0, 1 / 60);
   }
 
   place(at: P3, yaw?: number): void {
@@ -227,7 +244,7 @@ export class NpcActor {
   }
 
   /** Walk to a point (pathing when a nav graph is present). `instant` teleports there. */
-  moveTo(at: P3, opts: { speed?: number; yaw?: number; instant?: boolean; track?: P3[]; pose?: string } = {}): Promise<void> {
+  moveTo(at: P3, opts: { speed?: number; yaw?: number; instant?: boolean; track?: P3[]; curve?: P3[]; pose?: string } = {}): Promise<void> {
     this.stopMove();
     this.follow = null;
     if (opts.pose && !opts.instant) {
@@ -245,18 +262,38 @@ export class NpcActor {
     return new Promise<void>((resolve) => {
       this.move = {
         target: new THREE.Vector3(at.x, at.y, at.z),
-        points: opts.track ? opts.track.map((p) => ({ ...p })) : null,
-        index: 0,
+        follower: null,
+        track: opts.track ? opts.track.map((p) => ({ ...p })) : null,
+        curve: opts.curve?.length ? opts.curve.map((p) => ({ ...p })) : null,
+        warned: false,
         speed: opts.speed ?? NPC_TUNING.walk,
         yaw: opts.yaw,
         repathT: 0,
         stuckT: 0,
         blockT: 0,
         avoidSide: 0,
-        usePath: !opts.track,
+        passSide: 0,
+        usePath: !opts.track && !opts.curve?.length,
         resolve,
       };
     });
+  }
+
+  /** Plan the route for a move from the feet `me` (ADR-0028): nav route, authored curve or track, rounded. */
+  private planMove(m: MoveCmd, me: P3, env: NpcEnv): PathFollower {
+    const v0 = m.follower?.speed ?? Math.hypot(me.x - this.lastPos.x, me.z - this.lastPos.z) * 60;
+    const target = { x: m.target.x, y: m.target.y, z: m.target.z };
+    let points: P3[];
+    if (m.track) points = roundCorners(me, m.track, env.colliders ? { world: env.colliders, radius: MOTOR.radius } : {});
+    else {
+      const plan = planWalk(me, target, { nav: env.nav, world: env.colliders, radius: MOTOR.radius }, m.curve ?? undefined);
+      points = plan.points;
+      if (!plan.routed && env.nav && !m.warned) {
+        m.warned = true;
+        console.warn(`[nav] ${this.id}: no route from ${me.x.toFixed(1)},${me.z.toFixed(1)} to ${target.x.toFixed(1)},${target.z.toFixed(1)}; walking straight`);
+      }
+    }
+    return new PathFollower(points, { speed: m.speed, v0: Math.min(m.speed, v0) });
   }
 
   /** Be pulled along behind `get()` (a dragger), `dist` m back, in a lying pose. */
@@ -380,31 +417,28 @@ export class NpcActor {
 
     const m = this.move;
     if (m) {
-      let wp: P3 | null = null;
-      if (m.usePath) {
-        m.repathT -= dt;
-        if (!m.points || m.repathT <= 0) {
-          m.repathT = NPC_TUNING.repath;
-          m.points = env.nav?.findPath(me, m.target, { radius: 0.25 }) ?? [{ x: m.target.x, y: m.target.y, z: m.target.z }];
-          m.index = 0;
-        }
+      if (m.usePath) m.repathT -= dt;
+      if (!m.follower || (m.usePath && m.repathT <= 0)) {
+        m.repathT = NPC_TUNING.repath;
+        m.follower = this.planMove(m, me, env);
       }
-      const pts = m.points ?? [{ x: m.target.x, y: m.target.y, z: m.target.z }];
-      wp = pts[m.index] ?? null;
-      while (wp && m.index < pts.length - 1 && Math.hypot(wp.x - me.x, wp.z - me.z) < 0.45) wp = pts[++m.index] ?? null;
+      const st = m.follower.update(me.x, me.z, dt);
       const toEnd = Math.hypot(m.target.x - me.x, m.target.z - me.z);
-      if (toEnd <= NPC_TUNING.arrive && (!m.points || m.index >= pts.length - 1)) {
+      // Arrived: on the spot, or as close as the body gets to one in a nook or by furniture (ADR-0028).
+      if ((toEnd <= NPC_TUNING.arrive && st.remaining < 0.35) || (st.done && toEnd < 1.6) || (m.stuckT > 0.6 && st.remaining < 1 && toEnd < 1.6)) {
         this.move = null;
         if (m.yaw !== undefined) this.faceYaw = m.yaw;
         m.resolve();
-      } else if (wp) {
-        desired.set(wp.x - me.x, 0, wp.z - me.z);
+      } else {
+        desired.set(st.tx - me.x, 0, st.tz - me.z);
         if (desired.lengthSq() > 1e-6) desired.normalize();
-        // Ease in over the last metre so arrivals don't overshoot.
-        speed = m.speed * Math.min(1, 0.35 + toEnd);
+        // The follower eases into turns, doorways and the arrival (ADR-0028); keep a crawl so the spot is reached.
+        speed = Math.max(st.speed, Math.min(0.2, toEnd));
         // Jay in the way: slow down, steer round him, and wait if there is no room (never shove or walk through him).
         const jay = this.avoidJay(m, desired, env);
         speed *= jay.scale;
+        // Other people in the way: bend round the nearest one ahead and ease off, keeping to one side (ADR-0028).
+        if (!jay.near) speed *= this.avoidOthers(m, desired, env);
         const moved = Math.hypot(me.x - this.lastPos.x, me.z - this.lastPos.z);
         if (jay.near) {
           m.stuckT = Math.max(0, m.stuckT - dt);
@@ -417,7 +451,13 @@ export class NpcActor {
         if (m.stuckT > 4 || m.blockT > BLOCKED_GIVE_UP) {
           this.move = null;
           m.resolve();
-        } else if (m.stuckT > 1.2) m.points = null;
+        } else if (m.stuckT > 1.2) {
+          // Off the authored line or blocked: route straight to the spot from here.
+          m.curve = null;
+          m.track = null;
+          m.usePath = true;
+          m.follower = null;
+        }
       }
     }
     this.lastPos.copy(me);
@@ -479,6 +519,52 @@ export class NpcActor {
    * (stopping short of touching) and bends its path round him on a committed side. `blocked` when
    * it has stopped short with him right ahead (the caller extends the stuck timer).
    */
+  /**
+   * Steer a walk round the nearest other body ahead (ADR-0028): bend away from it, committing to a
+   * side until it is passed (head-on, both walkers bend to the same hand so they part), and ease
+   * off when close. A body standing on our goal is left to the arrival. Returns a speed scale.
+   */
+  private avoidOthers(m: MoveCmd, desired: THREE.Vector3, env: NpcEnv): number {
+    if (!env.bodies || desired.lengthSq() < 1e-6) {
+      m.passSide = 0;
+      return 1;
+    }
+    const me = this.position;
+    const r = this.body.footprint.r;
+    let bx = 0;
+    let bz = 0;
+    let bestGap = Infinity;
+    env.bodies(this, (x, z, br) => {
+      const dx = x - me.x;
+      const dz = z - me.z;
+      const d = Math.hypot(dx, dz);
+      const gap = d - (r + br);
+      const ahead = d > 1e-4 ? (desired.x * dx + desired.z * dz) / d : 0;
+      if (gap > PASS_RANGE || ahead < 0.3) return;
+      if (Math.hypot(x - m.target.x, z - m.target.z) < br + 0.25) return;
+      if (gap < bestGap) {
+        bestGap = gap;
+        bx = dx;
+        bz = dz;
+      }
+    });
+    if (bestGap === Infinity) {
+      m.passSide = 0;
+      return 1;
+    }
+    const cross = desired.x * bz - desired.z * bx;
+    if (m.passSide === 0) m.passSide = Math.abs(cross) > 0.15 ? Math.sign(cross) : 1;
+    const t = Math.max(0, Math.min(1, bestGap / PASS_RANGE));
+    // Gentle from afar, firm up close: people start drifting aside well before they'd meet.
+    const bend = 1.4 * (1 - t * t);
+    const dx = desired.x;
+    const dz = desired.z;
+    desired.x = dx + m.passSide * dz * bend;
+    desired.z = dz - m.passSide * dx * bend;
+    desired.normalize();
+    return 0.55 + 0.45 * Math.max(0, Math.min(1, bestGap / 0.6));
+  }
+
   private avoidJay(m: MoveCmd, desired: THREE.Vector3, env: NpcEnv): { near: boolean; blocked: boolean; scale: number } {
     const me = this.position;
     const jx = env.playerFeet.x - me.x;

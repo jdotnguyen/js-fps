@@ -28,6 +28,12 @@ Third-party assets in this project, with their licences. Add one entry per asset
 
 CC BY-NC: credit required, no commercial use. While this model ships, the game must stay free.
 
+## Animations
+
+| Asset | Author | Source | Licence | Used as |
+|---|---|---|---|---|
+| Universal Animation Library (Standard) | Quaternius | [Itch.io](https://quaternius.itch.io/universal-animation-library) ([glTF mirror](https://github.com/J-Ponzo/gltf-universal-animation-library)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Retargeted locomotion, idle, talk, pistol aim, crouch, and kneeling clips for living humanoid characters (`src/data/mocap-clips.json`, baked onto the 21-joint skeleton by `scripts/bake-mocap.mjs`) |
+
 ## Textures
 
 All CC0 (public domain, no credit required); listed so the sources are on record. Raw downloads live outside the repo in `../textures`; `npm run textures` (`scripts/textures/import.ts`) converts them into `public/assets/textures/<slot>/`.
@@ -38,6 +44,9 @@ All CC0 (public domain, no credit required); listed so the sources are on record
 | DiamondPlate006C, DiamondPlate008A | [ambientCG](https://ambientcg.com) | CC0 | diamondHazard, diamond |
 | Rubber001 | [ambientCG](https://ambientcg.com) | CC0 | rubber |
 | Tiles132B, 133B, 133D, 136B | [ambientCG](https://ambientcg.com) | CC0 | tileWashroom, labTile, tileBroken, tileWall |
+| MetalPlates001, MetalPlates014, Metal009 | [ambientCG](https://ambientcg.com) | CC0 | boltPanel, hullPlate, steelBrushed |
+| CorrugatedSteel005, SheetMetal002, OfficeCeiling006 | [ambientCG](https://ambientcg.com) | CC0 | deckCorrugated, acousticCeiling, officeCeiling |
+| Leather018, Wood027, Carpet012 | [ambientCG](https://ambientcg.com) | CC0 | vinylPanel, woodPanel, carpet |
 | Concrete Wall 008, Brushed Concrete 2, Painted Concrete 02 | [Poly Haven](https://polyhaven.com) | CC0 | concrete, concreteFloor, concretePainted |
 | Metal 0001, 0051, 0053 | [TextureCan](https://www.texturecan.com) | CC0 | diamondRusty, rustBlotch, rustDrip |
 
@@ -46,3 +55,7 @@ All CC0 (public domain, no credit required); listed so the sources are on record
 | Asset | Author | Source | Licence | Used as |
 |---|---|---|---|---|
 | Zombie sound 2, Zombie call, Zombie sfx | Dragon Studio | Supplied as `dragon-studio-zombie-sound-2-357976.mp3`, `dragon-studio-zombie-call-357977.mp3`, `dragon-studio-zombie-sfx-450450.mp3` (licence not recorded yet: add it here) | not recorded | Infected voices (`public/assets/audio/zombies/`, sample `zombieVoice`, played in turn by `src/audio/zombieVoices.ts`); `zombie-sfx.mp3` also plays in the boot splash |
+| Male Grunt/Yelling sounds (`yell4`, `yell5`, `yell12`) | megaboots | [OpenGameArt](https://opengameart.org/content/male-gruntyelling-sounds) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Jay startled/grabbed reactions (`public/assets/vo/react_jay_scare_01..03.mp3`, trimmed & normalized) |
+| Female Scream 1 (`female_scream_1.ogg`) | mightydinosaurcol | [OpenGameArt](https://opengameart.org/content/female-scream-1) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Priya terrified scream variant 1 (`public/assets/vo/react_priya_scream_01.mp3`) |
+| Female screams (`1.ogg`–`4.ogg`) | OmeroIvey | [OpenGameArt](https://opengameart.org/content/female-screams) | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Priya terrified screams (`react_priya_scream_02..03.mp3`) and Dr. Voss transformation/comms screams (`react_voss_scream_01..02.mp3`) |
+| Female high-pitched scream SFX (`screams_0.ogg`, excerpt) | bitetti | [OpenGameArt](https://opengameart.org/content/female-high-pitched-scream-sfx) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Dr. Voss scream variant 3 (`public/assets/vo/react_voss_scream_03.mp3`, trimmed & pitch-matched) |

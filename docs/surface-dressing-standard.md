@@ -59,7 +59,16 @@ A 3.2 m wall reads as three bands, never one flat surface:
 - Face clusters toward the room's focal point or entry, so the first view from the door reads as composed.
 - Rotate within ±5°, not randomly; snap the rest to the 0.25 m sub-grid.
 
-## 6. Definition of done for a dressed room
+## 6. Draw-call budget (60 per room, ADR-0003)
+
+| Rule | Status |
+| --- | --- |
+| Flat paint colours (`plain()` in `kit/slice.ts`: wood, fabric, ceramics, leaves, food...) opt in with `userData.flat` and merge into a few shared white materials per roughness bucket (0.2 / 0.35 / 0.5 / 0.65 / 0.8 / 0.95, metal 0 / 0.5, per side). Their colour rides in the vertex colour (x baked AO). A new prop colour costs no draw call. | live |
+| Static glows (`glow()`: LEDs, heat lamps, pendant bulbs, under-cabinet strips) opt in with `userData.glow` and share one emissive material per room (colour x intensity in the vertex colour). Anything that animates or flickers keeps its own `fixtureMaterial`. | live |
+| Still one call each: every claimed light slot (diffuser + light shaft + its glow, about 3), every canvas screen / poster / menu, every window (glass, abyss backdrop, seabed), vending machines (panel + logo). Budget those first. | rule |
+| Opaque canvas decals (`transparent = false`) must also set `depthWrite = true`, or the frame behind them can draw over them. | rule |
+
+## 7. Definition of done for a dressed room
 
 1. Checkerboard pass: no stretched, mirrored or restarting squares.
 2. Screenshot from each entry door at eye height (1.62 m), with and without post-processing (`?nopost`).

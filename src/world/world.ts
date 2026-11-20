@@ -2,7 +2,7 @@ import type * as THREE from 'three';
 import type { Interactions } from '../actors/interaction.ts';
 import type { PlayerWorld } from '../actors/player.ts';
 import type { LightController } from '../render/lights.ts';
-import type { NavGraph } from '../ai/nav.ts';
+import type { Navigator } from '../ai/nav.ts';
 
 /**
  * What a game session needs from a playable space. Implemented by the hand-built demo
@@ -30,7 +30,7 @@ export interface World {
   /** Location label for saves before any checkpoint. */
   defaultLocation: string;
   /** Shared AI navigation (ADR-0007), built on first use. */
-  navGraph(): NavGraph;
+  navGraph(): Navigator;
   /** Register this world's doors, consoles and other usables. Returns an unregister. */
   registerInteractions(interactions: Interactions): () => void;
   /** New game: put doors, light patterns, trigger latches and pickups back as authored (data levels only). */

@@ -24,6 +24,7 @@ import { Humanoid, type BodyHit, type HumanoidSpec } from '../actors/humanoid.ts
 import { PoseLibrary } from '../actors/poses.ts';
 import { separate, type SepBody } from '../actors/separation.ts';
 import { SLAM, slamFalloff } from '../actors/slam.ts';
+import { CAST } from '../actors/castLooks.ts';
 import { GILES, OKAFOR } from '../actors/squadLooks.ts';
 
 /**
@@ -42,6 +43,15 @@ interface Actor {
   wanderTimer: number;
   lurchTimer: number;
   lurchLeft: number;
+  /** Optional cast-showcase routine for `/sandbox/actors.html?cast` or [C]. */
+  demo?: {
+    kind: 'patrol' | 'jog' | 'talk' | 'poses';
+    waypoints?: readonly [number, number][];
+    wpIndex?: number;
+    pauseT?: number;
+    timer?: number;
+    poseIdx?: number;
+  };
 }
 
 function el<T extends HTMLElement>(sel: string): T {
@@ -139,45 +149,111 @@ async function boot(): Promise<void> {
   let engineer: Humanoid | null = null;
   let hitboxes = false;
 
-  // `?bodyModel=<id>` (ADR-0026): the crowd shamblers and the play-dead body use that imported model.
+  // High-fidelity imported models are used by default everywhere; `?bodyModel=<id>` forces one model on crowd enemies.
   const modelParam = new URLSearchParams(location.search).get('bodyModel');
   const bodyModels = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/body-models.json'));
   await bodyModels.load(import.meta.env.BASE_URL);
-  const crowd = (spec: HumanoidSpec): HumanoidSpec => (modelParam && !spec.hero ? { ...spec, model: modelParam } : spec);
+  const CROWD_MODELS = ['zombieWalk', 'necromorphCrowd', 'gameChar'] as const;
+  let crowdIdx = 0;
+  const resolveModel = (spec: HumanoidSpec): HumanoidSpec => {
+    if (spec.model) return spec;
+    if (spec.role === 'enemy') {
+      if (spec.hero) return { ...spec, model: 'necromorph' };
+      const id = modelParam ?? CROWD_MODELS[crowdIdx++ % CROWD_MODELS.length]!;
+      return { ...spec, model: id };
+    }
+    if (spec.role === 'corpse') return { ...spec, model: 'ruiz' };
+    return spec;
+  };
 
   const spawn = (spec: HumanoidSpec, x: number, z: number, heading: number): Humanoid => {
-    const h = new Humanoid(spec.role === 'enemy' ? crowd(spec) : spec, { poses, gore, bodyModels });
+    const h = new Humanoid(resolveModel(spec), { poses, gore, bodyModels });
     h.group.position.set(x, 0, z);
     h.heading = heading;
     h.group.rotation.y = heading;
     scene.add(h.group);
     h.showHitboxes(hitboxes);
-    actors.push({ h, wanderDir: new THREE.Vector3(), wanderTimer: 0, lurchTimer: 2 + Math.random() * 4, lurchLeft: 0 });
+    actors.push({ h, wanderDir: new THREE.Vector3(), wanderTimer: 0, lurchTimer: 3 + Math.random() * 4, lurchLeft: 0 });
     return h;
   };
 
   const stress = new URLSearchParams(location.search).has('stress');
+  let castMode = new URLSearchParams(location.search).has('cast');
+  const spawnCast = (spec: HumanoidSpec, x: number, z: number, heading: number, demo: NonNullable<Actor['demo']>): Humanoid => {
+    const h = spawn(spec, x, z, heading);
+    actors[actors.length - 1]!.demo = demo;
+    return h;
+  };
   const spawnAll = (): void => {
     for (const a of actors) a.h.dispose();
     actors.length = 0;
     gore.clear();
+    engineer = null;
+    crowdIdx = 0;
+    if (castMode) {
+      // Cast physics showcase (`?cast` or [C]): all 8 high-fidelity cast models walking, jogging, turning in place, talking, aiming.
+      engineer = spawnCast({ ...GILES, role: 'npc', transformable: true }, -3.2, -1.5, 0, {
+        kind: 'patrol',
+        waypoints: [[-3.2, -5.2], [0.2, -5.2], [0.2, -1.5], [-3.2, -1.5]],
+        wpIndex: 0,
+        pauseT: 0.4,
+      });
+      spawnCast({ ...OKAFOR, role: 'npc' }, 0, 0.8, 0, { kind: 'talk', timer: 1.5 });
+      spawnCast({ ...CAST['priya']!, role: 'npc' }, 3.0, -4.8, Math.PI, {
+        kind: 'patrol',
+        waypoints: [[3.0, -1.2], [4.8, -1.2], [4.8, -4.8], [3.0, -4.8]],
+        wpIndex: 0,
+        pauseT: 1.0,
+      });
+      spawnCast({ ...CAST['heins']!, role: 'npc' }, -4.8, -6.2, 0, {
+        kind: 'jog',
+        waypoints: [[4.8, -6.2], [4.8, 1.5], [-4.8, 1.5], [-4.8, -6.2]],
+        wpIndex: 0,
+        pauseT: 0.6,
+      });
+      spawnCast({ ...CAST['hale']!, role: 'npc' }, 2.0, 1.2, 0, {
+        kind: 'patrol',
+        waypoints: [[2.0, 1.2], [-2.0, 1.2]],
+        wpIndex: 1,
+        pauseT: 1.8,
+      });
+      spawnCast({ ...CAST['bram']!, role: 'npc' }, -2.2, 2.2, 0, { kind: 'poses', timer: 3.2, poseIdx: 0 });
+      spawnCast({ ...CAST['ruiz']!, role: 'npc' }, 4.2, 2.4, -0.5, {
+        kind: 'patrol',
+        waypoints: [[4.2, 2.4], [1.6, 3.6]],
+        wpIndex: 1,
+        pauseT: 1.2,
+      });
+      spawnCast({ ...CAST['sung']!, role: 'npc' }, -4.4, 3.4, 0.6, { kind: 'talk', timer: 3.0 });
+      lastHit = 'Cast showcase (8 high-fidelity models): Giles/Priya/Hale/Ruiz walk+turn · Heins jogs · Okafor/Sung talk+track · Bram cycles poses.';
+      return;
+    }
     if (stress) {
-      // ADR-0015 budget scene: 8 crowd bodies and 3 heroes (`?stress`).
+      // ADR-0015 budget scene: 8 high-fidelity crowd bodies and 3 high-fidelity heroes (`?stress`).
       const outfits = ['crew', 'lab', 'security', 'medic', 'engineer'] as const;
       for (let i = 0; i < 8; i++) {
         spawn({ seed: `stress-${i}`, outfit: outfits[i % outfits.length] ?? 'crew', role: 'enemy', infection: 1 + (i % 3) }, -4.5 + (i % 4) * 3, -6.5 + Math.floor(i / 4) * 1.8, 0);
       }
       for (let i = 0; i < 3; i++) {
-        spawn({ seed: `stress-hero-${i}`, outfit: 'lab', role: 'enemy', infection: 2, hero: true, height: 2.15, build: 1.25, pose: 'hulk' }, -3 + i * 3, -2.5, 0);
+        spawn({ seed: `stress-hero-${i}`, outfit: 'lab', role: 'enemy', infection: 2, hero: true, height: 2.15, build: 1.25, pose: 'hulk', model: 'necromorph' }, -3 + i * 3, -2.5, 0);
       }
       return;
     }
-    spawn({ seed: 'shambler-a', outfit: 'crew', role: 'enemy', infection: 1 }, -2.2, -6, 0);
-    spawn({ seed: 'shambler-b', outfit: 'lab', role: 'enemy', infection: 2 }, 0.4, -7, 0.2);
-    spawn({ seed: 'shambler-c', outfit: 'security', role: 'enemy', infection: 3 }, 2.6, -6.4, -0.3);
-    spawn({ seed: 'hero-warden', outfit: 'lab', role: 'enemy', infection: 2, hero: true, height: 2.15, build: 1.25, baseHp: 400, pose: 'hulk' }, 0.2, -3, 0);
-    spawn({ seed: 'shambler-d', outfit: 'crew', role: 'enemy', infection: 2.5 }, -0.8, -4.6, 0.1);
-    const lurker = spawn({ seed: 'playdead-a', outfit: 'lab', role: 'enemy', infection: 2 }, 2.2, -1.5, 2.4);
+    spawn({ seed: 'shambler-a', outfit: 'crew', role: 'enemy', infection: 1.5, model: 'zombieWalk' }, -2.2, -5.8, 0);
+    spawn({ seed: 'shambler-b', outfit: 'lab', role: 'enemy', infection: 2.2, model: 'necromorphCrowd' }, 0.6, -6.8, 0.2);
+    spawn({ seed: 'shambler-c', outfit: 'security', role: 'enemy', infection: 2.8, model: 'gameChar' }, 2.8, -6.0, -0.3);
+    spawn({ seed: 'hero-warden', outfit: 'lab', role: 'enemy', infection: 2, hero: true, height: 2.15, build: 1.25, baseHp: 400, pose: 'hulk', model: 'necromorph' }, 0.2, -3.2, 0);
+    // Dedicated floor crawler (one leg cleanly severed & stumped) so the labored zombie crawl physics show right away.
+    const crawler = spawn({ seed: 'crawler-a', outfit: 'crew', role: 'enemy', infection: 2.5, model: 'zombieWalk' }, -1.2, -3.0, 0.15);
+    crawler.applyHit(
+      { humanoid: crawler, joint: 'shin_L', region: 'shin_L', distance: 1, point: crawler.jointWorld('shin_L') },
+      500,
+      new THREE.Vector3(0, 0, -1),
+    );
+    crawler.state = 'alive';
+    crawler.setPose('crawl', 0.01);
+    gore.clear();
+    const lurker = spawn({ seed: 'playdead-a', outfit: 'lab', role: 'enemy', infection: 2, model: 'necromorphCrowd' }, 2.2, -1.5, 2.4);
     lurker.playDead('corpseProne');
     engineer = spawn({ ...GILES, role: 'npc', transformable: true, pose: 'crouchWork' }, -6.05, -2, Math.PI / 2);
     engineer.plantFeet = true;
@@ -186,7 +262,7 @@ async function boot(): Promise<void> {
     const medic = spawn({ ...OKAFOR, role: 'npc', pose: 'typing' }, 4.6, -4, -Math.PI / 2);
     medic.handTargets.L = new THREE.Vector3(5.12, 1.02, -4.22);
     medic.handTargets.R = new THREE.Vector3(5.12, 1.02, -3.8);
-    spawn({ seed: 'corpse-sec', outfit: 'security', role: 'corpse', pose: 'corpseSlumped' }, -6.62, 2.2, -Math.PI / 2);
+    spawn({ seed: 'corpse-sec', outfit: 'security', role: 'corpse', pose: 'corpseSlumped', model: 'ruiz' }, -6.62, 2.2, -Math.PI / 2);
   };
   spawnAll();
 
@@ -255,6 +331,9 @@ async function boot(): Promise<void> {
       gore.mode = gore.mode === 'full' ? 'reduced' : 'full';
     } else if (e.code === 'KeyT') {
       engineer?.startTransformation(6);
+    } else if (e.code === 'KeyC') {
+      castMode = !castMode;
+      spawnAll();
     } else if (e.code === 'KeyR') {
       spawnAll();
       lastHit = 'Reset.';
@@ -281,6 +360,57 @@ async function boot(): Promise<void> {
   const toCam = new THREE.Vector3();
   const think = (a: Actor, dt: number): void => {
     const h = a.h;
+    if (a.demo && h.state === 'alive') {
+      const d = a.demo;
+      toCam.subVectors(camera.position, h.group.position).setY(0);
+      h.lookTarget = toCam.length() < 9 ? camera.position : null;
+      if (d.kind === 'patrol' || d.kind === 'jog') {
+        const wps = d.waypoints!;
+        const idx = d.wpIndex ?? 0;
+        const [tx, tz] = wps[idx]!;
+        const dx = tx - h.group.position.x;
+        const dz = tz - h.group.position.z;
+        const dist = Math.hypot(dx, dz);
+        if ((d.pauseT ?? 0) > 0) {
+          d.pauseT = (d.pauseT ?? 0) - dt;
+          // Turn in place toward the next waypoint while paused!
+          const want = toCam.set(dx, 0, dz);
+          if (want.lengthSq() > 1e-4) h.steer(want.normalize(), dt, { maxSpeed: 0, turnRate: 2.2 });
+          else h.steer(null, dt, { maxSpeed: 0 });
+        } else if (dist < 0.3) {
+          d.wpIndex = (idx + 1) % wps.length;
+          d.pauseT = d.kind === 'jog' ? 1.4 : 2.2;
+          h.steer(null, dt, { maxSpeed: 0 });
+        } else {
+          const speed = d.kind === 'jog' ? (dist < 1.8 ? 1.3 : 2.9) : 1.35;
+          const vel = h.steer(toCam.set(dx / dist, 0, dz / dist), dt, { maxSpeed: speed, turnRate: 2.6, accel: 3.2 });
+          h.group.position.addScaledVector(vel, dt);
+        }
+      } else if (d.kind === 'talk') {
+        // Turn in place toward the camera when off to the side, and speak periodically.
+        if (toCam.lengthSq() > 0.25) {
+          const want = Math.atan2(-toCam.x, -toCam.z);
+          const off = Math.abs(Math.atan2(Math.sin(want - h.heading), Math.cos(want - h.heading)));
+          if (off > 0.55) h.steer(toCam.normalize(), dt, { maxSpeed: 0, turnRate: 1.6 });
+          else h.steer(null, dt, { maxSpeed: 0 });
+        }
+        d.timer = (d.timer ?? 2) - dt;
+        if (d.timer <= 0 && !h.speaking) {
+          h.speak('Watch the weight transfer and foot locking as I turn to face you.', 'neutral', 3.4, `demo-${Math.floor(simTime)}`);
+          d.timer = 5.5;
+        }
+      } else if (d.kind === 'poses') {
+        const cycle = ['idle', 'aim_pistol', 'kneel_revive', 'idle_crossed'] as const;
+        d.timer = (d.timer ?? 3) - dt;
+        if (d.timer <= 0) {
+          d.poseIdx = ((d.poseIdx ?? 0) + 1) % cycle.length;
+          h.setPose(cycle[d.poseIdx]!, 0.5);
+          d.timer = 3.2;
+        }
+        h.steer(null, dt, { maxSpeed: 0 });
+      }
+      return;
+    }
     if (h.spec.role !== 'enemy') {
       h.lookTarget = h.group.position.distanceTo(camera.position) < 5 ? camera.position : null;
       return;
@@ -289,15 +419,15 @@ async function boot(): Promise<void> {
       if (h.group.position.distanceTo(camera.position) < 3) h.getUp();
       return;
     }
-    // Lurch bursts: 2.4 m/s for 0.6 s every 4-7 s (ADR-0007).
+    // Slower zombie lurch bursts: 1.5 m/s for 0.65 s every 5-8.5 s.
     a.lurchTimer -= dt;
     if (a.lurchTimer <= 0) {
-      a.lurchLeft = 0.6;
-      a.lurchTimer = 4 + Math.random() * 3;
+      a.lurchLeft = 0.65;
+      a.lurchTimer = 5 + Math.random() * 3.5;
     }
     a.lurchLeft -= dt;
     // Heroes never lurch: they come on at one steady, heavy pace (ADR-0021).
-    h.speedScale = a.lurchLeft > 0 && !h.spec.hero ? 2.4 / 1.3 : 1;
+    h.speedScale = a.lurchLeft > 0 && !h.spec.hero ? 1.5 / 0.8 : 1;
     toCam.subVectors(camera.position, h.group.position).setY(0);
     const dist = toCam.length();
     let desired: THREE.Vector3 | null = null;
@@ -350,8 +480,13 @@ async function boot(): Promise<void> {
     sepOwners.forEach((h, i) => {
       const b = sepBodies[i];
       if (!h || !b) return;
-      h.group.position.x = THREE.MathUtils.clamp(b.x, -6.6, 6.6);
-      h.group.position.z = THREE.MathUtils.clamp(b.z, -7.6, 7.6);
+      const ox = h.group.position.x;
+      const oz = h.group.position.z;
+      const nx = THREE.MathUtils.clamp(b.x, -6.6, 6.6);
+      const nz = THREE.MathUtils.clamp(b.z, -7.6, 7.6);
+      h.group.position.x = nx;
+      h.group.position.z = nz;
+      if (Math.hypot(nx - ox, nz - oz) > 1e-4) h.nudgeImpulse(nx - ox, nz - oz, 1 / 60);
     });
   };
 
@@ -414,7 +549,7 @@ async function boot(): Promise<void> {
         `ACTORS SANDBOX · ADR-0006`,
         `weapon ${weapon === PISTOL ? 'pistol (18)' : 'shotgun (8×9)'}  [1/2]`,
         `gore ${gore.mode.toUpperCase()}  [G]   hitboxes ${hitboxes ? 'on' : 'off'}  [H]`,
-        `[T] transform engineer   [R] reset   [F] flashlight   separation ${separationOn ? 'on' : 'off (?nosep)'}`,
+        `[C] ${castMode ? 'combat sandbox' : 'cast showcase (?cast)'}   [T] transform engineer   [R] reset   [F] flashlight   separation ${separationOn ? 'on' : 'off (?nosep)'}`,
         ``,
         lastHit,
         lastSlam,

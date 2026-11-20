@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { PoseFile, PoseStep } from '../data/types/poses.ts';
+import { resolvePose, type PoseFile, type PoseStep } from '../data/types/poses.ts';
 import { JOINTS } from './skeleton.ts';
 
 const D2R = Math.PI / 180;
@@ -36,7 +36,8 @@ export class PoseLibrary {
   private readonly sequences = new Map<string, PoseStep[]>();
 
   constructor(file: PoseFile) {
-    for (const [name, data] of Object.entries(file.poses)) {
+    for (const name of Object.keys(file.poses)) {
+      const data = resolvePose(file, name);
       const p = emptyPose(name);
       JOINTS.forEach((j, i) => {
         const target = p.joints[i];

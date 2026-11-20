@@ -1,13 +1,13 @@
 /**
- * Web Audio side of dialogue (ADR-0010): renders emotes to AudioBuffers (cached by
- * line id) and plays them through one of two channels:
- *   local: HRTF PannerNode at the speaker's head (or centred if no position).
+ * Web Audio side of dialogue (ADR-0010): plays recorded VO files when loaded (falling back
+ * to procedural emotes) through one of two channels:
+ *   local: HRTF PannerNode at the speaker's head (or centred if no position) + room reverb send.
  *   radio: band-pass 300-3400 Hz -> waveshaper -> compressor, squelch clicks, static bed.
  * Output goes to its own `voice` gain node feeding the engine's master.
  */
 import { Rng } from '../core/rng.ts';
 import { Biquad, fadeEdges, makeBuf, normalize, white, type Buf } from '../audio/dsp.ts';
-import type { Emote } from '../data/types/dialogue.ts';
+import { audioUrls, type DialogueLine, type Emote } from '../data/types/dialogue.ts';
 import type { PlayRequest, VoicePlayback, VoicePlayer } from './speech.ts';
 import { renderUtterance } from './vocalSynth.ts';
 
@@ -15,6 +15,8 @@ import { renderUtterance } from './vocalSynth.ts';
 export interface AudioOut {
   readonly ctx: AudioContext;
   readonly master: AudioNode;
+  /** Optional shared room reverb bus so local voices sit inside the current room. */
+  readonly reverbIn?: AudioNode;
 }
 
 /** Short radio squelch: a click and a burst of filtered noise. */
@@ -50,13 +52,14 @@ export function renderStatic(sr: number, rng: Rng): Buf {
   return normalize(out.subarray(0, out.length - f).slice(), 0.5);
 }
 
-function radioCurve(): Float32Array<ArrayBuffer> {
+function radioCurve(drive = 3): Float32Array<ArrayBuffer> {
   const n = 1024;
   const curve = new Float32Array(n);
-  const k = 3;
+  const k = Math.max(0.5, drive);
+  const norm = Math.tanh(k);
   for (let i = 0; i < n; i++) {
     const x = (i / (n - 1)) * 2 - 1;
-    curve[i] = Math.tanh(k * x) / Math.tanh(k);
+    curve[i] = Math.tanh(k * x) / norm;
   }
   return curve;
 }
@@ -64,19 +67,33 @@ function radioCurve(): Float32Array<ArrayBuffer> {
 export interface WebAudioVoiceOptions {
   /** Voice level relative to master. */
   gain?: number;
+  /** Room reverb send level for local voices (0..1). */
+  reverbSend?: number;
+  /** Base URL prefix for recorded VO paths. Defaults to Vite BASE_URL or '/'. */
+  baseUrl?: string;
 }
 
 export class WebAudioVoicePlayer implements VoicePlayer {
   readonly output: GainNode;
   private readonly ctx: AudioContext;
+  private readonly reverbIn: AudioNode | null;
+  private readonly reverbSend: number;
+  private readonly baseUrl: string;
   private readonly radioIn: GainNode;
   private readonly radioBed: GainNode;
   private readonly cache = new Map<string, AudioBuffer>();
+  private readonly recorded = new Map<string, AudioBuffer>();
+  private readonly pending = new Map<string, Promise<AudioBuffer | null>>();
+  private readonly lastVariant = new Map<string, string>();
   private readonly squelch: AudioBuffer;
   private readonly staticBuf: AudioBuffer;
 
   constructor(out: AudioOut, opts: WebAudioVoiceOptions = {}) {
     this.ctx = out.ctx;
+    this.reverbIn = out.reverbIn ?? null;
+    this.reverbSend = opts.reverbSend ?? 0.16;
+    const viteBase = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL;
+    this.baseUrl = opts.baseUrl ?? viteBase ?? '/';
     const ctx = this.ctx;
     this.output = new GainNode(ctx, { gain: opts.gain ?? 1 });
     this.output.connect(out.master);
@@ -86,7 +103,7 @@ export class WebAudioVoicePlayer implements VoicePlayer {
     const hp = new BiquadFilterNode(ctx, { type: 'highpass', frequency: 300, Q: 0.7 });
     const lp = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 3400, Q: 0.7 });
     const mid = new BiquadFilterNode(ctx, { type: 'peaking', frequency: 1600, Q: 1, gain: 4 });
-    const shaper = new WaveShaperNode(ctx, { curve: radioCurve(), oversample: '2x' });
+    const shaper = new WaveShaperNode(ctx, { curve: radioCurve(3), oversample: '2x' });
     const comp = new DynamicsCompressorNode(ctx, { threshold: -22, knee: 4, ratio: 6, attack: 0.003, release: 0.12 });
     const makeup = new GainNode(ctx, { gain: 1.3 });
     this.radioIn.connect(hp).connect(lp).connect(mid).connect(shaper).connect(comp).connect(makeup).connect(this.output);
@@ -97,19 +114,95 @@ export class WebAudioVoicePlayer implements VoicePlayer {
     this.staticBuf = this.toBuffer(renderStatic(ctx.sampleRate, new Rng('static')));
   }
 
-  /** Pre-render buffers for lines (call during loading, spread over idle time). */
+  /** Pre-render procedural buffers for lines (call during loading, spread over idle time). */
   prewarm(reqs: Iterable<Omit<PlayRequest, 'at'>>): void {
-    for (const r of reqs) this.buffer(r);
+    for (const r of reqs) {
+      if (!r.line.audio) this.buffer(r);
+    }
+  }
+
+  /** Fetch and decode every recorded VO file referenced by `lines` (ADR-0010 step 6). */
+  async loadLines(lines: Iterable<DialogueLine>, concurrency = 8): Promise<number> {
+    const urls = [...new Set([...lines].flatMap((l) => audioUrls(l.audio)))];
+    let loaded = 0;
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      while (next < urls.length) {
+        const url = urls[next++]!;
+        const buf = await this.loadAudio(url);
+        if (buf) loaded++;
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, urls.length)) }, () => worker()));
+    return loaded;
+  }
+
+  /** True if at least one recorded VO clip for this line is decoded and ready. */
+  hasRecorded(line: DialogueLine): boolean {
+    return audioUrls(line.audio).some((u) => this.recorded.has(u));
+  }
+
+  private pickRecorded(line: DialogueLine): AudioBuffer | undefined {
+    const urls = audioUrls(line.audio);
+    if (urls.length === 0) return undefined;
+    const ready: Array<[string, AudioBuffer]> = [];
+    for (const u of urls) {
+      const buf = this.recorded.get(u);
+      if (buf) ready.push([u, buf]);
+      else void this.loadAudio(u);
+    }
+    if (ready.length === 0) return undefined;
+    if (ready.length === 1) return ready[0]![1];
+    const prev = this.lastVariant.get(line.id);
+    const pool = ready.filter(([u]) => u !== prev);
+    const [url, buf] = (pool.length > 0 ? pool : ready)[Math.floor(Math.random() * (pool.length > 0 ? pool.length : ready.length))]!;
+    this.lastVariant.set(line.id, url);
+    return buf;
+  }
+
+  private loadAudio(url: string): Promise<AudioBuffer | null> {
+    const cached = this.recorded.get(url);
+    if (cached) return Promise.resolve(cached);
+    const inflight = this.pending.get(url);
+    if (inflight) return inflight;
+    const job = (async (): Promise<AudioBuffer | null> => {
+      try {
+        const res = await fetch(this.baseUrl + url);
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const buf = await this.ctx.decodeAudioData(await res.arrayBuffer());
+        this.recorded.set(url, buf);
+        return buf;
+      } catch (err) {
+        console.warn(`[voice] could not load VO "${url}"`, err);
+        return null;
+      } finally {
+        this.pending.delete(url);
+      }
+    })();
+    this.pending.set(url, job);
+    return job;
   }
 
   play(req: PlayRequest): VoicePlayback {
     const ctx = this.ctx;
     const t0 = ctx.currentTime + 0.01;
-    const buffer = this.buffer(req);
+    const recordedBuf = this.pickRecorded(req.line);
+    const buffer = recordedBuf ?? this.buffer(req);
     const src = new AudioBufferSourceNode(ctx, { buffer });
     const lineGain = new GainNode(ctx, { gain: 1 });
-    src.connect(lineGain);
     const nodes: AudioNode[] = [src, lineGain];
+
+    // Subtle vocal grit when runtime rasp is raised on a recorded clip (Giles foreshadowing).
+    let head: AudioNode = src;
+    if (recordedBuf && req.rasp !== null && req.rasp > 0.05) {
+      const grit = new WaveShaperNode(ctx, { curve: radioCurve(1 + req.rasp * 3.5), oversample: '2x' });
+      const eq = new BiquadFilterNode(ctx, { type: 'peaking', frequency: 2400, Q: 1.4, gain: req.rasp * 3.5 });
+      head.connect(grit).connect(eq);
+      nodes.push(grit, eq);
+      head = eq;
+    }
+    head.connect(lineGain);
+
     let panner: PannerNode | null = null;
     let staticSrc: AudioBufferSourceNode | null = null;
     let bed: GainNode | null = null;
@@ -127,16 +220,22 @@ export class WebAudioVoicePlayer implements VoicePlayer {
       // Voice starts just after the squelch.
       src.start(t0 + 0.07);
     } else {
+      let localOut: AudioNode = lineGain;
       if (req.at) {
         const p = req.at();
         panner = new PannerNode(ctx, {
           panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 1.5, maxDistance: 40, rolloffFactor: 1,
           positionX: p.x, positionY: p.y, positionZ: p.z,
         });
-        lineGain.connect(panner).connect(this.output);
+        lineGain.connect(panner);
         nodes.push(panner);
-      } else {
-        lineGain.connect(this.output);
+        localOut = panner;
+      }
+      localOut.connect(this.output);
+      if (this.reverbIn && this.reverbSend > 0) {
+        const send = new GainNode(ctx, { gain: this.reverbSend });
+        localOut.connect(send).connect(this.reverbIn);
+        nodes.push(send);
       }
       src.start(t0);
     }
@@ -147,6 +246,8 @@ export class WebAudioVoicePlayer implements VoicePlayer {
 
     let stopped = false;
     return {
+      // Real VO clips extend the subtitle/queue timer so speech is never cut off mid-word.
+      ...(recordedBuf ? { duration: recordedBuf.duration + (req.line.channel === 'radio' ? 0.16 : 0.08) } : {}),
       update: () => {
         if (!panner || !req.at) return;
         const p = req.at();
@@ -175,7 +276,7 @@ export class WebAudioVoicePlayer implements VoicePlayer {
     };
   }
 
-  /** Clear cached renders (e.g. after a speaker's rasp changes a lot). */
+  /** Clear cached procedural renders (e.g. after a speaker's rasp changes a lot). */
   clear(): void {
     this.cache.clear();
   }
@@ -193,7 +294,6 @@ export class WebAudioVoicePlayer implements VoicePlayer {
     const key = `${req.line.id}|${rasp ?? '-'}|${req.babble ? 'b' : ''}`;
     let buf = this.cache.get(key);
     if (!buf) {
-      // Real VO files arrive with execution step 6; until then audio-only lines fall back to `neutral`.
       const emote: Emote = req.line.emote ?? 'neutral';
       const data = renderUtterance(this.ctx.sampleRate, req.profile, emote, req.line.id, {
         ...(rasp === null ? {} : { rasp }),

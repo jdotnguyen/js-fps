@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { applyWorldUvs } from '../../render/uvTiling.ts';
 
 /** Ambient occlusion in [0, 1] (1 = fully lit) at a world point with its normal. */
 export type AoFn = (p: THREE.Vector3, n: THREE.Vector3) => number;
@@ -23,58 +24,76 @@ function takesAo(material: THREE.Material): boolean {
 }
 
 /**
- * Box-project world-space UVs so 1 UV unit = `tileMeters` metres and a texture runs
- * continuously across neighbouring kit pieces (no restart at every tile or trim edge).
- *
- * - Projection axis is chosen once per triangle from its face normal, so bevelled
- *   `rounded()` edges never mix two projections inside one triangle (no smearing).
- * - U is signed by facing so the texture reads left-to-right from in front of every
- *   face: opposite walls are not mirrored, floors read the right way up from above.
- * - Indexed geometry (shared vertices) falls back to per-vertex normals.
+ * Flat-colour merging: untextured, opaque, non-emissive materials that opt in with
+ * `userData.flat = true` (the kit's `plain()` colours: wood, fabric, ceramics, leaves...) do not
+ * get a draw call each. Their albedo moves into the vertex colour (times the baked AO) and they
+ * share one white material per roughness / metalness / side bucket, so a dressed room pays for
+ * a handful of buckets instead of one call per paint colour.
  */
-export function applyWorldMeterUvs(g: THREE.BufferGeometry, tileMeters = 1): void {
-  const pos = g.getAttribute('position');
-  if (!pos) return;
-  const nor = g.getAttribute('normal');
-  let uv = g.getAttribute('uv');
-  if (!uv || uv.count !== pos.count) {
-    uv = new THREE.Float32BufferAttribute(new Float32Array(pos.count * 2), 2);
-    g.setAttribute('uv', uv);
-  }
-  const inv = 1 / tileMeters;
-  const project = (i: number, nx: number, ny: number, nz: number): void => {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    const z = pos.getZ(i);
-    const ax = Math.abs(nx);
-    const ay = Math.abs(ny);
-    const az = Math.abs(nz);
-    if (ay >= ax && ay >= az) uv.setXY(i, x * inv, (ny >= 0 ? -z : z) * inv);
-    else if (ax >= az) uv.setXY(i, (nx >= 0 ? -z : z) * inv, y * inv);
-    else uv.setXY(i, (nz >= 0 ? x : -x) * inv, y * inv);
-  };
-  if (g.index || pos.count % 3 !== 0) {
-    if (!nor) return;
-    for (let i = 0; i < pos.count; i++) project(i, nor.getX(i), nor.getY(i), nor.getZ(i));
-  } else {
-    for (let i = 0; i < pos.count; i += 3) {
-      _a.fromBufferAttribute(pos, i);
-      _b.fromBufferAttribute(pos, i + 1).sub(_a);
-      _c.fromBufferAttribute(pos, i + 2).sub(_a);
-      _b.cross(_c);
-      if (_b.lengthSq() < 1e-14) {
-        if (nor) _b.fromBufferAttribute(nor, i);
-        else _b.set(0, 1, 0);
-      }
-      for (let k = 0; k < 3; k++) project(i + k, _b.x, _b.y, _b.z);
-    }
-  }
-  uv.needsUpdate = true;
+const FLAT_ROUGHNESS = [0.2, 0.35, 0.5, 0.65, 0.8, 0.95] as const;
+const FLAT_METALNESS = [0, 0.5] as const;
+const flatBuckets = new Map<string, THREE.MeshStandardMaterial>();
+const BLACK = new THREE.Color(0, 0, 0);
+
+const nearest = (v: number, steps: readonly number[]): number => steps.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
+
+/** True when `material` opted into flat-colour merging and has nothing a vertex colour can't carry. */
+export function isFlatColor(material: THREE.Material): material is THREE.MeshStandardMaterial {
+  if (!(material instanceof THREE.MeshStandardMaterial) || material instanceof THREE.MeshPhysicalMaterial) return false;
+  if (material.userData['flat'] !== true || material.transparent || material.opacity < 1 || material.vertexColors) return false;
+  if (material.map || material.normalMap || material.roughnessMap || material.metalnessMap || material.aoMap || material.emissiveMap || material.alphaMap || material.bumpMap) return false;
+  return material.emissiveIntensity === 0 || material.emissive.equals(BLACK);
 }
 
-const _a = new THREE.Vector3();
-const _b = new THREE.Vector3();
-const _c = new THREE.Vector3();
+/**
+ * Static glows (`userData.glow = true`: non-animated emissive strips, LEDs, bulbs) merge the same
+ * way: their emissive colour times intensity goes into the vertex colour and one shared material
+ * emits `vColor`. Animated or flickering glows never opt in (they keep their own material).
+ */
+export function isFlatGlow(material: THREE.Material): material is THREE.MeshStandardMaterial {
+  if (!(material instanceof THREE.MeshStandardMaterial) || material instanceof THREE.MeshPhysicalMaterial) return false;
+  if (material.userData['glow'] !== true || material.transparent || material.opacity < 1 || material.vertexColors) return false;
+  return !material.map && !material.emissiveMap && !material.alphaMap;
+}
+
+let glowBucket: THREE.MeshStandardMaterial | null = null;
+/** The one material every static glow merges into: black albedo, emissive = vertex colour. */
+export function flatGlowBucket(): THREE.MeshStandardMaterial {
+  if (!glowBucket) {
+    const b = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveIntensity: 1, roughness: 0.4, vertexColors: true });
+    b.name = 'flat:glow';
+    b.onBeforeCompile = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor.rgb;');
+    };
+    b.customProgramCacheKey = () => 'flat-glow';
+    flatBuckets.set(b.name, b);
+    glowBucket = b;
+  }
+  return glowBucket;
+}
+
+/** Linear emissive radiance (colour x intensity) a static glow carries into its vertex colour. */
+function glowTint(material: THREE.MeshStandardMaterial): THREE.Color {
+  return material.emissive.clone().multiplyScalar(material.emissiveIntensity);
+}
+
+/** The shared vertex-coloured material a flat colour merges into. */
+export function flatBucket(material: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+  const r = nearest(material.roughness, FLAT_ROUGHNESS);
+  const mt = nearest(material.metalness, FLAT_METALNESS);
+  const side = material.side;
+  const key = `flat:r${r}:m${mt}:s${side}`;
+  let b = flatBuckets.get(key);
+  if (!b) {
+    b = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: r, metalness: mt, side, vertexColors: true });
+    b.name = key;
+    flatBuckets.set(key, b);
+  }
+  return b;
+}
+
+/** World-space metre UVs; implementation lives in render/uvTiling.ts (kept here under its old name). */
+export const applyWorldMeterUvs = applyWorldUvs;
 
 /**
  * World-UV scale (metres per UV unit) for the procedural materials that were authored at a
@@ -100,6 +119,8 @@ export function takesWorldUvs(material: THREE.Material): boolean {
  */
 export class AoMergeBuilder {
   private readonly parts = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  /** Albedo (linear) of each geometry that merged into a flat bucket. */
+  private readonly tints = new WeakMap<THREE.BufferGeometry, THREE.Color>();
   private readonly p = new THREE.Vector3();
   private readonly n = new THREE.Vector3();
 
@@ -119,6 +140,13 @@ export class AoMergeBuilder {
     g.morphAttributes = {};
     g.clearGroups();
     if (matrix) g.applyMatrix4(matrix);
+    if (isFlatColor(material)) {
+      this.tints.set(g, material.color);
+      material = flatBucket(material);
+    } else if (isFlatGlow(material)) {
+      this.tints.set(g, glowTint(material));
+      material = flatGlowBucket();
+    }
     let list = this.parts.get(material);
     if (!list) {
       list = [];
@@ -139,11 +167,12 @@ export class AoMergeBuilder {
     const group = new THREE.Group();
     group.name = name;
     for (const [material, list] of this.parts) {
-      const bake = ao !== null && takesAo(material);
+      const flat = flatBuckets.get(material.name) === material;
+      const bake = ao !== null && takesAo(material) && material !== glowBucket;
       const worldTile = takesWorldUvs(material);
       for (const g of list) {
         if (worldTile) applyWorldMeterUvs(g, worldTileMeters(material));
-        if (bake) this.bakeAo(g, ao);
+        if (bake || flat) this.bakeAo(g, bake ? ao : null, this.tints.get(g));
         else g.deleteAttribute('color');
       }
       const merged = mergeGeometries(list, false);
@@ -154,7 +183,7 @@ export class AoMergeBuilder {
       }
       const meshes = indexed ? [indexed] : list;
       for (const g of meshes) {
-        const mesh = new THREE.Mesh(g, bake ? withVertexColors(material) : material);
+        const mesh = new THREE.Mesh(g, flat ? material : bake ? withVertexColors(material) : material);
         mesh.castShadow = !material.transparent;
         mesh.receiveShadow = true;
         mesh.name = `${name}:${material.name || material.type}`;
@@ -166,17 +195,24 @@ export class AoMergeBuilder {
     return group;
   }
 
-  private bakeAo(g: THREE.BufferGeometry, ao: AoFn): void {
+  /** Vertex colour = AO (1 without an AO function) times the flat albedo, if any. */
+  private bakeAo(g: THREE.BufferGeometry, ao: AoFn | null, tint?: THREE.Color): void {
     const pos = g.getAttribute('position');
     const nor = g.getAttribute('normal');
     const colors = new Float32Array(pos.count * 3);
+    const tr = tint?.r ?? 1;
+    const tg = tint?.g ?? 1;
+    const tb = tint?.b ?? 1;
     for (let i = 0; i < pos.count; i++) {
-      this.p.fromBufferAttribute(pos, i);
-      this.n.fromBufferAttribute(nor, i);
-      const v = ao(this.p, this.n);
-      colors[i * 3] = v;
-      colors[i * 3 + 1] = v;
-      colors[i * 3 + 2] = v;
+      let v = 1;
+      if (ao) {
+        this.p.fromBufferAttribute(pos, i);
+        this.n.fromBufferAttribute(nor, i);
+        v = ao(this.p, this.n);
+      }
+      colors[i * 3] = v * tr;
+      colors[i * 3 + 1] = v * tg;
+      colors[i * 3 + 2] = v * tb;
     }
     g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   }

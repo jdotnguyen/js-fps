@@ -39,9 +39,14 @@ test('validator rejects bad lines with a readable path', () => {
   assert.throws(() => lib([line({ priorty: 'story' })]), /priorty: unknown field/);
 });
 
-test('audio lines may omit the emote', () => {
-  const l = lib([line({ emote: null, audio: 'assets/vo/test_01.mp3' })]);
+test('audio lines may omit the emote and accept variant arrays', () => {
+  const l = lib([
+    line({ emote: null, audio: 'assets/vo/test_01.mp3' }),
+    line({ id: 'test_02', emote: 'scream', audio: ['assets/vo/a.mp3', 'assets/vo/b.mp3'] }),
+  ]);
   assert.equal(l.line('test_01').emote, null);
+  assert.deepEqual(l.line('test_02').audio, ['assets/vo/a.mp3', 'assets/vo/b.mp3']);
+  assert.throws(() => lib([line({ audio: [] })]), /audio variant array must not be empty/);
 });
 
 test('crew_* speakers get stable, distinct generated voices', () => {

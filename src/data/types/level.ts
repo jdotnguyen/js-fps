@@ -32,6 +32,13 @@ export const UNLOCK_SOURCES = ['player', 'engineer', 'medic', 'script'] as const
 export type UnlockSource = (typeof UNLOCK_SOURCES)[number];
 export const AMBIENT_PRESETS = ['normal', 'emergency', 'flooded', 'dark'] as const;
 export type AmbientPreset = (typeof AMBIENT_PRESETS)[number];
+
+/**
+ * Activity spots (ADR-0029): where a body can sit or lean, each with a default base pose of the same name.
+ * Kit props emit the `sit_*` kinds per seat; lean spots are authored for now.
+ */
+export const SPOT_KINDS = ['sit_chair', 'sit_stool', 'sit_sofa', 'lean_wall', 'lean_counter'] as const;
+export type SpotKind = (typeof SPOT_KINDS)[number];
 export const TRIGGER_KINDS = ['enter', 'exit', 'use'] as const;
 export const SPAWN_KINDS = ['vent', 'floor', 'ceiling', 'door', 'corpse'] as const;
 /** Enemy variants a spawn point can make (ADR-0007, `data/enemies.json`). */
@@ -133,6 +140,17 @@ const anchorShape = {
 
 const anchorRef: Validator<string | [number, number, number]> = (v, p) => (typeof v === 'string' ? id(v, p) : vec3(v, p));
 
+/**
+ * An authored walk (ADR-0028): a smooth curve through `points` (anchor ids or feet positions) for
+ * scripted beats where the route matters (cutscenes, framed shots). Sequences use it with `via`
+ * on npcMoveTo/playerWalkTo, or `attachToTrack`. `speed` (m/s) is the default cruising speed.
+ */
+const walkShape = {
+  id,
+  points: arr(anchorRef),
+  speed: optional(numRange(0.1, 10)),
+};
+
 const npcShape = {
   id,
   /** Look id (outfit/seed) for the humanoid builder, e.g. "giles", "botanist_2". */
@@ -144,6 +162,13 @@ const npcShape = {
   pose: optional(str),
   /** Build the body so a `transform` action can infect it (the researcher behind the Lab B glass, ADR-0014). */
   transformable: optional(bool),
+  /**
+   * ADR-0029: take the nearest free activity spot of this kind to `at` (within 1.5 m): its position, facing and
+   * default pose (`pose` still wins). Lean kinds just set the pose at `at`.
+   */
+  spot: optional(oneOf(SPOT_KINDS)),
+  /** ADR-0029: NPCs sharing a chat id talk to each other (turn-taking, looking at the speaker). */
+  chat: optional(id),
 };
 
 /**
@@ -190,6 +215,8 @@ const roomShape = {
   anchors: optional(arr(obj(anchorShape))),
   /** NPCs standing in the level at load (`at`: an anchor id or a feet position). */
   npcs: optional(arr(obj(npcShape))),
+  /** Authored curve walks for scripted beats (ADR-0028). Ids are unique per level. */
+  walks: optional(arr(obj(walkShape))),
   /** Map area this room belongs to (ADR-0024), e.g. "hydroponics". Map stations reveal a whole area. */
   area: optional(id),
   /** Never revealed by a map station; only drawn once walked (ADR-0024). */
@@ -402,6 +429,19 @@ export function levelValidator(kits: KitIds, refs: LevelRefs = {}): Validator<Le
     level.rooms.forEach((r, ri) =>
       (r.npcs ?? []).forEach((n, k) => {
         if (typeof n.at === 'string' && !anchorSet.has(n.at)) throw new ValidationError(`${p} > rooms[${ri}] > npcs[${k}] > at`, `unknown anchor "${n.at}"`);
+      }),
+    );
+    unique(
+      level.rooms.flatMap((r) => (r.walks ?? []).map((w) => w.id)),
+      `${p} > rooms`,
+      'walk',
+    );
+    level.rooms.forEach((r, ri) =>
+      (r.walks ?? []).forEach((w, k) => {
+        if (w.points.length < 2) throw new ValidationError(`${p} > rooms[${ri}] > walks[${k}] > points`, 'a walk needs at least 2 points');
+        w.points.forEach((pt, j) => {
+          if (typeof pt === 'string' && !anchorSet.has(pt)) throw new ValidationError(`${p} > rooms[${ri}] > walks[${k}] > points[${j}]`, `unknown anchor "${pt}"`);
+        });
       }),
     );
     room(level.playerStart.room, `${p} > playerStart > room`);

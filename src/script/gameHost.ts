@@ -6,7 +6,8 @@ import { npcIdForSpeaker } from '../ai/speakerBodies.ts';
 import * as THREE from 'three';
 import { PLAYER_TUNING, type Player } from '../actors/player.ts';
 import type { SoundName } from '../audio/sounds.ts';
-import { SOUND_SPECS } from '../audio/sounds.ts';
+import { SAMPLE_URLS, SOUND_SPECS } from '../audio/sounds.ts';
+import type { AmbienceDirector } from '../audio/ambience.ts';
 import type { AudioEngine } from '../audio/engine.ts';
 import type { EventBus, EventName } from '../core/events.ts';
 import type { DoorState } from '../data/types/level.ts';
@@ -31,6 +32,8 @@ export interface GameHostDeps {
   /** Present when a data-driven level is loaded (doors, per-room lights). */
   level: Level | null;
   audio: AudioEngine;
+  /** Environmental soundscape director (room beds, spatial one-shots, scripted ambience overrides). */
+  ambience?: AmbienceDirector | null | undefined;
   hud: PlayerHud;
   toasts: Toasts;
   /** Key items (ADR-0024), for `giveItem`. */
@@ -128,7 +131,11 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
             }
           : {}),
       }),
-    walkTo: (at, speed) => d.player.walkTo(v3(at), speed),
+    walkTo: (at, speed, via) => {
+      const walk = via ? (d.level?.walk(via) ?? null) : null;
+      if (via && !walk) console.warn(`playerWalkTo: no walk "${via}"`);
+      return d.player.walkTo(v3(at), speed ?? walk?.speed, walk?.points);
+    },
     fade: (level, seconds) => d.hud.setFade(level, seconds),
     placePlayer: (at, yaw, pitch) => {
       d.player.cancelWalk();
@@ -173,12 +180,17 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
     ...(d.cameraFeeds ? { cameraFeed: (id: string, opts: CameraFeedOptions) => d.cameraFeeds!.apply(id, opts) } : {}),
 
     sfx(id, at) {
-      if (!(id in SOUND_SPECS)) {
+      if (!(id in SOUND_SPECS) && !(id in SAMPLE_URLS)) {
         console.warn(`[seq] sfx: no sound "${id}"`);
+        return;
+      }
+      if (!d.audio.hasSound(id as SoundName)) {
+        console.warn(`[seq] sfx: sound "${id}" not ready yet`);
         return;
       }
       d.audio.play(id as SoundName, at ? { position: v3(at) } : {});
     },
+    ...(d.ambience ? { ambience: (id: string) => d.ambience!.setOverride(id) } : {}),
 
     checkpoint(id, text) {
       if (d.game.flags[`cp:${id}`]) return; // already taken (a replay after death)

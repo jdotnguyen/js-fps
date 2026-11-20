@@ -17,6 +17,23 @@ export const priorityRank = (p: Priority): number => PRIORITIES.indexOf(p);
 /** Speaker ids that `crew_<anything>` resolves to. */
 export const CREW_PREFIX = 'crew_';
 
+/** Single path or non-empty list of variant paths under public/ (e.g. reaction/scream pools). */
+const audioPath: Validator<string | string[]> = (v, p) => {
+  if (typeof v === 'string') {
+    if (v.trim() === '') throw new ValidationError(p, 'empty audio path');
+    return v;
+  }
+  const list = arr(str)(v, p);
+  if (list.length === 0) throw new ValidationError(p, 'audio variant array must not be empty');
+  return list;
+};
+
+/** Normalize a line's `audio` field into 0, 1, or N asset URLs. */
+export function audioUrls(audio: DialogueLine['audio']): readonly string[] {
+  if (audio === null) return [];
+  return typeof audio === 'string' ? [audio] : audio;
+}
+
 const lineShape = {
   id: str,
   speaker: str,
@@ -26,8 +43,8 @@ const lineShape = {
   babble: optional(bool),
   channel: oneOf(CHANNELS),
   priority: oneOf(PRIORITIES),
-  /** Path under public/, e.g. "assets/vo/giles_cover_01.mp3". Plays instead of the emote. */
-  audio: nullable(str),
+  /** Path (or variant array) under public/, e.g. "assets/vo/giles_cover_01.mp3". Plays instead of the emote. */
+  audio: nullable(audioPath),
   minDuration: numRange(0, 30),
   /** Reserved for the dialogue-choice system; must be empty in the slice. */
   choices: arr(str),

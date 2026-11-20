@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Rng } from '../../core/rng.ts';
 import type { Materials } from '../../render/materials.ts';
+import type { SpotKind } from '../../data/types/level.ts';
 
 /**
  * Kit contract (ADR-0003). Every piece has one ID, one pivot convention (origin at the
@@ -29,7 +30,7 @@ export interface BoxSpec {
   max: Vec3;
 }
 
-export const SURFACE_MATERIALS = ['metal', 'grate', 'rubber', 'water'] as const;
+export const SURFACE_MATERIALS = ['concrete', 'metal', 'grate', 'rubber', 'water'] as const;
 export type SurfaceMaterial = (typeof SURFACE_MATERIALS)[number];
 
 export const LIGHT_SLOT_KINDS = ['ceiling', 'wall', 'emergency'] as const;
@@ -42,6 +43,15 @@ export interface Socket {
   pos: Vec3;
   dir: Vec3;
   kind?: SocketKind;
+}
+
+/** Where a body can sit or lean (ADR-0029), in piece space: `pos` is the body's feet on the floor, `yaw` its facing (radians, 0 faces -Z). */
+export interface SpotSlot {
+  kind: SpotKind;
+  pos: Vec3;
+  yaw: number;
+  /** Seat surface height (m) for seated kinds. */
+  seat?: number;
 }
 
 export interface LightSlot {
@@ -67,6 +77,8 @@ export interface PieceOutput {
    * subscribes each to the game event bus and to level trigger emits of the same name.
    */
   listeners?: Array<{ event: string; fn: (payload: unknown) => void }>;
+  /** Activity spots (ADR-0029): seats and lean places for ambient crew. */
+  spots?: SpotSlot[];
 }
 
 export type PieceParams = Record<string, string | number | boolean>;
@@ -108,6 +120,7 @@ export class PieceBuilder {
   readonly lightSlots: LightSlot[] = [];
   readonly navNodes: Array<{ pos: Vec3 }> = [];
   readonly surfaces: Array<{ box: BoxSpec; material: SurfaceMaterial }> = [];
+  readonly spots: SpotSlot[] = [];
   private readonly ticks: Array<(t: number, dt: number) => void> = [];
   private readonly listeners: Array<{ event: string; fn: (payload: unknown) => void }> = [];
 
@@ -149,6 +162,11 @@ export class PieceBuilder {
     this.lightSlots.push({ pos, kind, ry });
   }
 
+  /** An activity spot (ADR-0029): feet at (x, y, z), facing `yaw` (radians, 0 faces -Z); `seat` is the seat surface height. */
+  spot(kind: SpotKind, x: number, y: number, z: number, yaw: number, seat?: number): void {
+    this.spots.push(seat !== undefined ? { kind, pos: [x, y, z], yaw, seat } : { kind, pos: [x, y, z], yaw });
+  }
+
   nav(x: number, y: number, z: number): void {
     this.navNodes.push({ pos: [x, y, z] });
   }
@@ -173,6 +191,7 @@ export class PieceBuilder {
       };
     }
     if (this.listeners.length) out.listeners = this.listeners;
+    if (this.spots.length) out.spots = this.spots;
     return out;
   }
 }

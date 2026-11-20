@@ -1,4 +1,4 @@
-import { clearWalk, type NavGraph, type P3 } from './nav.ts';
+import { clearWalk, type Navigator, type P3 } from './nav.ts';
 import type { ColliderQuery } from '../actors/motor.ts';
 
 /**
@@ -33,7 +33,7 @@ export const GIVE_WAY = {
 } as const;
 
 export interface WayEnv {
-  nav: NavGraph | null;
+  nav: Navigator | null;
   colliders: ColliderQuery | null;
   /** Is a body (another actor) standing at this circle? */
   occupied?: ((x: number, z: number, r: number) => boolean) | undefined;
@@ -48,7 +48,7 @@ export interface DoorSpot {
 }
 
 /** The nav door whose centre is within `radius` of the point, if any. */
-export function doorNear(nav: NavGraph | null, x: number, z: number, radius: number = GIVE_WAY.doorReach): DoorSpot | null {
+export function doorNear(nav: Navigator | null, x: number, z: number, radius: number = GIVE_WAY.doorReach): DoorSpot | null {
   if (!nav) return null;
   for (const door of nav.doors) {
     const b = door.box;

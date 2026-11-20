@@ -248,7 +248,12 @@ export class Game {
     if (this.mode === 'title') {
       // Attract camera: a slow drift down the corridor behind the title menu.
       this.titleTime += frameDt;
-      this.d.world.attract(this.titleTime, this.d.camera);
+      // Debug: `window.__view = { at: [x, y, z], look: [x, y, z] }` pins the title camera for screenshots.
+      const view = (globalThis as { __view?: { at: [number, number, number]; look: [number, number, number] } }).__view;
+      if (view) {
+        this.d.camera.position.set(...view.at);
+        this.d.camera.lookAt(...view.look);
+      } else this.d.world.attract(this.titleTime, this.d.camera);
       this.d.input.consumeLook();
       hud.hide();
       return;

@@ -1,14 +1,16 @@
 /**
- * Imports raw photoscanned texture sets into public/assets/textures/<slot>/{color,normal,orm}.jpg.
- * Requires ImageMagick (`magick` or `convert`) on PATH.
+ * Imports raw photoscanned texture sets into public/assets/textures/<slot>/{color,normal,orm}.webp.
+ * Requires ImageMagick (`magick` or `convert`) on PATH (or in Program Files on Windows).
  *
  * Usage: npm run textures [-- <sourceDir> [slot ...]]
  *   sourceDir defaults to ../textures (relative to the repo root). Extra args filter slots.
  * ORM packing: R = AO (white if missing), G = roughness, B = metalness (black if missing).
  * Poly Haven `arm` files are already packed and are only resized.
+ * Optional `opacity` + `opacityBake: true` bakes perforations directly into color and ORM (dark
+ * matte non-metallic cavities) so perforated panels need no alpha cutout at runtime.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 interface Slot {
@@ -19,6 +21,8 @@ interface Slot {
   roughness: string | null;
   metalness: string | null;
   arm: string | null;
+  opacity?: string | null;
+  opacityBake?: boolean;
   size?: number;
   desaturate?: number;
 }
@@ -33,11 +37,24 @@ const filter = process.argv.slice(3);
 const outRoot = resolve(repo, 'public/assets/textures');
 const DEFAULT_SIZE = 1024;
 const QUALITY = '88';
+const DATA_QUALITY = '92';
 
 const sources: Sources = JSON.parse(readFileSync(new URL('./sources.json', import.meta.url), 'utf8'));
 
 function findMagick(): string {
-  for (const bin of ['magick', 'convert']) {
+  const candidates = ['magick', 'convert'];
+  if (process.platform === 'win32') {
+    for (const base of ['C:\\Program Files', 'C:\\Program Files (x86)']) {
+      if (!existsSync(base)) continue;
+      for (const entry of readdirSync(base)) {
+        if (/^ImageMagick/i.test(entry)) {
+          const exe = resolve(base, entry, 'magick.exe');
+          if (existsSync(exe)) candidates.push(exe);
+        }
+      }
+    }
+  }
+  for (const bin of candidates) {
     const r = spawnSync(bin, ['-version'], { encoding: 'utf8' });
     if (!r.error && r.status === 0 && /ImageMagick/i.test(r.stdout)) return bin;
   }
@@ -65,8 +82,8 @@ function src(slot: string, rel: string): string {
 }
 
 const common = (size: number): string[] => ['-alpha', 'off', '-filter', 'Lanczos', '-resize', `${size}x${size}!`];
-const jpg = (out: string, chroma444: boolean): string[] => [
-  '-depth', '8', '-strip', '-quality', QUALITY, ...(chroma444 ? ['-sampling-factor', '4:4:4'] : []), out,
+const webp = (out: string, dataMap: boolean): string[] => [
+  '-depth', '8', '-strip', '-quality', dataMap ? DATA_QUALITY : QUALITY, '-define', 'webp:method=4', out,
 ];
 /** One channel of a (grayscale) map, resized, as a single-channel image. */
 const chan = (path: string, size: number): string[] => ['(', path, ...common(size), '-channel', 'R', '-separate', '+channel', ')'];
@@ -85,27 +102,55 @@ for (const name of todo) {
   const aoIn = s.ao ? src(name, s.ao) : null;
   const roughIn = s.roughness ? src(name, s.roughness) : null;
   const metalIn = s.metalness ? src(name, s.metalness) : null;
+  const opIn = s.opacity && s.opacityBake ? src(name, s.opacity) : null;
   if (!armIn && !roughIn) fail(`slot "${name}": needs either arm or roughness`);
   mkdirSync(dir, { recursive: true });
 
-  const colorArgs = [colorIn, ...common(size)];
-  if (s.desaturate !== undefined) colorArgs.push('-modulate', `100,${s.desaturate},100`);
-  run([...colorArgs, ...jpg(resolve(dir, 'color.jpg'), false)]);
+  if (opIn) {
+    // Bake perforations into colour: dark acoustic cavity (#0d0f11) where opacity is black.
+    const fg = [colorIn, ...common(size), ...(s.desaturate !== undefined ? ['-modulate', `100,${s.desaturate},100`] : [])];
+    run([
+      '(', '-size', `${size}x${size}`, 'xc:#0d0f11', ')',
+      '(', ...fg, ')',
+      '(', opIn, ...common(size), ')',
+      '-compose', 'Over', '-composite',
+      ...webp(resolve(dir, 'color.webp'), false),
+    ]);
+  } else {
+    const colorArgs = [colorIn, ...common(size)];
+    if (s.desaturate !== undefined) colorArgs.push('-modulate', `100,${s.desaturate},100`);
+    run([...colorArgs, ...webp(resolve(dir, 'color.webp'), false)]);
+  }
 
-  run([normalIn, ...common(size), ...jpg(resolve(dir, 'normal.jpg'), true)]);
+  run([normalIn, ...common(size), ...webp(resolve(dir, 'normal.webp'), true)]);
 
   if (armIn) {
-    run([armIn, ...common(size), ...jpg(resolve(dir, 'orm.jpg'), true)]);
+    run([armIn, ...common(size), ...webp(resolve(dir, 'orm.webp'), true)]);
   } else {
     const constant = (c: string): string[] => ['-size', `${size}x${size}`, `xc:${c}`, '-colorspace', 'Gray', '-depth', '8'];
+    const aoChan = opIn
+      ? aoIn
+        ? ['(', ...chan(aoIn, size), ...chan(opIn, size), '-compose', 'Multiply', '-composite', ')']
+        : chan(opIn, size)
+      : aoIn
+        ? chan(aoIn, size)
+        : ['(', ...constant('white'), ')'];
+    const roughChan = opIn
+      ? ['(', ...chan(roughIn!, size), '(', opIn, ...common(size), '-channel', 'R', '-separate', '+channel', '-negate', ')', '-compose', 'Lighten', '-composite', ')']
+      : chan(roughIn!, size);
+    const metalChan = metalIn
+      ? opIn
+        ? ['(', ...chan(metalIn, size), ...chan(opIn, size), '-compose', 'Multiply', '-composite', ')']
+        : chan(metalIn, size)
+      : ['(', ...constant('black'), ')'];
     run([
-      ...(aoIn ? chan(aoIn, size) : ['(', ...constant('white'), ')']),
-      ...chan(roughIn!, size),
-      ...(metalIn ? chan(metalIn, size) : ['(', ...constant('black'), ')']),
+      ...aoChan,
+      ...roughChan,
+      ...metalChan,
       '-combine', '-colorspace', 'sRGB',
-      ...jpg(resolve(dir, 'orm.jpg'), true),
+      ...webp(resolve(dir, 'orm.webp'), true),
     ]);
   }
-  console.log(`textures: ${name} <- ${s.set}${aoIn || armIn ? '' : ' (no AO)'}${metalIn || armIn ? '' : ' (no metal)'}`);
+  console.log(`textures: ${name} <- ${s.set}${aoIn || armIn ? '' : ' (no AO)'}${metalIn || armIn ? '' : ' (no metal)'}${opIn ? ' (opacity baked)' : ''}`);
 }
 console.log(`textures: done (${todo.length} slots) -> ${outRoot}`);

@@ -373,11 +373,12 @@ export const ACTIONS: Record<string, ActionDef> = {
   ),
 
   /** `timeout` (with `wait`): if Jay has not arrived by then (blocked), he is placed there (the skip end state). */
-  playerWalkTo: act({ to: target, speed: optional(numRange(0.1, 10)), timeout: optional(numRange(0.5, 120)), wait }, (s, ctx) => {
+  /** `via`: an authored level walk (ADR-0028) to follow on the way, as a smooth curve. */
+  playerWalkTo: act({ to: target, via: optional(str), speed: optional(numRange(0.1, 10)), timeout: optional(numRange(0.5, 120)), wait }, (s, ctx) => {
     const at = resolve('playerWalkTo', s.to, ctx);
     if (!at) return;
     if (!ctx.host.walkTo) return ctx.missing('playerWalkTo');
-    const p = ctx.host.walkTo(at, s.speed);
+    const p = ctx.host.walkTo(at, s.speed, s.via);
     if (!s.wait) return;
     if (s.timeout === undefined) return pending(p);
     const arrived = pending(p);
@@ -423,7 +424,8 @@ export const ACTIONS: Record<string, ActionDef> = {
   }),
 
   // ---- NPCs (ADR-0006/0011: stubs until those systems exist)
-  npcMoveTo: npcAct('npcMoveTo', { npc: str, to: target, speed: optional(numRange(0.1, 10)), pose: optional(str) }),
+  /** `via`: an authored level walk (ADR-0028) to follow on the way, as a smooth curve. */
+  npcMoveTo: npcAct('npcMoveTo', { npc: str, to: target, via: optional(str), speed: optional(numRange(0.1, 10)), pose: optional(str) }),
   /** `by` drags the body along on a rope (lying pose, no gait); `stop` lets go. Skipped: let go. */
   npcDrag: npcAct('npcDrag', { npc: str, by: optional(str), pose: optional(str), distance: optional(numRange(0.3, 4)), stop: optional(bool) }),
   npcAnim: npcAct('npcAnim', { npc: str, anim: str }),

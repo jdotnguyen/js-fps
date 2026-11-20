@@ -34,7 +34,9 @@ const css = `
   #subtitle.radio .name::after { content: ' [radio]'; color: #6d8a96; font-weight: normal; font-size: 12px; }
   #log { height: 160px; overflow: auto; background: #091013; border: 1px solid #1c272d; padding: 6px; white-space: pre; color: #9fb0b6; }
   .lines button { margin: 0 4px 4px 0; }
+  .lines button.has-vo { border-color: #4f9e7a; background: #122822; }
   .prio { color: #6d8a96; }
+  .vo-tag { color: #6ad4a4; font-weight: 600; }
 `;
 
 const app = document.getElementById('app')!;
@@ -169,10 +171,12 @@ function drawWave(data: Float32Array, label: string): void {
 // ------------------------------------------------------------------ speech manager
 
 const lines = $('lines');
-for (const l of library.allLines()) {
+const sortedLines = [...library.allLines()].sort((a, b) => Number(Boolean(b.audio)) - Number(Boolean(a.audio)));
+for (const l of sortedLines) {
   const b = document.createElement('button');
-  b.innerHTML = `${l.id} <span class="prio">${l.priority}</span>`;
+  b.innerHTML = `${l.audio ? '<span class="vo-tag">[VO]</span> ' : ''}${l.id} <span class="prio">${l.priority}</span>`;
   b.title = `${l.speaker} (${l.emote ?? 'audio'}, ${l.channel}): ${l.text}`;
+  if (l.audio) b.classList.add('has-vo');
   b.addEventListener('click', () => say(l.id));
   lines.append(b);
 }
@@ -222,6 +226,9 @@ const frame = (now: number): void => {
 
 $('start').addEventListener('click', async () => {
   await engine.resume();
+  void player.loadLines(library.allLines()).then((n) => {
+    if (n > 0) write(`loaded  ${n} recorded VO clip${n === 1 ? '' : 's'}`);
+  });
   $('start').hidden = true;
   $('main').hidden = false;
   requestAnimationFrame(frame);

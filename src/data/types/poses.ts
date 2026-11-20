@@ -14,6 +14,11 @@ export interface PoseData {
   rootPos?: [number, number, number];
   /** Pelvis offset in metres (crouching, sitting). */
   pelvis?: [number, number, number];
+  /**
+   * Start from another pose (ADR-0029): its joints, pelvis and root, with this pose's own entries on top. Seated and leaning
+   * gestures extend their base pose so the legs stay where the base puts them.
+   */
+  extends?: string;
 }
 
 export interface PoseStep {
@@ -39,12 +44,20 @@ const jointMap: Validator<Partial<Record<JointName, [number, number, number]>>> 
   return out as Partial<Record<JointName, [number, number, number]>>;
 };
 
-const pose = obj({ joints: jointMap, rootRot: optional(vec3), rootPos: optional(vec3), pelvis: optional(vec3) });
+const pose = obj({ joints: jointMap, rootRot: optional(vec3), rootPos: optional(vec3), pelvis: optional(vec3), extends: optional(str) });
 const step = obj({ pose: str, blend: num, hold: num });
 const file = obj({ poses: record(pose), sequences: record(arr(step)) });
 
 export const validatePoseFile: Validator<PoseFile> = (v, p) => {
   const out = file(v, p) as PoseFile;
+  for (const [name, data] of Object.entries(out.poses)) {
+    const seen = new Set([name]);
+    for (let base = data.extends; base !== undefined; base = out.poses[base]?.extends) {
+      if (!(base in out.poses)) throw new ValidationError(`${p} > poses > ${name} > extends`, `unknown pose "${base}"`);
+      if (seen.has(base)) throw new ValidationError(`${p} > poses > ${name} > extends`, `"${base}" extends itself`);
+      seen.add(base);
+    }
+  }
   for (const [name, steps] of Object.entries(out.sequences)) {
     steps.forEach((s, i) => {
       if (!(s.pose in out.poses)) throw new ValidationError(`${p} > sequences > ${name}[${i}] > pose`, `unknown pose "${s.pose}"`);
@@ -52,6 +65,22 @@ export const validatePoseFile: Validator<PoseFile> = (v, p) => {
   }
   return out;
 };
+
+/** A pose with its `extends` chain applied: the base's joints and offsets, then its own on top. */
+export function resolvePose(file: PoseFile, name: string): PoseData {
+  const data = file.poses[name];
+  if (!data) throw new Error(`unknown pose "${name}"`);
+  if (data.extends === undefined) return data;
+  const base = resolvePose(file, data.extends);
+  const out: PoseData = { joints: { ...base.joints, ...data.joints } };
+  const rootRot = data.rootRot ?? base.rootRot;
+  const rootPos = data.rootPos ?? base.rootPos;
+  const pelvis = data.pelvis ?? base.pelvis;
+  if (rootRot) out.rootRot = rootRot;
+  if (rootPos) out.rootPos = rootPos;
+  if (pelvis) out.pelvis = pelvis;
+  return out;
+}
 
 export function loadPoseFile(raw: unknown, source = 'data/poses.json'): PoseFile {
   return validate(validatePoseFile, raw, source);

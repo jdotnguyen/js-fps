@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Interactions } from '../actors/interaction.ts';
-import type { NavGraph } from '../ai/nav.ts';
+import type { Navigator } from '../ai/nav.ts';
 import type { EventBus, EventName } from '../core/events.ts';
 import type { Input } from '../core/input.ts';
 import type { DifficultyPreset, DifficultyTable } from '../data/types/difficulty.ts';
@@ -59,7 +59,7 @@ export interface GuidanceDeps {
   speech: GuidanceSpeech | null;
   /** Head position of a speaker for positional voices (squadmates), or null. */
   speakerAt?: (speaker: string) => { x: number; y: number; z: number } | null;
-  nav: () => NavGraph | null;
+  nav: () => Navigator | null;
   difficulties: DifficultyTable;
   preset: () => DifficultyPreset;
   flags: () => Flags;

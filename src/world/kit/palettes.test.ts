@@ -48,14 +48,31 @@ test('resolvePalette follows the area and falls back to the default for unknown 
   const tunnel = resolvePalette({ area: 'tunnel' }, m);
   assert.equal(tunnel.wallMain, m.rustHeavy);
   assert.equal(tunnel.wallAlt, m.concrete);
+  assert.equal(tunnel.ceiling, m.paintDark, 'ceiling defaults to paintDark');
+  assert.equal(tunnel.trim, m.steel, 'trim defaults to steel');
   assert.equal(tunnel.floor, m.concreteFloor);
   assert.equal(tunnel.floorAlt, m.diamondRusty);
   assert.equal(tunnel.hazard, m.hazard);
   assert.equal(tunnel.hazardTile, 1, 'photo hazard needs metre UVs');
+  const dock = resolvePalette({ area: 'dock' }, m);
+  assert.equal(dock.wallMain, m.hullPlate);
+  assert.equal(dock.wallAlt, m.boltPanel);
+  assert.equal(dock.ceiling, m.deckCorrugated);
+  assert.equal(dock.trim, m.steelBrushed);
+  const commons = resolvePalette({ area: 'commons' }, m);
+  assert.equal(commons.wallMain, m.vinylPanel);
+  assert.equal(commons.wallAlt, m.paintBone);
+  assert.equal(commons.ceiling, m.acousticCeiling);
+  assert.equal(commons.trim, m.steelBrushed);
+  const admin = resolvePalette({ area: 'admin' }, m);
+  assert.equal(admin.ceiling, m.officeCeiling);
+  assert.equal(admin.trim, m.steelBrushed);
   const labs = resolvePalette({ area: 'labs' }, m);
   assert.equal(labs.wallMain, m.labPanel);
   assert.equal(labs.floor, m.labTile);
   assert.equal(labs.wallAlt, m.labPanel, 'wallAlt defaults to wallMain');
+  assert.equal(labs.ceiling, m.paintDark, 'ceiling defaults to paintDark');
+  assert.equal(labs.trim, m.steel, 'trim defaults to steel');
   assert.equal(labs.floorAlt, m.steel, 'floorAlt defaults to steel');
   assert.equal(labs.hazard, m.hazardClean);
   assert.equal(labs.hazardTile, 0.5);
@@ -65,10 +82,12 @@ test('resolvePalette follows the area and falls back to the default for unknown 
 
 test('params.material overrides the main surfaces but not hazard or trim', () => {
   const m = stubMaterials();
-  const p = resolvePalette({ area: 'hydroponics', material: 'tileWashroom' }, m);
-  assert.equal(p.wallMain, m.tileWashroom);
-  assert.equal(p.wallAlt, m.tileWashroom);
-  assert.equal(p.floor, m.tileWashroom);
+  const p = resolvePalette({ area: 'admin', material: 'boltPanel' }, m);
+  assert.equal(p.wallMain, m.boltPanel);
+  assert.equal(p.wallAlt, m.boltPanel);
+  assert.equal(p.ceiling, m.boltPanel);
+  assert.equal(p.floor, m.boltPanel);
+  assert.equal(p.trim, m.steelBrushed, 'trim is not overridden by params.material');
   assert.equal(p.hazard, m.hazardClean);
   assert.equal(p.overridden, true);
   assert.equal(resolvePalette({ area: 'hydroponics' }, m).overridden, false);

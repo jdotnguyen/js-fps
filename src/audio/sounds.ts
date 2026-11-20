@@ -597,6 +597,28 @@ function bootStep(sr: number, rng: Rng, o: StepOptions): Buf {
   return fadeEdges(normalize(b, 0.8), sr, 0.0005, 0.05);
 }
 
+/** Boot on painted concrete: dense damped low-mid thud, fine dry grit, no metallic ring. */
+export function footConcrete(sr: number, rng: Rng): Buf {
+  return bootStep(sr, rng, {
+    modes: { count: 10, fMin: 120, fMax: 950, qMin: 1.5, qMax: 3.2, level: 0.75 },
+    rattles: 0,
+    rattleWindow: 0,
+    grit: 1.15,
+    thud: 3.2,
+  });
+}
+
+/** Boot on rubber or carpet: soft, muffled low thump with minimal grit or ring. */
+export function footRubber(sr: number, rng: Rng): Buf {
+  return bootStep(sr, rng, {
+    modes: { count: 6, fMin: 90, fMax: 420, qMin: 1.1, qMax: 2.0, level: 0.35 },
+    rattles: 0,
+    rattleWindow: 0,
+    grit: 0.15,
+    thud: 2.6,
+  });
+}
+
 /** Boot on diamond plate: dense damped plate resonance, heavy thud, some grit. */
 export function footPlate(sr: number, rng: Rng): Buf {
   return bootStep(sr, rng, {
@@ -822,6 +844,8 @@ export const SOUND_SPECS = {
   fleshTear: { make: fleshTear, loop: false, variants: 3 },
   glassThud: { make: glassThud, loop: false, variants: 3 },
   bodyDrag: { make: bodyDrag, loop: false, variants: 2 },
+  footConcrete: { make: footConcrete, loop: false, variants: 6 },
+  footRubber: { make: footRubber, loop: false, variants: 6 },
   footPlate: { make: footPlate, loop: false, variants: 6 },
   footGrate: { make: footGrate, loop: false, variants: 6 },
   click: { make: click, loop: false, variants: 1 },
@@ -857,8 +881,45 @@ export const SAMPLE_URLS = {
     'assets/audio/zombies/zombie-call.mp3',
     'assets/audio/zombies/zombie-sfx.mp3',
   ],
+  // Seven boot steps on painted concrete (ElevenLabs, scripts/footsteps-generate.ts).
+  footConcrete: [1, 2, 3, 4, 5, 6, 7].map((i) => `assets/audio/footsteps/foot-concrete-${i}.mp3`),
   // Seven boot steps cut from the first ~4 s of freesound_community "metal footsteps" (14727).
   footPlate: [1, 2, 3, 4, 5, 6, 7].map((i) => `assets/audio/footsteps/foot-metal-${i}.mp3`),
+
+  // Environmental ambient beds, spatial emitters, and foley one-shots (ElevenLabs, scripts/ambience-generate.ts).
+  // Keys matching SOUND_SPECS replace their procedural fallback once loaded; amb* beds power AmbienceDirector.
+  roomTone: 'assets/audio/ambience/bed-hull-hum.mp3',
+  ambHullHum: 'assets/audio/ambience/bed-hull-hum.mp3',
+  ambCommons: 'assets/audio/ambience/bed-commons-murmur.mp3',
+  ambLabHum: 'assets/audio/ambience/bed-lab-hum.mp3',
+  ambHullGroan: 'assets/audio/ambience/bed-hull-groan.mp3',
+  ambOfficeHvac: 'assets/audio/ambience/bed-office-hvac.mp3',
+  ambMedBay: 'assets/audio/ambience/bed-med-bay.mp3',
+  ambFlooded: 'assets/audio/ambience/bed-flooded-tunnel.mp3',
+  ambValveRoom: 'assets/audio/ambience/bed-valve-room.mp3',
+  ambHydroMisters: 'assets/audio/ambience/bed-hydro-misters.mp3',
+  ambDiveBay: 'assets/audio/ambience/bed-dive-bay.mp3',
+  ventFan: 'assets/audio/ambience/emitter-vent-fan.mp3',
+  fluorescentBuzz: 'assets/audio/ambience/emitter-fluorescent-buzz.mp3',
+  waterRumble: 'assets/audio/ambience/emitter-water-rumble.mp3',
+  consoleHum: 'assets/audio/ambience/emitter-console-hum.mp3',
+  hullGroan: ['assets/audio/ambience/oneshot-hull-groan-1.mp3', 'assets/audio/ambience/oneshot-hull-groan-2.mp3'],
+  metalKnock: ['assets/audio/ambience/oneshot-metal-knock-1.mp3', 'assets/audio/ambience/oneshot-metal-knock-2.mp3'],
+  creak: ['assets/audio/ambience/oneshot-creak-1.mp3', 'assets/audio/ambience/oneshot-creak-2.mp3'],
+  drip: ['assets/audio/ambience/oneshot-drip-1.mp3', 'assets/audio/ambience/oneshot-drip-2.mp3'],
+  pressurePing: 'assets/audio/ambience/oneshot-pressure-ping.mp3',
+  distantMoan: 'assets/audio/ambience/oneshot-distant-moan.mp3',
+  medBeep: 'assets/audio/ambience/oneshot-med-beep.mp3',
+
+  // Door motion and access feedback (ElevenLabs, scripts/doors-generate.ts).
+  doorPressureOpen: 'assets/audio/doors/door-pressure-open.mp3',
+  doorPressureClose: 'assets/audio/doors/door-pressure-close.mp3',
+  doorGlassOpen: 'assets/audio/doors/door-glass-open.mp3',
+  doorGlassClose: 'assets/audio/doors/door-glass-close.mp3',
+  doorBulkheadOpen: 'assets/audio/doors/door-bulkhead-open.mp3',
+  doorBulkheadClose: 'assets/audio/doors/door-bulkhead-close.mp3',
+  doorDenied: 'assets/audio/doors/door-denied.mp3',
+  doorUnlocked: 'assets/audio/doors/door-unlocked.mp3',
 } as const satisfies Record<string, string | readonly string[]>;
 
 /** The `zombieVoice` clip the boot splash plays while the logo shambles in. */

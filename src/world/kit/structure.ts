@@ -303,7 +303,7 @@ function floorTile(p: PieceParams, rng: Rng, m: Materials, grate: boolean): Piec
         pb.add(slab(1.98, 0.08, 1.98), pal.floor, at(sx, -0.04, sz));
       }
     }
-    pb.solid(-2, -0.2, -2, 2, 0, 2, 'metal');
+    pb.solid(-2, -0.2, -2, 2, 0, 2, pal.floorSurface);
   }
   pb.socket('floor_center', [0, 0, 0], [0, 0, -1], 'floor');
   pb.nav(0, 0, 0);
@@ -312,17 +312,18 @@ function floorTile(p: PieceParams, rng: Rng, m: Materials, grate: boolean): Piec
 
 function ceilingTile(p: PieceParams, rng: Rng, m: Materials, withPipes: boolean): PieceOutput {
   const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
   const h = height(p);
-  pb.add(slab(4, 0.12, 4), m.paintDark, at(0, h + 0.06, 0));
-  for (const z of [-1, 1]) pb.add(rounded(4, 0.2, 0.22, 0.02), m.steel, at(0, h - 0.1, z));
+  pb.add(slab(4, 0.12, 4), pal.ceiling, at(0, h + 0.06, 0));
+  for (const z of [-1, 1]) pb.add(rounded(4, 0.2, 0.22, 0.02), pal.trim, at(0, h - 0.1, z));
   pb.solid(-2, h, -2, 2, h + 0.12, 2);
   if (withPipes) {
-    pipeRun(pb, m, [V(-1.3, h - 0.38, -2), V(-1.3, h - 0.38, 2)], 0.12, m.steel, h, 2);
-    pipeRun(pb, m, [V(-0.8, h - 0.32, -2), V(-0.8, h - 0.32, 2)], 0.06, m.paintTeal, h, 99);
-    pipeRun(pb, m, [V(1.35, h - 0.42, -2), V(1.35, h - 0.42, 2)], 0.16, m.paintDark, h, 2);
+    pipeRun(pb, m, [V(-1.3, h - 0.38, -2), V(-1.3, h - 0.38, 2)], 0.12, pal.trim, h, 2, pal.trim);
+    pipeRun(pb, m, [V(-0.8, h - 0.32, -2), V(-0.8, h - 0.32, 2)], 0.06, m.paintTeal, h, 99, pal.trim);
+    pipeRun(pb, m, [V(1.35, h - 0.42, -2), V(1.35, h - 0.42, 2)], 0.16, m.paintDark, h, 2, pal.trim);
     if (rng.chance(0.5)) valveWheel(pb, m, 1.35, h - 0.8, rng.range(-1.2, 1.2));
   }
-  ceilingHousing(pb, m, 0, h - 0.1, 0, PI / 2);
+  ceilingHousing(pb, m, 0, h - 0.1, 0, PI / 2, pal.trim);
   pb.light([0, h - 0.1, 0], 'ceiling', PI / 2);
   return pb.build();
 }
@@ -340,9 +341,9 @@ function wallTile(p: PieceParams, rng: Rng, m: Materials, style: WallStyle): Pie
   else if (style === 'window') {
     windowWall(pb, m, f, o, createAbyss(34, 16));
   } else {
-    glassPartition(pb, m, f, h);
+    glassPartition(pb, m, f, h, pal);
   }
-  if (style === 'vent') wallVent(pb, m, inFrame(f, 0.9, 0.55, 0.0));
+  if (style === 'vent') wallVent(pb, m, inFrame(f, 0.9, 0.55, 0.0), pal.trim);
   if (style === 'plain' || style === 'panel' || style === 'vent') {
     pb.socket('wall_center', [0, 1.4, -HALF + WALL_T], [0, 0, 1], 'wall');
   }
@@ -350,11 +351,13 @@ function wallTile(p: PieceParams, rng: Rng, m: Materials, style: WallStyle): Pie
   return pb.build();
 }
 
-function glassPartition(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, h: number): void {
-  pb.add(rounded(4, 0.35, 0.2, 0.02), m.paintDark, inFrame(f, 0, 0.175, -0.1));
-  pb.add(rounded(4, 0.12, 0.2, 0.02), m.steel, inFrame(f, 0, 2.6, -0.1));
-  if (h > 2.7) pb.add(slab(4, h - 2.66, 0.2), m.paintDark, inFrame(f, 0, (h + 2.66) / 2, -0.1));
-  for (const x of [-1.95, -0.65, 0.65, 1.95]) pb.add(rounded(0.1, 2.3, 0.22, 0.02), m.steel, inFrame(f, x, 1.45, -0.1));
+function glassPartition(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, h: number, pal?: ResolvedPalette): void {
+  const trim = pal?.trim ?? m.steel;
+  const wall = pal?.wallMain === m.woodPanel ? pal.wallMain : m.paintDark;
+  pb.add(rounded(4, 0.35, 0.2, 0.02), wall, inFrame(f, 0, 0.175, -0.1));
+  pb.add(rounded(4, 0.12, 0.2, 0.02), trim, inFrame(f, 0, 2.6, -0.1));
+  if (h > 2.7) pb.add(slab(4, h - 2.66, 0.2), wall, inFrame(f, 0, (h + 2.66) / 2, -0.1));
+  for (const x of [-1.95, -0.65, 0.65, 1.95]) pb.add(rounded(0.1, 2.3, 0.22, 0.02), trim, inFrame(f, x, 1.45, -0.1));
   const glass = new THREE.Mesh(new THREE.PlaneGeometry(3.9, 2.25), m.glass);
   glass.applyMatrix4(inFrame(f, 0, 1.475, -0.1));
   glass.renderOrder = 3;
@@ -362,9 +365,9 @@ function glassPartition(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, h: num
 }
 
 /** Wall vent with a spinning fan; its frame faces +Z in the given frame. */
-function wallVent(pb: PieceBuilder, m: Materials, f: THREE.Matrix4): void {
-  for (const dy of [-0.28, 0.28]) pb.add(rounded(0.62, 0.06, 0.08, 0.01), m.steel, inFrame(f, 0, dy, 0.04));
-  for (const dx of [-0.28, 0.28]) pb.add(rounded(0.06, 0.62, 0.08, 0.01), m.steel, inFrame(f, dx, 0, 0.04));
+function wallVent(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, trim: THREE.Material = m.steel): void {
+  for (const dy of [-0.28, 0.28]) pb.add(rounded(0.62, 0.06, 0.08, 0.01), trim, inFrame(f, 0, dy, 0.04));
+  for (const dx of [-0.28, 0.28]) pb.add(rounded(0.06, 0.62, 0.08, 0.01), trim, inFrame(f, dx, 0, 0.04));
   pb.add(slab(0.5, 0.5, 0.015, 0.4), m.grating, inFrame(f, 0, 0, 0.05));
   pb.add(slab(0.5, 0.5, 0.01), m.black, inFrame(f, 0, 0, -0.1));
   const parts: THREE.BufferGeometry[] = [new THREE.CylinderGeometry(0.05, 0.05, 0.03, 12).rotateX(PI / 2)];
@@ -412,6 +415,7 @@ function mergeFan(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
 export function doorFrame(pb: PieceBuilder, m: Materials, width: number, h: number, pal?: ResolvedPalette): void {
   const haz = pal?.hazard ?? m.hazardClean;
   const hazTile = pal?.hazardTile ?? 0.5;
+  const trim = pal?.trim ?? m.steel;
   const z = -HALF;
   const t = WALL_T * 2;
   const side = (width - 2.56) / 2;
@@ -420,14 +424,14 @@ export function doorFrame(pb: PieceBuilder, m: Materials, width: number, h: numb
   }
   if (h > 2.76) pb.add(slab(2.56, h - 2.76, t), m.paintDark, at(0, (h + 2.76) / 2, z));
   for (const s of [-1, 1]) {
-    pb.add(rounded(0.32, 2.76, 0.6, 0.03), m.steel, at(s * 1.16, 1.38, z));
+    pb.add(rounded(0.32, 2.76, 0.6, 0.03), trim, at(s * 1.16, 1.38, z));
     for (const fz of [-1, 1]) {
       pb.add(slab(0.2, 2.2, 0.02, hazTile), haz, at(s * 1.16, 1.2, z + fz * 0.305));
-      bolts(pb, m, at(s * 1.16, 0, z + fz * 0.31, 0, fz > 0 ? 0 : PI, 0), [-0.1, 0.1], [0.25, 2.25], 0);
+      bolts(pb, m, at(s * 1.16, 0, z + fz * 0.31, 0, fz > 0 ? 0 : PI, 0), [-0.1, 0.1], [0.25, 2.25], 0, trim);
     }
   }
-  pb.add(rounded(2.64, 0.36, 0.6, 0.03), m.steel, at(0, 2.58, z));
-  pb.add(rounded(2.0, 0.04, 0.56, 0.01), m.steel, at(0, 0, z));
+  pb.add(rounded(2.64, 0.36, 0.6, 0.03), trim, at(0, 2.58, z));
+  pb.add(rounded(2.0, 0.04, 0.56, 0.01), trim, at(0, 0, z));
   for (const fz of [-1, 1]) pb.add(slab(1.9, 0.16, 0.02, hazTile), haz, at(0, 2.58, z + fz * 0.305));
   const half = width / 2;
   pb.solid(-half, 0, z - WALL_T, -1, h, z + WALL_T);

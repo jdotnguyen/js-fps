@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import type { EventBus, EventName } from '../core/events.ts';
 import { Rng } from '../core/rng.ts';
-import { isKeyPickup, type AmbientPreset, type DoorData, type DoorState, type KeyPickupData, type LevelData, type RoomData, type TriggerData, type UnlockSource, type VentData } from '../data/types/level.ts';
+import { isKeyPickup, type SpotKind, type AmbientPreset, type DoorData, type DoorKit, type DoorState, type KeyPickupData, type LevelData, type RoomData, type TriggerData, type UnlockSource, type VentData } from '../data/types/level.ts';
 import type { UiText } from '../data/types/uiText.ts';
 import type { Inventory } from '../game/inventory.ts';
 import { accessOpen, checkAccess, type AccessHint, type GateKind } from './access.ts';
 import { createShaft } from '../render/fx/shafts.ts';
 import { Particulates } from '../render/fx/particulates.ts';
-import { LightController, type LightPattern, type ShaftUniforms } from '../render/lights.ts';
+import { LightController, type ControlledLight, type LightPattern, type ShaftUniforms } from '../render/lights.ts';
 import { createDebugCheckerMaterial, fixtureMaterial, type Materials } from '../render/materials.ts';
 import { CollisionWorld, type Collider } from './collision.ts';
 import { at } from './kit/geom.ts';
@@ -22,16 +22,23 @@ import type { Interactable, Interactions } from '../actors/interaction.ts';
 import type { Aabb } from '../actors/motor.ts';
 import { PLAYER_TUNING, type PlayerWorld } from '../actors/player.ts';
 import type { World, WorldCheckpoint } from './world.ts';
-import { gridNodes, NavGraph, type P3 } from '../ai/nav.ts';
+import { gridNodes, NavGraph, type Navigator, type P3 } from '../ai/nav.ts';
+import { NavMeshNav, navmeshReady } from '../ai/navmesh.ts';
 
 const EYE_HEIGHT = PLAYER_TUNING.eyeHeight;
+/** Seconds an auto door stays open after reaching fully open while nobody is nearby. */
+const AUTO_DOOR_HOLD = 5.0;
+const AUTO_CLOSE_PLAYER_DIST = 3.6;
+const AUTO_CLOSE_ACTOR_DIST = 2.8;
 
 declare module '../core/events.ts' {
   interface EventMap {
-    'room:entered': { id: string; name: string; reverb?: string | undefined };
+    'room:entered': { id: string; name: string; reverb?: string | undefined; ambience?: string | undefined };
     'door:state': { id: string; state: DoorState };
     'door:opened': { id: string };
     'door:closed': { id: string };
+    /** A door started opening or closing (or reversed mid-travel); drives spatial door foley. */
+    'door:move': { id: string; kit: DoorKit; dir: 'open' | 'close'; progress: number; position: THREE.Vector3 };
     'door:unlocked': { id: string; by: UnlockSource };
     /** The player tried a door they cannot open; `reason` is shown to them. */
     'door:denied': { id: string; reason: string };
@@ -144,6 +151,8 @@ interface DoorRuntime {
   center: THREE.Vector3;
   /** Seconds the player has been away from an open auto door. */
   away: number;
+  /** Current leaf motion direction, for emitting `door:move` only on starts and reversals. */
+  moving: 'open' | 'close' | null;
   auto: boolean;
   staticMeshes: THREE.Mesh[];
   /** Box the interact ray tests (the closed leaves, a little proud on both sides). */
@@ -192,6 +201,43 @@ export interface RoomStats {
 
 const deg = THREE.MathUtils.degToRad;
 
+/** How far (m) a level NPC's `at` may be from the spot it claims (ADR-0029). */
+export const SPOT_REACH = 1.5;
+
+/** An activity spot in world space (ADR-0029). */
+export interface WorldSpot {
+  /** `<room>:<prop index>:<n>`. */
+  id: string;
+  room: string;
+  /** The prop it belongs to (`<room>:<prop index>`): a table's seats share one. */
+  group: string;
+  kind: SpotKind;
+  /** The body's feet. */
+  pos: THREE.Vector3;
+  /** Facing, radians (0 faces -Z). */
+  yaw: number;
+  /** Seat surface height (m, world y) for seated kinds. */
+  seat?: number;
+  /** The NPC holding it, if any. */
+  taken: string | null;
+}
+
+/** A level-placed NPC, resolved (`Level.npcSpawns()`). */
+export interface LevelNpc {
+  id: string;
+  look: string;
+  pos: THREE.Vector3;
+  yaw: number;
+  pose?: string;
+  transformable?: boolean;
+  /** The activity spot it holds (ADR-0029) and that spot's seat height. */
+  spot?: string;
+  seat?: number;
+  /** Conversation group (ADR-0029). */
+  chat?: string;
+  room: string;
+}
+
 /** Placement matrix for a grid cell and a rotation in degrees. */
 function cellMatrix(cell: [number, number, number], rot: number): THREE.Matrix4 {
   return at(cell[0] * CELL, cell[1] * DECK_H, cell[2] * CELL, 0, deg(rot), 0);
@@ -231,10 +277,14 @@ export class Level implements World {
   private readonly triggers: TriggerRuntime[] = [];
   private readonly vents: VentRuntime[] = [];
   private readonly pickups: PickupRuntime[] = [];
+  /** Activity spots (ADR-0029) from kit props, in world space. `group` is the prop (a table's seats share it). */
+  private readonly spotList: WorldSpot[] = [];
   /** Named positions from room `anchors` (yaw in radians). */
   private readonly anchors = new Map<string, { pos: THREE.Vector3; yaw: number; room: string }>();
-  private readonly npcList: Array<{ id: string; look: string; pos: THREE.Vector3; yaw: number; pose?: string; transformable?: boolean; room: string }> = [];
+  private readonly npcList: LevelNpc[] = [];
   private readonly named = new Map<string, Set<() => void>>();
+  /** Authored walks by id (ADR-0028). */
+  private readonly walks = new Map<string, NonNullable<LevelData['rooms'][number]['walks']>[number]>();
   private readonly hemi: THREE.HemisphereLight;
   private readonly dust: Particulates;
   private readonly visibleSlots: PooledSlot[] = [];
@@ -312,13 +362,37 @@ export class Level implements World {
     }
     // Key items only; supply pickups (ammo, medkits) live in game/pickups.ts.
     for (const pk of data.pickups ?? []) if (isKeyPickup(pk)) this.buildPickup(pk);
+    for (const r of data.rooms) for (const w of r.walks ?? []) this.walks.set(w.id, w);
     for (const r of data.rooms) for (const a of r.anchors ?? []) this.anchors.set(a.id, { pos: new THREE.Vector3(...a.pos), yaw: deg(a.yaw ?? 0), room: r.id });
     for (const r of data.rooms) {
       for (const n of r.npcs ?? []) {
         const a = typeof n.at === 'string' ? this.anchors.get(n.at) : null;
-        const pos = a ? a.pos.clone() : new THREE.Vector3(...(n.at as [number, number, number]));
-        const yaw = n.yaw !== undefined ? deg(n.yaw) : (a?.yaw ?? 0);
-        this.npcList.push({ id: n.id, look: n.look, pos, yaw, ...(n.pose !== undefined ? { pose: n.pose } : {}), ...(n.transformable ? { transformable: true } : {}), room: r.id });
+        let pos = a ? a.pos.clone() : new THREE.Vector3(...(n.at as [number, number, number]));
+        let yaw = n.yaw !== undefined ? deg(n.yaw) : (a?.yaw ?? 0);
+        let pose = n.pose;
+        let spot: WorldSpot | null = null;
+        if (n.spot) {
+          // ADR-0029: claim the nearest free spot of the kind (seats come from kit props); lean kinds are just a pose.
+          pose ??= n.spot;
+          if (n.spot.startsWith('sit_')) {
+            spot = this.claimSpot(r.id, n.spot, pos, n.id);
+            if (spot) {
+              pos = spot.pos.clone();
+              if (n.yaw === undefined) yaw = spot.yaw;
+            } else console.warn(`[level] npc ${n.id}: no free ${n.spot} spot within ${SPOT_REACH} m of its "at"`);
+          }
+        }
+        this.npcList.push({
+          id: n.id,
+          look: n.look,
+          pos,
+          yaw,
+          ...(pose !== undefined ? { pose } : {}),
+          ...(n.transformable ? { transformable: true } : {}),
+          ...(spot ? { spot: spot.id, ...(spot.seat !== undefined ? { seat: spot.seat } : {}) } : {}),
+          ...(n.chat ? { chat: n.chat } : {}),
+          room: r.id,
+        });
       }
     }
 
@@ -395,11 +469,23 @@ export class Level implements World {
         }
       }
     }
-    for (const prop of r.props ?? []) {
+    for (const [pi, prop] of (r.props ?? []).entries()) {
       const ry = deg(prop.rot ?? 0);
       const matrix = at(prop.pos[0], prop.pos[1], prop.pos[2], 0, ry, 0);
       const params: PieceParams = { ceiling: height - prop.pos[1], ...(r.area !== undefined ? { area: r.area } : {}), ...(prop.params ?? {}) };
       const out = registry.create(prop.kit, params, rng.fork(`${r.id}:${prop.kit}:${prop.pos.join(',')}`), m);
+      (out.spots ?? []).forEach((s, i) => {
+        this.spotList.push({
+          id: `${r.id}:${pi}:${i}`,
+          room: r.id,
+          group: `${r.id}:${pi}`,
+          kind: s.kind,
+          pos: new THREE.Vector3(...s.pos).applyMatrix4(matrix),
+          yaw: Math.atan2(Math.sin(s.yaw + ry), Math.cos(s.yaw + ry)),
+          ...(s.seat !== undefined ? { seat: s.seat + prop.pos[1] } : {}),
+          taken: null,
+        });
+      });
       this.integrate(room, out, matrix, ry, rawSlots);
     }
 
@@ -471,6 +557,27 @@ export class Level implements World {
       this.triggers.push({ data: t, room, box, inside: false, fired: false });
       this.debug.triggers.push(box);
     }
+  }
+
+  /** Activity spots (ADR-0029) in world space, optionally for one room. Read-only views: `taken` names the NPC holding it. */
+  spots(roomId?: string): readonly Readonly<WorldSpot>[] {
+    return roomId ? this.spotList.filter((s) => s.room === roomId) : this.spotList;
+  }
+
+  /** The nearest free spot of `kind` in the room within SPOT_REACH of `near` (XZ), marked as taken by `by`. */
+  private claimSpot(room: string, kind: SpotKind, near: THREE.Vector3, by: string): WorldSpot | null {
+    let best: WorldSpot | null = null;
+    let bestD = SPOT_REACH;
+    for (const s of this.spotList) {
+      if (s.room !== room || s.kind !== kind || s.taken) continue;
+      const d = Math.hypot(s.pos.x - near.x, s.pos.z - near.z);
+      if (d <= bestD) {
+        bestD = d;
+        best = s;
+      }
+    }
+    if (best) best.taken = by;
+    return best;
   }
 
   /** World-space floor, wall, and door sockets collected from built kit pieces. */
@@ -649,6 +756,7 @@ export class Level implements World {
       target: open,
       center,
       away: 0,
+      moving: null,
       auto: d.kit !== 'bulkhead',
       staticMeshes,
       useBox,
@@ -727,15 +835,27 @@ export class Level implements World {
   }
 
   /** Doors and "use" triggers as ADR-0004 interactables. */
-  private nav: NavGraph | null = null;
+  private nav: Navigator | null = null;
 
   /**
-   * AI navigation (ADR-0007): kit nav nodes, a node either side of every door, and a 1.5 m grid
-   * fill so open rooms are covered too. Door edges are passable while the door is open.
+   * AI navigation. A Recast navmesh over the collision boxes once the WASM is loaded (ADR-0028,
+   * `initNavmesh()` at boot); otherwise the ADR-0007 navgraph: kit nav nodes, a node either side
+   * of every door, and a 1.5 m grid fill. Either way doors are passable while open.
    */
-  navGraph(): NavGraph {
+  navGraph(): Navigator {
     if (this.nav) return this.nav;
     const t0 = performance.now();
+    // Unlocked auto doors count as passable: they open for any body that walks up (setActors).
+    const navDoors = this.doors.map((d) => ({ id: d.data.id, box: d.collider as Aabb, isOpen: () => !d.collider.enabled || this.opensForActors(d) }));
+    if (navmeshReady()) {
+      const leaves = new Set<unknown>(this.doors.map((d) => d.collider));
+      const mesh = new NavMeshNav({ world: this.collision, boxes: this.collision.colliders.filter((c) => !leaves.has(c)), doors: navDoors });
+      const missing = mesh.unmarkedDoors();
+      if (missing.length) console.warn(`[nav] doorways with no navmesh: ${missing.join(', ')}`);
+      console.info(`[nav] navmesh: ${mesh.edgeCount()} polygons in ${(performance.now() - t0).toFixed(0)} ms`);
+      this.nav = mesh;
+      return mesh;
+    }
     const nodes: P3[] = this.debug.nav.map((v) => ({ x: v.x, y: v.y, z: v.z }));
     for (const door of this.doors) {
       const c = door.collider;
@@ -747,14 +867,10 @@ export class Level implements World {
     }
     const b = this.debug.bounds;
     if (!b.isEmpty()) nodes.push(...gridNodes(this.collision, { minX: b.min.x + 0.75, maxX: b.max.x - 0.75, minZ: b.min.z + 0.75, maxZ: b.max.z - 0.75, maxY: this.spawn.position.y - EYE_HEIGHT + 0.36 }, 1.5));
-    this.nav = new NavGraph({
-      world: this.collision,
-      nodes,
-      // Unlocked auto doors count as passable: they open for any body that walks up (setActors).
-      doors: this.doors.map((d) => ({ id: d.data.id, box: d.collider, isOpen: () => !d.collider.enabled || this.opensForActors(d) })),
-    });
-    console.info(`[nav] ${this.nav.nodes.length} nodes, ${this.nav.edgeCount()} edges in ${(performance.now() - t0).toFixed(0)} ms`);
-    return this.nav;
+    const graph = new NavGraph({ world: this.collision, nodes, doors: navDoors });
+    console.info(`[nav] ${graph.nodes.length} nodes, ${graph.edgeCount()} edges in ${(performance.now() - t0).toFixed(0)} ms`);
+    this.nav = graph;
+    return graph;
   }
 
   registerInteractions(interactions: Interactions): () => void {
@@ -953,6 +1069,7 @@ export class Level implements World {
       d.open = d.target;
       d.visual.setOpen(d.open);
       d.away = 0;
+      d.moving = null;
       d.collider.enabled = d.open < 0.6;
     }
     for (const t of this.triggers) t.fired = false;
@@ -1041,13 +1158,37 @@ export class Level implements World {
     return a ? { pos: a.pos.clone(), yaw: a.yaw } : null;
   }
 
+  /**
+   * An authored walk (ADR-0028): its control points (anchors resolved to feet positions) and
+   * default speed, or null if no room has it.
+   */
+  walk(id: string): { points: P3[]; speed?: number } | null {
+    const w = this.walks.get(id);
+    if (w) {
+      const points: P3[] = [];
+      for (const pt of w.points) {
+        const a = typeof pt === 'string' ? this.anchors.get(pt) : null;
+        if (typeof pt === 'string' && !a) return null;
+        const v = a ? a.pos : { x: (pt as number[])[0]!, y: (pt as number[])[1]!, z: (pt as number[])[2]! };
+        points.push({ x: v.x, y: v.y, z: v.z });
+      }
+      return { points, ...(w.speed !== undefined ? { speed: w.speed } : {}) };
+    }
+    return null;
+  }
+
+  /** Every authored walk id (ADR-0028), for tests and debug overlays. */
+  walkIds(): string[] {
+    return [...this.walks.keys()];
+  }
+
   /** Every anchor id, for tests and debug overlays. */
   anchorIds(): string[] {
     return [...this.anchors.keys()];
   }
 
   /** NPCs placed by room `npcs` entries, resolved to positions (yaw in radians). Copies. */
-  npcSpawns(): Array<{ id: string; look: string; pos: THREE.Vector3; yaw: number; pose?: string; transformable?: boolean; room: string }> {
+  npcSpawns(): LevelNpc[] {
     return this.npcList.map((n) => ({ ...n, pos: n.pos.clone() }));
   }
 
@@ -1059,6 +1200,13 @@ export class Level implements World {
     const box = new THREE.Box3();
     for (const c of room.cells) box.union(c);
     return box.getCenter(new THREE.Vector3());
+  }
+
+  /** Controlled light fixtures in a room (for positional fluorescent buzz and flicker arcs). */
+  roomLights(roomId: string): ReadonlyArray<{ position: THREE.Vector3; light: ControlledLight }> {
+    const room = this.rooms.find((r) => r.data.id === roomId);
+    if (!room) return [];
+    return room.slots.map((s) => ({ position: s.position, light: s.item }));
   }
 
   // ---------------------------------------------------------------- door + trigger logic
@@ -1112,21 +1260,33 @@ export class Level implements World {
         }
         else if (d.state === 'closed' && actor < 1.8) this.openDoor(d);
         else if (d.state === 'open') {
-          d.away = dist > 3.4 && actor > 2.4 ? d.away + dt : 0;
-          if (d.away > 1.2) {
+          // Hold open until the leaves finish opening and nobody is nearby for AUTO_DOOR_HOLD seconds.
+          d.away = d.open >= 1 && dist > AUTO_CLOSE_PLAYER_DIST && actor > AUTO_CLOSE_ACTOR_DIST ? d.away + dt : 0;
+          if (d.away >= AUTO_DOOR_HOLD) {
             this.setDoorState(d, 'closed');
             d.target = 0;
           }
         }
       }
       if (d.state !== 'open' && d.target > 0) d.target = 0;
-      // Never close on the player standing in the doorway.
-      if (d.target === 0 && d.open > 0 && dist < 0.9) d.target = d.open;
+      // Never close on the player standing in the doorway: auto doors smoothly re-open, sealed/manual doors pause.
+      if (d.target === 0 && d.open > 0 && dist < 0.9) {
+        if (d.auto && this.doorAccessOpen(d)) this.openDoor(d);
+        else d.target = d.open;
+      }
       const speed = dt / d.visual.travelTime;
       if (d.open !== d.target) {
-        d.open = d.open < d.target ? Math.min(d.target, d.open + speed) : Math.max(d.target, d.open - speed);
+        const dir: 'open' | 'close' = d.open < d.target ? 'open' : 'close';
+        if (d.moving !== dir) {
+          d.moving = dir;
+          this.deps.events.emit('door:move', { id: d.data.id, kit: d.data.kit, dir, progress: d.open, position: d.center.clone() });
+        }
+        d.open = dir === 'open' ? Math.min(d.target, d.open + speed) : Math.max(d.target, d.open - speed);
         const e = d.open * d.open * (3 - 2 * d.open);
         d.visual.setOpen(e);
+        if (d.open === d.target) d.moving = null;
+      } else {
+        d.moving = null;
       }
       d.collider.enabled = d.open < 0.6;
     }
@@ -1150,7 +1310,12 @@ export class Level implements World {
     const room = this.roomAt(eye);
     if (room && room !== this.current) {
       this.current = room;
-      this.deps.events.emit('room:entered', { id: room.data.id, name: room.data.name, reverb: room.data.atmosphere?.reverb });
+      this.deps.events.emit('room:entered', {
+        id: room.data.id,
+        name: room.data.name,
+        reverb: room.data.atmosphere?.reverb,
+        ambience: room.data.atmosphere?.ambience,
+      });
     }
     this.updateDoors(dt, eye);
     this.updateTriggers(eye);

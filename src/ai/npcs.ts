@@ -6,7 +6,7 @@ import type { ColliderQuery } from '../actors/motor.ts';
 import { separate, type SepBody } from '../actors/separation.ts';
 import type { TargetRef, Vec3Like } from '../script/types.ts';
 import { PLAYER_RADIUS } from './giveWay.ts';
-import type { NavGraph, P3 } from './nav.ts';
+import type { Navigator, P3 } from './nav.ts';
 import { NpcActor, type NpcEnv } from './npcActor.ts';
 import type { Squad, SquadId, SquadMate } from './squad.ts';
 
@@ -41,7 +41,7 @@ export interface ResolvedTarget {
 
 export interface NpcDirectorDeps {
   ctx: HumanoidContext;
-  nav: NavGraph | null;
+  nav: Navigator | null;
   colliders: ColliderQuery | null;
   squad?: Squad | null;
   /**
@@ -59,6 +59,8 @@ export interface NpcDirectorDeps {
   obstacles?: (() => Iterable<{ x: number; z: number; r: number }>) | null;
   /** Track points for `attachToTrack` (level paths); null if unknown. */
   track?: (id: string) => P3[] | null;
+  /** Authored walks (ADR-0028) for `via` and `attachToTrack`: control points and default speed. */
+  walk?: (id: string) => { points: P3[]; speed?: number } | null;
 }
 
 /** Names a sequence may use for the squad. */
@@ -101,7 +103,7 @@ export class NpcDirector {
   constructor(deps: NpcDirectorDeps) {
     this.deps = deps;
     this.group.name = 'npcs';
-    this.env = { nav: deps.nav, colliders: deps.colliders, playerHead: new THREE.Vector3(), playerFeet: new THREE.Vector3(), camera: null, playerWish: { x: 0, z: 0 }, occupied: (x, z, r, self) => this.occupiedAt(x, z, r, self) };
+    this.env = { nav: deps.nav, colliders: deps.colliders, playerHead: new THREE.Vector3(), playerFeet: new THREE.Vector3(), camera: null, playerWish: { x: 0, z: 0 }, occupied: (x, z, r, self) => this.occupiedAt(x, z, r, self), bodies: (self, fn) => this.eachSolid((x, z, r, owner) => owner !== self && fn(x, z, r)) };
   }
 
   /** Target resolution for `to`/`at`/`target` fields (set by the game host: anchors, doors, npc:). */
@@ -313,9 +315,12 @@ export class NpcDirector {
         const at = this.target(step['to'], action, npc);
         if (!at) return Promise.resolve();
         this.hold(npc);
-        const speed = typeof step['speed'] === 'number' ? step['speed'] : undefined;
+        const via = typeof step['via'] === 'string' ? step['via'] : undefined;
+        const walk = via ? (this.deps.walk?.(via) ?? null) : null;
+        if (via && !walk) this.warnOnce(`npcMoveTo: no walk "${via}"`);
+        const speed = typeof step['speed'] === 'number' ? step['speed'] : walk?.speed;
         const pose = typeof step['pose'] === 'string' ? step['pose'] : undefined;
-        return a.moveTo(at.pos, { ...(speed !== undefined ? { speed } : {}), ...(at.yaw !== undefined ? { yaw: at.yaw } : {}), ...(pose ? { pose } : {}), instant });
+        return a.moveTo(at.pos, { ...(speed !== undefined ? { speed } : {}), ...(at.yaw !== undefined ? { yaw: at.yaw } : {}), ...(pose ? { pose } : {}), ...(walk ? { curve: walk.points } : {}), instant });
       }
       case 'npcDrag': {
         // `by` pulls the body along on a rope (ADR-0014 beat 7, Priya); `stop` or a skip lets go.
@@ -388,6 +393,15 @@ export class NpcDirector {
         return this.after(dur).then(() => a.body.setInfection(to));
       }
       case 'attachToTrack': {
+        const walk = this.deps.walk?.(String(step['track'] ?? '')) ?? null;
+        if (walk) {
+          // An authored walk (ADR-0028): a smooth curve, routed onto its start if needed.
+          this.hold(npc);
+          const end = walk.points[walk.points.length - 1]!;
+          const speed = typeof step['speed'] === 'number' ? step['speed'] : walk.speed;
+          const pose = typeof step['pose'] === 'string' ? step['pose'] : undefined;
+          return a.moveTo(end, { curve: walk.points, instant, ...(speed !== undefined ? { speed } : {}), ...(pose ? { pose } : {}) });
+        }
         const pts = this.trackPoints(String(step['track'] ?? ''), a.position);
         if (!pts?.length) {
           this.warnOnce(`attachToTrack: no track "${String(step['track'])}"`);

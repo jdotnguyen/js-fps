@@ -6,7 +6,8 @@ import { PHOTO_SLOTS, PHOTO_SLOT_KEYS } from './manifest.ts';
 const EXPECTED = [
   'paintBone', 'paintDark', 'paintTeal', 'labPanel', 'diamond', 'diamondHazard', 'diamondRusty', 'hazard', 'rubber',
   'rustHeavy', 'rustDrip', 'rustBlotch', 'concrete', 'concreteFloor', 'concretePainted', 'labTile', 'tileBroken',
-  'tileWall', 'tileWashroom', 'signDanger',
+  'tileWall', 'tileWashroom', 'signDanger', 'hullPlate', 'boltPanel', 'steelBrushed', 'deckCorrugated',
+  'acousticCeiling', 'vinylPanel', 'officeCeiling', 'woodPanel', 'carpet',
 ];
 
 test('photo slot list matches the design', () => {

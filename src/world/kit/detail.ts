@@ -43,17 +43,18 @@ function wallBase(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Matrix4, o:
   const L = o.length;
   const h = o.height;
   const depth = o.depth ?? 0.12;
+  const trim = o.pal?.trim ?? m.steel;
   pb.add(slab(L, h + 0.1, depth), backing, inFrame(f, 0, h / 2 - 0.05, -depth / 2));
   pb.add(slab(L - 0.08, 0.24, 0.03, o.pal?.hazardTile ?? 0.5), o.pal?.hazard ?? m.hazardClean, inFrame(f, 0, 0.12, 0.015));
-  pb.add(slab(L, 0.06, 0.06), m.steel, inFrame(f, 0, Math.min(2.55, h - 0.5), 0.03));
-  if (o.pilaster) pilaster(pb, m, f, -L / 2 + 0.11, h);
+  pb.add(slab(L, 0.06, 0.06), trim, inFrame(f, 0, Math.min(2.55, h - 0.5), 0.03));
+  if (o.pilaster) pilaster(pb, trim, f, -L / 2 + 0.11, h);
   if (o.cables) cableTray(pb, m, rng, f, L, Math.min(h, 3.2) - 0.55, 0.3);
 }
 
-function pilaster(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, x: number, h: number): void {
-  pb.add(rounded(0.22, h, 0.16, 0.03), m.steel, inFrame(f, x, h / 2, 0.08));
+function pilaster(pb: PieceBuilder, trim: THREE.Material, f: THREE.Matrix4, x: number, h: number): void {
+  pb.add(rounded(0.22, h, 0.16, 0.03), trim, inFrame(f, x, h / 2, 0.08));
   for (let y = 0.45; y < h - 0.3; y += 0.65) {
-    for (const dx of [-0.06, 0.06]) pb.add(new THREE.CylinderGeometry(0.018, 0.018, 0.02, 6), m.steel, inFrame(f, x + dx, y, 0.165, Math.PI / 2, 0, 0));
+    for (const dx of [-0.06, 0.06]) pb.add(new THREE.CylinderGeometry(0.018, 0.018, 0.02, 6), trim, inFrame(f, x + dx, y, 0.165, Math.PI / 2, 0, 0));
   }
 }
 
@@ -103,7 +104,7 @@ export function panelWall(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Mat
       pb.add(rounded(pw, 1.1, 0.06), upper, inFrame(f, x, 1.92, 0.03));
       if (h > 3.4) pb.add(rounded(pw, Math.min(1.2, h - 2.95), 0.06), lower, inFrame(f, x, 2.65 + Math.min(1.2, h - 2.95) / 2, 0.03));
     }
-    if (b > 0) pilaster(pb, m, f, -L / 2 + bayW * b, h);
+    if (b > 0) pilaster(pb, o.pal?.trim ?? m.steel, f, -L / 2 + bayW * b, h);
   }
 }
 
@@ -116,16 +117,17 @@ export function windowWall(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, o: 
   const h = o.height;
   const sill = 0.9;
   const head = 2.4;
+  const trim = o.pal?.trim ?? m.steel;
   pb.add(slab(L, sill + 0.1, 0.12), m.black, inFrame(f, 0, sill / 2 - 0.05, -0.06));
   pb.add(slab(L, h - head + 0.1, 0.12), m.black, inFrame(f, 0, (h + head) / 2 + 0.05, -0.06));
   pb.add(slab(L - 0.08, 0.24, 0.03, o.pal?.hazardTile ?? 0.5), o.pal?.hazard ?? m.hazardClean, inFrame(f, 0, 0.12, 0.015));
   pb.add(rounded(L - 0.1, 0.48, 0.06), o.pal?.wallMain ?? m.paintDark, inFrame(f, 0, 0.58, 0.03));
-  pb.add(rounded(L, 0.14, 0.3, 0.03), m.steel, inFrame(f, 0, sill - 0.02, 0.06));
-  pb.add(rounded(L, 0.18, 0.3, 0.03), m.steel, inFrame(f, 0, head + 0.06, 0.06));
+  pb.add(rounded(L, 0.14, 0.3, 0.03), trim, inFrame(f, 0, sill - 0.02, 0.06));
+  pb.add(rounded(L, 0.18, 0.3, 0.03), trim, inFrame(f, 0, head + 0.06, 0.06));
   const mullions = Math.max(2, Math.round(L / 2) + 1);
   for (let i = 0; i < mullions; i++) {
     const x = -L / 2 + 0.07 + ((L - 0.14) * i) / (mullions - 1);
-    pb.add(rounded(0.14, head - sill, 0.24, 0.03), m.steel, inFrame(f, x, (head + sill) / 2, 0.02));
+    pb.add(rounded(0.14, head - sill, 0.24, 0.03), trim, inFrame(f, x, (head + sill) / 2, 0.02));
   }
   const glass = new THREE.Mesh(new THREE.PlaneGeometry(L, head - sill), m.glass);
   glass.applyMatrix4(inFrame(f, 0, (head + sill) / 2, -0.04));
@@ -149,15 +151,15 @@ export function windowWall(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, o: 
 }
 
 /** Light housing (the loader adds the glowing diffuser for claimed slots). */
-export function ceilingHousing(pb: PieceBuilder, m: Materials, x: number, y: number, z: number, ry = 0): void {
-  pb.add(rounded(1.3, 0.09, 0.34, 0.02), m.steel, at(x, y + 0.045, z, 0, ry, 0));
+export function ceilingHousing(pb: PieceBuilder, m: Materials, x: number, y: number, z: number, ry = 0, trim: THREE.Material = m.steel): void {
+  pb.add(rounded(1.3, 0.09, 0.34, 0.02), trim, at(x, y + 0.045, z, 0, ry, 0));
   for (const dx of [-0.45, -0.15, 0.15, 0.45]) {
-    pb.add(slab(0.02, 0.02, 0.32), m.steel, new THREE.Matrix4().multiplyMatrices(at(x, y - 0.012, z, 0, ry, 0), at(dx, 0, 0)));
+    pb.add(slab(0.02, 0.02, 0.32), trim, new THREE.Matrix4().multiplyMatrices(at(x, y - 0.012, z, 0, ry, 0), at(dx, 0, 0)));
   }
 }
 
 /** Pipe run between points with flanges every `flangeEvery` m and hangers to `ceilingY`. */
-export function pipeRun(pb: PieceBuilder, m: Materials, points: THREE.Vector3[], r: number, mat: THREE.Material, ceilingY: number | null, flangeEvery = 2): void {
+export function pipeRun(pb: PieceBuilder, m: Materials, points: THREE.Vector3[], r: number, mat: THREE.Material, ceilingY: number | null, flangeEvery = 2, trim: THREE.Material = m.steel): void {
   pb.add(pipe(points, r, 1, 14), mat);
   const curve = new THREE.CatmullRomCurve3(points);
   const len = curve.getLength();
@@ -170,14 +172,14 @@ export function pipeRun(pb: PieceBuilder, m: Materials, points: THREE.Vector3[],
     const flange = new THREE.CylinderGeometry(r * 1.35, r * 1.35, 0.06, 14);
     flange.applyQuaternion(q);
     flange.translate(p.x, p.y, p.z);
-    pb.add(flange, m.steel);
+    pb.add(flange, trim);
     if (ceilingY !== null && ceilingY > p.y + r + 0.02) {
-      pb.add(cylinderBetween(V(p.x, ceilingY, p.z), V(p.x, p.y + r, p.z), 0.012, 6), m.steel);
+      pb.add(cylinderBetween(V(p.x, ceilingY, p.z), V(p.x, p.y + r, p.z), 0.012, 6), trim);
     }
   }
 }
 
 /** Grid of bolts on a face (merged later, so they cost no draw calls). */
-export function bolts(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, xs: number[], ys: number[], z: number): void {
-  for (const x of xs) for (const y of ys) pb.add(new THREE.CylinderGeometry(0.018, 0.018, 0.02, 6), m.steel, inFrame(f, x, y, z, Math.PI / 2, 0, 0));
+export function bolts(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, xs: number[], ys: number[], z: number, trim: THREE.Material = m.steel): void {
+  for (const x of xs) for (const y of ys) pb.add(new THREE.CylinderGeometry(0.018, 0.018, 0.02, 6), trim, inFrame(f, x, y, z, Math.PI / 2, 0, 0));
 }

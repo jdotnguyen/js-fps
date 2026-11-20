@@ -1,33 +1,85 @@
 import * as THREE from 'three';
 import type { Rng } from '../core/rng.ts';
+import {
+  sampleClip,
+  sampleLocomotion,
+  sampleZombieLocomotion,
+  sharedMocapLibrary,
+  type LocomotionSample,
+  type MocapLibrary,
+} from './mocap.ts';
 import { blendPose, copyPose, emptyPose, type CompiledPose, type PoseLibrary } from './poses.ts';
 import { JOINT_INDEX, JOINTS, type JointName } from './skeleton.ts';
 import { gesture, mouthOpenAt, type SpeechPlan } from './speechActing.ts';
+import { Spring1D } from './springs.ts';
 
 /**
- * Procedural animation for one humanoid (ADR-0006): pose library blending (slerp), gait
- * cycles per locomotion style, head look-at, additive hit reactions and convulsions.
- * Writes local bone rotations; IK runs afterwards in Humanoid.
+ * Hybrid mocap + procedural-physics animation for one humanoid (ADR-0006 + Tier B upgrade):
+ * - Living upright NPCs blend retargeted CC0 mocap clips (idle, idle_talk, walk, walk_formal,
+ *   jog, pistol_idle, kneel_fix, crouch_idle) with phase-synchronized locomotion and foot-contact
+ *   curves for world-space foot-locking IK.
+ * - Layered on top: second-order spring dynamics for acceleration lean, turn banking, lateral
+ *   nudge recoil, turn-in-place pivot stepping, multi-segment spring look-at (spine->chest->neck->head),
+ *   per-chain staggered pose transitions (overlapping action), speech acting, and hit reactions.
+ * - Enemies/infected/corpses keep their procedural horror gaits, spasms, and convulsions intact.
  */
 
 export type GaitStyle = 'none' | 'walk' | 'shamble' | 'heavy' | 'crawl' | 'drag' | 'flail';
 
 const D2R = Math.PI / 180;
+const R2D = 180 / Math.PI;
 const J = JOINT_INDEX;
 const N = JOINTS.length;
 
 /** Full gait cycle length (two steps) in metres, and the speed it is tuned for. */
-const STRIDE: Record<GaitStyle, number> = { none: 1, walk: 1.3, shamble: 1.05, heavy: 1.6, crawl: 0.55, drag: 0.5, flail: 1.0 };
+const STRIDE: Record<GaitStyle, number> = { none: 1, walk: 1.3, shamble: 0.9, heavy: 1.6, crawl: 0.45, drag: 0.4, flail: 0.85 };
 /** Ground speed (m/s) a crawler's limbs act as if they were making per rad/s of turn while pivoting. */
-const PIVOT_DRIVE_CRAWL = 0.28;
-const PIVOT_DRIVE_DRAG = 0.22;
-const REF_SPEED: Record<GaitStyle, number> = { none: 1, walk: 1.4, shamble: 1.3, heavy: 0.64, crawl: 0.72, drag: 0.52, flail: 0.8 };
+const PIVOT_DRIVE_CRAWL = 0.24;
+const PIVOT_DRIVE_DRAG = 0.2;
+const REF_SPEED: Record<GaitStyle, number> = { none: 1, walk: 1.4, shamble: 0.78, heavy: 0.62, crawl: 0.42, drag: 0.34, flail: 0.65 };
 
 /** Spring stiffness/damping for additive hit reactions. */
 const REACT_K = 140;
 const REACT_C = 13;
 
 const UP_CHAIN = new Set<JointName>(['pelvis', 'spine', 'chest', 'neck', 'head']);
+
+/**
+ * Per-joint transition speed multiplier for overlapping action (hierarchical follow-through):
+ * core (pelvis/spine) leads pose changes, upper limbs follow, forearms/hands/head settle last.
+ */
+const CHAIN_SPEED: Float32Array = (() => {
+  const arr = new Float32Array(N).fill(1);
+  const set = (name: JointName, v: number) => {
+    arr[J[name]] = v;
+  };
+  set('pelvis', 1.25);
+  set('spine', 1.2);
+  set('chest', 1.05);
+  set('neck', 0.9);
+  set('head', 0.78);
+  set('jaw', 1.4);
+  for (const s of ['L', 'R'] as const) {
+    set(`shoulder_${s}`, 0.92);
+    set(`upperArm_${s}`, 0.88);
+    set(`foreArm_${s}`, 0.76);
+    set(`hand_${s}`, 0.66);
+    set(`thigh_${s}`, 1.1);
+    set(`shin_${s}`, 1.0);
+    set(`foot_${s}`, 0.95);
+  }
+  return arr;
+})();
+
+/** Upper-body joints that blend mocap with the authored horror posture (`shamble` / `blindFlail`) on enemies. */
+const UPPER_BODY: ReadonlySet<JointName> = new Set([
+  'spine', 'chest', 'neck', 'head',
+  'shoulder_L', 'upperArm_L', 'foreArm_L', 'hand_L',
+  'shoulder_R', 'upperArm_R', 'foreArm_R', 'hand_R',
+]);
+
+/** Authoring poses that can be driven or enriched by mocap clips for living human NPCs. */
+const MOCAP_LOCO_POSES = new Set<string>(['idle', 'walk']);
 
 interface SequenceState {
   steps: readonly { pose: string; blend: number; hold: number }[];
@@ -40,20 +92,27 @@ export class Animator {
   gait: GaitStyle = 'none';
   /** Ground speed in m/s, set by the mover. */
   speed = 0;
-  /** Crawlers and draggers: turn speed in rad/s (+ = left) and heading error to the target (rad). They drive the limbs while pivoting. */
+  /** Turn speed in rad/s (+ = left) and heading error to the target (rad). Used by crawlers AND upright turning/banking. */
   turnRate = 0;
   turnError = 0;
+  /** Character-local linear acceleration (m/s²): +fwd = accelerating forward (-Z), +lat = accelerating right (+X). */
+  accelFwd = 0;
+  accelLat = 0;
   /** True on the frame a heavy foot lands (hero stomp). */
   footfall = false;
   /** 0..1 strength of convulsion noise (transformation, writhing). */
   convulse = 0;
-  /** Group-local look target (head/neck turn toward it), or null. */
+  /** Group-local look target (head/neck/chest turn toward it), or null. */
   lookLocal: THREE.Vector3 | null = null;
   /**
    * 0..1: how much ambient idle life (breathing, weight shift, arm fidgets, gaze wandering) to layer on a standing body.
    * The body sets it for living non-enemies; it fades out while walking, in a sequence, or at 0.
    */
   idleLife = 0;
+  /** Enable Tier B hybrid mocap base layer for this body (living upright human NPCs). */
+  useMocap = false;
+  /** Use the calmer/composed `walk_formal` mocap gait (e.g. Okafor, Hale, medics). */
+  formalWalk = false;
   /** Joints that hang limp (Reduced gore severed limbs). */
   readonly limp = new Set<number>();
   /** Infection 0..1: drives the twisted posture, broken joints, jaw and twitching. */
@@ -64,23 +123,48 @@ export class Animator {
   charge = 0;
   /** Seconds of post-mortem twitching left. */
   deathTwitch = 0;
+  /** Output foot stance contacts [left, right] in 0..1 for world-space FootIkSolver. */
+  readonly footContacts: [number, number] = [1, 1];
 
   readonly bones: THREE.Bone[];
   private readonly restPos: THREE.Vector3[];
   private readonly poses: PoseLibrary;
+  private readonly mocap: MocapLibrary;
   private readonly current = emptyPose('current');
   private readonly from = emptyPose('from');
+  private readonly mocapPose = emptyPose('mocap');
+  private readonly finalPose = emptyPose('final');
+  private readonly locoInfo: LocomotionSample = { stride: 1.25, moveWeight: 0, jogWeight: 0, contactL: 1, contactR: 1 };
   private to: CompiledPose;
   private blendT = 1;
   private blendDur = 0;
   private seq: SequenceState | null = null;
   private phase = 0;
+  /** Normalized 0..1 mocap locomotion cycle phase (phase-synced walk <-> jog). */
+  private locoPhase = 0;
+  /** Normalized 0..1 mocap idle/action clip phase. */
+  private idlePhase = 0;
+  /** Smoothed 0..1 weight of the mocap base layer over authored poses. */
+  private mocapW = 0;
+  /** Turn-in-place stepping phase and activity weight (0..1) for upright stationary turns. */
+  private pivotPhase = 0;
+  private pivotW = 0;
   private amp = 0;
   private time = 0;
   private lifeW = 0;
   private readonly gaze = { yaw: 0, pitch: 0, tYaw: 0, tPitch: 0, left: 1.5 };
   private gazeState = 1;
-  private readonly look = { yaw: 0, pitch: 0 };
+  /** Coupled two-tier spring look-at: fast head/neck + slower chest/spine follow. */
+  private readonly lookHeadYaw = new Spring1D({ f: 2.8, z: 0.88, r: 0.2 }, 0);
+  private readonly lookHeadPitch = new Spring1D({ f: 2.8, z: 0.88, r: 0.2 }, 0);
+  private readonly lookTorsoYaw = new Spring1D({ f: 1.4, z: 0.95, r: 0 }, 0);
+  private readonly lookTorsoPitch = new Spring1D({ f: 1.4, z: 0.95, r: 0 }, 0);
+  /** Second-order springs for inertial locomotion physics (lean, bank, turn lead). */
+  private readonly leanFwdSpring = new Spring1D({ f: 2.4, z: 0.72, r: 0 }, 0);
+  private readonly leanLatSpring = new Spring1D({ f: 2.6, z: 0.7, r: 0 }, 0);
+  private readonly bankSpring = new Spring1D({ f: 2.2, z: 0.78, r: 0 }, 0);
+  private readonly turnLeadSpring = new Spring1D({ f: 3.0, z: 0.85, r: 0.2 }, 0);
+  private readonly speechNodSpring = new Spring1D({ f: 3.2, z: 0.85, r: 0 }, 0);
   private readonly react = new Float32Array(N * 3);
   private readonly reactVel = new Float32Array(N * 3);
   private readonly off = new Float32Array(N * 3);
@@ -106,14 +190,21 @@ export class Animator {
   private speechT = 0;
   private speechW = 0;
   private speechEnding = false;
-  private readonly addSink = (joint: JointName, x: number, y: number, z: number): void => this.add(joint, x, y, z);
+  private readonly speechSink = (joint: JointName, x: number, y: number, z: number): void => {
+    this.add(joint, x, y, z);
+    // Couple clavicle motion to gesturing upper arms so shoulders don't look frozen in sockets.
+    if (joint === 'upperArm_L') this.add('shoulder_L', x * 0.14, y * 0.12, z * 0.18);
+    else if (joint === 'upperArm_R') this.add('shoulder_R', x * 0.14, y * 0.12, z * 0.18);
+  };
 
-  constructor(bones: THREE.Bone[], poses: PoseLibrary, initialPose: string, rng: Rng) {
+  constructor(bones: THREE.Bone[], poses: PoseLibrary, initialPose: string, rng: Rng, mocap?: MocapLibrary) {
     this.bones = bones;
     this.restPos = bones.map((b) => b.position.clone());
     this.poses = poses;
+    this.mocap = mocap ?? sharedMocapLibrary();
     this.to = poses.get(initialPose);
     copyPose(this.to, this.current);
+    copyPose(this.to, this.finalPose);
     this.limpSide = rng.chance(0.5) ? 0 : 1;
     this.limpAmount = rng.range(0.25, 0.75);
     this.noiseSeed = rng.range(0, 100);
@@ -134,6 +225,8 @@ export class Animator {
       brokenAngle,
     };
     this.phase = rng.range(0, Math.PI * 2);
+    this.locoPhase = rng.range(0, 1);
+    this.idlePhase = rng.range(0, 1);
   }
 
   get poseName(): string {
@@ -142,6 +235,16 @@ export class Animator {
 
   get sequencePlaying(): boolean {
     return this.seq !== null;
+  }
+
+  /** 0..1 turn-in-place shuffle activity weight (stationary pivot steps). */
+  get pivotWeight(): number {
+    return this.pivotW;
+  }
+
+  /** 0..1 jog share of the current upright locomotion blend. */
+  get jogWeight(): number {
+    return this.locoInfo.jogWeight;
   }
 
   /** Blend to a pose from wherever the body is now. */
@@ -176,11 +279,25 @@ export class Animator {
     }
   }
 
+  /** Impulse from an external shove or separation nudge in character-local XZ (m/s). */
+  nudgeImpulse(localX: number, localZ: number): void {
+    this.leanLatSpring.impulse(THREE.MathUtils.clamp(-localX * 48, -140, 140));
+    this.leanFwdSpring.impulse(THREE.MathUtils.clamp(localZ * 38, -110, 110));
+  }
+
   update(dt: number): void {
     this.time += dt;
     this.updateBlend(dt);
     this.off.fill(0);
-    this.updateGait(dt);
+    this.bob.set(0, 0, 0);
+    this.rootEuler.set(0, 0, 0);
+    this.footContacts[0] = 1;
+    this.footContacts[1] = 1;
+
+    const mocapActive = this.updateMocapBase(dt);
+    this.updateGait(dt, mocapActive);
+    this.updateInertialPhysics(dt);
+    this.updateTurnInPlace(dt);
     this.updateIdleLife(dt);
     this.updateSpeech(dt);
     this.updateLook(dt);
@@ -190,7 +307,7 @@ export class Animator {
     this.write();
   }
 
-  // ---------------------------------------------------------------- base pose
+  // ---------------------------------------------------------------- base pose + staggered follow-through
 
   private startBlend(target: CompiledPose, dur: number): void {
     copyPose(this.current, this.from);
@@ -201,9 +318,27 @@ export class Animator {
 
   private updateBlend(dt: number): void {
     if (this.blendT < 1) {
+      // Advance normalized timer; fastest chains finish early, distal chains settle smoothly at 1.0.
       this.blendT = Math.min(1, this.blendT + dt / this.blendDur);
-      const s = this.blendT * this.blendT * (3 - 2 * this.blendT);
-      blendPose(this.from, this.to, s, this.current);
+      const t = this.blendT;
+      const smooth = (u: number) => {
+        const c = THREE.MathUtils.clamp(u, 0, 1);
+        return c * c * (3 - 2 * c);
+      };
+      const baseS = smooth(t);
+      this.current.rootRot.slerpQuaternions(this.from.rootRot, this.to.rootRot, baseS);
+      this.current.rootPos.lerpVectors(this.from.rootPos, this.to.rootPos, baseS);
+      this.current.pelvis.lerpVectors(this.from.pelvis, this.to.pelvis, smooth(t * 1.15));
+      for (let i = 0; i < N; i++) {
+        const oq = this.current.joints[i];
+        const qa = this.from.joints[i];
+        const qb = this.to.joints[i];
+        if (!oq || !qa || !qb) continue;
+        // Overlapping action: core leads, wrists/hands/head trail slightly, all land cleanly by t = 1.
+        const rate = CHAIN_SPEED[i] ?? 1;
+        const u = rate >= 1 ? Math.min(1, t * rate) : Math.max(0, (t - (1 - rate) * 0.35) / (1 - (1 - rate) * 0.35));
+        oq.slerpQuaternions(qa, qb, smooth(u));
+      }
     }
     const seq = this.seq;
     if (!seq) return;
@@ -219,6 +354,156 @@ export class Animator {
     seq.timer = step.blend + step.hold;
     this.startBlend(this.poses.get(step.pose), step.blend);
   }
+
+  // ---------------------------------------------------------------- Tier B mocap base layer
+
+  /**
+   * Drives living upright humanoids (both human cast/NPCs and upright infected enemies) with retargeted
+   * CC0 mocap clips (`idle`, `idle_talk`, `walk`, `walk_formal`, `jog`, `pistol_idle`, `kneel_fix`, `crouch_idle`),
+   * blending seamlessly with authored poses (`poses.json`) when scripts, horror postures, or slams request them.
+   * Returns true when mocap owns the locomotion cycle (so legacy sine-wave walk/shamble legs stay off).
+   */
+  private updateMocapBase(dt: number): boolean {
+    const poseName = this.to.name;
+    let targetW = 0;
+    let mode: 'loco' | 'shamble' | 'heavy' | 'pistol' | 'kneel' | 'crouch' | 'none' = 'none';
+
+    if (this.useMocap && !this.seq && this.convulse <= 0.01) {
+      if (this.twitchy) {
+        if (this.gait === 'shamble' || this.gait === 'flail') {
+          mode = 'shamble';
+          targetW = 1;
+        } else if (this.gait === 'heavy' && poseName !== 'slamWindup' && poseName !== 'slamImpact') {
+          mode = 'heavy';
+          targetW = 0.4;
+        }
+      } else if (MOCAP_LOCO_POSES.has(poseName) || this.speed > 0.08) {
+        mode = 'loco';
+        targetW = 1;
+      } else if (poseName === 'aim_pistol') {
+        mode = 'pistol';
+        targetW = 1;
+      } else if (poseName === 'kneel_revive') {
+        mode = 'kneel';
+        targetW = 0.85;
+      } else if (poseName === 'crouchWork') {
+        mode = 'crouch';
+        targetW = 0.3;
+      }
+    }
+
+    // Smoothly fade mocap weight in/out so switching between mocap and authored poses never snaps.
+    const fadeRate = targetW > this.mocapW ? 5.5 : 6.5;
+    if (this.time <= dt * 1.5 && targetW > 0.35) {
+      // Start directly in mocap on frame 1 so freshly spawned bodies don't visibly lerp out of rest pose.
+      this.mocapW = targetW;
+    } else {
+      this.mocapW += (targetW - this.mocapW) * (1 - Math.exp(-fadeRate * dt));
+    }
+    if (this.mocapW < 0.005) {
+      this.mocapW = 0;
+      copyPose(this.current, this.finalPose);
+      return false;
+    }
+
+    // Advance clip phases cleanly.
+    const idleClip = this.mocap.get(
+      mode === 'shamble' || mode === 'heavy'
+        ? 'zombie_idle'
+        : mode === 'pistol'
+          ? 'pistol_idle'
+          : mode === 'kneel'
+            ? 'kneel_fix'
+            : mode === 'crouch'
+              ? 'crouch_idle'
+              : 'idle',
+    );
+    this.idlePhase = (this.idlePhase + dt / Math.max(0.1, idleClip.duration)) % 1;
+
+    if (mode === 'shamble' || mode === 'heavy') {
+      const zStride = Math.max(0.9, this.mocap.get('zombie_walk').stride || 1.5);
+      if (this.speed > 0.02) {
+        // Slower, heavier zombie step progression: limp speed matches ground travel without frantic leg spin.
+        const strideMul = mode === 'heavy' ? 1.45 : 1.05;
+        this.locoPhase = (this.locoPhase + (this.speed / (zStride * strideMul)) * dt) % 1;
+      }
+      // Subtle lurching time warp makes every zombie stride feel uneven and dragging.
+      const samplePhase =
+        mode === 'shamble'
+          ? (this.locoPhase + 0.04 * Math.sin(this.locoPhase * Math.PI * 4) + 1) % 1
+          : this.locoPhase;
+      sampleZombieLocomotion(this.mocap, this.speed, samplePhase, this.idlePhase, this.mocapPose, this.locoInfo);
+      if (mode !== 'heavy') {
+        this.footContacts[0] = this.locoInfo.contactL;
+        this.footContacts[1] = this.locoInfo.contactR;
+      }
+    } else if (mode === 'loco') {
+      const stride = Math.max(0.6, this.locoInfo.stride);
+      if (this.speed > 0.02) {
+        this.locoPhase = (this.locoPhase + (this.speed / stride) * dt) % 1;
+      }
+      sampleLocomotion(
+        this.mocap,
+        this.speed,
+        this.locoPhase,
+        this.idlePhase,
+        { formal: this.formalWalk, talking: false },
+        this.mocapPose,
+        this.locoInfo,
+      );
+      // When speaking while standing still, subtly blend in the natural weight-shift/torso motion from idle_talk
+      // without overriding the speechActing emote arm gestures (keep idle_talk subtle on arms).
+      if (this.speechW > 0.01 && this.speed < 0.15 && !Animator.ARMS_BUSY.has(poseName)) {
+        const talkClip = this.mocap.get('idle_talk');
+        const talkPhase = (this.idlePhase * (idleClip.duration / talkClip.duration)) % 1;
+        sampleClip(talkClip, talkPhase, this.talkPose);
+        const tw = this.speechW * (1 - this.locoInfo.moveWeight) * 0.35;
+        this.mocapPose.pelvis.lerp(this.talkPose.pelvis, tw);
+        for (const jName of ['pelvis', 'spine', 'chest', 'shoulder_L', 'shoulder_R'] as const) {
+          const idx = J[jName];
+          const a = this.mocapPose.joints[idx];
+          const b = this.talkPose.joints[idx];
+          if (a && b) a.slerp(b, tw);
+        }
+      }
+      this.footContacts[0] = this.locoInfo.contactL;
+      this.footContacts[1] = this.locoInfo.contactR;
+    } else if (mode !== 'none') {
+      sampleClip(idleClip, this.idlePhase, this.mocapPose);
+      this.locoInfo.moveWeight = 0;
+      this.locoInfo.jogWeight = 0;
+      this.footContacts[0] = 1;
+      this.footContacts[1] = 1;
+    }
+
+    if (mode === 'shamble') {
+      // Shamblers use the real zombie_walk/zombie_idle mocap at full strength (blind flailers blend 40% blindFlail on upper body).
+      const w = this.mocapW;
+      const upperW = this.gait === 'flail' ? w * 0.6 : w * 0.9;
+      this.finalPose.rootRot.slerpQuaternions(this.current.rootRot, this.mocapPose.rootRot, w);
+      this.finalPose.rootPos.lerpVectors(this.current.rootPos, this.mocapPose.rootPos, w);
+      this.finalPose.pelvis.lerpVectors(this.current.pelvis, this.mocapPose.pelvis, w);
+      for (let i = 0; i < N; i++) {
+        const oq = this.finalPose.joints[i];
+        const qa = this.current.joints[i];
+        const qb = this.mocapPose.joints[i];
+        if (!oq || !qa || !qb) continue;
+        const jName = JOINTS[i]?.name;
+        oq.slerpQuaternions(qa, qb, jName && UPPER_BODY.has(jName) ? upperW : w);
+      }
+      return this.mocapW > 0.4;
+    }
+
+    if (this.mocapW >= 0.995) {
+      copyPose(this.mocapPose, this.finalPose);
+    } else {
+      blendPose(this.current, this.mocapPose, this.mocapW, this.finalPose);
+    }
+
+    return mode === 'loco' && this.mocapW > 0.4;
+  }
+
+  private readonly talkPose = emptyPose('mocap_talk');
 
   // ---------------------------------------------------------------- speech
 
@@ -244,10 +529,14 @@ export class Animator {
    */
   private updateSpeech(dt: number): void {
     const plan = this.speech;
-    if (!plan) return;
+    if (!plan) {
+      this.speechNodSpring.step(0, dt);
+      return;
+    }
     if (this.twitchy || this.infect > 0.35 || this.convulse > 0.01) {
       this.speech = null;
       this.speechW = 0;
+      this.speechNodSpring.reset(0);
       return;
     }
     this.speechT += dt;
@@ -257,17 +546,24 @@ export class Animator {
     if (this.speechEnding && this.speechW < 0.01) {
       this.speech = null;
       this.speechW = 0;
+      this.speechNodSpring.step(0, dt);
       return;
     }
     const w = this.speechW;
     const open = mouthOpenAt(plan.cues, this.speechT);
     this.add('jaw', -plan.style.jaw * open * w, 0, 0);
-    // The head and chest ride each syllable a little.
+    // Subtle spring-damped head/chest emphasis synced to syllable openings (organic talking life without thrashing).
+    const nod = this.speechNodSpring.step(open * w, dt);
     const upright = this.gait === 'none' || this.gait === 'walk' || this.gait === 'shamble' || this.gait === 'heavy';
     if (!upright) return;
+    this.add('head', -2.4 * nod, 0, 0);
+    this.add('neck', -0.9 * nod, 0, 0);
+    this.add('chest', -0.7 * nod, 0, 0);
+
     const busy = Animator.ARMS_BUSY.has(this.to.name) ? 0.25 : 1;
-    const armsK = busy * (1 - Math.min(1, this.amp * 1.4) * 0.85);
-    gesture(plan, this.speechT, w, armsK, this.addSink);
+    const moveFactor = this.useMocap ? this.locoInfo.moveWeight : Math.min(1, this.amp * 1.4);
+    const armsK = busy * (1 - moveFactor * 0.85);
+    gesture(plan, this.speechT, w, armsK, this.speechSink);
   }
 
   // ---------------------------------------------------------------- procedural layers
@@ -293,7 +589,119 @@ export class Animator {
   private readonly bob = new THREE.Vector3();
   private readonly rootEuler = new THREE.Vector3();
 
-  private updateGait(dt: number): void {
+  /**
+   * Second-order inertial locomotion physics for upright humanoids:
+   * - Acceleration pitches torso forward; braking carries momentum forward then springs back.
+   * - Turning while moving banks pelvis/spine into the curve while head counter-rolls level.
+   * - Lateral acceleration / separation nudges produce a reactive hip counter-lean.
+   */
+  private updateInertialPhysics(dt: number): void {
+    const upright = this.gait === 'none' || this.gait === 'walk' || this.gait === 'shamble' || this.gait === 'heavy';
+    if (!upright || this.convulse > 0.1) {
+      this.leanFwdSpring.step(0, dt);
+      this.leanLatSpring.step(0, dt);
+      this.bankSpring.step(0, dt);
+      return;
+    }
+
+    // Target forward pitch (degrees): lean slightly into speed + react to forward/braking acceleration.
+    const speedLean = this.useMocap ? THREE.MathUtils.clamp(this.speed * 1.4, 0, 5.5) : 0;
+    const accelLean = THREE.MathUtils.clamp(this.accelFwd * 1.6, -7, 7);
+    const fwd = this.leanFwdSpring.step(speedLean + accelLean, dt);
+
+    // Cornering centripetal bank: speed * turnRate (+turnRate = left -> bank left = -Z roll).
+    const bankTarget = THREE.MathUtils.clamp(-this.speed * this.turnRate * 2.8, -9, 9);
+    const bank = this.bankSpring.step(bankTarget, dt);
+
+    // Lateral acceleration / nudge recoil: push right (+accelLat) tilts upper body slightly left (-Z).
+    const latTarget = THREE.MathUtils.clamp(-this.accelLat * 1.4, -7, 7);
+    const lat = this.leanLatSpring.step(latTarget, dt);
+
+    const roll = bank + lat;
+    if (Math.abs(fwd) > 0.02) {
+      this.add('pelvis', -fwd * 0.28, 0, 0);
+      this.add('spine', -fwd * 0.42, 0, 0);
+      this.add('chest', -fwd * 0.3, 0, 0);
+      // Head counter-pitches to keep the gaze steady on the horizon.
+      this.add('neck', fwd * 0.35, 0, 0);
+      this.add('head', fwd * 0.45, 0, 0);
+    }
+    if (Math.abs(roll) > 0.02) {
+      this.add('pelvis', 0, 0, roll * 0.35);
+      this.add('spine', 0, 0, roll * 0.45);
+      this.add('chest', 0, 0, roll * 0.2);
+      this.add('neck', 0, 0, -roll * 0.35);
+      this.add('head', 0, 0, -roll * 0.45);
+      // Slight lateral pelvis shift and arm balance flare during strong cornering/bumps.
+      this.bob.x += THREE.MathUtils.clamp(roll * 0.0022, -0.025, 0.025);
+      this.add('upperArm_L', 0, 0, -Math.max(0, -roll) * 0.45);
+      this.add('upperArm_R', 0, 0, Math.max(0, roll) * 0.45);
+    }
+  }
+
+  /**
+   * Turn-in-place stepping + head-leads-torso for upright stationary turns (both NPCs and enemies).
+   * Prevents characters from spinning like a statue on a turntable when turning to face a target.
+   */
+  private updateTurnInPlace(dt: number): void {
+    const upright = this.gait === 'none' || this.gait === 'walk' || this.gait === 'shamble' || this.gait === 'heavy';
+    const stationary = upright && this.speed < 0.25 && this.convulse <= 0.01;
+    const turning = stationary && (Math.abs(this.turnRate) > 0.1 || Math.abs(this.turnError) > 0.18);
+
+    // Lead-in anticipation: head and shoulders turn toward the desired heading ahead of the hips.
+    const leadTarget = upright
+      ? THREE.MathUtils.clamp(this.turnError * R2D * 0.55 + this.turnRate * R2D * 0.12, -38, 38)
+      : 0;
+    const lead = this.turnLeadSpring.step(leadTarget, dt);
+    if (Math.abs(lead) > 0.05) {
+      this.add('spine', 0, lead * 0.14, 0);
+      this.add('chest', 0, lead * 0.22, 0);
+      this.add('neck', 0, lead * 0.26, 0);
+      this.add('head', 0, lead * 0.38, 0);
+    }
+
+    // Pivot foot-shuffle stepping while turning on the spot.
+    const wantPivot = turning ? THREE.MathUtils.clamp(Math.abs(this.turnRate) / 0.85, 0, 1) : 0;
+    this.pivotW += (wantPivot - this.pivotW) * (1 - Math.exp(-(wantPivot > this.pivotW ? 10 : 7) * dt));
+    if (this.pivotW < 0.01) {
+      this.pivotW = 0;
+      return;
+    }
+
+    const dir = Math.sign(this.turnRate || this.turnError || 1);
+    this.pivotPhase = (this.pivotPhase + Math.max(0.55, Math.abs(this.turnRate) * 1.1) * dt) % 1;
+    const p = this.pivotPhase * Math.PI * 2;
+    const w = this.pivotW;
+
+    // Left steps on first half [0..pi], right steps on second half [pi..2pi].
+    const liftL = Math.max(0, Math.sin(p));
+    const liftR = Math.max(0, -Math.sin(p));
+    const swingL = liftL * liftL;
+    const swingR = liftR * liftR;
+
+    this.add('thigh_L', 18 * w * swingL, dir * 10 * w * swingL, -3 * w * swingL);
+    this.add('shin_L', -34 * w * swingL, 0, 0);
+    this.add('foot_L', 14 * w * swingL, 0, 0);
+
+    this.add('thigh_R', 18 * w * swingR, dir * 10 * w * swingR, 3 * w * swingR);
+    this.add('shin_R', -34 * w * swingR, 0, 0);
+    this.add('foot_R', 14 * w * swingR, 0, 0);
+
+    // Shift weight laterally over whichever foot is currently planted.
+    const shift = (liftL - liftR) * w; // + when lifting L -> weight shifts right (+X)
+    this.bob.x += 0.028 * shift;
+    this.bob.y -= 0.012 * w * (swingL + swingR);
+    this.add('pelvis', 0, -dir * 4 * w * Math.cos(p), 3.2 * shift);
+    this.add('spine', 0, dir * 3 * w * Math.cos(p), -2.2 * shift);
+
+    // Drive alternating foot contacts for FootIkSolver so the planted foot locks to the deck!
+    if (this.speed < 0.15) {
+      this.footContacts[0] = THREE.MathUtils.clamp(1 - swingL * 1.25 * w, 0, 1);
+      this.footContacts[1] = THREE.MathUtils.clamp(1 - swingR * 1.25 * w, 0, 1);
+    }
+  }
+
+  private updateGait(dt: number, mocapActive: boolean): void {
     const style = this.gait;
     // Pivoting crawlers pull themselves around: the turn speed drives the limbs as if it were ground speed.
     const pivot = style === 'crawl' ? PIVOT_DRIVE_CRAWL : style === 'drag' ? PIVOT_DRIVE_DRAG : 0;
@@ -303,10 +711,40 @@ export class Animator {
     if (style !== 'none') this.phase += (drive / STRIDE[style]) * Math.PI * 2 * dt;
     const A = this.amp;
     const t = this.time;
-    this.bob.set(0, 0, 0);
-    this.rootEuler.set(0, 0, 0);
     if (style === 'flail') this.flail(t);
     this.footfall = false;
+
+    // When Tier B mocap owns the upright locomotion cycle, skip the legacy sine-wave leg/arm generator
+    // while layering heavy zombie limp asymmetry, dragging feet, and head drift on top of zombie_walk!
+    if (mocapActive && (style === 'walk' || style === 'shamble' || style === 'flail')) {
+      const sham = style !== 'walk';
+      const wounded = this.woundAmount > 0.01;
+      if ((sham || wounded) && A > 0.05) {
+        const p = this.locoPhase * Math.PI * 4; // two full limping steps per zombie_walk loop
+        const lameSide = wounded ? this.woundSide : this.limpSide;
+        const lameAmt = wounded ? Math.max(this.limpAmount, 0.6 + 0.4 * this.woundAmount) : Math.max(0.45, this.limpAmount);
+        const lame = lameSide === 0 ? 'L' : 'R';
+        const lean = lameSide === 0 ? -1 : 1;
+        const phLame = p + lameSide * Math.PI;
+        const limpPulse = Math.max(0, Math.sin(phLame));
+        // Heavy asymmetric hip drop and torso lurch over the crippled side.
+        this.add('pelvis', -4 * A * limpPulse, lean * 6 * A * lameAmt * limpPulse, lean * A * 9 * lameAmt * limpPulse);
+        this.add('spine', -6 * A * lameAmt, -lean * 4 * A * lameAmt * limpPulse, -lean * 5 * A * lameAmt * limpPulse);
+        this.add('chest', -4 * A * lameAmt, 0, lean * 4 * A * lameAmt * limpPulse);
+        this.bob.y -= 0.032 * A * lameAmt * limpPulse;
+        this.bob.x += lean * 0.025 * A * lameAmt * limpPulse;
+        // Dragging stiff lame leg: drags behind slightly, knee locks/hyperextends when taking weight.
+        this.add(`thigh_${lame}`, -8 * A * lameAmt * Math.max(0, -Math.sin(phLame)), 0, lean * 5 * A * lameAmt);
+        this.add(`shin_${lame}`, A * (14 * lameAmt + 12 * this.infect) * Math.max(0, -Math.sin(phLame)), 0, 0);
+        this.add(`foot_${lame}`, -12 * A * lameAmt * limpPulse, 0, 0);
+        if (sham) {
+          this.add('neck', A * 7 * Math.cos(2 * p), 0, 0);
+          this.add('head', -5 * A * limpPulse, A * 8 * this.n(t * 0.45, 9), A * 7 * this.n(t * 0.35, 10));
+        }
+      }
+      return;
+    }
+
     if (A < 1e-3) return;
 
     if (style === 'heavy') {
@@ -359,7 +797,7 @@ export class Animator {
           this.add('head', 0, A * 6 * this.n(t * 0.5, 9), A * 5 * this.n(t * 0.4, 10));
         }
       }
-      this.bob.y = A * 0.022 * Math.cos(2 * p) - A * 0.012;
+      this.bob.y += A * 0.022 * Math.cos(2 * p) - A * 0.012;
       if (sham) {
         // Hyperextending knee on the lame leg as it takes weight.
         const lame = lameSide === 0 ? 'L' : 'R';
@@ -369,43 +807,69 @@ export class Animator {
     }
 
     if (style === 'crawl') {
-      // Prone: arms alternate reach and pull, the remaining leg pushes.
+      // Labored zombie floor crawl: asymmetric reach -> claw plant -> heavy shoulder/chest heave -> drag pause,
+      // with the remaining leg frog-pushing sideways and the pelvis rolling heavily with each haul.
+      const p = this.phase + 0.42 * Math.sin(this.phase); // non-sinusoidal surge-and-drag timing
       for (const side of [0, 1] as const) {
         const s = side === 0 ? 'L' : 'R';
-        const ph = this.phase + side * Math.PI;
+        const out = side === 0 ? -1 : 1;
+        const ph = p + side * Math.PI;
         const sinp = Math.sin(ph);
-        // Turning: the arm on the outside of the turn pulls hard, the inside arm mostly anchors.
-        const tf = THREE.MathUtils.clamp(this.turnRate / 1.2, -1, 1);
+        const reach = Math.max(0, sinp);
+        const pull = Math.max(0, -sinp);
+        const pullSurge = pull * pull;
+        // Turning: outside arm reaches wide and hauls hard, inside arm anchors.
+        const tf = THREE.MathUtils.clamp(this.turnRate / 1.1, -1, 1);
         const arm = side === 0 ? 1 - 0.55 * tf : 1 + 0.55 * tf;
-        this.add(`upperArm_${s}`, A * 35 * arm * sinp, 0, (side === 0 ? -1 : 1) * A * 10 * arm * Math.cos(ph));
-        this.add(`foreArm_${s}`, A * 40 * arm * Math.max(0, -sinp), 0, 0);
-        this.add(`thigh_${s}`, A * 22 * Math.sin(ph + Math.PI / 2), 0, 0);
-        this.add(`shin_${s}`, -A * 30 * Math.max(0, sinp), 0, 0);
-        // Fingers claw at the floor on the pull.
-        this.add(`hand_${s}`, A * 45 * arm * Math.max(0, -sinp), 0, 0);
+        this.add(`shoulder_${s}`, A * 10 * arm * (reach - pullSurge), out * A * 14 * arm * (reach - pull), out * A * 8 * arm * reach);
+        this.add(`upperArm_${s}`, A * (44 * reach - 36 * pullSurge) * arm, out * A * 12 * arm * reach, out * A * (14 * Math.cos(ph) + 8 * pull));
+        this.add(`foreArm_${s}`, A * (58 * pullSurge + 10 * reach) * arm, 0, 0);
+        // Fingers/wrists dig and claw into the deck during the heavy pull.
+        this.add(`hand_${s}`, A * (54 * pullSurge - 14 * reach) * arm, 0, out * A * 12 * pull);
+        // Remaining leg does a low bent-knee frog-push instead of a stiff scissor.
+        const push = Math.max(0, Math.sin(ph + 0.9));
+        this.add(`thigh_${s}`, A * 28 * push, out * A * 10 * push, out * A * (14 * push + 4));
+        this.add(`shin_${s}`, -A * 48 * push, 0, 0);
+        this.add(`foot_${s}`, A * 20 * push, 0, 0);
       }
       this.leadTurn();
-      this.add('neck', A * 10 * this.n(t * 3.1, 21), A * 14 * this.n(t * 2.7, 22), 0);
-      const sp = Math.sin(this.phase);
-      this.rootEuler.z = A * 7 * sp;
-      this.add('chest', 0, A * 6 * sp, 0);
-      this.add('head', 0, -A * 6 * sp, 0);
-      this.bob.y = A * 0.02 * Math.abs(sp);
+      const sp = Math.sin(p);
+      const haul = Math.abs(sp);
+      // Heavy body roll, ribcage heave on each arm pull, and head scraping low then jerking up.
+      this.rootEuler.z = A * 11 * sp;
+      this.add('pelvis', 0, -A * 10 * sp, A * 8 * sp);
+      this.add('spine', A * 7 * haul, A * 10 * sp, -A * 6 * sp);
+      this.add('chest', A * 9 * haul, A * 11 * sp, -A * 5 * sp);
+      this.add('neck', A * (8 * haul + 8 * this.n(t * 2.4, 21)), A * 14 * this.n(t * 2.0, 22), 0);
+      this.add('head', A * (10 * haul - 4), -A * 9 * sp, A * 6 * this.n(t * 1.8, 25));
+      this.bob.y += A * 0.035 * haul * haul;
+      this.bob.x += A * 0.03 * sp;
       return;
     }
 
     if (style === 'drag') {
-      // Both arms reach together and haul the body forward.
-      const sp = Math.sin(this.phase);
-      for (const s of ['L', 'R'] as const) {
-        this.add(`upperArm_${s}`, A * 40 * sp, 0, 0);
-        this.add(`foreArm_${s}`, A * 45 * Math.max(0, -sp), 0, 0);
-        this.add(`hand_${s}`, A * 50 * Math.max(0, -sp), 0, 0);
+      // Desperate double-arm floor haul (both legs lost): slow reach forward, hard double-arm pull that lifts
+      // the chest off the deck, then collapses back down exhausted before the next reach.
+      const p = this.phase + 0.48 * Math.sin(this.phase);
+      const sp = Math.sin(p);
+      const reach = Math.max(0, sp);
+      const pull = Math.max(0, -sp);
+      const surge = pull * pull;
+      for (const side of [0, 1] as const) {
+        const s = side === 0 ? 'L' : 'R';
+        const out = side === 0 ? -1 : 1;
+        // Slight left/right stagger so it feels broken and uneven instead of mechanical symmetry.
+        const stag = side === 0 ? 1 : 0.88;
+        this.add(`shoulder_${s}`, A * 12 * (reach - surge) * stag, out * A * 10 * reach, out * A * 8 * reach);
+        this.add(`upperArm_${s}`, A * (48 * reach - 42 * surge) * stag, 0, out * A * (10 * reach + 6 * surge));
+        this.add(`foreArm_${s}`, A * (64 * surge + 8 * reach) * stag, 0, 0);
+        this.add(`hand_${s}`, A * (58 * surge - 12 * reach) * stag, 0, out * A * 10 * surge);
       }
-      this.add('neck', A * 8 * this.n(t * 2.9, 23), A * 16 * this.n(t * 2.3, 24), 0);
-      this.add('chest', A * 9 * Math.max(0, sp), 0, 0);
-      this.add('head', A * 6 * Math.max(0, sp), 0, 0);
-      this.bob.y = A * 0.025 * Math.max(0, sp);
+      this.add('spine', A * 10 * surge, A * 5 * Math.sin(p * 0.5), A * 4 * this.n(t * 1.4, 26));
+      this.add('chest', A * 14 * surge, 0, 0);
+      this.add('neck', A * (10 * surge + 7 * this.n(t * 2.3, 23)), A * 16 * this.n(t * 1.9, 24), 0);
+      this.add('head', A * (12 * surge - 5 * reach), 0, A * 6 * this.n(t * 1.6, 27));
+      this.bob.y += A * 0.048 * surge;
       this.leadTurn();
     }
   }
@@ -459,7 +923,12 @@ export class Animator {
     const step = ((p % Math.PI) + Math.PI) % Math.PI; // 0..pi per step
     const land = Math.PI * 0.5;
     const since = ((step - land) + Math.PI) % Math.PI; // 0 just after landing
-    this.bob.y = -A * 0.045 * Math.exp(-since * 6) + A * 0.015 * Math.sin(since);
+    this.bob.y += -A * 0.045 * Math.exp(-since * 6) + A * 0.015 * Math.sin(since);
+    // Feed crisp alternating stomp contacts to FootIkSolver so each heavy foot plants solidly onto the deck.
+    const swingL = Math.max(0, Math.cos(p));
+    const swingR = Math.max(0, -Math.cos(p));
+    this.footContacts[0] = THREE.MathUtils.clamp(1 - swingL * 1.6 * Math.min(1, A), 0, 1);
+    this.footContacts[1] = THREE.MathUtils.clamp(1 - swingR * 1.6 * Math.min(1, A), 0, 1);
     const stepIndex = Math.floor((p - land) / Math.PI);
     if (stepIndex !== this.lastStep) {
       this.footfall = this.lastStep !== 0 || stepIndex > 0;
@@ -598,33 +1067,42 @@ export class Animator {
   }
 
   /** Poses where the arms are doing a job: their idle fidgets shrink. */
-  private static readonly ARMS_BUSY: ReadonlySet<string> = new Set(['aim_pistol', 'typing', 'clipboard', 'crouchWork', 'kneel_revive', 'drink', 'offer_mug']);
+  private static readonly ARMS_BUSY: ReadonlySet<string> = new Set(['aim_pistol', 'typing', 'sit_typing', 'clipboard', 'crouchWork', 'kneel_revive', 'drink', 'offer_mug']);
 
-  /** Ambient life for standing bodies: slow breathing, a drifting weight shift, loose arms. Rotations only, a few degrees. */
+  /**
+   * Ambient life for standing bodies: slow breathing with clavicle lift, lateral weight shift
+   * (with FootIk keeping soles pinned), and loose arms. Scaled down gently when mocap idle already
+   * supplies primary breathing/sway so the two layers complement instead of doubling up.
+   */
   private updateIdleLife(dt: number): void {
-    const target = this.idleLife > 0 && !this.seq ? this.idleLife * Math.max(0, 1 - this.amp * 4) : 0;
+    const moveFade = this.useMocap ? Math.max(0, 1 - this.locoInfo.moveWeight * 3) : Math.max(0, 1 - this.amp * 4);
+    const target = this.idleLife > 0 && !this.seq ? this.idleLife * moveFade : 0;
     this.lifeW += (target - this.lifeW) * Math.min(1, dt * 2);
     const w = this.lifeW;
     if (w < 1e-3) return;
     const t = this.time;
     const s = this.noiseSeed;
-    const breath = Math.sin(t * 1.5 + s) * (1 + 0.25 * Math.sin(t * 0.37 + s * 1.7)) * w;
+    // Mocap idle already provides subtle breathing/sway; layer lighter individualized variation on top.
+    const k = 1 - this.mocapW * 0.55;
+    const breath = Math.sin(t * 1.5 + s) * (1 + 0.25 * Math.sin(t * 0.37 + s * 1.7)) * w * k;
     this.add('spine', 0.5 * breath, 0, 0);
     this.add('chest', 1.1 * breath, 0, 0);
     this.add('neck', -0.4 * breath, 0, 0);
     this.add('head', -0.5 * breath, 0, 0);
+    // Subtle clavicle rise on inhale.
+    this.add('shoulder_L', 0, 0, -0.7 * breath);
+    this.add('shoulder_R', 0, 0, 0.7 * breath);
     this.add('upperArm_L', 0, 0, 0.5 * breath);
     this.add('upperArm_R', 0, 0, -0.5 * breath);
-    // Weight shift: pelvis rolls and turns a little, the spine counters so the head stays level.
-    const sh = (Math.sin(t * 0.42 + s * 1.3) * 0.6 + Math.sin(t * 0.17 + s * 0.7) * 0.4) * w;
+    // Weight shift: pelvis translates laterally + rolls, spine counters so the head stays level.
+    const sh = (Math.sin(t * 0.42 + s * 1.3) * 0.6 + Math.sin(t * 0.17 + s * 0.7) * 0.4) * w * k;
+    this.bob.x += 0.016 * sh;
     this.add('pelvis', 0, 1.2 * sh, 1.6 * sh);
     this.add('spine', 0, -0.6 * sh, -1.2 * sh);
     this.add('chest', 0, -0.4 * sh, -0.6 * sh);
     this.add('head', 0, 0, 0.2 * sh);
-    // Loose arms: no independent swinging. They ride the breath above and the weight shift (the far arm swings
-    // out a hair as the pelvis rolls), with the hands and elbows relaxing a degree or two.
     const f = Animator.ARMS_BUSY.has(this.to.name) ? 0.25 : 1;
-    const a = w * f;
+    const a = w * f * k;
     this.add('upperArm_L', 0, 0, 0.8 * sh * f);
     this.add('upperArm_R', 0, 0, 0.8 * sh * f);
     this.add('foreArm_L', 1.0 * this.n(t * 0.5, 7) * a, 0, 0);
@@ -633,13 +1111,19 @@ export class Animator {
     this.add('hand_R', 1.5 * this.n(t * 0.5, 10) * a, 0, 0);
   }
 
+  /**
+   * Multi-segment spring look-at: fast head/neck spring locks onto the target first,
+   * while a slower chest/spine spring follows a beat behind for organic shoulder recruitment.
+   */
   private updateLook(dt: number): void {
     let yaw = 0;
     let pitch = 0;
-    if (this.lookLocal && (this.gait === 'none' || this.gait === 'walk' || this.gait === 'shamble' || this.gait === 'heavy')) {
+    const upright = this.gait === 'none' || this.gait === 'walk' || this.gait === 'shamble' || this.gait === 'heavy';
+    if (this.lookLocal && upright) {
       const d = this.lookLocal;
-      yaw = THREE.MathUtils.clamp(Math.atan2(-d.x, -d.z), -1.2, 1.2);
-      pitch = THREE.MathUtils.clamp(Math.atan2(d.y - 1.55, Math.hypot(d.x, d.z)), -0.6, 0.6);
+      const eyeY = this.to.name.startsWith('sit_') ? 1.18 : 1.55;
+      yaw = THREE.MathUtils.clamp(Math.atan2(-d.x, -d.z), -1.25, 1.25);
+      pitch = THREE.MathUtils.clamp(Math.atan2(d.y - eyeY, Math.hypot(d.x, d.z)), -0.6, 0.6);
     }
     const w = this.lifeW;
     if (w > 1e-3) {
@@ -648,23 +1132,29 @@ export class Animator {
       g.left -= dt;
       if (g.left <= 0) {
         const away = this.gazeRand() < 0.55;
-        g.tYaw = away ? (this.gazeRand() - 0.5) * 1.4 : 0;
-        g.tPitch = away ? (this.gazeRand() - 0.6) * 0.35 : 0;
+        g.tYaw = away ? (this.gazeRand() - 0.5) * 0.45 : 0;
+        g.tPitch = away ? (this.gazeRand() - 0.6) * 0.16 : 0;
         g.left = 1.5 + this.gazeRand() * 3.5;
       }
       const gk = Math.min(1, dt * 2.2);
       g.yaw += (g.tYaw - g.yaw) * gk;
       g.pitch += (g.tPitch - g.pitch) * gk;
       const free = this.lookLocal ? 0 : 1;
-      yaw += free * g.yaw * w + 0.05 * this.n(this.time, 1) * w;
-      pitch += free * g.pitch * w + 0.025 * this.n(this.time, 2) * w;
+      yaw += free * g.yaw * w + 0.03 * this.n(this.time, 1) * w;
+      pitch += free * g.pitch * w + 0.015 * this.n(this.time, 2) * w;
     }
-    const k = Math.min(1, dt * 4);
-    this.look.yaw += (yaw - this.look.yaw) * k;
-    this.look.pitch += (pitch - this.look.pitch) * k;
-    const R = 180 / Math.PI;
-    this.add('neck', this.look.pitch * 0.4 * R, this.look.yaw * 0.4 * R, 0);
-    this.add('head', this.look.pitch * 0.6 * R, this.look.yaw * 0.6 * R, 0);
+
+    const headYaw = this.lookHeadYaw.step(yaw, dt);
+    const headPitch = this.lookHeadPitch.step(pitch, dt);
+    // Chest/spine recruit gently when looking at a real target (less when arms are aiming a weapon).
+    const torsoShare = this.lookLocal && !Animator.ARMS_BUSY.has(this.to.name) ? 1 : 0.25;
+    const torsoYaw = this.lookTorsoYaw.step(yaw * torsoShare, dt);
+    const torsoPitch = this.lookTorsoPitch.step(pitch * torsoShare * 0.6, dt);
+
+    this.add('spine', torsoPitch * 0.1 * R2D, torsoYaw * 0.1 * R2D, 0);
+    this.add('chest', torsoPitch * 0.18 * R2D, torsoYaw * 0.18 * R2D, 0);
+    this.add('neck', headPitch * 0.3 * R2D, headYaw * 0.28 * R2D, 0);
+    this.add('head', headPitch * 0.46 * R2D, headYaw * 0.44 * R2D, 0);
   }
 
   private updateReactions(dt: number): void {
@@ -699,7 +1189,7 @@ export class Animator {
   private readonly q = new THREE.Quaternion();
 
   private write(): void {
-    const cur = this.current;
+    const cur = this.finalPose;
     for (let i = 0; i < N; i++) {
       const bone = this.bones[i];
       const base = cur.joints[i];

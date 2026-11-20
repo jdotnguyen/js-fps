@@ -11,7 +11,7 @@ import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { lathe, slab } from './shapes.ts';
 import { inFrame, panelWall, wallFrame } from './detail.ts';
 import { AoMergeBuilder } from './merge.ts';
-import { TILE_FLOOR_KEYS, resolvePalette } from './palettes.ts';
+import { TILE_FLOOR_KEYS, paletteFor, resolvePalette } from './palettes.ts';
 import { PieceBuilder, WALL_T, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams } from './types.ts';
 
 /**
@@ -51,10 +51,20 @@ function cached<T extends THREE.Material>(key: string, make: () => T): T {
   }
   return m;
 }
+/** A flat paint colour. Opts into flat-colour merging (kit/merge.ts): it shares a roughness bucket's draw call. */
 const plain = (key: string, color: number, roughness = 0.8, metalness = 0, extra: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial =>
-  cached(key, () => new THREE.MeshStandardMaterial({ color, roughness, metalness, ...extra }));
-/** A non-animated glow, shared so every copy merges into one draw call per room. */
-const glow = (key: string, color: number, intensity: number): THREE.MeshStandardMaterial => cached(`glow-${key}`, () => fixtureMaterial(color, intensity));
+  cached(key, () => {
+    const m = new THREE.MeshStandardMaterial({ color, roughness, metalness, ...extra });
+    m.userData['flat'] = true;
+    return m;
+  });
+/** A non-animated glow. Opts into static-glow merging (kit/merge.ts): every glow in a room shares one draw call. */
+const glow = (key: string, color: number, intensity: number): THREE.MeshStandardMaterial =>
+  cached(`glow-${key}`, () => {
+    const m = fixtureMaterial(color, intensity);
+    m.userData['glow'] = true;
+    return m;
+  });
 
 const MAT = {
   wood: () => plain('wood', 0x6a4a30, 0.62),
@@ -91,6 +101,22 @@ const MAT = {
   fabricWarm: () => plain('fabricWarm', 0x6b4a3a, 0.95),
   blind: () => plain('blind', 0xb8b2a4, 0.6, 0.2, { side: THREE.DoubleSide }),
   coffee: () => plain('coffee', 0x1a0d06, 0.2),
+  foodStew: () => plain('foodStew', 0x6e3a1a, 0.5),
+  foodGreens: () => plain('foodGreens', 0x3f6b25, 0.6),
+  foodRice: () => plain('foodRice', 0xd9cfa6, 0.85),
+  foodSauce: () => plain('foodSauce', 0x8e2a18, 0.35),
+  foodPotato: () => plain('foodPotato', 0xc4a05a, 0.7),
+  juiceOrange: () => plain('juiceOrange', 0xe07a1f, 0.2),
+  juiceGreen: () => plain('juiceGreen', 0x8fbf3a, 0.2),
+  waterJug: () => plain('waterJug', 0x8fc3d9, 0.2),
+  rugTeal: () => plain('rugTeal', 0x23474b, 0.97),
+  rugWarm: () => plain('rugWarm', 0x5a3b2c, 0.97),
+  rugStripe: () => plain('rugStripe', 0xb89a5a, 0.95),
+  tealGloss: () => plain('tealGloss', 0x2a6466, 0.45),
+  shade: () => plain('shade', 0x1f2a2c, 0.5, 0, { side: THREE.DoubleSide }),
+  deskPanel: () => plain('deskPanel', 0xd6d2c8, 0.55),
+  deskDark: () => plain('deskDark', 0x202429, 0.45, 0.1),
+  wallPlaster: () => plain('wallPlaster', 0xd8d3c8, 0.88),
   book: (i: number) => plain(`book${i}`, [0x6b2a22, 0x22405a, 0x2f4a2a, 0x8a7a50, 0x3a2a4a][i % 5]!, 0.8),
 };
 
@@ -914,24 +940,26 @@ const GEN: Record<string, Gen> = {
   office_desk(p, rng, m, pb) {
     const w = numParam(p, 'width', 1.6);
     const exec = boolParam(p, 'exec', false);
-    const top = exec ? MAT.woodDark() : MAT.wood();
+    const top = exec ? MAT.woodDark() : m.woodPanel;
+    const metal = m.steelBrushed;
+    const dark = MAT.deskDark();
     pb.add(rounded(w, 0.05, 0.8, 0.012), top, at(0, 0.75, 0));
-    pb.add(slab(w - 0.1, 0.6, 0.03), exec ? MAT.woodDark() : m.paintBone, at(0, 0.42, 0.36));
-    for (const x of [-w / 2 + 0.04, w / 2 - 0.04]) pb.add(slab(0.04, 0.73, 0.76), exec ? MAT.woodDark() : m.steel, at(x, 0.365, 0));
+    pb.add(slab(w - 0.1, 0.6, 0.03), exec ? MAT.woodDark() : MAT.deskPanel(), at(0, 0.42, 0.36));
+    for (const x of [-w / 2 + 0.04, w / 2 - 0.04]) pb.add(slab(0.04, 0.73, 0.76), exec ? MAT.woodDark() : metal, at(x, 0.365, 0));
     if (exec) pb.add(slab(0.45, 0.6, 0.7), MAT.woodDark(), at(w / 2 - 0.3, 0.42, 0));
     if (boolParam(p, 'monitor', true)) {
-      pb.add(rounded(0.62, 0.38, 0.04, 0.01), m.paintDark, at(0, 1.12, 0.18));
+      pb.add(rounded(0.62, 0.38, 0.04, 0.01), dark, at(0, 1.12, 0.18));
       pb.add(slab(0.56, 0.32, 0.005), glow('office-monitor', 0x6fa8c8, 0.7), at(0, 1.12, 0.157));
-      pb.add(cylinderBetween(V(0, 0.775, 0.2), V(0, 0.93, 0.2), 0.02, 8), m.steel);
-      pb.add(rounded(0.22, 0.012, 0.16, 0.004), m.steel, at(0, 0.781, 0.2));
-      pb.add(rounded(0.44, 0.015, 0.14, 0.004), m.paintDark, at(0, 0.783, -0.12));
+      pb.add(cylinderBetween(V(0, 0.775, 0.2), V(0, 0.93, 0.2), 0.02, 8), metal);
+      pb.add(rounded(0.22, 0.012, 0.16, 0.004), metal, at(0, 0.781, 0.2));
+      pb.add(rounded(0.44, 0.015, 0.14, 0.004), dark, at(0, 0.783, -0.12));
     }
     const papers = Math.round(numParam(p, 'papers', 3));
     const pmats = [MAT.paper(), MAT.paperBlue(), MAT.paper()];
     for (let i = 0; i < papers; i++) pb.add(slab(0.21, 0.003 + i * 0.002, 0.297), pmats[i % 3]!, at(rng.range(-w / 2 + 0.25, w / 2 - 0.25), 0.777 + i * 0.003, rng.range(-0.25, 0.05), 0, rng.range(-0.5, 0.5), 0));
     if (rng.chance(0.6)) mugAt(pb, rng.pick([MAT.ceramic(), MAT.ceramicTeal(), MAT.ceramicRed()]), w / 2 - 0.2, 0.775, -0.2, rng.range(0, 6));
     if (exec) {
-      pb.add(lathe([[0, 0], [0.08, 0], [0.02, 0.02], [0.012, 0.4], [0, 0.4]], 12), m.steel, at(-w / 2 + 0.2, 0.775, 0.2));
+      pb.add(lathe([[0, 0], [0.08, 0], [0.02, 0.02], [0.012, 0.4], [0, 0.4]], 12), metal, at(-w / 2 + 0.2, 0.775, 0.2));
       pb.add(new THREE.ConeGeometry(0.12, 0.14, 14, 1, true), MAT.woodDark(), at(-w / 2 + 0.2, 1.2, 0.2));
       pb.add(slab(0.14, 0.02, 0.1), glow('desk-lamp', 0xffd9a0, 1.6), at(-w / 2 + 0.2, 1.13, 0.2));
     }
@@ -945,7 +973,11 @@ const GEN: Record<string, Gen> = {
     pb.add(rounded(w, 0.5, 0.2, 0.06), mat, at(0, 0.6, 0.33));
     for (const s of [-1, 1]) pb.add(rounded(0.18, 0.55, 0.85, 0.06), mat, at(s * (w / 2 - 0.09), 0.3, 0));
     const seats = Math.max(1, Math.round(w / 0.7));
-    for (let i = 0; i < seats; i++) pb.add(rounded((w - 0.4) / seats - 0.02, 0.12, 0.6, 0.05), mat, at(-w / 2 + 0.2 + ((w - 0.4) / seats) * (i + 0.5), 0.45, -0.06));
+    for (let i = 0; i < seats; i++) {
+      const x = -w / 2 + 0.2 + ((w - 0.4) / seats) * (i + 0.5);
+      pb.add(rounded((w - 0.4) / seats - 0.02, 0.12, 0.6, 0.05), mat, at(x, 0.45, -0.06));
+      pb.spot('sit_sofa', x, 0, 0.08, 0, 0.51); // ADR-0029: hips back against the backrest, facing out
+    }
     pb.solid(-w / 2, 0, -0.43, w / 2, 0.85, 0.43, 'rubber');
   },
 
@@ -1174,8 +1206,15 @@ const GEN: Record<string, Gen> = {
       pb.add(cylinderBetween(V(x, 0.02, z), V(x, 0.43, z), 0.03, 8), m.steel);
       pb.add(new THREE.CylinderGeometry(0.17, 0.2, 0.02, 14), m.steel, at(x, 0.01, z));
       pb.solid(x - 0.2, 0, z - 0.2, x + 0.2, 0.49, z + 0.2, 'rubber');
+      pb.spot('sit_chair', x, 0, z, side < 0 ? PI : 0, 0.49); // ADR-0029: facing the table
     }
     for (let i = 0; i < Math.round(numParam(p, 'mugs', 1)); i++) mugAt(pb, rng.pick([MAT.ceramic(), MAT.ceramicTeal()]), rng.range(-w / 2 + 0.2, w / 2 - 0.2), 0.765, rng.range(-0.3, 0.3), rng.range(0, 6));
+    if (boolParam(p, 'caddy', false)) {
+      // Napkin holder and a salt / pepper pair in the middle of the table.
+      pb.add(rounded(0.14, 0.1, 0.07, 0.008), m.steel, at(0, 0.815, 0));
+      pb.add(slab(0.12, 0.06, 0.05), MAT.paper(), at(0, 0.87, 0));
+      for (const [sx, mat] of [[-0.12, MAT.ceramic()], [0.12, MAT.potDark()]] as const) pb.add(lathe([[0, 0], [0.018, 0], [0.02, 0.06], [0.012, 0.075], [0, 0.075]], 10), mat, at(sx, 0.765, 0.02));
+    }
     pb.solid(-w / 2, 0, -d / 2, w / 2, 0.77, d / 2, 'metal');
   },
 
@@ -1219,6 +1258,220 @@ const GEN: Record<string, Gen> = {
     }
     pb.solid(-w / 2, 0, -d / 2, w / 2, h, d / 2, 'metal');
   },
+
+  // ---------------------------------------------------------------- commons galley + lounge (R02)
+
+  /** Hot food line: steel body, teal fascia, recessed hot wells with food, sloped sneeze guard, heat lamps, tray slide on the customer (-Z) side. */
+  servery(p, rng, m, pb) {
+    const w = numParam(p, 'width', 3.6);
+    const d = 0.78;
+    const h = 0.9;
+    pb.add(slab(w, h - 0.1, d - 0.08), m.steel, at(0, (h - 0.1) / 2 + 0.1, 0.02));
+    pb.add(slab(w - 0.04, 0.1, d - 0.14), m.black, at(0, 0.05, 0.04));
+    const bays = Math.max(1, Math.round(w / 0.9));
+    const bw = w / bays;
+    for (let i = 0; i < bays; i++) pb.add(rounded(bw - 0.05, h - 0.26, 0.02, 0.005), MAT.tealGloss(), at(-w / 2 + bw * (i + 0.5), 0.14 + (h - 0.26) / 2, -d / 2 + 0.01));
+    pb.add(rounded(w + 0.04, 0.04, d + 0.02, 0.008), m.steel, at(0, h - 0.02, 0));
+    // Hot wells: a dark pan with a steel lip, the food and a serving spoon.
+    const pans = Math.max(1, Math.round(numParam(p, 'pans', Math.floor((w - 0.3) / 0.7))));
+    const pw = (w - 0.3) / pans;
+    const foods = [MAT.foodStew(), MAT.foodGreens(), MAT.foodRice(), MAT.foodSauce(), MAT.foodPotato()];
+    const off = Math.floor(rng.range(0, foods.length));
+    for (let i = 0; i < pans; i++) {
+      const x = -w / 2 + 0.15 + pw * (i + 0.5);
+      pb.add(slab(pw - 0.06, 0.006, 0.46), m.black, at(x, h + 0.003, 0.02));
+      for (const s of [-1, 1]) {
+        pb.add(slab(pw - 0.04, 0.014, 0.02), m.steel, at(x, h + 0.007, 0.02 + s * 0.24));
+        pb.add(slab(0.02, 0.014, 0.5), m.steel, at(x + s * (pw / 2 - 0.02), h + 0.007, 0.02));
+      }
+      const food = foods[(i + off) % foods.length]!;
+      pb.add(slab(pw - 0.1, 0.012, 0.42), food, at(x, h + 0.008, 0.02));
+      for (let k = 0; k < 6; k++) {
+        const g = new THREE.SphereGeometry(rng.range(0.025, 0.045), 7, 5);
+        g.scale(1, 0.45, 1);
+        pb.add(g, food, at(x + rng.range(-pw / 2 + 0.09, pw / 2 - 0.09), h + 0.016, 0.02 + rng.range(-0.15, 0.15)));
+      }
+      pb.add(cylinderBetween(V(x + pw * 0.15, h + 0.02, -0.06), V(x + pw * 0.3, h + 0.17, 0.2), 0.008, 6), m.steel);
+    }
+    // Sneeze guard: posts, a sloped pane leaning out over the wells, a shelf with heat lamps under it.
+    const posts = Math.max(2, Math.round(w / 1.8) + 1);
+    for (let i = 0; i < posts; i++) pb.add(cylinderBetween(V(-w / 2 + 0.06 + ((w - 0.12) * i) / (posts - 1), h, 0.12), V(-w / 2 + 0.06 + ((w - 0.12) * i) / (posts - 1), 1.47, 0.12), 0.018, 8), m.steel);
+    pb.add(slab(w - 0.08, 0.44, 0.008), m.glass, at(0, 1.2, -0.12, 0.45, 0, 0));
+    pb.add(rounded(w, 0.03, 0.4, 0.008), m.steel, at(0, 1.47, 0.05));
+    for (let i = 0; i < pans; i++) pb.add(rounded(pw - 0.2, 0.06, 0.12, 0.01), m.paintDark, at(-w / 2 + 0.15 + pw * (i + 0.5), 1.42, 0.05));
+    pb.add(slab(w - 0.3, 0.012, 0.06), glow('heat-lamp', 0xff8a3a, 2.2), at(0, 1.385, 0.05));
+    // Tray slide on the customer side.
+    for (let k = 0; k < 3; k++) pb.add(cylinderBetween(V(-w / 2 + 0.05, 0.84, -d / 2 - 0.1 - k * 0.07), V(w / 2 - 0.05, 0.84, -d / 2 - 0.1 - k * 0.07), 0.012, 8), m.steel);
+    for (let i = 0; i <= Math.ceil(w / 1.2); i++) {
+      const x = -w / 2 + 0.1 + ((w - 0.2) * i) / Math.ceil(w / 1.2);
+      pb.add(slab(0.03, 0.03, 0.26), m.steel, at(x, 0.825, -d / 2 - 0.13));
+    }
+    pb.solid(-w / 2, 0, -d / 2 - 0.28, w / 2, 0.95, d / 2, 'metal');
+    pb.solid(-w / 2, 0.95, -0.2, w / 2, 1.5, d / 2);
+    pb.nav(0, 0, -d / 2 - 0.9);
+  },
+
+  /** Backlit galley menu board, wall-mounted (back on z = 0). */
+  menu_board(p, _rng, m, pb) {
+    const w = numParam(p, 'width', 3.2);
+    const h = numParam(p, 'height', 1);
+    const y = numParam(p, 'y', 2.95);
+    pb.add(rounded(w + 0.1, h + 0.1, 0.08, 0.015), m.paintDark, at(0, y, -0.04));
+    pb.add(slab(w + 0.14, 0.025, 0.1), glow('menu-edge', 0xffe9c8, 1.4), at(0, y + h / 2 + 0.065, -0.05));
+    pb.dynamic(screenPlane(menuMat(strParam(p, 'title', 'GALLEY'), w / h), w, h, 0, y, -0.082));
+    pb.solid(-w / 2 - 0.05, y - h / 2 - 0.05, -0.09, w / 2 + 0.05, y + h / 2 + 0.05, 0);
+  },
+
+  /** Self-serve drinks: low cabinet, three-tap juice dispenser, water cooler, cups, a tray stack and cutlery. Front faces -Z. */
+  drink_station(p, rng, m, pb) {
+    const w = numParam(p, 'width', 1.8);
+    const d = 0.62;
+    const h = 0.9;
+    pb.add(slab(w, h - 0.1, d - 0.04), MAT.plastic(), at(0, (h - 0.1) / 2 + 0.1, 0.02));
+    pb.add(slab(w - 0.02, 0.1, d - 0.1), m.black, at(0, 0.05, 0.04));
+    for (const s of [-1, 1]) {
+      pb.add(rounded(w / 2 - 0.03, h - 0.22, 0.02, 0.005), MAT.plastic(), at(s * (w / 4), 0.5, -d / 2 + 0.005));
+      pb.add(rounded(0.14, 0.018, 0.025, 0.006), m.steel, at(s * 0.1, h - 0.2, -d / 2 - 0.012));
+    }
+    pb.add(rounded(w + 0.03, 0.04, d + 0.02, 0.008), MAT.stone(), at(0, h - 0.02, 0));
+    // Juice dispenser.
+    const dx = -w / 2 + 0.4;
+    pb.add(rounded(0.62, 0.64, 0.4, 0.02), m.steel, at(dx, h + 0.32, 0.06));
+    const juices = [MAT.juiceOrange(), MAT.juiceGreen(), MAT.waterJug()];
+    for (let i = 0; i < 3; i++) {
+      const x = dx - 0.2 + i * 0.2;
+      pb.add(rounded(0.16, 0.3, 0.012, 0.006), juices[i]!, at(x, h + 0.44, -0.145));
+      pb.add(new THREE.CylinderGeometry(0.012, 0.012, 0.06, 8), m.black, at(x, h + 0.2, -0.15));
+    }
+    pb.add(slab(0.56, 0.04, 0.01), glow('dispenser', 0xcfefff, 1.6), at(dx, h + 0.66, -0.145));
+    pb.add(slab(0.52, 0.012, 0.2), m.grating, at(dx, h + 0.006, -0.12));
+    // Water cooler: base and an upturned jug.
+    const wx = w / 2 - 0.26;
+    pb.add(rounded(0.3, 0.32, 0.3, 0.03), MAT.plastic(), at(wx, h + 0.16, 0.06));
+    pb.add(lathe([[0, 0], [0.13, 0.02], [0.14, 0.28], [0.06, 0.36], [0.03, 0.4], [0, 0.4]], 16), MAT.waterJug(), at(wx, h + 0.72, 0.06, PI, 0, 0));
+    pb.add(new THREE.CylinderGeometry(0.012, 0.012, 0.05, 8), m.paintTeal, at(wx - 0.05, h + 0.2, -0.1, PI / 2, 0, 0));
+    // Cup stacks, trays, cutlery caddy, napkins.
+    for (let i = 0; i < 3; i++) {
+      const n = 4 + Math.floor(rng.range(0, 4));
+      pb.add(lathe([[0, 0], [0.035, 0], [0.045, 0.09 + n * 0.012], [0, 0.09 + n * 0.012]], 12), MAT.paper(), at(dx + 0.42 + i * 0.1, h, -0.16));
+    }
+    for (let i = 0; i < 7; i++) pb.add(rounded(0.46, 0.018, 0.34, 0.006), m.paintDark, at(0.12, h + 0.01 + i * 0.022, 0.02, 0, rng.range(-0.03, 0.03), 0));
+    pb.add(rounded(0.26, 0.12, 0.12, 0.01), m.steel, at(wx - 0.02, h + 0.06, -0.2));
+    for (let i = 0; i < 9; i++) pb.add(cylinderBetween(V(wx - 0.1 + (i % 3) * 0.08, h + 0.08, -0.22 + Math.floor(i / 3) * 0.04), V(wx - 0.1 + (i % 3) * 0.08 + 0.01, h + 0.2, -0.22 + Math.floor(i / 3) * 0.04), 0.005, 4), m.steel);
+    pb.solid(-w / 2, 0, -d / 2, w / 2, h + 0.72, d / 2, 'metal');
+  },
+
+  /** Waste and recycling bins in a steel frame, coloured lids. Front faces -Z. */
+  bin_station(p, _rng, m, pb) {
+    const n = Math.max(1, Math.round(numParam(p, 'count', 3)));
+    const W = n * 0.52 + 0.08;
+    const lids = [MAT.ceramicTeal(), MAT.suitYellow(), MAT.potWhite()];
+    pb.add(slab(W, 1.0, 0.03), m.steel, at(0, 0.5, 0.26));
+    for (const s of [-1, 1]) pb.add(slab(0.03, 1.0, 0.56), m.steel, at(s * (W / 2 - 0.015), 0.5, 0));
+    for (let i = 0; i < n; i++) {
+      const x = -W / 2 + 0.3 + i * 0.52;
+      pb.add(rounded(0.46, 0.84, 0.5, 0.04), MAT.potDark(), at(x, 0.42, 0));
+      pb.add(rounded(0.48, 0.05, 0.52, 0.02), lids[i % lids.length]!, at(x, 0.865, 0));
+      pb.add(slab(0.24, 0.012, 0.08), m.black, at(x, 0.89, -0.08));
+    }
+    pb.solid(-W / 2, 0, -0.28, W / 2, 1.0, 0.28, 'metal');
+  },
+
+  /** Floor rug: border band, woven field, two stripes. Sits on the floor (no collider); soft footsteps. */
+  rug(p, _rng, _m, pb) {
+    const w = numParam(p, 'width', 3);
+    const d = numParam(p, 'depth', 2);
+    const field = strParam(p, 'tone', 'teal') === 'warm' ? MAT.rugWarm() : MAT.rugTeal();
+    pb.add(slab(w, 0.008, d), MAT.carpetBorder(), at(0, 0.004, 0));
+    pb.add(slab(w - 0.24, 0.011, d - 0.24), field, at(0, 0.0055, 0));
+    for (const s of [-1, 1]) pb.add(slab(w - 0.5, 0.014, 0.06), MAT.rugStripe(), at(0, 0.007, s * (d / 2 - 0.3)));
+    pb.surfaces.push({ box: { min: [-w / 2, -0.05, -d / 2], max: [w / 2, 0.014, d / 2] }, material: 'rubber' });
+  },
+
+  /** Pendant lamps on cables: dark cone shades with a warm bulb (emissive only, no point light). `count` along X. */
+  pendant_light(p, _rng, m, pb) {
+    const ceil = numParam(p, 'ceiling', 3.2);
+    const drop = numParam(p, 'drop', 1.2);
+    const n = Math.max(1, Math.round(numParam(p, 'count', 1)));
+    const gap = numParam(p, 'spacing', 1);
+    const y = ceil - drop;
+    for (let i = 0; i < n; i++) {
+      const x = (i - (n - 1) / 2) * gap;
+      pb.add(cylinderBetween(V(x, ceil, 0), V(x, y + 0.22, 0), 0.005, 5), m.cable);
+      pb.add(new THREE.CylinderGeometry(0.04, 0.04, 0.04, 10), m.steel, at(x, ceil - 0.02, 0));
+      pb.add(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 10), m.steel, at(x, y + 0.21, 0));
+      pb.add(new THREE.ConeGeometry(0.21, 0.22, 20, 1, true), MAT.shade(), at(x, y + 0.11, 0));
+      pb.add(new THREE.SphereGeometry(0.055, 12, 8), glow('pendant-bulb', 0xffd6a0, 2.6), at(x, y + 0.06, 0));
+    }
+  },
+
+  /** High bar ledge with stools on the -Z side; the back can sit against a wall or a planter. */
+  bar_counter(p, rng, m, pb) {
+    const w = numParam(p, 'width', 3);
+    const d = 0.44;
+    const h = 1.06;
+    pb.add(rounded(w, 0.05, d, 0.012), MAT.woodLight(), at(0, h - 0.025, 0));
+    pb.add(slab(w - 0.04, h - 0.05, 0.04), MAT.tealGloss(), at(0, (h - 0.05) / 2, d / 2 - 0.06));
+    for (const x of [-w / 2 + 0.06, w / 2 - 0.06]) pb.add(slab(0.05, h - 0.05, d - 0.06), m.steel, at(x, (h - 0.05) / 2, 0.02));
+    pb.add(cylinderBetween(V(-w / 2 + 0.1, 0.24, -0.02), V(w / 2 - 0.1, 0.24, -0.02), 0.022, 10), m.steel);
+    const stools = Math.max(1, Math.round(numParam(p, 'stools', Math.floor(w / 0.72))));
+    for (let i = 0; i < stools; i++) {
+      const x = -w / 2 + (w / stools) * (i + 0.5) + rng.range(-0.04, 0.04);
+      const z = -d / 2 - 0.3 + rng.range(-0.04, 0.04);
+      pb.add(new THREE.CylinderGeometry(0.19, 0.18, 0.07, 16), MAT.fabricWarm(), at(x, 0.76, z));
+      pb.add(cylinderBetween(V(x, 0.02, z), V(x, 0.73, z), 0.025, 8), m.steel);
+      pb.add(new THREE.TorusGeometry(0.16, 0.012, 6, 18), m.steel, at(x, 0.3, z, PI / 2, 0, 0));
+      pb.add(new THREE.CylinderGeometry(0.2, 0.22, 0.025, 16), m.steel, at(x, 0.012, z));
+      pb.solid(x - 0.2, 0, z - 0.2, x + 0.2, 0.8, z + 0.2, 'rubber');
+      pb.spot('sit_stool', x, 0, z, PI, 0.795); // ADR-0029: facing the counter
+    }
+    for (let i = 0; i < Math.round(numParam(p, 'mugs', 1)); i++) mugAt(pb, rng.pick([MAT.ceramic(), MAT.ceramicTeal(), MAT.ceramicRed()]), rng.range(-w / 2 + 0.2, w / 2 - 0.2), h, rng.range(-0.1, 0.08), rng.range(0, 6));
+    pb.solid(-w / 2, 0, -d / 2, w / 2, h, d / 2, 'metal');
+  },
+
+  /** Wall clock (back on z = 0): steel rim, paper face, hands at `hour`:`minute` (the 06:40 shift change). */
+  wall_clock(p, _rng, m, pb) {
+    const r = numParam(p, 'radius', 0.22);
+    const y = numParam(p, 'y', 2.7);
+    const hr = numParam(p, 'hour', 6);
+    const mn = numParam(p, 'minute', 40);
+    pb.add(new THREE.CylinderGeometry(r + 0.025, r + 0.025, 0.05, 32), m.steel, at(0, y, -0.025, PI / 2, 0, 0));
+    pb.add(new THREE.CircleGeometry(r, 32), MAT.paper(), at(0, y, -0.0505, 0, PI, 0));
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * PI * 2;
+      const len = i % 3 === 0 ? 0.045 : 0.022;
+      pb.add(slab(0.012, len, 0.003), m.black, at(-Math.sin(a) * (r - 0.02 - len / 2), y + Math.cos(a) * (r - 0.02 - len / 2), -0.053, 0, 0, a));
+    }
+    const hand = (a: number, len: number, wid: number, z: number): void => void pb.add(slab(wid, len, 0.003), m.black, at(-Math.sin(a) * (len / 2 - 0.02), y + Math.cos(a) * (len / 2 - 0.02), z, 0, 0, a));
+    hand((((hr % 12) + mn / 60) / 12) * PI * 2, r * 0.6, 0.016, -0.056);
+    hand((mn / 60) * PI * 2, r * 0.88, 0.01, -0.059);
+    pb.add(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 10), m.steel, at(0, y, -0.062, PI / 2, 0, 0));
+  },
+
+  /** Long planter trough (room divider): dark wood box, steel rim, mixed greens. */
+  planter(p, rng, m, pb) {
+    const w = numParam(p, 'width', 2.4);
+    const d = 0.5;
+    const h = numParam(p, 'height', 0.7);
+    pb.add(rounded(w, h, d, 0.02), MAT.woodDark(), at(0, h / 2, 0));
+    for (let i = 0; i < Math.floor(w / 0.3); i++) pb.add(slab(0.012, h - 0.12, 0.004), MAT.wood(), at(-w / 2 + 0.15 + i * 0.3, h / 2, -d / 2 - 0.002));
+    pb.add(rounded(w + 0.03, 0.03, d + 0.03, 0.008), m.steel, at(0, h, 0));
+    pb.add(slab(w - 0.06, 0.02, d - 0.06), MAT.soil(), at(0, h - 0.01, 0));
+    const greens = [MAT.leaf(), MAT.leafLight(), MAT.leafDark()];
+    const n = Math.max(2, Math.round(w / 0.45));
+    for (let i = 0; i < n; i++) {
+      const x = -w / 2 + (w / n) * (i + 0.5) + rng.range(-0.05, 0.05);
+      const k = (i + Math.floor(rng.range(0, 3))) % 3;
+      if (k === 0) rosette(pb, rng, greens, x, h, rng.range(-0.08, 0.08), 12, 0.5, 0.11, 1.0);
+      else if (k === 1) clump(pb, rng, greens, x, h + 0.14, 0, 0.22, 4);
+      else {
+        const tip = V(x + rng.range(-0.08, 0.08), h + rng.range(0.7, 1.0), rng.range(-0.06, 0.06));
+        pb.add(cylinderBetween(V(x, h, 0), tip, 0.014, 6), MAT.woodDark());
+        clump(pb, rng, greens, tip.x, tip.y - 0.1, tip.z, 0.2, 3);
+      }
+    }
+    pb.solid(-w / 2, 0, -d / 2, w / 2, h + 0.35, d / 2, 'metal');
+  },
 };
 
 // ------------------------------------------------------------------ canvas art
@@ -1229,6 +1482,75 @@ function stencilMat(text: string): THREE.MeshStandardMaterial {
   if (!mat) {
     mat = stencilDecal([{ text, size: 0.7, y: 0.78 }], 512, 128, '#d8d2c0', `slice-${text}`);
     stencilCache.set(text, mat);
+  }
+  return mat;
+}
+
+const menuCache = new Map<string, THREE.MeshStandardMaterial>();
+/** The galley menu: three service columns on dark slate, backlit (emissive from its own map). */
+function menuMat(title: string, aspect: number): THREE.MeshStandardMaterial {
+  const key = `${title}|${aspect.toFixed(2)}`;
+  let mat = menuCache.get(key);
+  if (!mat) {
+    const W = 1024;
+    const H = Math.round(W / aspect);
+    mat = paintedDecal(
+      (ctx, w, h) => {
+        ctx.fillStyle = '#121719';
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#1c2427';
+        ctx.fillRect(0, 0, w, h * 0.2);
+        ctx.fillStyle = '#3aa8a3';
+        ctx.fillRect(0, h * 0.2, w, Math.max(2, h * 0.012));
+        drawTagMark(ctx, h * 0.12, h * 0.1, h * 0.07, { ink: '#e9e4d8', accent: '#3aa8a3' });
+        ctx.fillStyle = '#f2c14e';
+        ctx.font = `700 ${Math.round(h * 0.11)}px "Arial Narrow", Arial, sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.fillText(title, h * 0.24, h * 0.14);
+        ctx.fillStyle = '#9fb3b0';
+        ctx.font = `${Math.round(h * 0.05)}px Arial, sans-serif`;
+        ctx.textAlign = 'right';
+        ctx.fillText('THALASSA DEEP  \u00b7  COMMONS  \u00b7  DECK 1', w - h * 0.08, h * 0.13);
+        const cols: Array<[string, string, string[]]> = [
+          ['BREAKFAST', '0600 - 0930', ['Kelp & egg scramble', 'Oat porridge, brown sugar', 'Protein loaf, butter', 'Fruit cup (hydro)']],
+          ['MAIN SHIFT', '1130 - 1400', ['Farmed cod stew', 'Hydro greens, lemon oil', 'Steamed rice', 'Roast potatoes']],
+          ['NIGHT', '2200 - 0100', ['Soup of the day', 'Toasted flatbread', 'Leftovers, labelled', 'Ask the galley']],
+        ];
+        const cw = w / cols.length;
+        cols.forEach(([name, hours, lines], i) => {
+          const x = cw * i + cw * 0.08;
+          ctx.textAlign = 'left';
+          ctx.fillStyle = '#f2c14e';
+          ctx.font = `700 ${Math.round(h * 0.075)}px "Arial Narrow", Arial, sans-serif`;
+          ctx.fillText(name, x, h * 0.34);
+          ctx.fillStyle = '#7f9592';
+          ctx.font = `${Math.round(h * 0.045)}px Arial, sans-serif`;
+          ctx.fillText(hours, x, h * 0.41);
+          ctx.fillStyle = '#e9e4d8';
+          ctx.font = `${Math.round(h * 0.055)}px Arial, sans-serif`;
+          lines.forEach((l, k) => ctx.fillText(l, x, h * 0.51 + k * h * 0.1));
+          if (i > 0) {
+            ctx.fillStyle = '#26302f';
+            ctx.fillRect(cw * i, h * 0.27, 2, h * 0.6);
+          }
+        });
+        ctx.fillStyle = '#3aa8a3';
+        ctx.font = `700 ${Math.round(h * 0.045)}px Arial, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('COFFEE IS ON THE HOUSE  \u00b7  PLEASE RETURN YOUR MUG', w / 2, h * 0.95);
+      },
+      W,
+      H,
+      `menu-${key}`,
+      false,
+    );
+    mat.transparent = false;
+    // Opaque now, so it must write depth or the frame behind can draw over it.
+    mat.depthWrite = true;
+    mat.emissive.set(0xffffff);
+    mat.emissiveMap = mat.map;
+    mat.emissiveIntensity = 0.45;
+    menuCache.set(key, mat);
   }
   return mat;
 }
@@ -1468,9 +1790,9 @@ function drawBank(ctx: CanvasRenderingContext2D, t: number, w: number, h: number
 
 const HALF = 2;
 
-function wallBack(pb: PieceBuilder, m: Materials, h: number): THREE.Matrix4 {
+function wallBack(pb: PieceBuilder, m: Materials, h: number, back: THREE.Material = m.paintDark): THREE.Matrix4 {
   const f = wallFrame(0, -HALF + WALL_T, 0);
-  pb.add(slab(4, h + 0.1, WALL_T), m.paintDark, inFrame(f, 0, h / 2 - 0.05, -WALL_T / 2));
+  pb.add(slab(4, h + 0.1, WALL_T), back, inFrame(f, 0, h / 2 - 0.05, -WALL_T / 2));
   pb.solid(-HALF, 0, -HALF, HALF, h, -HALF + WALL_T);
   return f;
 }
@@ -1479,7 +1801,7 @@ const STRUCT: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceB
   /** Office carpet over the deck; soft footsteps. */
   floor_carpet(_p, _rng, m, pb) {
     pb.add(slab(4, 0.1, 4), m.paintDark, at(0, -0.17, 0));
-    pb.add(slab(4, 0.08, 4, 2), MAT.carpet(), at(0, -0.04, 0));
+    pb.add(slab(4, 0.08, 4), m.carpet, at(0, -0.04, 0));
     for (const s of [-1, 1]) {
       pb.add(slab(4, 0.081, 0.12), MAT.carpetBorder(), at(0, -0.04, s * 1.94));
       pb.add(slab(0.12, 0.081, 4), MAT.carpetBorder(), at(s * 1.94, -0.04, 0));
@@ -1508,28 +1830,30 @@ const STRUCT: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceB
     pb.nav(0, 0, 0);
   },
 
-  /** Warm wood panelling (admin office). */
-  wall_wood(p, rng, m, pb) {
+  /** Warm wood panelling (admin office): clean dark-wood reveals, grained wood panels, matte plaster header. */
+  wall_wood(p, _rng, m, pb) {
     const h = numParam(p, 'height', 3.2);
-    const f = wallBack(pb, m, h);
+    const f = wallBack(pb, m, h, MAT.woodDark());
     pb.add(slab(4, 0.14, 0.04), MAT.woodDark(), inFrame(f, 0, 0.07, 0.02));
     pb.add(slab(4, 0.06, 0.05), MAT.woodDark(), inFrame(f, 0, Math.min(2.6, h - 0.3), 0.025));
     for (let i = 0; i < 4; i++) {
       const x = -1.5 + i;
-      const mat = rng.chance(0.5) ? MAT.wood() : MAT.woodLight();
-      pb.add(rounded(0.96, Math.min(2.6, h - 0.3) - 0.24, 0.03, 0.006), mat, inFrame(f, x, (Math.min(2.6, h - 0.3) + 0.14) / 2, 0.015));
+      pb.add(rounded(0.96, Math.min(2.6, h - 0.3) - 0.24, 0.03, 0.006), m.woodPanel, inFrame(f, x, (Math.min(2.6, h - 0.3) + 0.14) / 2, 0.015));
     }
-    if (h > 2.95) pb.add(slab(4, h - 2.66, 0.02), m.paintBone, inFrame(f, 0, (h + 2.66) / 2, 0.01));
+    if (h > 2.95) pb.add(slab(4, h - 2.66, 0.02), MAT.wallPlaster(), inFrame(f, 0, (h + 2.66) / 2, 0.01));
   },
 
   /** White tile wall (kitchen, medical). */
   wall_tiles(p, _rng, m, pb) {
     const h = numParam(p, 'height', 3.2);
-    const f = wallBack(pb, m, h);
+    const pal = resolvePalette(p, m);
+    // Above the tiles: the area's upper-band material when its palette names one (commons), else the old dark paint.
+    const upper = paletteFor(typeof p.area === 'string' ? p.area : undefined).wallAlt;
+    const f = wallBack(pb, m, h, upper ? m[upper] : m.paintDark);
     // One metre-UV slab; the tileWall texture carries its own grout lines.
-    const mat = p.material !== undefined ? resolvePalette(p, m).wallMain : m.tileWall;
+    const mat = p.material !== undefined ? pal.wallMain : m.tileWall;
     pb.add(slab(4, Math.min(2.4, h), 0.02), mat, inFrame(f, 0, Math.min(2.4, h) / 2, 0.01));
-    pb.add(slab(4, 0.06, 0.05), m.steel, inFrame(f, 0, Math.min(2.4, h) + 0.03, 0.025));
+    pb.add(slab(4, 0.06, 0.05), pal.trim, inFrame(f, 0, Math.min(2.4, h) + 0.03, 0.025));
   },
 
   /** Hydroponics wall: panel wall with a condensation-streaked green glass grow window. */

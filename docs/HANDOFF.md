@@ -68,3 +68,9 @@ for Justin.
 
 ## Update (later 2026-11-17)
 Done since: Giles bandage/veins/sweat (`castTells.ts`), gore clip plane, `cp_climax_won` + `reveal_restore`, `quiet_restore`, the silent researcher walk-by, TAG FM in the R05 ruin. Also done: Priya's drag is a rope (`npcDrag`, lying pose, no gait; `attachToTrack` accepts anchor lists), a manual save mid-reveal and a death restart into `cp_climax_won` both replay the reveal (`running:<id>` flag in `if`, `onRestart` re-fires restores). Suite 431/431. Still open: nothing has been seen in a browser. See `docs/PLAYTEST.md`.
+
+## Update (2026-11-19, commons pass)
+- R02 Commons rebuilt as a cafeteria lounge (galley + servery + menu board, self-serve wall, dining under pendants, window bar SW, rug lounge SE with the TV on the east wall). New kit props in `kit/slice.ts`: `servery`, `menu_board`, `drink_station`, `bin_station`, `rug`, `pendant_light`, `bar_counter`, `wall_clock`, `planter`; `dining_table` takes `caddy`.
+- Commons palette is now concrete / concretePainted / labTile: every paint photo slot (paintBone = labPanel, paintTeal, paintDark) is peeling and rusty.
+- Engine: flat-colour and static-glow merging in `kit/merge.ts` (see surface-dressing-standard section 6). R01 went 60 -> 51 calls, R02 59 -> 52 with far more dressing.
+- `gen-slice01.mjs` now carries the hand edits that had been made straight to `slice01.json` (R01 security post, steel walls and ceilings, R04/R06 danger signs, R12d washroom tiles) via new room options `wallMaterial` / `ceilingMaterial`. Edit the generator, not the JSON. Other sessions were editing the JSON at the same time, so only R02 was spliced in this pass. A full regen would drop JSON-only edits (e.g. ADR-0028 walks) unless they are ported first.

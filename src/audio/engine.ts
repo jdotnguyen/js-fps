@@ -18,6 +18,8 @@ export interface VoiceOptions {
   reverb?: number;
   /** Low-pass as if heard through a wall or water. */
   muffled?: boolean;
+  /** Optional custom low-pass cutoff in Hz (overrides `muffled`'s 650 Hz when set). */
+  cutoff?: number;
   rate?: number;
   variant?: number;
   /** Play only a slice of the clip: start `offset` s in, for `duration` s (at rate 1), fading out at the end. */
@@ -27,7 +29,8 @@ export interface VoiceOptions {
 
 export interface LoopHandle {
   setGain(value: number, timeConstant?: number): void;
-  stop(): void;
+  /** Stop immediately, or fade smoothly to zero over `fadeSeconds` before stopping. */
+  stop(fadeSeconds?: number): void;
 }
 
 interface ReverbNode {
@@ -43,10 +46,13 @@ export class AudioEngine {
   /** Low-pass on the whole mix, for the damage "muffle" (ADR-0004). */
   private readonly muffleFilter: BiquadFilterNode;
   readonly buses: Record<BusName, GainNode>;
-  private readonly reverbIn: GainNode;
+  /** Shared room convolution reverb input (ADR-0013); also fed by local dialogue (ADR-0010). */
+  readonly reverbIn: GainNode;
   private readonly reverbs = new Map<ReverbPreset, ReverbNode>();
   private activeReverb: ReverbPreset;
   private readonly buffers = new Map<SoundName, AudioBuffer[]>();
+  private readonly loadedSamples = new Set<SampleName>();
+  private readonly sampleListeners = new Set<(name: SampleName) => void>();
   private readonly rng = new Rng('audio-engine');
   private readonly forward = new THREE.Vector3();
   private readonly up = new THREE.Vector3();
@@ -161,6 +167,35 @@ export class AudioEngine {
     return performance.now() - t0;
   }
 
+  /** True when at least one buffer (procedural or recorded sample) is ready for `name`. */
+  hasSound(name: SoundName): boolean {
+    const list = this.buffers.get(name);
+    return list !== undefined && list.length > 0;
+  }
+
+  /** Number of rendered or decoded variants currently available for `name`. */
+  variantCount(name: SoundName): number {
+    return this.buffers.get(name)?.length ?? 0;
+  }
+
+  /** True once the recorded sample for `name` has finished decoding. */
+  hasSample(name: SampleName): boolean {
+    return this.loadedSamples.has(name);
+  }
+
+  /** Duration in seconds of the first loaded buffer for `name`, or 0 if unavailable. */
+  durationOf(name: SoundName): number {
+    return this.buffers.get(name)?.[0]?.duration ?? 0;
+  }
+
+  /** Subscribe to sample-decode completions (used to hot-upgrade loops started on procedural fallbacks). */
+  onSampleLoaded(fn: (name: SampleName) => void): () => void {
+    this.sampleListeners.add(fn);
+    return () => {
+      this.sampleListeners.delete(fn);
+    };
+  }
+
   /**
    * Fetch and decode the recorded samples (SAMPLE_URLS), replacing any procedural sound of the same
    * name. Failures are logged and leave the procedural fallback (or silence) in place.
@@ -171,7 +206,11 @@ export class AudioEngine {
         const list = (await Promise.all((typeof urls === 'string' ? [urls] : urls).map((url) => this.fetchSample(name, url)))).filter(
           (b): b is AudioBuffer => b !== null,
         );
-        if (list.length > 0) this.buffers.set(name, list);
+        if (list.length > 0) {
+          this.buffers.set(name, list);
+          this.loadedSamples.add(name);
+          for (const fn of this.sampleListeners) fn(name);
+        }
       }),
     );
   }
@@ -227,21 +266,61 @@ export class AudioEngine {
     }
   }
 
-  play(name: SoundName, opts: VoiceOptions = {}): void {
+  play(name: SoundName, opts: VoiceOptions = {}): LoopHandle {
     const { source, gain, output } = this.voice(name, opts, false);
-    source.onended = () => output.disconnect();
+    let stopped = false;
+    let stopTimer: ReturnType<typeof setTimeout> | null = null;
+    const finishStop = (): void => {
+      if (stopped) return;
+      stopped = true;
+      if (stopTimer !== null) {
+        clearTimeout(stopTimer);
+        stopTimer = null;
+      }
+      try {
+        source.stop();
+      } catch {
+        /* already stopped */
+      }
+      output.disconnect();
+    };
+    source.onended = () => finishStop();
+
     const length = source.buffer?.duration ?? 0;
-    if (opts.duration === undefined || length === 0) return void source.start();
-    const offset = Math.min(Math.max(0, opts.offset ?? 0), Math.max(0, length - 0.1));
-    const span = Math.min(opts.duration, length - offset);
     const now = this.ctx.currentTime;
-    const fade = Math.min(0.3, span * 0.3);
-    const level = opts.gain ?? 1;
-    // `duration` counts clip seconds, so a faster rate finishes sooner; fade over the last bit of what is heard.
-    const heard = span / (opts.rate ?? 1);
-    gain.gain.setValueAtTime(level, now + Math.max(0, heard - fade));
-    gain.gain.linearRampToValueAtTime(0, now + heard);
-    source.start(now, offset, span);
+    const offset = length > 0 ? Math.min(Math.max(0, opts.offset ?? 0), Math.max(0, length - 0.05)) : 0;
+    if (opts.duration === undefined || length === 0) {
+      if (offset > 0) source.start(now, offset);
+      else source.start();
+    } else {
+      const span = Math.min(opts.duration, length - offset);
+      const fade = Math.min(0.3, span * 0.3);
+      const level = opts.gain ?? 1;
+      // `duration` counts clip seconds, so a faster rate finishes sooner; fade over the last bit of what is heard.
+      const heard = span / (opts.rate ?? 1);
+      gain.gain.setValueAtTime(level, now + Math.max(0, heard - fade));
+      gain.gain.linearRampToValueAtTime(0, now + heard);
+      source.start(now, offset, span);
+    }
+
+    return {
+      setGain: (value, timeConstant = 0.03) => {
+        if (stopped) return;
+        gain.gain.setTargetAtTime(value, this.ctx.currentTime, timeConstant);
+      },
+      stop: (fadeSeconds = 0) => {
+        if (stopped) return;
+        if (fadeSeconds <= 0) {
+          finishStop();
+          return;
+        }
+        const t = this.ctx.currentTime;
+        gain.gain.cancelScheduledValues(t);
+        gain.gain.setValueAtTime(gain.gain.value, t);
+        gain.gain.linearRampToValueAtTime(0, t + fadeSeconds);
+        stopTimer = setTimeout(finishStop, Math.ceil(fadeSeconds * 1000) + 40);
+      },
+    };
   }
 
   /** Loop a pre-rendered stereo track on the music bus. Silent until `setGain` raises it. */
@@ -266,11 +345,38 @@ export class AudioEngine {
     const { source, gain, output } = this.voice(name, opts, true);
     const buffer = source.buffer;
     source.start(0, buffer ? this.rng.next() * buffer.duration : 0);
-    return {
-      setGain: (value, timeConstant = 0.03) => gain.gain.setTargetAtTime(value, this.ctx.currentTime, timeConstant),
-      stop: () => {
+    let stopped = false;
+    let stopTimer: ReturnType<typeof setTimeout> | null = null;
+    const finishStop = (): void => {
+      if (stopped) return;
+      stopped = true;
+      if (stopTimer !== null) {
+        clearTimeout(stopTimer);
+        stopTimer = null;
+      }
+      try {
         source.stop();
-        output.disconnect();
+      } catch {
+        /* already stopped */
+      }
+      output.disconnect();
+    };
+    return {
+      setGain: (value, timeConstant = 0.03) => {
+        if (stopped) return;
+        gain.gain.setTargetAtTime(value, this.ctx.currentTime, timeConstant);
+      },
+      stop: (fadeSeconds = 0) => {
+        if (stopped) return;
+        if (fadeSeconds <= 0) {
+          finishStop();
+          return;
+        }
+        const now = this.ctx.currentTime;
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(gain.gain.value, now);
+        gain.gain.linearRampToValueAtTime(0, now + fadeSeconds);
+        stopTimer = setTimeout(finishStop, Math.ceil(fadeSeconds * 1000) + 40);
       },
     };
   }
@@ -281,8 +387,8 @@ export class AudioEngine {
     const buffer = list[(opts.variant ?? this.rng.int(0, list.length - 1)) % list.length]!;
     const source = new AudioBufferSourceNode(this.ctx, { buffer, loop, playbackRate: opts.rate ?? 1 });
     let node: AudioNode = source;
-    if (opts.muffled) {
-      const lp = new BiquadFilterNode(this.ctx, { type: 'lowpass', frequency: 650, Q: 0.5 });
+    if (opts.cutoff !== undefined || opts.muffled) {
+      const lp = new BiquadFilterNode(this.ctx, { type: 'lowpass', frequency: opts.cutoff ?? 650, Q: 0.5 });
       node.connect(lp);
       node = lp;
     }

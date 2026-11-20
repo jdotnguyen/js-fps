@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import type { AudioEngine, LoopHandle } from '../audio/engine.ts';
+import type { AudioEngine, LoopHandle, VoiceOptions } from '../audio/engine.ts';
 import { Scheduler } from '../audio/scheduler.ts';
+import type { SampleName } from '../audio/sounds.ts';
 import type { Rng } from '../core/rng.ts';
 import type { ControlledLight } from '../render/lights.ts';
 import { ABYSS_CYCLE } from '../render/fx/abyss.ts';
@@ -12,8 +13,15 @@ interface Buzz {
   handle: LoopHandle;
   light: ControlledLight;
   position: THREE.Vector3;
+  rate: number;
   prev: number;
   lastZap: number;
+}
+
+interface ManagedLoop {
+  name: SampleName;
+  opts: VoiceOptions;
+  handle: LoopHandle;
 }
 
 /**
@@ -27,6 +35,7 @@ export class DemoRoomAudio {
   private readonly rng: Rng;
   private readonly scheduler: Scheduler;
   private readonly buzz: Buzz[] = [];
+  private readonly managed: ManagedLoop[] = [];
   private lastMoanCycle = -1;
 
   constructor(engine: AudioEngine, room: DemoRoom, rng: Rng) {
@@ -41,19 +50,43 @@ export class DemoRoomAudio {
     const a = this.room.anchors;
     const r = this.rng;
 
-    e.loop('roomTone', { bus: 'ambience', gain: 0.35 });
-    e.loop('ventFan', { bus: 'ambience', gain: 0.6, position: a.vent, reverb: 0.1 });
-    e.loop('waterRumble', { bus: 'ambience', gain: 0.8, position: a.window, reverb: 0.2 });
-    e.loop('consoleHum', { bus: 'ambience', gain: 0.3, position: a.console });
+    const addLoop = (name: SampleName, opts: VoiceOptions): void => {
+      this.managed.push({ name, opts, handle: e.loop(name, opts) });
+    };
+    addLoop('roomTone', { bus: 'ambience', gain: 0.45 });
+    addLoop('ventFan', { bus: 'ambience', gain: 0.55, position: a.vent, reverb: 0.1 });
+    addLoop('waterRumble', { bus: 'ambience', gain: 0.7, position: a.window, reverb: 0.2 });
+    addLoop('consoleHum', { bus: 'ambience', gain: 0.28, position: a.console });
     for (const f of a.fixtures) {
+      const rate = r.range(0.98, 1.02);
       this.buzz.push({
-        handle: e.loop('fluorescentBuzz', { bus: 'ambience', gain: BUZZ_GAIN, position: f.position, rate: r.range(0.98, 1.02) }),
+        handle: e.loop('fluorescentBuzz', { bus: 'ambience', gain: BUZZ_GAIN, position: f.position, rate }),
         light: f.light,
         position: f.position,
+        rate,
         prev: 1,
         lastZap: -1,
       });
     }
+
+    // Hot-swap running procedural loops once their recorded ElevenLabs samples finish decoding.
+    e.onSampleLoaded((sample) => {
+      for (const m of this.managed) {
+        if (m.name !== sample) continue;
+        const next = e.loop(sample, { ...m.opts, gain: 0 });
+        m.handle.stop(0.8);
+        next.setGain(m.opts.gain ?? 1, 0.35);
+        m.handle = next;
+      }
+      if (sample === 'fluorescentBuzz') {
+        for (const b of this.buzz) {
+          const next = e.loop('fluorescentBuzz', { bus: 'ambience', gain: 0, position: b.position, rate: b.rate });
+          b.handle.stop(0.4);
+          next.setGain(BUZZ_GAIN * b.light.level, 0.2);
+          b.handle = next;
+        }
+      }
+    });
 
     const s = this.scheduler;
     const far = (): THREE.Vector3 =>
