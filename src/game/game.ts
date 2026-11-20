@@ -51,7 +51,7 @@ export interface GameDeps {
   audio: AudioEngine;
   toasts: Toasts;
   hud: PlayerHud;
-  /** Sequencer, cutscene bars and the skip prompt (ADR-0017). */
+  /** Sequencer, cutscene bars and the skip prompt (intro-sequence spec). */
   cutscene: CutsceneController;
   /** Key items held (ADR-0024), saved in `items`. */
   inventory: Inventory;

@@ -1,7 +1,7 @@
 import { arr, bool, obj, optional, record, scalar, str, ValidationError, type Infer, type Validator } from '../../core/validate.ts';
 
 /**
- * Objectives (ADR-0024, ADR-0010 hints): `data/objectives.json` maps an objective id to its
+ * Objectives (ADR-0024; hints in dialogue/hints.ts): `data/objectives.json` maps an objective id to its
  * title, whether it is required, the map area it lives in and the hint ladder a squadmate
  * walks down when the player is stuck on it. Sequences start and finish objectives with
  * `setObjective` / `completeObjective`; `startOn` / `completeOn` do it from game events
@@ -25,7 +25,7 @@ const objectiveShape = {
   area: optional(str),
   /** Explicit target instead of the area: "room:<id>", "door:<id>" or "anchor:<id>". */
   target: optional(str),
-  /** Hint tiers, vague to explicit (ADR-0010). The last tier also fires the nav pulse. */
+  /** Hint tiers, vague to explicit. The last tier also fires the nav pulse. */
   hints: optional(arr(tier)),
   startOn: optional(obj(eventMatchShape)),
   completeOn: optional(obj(eventMatchShape)),

@@ -192,6 +192,41 @@ const tmpIdle = emptyPose('mocap_idle');
 const cWalk: [number, number] = [1, 1];
 const cJog: [number, number] = [1, 1];
 
+/**
+ * The clips one character idles, talks and moves with. Every character runs on the shared 21-joint skeleton, so a main character
+ * gets its own motion by naming its own baked clips here (e.g. `priya_walk`); a slot left out, or naming a clip the library does
+ * not have, falls back to the default set.
+ */
+export interface MotionSet {
+  idle: string;
+  talk: string;
+  walk: string;
+  jog: string;
+}
+
+export const DEFAULT_MOTIONS: Readonly<MotionSet> = { idle: 'idle', talk: 'idle_talk', walk: 'walk', jog: 'jog' };
+/** The calmer, composed walk (medics, the director). */
+export const FORMAL_MOTIONS: Readonly<MotionSet> = { ...DEFAULT_MOTIONS, walk: 'walk_formal' };
+
+const warnedMotion = new Set<string>();
+
+/** `own` over the default (or formal) set; ids the library lacks fall back, with one warning per id. */
+export function resolveMotions(lib: MocapLibrary, own: Partial<MotionSet> | undefined, formal = false): MotionSet {
+  const base = formal ? FORMAL_MOTIONS : DEFAULT_MOTIONS;
+  const out: MotionSet = { ...base };
+  if (!own) return out;
+  for (const slot of Object.keys(base) as (keyof MotionSet)[]) {
+    const id = own[slot];
+    if (!id) continue;
+    if (lib.has(id)) out[slot] = id;
+    else if (!warnedMotion.has(id)) {
+      warnedMotion.add(id);
+      console.warn(`mocap: no clip "${id}" for the ${slot} slot, using "${base[slot]}"`);
+    }
+  }
+  return out;
+}
+
 export interface LocomotionSample {
   /** Blended stride length (m/cycle) at the current speed, for phase advancement. */
   stride: number;
@@ -206,7 +241,7 @@ export interface LocomotionSample {
 
 /**
  * Evaluate the phase-synchronized 1D human locomotion blend space:
- *   idle (0 m/s) <-> walk / walk_formal (~1.3 m/s) <-> jog (~2.7+ m/s).
+ *   idle (0 m/s) <-> walk (~1.3 m/s) <-> jog (~2.7+ m/s), using the body's motion set (default: idle, walk, jog).
  * Writes the blended pose into `outPose` and returns stride + contact metadata.
  */
 export function sampleLocomotion(
@@ -214,13 +249,14 @@ export function sampleLocomotion(
   speed: number,
   locoPhase: number,
   idlePhase: number,
-  opts: { formal?: boolean; talking?: boolean },
+  opts: { formal?: boolean; talking?: boolean; motions?: MotionSet },
   outPose: CompiledPose,
   outInfo: LocomotionSample,
 ): void {
-  const idleClip = lib.get(opts.talking ? 'idle_talk' : 'idle');
-  const walkClip = lib.get(opts.formal ? 'walk_formal' : 'walk');
-  const jogClip = lib.get('jog');
+  const set = opts.motions ?? (opts.formal ? FORMAL_MOTIONS : DEFAULT_MOTIONS);
+  const idleClip = lib.get(opts.talking ? set.talk : set.idle);
+  const walkClip = lib.get(set.walk);
+  const jogClip = lib.get(set.jog);
 
   const moveW = smoothstep(0.04, 0.85, speed);
   const jogW = smoothstep(1.55, 2.75, speed);

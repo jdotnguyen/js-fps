@@ -7,7 +7,7 @@ import type { Navigator, P3 } from './nav.ts';
 import { PathFollower, planWalk, roundCorners } from './walkPath.ts';
 
 /**
- * One scriptable NPC body (ADR-0009 NPC actions, ADR-0017 intro, ADR-0023 crew). Wraps a
+ * One scriptable NPC body (ADR-0009 NPC actions, intro-sequence spec, ADR-0023 crew). Wraps a
  * Humanoid and its motor state; the squad lends theirs while a sequence drives them.
  *
  * Commands replace each other per channel (move, anim, look): a new move resolves the
@@ -29,6 +29,12 @@ export const NPC_ANIMS: Readonly<Record<string, { pose: string; hold: number; bl
   crouchWork: { pose: 'crouchWork', hold: Infinity },
   kneel: { pose: 'kneel_revive', hold: Infinity },
   idle: { pose: 'idle', hold: 0 },
+  // dock-checkpoint: a scan. The arrival holds `arms_out` while the guard sweeps the wand up and down, then both go back to
+  // their base poses (`idle`, `idle_wand`).
+  arms_out: { pose: 'arms_out', hold: Infinity, blend: 0.45 },
+  idle_wand: { pose: 'idle_wand', hold: Infinity, blend: 0.4 },
+  wand_up: { pose: 'wand_up', hold: 0.7, blend: 0.35 },
+  wand_down: { pose: 'wand_down', hold: 0.8, blend: 0.45 },
 };
 
 /** Small ambient gestures by base pose, picked now and then while an NPC is idle. */
@@ -40,7 +46,19 @@ const AMBIENT_GESTURES: Readonly<Record<string, readonly string[]>> = {
   idle_mug: ['drink', 'glance', 'glance_other'],
   clipboard: ['glance', 'glance_other'],
   typing: ['glance', 'glance_other'],
+  // ADR-0029 seated and leaning bodies: each gesture extends its base pose, so the legs stay put.
+  // Drink gestures only where the base already holds a mug, so a mug never pops into an empty hand.
+  sit_chair: ['sit_chair_glance', 'sit_chair_glance_other', 'sit_chair_look_down', 'sit_chair_lean', 'sit_chair_hands', 'sit_chair_crossed'],
+  sit_stool: ['sit_stool_glance', 'sit_stool_glance_other', 'sit_stool_look_down'],
+  sit_sofa: ['sit_sofa_glance', 'sit_sofa_glance_other', 'sit_sofa_look_down', 'sit_sofa_crossed'],
+  lean_wall: ['lean_wall_glance', 'lean_wall_glance_other', 'lean_wall_look_down', 'lean_wall_hands'],
+  lean_counter: ['lean_counter_glance', 'lean_counter_glance_other', 'lean_counter_look_down'],
+  lean_back: ['lean_back_glance', 'lean_back_glance_other', 'lean_back_look_down'],
+  lean_back_mug: ['lean_back_mug_drink', 'lean_back_mug_glance', 'lean_back_mug_glance_other', 'lean_back_mug_drink', 'lean_back_mug_look_down'],
 };
+
+/** ADR-0029: sitting or leaning on something. Such a body never steps aside and is not shoved. */
+export const PLACED_POSE = /^(sit_|lean_)/;
 
 export const NPC_TUNING = {
   walk: 1.3,
@@ -48,6 +66,8 @@ export const NPC_TUNING = {
   repath: 0.6,
   /** Ambient: look at Jay inside this range when he is roughly in front. */
   noticeRange: 3.5,
+  /** In a conversation (ADR-0029), Jay only draws the eye this close. */
+  chatNoticeRange: 1.8,
   gestureEvery: [5, 12] as const,
   /** Bodies further than this from the camera skip animation (cheap crowds). */
   sleepDistance: 28,
@@ -141,6 +161,16 @@ export class NpcActor {
   offering: string | null = null;
   /** Ambient behaviour (look at Jay, small gestures) when no script is driving. */
   ambient = true;
+  /**
+   * Who this body looks at in a conversation (ADR-0029 chatter), below a script's look and Jay up close.
+   * Null when not in a conversation.
+   */
+  socialLook: (() => THREE.Vector3 | null) | null = null;
+  /**
+   * Who to look at while a story line is spoken nearby (ADR-0029 listen-look): the speaker, or for the speaker the
+   * person they answer. Below a script's own look, above everything ambient. Set and cleared by the NPC director.
+   */
+  talkLook: (() => THREE.Vector3 | null) | null = null;
   private move: MoveCmd | null = null;
   private tow: Tow | null = null;
   /** The current move set `body.carried` (cleared when it ends). */
@@ -214,7 +244,7 @@ export class NpcActor {
    * (typing at a console, crouched at a panel, kneeling over a body, holding out an offer).
    */
   get separationExempt(): boolean {
-    return this.tow !== null || this.body.carried !== null || this.offering !== null || WORK_POSES.has(this.basePose);
+    return this.tow !== null || this.body.carried !== null || this.offering !== null || WORK_POSES.has(this.basePose) || PLACED_POSE.test(this.basePose);
   }
 
   /** Soft push from actor separation: slides the body (through level collision), never a teleport. */
@@ -247,6 +277,12 @@ export class NpcActor {
   moveTo(at: P3, opts: { speed?: number; yaw?: number; instant?: boolean; track?: P3[]; curve?: P3[]; pose?: string } = {}): Promise<void> {
     this.stopMove();
     this.follow = null;
+    if (PLACED_POSE.test(this.basePose)) {
+      // Sitting or leaning (ADR-0029): stand up before walking off.
+      this.gesture = null;
+      this.basePose = 'idle';
+      this.body.setPose('idle', opts.instant ? 0.01 : 0.5);
+    }
     if (opts.pose && !opts.instant) {
       // A downed body being moved: hold a lying pose instead of the walking gait.
       this.body.carried = opts.pose;
@@ -324,8 +360,12 @@ export class NpcActor {
 
   /** Play a named gesture (NPC_ANIMS) or any pose by name. Resolves when it ends (held poses resolve at once). */
   playAnim(name: string, opts: { instant?: boolean; has?: (pose: string) => boolean } = {}): Promise<void> {
-    const def = NPC_ANIMS[name] ?? (opts.has?.(name) ? { pose: name, hold: Infinity } : null);
-    if (!def) return Promise.resolve();
+    const base = NPC_ANIMS[name] ?? (opts.has?.(name) ? { pose: name, hold: Infinity } : null);
+    if (!base) return Promise.resolve();
+    // A timed gesture on a seated or leaning body uses that base's own version (`drink` on `lean_back_mug` is
+    // `lean_back_mug_drink`), so the legs stay put and a held mug stays in the hand (ADR-0029).
+    const variant = base.hold !== Infinity && base.hold !== 0 ? `${this.basePose}_${base.pose}` : '';
+    const def = variant && opts.has?.(variant) ? { ...base, pose: variant } : base;
     this.cancelWay();
     this.endAnim();
     this.gesture = null;
@@ -358,6 +398,24 @@ export class NpcActor {
     this.endAnim();
     this.basePose = pose;
     this.body.setPose(pose, 0.4);
+  }
+
+  /** Smoothly settle into an activity spot (ADR-0029 phase 2): align feet/facing and blend into the seated/leaning pose. */
+  settleAt(at: P3, yaw: number, pose: string, blend = 0.75): void {
+    this.cancelWay();
+    this.endAnim();
+    this.gesture = null;
+    this.motor.x = at.x;
+    this.motor.y = at.y;
+    this.motor.z = at.z;
+    this.motor.vy = 0;
+    this.motor.grounded = true;
+    this.body.group.position.set(at.x, at.y, at.z);
+    this.body.setHeading(yaw);
+    this.faceYaw = null;
+    this.lastPos.copy(this.body.group.position);
+    this.basePose = pose;
+    this.body.setPose(pose, blend);
   }
 
   lookAt(get: (() => THREE.Vector3 | null) | null): void {
@@ -503,11 +561,16 @@ export class NpcActor {
       }
     }
 
-    // Head: script look wins, then ambient notice of Jay.
+    // Head: script look wins, then Jay up close, then the conversation (ADR-0029), then ambient notice of Jay.
     const scripted = this.lookGet?.() ?? null;
+    const talk = !scripted && !this.tow ? (this.talkLook?.() ?? null) : null;
     if (scripted) this.body.lookTarget = scripted;
-    else if (this.ambient && !this.move && !this.tow) this.body.lookTarget = this.notices(env) ? env.playerHead : null;
-    else this.body.lookTarget = null;
+    else if (talk) this.body.lookTarget = talk;
+    else if (this.ambient && !this.move && !this.tow) {
+      const social = this.socialLook?.() ?? null;
+      if (social) this.body.lookTarget = this.notices(env, NPC_TUNING.chatNoticeRange) ? env.playerHead : social;
+      else this.body.lookTarget = this.notices(env) ? env.playerHead : null;
+    } else this.body.lookTarget = null;
 
     if (this.ambient && !this.busy && !this.offering) this.ambientGesture(dt);
 
@@ -602,7 +665,7 @@ export class NpcActor {
   private giveWay(dt: number, env: NpcEnv, desired: THREE.Vector3): number {
     const me = this.position;
     const wish = env.playerWish;
-    if (this.tow || this.body.carried !== null || this.offering !== null || !this.body.group.visible) {
+    if (this.tow || this.body.carried !== null || this.offering !== null || !this.body.group.visible || PLACED_POSE.test(this.basePose)) {
       if (this.wayPhase) this.cancelWay();
       return 0;
     }
@@ -669,12 +732,12 @@ export class NpcActor {
     return Math.min(GIVE_WAY.speed, 0.3 + toHome * 1.5);
   }
 
-  private notices(env: NpcEnv): boolean {
+  private notices(env: NpcEnv, range: number = NPC_TUNING.noticeRange): boolean {
     const me = this.position;
     const dx = env.playerFeet.x - me.x;
     const dz = env.playerFeet.z - me.z;
     const d = Math.hypot(dx, dz);
-    if (d > NPC_TUNING.noticeRange || d < 0.2) return false;
+    if (d > range || d < 0.2) return false;
     const f = dirOf(this.body.heading, tmpA);
     return (dx * f.x + dz * f.z) / d > -0.2; // not behind them
   }

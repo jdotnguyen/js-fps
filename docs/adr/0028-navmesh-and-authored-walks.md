@@ -51,8 +51,8 @@ walks in slice01 through the real colliders showed why people walked into walls:
   2 m out they bend away from the nearest body ahead, committing to one side until it is passed (head-on, both bend to
   the same hand so they part), and ease off to 55% when close. Detour's crowd simulation was not used: it would have
   replaced, not joined, the existing separation, give-way and Jay-avoidance behaviour.
-- **Intro.** Okafor's and Giles's arrival, their walk to the counter (Giles a step to Okafor's side so they don't share a
-  line) and Jay's walk to the kitchen are authored walks.
+- **Intro.** The intro's walks are authored walks; which ones, and why, is in the `intro-sequence` and `dock-checkpoint` specs
+  and the archived `dock-security-checkpoint` change.
 
 ## Tests
 - `world/slice01Walks.test.ts`: every authored curve clears the walls at body radius with doors open, sequences only

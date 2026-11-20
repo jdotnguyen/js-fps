@@ -43,6 +43,14 @@ export interface SpeechLike {
   done: Promise<unknown>;
 }
 
+/** How a scripted shot's mouse give behaves (intro-sequence spec). */
+export interface FrameOptions {
+  /** Seconds the give stays where the mouse left it before springing back. Default 0. */
+  hold?: number;
+  /** Spring-back time constant, seconds. Default about 0.12 (settles in ~0.4 s). */
+  returnTime?: number;
+}
+
 export interface SequenceHost {
   events: LooseBus;
   /** The playthrough's flags (ADR-0016 saves them). A getter: loading replaces the object. */
@@ -57,8 +65,10 @@ export interface SequenceHost {
   pushControl?(over: ControlOverride, owner: string): () => void;
   lookAt?(at: Vec3Like, duration: number, weight: number): void;
   clampLook?(at: Vec3Like | null, degrees: number): void;
-  /** Scripted shot (ADR-0017): hold the view on `at` with `give` degrees of mouse give; null releases. */
-  frame?(at: Vec3Like | null, duration: number, give: number, follow?: () => Vec3Like | null): void;
+  /** Scripted shot (intro-sequence spec): hold the view on `at` with `give` degrees of mouse give; null releases. */
+  frame?(at: Vec3Like | null, duration: number, give: number, follow?: () => Vec3Like | null, opts?: FrameOptions): void;
+  /** Heading shot (intro-sequence spec): face along Jay's scripted walk with `give` degrees of leeway. Released by `frame(null)`. */
+  frameHeading?(duration: number, give: number, opts?: FrameOptions): void;
   /**
    * Who to look at while `speaker` (a dialogue speaker id such as `medic` or `crew_ruiz`) talks:
    * an `npc:<id>` target, or null for Jay and anyone without a body in the scene. Used by the
@@ -92,7 +102,7 @@ export interface SequenceHost {
   radio?(track: string | null, at: Vec3Like | null): void;
   ambience?(id: string): void;
 
-  /** Speak a dialogue line (ADR-0010). */
+  /** Speak a dialogue line. */
   say?(line: string, opts?: { overlap?: boolean }): SpeechLike | null;
   /** A skipped line must not be repeated by ambient barks. */
   markLinePlayed?(line: string): void;

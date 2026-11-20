@@ -197,16 +197,16 @@ reveal; the player is **Jay**, silent, with **no written backstory with anyone**
 4. TAG never uses active voice.
 5. Nobody explains the bloom fully. Voss's log comes closest.
 
-## Looks (first pass, `src/actors/squadLooks.ts`)
+## Looks (first pass, `src/actors/squadLooks.ts`; Okafor's column updated Nov 20 for his new body, see ADR-0026)
 | | Giles | Okafor |
 |---|---|---|
 | Build | 1.82 m, lean (0.95) | 1.80 m, solid (1.04) |
 | Skin | Fair, weathered | Deep brown |
-| Hair | Dark brown, short, receding at the temples | Close-cropped, salt-and-pepper grey |
-| Face | Narrow jaw, three-day stubble, dark circles (tired) | Broad nose, short grey beard |
-| Outfit | Rust-orange TAG coverall, sleeves **down** (hiding the arm), hi-vis arm bands, grease stains | Teal scrubs, white medical vest |
-| Props | Multitool on the right hip, tool pouches, chest ID patch | Reading glasses pushed up on his head, penlight in breast pocket, stethoscope round the neck, chest ID patch |
-| Silhouette read | Orange, lean, hi-vis stripes | Teal and white, glasses and stethoscope |
+| Hair | Dark brown, short, receding at the temples | Shaved head |
+| Face | Narrow jaw, three-day stubble, dark circles (tired) | Broad nose, clean-shaven, steady eyes |
+| Outfit | Rust-orange TAG coverall, sleeves **down** (hiding the arm), hi-vis arm bands, grease stains | Light-blue scrubs under a long white lab coat |
+| Props | Multitool on the right hip, tool pouches, chest ID patch | Stethoscope round the neck (the body shows no glasses or penlight; they stay habits in the writing) |
+| Silhouette read | Orange, lean, hi-vis stripes | White coat over blue, stethoscope |
 
 ## Decided
 - Okafor's platform-fire past stays as written. [Decided]

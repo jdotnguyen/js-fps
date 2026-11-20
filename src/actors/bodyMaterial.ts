@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
-/** Upper bound on bones per humanoid (21 joints + growths, ribs, tendrils, stumps). */
-export const MAX_BONES = 64;
+/** Upper bound on bones per humanoid (21 joints + detail hand/twist bones + growths, ribs, tendrils, stumps). */
+export const MAX_BONES = 96;
 
 export interface BodyUniforms {
   /** 0 = human skin, 1 = fully infected (stage 3). */

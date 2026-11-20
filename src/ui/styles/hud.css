@@ -70,7 +70,7 @@
   transition-timing-function: ease-in-out;
 }
 
-/* Cutscene bars and skip prompt (ADR-0017). Bars sit under the fade (z 9) and toasts (z 12). */
+/* Cutscene bars and skip prompt (intro-sequence spec). Bars sit under the fade (z 9) and toasts (z 12). */
 .cine { position: fixed; inset: 0; z-index: 8; pointer-events: none; }
 .cine-bar {
   position: absolute;

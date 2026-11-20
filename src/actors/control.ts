@@ -24,7 +24,7 @@ export const FREE_CONTROL: Readonly<ControlState> = Object.freeze({
 });
 
 /**
- * "On rails" (ADR-0017): the player cannot move on their own. Cutscene bars show while
+ * "On rails" (intro-sequence spec): the player cannot move on their own. Cutscene bars show while
  * this holds. A scripted walk counts too, so the caller passes whether one is active.
  */
 export function isOnRails(state: Readonly<ControlState>, scriptedWalk: boolean): boolean {

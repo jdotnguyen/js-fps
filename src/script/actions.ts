@@ -21,9 +21,10 @@ import {
   type Infer,
   type Validator,
 } from '../core/validate.ts';
+import { MUSIC_TRACKS } from '../audio/musicTracks.ts';
 import { DOOR_STATES } from '../data/types/level.ts';
 import { LIGHT_PATTERNS } from '../render/lights.ts';
-import type { ControlOverride, SequenceHost } from './host.ts';
+import type { ControlOverride, FrameOptions, SequenceHost } from './host.ts';
 import type { ActionStep, Flags, Running, Scalar, Step, TargetRef, Vec3Like } from './types.ts';
 
 /** One-off logic that does not warrant a new action type (ADR-0009 `runHook`). */
@@ -63,7 +64,7 @@ export interface ActionDef {
   start(step: ActionStep, ctx: ActionContext): Running | void;
   /**
    * Apply this step's end state instantly, for a step that has not started or is in
-   * flight (ADR-0017). Without it the runtime runs `start` and drops the result, which is
+   * flight (intro-sequence spec). Without it the runtime runs `start` and drops the result, which is
    * right for instant actions (setFlag, doorState, checkpoint...).
    */
   skip?: SkipFn;
@@ -148,11 +149,11 @@ function npcAct(name: string, shape: Shape): ActionDef {
 // ------------------------------------------------------------------ conversation shots
 
 /** Frame `ref` (an NPC subject is tracked: the shot follows them as they walk in or turn) and release the shot when the sequence ends. */
-function aim(ctx: ActionContext, ref: TargetRef, duration: number, give: number, known?: Vec3Like): boolean {
+function aim(ctx: ActionContext, ref: TargetRef, duration: number, give: number, known?: Vec3Like, opts?: FrameOptions): boolean {
   const at = known ?? resolve('playerFrame', ref, ctx);
   if (!at) return false;
   const moving = typeof ref === 'string' && ref.startsWith('npc:');
-  ctx.host.frame?.(at, duration, give, moving ? () => ctx.host.resolve(ref) : undefined);
+  ctx.host.frame?.(at, duration, give, moving ? () => ctx.host.resolve(ref) : undefined, opts);
   ctx.onEnd(() => ctx.host.frame?.(null, 0, 0));
   return true;
 }
@@ -340,20 +341,32 @@ export const ACTIONS: Record<string, ActionDef> = {
   }),
 
   /**
-   * Scripted shot (ADR-0017): the view eases onto `target` and stays there, with `give`
+   * Scripted shot (intro-sequence spec): the view eases onto `target` and stays there, with `give`
    * degrees (default 6) of mouse give that springs back. Released when the sequence ends.
    * `"target": "speaker"` starts a conversation shot: on each `speech:started` the view turns to
    * whoever speaks (`host.speakerTarget`), taking `duration` (default 0.6) to ease over; Jay's own
    * lines and speakers without a body keep the current shot. `initial` sets the first aim.
    * The shot runs until the sequence ends or a later `playerFrame` (any target, or `clear`) replaces it.
+   * `"target": "heading"` (intro-sequence spec) faces along Jay's scripted walk instead, with `give` default 35 deg of
+   * leeway that holds `hold` s (default 0.5) before settling back. `hold` and `returnTime` (the spring-back time
+   * constant) also widen a normal shot into a soft nudge (`give: 35, hold: 0.5`).
    */
   playerFrame: act(
-    { target: optional(target), initial: optional(target), duration: optional(numRange(0, 30)), give: optional(numRange(0, 30)), clear: optional(bool), wait },
+    { target: optional(target), initial: optional(target), duration: optional(numRange(0, 30)), give: optional(numRange(0, 60)), hold: optional(numRange(0, 5)), returnTime: optional(numRange(0.02, 3)), clear: optional(bool), wait },
     (s, ctx) => {
       if (!ctx.host.frame) return ctx.missing('playerFrame');
       endConversation(ctx);
       if (s.clear || !s.target) {
         ctx.host.frame(null, 0, 0);
+        return;
+      }
+      const opts: FrameOptions = { ...(s.hold !== undefined ? { hold: s.hold } : {}), ...(s.returnTime !== undefined ? { returnTime: s.returnTime } : {}) };
+      if (s.target === 'heading') {
+        if (!ctx.host.frameHeading) return ctx.missing('playerFrame heading');
+        const duration = s.duration ?? 0.8;
+        ctx.host.frameHeading(duration, s.give ?? 35, { hold: 0.5, returnTime: 0.3, ...opts });
+        ctx.onEnd(() => ctx.host.frame?.(null, 0, 0));
+        if (s.wait) return timed(duration);
         return;
       }
       if (s.target === 'speaker') {
@@ -367,7 +380,7 @@ export const ACTIONS: Record<string, ActionDef> = {
       const at = resolve('playerFrame', s.target, ctx);
       if (!at) return;
       const duration = s.duration ?? 0.8;
-      aim(ctx, s.target, duration, s.give ?? 6, at);
+      aim(ctx, s.target, duration, s.give ?? 6, at, opts);
       if (s.wait) return timed(duration);
     },
   ),
@@ -505,7 +518,7 @@ export const ACTIONS: Record<string, ActionDef> = {
     if (s.wait) return timed(s.s ?? 4);
   }),
   /**
-   * NPC hand-off (ADR-0017): the NPC holds `item` out and an interact prompt appears on them;
+   * NPC hand-off (intro-sequence spec): the NPC holds `item` out and an interact prompt appears on them;
    * taking it emits `event` (default `<sequence id>:offer_taken`). Waits for that or for
    * `timeout` (then the NPC hands it over anyway) unless `"wait": false`, the exception to the
    * wait rule like `say`. Either way the item ends up with Jay: flag `held:<item>`.
@@ -587,7 +600,7 @@ export const ACTIONS: Record<string, ActionDef> = {
     },
   ),
 
-  /** In-world radio, e.g. TAG FM in the kitchen (ADR-0017). Instant; on skip it simply starts. */
+  /** In-world radio, e.g. TAG FM in the kitchen (intro-sequence spec). Instant; on skip it simply starts. */
   radio: act({ track: optional(str), at: optional(target), stop: optional(bool) }, (s, ctx) => {
     if (!ctx.host.radio) return ctx.missing('radio');
     if (s.stop || !s.track) return ctx.host.radio(null, null);
@@ -611,7 +624,7 @@ export const ACTIONS: Record<string, ActionDef> = {
     ctx.host.sfx(s.id, s.at !== undefined ? resolve('sfx', s.at, ctx) : null);
   }),
 
-  music: act({ id: optional(str), stop: optional(bool) }, (s, ctx) => {
+  music: act({ id: optional(oneOf(MUSIC_TRACKS)), stop: optional(bool) }, (s, ctx) => {
     if (!ctx.host.music) return ctx.missing('music');
     ctx.host.music(s.stop ? null : (s.id ?? null));
   }),
@@ -660,7 +673,7 @@ export const ACTIONS: Record<string, ActionDef> = {
 const NOOP: SkipFn = () => undefined;
 
 /**
- * End states for ADR-0017 skipping. Only actions that wait, play or ease need an entry;
+ * End states for skipping (intro-sequence spec). Only actions that wait, play or ease need an entry;
  * instant actions (setFlag, doorState, lightState, emit, setObjective, checkpoint...) are
  * simply run, which is their end state.
  */
@@ -668,7 +681,7 @@ const SKIPS: Record<string, SkipFn> = {
   // Things that only wait for time or events have no end state of their own.
   wait: NOOP,
   waitFor: NOOP,
-  // A counted loop is a repeated block (sequential steps inside a parallel, ADR-0017): its end state is the
+  // A counted loop is a repeated block (sequential steps inside a parallel, intro-sequence spec): its end state is the
   // body applied `count` times. An endless loop (`until` an event) has no end state of its own.
   loop: (s, ctx) => {
     const st = s as unknown as { steps: Step[]; count?: number; until?: string };
@@ -694,7 +707,7 @@ const SKIPS: Record<string, SkipFn> = {
   // A shot snaps to its final aim and lets go, so control returns facing the right way.
   playerFrame: (s, ctx) => {
     endConversation(ctx);
-    if (s['clear'] || !s['target'] || s['target'] === 'speaker') return ctx.host.frame?.(null, 0, 0);
+    if (s['clear'] || !s['target'] || s['target'] === 'speaker' || s['target'] === 'heading') return ctx.host.frame?.(null, 0, 0);
     const at = resolve('playerFrame', s['target'] as TargetRef, ctx);
     if (at) ctx.host.frame?.(at, 0, (s['give'] as number | undefined) ?? 6);
     ctx.host.frame?.(null, 0, 0);

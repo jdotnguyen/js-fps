@@ -1,0 +1,136 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { AMBIENT_TUNING, AmbientDirector, isAmbientEligible, type AmbientAgent, type AmbientSpot } from './ambientLife.ts';
+
+interface FakeAgent extends AmbientAgent {
+  pos: { x: number; y: number; z: number };
+  yaw: number;
+  pose: string;
+  free: boolean;
+  walk: { target: { x: number; y: number; z: number }; yaw: number; left: number; done: () => void } | null;
+  walksStarted: number;
+  settles: number;
+}
+
+function makeSpot(id: string, room: string, group: string, kind: AmbientSpot['kind'], x: number, z: number): AmbientSpot {
+  return { id, room, group, kind, pos: { x, y: 0, z }, yaw: 0, taken: null };
+}
+
+function makeAgent(id: string, room: string, spot: AmbientSpot | null, x: number, z: number): FakeAgent {
+  const a: FakeAgent = {
+    id,
+    room,
+    initialSpot: spot?.id ?? null,
+    pos: { x, y: 0, z },
+    yaw: 0,
+    pose: spot?.kind ?? 'idle',
+    free: true,
+    walk: null,
+    walksStarted: 0,
+    settles: 0,
+    available: () => a.free && a.walk === null,
+    feet: () => a.pos,
+    walkTo(pos, yaw, speed, onDone) {
+      a.walksStarted++;
+      const d = Math.hypot(pos.x - a.pos.x, pos.z - a.pos.z);
+      a.walk = { target: { ...pos }, yaw, left: Math.max(0.2, d / speed), done: onDone };
+    },
+    settle(pos, yaw, pose) {
+      a.pos = { ...pos };
+      a.yaw = yaw;
+      a.pose = pose;
+      a.settles++;
+    },
+  };
+  return a;
+}
+
+function step(dir: AmbientDirector, agents: FakeAgent[], seconds: number, eye: { x: number; y: number; z: number } | null = { x: 0, y: 1.6, z: 0 }, forward: { x: number; z: number } | null = null, each?: () => void): void {
+  const dt = 0.2;
+  for (let t = 0; t < seconds; t += dt) {
+    for (const a of agents) {
+      if (!a.walk) continue;
+      a.walk.left -= dt;
+      if (a.walk.left <= 0) {
+        const w = a.walk;
+        a.walk = null;
+        a.pos = { ...w.target };
+        a.yaw = w.yaw;
+        w.done();
+      }
+    }
+    dir.update(dt, { eye, forward });
+    each?.();
+  }
+}
+
+test('AmbientDirector moves ambient crew between free spots without double-booking and obeys the 1-in-5 cap', () => {
+  const spots: AmbientSpot[] = [
+    makeSpot('s0', 'R02', 't1', 'sit_chair', 0, 0),
+    makeSpot('s1', 'R02', 't1', 'sit_chair', 1, 0),
+    makeSpot('s2', 'R02', 't2', 'sit_chair', 4, 0),
+    makeSpot('s3', 'R02', 't2', 'sit_chair', 5, 0),
+    makeSpot('s4', 'R02', 'c1', 'lean_counter', 0, 4),
+    makeSpot('s5', 'R02', 'c2', 'lean_counter', 4, 4),
+    makeSpot('s6', 'R02', 't3', 'sit_sofa', 8, 2),
+    makeSpot('s7', 'R02', 't3', 'sit_sofa', 9, 2),
+  ];
+  const agents = [
+    makeAgent('a0', 'R02', spots[0]!, 0, 0),
+    makeAgent('a1', 'R02', spots[1]!, 1, 0),
+    makeAgent('a2', 'R02', spots[2]!, 4, 0),
+    makeAgent('a3', 'R02', spots[3]!, 5, 0),
+    makeAgent('a4', 'R02', spots[4]!, 0, 4),
+  ];
+  const dir = new AmbientDirector(spots, agents);
+  let maxMoving = 0;
+  step(dir, agents, 180, { x: 2, y: 1.6, z: 2 }, null, () => {
+    maxMoving = Math.max(maxMoving, dir.movingCount('R02'));
+    // No two agents ever hold/book the same spot.
+    const held = agents.map((a) => dir.spotOf(a.id)?.id).filter(Boolean);
+    assert.equal(new Set(held).size, held.length, 'no duplicate spot bookings');
+  });
+  assert.equal(maxMoving, 1, '5 agents -> at most 1 moving at once (1 in 5 cap)');
+  const totalMoves = agents.reduce((n, a) => n + a.walksStarted, 0);
+  const totalSettles = agents.reduce((n, a) => n + a.settles, 0);
+  assert.ok(totalMoves >= 5, `expected several ambient moves, got ${totalMoves}`);
+  assert.ok(totalSettles >= 4, `expected settled arrivals, got ${totalSettles}`);
+});
+
+test('AmbientDirector defers faraway rooms and releases spots cleanly when interrupted by a sequence', () => {
+  const spots = [
+    makeSpot('s0', 'R02', 't1', 'sit_chair', 0, 0),
+    makeSpot('s1', 'R02', 't2', 'lean_counter', 4, 0),
+    makeSpot('s2', 'R02', 't3', 'sit_sofa', 0, 4),
+  ];
+  const agents = [
+    makeAgent('a0', 'R02', spots[0]!, 0, 0),
+    makeAgent('a1', 'R02', spots[1]!, 4, 0),
+  ];
+  const dir = new AmbientDirector(spots, agents);
+  // Camera far away (> activeRange): no walks start.
+  step(dir, agents, 80, { x: 100, y: 1.6, z: 100 });
+  assert.equal(agents[0]!.walksStarted + agents[1]!.walksStarted, 0, 'far rooms stay quiet');
+
+  // Camera arrives: a walk starts; interrupting releases its booked spot immediately.
+  step(dir, agents, 60, { x: 2, y: 1.6, z: 2 });
+  assert.ok(agents[0]!.walksStarted + agents[1]!.walksStarted >= 1);
+  dir.interrupt('a0');
+  assert.equal(dir.spotOf('a0'), null);
+  dir.reset();
+  assert.equal(dir.spotOf('a0')?.id, 's0', 'reset restores initial spot');
+  assert.equal(dir.spotOf('a1')?.id, 's1');
+});
+
+test('isAmbientEligible protects story NPCs and desk workers', () => {
+  assert.equal(isAmbientEligible('priya', 'idle'), false);
+  assert.equal(isAmbientEligible('hale', 'idle_hips'), false);
+  assert.equal(isAmbientEligible('cook', 'idle'), false);
+  assert.equal(isAmbientEligible('dock_guard', 'idle_wand'), false, 'the dock guard holds his post (dock-checkpoint)');
+  assert.equal(isAmbientEligible('crew_1', 'idle_mug'), false);
+  assert.equal(isAmbientEligible('assistant', 'sit_typing'), false);
+  assert.equal(isAmbientEligible('exec_2', 'sit_typing'), false);
+  assert.equal(isAmbientEligible('diner_1', 'sit_chair'), true);
+  assert.equal(isAmbientEligible('board_1', 'sit_chair'), true);
+  assert.ok(AMBIENT_TUNING.maxMovingRatio <= 0.25);
+});

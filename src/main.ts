@@ -59,6 +59,7 @@ import { loadWeaponModels } from './render/viewmodel/glbWeapons.ts';
 import { Viewmodel } from './render/viewmodel/viewmodel.ts';
 import { Squad } from './ai/squad.ts';
 import { NpcDirector } from './ai/npcs.ts';
+import { cameraForwardXZ } from './ai/ambientLife.ts';
 import { npcIdForSpeaker, wireSpeechActing } from './ai/speakerBodies.ts';
 import { wireSquadToEnemies } from './ai/squadEnemies.ts';
 import { setupEnemies, spawnPointsOf } from './ai/enemyGame.ts';
@@ -74,7 +75,7 @@ import uiTextJson from './data/dialogue/ui.json';
 import { validateItemTable } from './data/types/items.ts';
 import { validateUiText } from './data/types/uiText.ts';
 import { Inventory } from './game/inventory.ts';
-// ADR-0024 map + objectives, ADR-0010 speech, barks and hints, ADR-0005/0008 supplies.
+// ADR-0024 map + objectives, speech, barks and hints, ADR-0005/0008 supplies.
 import objectivesJson from './data/objectives.json';
 import { objectivesValidator } from './data/types/objectives.ts';
 import type { MapModel, MapState } from './ui/mapModel.ts';
@@ -82,8 +83,8 @@ import { Guidance } from './game/guidance.ts';
 import { loadDialogueLibrary } from './dialogue/load.ts';
 import { SpeechManager } from './dialogue/speech.ts';
 import { WebAudioVoicePlayer } from './dialogue/voicePlayer.ts';
-import { Subtitles } from './ui/hud/subtitles.ts';
 import { StoryDucker } from './audio/storyDuck.ts';
+import { Subtitles } from './ui/hud/subtitles.ts';
 
 /** The level New game plays (ADR-0014). */
 const DEFAULT_LEVEL = 'slice01';
@@ -175,7 +176,7 @@ async function boot(): Promise<void> {
 
   const t0 = performance.now();
   const texSize = settings.get().quality === 'low' ? 256 : TEXTURE_SIZE;
-  // The game is the slice (ADR-0014): no ?level loads slice01 and New game plays the intro (ADR-0017).
+  // The game is the slice (ADR-0014): no ?level loads slice01 and New game plays the intro (intro-sequence spec).
   // ?level=<id> loads another data-driven kit level (ADR-0003, e.g. kit_test); ?level=demo is the hand-built demo room; ?level=lab is the imported underground-laboratory sandbox; ?level=corner is the texture-tiling corner test.
   const levelParam = new URLSearchParams(location.search).get('level');
   const levelId = levelParam === 'demo' || levelParam === 'lab' || levelParam === 'corner' ? null : (levelParam ?? DEFAULT_LEVEL);
@@ -283,7 +284,7 @@ async function boot(): Promise<void> {
 
   const toasts = new Toasts(document.body);
   const hud = new PlayerHud(el<HTMLElement>('#ui'), el<HTMLElement>('#interact'), keymap.interact[0] ?? 'KeyE');
-  // ADR-0009 sequences (also run the ADR-0017 skippable cutscenes). Created once the loop
+  // ADR-0009 sequences (also run the skippable cutscenes, openspec/specs/intro-sequence). Created once the loop
   // exists, because the loop owns the time scale; the cutscene chrome looks it up on use.
   let sequences: SequenceManager | null = null;
   const cutscene = new CutsceneController({
@@ -294,7 +295,7 @@ async function boot(): Promise<void> {
     hud,
     ui: new CutsceneUi(el<HTMLElement>('#ui')),
     skipKeyLabel: () => keyLabel(keymap.skipCutscene[0] ?? 'Space'),
-    // The opening needs the dock and kitchen anchors (ADR-0017); other levels start in control.
+    // The opening needs the dock and kitchen anchors (intro-sequence spec); other levels start in control.
     hasIntro: () => level?.anchor('post_front') != null,
   });
   // Map knowledge (ADR-0024): outlines from the level data, saved with the game.
@@ -371,7 +372,7 @@ async function boot(): Promise<void> {
     if (game.mode === 'playing' && !game.flying) footsteps.playCharacter(step);
   };
   const squad = new Squad({
-    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels, onFootstep: onCharacterFootstep },
+    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels, colliders: world.playerWorld.colliders, onFootstep: onCharacterFootstep },
     nav: world.navGraph(),
     player,
     difficulty: () => game.preset,
@@ -388,16 +389,16 @@ async function boot(): Promise<void> {
     squad.group.visible = mode !== 'title';
   });
   // Enemies (ADR-0007): level spawns, player hits, noise; `?enemies=shambler:2,hero` for a quick fight.
-  const enemies = setupEnemies({ events, ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels, onFootstep: onCharacterFootstep }, world, player, camera, flashlightOn: () => flashlight.on, game, audio, spawns: levelSpawns, squad, search: location.search });
+  const enemies = setupEnemies({ events, ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels, colliders: world.playerWorld.colliders, onFootstep: onCharacterFootstep }, world, player, camera, flashlightOn: () => flashlight.on, game, audio, spawns: levelSpawns, squad, search: location.search });
   scene.add(enemies.director.group);
   wireSquadToEnemies(squad, enemies.director, events);
   // Enemies and squadmates open unlocked auto doors as they walk up (level.setActors).
   // (NPCs join below, once the NpcDirector exists.)
-  // Scripted NPCs and the cast (ADR-0009/0017/0023): sequences drive them and borrow the squad.
+  // Scripted NPCs and the cast (ADR-0009/0023, intro-sequence spec): sequences drive them and borrow the squad.
   const npcFeet = new THREE.Vector3();
   const npcHead = new THREE.Vector3();
   const npcs = new NpcDirector({
-    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels, onFootstep: onCharacterFootstep },
+    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels, colliders: world.playerWorld.colliders, onFootstep: onCharacterFootstep },
     nav: world.navGraph(),
     colliders: world.playerWorld.colliders,
     squad,
@@ -411,7 +412,10 @@ async function boot(): Promise<void> {
   // Scripted walks path round corners, and everyone (cast, spawned NPCs, squad) is solid to Jay.
   player.setNav(world.navGraph());
   player.setBodies(() => npcs.solidBodies());
-  if (level) npcs.spawnFromLevel(level.npcSpawns());
+  if (level) {
+    npcs.spawnFromLevel(level.npcSpawns());
+    npcs.enableAmbientLife(level.spots());
+  }
   // Enemies, squadmates and scripted NPCs (the intro crew) open unlocked auto doors as they walk up.
   level?.setActors(function* () {
     for (const e of enemies.director.list) if (e.alive && e.state !== 'dormant' && e.state !== 'playDead') yield e.position;
@@ -449,7 +453,7 @@ async function boot(): Promise<void> {
     return { name: id, ...viewmodel.ammoOf(id), mag: viewmodel.magSize(id) };
   });
   renderer.compile(scene, camera);
-  // Speech (ADR-0010): one voice at a time with subtitles; lines unknown to the library are skipped.
+  // Speech: one voice at a time with subtitles; lines unknown to the library are skipped.
   const dialogue = loadDialogueLibrary();
   // Dialogue plays on the engine's voice bus (audio-mix: Mix buses), keeping the room reverb send.
   const voicePlayer = new WebAudioVoicePlayer({ ctx: audio.ctx, master: audio.buses.voice, reverbIn: audio.reverbIn });
@@ -464,7 +468,19 @@ async function boot(): Promise<void> {
     const id = npcIdForSpeaker(speaker);
     return id && npcs.has(id) ? (npcs.actor(id, false)?.body ?? null) : null;
   });
+  // ADR-0029 listen-look: people near a speaker turn their heads to them; the speaker looks at whoever they answer.
+  const talkerId = (speaker: string): string | null => (speaker === 'player' ? 'player' : npcIdForSpeaker(speaker));
+  events.on('speech:started', (info) => {
+    const id = talkerId(info.speaker);
+    if (id && (id === 'player' || npcs.has(id))) npcs.lineStarted(id);
+  });
+  events.on('speech:ended', (e) => {
+    const id = talkerId(e.speaker);
+    if (id) npcs.lineEnded(id);
+  });
   new Subtitles(el<HTMLElement>('#ui'), events, settings);
+  // Music and ambience dip under story lines (spec audio-mix: Story ducking).
+  const storyDucker = new StoryDucker(events, audio);
   const say = (id: string, opts?: { overlap?: boolean; at?: () => { x: number; y: number; z: number } }) => {
     if (!dialogue.hasLine(id)) {
       console.warn(`[speech] unknown line "${id}"`);
@@ -481,12 +497,9 @@ async function boot(): Promise<void> {
     speech.stopAll();
     storyDucker.reset();
   });
-  events.on('game:restarted', () => speech.stopAll());
   const guidance = new Guidance({
     events,
     input,
-  // Music and ambience dip under story lines (spec audio-mix: Story ducking).
-  const storyDucker = new StoryDucker(events, audio);
     ui: el<HTMLElement>('#ui'),
     scene,
     materials,
@@ -615,6 +628,7 @@ async function boot(): Promise<void> {
     ambience?.setMode(mode);
   });
   events.on('level:reset', () => ambience?.reset());
+  events.on('game:restarted', () => menuMusic.cue(null));
   events.on('player:flashlight', () => roomAudio?.flashlightClick());
   events.on('player:footstep', (f) => {
     if (game.mode === 'playing' && !game.flying) footsteps.playPlayer(f);
@@ -890,6 +904,7 @@ async function boot(): Promise<void> {
     post.setSize(innerWidth, innerHeight, renderer.getPixelRatio());
   });
 
+  const npcCamFwd = { x: 0, z: -1 };
   let simTime = 0;
   const loop = new Loop({
     update: (dt) => {
@@ -905,7 +920,7 @@ async function boot(): Promise<void> {
         sequences?.update(dt);
         enemies.update(dt);
         squad.update(dt, camera.position);
-        npcs.update(dt, camera.position);
+        npcs.update(dt, camera.position, cameraForwardXZ(camera, npcCamFwd));
         gore.update(dt);
         guidance.update(dt);
       }
@@ -944,6 +959,7 @@ async function boot(): Promise<void> {
       level,
       audio,
       ambience,
+      music: menuMusic,
       hud,
       toasts,
       inventory,
@@ -961,6 +977,10 @@ async function boot(): Promise<void> {
     }),
     loadSequences(),
   );
+  // dock-checkpoint: does Jay carry a weapon through the dock arch? (`runHook jayArmed`, then `if jay_armed`.)
+  sequences.registerHook('jayArmed', ({ flags: f }) => {
+    f['jay_armed'] = viewmodel.owns('pistol') || viewmodel.owns('shotgun');
+  });
   // Back to the title or a fresh game: nothing from the last session keeps running.
   events.on('game:mode', ({ mode }) => {
     if (mode === 'title') sequences?.cancelAll();

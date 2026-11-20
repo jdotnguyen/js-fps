@@ -32,24 +32,25 @@ export const GILES: Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 
 
 export const OKAFOR: Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 'look' | 'model'> = {
   seed: 'tomas-okafor',
-  // Imported body (ADR-0026, data/body-models.json): the "doctor" model in purple scrubs. `outfit`/`look` below only
-  // apply if it fails to load and he falls back to the procedural body.
+  // Imported body (ADR-0026, data/body-models.json): BrushDip's rigged "Doctor" (lab coat over a blue shirt and tie, grey hair and
+  // beard, round glasses), in the "doctor" slot. `outfit`/`look` below only apply if it fails to load and he falls back to the
+  // procedural body; they follow the model.
   model: 'doctor',
   outfit: 'medic',
   height: 1.8,
   build: 1.04,
   look: {
-    skin: '#d8b08c',
-    hair: '#8e8a84',
+    skin: '#c9967c',
+    hair: '#8b8682',
     hairLine: 0.15,
-    recede: 0.3,
+    recede: 0.45,
     cropped: true,
     facial: 'beard',
-    facialColor: '#a19b93',
+    facialColor: '#4f4a46',
     mouth: 0.019,
     tired: 0.3,
     jaw: 1.0,
     nose: 1.18,
-    props: ['glassesOnHead', 'penlight', 'stethoscope', 'chestPatch'],
+    props: ['glasses', 'penlight', 'chestPatch'],
   },
 };

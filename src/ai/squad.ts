@@ -26,7 +26,7 @@ import { Rng } from '../core/rng.ts';
 
 export type { SquadId, SquadEnemy, SquadEnemySource } from './squadBrain.ts';
 
-/** Events the squad raises, for barks, hints and the HUD (ADR-0010/0012) to hook. */
+/** Events the squad raises, for barks, hints and the HUD (ADR-0012) to hook. */
 export interface SquadEvents {
   'squad:reloading': { id: SquadId };
   'squad:downed': { id: SquadId };
@@ -706,7 +706,7 @@ export interface SquadDeps {
   difficulty?: () => SquadDifficulty;
   /** Where squad events go (barks, HUD). */
   emit?: (name: keyof SquadEvents, payload: SquadEvents[keyof SquadEvents]) => void;
-  /** Giles's voice (ADR-0010): rasp per infection stage; laugh removed at the reveal. */
+  /** Giles's voice: rasp per infection stage; laugh removed at the reveal. */
   speech?: { setRasp(speaker: string, amount: number | null): void; setLaugh?(speaker: string, on: boolean): void } | null;
   /** The playthrough's flags: `giles.infectionStage` drives the reveal ladder. */
   flags?: () => Record<string, string | number | boolean>;

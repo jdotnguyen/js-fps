@@ -2,7 +2,7 @@
 
 Generated from `src/data/sequences/intro_shift_change.json` and the `intro_*` lines in
 `src/data/dialogue/slice01.json`. Edit those files, not this one. Times are rough (line minimum
-durations plus waits); the real length comes from timing it in game. See ADR-0017.
+durations plus waits); the real length comes from timing it in game. See openspec/specs/intro-sequence.
 
 *Fade in from black on the TAG Industries card. Main theme. Caption: Thalassa Deep Research Station, Docking Ring - 06:40 - Shift change.*
 

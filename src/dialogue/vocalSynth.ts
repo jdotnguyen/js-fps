@@ -1,5 +1,5 @@
 /**
- * Procedural vocal emotes (ADR-0010): non-verbal mood sounds in a speaker's voice.
+ * Procedural vocal emotes: non-verbal mood sounds in a speaker's voice, the fallback when a line's recording is missing (spec voice-playback).
  *
  * Source-filter model, rendered offline to a mono buffer (runs in Node for tests and
  * previews, and in the browser before upload to an AudioBuffer):
@@ -93,7 +93,7 @@ interface EmoteDef {
   build(dur: number, rng: Rng): Omit<VoiceTrack, 'duration'>;
 }
 
-/** The emote set [Assumed in ADR-0010]. Contours are shaped to read by mood without words. */
+/** The emote set [Assumed]. Contours are shaped to read by mood without words. */
 export const EMOTE_DEFS: Record<Emote, EmoteDef> = {
   // Short closed "hm": level, slightly falling.
   neutral: {

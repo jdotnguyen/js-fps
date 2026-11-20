@@ -3,13 +3,13 @@
 Status: Accepted (decisions marked [Decided]) / Proposed (specific details, numbers and lines)
 
 ## Context
-ADR-0011 fixes what the squadmates *do*; ADR-0010 leaves "final names and personalities" open;
-ADR-0014 gives the beats; ADR-0017's banter already sets a tone. This ADR is the character bible
+ADR-0011 fixes what the squadmates *do*; the dialogue design left "final names and personalities" open;
+ADR-0014 gives the beats; the intro's banter ([intro-sequence spec](../../openspec/specs/intro-sequence/spec.md)) already sets a tone. This ADR is the character bible
 those lean on: who Giles and Okafor are, how they talk to each other and to the silent player,
 why Giles hides his infection, and a ladder of tells that makes the cliffhanger land. Already
 Decided and respected here: Giles is a dry, competent man who deflects with humour; Okafor is calm
-and clinical and the first to understand the bloom (ADR-0014); voices are subtitles plus non-verbal
-mood sounds (ADR-0010); nobody on the team dies in the slice; the reveal is the final beat.
+and clinical and the first to understand the bloom (ADR-0014); lines are fully voiced
+with subtitles ([openspec/specs/voice-playback](../../openspec/specs/voice-playback/spec.md)); nobody on the team dies in the slice; the reveal is the final beat.
 
 ## Decision
 Two old friends and the player alongside them. Their warmth is the thing the reveal breaks, so the
@@ -63,11 +63,11 @@ Principle: missable on a first play, obvious on a second.
 
 | Stage | When (ADR-0014 beat) | Tells |
 |---|---|---|
-| 0 | 1. Quiet | Rubs his forearm; long sleeves; "slept on it wrong". Okafor asks about the arm out of concern, not suspicion (ADR-0017). |
+| 0 | 1. Quiet | Rubs his forearm; long sleeves; "slept on it wrong". Okafor asks about the arm out of concern, not suspicion ([intro-sequence spec](../../openspec/specs/intro-sequence/spec.md)). |
 | 1 | 4. Cover me | Flexes his hand after the bypass; one joke lands flat and Okafor glances over. |
-| 2 | 5. Breathing room | The off-screen moment at the panel, a fresh bandage ("cut it on the panel"), refuses Okafor's help. Voice rasp begins (ADR-0010). |
+| 2 | 5. Breathing room | The off-screen moment at the panel, a fresh bandage ("cut it on the panel"), refuses Okafor's help. Voice rasp begins. |
 | 3 | 6-7. Tunnel and climax | Fewer jokes, sweat, a dark vein under the bandage in torchlight, a cough he covers. Still shoots straight. |
-| Reveal | 8. Cliffhanger | The lights return and show the trail behind him. "I didn't want you to see this." His laugh (the `laugh` emote) is gone from his voice profile for good. |
+| Reveal | 8. Cliffhanger | The lights return and show the trail behind him. "I didn't want you to see this." His laugh is gone from his voice for good. |
 
 ## The reveal, staged
 - Giles tells it plainly, no monologue: three days, the panel, Mara, "I was going to say after the shift."
@@ -79,18 +79,18 @@ Principle: missable on a first play, obvious on a second.
 
 ## Consequences
 - Full backgrounds, supporting cast and the outbreak timeline live in `docs/characters.md`.
-- Barks, hints and banter can be written to a clear voice per character, which keeps the
-  mood-sound mapping (ADR-0010) consistent.
+- Barks, hints and banter can be written to a clear voice per character, which keeps each
+  character's delivery consistent (casting: `docs/voice-casting-standard.md`).
 - Every foreshadowing line has a home on the ladder, so adding or cutting tells is a data edit.
 
 ## Execution steps
 1. Fold the backstory into `slice01.json` barks and the ADR-0014 beat sheet; the squad addresses
    the player as "Jay".
 2. Write the foreshadowing lines against the ladder; add the stage drivers to ADR-0011 step 7.
-3. Update ADR-0010's voice notes (Giles rasp stages, laugh removal at the reveal).
+3. Record Giles's rasp stages and laugh removal in his VO direction (`docs/voice-casting-standard.md`).
 
 ## Amendment (2026-11-16)
-- **Jay speaks** (ADR-0010 amendment). His voice is **steady and attentive** [Decided]: few
+- **Jay speaks**. His voice is **steady and attentive** [Decided]: few
   words, quietly funny, the straight man for Giles, goes along with Okafor's orders, and
   remembers the small details of other people's lives. Jay is a man [Decided]. Bitter irony
   for the reveal: the one who notices everything also missed the arm.
@@ -100,7 +100,7 @@ Principle: missable on a first play, obvious on a second.
 - **Giles's twist is a tragedy, not a betrayal** [Assumed, Justin did not object]: a good man
   making a human, bad choice out of fear for the contract and Mara's school. Not working for
   TAG, never endangers the squad on purpose. What he saw in Lab B is a secret, not malice.
-- **Priya Anand** joins the intro with the same weight as Giles and Okafor (ADR-0017). Okafor's
+- **Priya Anand** joins the intro with the same weight as Giles and Okafor ([intro-sequence spec](../../openspec/specs/intro-sequence/spec.md)). Okafor's
   guilt gains a second layer: she was covering the bay for him.
 
 ## Progress

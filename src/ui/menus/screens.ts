@@ -203,7 +203,7 @@ export function createMenus(root: HTMLElement, deps: MenuDeps): Menu {
       range('SFX volume', 'sfxVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)}%`),
       range('Voice volume', 'voiceVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)}%`),
       h('h2', { text: 'Accessibility' }),
-      toggle('Subtitles', 'subtitles', 'Teammates speak in non-verbal sounds; subtitles carry the words.'),
+      toggle('Subtitles', 'subtitles', 'Subtitles show what is being said.'),
       toggle('Reduced flashing', 'reducedFlashing', 'Limits flickering and strobing lights.'),
       toggle('Reduced motion', 'reducedMotion', 'Less camera bob and shake.'),
       range('Cutscene skip hold time', 'skipHoldSeconds', 1.5, 6, 0.5, (v) => `${v.toFixed(1)} s`),
@@ -217,7 +217,6 @@ export function createMenus(root: HTMLElement, deps: MenuDeps): Menu {
     const any = saves.summaries().some((s) => !s.empty);
     return {
       title: 'THALASSA',
-      subtitle: 'Deep-sea horror',
       variant: 'title-screen',
       build: (m) => [
         latest ? button('Continue', () => game.load(latest), { autofocus: true }, h('small', { text: describe(latest) })) : null,

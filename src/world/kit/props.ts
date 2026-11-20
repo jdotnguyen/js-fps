@@ -7,6 +7,7 @@ import { drawTagMark } from '../../render/logo.ts';
 import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { lathe, slab } from './shapes.ts';
 import { bolts, cableTray, inFrame, pipeRun } from './detail.ts';
+import { resolvePalette } from './palettes.ts';
 import { PieceBuilder, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams } from './types.ts';
 
 /**
@@ -52,9 +53,11 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
 
   locker(p, _rng, m, pb) {
     const n = Math.round(numParam(p, 'count', 1));
+    const pal = resolvePalette(p, m);
+    const bodyMat = pal.doorPanel !== m.paintDark ? m.cleanWall : m.paintBone;
     for (let i = 0; i < n; i++) {
       const x = (i - (n - 1) / 2) * 0.62;
-      pb.add(rounded(0.6, 2.0, 0.55, 0.02), m.paintBone, at(x, 1.0, 0));
+      pb.add(rounded(0.6, 2.0, 0.55, 0.02), bodyMat, at(x, 1.0, 0));
       for (let k = 0; k < 5; k++) pb.add(slab(0.4, 0.018, 0.01), m.black, at(x, 1.72 + k * 0.04, -0.277));
       pb.add(slab(0.008, 1.9, 0.01), m.black, at(x - 0.3, 1.0, -0.277));
       pb.add(rounded(0.03, 0.16, 0.04, 0.01), m.steel, at(x + 0.2, 1.05, -0.29));
@@ -67,15 +70,19 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
   },
 
   console(p, _rng, m, pb) {
-    pb.add(rounded(1.6, 0.85, 0.7, 0.03), m.paintBone, at(0, 0.425, 0));
+    const pal = resolvePalette(p, m);
+    const clean = pal.doorPanel !== m.paintDark;
+    const baseMat = clean ? m.cleanWall : m.paintBone;
+    const housingMat = clean ? pal.doorPanel : m.paintDark;
+    pb.add(rounded(1.6, 0.85, 0.7, 0.03), baseMat, at(0, 0.425, 0));
     pb.add(rounded(1.7, 0.05, 0.85, 0.015), m.steel, at(0, 0.875, -0.05));
     pb.add(rounded(0.62, 0.03, 0.26, 0.01), m.rubber, at(0, 0.915, -0.2));
     const kind = strParam(p, 'screen', 'status');
-    const screen = new CanvasScreen(512, 288, kind === 'log' ? drawLog : drawStatus);
+    const screen = new CanvasScreen(512, 288, kind === 'log' ? drawLog : kind === 'hydro' ? drawHydroClimate : drawStatus);
     const assembly = new THREE.Group();
     assembly.position.set(0, 1.36, 0.22);
     assembly.rotation.x = -0.26;
-    const housing = new THREE.Mesh(rounded(1.05, 0.62, 0.1, 0.02), m.paintDark);
+    const housing = new THREE.Mesh(rounded(1.05, 0.62, 0.1, 0.02), housingMat);
     const display = new THREE.Mesh(new THREE.PlaneGeometry(0.94, 0.53), screen.material);
     display.position.z = -0.052;
     display.rotation.y = PI;
@@ -107,9 +114,11 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
 
   desk(p, _rng, m, pb) {
     const w = numParam(p, 'width', 1.6);
-    pb.add(rounded(w, 0.05, 0.8, 0.015), m.paintBone, at(0, 0.75, 0));
+    const pal = resolvePalette(p, m);
+    const clean = pal.doorPanel !== m.paintDark;
+    pb.add(rounded(w, 0.05, 0.8, 0.015), clean ? m.cleanWall : m.paintBone, at(0, 0.75, 0));
     for (const x of [-w / 2 + 0.06, w / 2 - 0.06]) pb.add(rounded(0.05, 0.72, 0.72, 0.01), m.steel, at(x, 0.36, 0));
-    pb.add(rounded(0.45, 0.6, 0.72, 0.02), m.paintDark, at(w / 2 - 0.3, 0.42, 0));
+    pb.add(rounded(0.45, 0.6, 0.72, 0.02), clean ? pal.doorPanel : m.paintDark, at(w / 2 - 0.3, 0.42, 0));
     for (const y of [0.25, 0.48, 0.66]) pb.add(slab(0.12, 0.02, 0.02), m.steel, at(w / 2 - 0.3, y, -0.37));
     pb.solid(-w / 2, 0, -0.4, w / 2, 0.78, 0.4, 'metal');
   },
@@ -184,6 +193,7 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     logo.rotation.y = PI;
     pb.dynamic(logo);
     pb.solid(-0.5, 0, -0.4, 0.5, 1.95, 0.4, 'metal');
+    pb.spot('lean_counter', 0, 0, -0.88, PI);
   },
 
   ceiling_fixture(p, _rng, m, pb) {
@@ -223,9 +233,10 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     bolts(pb, m, at(0, 0.05, 0, -PI / 2, 0, 0), [-s / 2, s / 2], [-s / 2, s / 2], 0);
   },
 
-  valve(_p, _rng, m, pb) {
-    pb.add(lathe([[0, 0], [0.12, 0], [0.12, 0.05], [0.09, 0.08], [0.11, 0.3], [0.06, 0.38], [0.03, 0.55], [0, 0.55]], 18), m.paintDark);
-    pb.add(new THREE.TorusGeometry(0.18, 0.018, 8, 28), m.hazardClean, at(0, 0.55, 0, PI / 2, 0, 0));
+  valve(p, _rng, m, pb) {
+    const pal = resolvePalette(p, m);
+    pb.add(lathe([[0, 0], [0.12, 0], [0.12, 0.05], [0.09, 0.08], [0.11, 0.3], [0.06, 0.38], [0.03, 0.55], [0, 0.55]], 18), pal.pipeMain);
+    pb.add(new THREE.TorusGeometry(0.18, 0.018, 8, 28), pal.pipeAccent, at(0, 0.55, 0, PI / 2, 0, 0));
     for (let k = 0; k < 3; k++) pb.add(slab(0.36, 0.014, 0.02), m.steel, at(0, 0.55, 0, 0, (k * PI) / 3, 0));
     pb.solid(-0.2, 0, -0.2, 0.2, 0.6, 0.2, 'metal');
   },
@@ -234,7 +245,9 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     const L = numParam(p, 'length', 4);
     const r = numParam(p, 'radius', 0.1);
     const y = numParam(p, 'height', 0.4);
-    const mat = strParam(p, 'paint', 'steel') === 'teal' ? m.paintTeal : strParam(p, 'paint', 'steel') === 'dark' ? m.paintDark : m.steel;
+    const pal = resolvePalette(p, m);
+    const paint = strParam(p, 'paint', 'steel');
+    const mat = paint === 'teal' ? pal.pipeAccent : paint === 'dark' ? pal.pipeMain : m.steel;
     pipeRun(pb, m, [V(-L / 2, y, 0), V(L / 2, y, 0)], r, mat, null, 1.5);
     for (let x = -L / 2 + 0.5; x < L / 2; x += 1.5) {
       pb.add(rounded(0.12, y, 0.3, 0.02), m.steel, at(x, y / 2 - r / 2, 0));
@@ -334,6 +347,36 @@ function drawLog(ctx: CanvasRenderingContext2D, t: number, w: number, h: number)
   if (Math.floor(t * 2) % 2 === 0) ctx.fillRect(16, 32 + Math.min(shown, lines.length) * 28 - 16, 10, 18);
   ctx.fillStyle = '#2f5f56';
   ctx.fillRect(0, h - 4, w, 4);
+}
+
+function drawHydroClimate(ctx: CanvasRenderingContext2D, t: number, w: number, h: number): void {
+  ctx.fillStyle = '#04100d';
+  ctx.fillRect(0, 0, w, h);
+  ctx.font = `600 21px ${SCREEN_FONT}`;
+  ctx.fillStyle = '#7fe3c8';
+  ctx.fillText('HYDRO // FERTIGATION & HVAC', 18, 34);
+  ctx.fillRect(18, 44, w - 36, 2);
+  drawTagMark(ctx, w - 36, 26, 15, { ink: '#7fe3c8', accent: '#3f8f82' });
+  ctx.font = `19px ${SCREEN_FONT}`;
+  const rows: Array<[string, string, string]> = [
+    ['GROW HALL RH', `${(86.4 + Math.sin(t * 0.9) * 0.6).toFixed(1)} %  (HIGH)`, '#ffb020'],
+    ['NUTRIENT EC / pH', '1.8 mS  /  6.1 pH', '#bff7ea'],
+    ['RO TANK A / B', '78 %  /  84 %', '#bff7ea'],
+    ['DEHUMIDIFIER', 'COIL FAULT #03', '#ff6a4a'],
+  ];
+  rows.forEach(([k, v, c], i) => {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#6fb8a4';
+    ctx.fillText(k, 18, 84 + i * 32);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = c;
+    ctx.fillText(v, w - 18, 84 + i * 32);
+  });
+  ctx.textAlign = 'left';
+  ctx.fillStyle = Math.floor(t * 2) % 2 === 0 ? '#ffb020' : '#6b4a10';
+  ctx.fillText('ALARM ACTIVE  ·  [E] RESET HUMIDITY ALARM', 18, 232);
+  ctx.fillStyle = '#5fb8a8';
+  ctx.fillText('BAY 12D · PLANT ROOM', 18, h - 18);
 }
 
 function drawVitals(ctx: CanvasRenderingContext2D, t: number, w: number, h: number): void {

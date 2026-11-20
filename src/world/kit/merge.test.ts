@@ -94,10 +94,12 @@ test('procedural stripes and grating keep their 0.5 m tile under world UVs', () 
   for (const name of ['hazardClean', 'grating']) {
     const m = new THREE.MeshStandardMaterial();
     m.name = name;
+    m.map = new THREE.DataTexture();
     assert.equal(worldTileMeters(m), 0.5);
   }
   const photo = new THREE.MeshStandardMaterial();
-  photo.name = 'paintBone';
+  photo.name = 'grating';
+  photo.map = new THREE.Texture();
   assert.equal(worldTileMeters(photo), 1);
 });
 

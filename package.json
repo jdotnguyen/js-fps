@@ -13,6 +13,7 @@
     "walks:suggest": "node --experimental-strip-types --no-warnings scripts/walk-suggest.ts",
     "textures:preview": "node --experimental-strip-types scripts/textures-preview.ts",
     "sounds:preview": "node --experimental-strip-types scripts/sounds-preview.ts",
+    "audio:audit": "node --experimental-strip-types scripts/audio-audit.ts",
     "music:preview": "node --experimental-strip-types scripts/music-preview.ts",
     "voice:preview": "node --experimental-strip-types scripts/voice-preview.ts",
     "vo:generate": "node --experimental-strip-types scripts/vo-generate.ts",
@@ -25,6 +26,7 @@
     "three": "^0.170.0"
   },
   "devDependencies": {
+    "@fission-ai/openspec": "^2.0.0",
     "@types/node": "^22.10.0",
     "@types/three": "^0.170.0",
     "typescript": "^5.8.0",

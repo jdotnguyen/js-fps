@@ -1,4 +1,4 @@
-# Design Brief: Deep-Sea Horror FPS (working title TBD)
+# Design Brief (working title TBD)
 
 > Detailed, executable decisions live in [docs/adr/](docs/adr/README.md). This file is the summary.
 

@@ -1,5 +1,5 @@
 /**
- * Batched Gemini 2.5 Flash TTS generator + PCM silence-valley splitter (ADR-0010 step 6).
+ * Batched Gemini 2.5 Flash TTS generator + PCM silence-valley splitter (casting rules: docs/voice-casting-standard.md).
  *
  * Generates acted voice-over clips for dialogue lines in `src/data/dialogue/*.json`,
  * saves raw batch WAVs to `previews/vo-batches/` (gitignored, so re-splitting costs 0 API calls),
@@ -113,6 +113,11 @@ const CAST: Record<string, CastMember> = {
     label: 'Maint',
     voice: 'Iapetus',
     profile: 'Tired maintenance tech in the dive bay; practical, low-key warning.',
+  },
+  crew_dock_guard: {
+    label: 'Guard',
+    voice: 'Alnilam',
+    profile: '40s, dock security guard who has scanned the same crew every morning for years; patient, dry, warm under the routine.',
   },
 };
 

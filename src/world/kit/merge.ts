@@ -99,9 +99,10 @@ export const applyWorldMeterUvs = applyWorldUvs;
  * World-UV scale (metres per UV unit) for the procedural materials that were authored at a
  * finer tile than 1 m. Photo slots stay at 1: their loader applies `1 / metersPerTile`.
  */
-const WORLD_TILE_METERS: Record<string, number> = { hazardClean: 0.5, grating: 0.5 };
+const WORLD_TILE_METERS: Record<string, number> = { hazardClean: 0.5 };
 
 export function worldTileMeters(material: THREE.Material): number {
+  if (material.name === 'grating' && (material as THREE.MeshStandardMaterial).map instanceof THREE.DataTexture) return 0.5;
   return WORLD_TILE_METERS[material.name] ?? 1;
 }
 

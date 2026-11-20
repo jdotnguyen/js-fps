@@ -7,7 +7,7 @@ const COLORS: Record<string, string> = { engineer: '#ffc27a', medic: '#8fd0ff', 
 
 /**
  * Subtitles (ADR-0012), bottom centre: the speaker's name in their colour, two lines max,
- * on a background box. Driven by the speech manager's `subtitle:show/hide` (ADR-0010);
+ * on a background box. Driven by the speech manager's `subtitle:show/hide`;
  * hidden when the Subtitles setting is off.
  */
 export class Subtitles {

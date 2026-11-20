@@ -105,7 +105,7 @@ interface LookAssist {
   t: number;
 }
 
-/** A scripted shot (ADR-0017): the sequence owns the aim; the mouse only gets a small give. */
+/** A scripted shot (intro-sequence spec): the sequence owns the aim; the mouse only gets a small give. */
 interface Framing {
   target: THREE.Vector3;
   /** Re-read every frame to keep the shot on a moving subject (an NPC walking in). */
@@ -114,6 +114,10 @@ interface Framing {
   give: number;
   /** Seconds to ease onto a new target. */
   duration: number;
+  /** Seconds the give stays where the mouse left it before springing back (0: at once). */
+  hold: number;
+  /** Spring-back time constant, seconds. */
+  returnTime: number;
   yaw: number;
   pitch: number;
 }
@@ -133,7 +137,9 @@ interface WalkTarget {
 
 /** Spring-back time constant for the give, seconds (~0.4 s to settle). */
 const GIVE_RETURN = 0.12;
-/** Scripted turns ease this much slower with reduced motion (ADR-0017). */
+/** How far ahead along the walk heading the heading shot aims, metres. */
+const HEADING_AHEAD = 4;
+/** Scripted turns ease this much slower with reduced motion (intro-sequence spec). */
 const REDUCED_TURN_SCALE = 1.6;
 /** Roll sway on scripted walks, radians (~0.25 deg). */
 const WALK_SWAY = 0.0045;
@@ -190,6 +196,10 @@ export class Player {
   private clampHalf = THREE.MathUtils.degToRad(20);
   private clampFallback: { yaw: number; pitch: number } | null = null;
   private framing: Framing | null = null;
+  /** Direction of the current (or last) scripted walk, as a view yaw; the heading shot faces it. */
+  private headingYaw: number | null = null;
+  /** Seconds since the mouse last pushed the give. */
+  private sinceGive = Infinity;
   private giveYaw = 0;
   private givePitch = 0;
   private walkTarget: WalkTarget | null = null;
@@ -213,7 +223,7 @@ export class Player {
     deps.camera.rotation.order = 'YXZ';
   }
 
-  /** Cannot move on their own: locked, or on a scripted walk (ADR-0017 cutscene bars). */
+  /** Cannot move on their own: locked, or on a scripted walk (the cutscene bars, intro-sequence spec). */
   get onRails(): boolean {
     return isOnRails(this.control.state, this.walkTarget !== null);
   }
@@ -333,11 +343,11 @@ export class Player {
   }
 
   /**
-   * Scripted shot (ADR-0017): ease the view onto `target` and hold it there; the mouse can
+   * Scripted shot (intro-sequence spec): ease the view onto `target` and hold it there; the mouse can
    * push it `give` degrees off and it springs back. Overrides look assist and clamp while
    * set. `duration` 0 snaps at once. null releases the view where it is.
    */
-  frameView(target: THREE.Vector3 | null, opts: { duration?: number; give?: number; follow?: (out: THREE.Vector3) => boolean } = {}): void {
+  frameView(target: THREE.Vector3 | null, opts: { duration?: number; give?: number; hold?: number; returnTime?: number; follow?: (out: THREE.Vector3) => boolean } = {}): void {
     if (!target) {
       this.framing = null;
       this.giveYaw = this.givePitch = 0;
@@ -351,6 +361,8 @@ export class Player {
       ...(opts.follow ? { follow: opts.follow } : {}),
       give,
       duration,
+      hold: Math.max(0, opts.hold ?? 0),
+      returnTime: Math.max(0.02, opts.returnTime ?? GIVE_RETURN),
       // Start from the current base aim, or from the current view on the first shot.
       yaw: prev ? prev.yaw : this.yaw - this.giveYaw,
       pitch: prev ? prev.pitch : this.pitch - this.givePitch,
@@ -363,6 +375,25 @@ export class Player {
       this.yaw = wrapAngle(ty);
       this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, tp));
     }
+  }
+
+  /**
+   * Heading shot (intro-sequence spec): a scripted shot aimed a few metres ahead along Jay's scripted walk at eye
+   * height, so the view faces where the rails go and turns with the route; `give` (default 35 deg) is the mouse
+   * leeway, which holds `hold` s (default 0.5) before settling back. With no walk running it keeps the last heading
+   * (the current view when the shot starts).
+   */
+  frameHeading(opts: { duration?: number; give?: number; hold?: number; returnTime?: number } = {}): void {
+    if (!this.walkTarget || this.headingYaw === null) this.headingYaw = this.yaw - this.giveYaw;
+    const follow = (out: THREE.Vector3): boolean => {
+      const eye = this.eyePosition(this.eye);
+      const yaw = this.headingYaw ?? this.yaw;
+      out.set(eye.x - Math.sin(yaw) * HEADING_AHEAD, eye.y, eye.z - Math.cos(yaw) * HEADING_AHEAD);
+      return true;
+    };
+    const start = new THREE.Vector3();
+    follow(start);
+    this.frameView(start, { duration: opts.duration ?? 0.8, give: opts.give ?? 35, hold: opts.hold ?? 0.5, returnTime: opts.returnTime ?? 0.3, follow });
   }
 
   /** True while a scripted shot holds the view. */
@@ -504,6 +535,8 @@ export class Player {
           wx = sx / sd;
           wz = sz / sd;
         }
+        // The heading shot faces along the route; ignore the last few centimetres, where the steering point sits on the body.
+        if (sd > 0.25) this.headingYaw = Math.atan2(-sx, -sz);
         speed = Math.min(Math.max(st.speed, 0.2), dist / dt);
       }
     } else if (mode !== 'locked' && !dead) {
@@ -539,6 +572,8 @@ export class Player {
     if (mode !== 'locked' && !dead && !this.downed && !this.walkTarget && !wading && this.body.grounded && input.wasPressed('jump')) {
       this.body.vy = T.jumpSpeed;
       this.body.grounded = false;
+      // While jumping the motor lets Jay climb onto tops up to its jumpReach (player-movement spec).
+      this.body.jumping = true;
     }
 
     // Accelerate toward the wish velocity (decelerate faster than we speed up).
@@ -572,8 +607,6 @@ export class Player {
     const r = moveBody(this.body, stepX, stepZ, dt, { ...DEFAULT_MOTOR, jumpSpeed: T.jumpSpeed }, this.world.colliders);
     if (wasAirborne && this.body.grounded) this.d.events.emit('player:footstep', { surface, x: this.body.x, y: this.body.y, z: this.body.z, sprint: false, landing: true });
     let mx = this.body.x - x0;
-      // While jumping the motor lets Jay climb onto tops up to its jumpReach (player-movement spec).
-      this.body.jumping = true;
     let mz = this.body.z - z0;
     // Walls eat the velocity that pushes into them, so we slide instead of sticking.
     if (r.blocked) this.velocity.set(mx / dt, mz / dt);
@@ -810,11 +843,15 @@ export class Player {
       const k = LOOK_SCALE * s.mouseSensitivity;
       this.giveYaw -= x * k;
       this.givePitch -= y * k * (s.invertY ? -1 : 1);
+      this.sinceGive = 0;
     } else {
-      // Spring back to the scripted aim when the mouse is still.
-      const decay = Math.exp(-frameDt / GIVE_RETURN);
-      this.giveYaw *= decay;
-      this.givePitch *= decay;
+      // Spring back to the scripted aim once the mouse has been still for the shot's hold time.
+      this.sinceGive += frameDt;
+      if (this.sinceGive >= f.hold) {
+        const decay = Math.exp(-frameDt / f.returnTime);
+        this.giveYaw *= decay;
+        this.givePitch *= decay;
+      }
     }
     // Elliptical limit, a little tighter vertically (same shape as the look clamp).
     const e = Math.hypot(this.giveYaw / f.give, this.givePitch / (f.give * 0.75));
@@ -853,7 +890,7 @@ export class Player {
     );
     if (this.shoveWindup < 0) this.shoveLunge *= Math.exp(-10 * dt);
     const kickScale = reduced ? 0.3 : 1;
-    // Scripted walks get a faint roll sway so they read as walking, not a dolly (ADR-0017).
+    // Scripted walks get a faint roll sway so they read as walking, not a dolly (intro-sequence spec).
     const sway = this.walkTarget && !reduced ? Math.sin(this.bobPhase) * WALK_SWAY * Math.min(1, this.bobAmp / T.bobWalk) : 0;
     const roll = (this.vitals.state === 'alive' ? 0 : 0.22 * (1 - this.eyeHeight / T.eyeHeight) * (reduced ? 0.3 : 1)) + sway;
     cam.rotation.set(this.pitch + this.kick * 0.06 * kickScale, this.yaw, roll);

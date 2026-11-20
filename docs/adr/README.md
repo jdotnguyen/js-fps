@@ -39,18 +39,17 @@ and ADR-0013 (audio) were retired on 2026-11-20 by the `establish-audio-spec` ch
 | 0012 | HUD, menus, settings and accessibility | 0004, 0005 |
 | 0014 | Slice content: map, beat sheet and script | all above |
 | 0016 | Save system and game state | 0001, 0008, 0012 |
-| 0017 | New-game intro cutscene (skippable, on rails) | 0004, 0006, 0009 |
 | 0018 | Actor separation (body-vs-body collision) | 0004, 0006, 0007 |
 | 0019 | Leg wounds (stagger, limp, then dismember and fall) | 0006, 0007 |
 | 0020 | Turn-then-move steering for crawlers and draggers | 0006 |
 | 0021 | Hero tier behaviour (heavy gait, slam, toughness, weak spot) | 0006, 0007, 0019 |
 | 0022 | Squad characters: personalities, backstory, infection arc | 0011, 0014 |
-| 0023 | The quiet half: commons, briefing and morning rounds | 0014, 0017, 0024, 0025 |
+| 0023 | The quiet half: commons, briefing and morning rounds | 0014, 0024, 0025 |
 | 0024 | Map, objectives and access gating | 0003, 0004, 0012, 0016 |
 | 0025 | Tutorial prompts | 0004, 0012, 0016 |
 | 0026 | Imported body models for the crowd | 0006, 0007 |
 | 0027 | Speech acting: talking mouths and tone-matched gestures | 0006, 0026 |
-| 0028 | Navmesh pathing and authored walks | 0007, 0009, 0017 |
+| 0028 | Navmesh pathing and authored walks | 0007, 0009 |
 | 0029 | Ambient life: activity spots, conversations, ambient director | 0006, 0009, 0027, 0028 |
 
 ## Language

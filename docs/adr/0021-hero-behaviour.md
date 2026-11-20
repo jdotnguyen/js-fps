@@ -74,7 +74,7 @@ have taken and shakes the camera. Player health and knockback belong to ADR-0004
 2. `slam.ts` and tests; `Humanoid.tryAttack`, impact and slam poses. Done.
 3. Heavy gait and footfalls; sandbox AI, camera shake and HUD. Done.
 4. ADR-0007 AI calls `tryAttack` and applies `slamFalloff` to the player and squad; knockback (ADR-0004).
-5. Slam sound and a floor decal or dust (ADR-0013).
+5. Slam sound (see [openspec/specs/in-world-audio](../../openspec/specs/in-world-audio/spec.md)) and a floor decal or dust.
 
 ## Definition of done
 - In the sandbox the hero stomps in, winds up, slams in front of the camera and is open while recovering.

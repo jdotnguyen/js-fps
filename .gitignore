@@ -9,3 +9,6 @@ previews
 .gemini/
 agent/
 skills-lock.json
+
+# OpenSpec: commit active changes and openspec/specs/; finished changes stay local
+openspec/changes/archive/

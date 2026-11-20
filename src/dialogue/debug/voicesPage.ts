@@ -1,5 +1,5 @@
 /**
- * Debug page (ADR-0010 step 2-3): audition every emote for every voice, both channels,
+ * Debug page: audition every emote for every voice, both channels,
  * babble and Giles's rasp, and exercise the speech manager with the slice's lines.
  * Dev only: open /voices.html while `npm run dev` is running.
  */
@@ -43,7 +43,7 @@ const app = document.getElementById('app')!;
 document.head.append(Object.assign(document.createElement('style'), { textContent: css }));
 app.innerHTML = `
   <h1>Voice audition</h1>
-  <p class="note">ADR-0010 emotes: non-verbal mood sounds + subtitles. Every emote should read by mood without the label.</p>
+  <p class="note">Emote fallback (spec voice-playback): played when a line's recording is missing. Every emote should read by mood without the label.</p>
   <button id="start">Click to enable audio</button>
   <div id="main" hidden>
     <h2>Options</h2>

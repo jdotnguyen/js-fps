@@ -1,5 +1,5 @@
 /**
- * Bark system (ADR-0010 step 4): short combat and idle lines hooked to game events, with a
+ * Bark system: short combat and idle lines hooked to game events, with a
  * per-bark cooldown, a global cooldown and droppable priority (the lines are `combat` or
  * `idle`, so the speech manager drops them rather than play them late, and any story or
  * hint line cuts them off).
@@ -7,7 +7,7 @@
  * Lines live in data/dialogue/barks01.json and are pooled by id: `bark_<pool>_<anything>`.
  * The speaker is the line's own: a rule picks the squadmate the event is about (`self`), the
  * other one (`other`), or anyone. Jay (`player`) only makes short reaction sounds outside
- * the on-rails scenes (ADR-0010 amendment); his reactions skip the global cooldown.
+ * the on-rails scenes; his reactions skip the global cooldown.
  *
  * Event names come from the enemy and squad systems; payload fields are read loosely
  * (`who` / `npc` / `speaker` / `role` for which squadmate) so either side can evolve.
@@ -65,7 +65,7 @@ export function whoOf(payload: unknown): string | null {
 
 const part = (p: Record<string, unknown>): string => String(p['part'] ?? p['limb'] ?? p['region'] ?? '');
 
-/** Default rules [Assumed numbers: ADR-0010 per-bark 8-15 s, global 3 s]. */
+/** Default rules [Assumed numbers: per-bark 8-15 s, global 3 s]. */
 export const BARK_RULES: readonly BarkRule[] = [
   { event: 'enemy:spotted', pool: 'spotted', cooldown: 15, who: 'squad' },
   { event: 'enemy:alerted', pool: 'spotted', cooldown: 15, who: 'squad' },

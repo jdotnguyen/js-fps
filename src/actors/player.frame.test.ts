@@ -1,4 +1,4 @@
-/** ADR-0017 scripted shots: the sequence owns the aim, the mouse gets a small give that springs back. */
+/** Scripted shots (intro-sequence spec): the sequence owns the aim, the mouse gets a small give that springs back. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -87,4 +87,114 @@ test('reduced motion turns more slowly', () => {
     run(p, 0.3);
   }
   assert.ok(Math.abs(reduced.yaw) < Math.abs(normal.yaw), `${reduced.yaw} vs ${normal.yaw}`);
+});
+
+// ---- intro-sequence spec, "Heading shot on the walk": the view faces along the rails with wide mouse leeway.
+
+function makeWalker(reducedMotion = false): { player: Player; push: (x: number, y: number) => void } {
+  let look = { x: 0, y: 0 };
+  const input = {
+    consumeLook: () => {
+      const l = look;
+      look = { x: 0, y: 0 };
+      return l;
+    },
+    isDown: () => false,
+    wasPressed: () => false,
+    axis: () => 0,
+  };
+  const floor = { min: [-20, -0.3, -20] as const, max: [20, 0, 20] as const };
+  const deps = {
+    camera: new THREE.PerspectiveCamera(),
+    input,
+    events: new EventBus(),
+    settings: () => ({ reducedMotion, mouseSensitivity: 1, invertY: false, fov: 75 }),
+    flashlight: { on: false, toggle: () => undefined },
+    interactions: { update: () => null },
+    difficulty: () => ({ grabMashCount: 6 }),
+    world: { colliders: { query: (_a: number, _b: number, _c: number, _d: number, out: unknown[]) => (out.push(floor), out) }, surfaceAt: () => 'metal' },
+  } as unknown as PlayerDeps;
+  const player = new Player(deps);
+  player.placeAtEye(new THREE.Vector3(0, 1.62, 0), 0);
+  return { player, push: (x, y) => (look = { x, y }) };
+}
+
+const step = (p: Player, s: number): void => {
+  for (let t = 0; t < s; t += 1 / 60) {
+    p.update(1 / 60);
+    p.look(1 / 60);
+  }
+};
+
+/** North 6 m, then a 90 degree turn east: the shape of the walk out of the booth into the Commons. */
+const L_CURVE = [
+  { x: 0, y: 0, z: 0 },
+  { x: 0, y: 0, z: -6 },
+  { x: 6, y: 0, z: -6 },
+];
+
+test('heading shot: with the mouse still, the view faces along the walk and turns with the route', () => {
+  const { player } = makeWalker();
+  player.frameHeading();
+  void player.walkTo(new THREE.Vector3(6, 0, -6), 1.3, L_CURVE);
+  step(player, 2.5);
+  assert.ok(Math.abs(player.yaw) < 12 * DEG, `walking north, yaw ${(player.yaw / DEG).toFixed(1)} deg`);
+  assert.ok(Math.abs(player.pitch) < 2 * DEG, 'level');
+  step(player, 7);
+  assert.ok(Math.abs(player.yaw - -Math.PI / 2) < 12 * DEG, `after the turn east, yaw ${(player.yaw / DEG).toFixed(1)} deg`);
+});
+
+test('heading shot: the mouse gets about 35 degrees sideways and 26 vertically, never more', () => {
+  const { player, push } = makeWalker();
+  player.frameHeading({ duration: 0 });
+  for (let i = 0; i < 40; i++) {
+    push(500, 0);
+    player.look(1 / 60);
+  }
+  assert.ok(Math.abs(player.yaw) <= 35 * DEG + 1e-6, `yaw ${(player.yaw / DEG).toFixed(1)} deg`);
+  assert.ok(Math.abs(player.yaw) > 33 * DEG, 'the leeway is reachable');
+  const { player: p2, push: push2 } = makeWalker();
+  p2.frameHeading({ duration: 0 });
+  for (let i = 0; i < 40; i++) {
+    push2(0, 500);
+    p2.look(1 / 60);
+  }
+  assert.ok(Math.abs(p2.pitch) <= 26.25 * DEG + 1e-6, `pitch ${(p2.pitch / DEG).toFixed(1)} deg`);
+  assert.ok(Math.abs(p2.pitch) > 24 * DEG);
+});
+
+test('heading shot: looking aside holds for about half a second, then settles back over about a second', () => {
+  const { player, push } = makeWalker();
+  player.frameHeading({ duration: 0 });
+  for (let i = 0; i < 20; i++) {
+    push(80, 0);
+    player.look(1 / 60);
+  }
+  const aside = player.yaw;
+  assert.ok(Math.abs(aside) > 20 * DEG, `looked aside ${(aside / DEG).toFixed(1)} deg`);
+  run(player, 0.35);
+  assert.ok(Math.abs(player.yaw - aside) < 1 * DEG, 'still held where the mouse left it');
+  run(player, 0.25 + 1.2);
+  assert.ok(Math.abs(player.yaw) < 2 * DEG, `settled back, yaw ${(player.yaw / DEG).toFixed(1)} deg`);
+});
+
+test('heading shot: with reduced motion the view follows the route turn more slowly', () => {
+  const yawAfterTurn = (reduced: boolean): number => {
+    const { player } = makeWalker(reduced);
+    player.frameHeading();
+    void player.walkTo(new THREE.Vector3(6, 0, -6), 1.3, L_CURVE);
+    // Walk until the route has turned east, then a moment more.
+    let turned = -1;
+    for (let t = 0; t < 12 && turned < 0.25; t += 1 / 60) {
+      player.update(1 / 60);
+      player.look(1 / 60);
+      if (turned >= 0) turned += 1 / 60;
+      else if (player.body.x > 1) turned = 0;
+    }
+    return player.yaw;
+  };
+  const normal = yawAfterTurn(false);
+  const reduced = yawAfterTurn(true);
+  // Both are turning from 0 toward -90 deg; reduced motion lags behind.
+  assert.ok(reduced > normal + 1 * DEG, `reduced ${(reduced / DEG).toFixed(1)} vs normal ${(normal / DEG).toFixed(1)} deg`);
 });

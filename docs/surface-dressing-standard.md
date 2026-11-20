@@ -13,7 +13,7 @@
 | Projection axis is chosen **per triangle** from its face normal (bevelled `rounded()` pieces never smear). | live |
 | U is signed by facing: every wall reads left-to-right from in front of it, floors read upright from above. Opposite walls are never mirrored. | live |
 | Only materials whose map **repeats** (`wrapS = RepeatWrapping`) take world UVs. Canvas textures, signs (`signDanger`), screens, decals and anything `transparent` keep their authored UVs. | live |
-| 1 UV unit = 1 m for photo slots; the loader applies `repeat = 1 / metersPerTile` (`render/tex/manifest.ts`). Procedural `hazardClean` and `grating` use 0.5 m (`WORLD_TILE_METERS`). | live |
+| 1 UV unit = 1 m for photo slots; the loader applies `repeat = 1 / metersPerTile` (`render/tex/manifest.ts`). Procedural `hazardClean` and the grating fallback use 0.5 m (`WORLD_TILE_METERS`). | live |
 | The `tile` argument of `slab()` / `boxUv()` only matters for geometry that is **not** merged through `AoMergeBuilder` (e.g. `demoRoom.ts`). | live |
 | Imported GLB room shells keep their own UVs. Author them in Blender at the same texel density (§2). | rule |
 | Check with the 1 m checkerboard (`?checker`, or the Level overlay toggle). Squares must be square and continuous on every surface you touched. | rule |
@@ -31,7 +31,7 @@ A 3.2 m wall reads as three bands, never one flat surface:
 
 | Band | Height (m) | Material source |
 | --- | --- | --- |
-| Kick / skirting | 0.00 – 0.25 | `palette.hazard` or `steel` |
+| Kick / skirting | 0.00 – 0.25 | `steelBrushed` kick plates. Reserve warning paint for moving edges and exposed drops. |
 | Main panel | 0.25 – 2.40 | `palette.wallMain` |
 | Upper / service | 2.40 – ceiling | `palette.wallAlt` (pipes, cable trays, vents live here) |
 
@@ -58,6 +58,7 @@ A 3.2 m wall reads as three bands, never one flat surface:
 - Keep a **clear 1.2 m path** between every pair of doors and around objective interactables (squad pathing needs 2 capsules side by side).
 - Face clusters toward the room's focal point or entry, so the first view from the door reads as composed.
 - Rotate within ±5°, not randomly; snap the rest to the 0.25 m sub-grid.
+- **Climbable tops in combat spaces.** Jay can jump onto any top 0.35–1.00 m high with 1.75 m of headroom above it (desks, counters, tables, crates; `openspec` player-movement spec), and enemies cannot follow him up (they climb 0.35 m). Keep such tops out of a fight's footprint, put something low over them (a cabinet, a shelf), make them taller than 1.00 m, or accept that Jay can stand there. `src/world/slice01JumpTops.test.ts` lists every one in slice01.
 
 ## 6. Draw-call budget (60 per room, ADR-0003)
 

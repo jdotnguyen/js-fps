@@ -188,10 +188,9 @@ function rib(pb: PieceBuilder, m: Materials, x: number, z: number, ry: number): 
   }
 }
 
-function valveWheel(pb: PieceBuilder, m: Materials, x: number, y: number, z: number): void {
-  const red = m.hazardClean;
+function valveWheel(pb: PieceBuilder, m: Materials, x: number, y: number, z: number, wheelMat: THREE.Material = m.paintTeal): void {
   pb.add(cylinderBetween(V(x, y + 0.24, z), V(x, y, z), 0.022), m.steel);
-  pb.add(new THREE.TorusGeometry(0.14, 0.016, 8, 28), red, at(x, y, z, PI / 2, 0, 0));
+  pb.add(new THREE.TorusGeometry(0.14, 0.016, 8, 28), wheelMat, at(x, y, z, PI / 2, 0, 0));
   for (let k = 0; k < 3; k++) pb.add(slab(0.28, 0.012, 0.02), m.steel, at(x, y, z, 0, (k * PI) / 3, 0));
 }
 
@@ -289,8 +288,8 @@ function floorTile(p: PieceParams, rng: Rng, m: Materials, grate: boolean): Piec
     pb.add(slab(3.8, 0.05, 3.8), m.black, at(0, -0.75, 0));
     for (const [x, r, mat] of [
       [-1.1, 0.12, m.steel],
-      [-0.5, 0.07, m.paintTeal],
-      [0.7, 0.09, m.paintDark],
+      [-0.5, 0.07, pal.pipeAccent],
+      [0.7, 0.09, pal.pipeMain],
       [1.3, 0.04, m.cable],
     ] as const) {
       pb.add(pipe([V(x, -0.55 + r, -2), V(x + rng.range(-0.1, 0.1), -0.55 + r, 2)], r, 1, 12), mat);
@@ -319,12 +318,14 @@ function ceilingTile(p: PieceParams, rng: Rng, m: Materials, withPipes: boolean)
   pb.solid(-2, h, -2, 2, h + 0.12, 2);
   if (withPipes) {
     pipeRun(pb, m, [V(-1.3, h - 0.38, -2), V(-1.3, h - 0.38, 2)], 0.12, pal.trim, h, 2, pal.trim);
-    pipeRun(pb, m, [V(-0.8, h - 0.32, -2), V(-0.8, h - 0.32, 2)], 0.06, m.paintTeal, h, 99, pal.trim);
-    pipeRun(pb, m, [V(1.35, h - 0.42, -2), V(1.35, h - 0.42, 2)], 0.16, m.paintDark, h, 2, pal.trim);
-    if (rng.chance(0.5)) valveWheel(pb, m, 1.35, h - 0.8, rng.range(-1.2, 1.2));
+    pipeRun(pb, m, [V(-0.8, h - 0.32, -2), V(-0.8, h - 0.32, 2)], 0.06, pal.pipeAccent, h, 99, pal.trim);
+    pipeRun(pb, m, [V(1.35, h - 0.42, -2), V(1.35, h - 0.42, 2)], 0.16, pal.pipeMain, h, 2, pal.trim);
+    if (rng.chance(0.5)) valveWheel(pb, m, 1.35, h - 0.8, rng.range(-1.2, 1.2), pal.pipeAccent);
   }
-  ceilingHousing(pb, m, 0, h - 0.1, 0, PI / 2, pal.trim);
-  pb.light([0, h - 0.1, 0], 'ceiling', PI / 2);
+  if (boolParam(p, 'fixture', true)) {
+    ceilingHousing(pb, m, 0, h - 0.1, 0, PI / 2, pal.trim);
+    pb.light([0, h - 0.1, 0], 'ceiling', PI / 2);
+  }
   return pb.build();
 }
 
@@ -339,7 +340,7 @@ function wallTile(p: PieceParams, rng: Rng, m: Materials, style: WallStyle): Pie
   if (style === 'plain' || style === 'vent') plainWall(pb, m, rng, f, o);
   else if (style === 'panel') panelWall(pb, m, rng, f, { ...o, cables: boolParam(p, 'cables', false) });
   else if (style === 'window') {
-    windowWall(pb, m, f, o, createAbyss(34, 16));
+    windowWall(pb, m, f, { ...o, backdropDepth: numParam(p, 'backdropDepth', 9) }, createAbyss(34, 16));
   } else {
     glassPartition(pb, m, f, h, pal);
   }
@@ -353,7 +354,7 @@ function wallTile(p: PieceParams, rng: Rng, m: Materials, style: WallStyle): Pie
 
 function glassPartition(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, h: number, pal?: ResolvedPalette): void {
   const trim = pal?.trim ?? m.steel;
-  const wall = pal?.wallMain === m.woodPanel ? pal.wallMain : m.paintDark;
+  const wall = pal ? (pal.wallMain === m.woodPanel ? pal.wallMain : pal.doorSurround) : m.paintDark;
   pb.add(rounded(4, 0.35, 0.2, 0.02), wall, inFrame(f, 0, 0.175, -0.1));
   pb.add(rounded(4, 0.12, 0.2, 0.02), trim, inFrame(f, 0, 2.6, -0.1));
   if (h > 2.7) pb.add(slab(4, h - 2.66, 0.2), wall, inFrame(f, 0, (h + 2.66) / 2, -0.1));
@@ -407,32 +408,64 @@ function mergeFan(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
 
 // ------------------------------------------------------------------ door frame
 
+export interface DoorFrameMaterials {
+  trim?: THREE.Material;
+  /** Jamb/lintel inset strip on the +Z (cell) face; defaults to `m.paintDark`. */
+  paintFront?: THREE.Material;
+  /** Jamb/lintel inset strip on the -Z (far) face; defaults to `paintFront`. */
+  paintBack?: THREE.Material;
+  /** Wall filler & transom surround on the +Z (cell) face; defaults to `m.paintDark`. */
+  surroundFront?: THREE.Material;
+  /** Wall filler & transom surround on the -Z (far) face; defaults to `surroundFront`. */
+  surroundBack?: THREE.Material;
+}
+
 /**
  * Door frame on the cell's -Z edge (straddling it by WALL_T on both sides), with a
  * 2 m x 2.4 m opening. `width` fills the rest of the edge, `height` the space above.
  * Door leaves are added by world/kit/doors.ts.
  */
-export function doorFrame(pb: PieceBuilder, m: Materials, width: number, h: number, pal?: ResolvedPalette): void {
-  const haz = pal?.hazard ?? m.hazardClean;
-  const hazTile = pal?.hazardTile ?? 0.5;
-  const trim = pal?.trim ?? m.steel;
+export function doorFrame(pb: PieceBuilder, m: Materials, width: number, h: number, mats: DoorFrameMaterials = {}): void {
+  const trim = mats.trim ?? m.steelBrushed;
+  const paintFront = mats.paintFront ?? m.paintDark;
+  const paintBack = mats.paintBack ?? paintFront;
+  const surroundFront = mats.surroundFront ?? m.paintDark;
+  const surroundBack = mats.surroundBack ?? surroundFront;
   const z = -HALF;
   const t = WALL_T * 2;
   const side = (width - 2.56) / 2;
+  const splitSurround = surroundFront !== surroundBack;
   if (side > 0.01) {
-    for (const s of [-1, 1]) pb.add(slab(side, h, t), m.paintDark, at(s * (1.28 + side / 2), h / 2, z));
+    for (const s of [-1, 1]) {
+      const x = s * (1.28 + side / 2);
+      if (splitSurround) {
+        pb.add(slab(side, h, WALL_T), surroundFront, at(x, h / 2, z + WALL_T / 2));
+        pb.add(slab(side, h, WALL_T), surroundBack, at(x, h / 2, z - WALL_T / 2));
+      } else {
+        pb.add(slab(side, h, t), surroundFront, at(x, h / 2, z));
+      }
+    }
   }
-  if (h > 2.76) pb.add(slab(2.56, h - 2.76, t), m.paintDark, at(0, (h + 2.76) / 2, z));
+  if (h > 2.76) {
+    const th = h - 2.76;
+    const ty = (h + 2.76) / 2;
+    if (splitSurround) {
+      pb.add(slab(2.56, th, WALL_T), surroundFront, at(0, ty, z + WALL_T / 2));
+      pb.add(slab(2.56, th, WALL_T), surroundBack, at(0, ty, z - WALL_T / 2));
+    } else {
+      pb.add(slab(2.56, th, t), surroundFront, at(0, ty, z));
+    }
+  }
   for (const s of [-1, 1]) {
     pb.add(rounded(0.32, 2.76, 0.6, 0.03), trim, at(s * 1.16, 1.38, z));
     for (const fz of [-1, 1]) {
-      pb.add(slab(0.2, 2.2, 0.02, hazTile), haz, at(s * 1.16, 1.2, z + fz * 0.305));
+      pb.add(slab(0.2, 2.2, 0.02), fz > 0 ? paintFront : paintBack, at(s * 1.16, 1.2, z + fz * 0.305));
       bolts(pb, m, at(s * 1.16, 0, z + fz * 0.31, 0, fz > 0 ? 0 : PI, 0), [-0.1, 0.1], [0.25, 2.25], 0, trim);
     }
   }
   pb.add(rounded(2.64, 0.36, 0.6, 0.03), trim, at(0, 2.58, z));
   pb.add(rounded(2.0, 0.04, 0.56, 0.01), trim, at(0, 0, z));
-  for (const fz of [-1, 1]) pb.add(slab(1.9, 0.16, 0.02, hazTile), haz, at(0, 2.58, z + fz * 0.305));
+  for (const fz of [-1, 1]) pb.add(slab(1.9, 0.16, 0.02), fz > 0 ? paintFront : paintBack, at(0, 2.58, z + fz * 0.305));
   const half = width / 2;
   pb.solid(-half, 0, z - WALL_T, -1, h, z + WALL_T);
   pb.solid(1, 0, z - WALL_T, half, h, z + WALL_T);
@@ -463,7 +496,7 @@ function stairs(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
     const zb = zf - tread;
     pb.add(slab(w - 0.1, 0.05, tread - 0.02), m.diamond, at(0, top - 0.025, (zf + zb) / 2));
     pb.add(slab(w - 0.1, rise / n, 0.03), m.paintDark, at(0, top - rise / n / 2, zf - 0.015));
-    pb.add(slab(w - 0.12, 0.03, 0.04), m.hazardClean, at(0, top - 0.01, zf - 0.03));
+    pb.add(slab(w - 0.12, 0.03, 0.04), m.steelBrushed, at(0, top - 0.01, zf - 0.03));
     pb.solid(-hw, 0, zb, hw, top, zf, 'metal');
     profile.lineTo(-zf, top);
     profile.lineTo(-zb, top);
@@ -577,7 +610,12 @@ export const STRUCTURE_PIECES: PieceDef[] = [
   tile('wall_vent', (p, rng, m) => wallTile(p, rng, m, 'vent')),
   tile('door_frame', (p, _rng, m) => {
     const pb = new PieceBuilder();
-    doorFrame(pb, m, numParam(p, 'width', 4), height(p), resolvePalette(p, m));
+    const pal = resolvePalette(p, m);
+    doorFrame(pb, m, numParam(p, 'width', 4), height(p), {
+      trim: pal.trim,
+      paintFront: pal.doorPanel,
+      surroundFront: pal.doorSurround,
+    });
     return pb.build();
   }),
   tile('stairs', stairs),

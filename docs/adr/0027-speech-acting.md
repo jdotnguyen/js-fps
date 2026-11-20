@@ -4,7 +4,7 @@ Status: Proposed (Nov 18) [Assumed]: Justin asked for mouths that move when char
 their tone; the details below are my reading of that.
 
 ## Context
-Voices are non-verbal emote sounds under a subtitle (ADR-0010), so a speaker used to stand still while a line played.
+Lines are voiced with a subtitle ([openspec/specs/voice-playback](../../openspec/specs/voice-playback/spec.md)), and a speaker used to stand still while a line played.
 Every line already carries an `emote` (neutral, question, urgent, alarmed, pained, relieved, laugh, whisper, dread, scream),
 which is the tone, and subtitle text with a known duration, which is the rhythm.
 

@@ -1,4 +1,4 @@
-/** ADR-0017: skipping a sequence applies every remaining end state, exactly once. */
+/** intro-sequence spec: skipping a sequence applies every remaining end state, exactly once. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ControlStack } from '../actors/control.ts';

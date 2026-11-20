@@ -167,7 +167,7 @@ export class SequenceManager {
   }
 
   /**
-   * Skip every skippable running sequence (ADR-0017): apply the end state of everything
+   * Skip every skippable running sequence (intro-sequence spec): apply the end state of everything
    * left, then end normally so control layers are released. Returns whether any skipped.
    */
   skip(): boolean {

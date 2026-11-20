@@ -4,6 +4,8 @@ import { Rng } from '../core/rng.ts';
 import type { SurfaceDef } from './bodyMaterial.ts';
 import { clothPatch, heroColor, heroFace, heroScalpTorn, sculptHeroHead, sculptHero, tatterColor, tatterStrip } from './heroSculpt.ts';
 import { fbm3, noise3 } from './noise3.ts';
+import type { FingerBoneName, HandDetailBone, TwistBoneName } from './handPhysics.ts';
+import type { TorsoHullDef } from './limbContact.ts';
 import { HERO_NECK, HERO_NECK_EXTRA, JOINTS, jointDef, type JointName, type SegmentDef, type Side, type Vec3T } from './skeleton.ts';
 
 /**
@@ -72,19 +74,21 @@ export interface BodyShape {
 export const TENDRILS = 3;
 export const TENDRIL_SEGMENTS = 4;
 
-/** Bones that are not joints: they scale infection detail and stump caps in and out. */
+/** Bones that are not joints: they scale infection detail, stump caps, and optional wrist/finger rigs. */
 export type ExtraBone =
   | 'growth_shoulder_L' | 'growth_shoulder_R' | 'growth_jaw' | 'growth_spine'
   | 'shards_arm' | 'shards_leg' | 'ribs'
   | `tendril_${number}_${number}`
   | `cloth_${number}_${number}`
-  | `stump_${JointName}`;
+  | `stump_${JointName}`
+  | FingerBoneName
+  | TwistBoneName;
 
 export interface ExtraBoneDef {
   name: ExtraBone;
   parent: JointName | ExtraBone;
   offset: Vec3T;
-  kind: 'growth' | 'shards' | 'ribs' | 'tendril' | 'cloth' | 'stump';
+  kind: 'growth' | 'shards' | 'ribs' | 'tendril' | 'cloth' | 'stump' | 'finger' | 'twist';
   /** Rest rotation (radians, XYZ) for bones that aim somewhere (tendril roots). */
   rest?: Vec3T;
 }
@@ -124,6 +128,10 @@ export interface BodyGeometry {
   skinTone: THREE.Color;
   /** Textured materials for imported-model pieces (see `PartGeometry.surface`). */
   surfaces?: Readonly<Record<string, SurfaceDef>>;
+  /** Optional preserved finger and forearm-twist bone metadata for biomechanical hand physics. */
+  handBones?: readonly HandDetailBone[];
+  /** Optional mesh-fitted torso hulls for accurate hand/forearm self-collision on imported models. */
+  torsoHulls?: readonly TorsoHullDef[];
 }
 
 /** Attributes every piece carries (tests check this so merging never fails). */

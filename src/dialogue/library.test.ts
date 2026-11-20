@@ -49,10 +49,11 @@ test('audio lines may omit the emote and accept variant arrays', () => {
   assert.throws(() => lib([line({ audio: [] })]), /audio variant array must not be empty/);
 });
 
-test('crew_* speakers get stable, distinct generated voices', () => {
-  const l = lib([line({ speaker: 'crew_cook' })]);
-  const a = l.speaker('crew_cook');
-  assert.deepEqual(l.speaker('crew_cook'), a);
+test('named crew speakers keep their display name and crew_* speakers get stable, distinct generated voices', () => {
+  const l = lib([line({ speaker: 'crew_cook' }), line({ id: 'test_02', speaker: 'crew_mess' })]);
+  assert.equal(l.speaker('crew_cook').name, 'Bram');
+  const a = l.speaker('crew_mess');
+  assert.deepEqual(l.speaker('crew_mess'), a);
   assert.notEqual(l.speaker('crew_lab').f0, a.f0);
   assert.throws(() => l.speaker('crew_'), /Unknown speaker/);
 });

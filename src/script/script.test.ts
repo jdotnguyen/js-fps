@@ -352,6 +352,15 @@ test('every shipped sequence file validates', async () => {
   assert.ok(defs.some((d) => d.id === 'test_drop'));
 });
 
+test('a music step naming an unknown track fails validation, naming the step', () => {
+  assert.throws(
+    () => validateSequences({ 'data/sequences/t.json': { id: 't', steps: [{ do: 'music', id: 'nope' }] } }),
+    (e: Error) => /t\.json/.test(e.message) && /steps\[0\]/.test(e.message) && /nope/.test(e.message),
+  );
+  // Known tracks and stop steps validate.
+  validateSequences({ 'data/sequences/t.json': { id: 't', steps: [{ do: 'music', id: 'main_theme' }, { do: 'music', stop: true }] } });
+});
+
 test('the shipped test_drop sequence runs headless to its checkpoint', async () => {
   const { readFileSync } = await import('node:fs');
   const raw = JSON.parse(readFileSync(new URL('../data/sequences/test_drop.json', import.meta.url), 'utf8')) as unknown;

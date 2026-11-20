@@ -133,3 +133,111 @@ re-encoded, 7.1 MB -> 0.74 MB); the sculpted procedural hero (ADR-0021) is the f
 
 ## Amendment (Nov 18): no procedural crowd bodies
 The crowd now rolls through three models in table order (`data/body-models.json`): Zombie Walk 1/3, then Zombie Monster Slasher Necromorph 1/2 of the rest, then the Zombie game character (the remainder), so every shambler and play-dead body is a model (a third each). The game character's right arm is mostly missing in the source. Costs: 5 draw calls per model body against 2 procedural. A procedural crowd is still reachable with `?bodyModels=off`.
+
+## Addendum: Okafor and Ruiz re-cast (Nov 20)
+- Justin replaced both bodies: Okafor should read as a wise Black doctor, and Ruiz (the first crew member through the intro, with a
+  woman's voice) should be a woman. Both new bodies are CC-BY scans by restore50 (the uploader of Sung's scan), same exporter: unrigged,
+  3-4 chunks fused into one shell, 5 identical UV sets, a fragmented texture atlas.
+- **Shared pipeline.** `scripts/lib/scan-body.mjs` now holds the steps the per-scan scripts used to copy: bake + weld, texture-colour
+  sampling (ImageMagick), triangle cuts with hole caps, island cleanup, region rotation, decimation, distance-field skinning with a jaw
+  mask, and packing. It packs like the gltf-transform output of the other bodies (EXT_meshopt_compression, KHR_mesh_quantization for
+  normals/UVs, EXT_texture_webp) using `meshoptimizer`'s encoder, so no external tool is needed.
+- **Decimation by region and error bound.** A single triangle target spent the budget on hair and collapsed smooth skin into a few big
+  facets. `decimate()` now simplifies regions separately (borders locked) to a relative error bound: about 1 mm on heads and hands,
+  3 mm on shoes, 5 mm elsewhere. These atlases are fragmented (Ruiz: 68k UV-seam edges), so seams, not the error bound, set the floor:
+  Ruiz is ~41k triangles and Okafor ~29k, above the 16k of earlier scans. Ruiz's body is in the generic `crew`/`engineer` pools
+  (`CREW_MODELS`), so a room of crew can include it.
+- **Okafor** (`doctor` slot, `scripts/fix-okafor-glb.mjs`, "White Coat Physician with Stethoscope"): shaved head, light-blue scrubs,
+  long white lab coat, stethoscope. The head was yawed 26° to his left (face symmetry plane); the script turns it back 13°, not 26°,
+  because the eyes are painted looking at the scanner and a full correction leaves him side-eyeing. Collar and stethoscope behind the
+  neck are held still. The raised left forearm is fused to the coat front, so colour- and capsule-based rules give the sleeve to the
+  forearm and the panel behind it to the torso; a few stretched triangles remain where they were joined. The coat skirt (white cloth
+  away from the trouser legs, y 0.66-1.0 m) is blended half-way toward the hips so it swings less than the legs. To keep the main-cast
+  hand rig (`handRig: true`), the skeleton carries 30 finger bones (measured off the scan: left hand fanned and pointing, right hand
+  hanging, fingers mostly fused) and a forearm-twist bone per arm, all unweighted: `bodyModel.ts` auto-skins the fingers. 19 MB -> 0.7 MB.
+- Okafor's raised left hand was scanned with its fingers bent 25-65° at the knuckles, across his body. The rig curls fingers but cannot
+  open a bend baked into the mesh (and the bend tilted every calibrated curl axis), so the script fits each finger's centreline from its
+  own vertices and swings index..pinky about the knuckle to lie along the hand's axis, keeping 15% of the bend: a relaxed open hand.
+- `bodyModel.ts`'s finger auto-skin fallback dropped a share under 1% at the knuckle without renormalising (a vertex could sum to
+  0.991); it now renormalises. Okafor's was the first hand to hit that case.
+- **Ruiz** (`ruiz` slot, `scripts/fix-ruiz-glb.mjs` rewritten, "Blue Overalls Technician"): long curly dark hair, navy coveralls and a
+  tool belt, mid-stride, carrying an ~80 cm toolbox. The box, its handle posts and the grip ends poking out of her fist are cut by region +
+  texture colour; the openings are capped with a flat patch of the neighbouring cloth or skin texel. Below the hip joint the cloth is
+  biased onto the thighs so straightening the stride leaves no bulge, and the trailing ankle sits along the shin so both legs measure
+  0.871 m and the feet land level. 26 MB -> 0.8 MB.
+- The previous sources (Chenchanchong "doctor", restore50 "Modern Service Technician") are retired, and so is
+  `scripts/fix-doctor-glb.mjs`. The new sources are kept (gitignored) in `previews/sources/`.
+- Fallback looks (`OKAFOR` in `squadLooks.ts`, `ruiz` in `castLooks.ts`) now follow the scans: Okafor deep brown and clean-shaven without
+  the glasses on his head; Ruiz with curly hair and navy coveralls.
+
+## Addendum: scan-body skinning fixes (Nov 20, openspec `fix-scan-body-skinning`)
+- Requirements now live in `openspec/specs/imported-body-models` (in the change until it is archived). Okafor's and Ruiz's arms
+  dragged a band of coat with them, and their mouths smeared when the head turned.
+- **Neck and lower face.** Capsules alone let the wide chest capsule win up to the chin (the neck joint owned 0.1% of the skin), so
+  `skinScan` takes a `neck` option, applied after smoothing and before the jaw mask:
+  `{ collarY, jawLineY, axis: [x, z], radius, margin, faceRadius, include(rgb) }`, measured per scan in the source frame.
+  - Neck column (horizontal distance to `axis` below `radius`, above `collarY`, where `include` holds): neck -> head gradient from
+    `collarY` to `jawLineY`, nothing else.
+  - Lower face (2.5 cm or more in front of the axis, within `faceRadius`, above `jawLineY - margin`, outside the column, any colour,
+    because lips and mouth shadows fail a skin test): head only, then the jaw mask moves the mouth and chin onto the jaw.
+  - `include` keeps what sits next to the neck on the chest: Okafor's is "skin" (his coat collar and stethoscope stay put); Ruiz's
+    is "not navy" (her throat and the hair beside it turn with the head, the coverall collar does not). Both rules blend in over
+    1-2 cm.
+  - Okafor: collar 1.58, jaw line 1.66, axis (-0.033, -0.04), radius 0.075, margin 0.03, face radius 0.17.
+    Ruiz: collar 1.52, jaw line 1.635, axis (0.045, -0.005), radius 0.065, margin 0.015, face radius 0.17.
+  - `bodyModel.test.ts` checks it per scan body: no chest or spine weight in the neck column, and the mouth and chin at least 97%
+    head and jaw.
+  - Hair on the shoulders still follows the chest (out of scope).
+- **Arms cut off the torso below the armpit.** The scans are one closed shell where an arm touched the body, so smoothing blended
+  a band of coat into each sleeve. Three shared steps in `scripts/lib/scan-body.mjs`, run after decimation:
+  - `labelArms(body, { J, BONES, color, adjust, override })` labels each triangle body / left arm / right arm from the capsule
+    scores, cleans up by majority vote, keeps the hand-connected arm component and absorbs stray body islands.
+    `override(x, y, z, rgb)` forces a label (0 body, 1 left, 2 right) where the scores get it wrong.
+  - `splitArms(body, labels, { armpitY: { Left, Right }, torsoAxis, J, pick, bulge, blend, band })` duplicates the vertices arm
+    and body triangles share below `armpitY` (source frame) and caps both sides. The body's cap stays in view once `bodyModel`
+    straightens the arm away from it, so it is a membrane (`membraneCap`): a zipper across the opening with interior points every
+    2 cm, Delaunay flips and relaxation in cylindrical coordinates about the torso axis (a bare zipper read as a fan of splinters).
+    Within `band` (default 4 cm) of the cut and over the cap, the torso's radius is relaxed toward an ellipse fitted to the torso
+    per height plus a harmonic correction (at most 2.5 cm out), so the crease the arm pressed in fills out instead of leaving a
+    dent; normals there are recomputed. `bulge` pushes the cap out further by that fraction of each point's distance to the rim
+    (default 0). The arm's cap folds each rim vertex onto the arm's bone axis (a 5 mm grid shared by both sides, so it is
+    watertight and every point rides on its own bone). `pick(rim, centre)` chooses the one rim texel a cap is painted with. `blend`
+    (default 4 cm) is the band under each armpit where the skin mask eases into the shoulder blend.
+  - `skinScan({ ..., arms })` masks weights below the armpit: arm vertices use only their arm's chain (upper arm, forearm, every
+    hand bone), body vertices none of it. Smoothing ignores the arm caps (they would pull the armpit corner onto the bone axis).
+  - Ruiz: armpit 1.35 both sides, `blend` 6 cm; tool-belt pouches stay on the body (`override`: between y 0.84 and 1.12, anything
+    over 7 cm off the forearm/hand axis, or over 4.5 cm off it and neither navy nor skin); caps painted navy (skin at a hand).
+    (Okafor went through the same steps until he was re-cast to a rigged model, below.)
+  - `bodyModel.test.ts` checks it per scan body (now Ruiz) with the upper arms raised 30°: no mixed arm/body vertex below the armpit line
+    (13 cm under `upperArm_*`), at most 3% mixed triangles, no torso vertex moving, no edge of 3 mm or more past 2.5x, and no
+    open edge round the arms over 5 mm. `src/actors/scanBody.test.ts` covers the split, caps and mask on a synthetic box.
+  - `previews/scan-pose.py <glb>...` (gitignored dev script) renders rest, 30° raise, mixed weights, stretch, look-at turns and
+    an open jaw per GLB; `previews/zrender.py` renders one view with a depth buffer, per-pixel texture and optional joint turns
+    (`foreArm_L:x:80`), which shows slivers and fins as the game does.
+
+## Addendum: Okafor re-cast to a rigged model (Nov 20)
+- Even with the split, Okafor's scan read as splintered: his left forearm was scanned across his coat, so straightening it leaves a
+  torso-sized opening and a crumpled elbow. Justin chose BrushDip's "Doctor - Sketchfab Weekly - 13 Mar'23" (CC BY 4.0) instead:
+  hand-modelled and rigged (3ds Max Biped, 33 joints), arms modelled apart from the body, grey hair and beard, round glasses, lab
+  coat over a blue shirt and tie. Okafor keeps his name (Justin: the surname can be his husband's, to be worked into the story).
+- `scripts/fix-doctor-glb.mjs` (the name of the retired Character Creator script, reused) builds `doctor.glb`; the scan script
+  `scripts/fix-okafor-glb.mjs` is retired. It keeps the artist's skin weights and does no decimation (12.6k triangles):
+  - bakes the bind pose from the inverse bind matrices (the node pose is the clipboard animation's) through Sketchfab's wrapper into
+    metres, facing +Z, feet at 0, 1.80 m tall, and renames the Biped bones to the Mixamo names (`Clavicle` -> `Shoulder`,
+    `Calf` -> `Leg`, `Toe0` -> `ToeBase`; the root, `Bip001` and the prop dummies fold into Hips and the hands);
+  - adds a Jaw bone (hinge 1.592 m) and weights the lower lip, chin and beard below the mouth line (1.601 m) to it;
+  - replaces the mitten fingers (one bone for all four) with thumb..pinky chains: the four fingers are split along the palm's width
+    by 1D k-means and reassigned to the nearest fitted centreline twice, and each chain is the centroid of slices along its finger.
+    The fingers are modelled bent 40-70° at the knuckles around the clipboard, which tilted the calibrated curl axes (the hand rig
+    test caught the right index curling outward), so each finger is swung toward the hand's axis keeping 20% of the bend. The chains
+    are unweighted; `bodyModel.ts` auto-skins the fingers as for the scans. A forearm-twist bone per arm as before.
+  - drops the glasses' lenses (a transmission material the game does not render), the clipboard and the pen (unskinned props on the
+    hand dummies);
+  - packs the body (1024 px) and head (512 px) texture sets side by side into one 1536x1024 atlas at full resolution, WebP q95,
+    moving tiled UVs (mirrored shoe and hand, buttons) into [0, 1] per triangle; the material stays double-sided, as in the source,
+    because the lapels, hem and cuffs are single sheets (`packBody` gained a `doubleSided` option). 3.7 MB -> 0.57 MB.
+- The source's one animation (3.4 s, writing on the clipboard) is not used: bodies are animated by the shared retargeted clip
+  library, not their own clips.
+- Okafor is no longer a scan body: `bodyModel.test.ts` keeps the neck rule check on him and runs the arm-separation checks on Ruiz
+  only (the artist's shoulder blend covers 3.5% of triangles, above the scan limit of 3%, by design).
+- Fallback look (`OKAFOR` in `squadLooks.ts`) follows the model: grey hair and beard, glasses.

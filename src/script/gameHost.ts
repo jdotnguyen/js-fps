@@ -3,6 +3,7 @@
  * script file that knows about three.js, the player, the world and the audio engine.
  */
 import { npcIdForSpeaker } from '../ai/speakerBodies.ts';
+import { MUSIC_TRACKS, type MusicTrack } from '../audio/musicTracks.ts';
 import * as THREE from 'three';
 import { PLAYER_TUNING, type Player } from '../actors/player.ts';
 import type { SoundName } from '../audio/sounds.ts';
@@ -34,6 +35,8 @@ export interface GameHostDeps {
   audio: AudioEngine;
   /** Environmental soundscape director (room beds, spatial one-shots, scripted ambience overrides). */
   ambience?: AmbienceDirector | null | undefined;
+  /** Music the sequence `music` step controls (the menu theme player). */
+  music?: { cue(track: MusicTrack | null): void } | null | undefined;
   hud: PlayerHud;
   toasts: Toasts;
   /** Key items (ADR-0024), for `giveItem`. */
@@ -44,7 +47,7 @@ export interface GameHostDeps {
   npcs?: NpcDirector | null | undefined;
   /** Enemy spawn groups (ADR-0007 `spawnGroup` / `despawnGroup`). */
   enemies?: { spawnGroup(group: string): boolean; despawnGroup(group: string): boolean; groupCleared(group: string): boolean } | null | undefined;
-  /** Speech manager (ADR-0010) for `say`; without it lines are skipped with a warning. */
+  /** Speech manager for `say`; without it lines are skipped with a warning. */
   speech?: { say(id: string, opts?: { overlap?: boolean }): { done: Promise<unknown> } | null; stopAll(): void } | null | undefined;
   /** End-credits overlay triggered when the slice finishes. */
   showCredits?: () => void;
@@ -117,10 +120,12 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
     pushControl: (over, owner) => d.player.control.push(over, owner),
     lookAt: (at, duration, weight) => d.player.lookAt(v3(at), { duration, weight }),
     clampLook: (at, degrees) => d.player.clampLook(at ? v3(at) : null, degrees),
-    frame: (at, duration, give, follow) =>
+    frameHeading: (duration, give, opts) => d.player.frameHeading({ duration, give, ...opts }),
+    frame: (at, duration, give, follow, opts) =>
       d.player.frameView(at ? v3(at) : null, {
         duration,
         give,
+        ...opts,
         ...(follow
           ? {
               follow: (out: THREE.Vector3) => {
@@ -191,6 +196,17 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
       d.audio.play(id as SoundName, at ? { position: v3(at) } : {});
     },
     ...(d.ambience ? { ambience: (id: string) => d.ambience!.setOverride(id) } : {}),
+    ...(d.music
+      ? {
+          music: (id: string | null) => {
+            if (id !== null && !(MUSIC_TRACKS as readonly string[]).includes(id)) {
+              console.warn(`[seq] music: no track "${id}"`);
+              return;
+            }
+            d.music!.cue(id as MusicTrack | null);
+          },
+        }
+      : {}),
 
     checkpoint(id, text) {
       if (d.game.flags[`cp:${id}`]) return; // already taken (a replay after death)

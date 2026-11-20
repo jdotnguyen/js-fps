@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { dequantizeForTransform } from '../gltf.ts';
 
 /**
- * The supply sub (ADR-0017): the "Kilo-class Submarine" GLB (public/assets/models/vehicles/, CC BY 4.0, see
+ * The supply sub (intro-sequence spec): the "Kilo-class Submarine" GLB (public/assets/models/vehicles/, CC BY 4.0, see
  * CREDITS.md; material converted by scripts/fix-kilo-glb.mjs).
  *
  * The source is a ~71 m boat in its own units, long axis Z, bow at +Z, Y up. `prepare` bakes the node

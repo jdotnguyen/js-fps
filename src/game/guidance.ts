@@ -27,7 +27,7 @@ declare module '../core/events.ts' {
     'map:revealed': { area: string; station: string; rooms: string[] };
     /** First time this session the player walks into an area that has an unused map station. */
     'map:areaEntered': { area: string };
-    /** Barks (ADR-0010): low on ammo (loaded + reserve under one magazine). */
+    /** Barks: low on ammo (loaded + reserve under one magazine). */
     'player:lowAmmo': { weapon: string; total: number };
     /** Barks: health under 30. */
     'player:lowHealth': { hp: number };
@@ -86,7 +86,7 @@ export interface GuidanceDeps {
 }
 
 /**
- * Wires the ADR-0024 map and objectives and the ADR-0010 barks and hints into the running
+ * Wires the ADR-0024 map and objectives and the barks and hints into the running
  * game, plus supply pickups (ADR-0005/0008): one object so `main.ts` only creates it,
  * steps it and renders it.
  */

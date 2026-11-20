@@ -1,6 +1,6 @@
 import { arr, bool, nullable, numRange, obj, oneOf, optional, record, str, type Infer, type Validator, ValidationError } from '../../core/validate.ts';
 
-/** Dialogue data (ADR-0010): lines in data/dialogue/<chapter>.json, voices in speakers.json. */
+/** Dialogue data: lines in data/dialogue/<chapter>.json, voices in speakers.json. */
 
 export const EMOTES = ['neutral', 'question', 'urgent', 'alarmed', 'pained', 'relieved', 'laugh', 'whisper', 'dread', 'scream'] as const;
 export type Emote = (typeof EMOTES)[number];
@@ -58,7 +58,7 @@ export const validateLine: Validator<DialogueLine> = (v, p) => {
   if (!/^[a-z0-9_]+$/.test(line.id)) throw new ValidationError(`${p} > id`, `"${line.id}" must be lower_snake_case`);
   if (line.text.trim() === '') throw new ValidationError(`${p} > text`, 'empty subtitle text');
   if (line.emote === null && line.audio === null) throw new ValidationError(`${p} > emote`, 'emote is required unless audio is set');
-  if (line.choices.length > 0) throw new ValidationError(`${p} > choices`, 'dialogue choices are not in the slice (ADR-0010); must be []');
+  if (line.choices.length > 0) throw new ValidationError(`${p} > choices`, 'dialogue choices are not in the slice; must be []');
   return line;
 };
 

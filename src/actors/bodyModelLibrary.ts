@@ -1,4 +1,4 @@
-import { arr, numRange, obj, optional, record, str, type Infer, type Validator } from '../core/validate.ts';
+import { arr, bool, numRange, obj, optional, record, str, type Infer, type Validator } from '../core/validate.ts';
 import type { Rng } from '../core/rng.ts';
 import { prepareBodyModel, type PreparedBodyModel } from './bodyModel.ts';
 
@@ -16,6 +16,8 @@ const modelShape = {
   share: numRange(0, 1),
   /** How much the infection shader tints the model's opaque surfaces (default 0.3). */
   sickTint: optional(numRange(0, 1)),
+  /** Preserve individual finger and forearm-twist bones for biomechanical hand physics (main cast). */
+  handRig: optional(bool),
   /** Attribution for CREDITS.md and the credits screen (CC-BY and friends require it). */
   credit: obj({ title: str, author: str, source: str, license: str }),
 };
@@ -43,7 +45,10 @@ export class BodyModelLibrary {
         try {
           const t0 = performance.now();
           const gltf = await loader.loadAsync(baseUrl + def.url);
-          const model = prepareBodyModel(gltf.scene, def.sickTint === undefined ? {} : { sickTint: def.sickTint });
+          const model = prepareBodyModel(gltf.scene, {
+            ...(def.sickTint === undefined ? {} : { sickTint: def.sickTint }),
+            ...(def.handRig ? { detailHands: true } : {}),
+          });
           this.loaded.set(id, model);
           console.info(`[body-models] ${id}: ${model.triangles} triangles, ${model.parts.length} pieces in ${(performance.now() - t0).toFixed(0)} ms`);
         } catch (err) {

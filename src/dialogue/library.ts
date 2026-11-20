@@ -2,7 +2,7 @@ import { hashString, Rng } from '../core/rng.ts';
 import { validate, ValidationError } from '../core/validate.ts';
 import { CREW_PREFIX, validateChapter, validateSpeakers, type DialogueLine, type VoiceProfile } from '../data/types/dialogue.ts';
 
-/** Subtitle time on screen (ADR-0010): max(minDuration, 0.35 s per word + 0.8 s). */
+/** Subtitle time on screen: max(minDuration, 0.35 s per word + 0.8 s). */
 export function subtitleDuration(text: string, minDuration: number): number {
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   return Math.max(minDuration, words * 0.35 + 0.8);

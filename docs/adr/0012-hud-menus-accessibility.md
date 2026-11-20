@@ -42,9 +42,9 @@ See ADR-0016 for the save-related screens (Continue, New Game slots, Load Game, 
 ### Settings (localStorage)
 - Controls: mouse sensitivity, invert Y, FOV (70-95).
 - Graphics: quality tier (Low/Medium/High), film grain on/off.
-- Audio: master, music, SFX, voice; vocal emotes on/off; babble on/off (ADR-0010).
+- Audio: see [openspec/specs/audio-mix](../../openspec/specs/audio-mix/spec.md) (Volume settings).
 - Gameplay: difficulty, gore (Full/Reduced).
-- Accessibility: subtitles on/off (default on; turning them off warns that teammates speak only in non-verbal sounds), subtitle size (S/M/L), subtitle
+- Accessibility: subtitles on/off (default on), subtitle size (S/M/L), subtitle
   background opacity, **reduced flashing** (clamps flicker/strobe), reduced
   camera shake and head bob, hold-to-mash alternative for grab struggles, high-contrast
   HUD.

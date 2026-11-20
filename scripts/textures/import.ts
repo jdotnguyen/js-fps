@@ -7,7 +7,7 @@
  * ORM packing: R = AO (white if missing), G = roughness, B = metalness (black if missing).
  * Poly Haven `arm` files are already packed and are only resized.
  * Optional `opacity` + `opacityBake: true` bakes perforations directly into color and ORM (dark
- * matte non-metallic cavities) so perforated panels need no alpha cutout at runtime.
+ * matte non-metallic cavities). Otherwise opacity is stored in the color map alpha for cutouts.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
@@ -102,7 +102,8 @@ for (const name of todo) {
   const aoIn = s.ao ? src(name, s.ao) : null;
   const roughIn = s.roughness ? src(name, s.roughness) : null;
   const metalIn = s.metalness ? src(name, s.metalness) : null;
-  const opIn = s.opacity && s.opacityBake ? src(name, s.opacity) : null;
+  const opacity = s.opacity ? src(name, s.opacity) : null;
+  const opIn = s.opacityBake ? opacity : null;
   if (!armIn && !roughIn) fail(`slot "${name}": needs either arm or roughness`);
   mkdirSync(dir, { recursive: true });
 
@@ -119,6 +120,7 @@ for (const name of todo) {
   } else {
     const colorArgs = [colorIn, ...common(size)];
     if (s.desaturate !== undefined) colorArgs.push('-modulate', `100,${s.desaturate},100`);
+    if (opacity) colorArgs.push('(', opacity, ...common(size), ')', '-compose', 'CopyOpacity', '-composite');
     run([...colorArgs, ...webp(resolve(dir, 'color.webp'), false)]);
   }
 

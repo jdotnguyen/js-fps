@@ -101,10 +101,8 @@ procedural animation, and an on-gun ammo readout.
 - Shotgun cycle: Fire, then PostFire (pump) 0.3 s later, ready 0.9 s after the shot. Reload: PriorToReload, a
   ReloadOne per shell, ReloadLastOne; firing mid-reload drops out of it. Pistol: Fire restarts per shot (0.24 s),
   ReloadClip / EmptyClipReload.
-- Audio no longer uses timers. The viewmodel emits `weapon:cue` (`magOut`, `magIn`, `slide`, `slideSoft`, `pump`)
-  at times read off the clips (`CUES` in viewmodel.ts); main.ts plays the samples on them. The pump sample is
-  time-stretched x1.1 (`scripts/fit-weapon-audio.mjs` -> `shotgun-pump-fit.wav`) so its rack and slam land on
-  PostFire's. Other samples already fit and are only re-timed.
+- The viewmodel emits `weapon:cue` (`magOut`, `magIn`, `slide`, `slideSoft`, `pump`) at times read off the clips
+  (`CUES` in viewmodel.ts). Weapon sound timing: [openspec/specs/in-world-audio](../../openspec/specs/in-world-audio/spec.md).
 - The Fire/PostFire clips throw the whole rig back ~0.35 m; the viewmodel cancels part of that (`recoilCancel`)
   so the gun stays in front of the camera, more when aiming. Pose numbers (`SPECS.*.poses`) are first guesses.
 - Gone with the procedural guns: the on-gun ammo screen/lights, the pistol aim laser and the slide-lock on empty.

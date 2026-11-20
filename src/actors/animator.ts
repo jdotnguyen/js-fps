@@ -5,12 +5,16 @@ import {
   sampleLocomotion,
   sampleZombieLocomotion,
   sharedMocapLibrary,
+  resolveMotions,
+  DEFAULT_MOTIONS,
   type LocomotionSample,
   type MocapLibrary,
+  type MotionSet,
 } from './mocap.ts';
 import { blendPose, copyPose, emptyPose, type CompiledPose, type PoseLibrary } from './poses.ts';
-import { JOINT_INDEX, JOINTS, type JointName } from './skeleton.ts';
-import { gesture, mouthOpenAt, type SpeechPlan } from './speechActing.ts';
+import type { Emote } from '../data/types/dialogue.ts';
+import { JOINT_INDEX, JOINTS, type JointName, type Side } from './skeleton.ts';
+import { gesture, hash01, mouthOpenAt, type SpeechPlan } from './speechActing.ts';
 import { Spring1D } from './springs.ts';
 
 /**
@@ -29,6 +33,8 @@ export type GaitStyle = 'none' | 'walk' | 'shamble' | 'heavy' | 'crawl' | 'drag'
 const D2R = Math.PI / 180;
 const R2D = 180 / Math.PI;
 const J = JOINT_INDEX;
+/** Joints the arm-damped layers scale (shoulder to hand, both sides). */
+const ARM_JOINTS: ReadonlySet<JointName> = new Set(['shoulder_L', 'upperArm_L', 'foreArm_L', 'hand_L', 'shoulder_R', 'upperArm_R', 'foreArm_R', 'hand_R']);
 const N = JOINTS.length;
 
 /** Full gait cycle length (two steps) in metres, and the speed it is tuned for. */
@@ -111,8 +117,15 @@ export class Animator {
   idleLife = 0;
   /** Enable Tier B hybrid mocap base layer for this body (living upright human NPCs). */
   useMocap = false;
-  /** Use the calmer/composed `walk_formal` mocap gait (e.g. Okafor, Hale, medics). */
-  formalWalk = false;
+  /** The clips this body idles, talks and moves with (set once by the body, see `setMotions`). */
+  motions: MotionSet = DEFAULT_MOTIONS;
+  /**
+   * 0..1 scale on the procedural arm layers (speech gestures, idle fidgets and breathing, balance flare). A body with its own
+   * motion set runs at `Animator.OWN_MOTION_ARMS`, so its captured arm motion is not buried under generated motion.
+   */
+  armLayer = 1;
+  /** Scale `add` applies to arm joints while an arm-damped layer runs. */
+  private armScale = 1;
   /** Joints that hang limp (Reduced gore severed limbs). */
   readonly limp = new Set<number>();
   /** Infection 0..1: drives the twisted posture, broken joints, jaw and twitching. */
@@ -189,6 +202,7 @@ export class Animator {
   private speech: SpeechPlan | null = null;
   private speechT = 0;
   private speechW = 0;
+  private speechBeat = 0;
   private speechEnding = false;
   private readonly speechSink = (joint: JointName, x: number, y: number, z: number): void => {
     this.add(joint, x, y, z);
@@ -296,10 +310,14 @@ export class Animator {
 
     const mocapActive = this.updateMocapBase(dt);
     this.updateGait(dt, mocapActive);
+    this.armScale = this.armLayer;
     this.updateInertialPhysics(dt);
+    this.armScale = 1;
     this.updateTurnInPlace(dt);
+    this.armScale = this.armLayer;
     this.updateIdleLife(dt);
     this.updateSpeech(dt);
+    this.armScale = 1;
     this.updateLook(dt);
     this.updateInfected(dt);
     this.updateReactions(dt);
@@ -416,7 +434,7 @@ export class Animator {
             ? 'kneel_fix'
             : mode === 'crouch'
               ? 'crouch_idle'
-              : 'idle',
+              : this.motions.idle,
     );
     this.idlePhase = (this.idlePhase + dt / Math.max(0.1, idleClip.duration)) % 1;
 
@@ -447,14 +465,14 @@ export class Animator {
         this.speed,
         this.locoPhase,
         this.idlePhase,
-        { formal: this.formalWalk, talking: false },
+        { motions: this.motions, talking: false },
         this.mocapPose,
         this.locoInfo,
       );
       // When speaking while standing still, subtly blend in the natural weight-shift/torso motion from idle_talk
       // without overriding the speechActing emote arm gestures (keep idle_talk subtle on arms).
       if (this.speechW > 0.01 && this.speed < 0.15 && !Animator.ARMS_BUSY.has(poseName)) {
-        const talkClip = this.mocap.get('idle_talk');
+        const talkClip = this.mocap.get(this.motions.talk);
         const talkPhase = (this.idlePhase * (idleClip.duration / talkClip.duration)) % 1;
         sampleClip(talkClip, talkPhase, this.talkPose);
         const tw = this.speechW * (1 - this.locoInfo.moveWeight) * 0.35;
@@ -523,6 +541,23 @@ export class Animator {
     return this.speech !== null && !this.speechEnding;
   }
 
+  /** Speech telemetry for HandPhysicsSolver (biomechanical wrist & finger gestures). */
+  get speechEmote(): Emote | null {
+    return this.speech?.emote ?? null;
+  }
+
+  get speechWeight(): number {
+    return this.speechW;
+  }
+
+  get speechPulse(): number {
+    return this.speechBeat;
+  }
+
+  get speechPrimarySide(): Side {
+    return this.speech?.side === 1 ? 'L' : 'R';
+  }
+
   /**
    * Speech layer: the jaw follows the line's syllables and the emote's gestures ride on top of the current pose. The infected
    * do not talk; arms gesture less while walking or busy with a task, and not at all on the ground.
@@ -530,12 +565,14 @@ export class Animator {
   private updateSpeech(dt: number): void {
     const plan = this.speech;
     if (!plan) {
+      this.speechBeat = 0;
       this.speechNodSpring.step(0, dt);
       return;
     }
     if (this.twitchy || this.infect > 0.35 || this.convulse > 0.01) {
       this.speech = null;
       this.speechW = 0;
+      this.speechBeat = 0;
       this.speechNodSpring.reset(0);
       return;
     }
@@ -546,11 +583,18 @@ export class Animator {
     if (this.speechEnding && this.speechW < 0.01) {
       this.speech = null;
       this.speechW = 0;
+      this.speechBeat = 0;
       this.speechNodSpring.step(0, dt);
       return;
     }
     const w = this.speechW;
     const open = mouthOpenAt(plan.cues, this.speechT);
+    const beatP = this.speechT * plan.style.beatHz + hash01(plan.seed, 5);
+    const beatIdx = Math.floor(beatP);
+    const beatFrac = beatP - beatIdx;
+    this.speechBeat =
+      Math.pow(Math.sin(Math.PI * beatFrac), plan.style.beatSharp) *
+      (0.55 + 0.45 * hash01(plan.seed, 100 + beatIdx));
     this.add('jaw', -plan.style.jaw * open * w, 0, 0);
     // Subtle spring-damped head/chest emphasis synced to syllable openings (organic talking life without thrashing).
     const nod = this.speechNodSpring.step(open * w, dt);
@@ -570,10 +614,23 @@ export class Animator {
 
   private add(name: JointName, x: number, y: number, z: number): void {
     const i = J[name] * 3;
-    this.off[i] = (this.off[i] ?? 0) + x * D2R;
-    this.off[i + 1] = (this.off[i + 1] ?? 0) + y * D2R;
-    this.off[i + 2] = (this.off[i + 2] ?? 0) + z * D2R;
+    const k = this.armScale !== 1 && ARM_JOINTS.has(name) ? this.armScale * D2R : D2R;
+    this.off[i] = (this.off[i] ?? 0) + x * k;
+    this.off[i + 1] = (this.off[i + 1] ?? 0) + y * k;
+    this.off[i + 2] = (this.off[i + 2] ?? 0) + z * k;
   }
+
+  /**
+   * Pick the body's clips: `own` (a main character's motion set) over the default or formal set. A body with its own set gets
+   * its procedural arm layers turned down to `Animator.OWN_MOTION_ARMS`.
+   */
+  setMotions(own: Partial<MotionSet> | undefined, formal: boolean): void {
+    this.motions = resolveMotions(this.mocap, own, formal);
+    this.armLayer = own ? Animator.OWN_MOTION_ARMS : 1;
+  }
+
+  /** Procedural arm-layer strength for characters with their own motion set. */
+  static readonly OWN_MOTION_ARMS = 0.35;
 
   private n(t: number, k: number): number {
     const s = this.noiseSeed + k * 7.3;
@@ -1066,6 +1123,9 @@ export class Animator {
     return this.gazeState / 2147483647;
   }
 
+  /** Sitting or leaning on something (ADR-0029 seats and lean spots). */
+  private static readonly PLACED = /^(sit_|lean_)/;
+
   /** Poses where the arms are doing a job: their idle fidgets shrink. */
   private static readonly ARMS_BUSY: ReadonlySet<string> = new Set(['aim_pistol', 'typing', 'sit_typing', 'clipboard', 'crouchWork', 'kneel_revive', 'drink', 'offer_mug']);
 
@@ -1095,7 +1155,9 @@ export class Animator {
     this.add('upperArm_L', 0, 0, 0.5 * breath);
     this.add('upperArm_R', 0, 0, -0.5 * breath);
     // Weight shift: pelvis translates laterally + rolls, spine counters so the head stays level.
-    const sh = (Math.sin(t * 0.42 + s * 1.3) * 0.6 + Math.sin(t * 0.17 + s * 0.7) * 0.4) * w * k;
+    // Not for a body sitting or leaning on something (ADR-0029): it would slide across the seat.
+    const placed = Animator.PLACED.test(this.to.name) ? 0 : 1;
+    const sh = (Math.sin(t * 0.42 + s * 1.3) * 0.6 + Math.sin(t * 0.17 + s * 0.7) * 0.4) * w * k * placed;
     this.bob.x += 0.016 * sh;
     this.add('pelvis', 0, 1.2 * sh, 1.6 * sh);
     this.add('spine', 0, -0.6 * sh, -1.2 * sh);
@@ -1121,7 +1183,8 @@ export class Animator {
     const upright = this.gait === 'none' || this.gait === 'walk' || this.gait === 'shamble' || this.gait === 'heavy';
     if (this.lookLocal && upright) {
       const d = this.lookLocal;
-      const eyeY = this.to.name.startsWith('sit_') ? 1.18 : 1.55;
+      // Eye height follows the pose's pelvis drop (seated ~1.2 m, a bar stool ~1.5 m; ADR-0029).
+      const eyeY = 1.55 + Math.min(0, this.to.pelvis.y);
       yaw = THREE.MathUtils.clamp(Math.atan2(-d.x, -d.z), -1.25, 1.25);
       pitch = THREE.MathUtils.clamp(Math.atan2(d.y - eyeY, Math.hypot(d.x, d.z)), -0.6, 0.6);
     }

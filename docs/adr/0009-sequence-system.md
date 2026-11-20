@@ -48,7 +48,7 @@ Player: `playerControl`, `playerLookAt`, `playerClampLook`, `playerWalkTo`, `fad
 NPCs: `npcMoveTo`, `npcAnim`, `npcLookAt`, `npcTask` (ADR-0011), `npcFollow`, `transform`,
 `spawn`, `despawn`, `attachToTrack` (for "dragged away" scenes).
 World: `doorState`, `lightState`, `glass`, `water` (flood level), `sfx`, `music`, `ambience`.
-Story: `say` (ADR-0010), `setObjective`, `completeObjective`, `checkpoint`, `endSlice`.
+Story: `say` (dialogue, `src/dialogue/`), `setObjective`, `completeObjective`, `checkpoint`, `endSlice`.
 
 ### Runtime
 - Each running sequence is a cursor over steps; actions implement
@@ -60,9 +60,9 @@ Story: `say` (ADR-0010), `setObjective`, `completeObjective`, `checkpoint`, `end
 - **Checkpoints:** snapshot of flags, objectives, door/light states, player HP/ammo, squad
   positions, alive enemies. Death restores the snapshot and restarts sequences that were
   marked `resumeFromCheckpoint`.
-- Sequences are not skippable unless they set `skippable: true` (ADR-0017). Skipping
+- Sequences are not skippable unless they set `skippable: true` ([intro-sequence spec](../../openspec/specs/intro-sequence/spec.md)). Skipping
   applies the end state of every step still to come, once (`SequenceManager.skip()`; each
-  action may define its end state in `SKIPS`, see ADR-0017). In-world scenes where the
+  action may define its end state in `SKIPS`, see the [intro-sequence spec](../../openspec/specs/intro-sequence/spec.md)). In-world scenes where the
   player keeps control (the drop) stay unskippable.
 
 ### Debug
@@ -79,7 +79,7 @@ Story: `say` (ADR-0010), `setObjective`, `completeObjective`, `checkpoint`, `end
 ## Execution steps
 1. Interpreter with flow actions + validation.
 2. Player and world actions, control stack.
-3. NPC actions (stub until ADR-0011), `transform` (ADR-0006), `say` (ADR-0010).
+3. NPC actions (stub until ADR-0011), `transform` (ADR-0006), `say`.
 4. Objectives and checkpoints.
 5. Debug overlay and `?seq=`.
 
@@ -93,8 +93,7 @@ Story: `say` (ADR-0010), `setObjective`, `completeObjective`, `checkpoint`, `end
 ## Progress log
 - 2026-11-15: Steps 1, 2, 4 and 5 implemented on branch `adr/0009-sequence` (uncommitted).
   Step 3 is stubbed: NPC actions and `transform` go through `host.npc` and warn once until
-  ADR-0006/0007/0011 provide it; `say` warns until the speech manager is wired into the game
-  (ADR-0010).
+  ADR-0006/0007/0011 provide it; `say` warns until the speech manager is wired into the game.
   - `script/actions.ts`: one table holding schema and implementation of every action;
     `script/runtime.ts`: serial/parallel cursors, control stack per sequence, exclusive
     queue, triggers, checkpoints; `script/gameHost.ts`: the only file that touches the game;

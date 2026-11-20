@@ -1,0 +1,127 @@
+[
+  {
+    "id": "dock_arch",
+    "trigger": {
+      "event": "trigger:dock_arch",
+      "requires": "introSeen",
+      "unless": "drop_started"
+    },
+    "steps": [
+      {
+        "do": "runHook",
+        "hook": "jayArmed"
+      },
+      {
+        "do": "if",
+        "flag": "jay_armed",
+        "then": [
+          {
+            "do": "emit",
+            "event": "detector:scan",
+            "payload": {
+              "id": "dock_arch",
+              "result": "alarm"
+            }
+          },
+          {
+            "do": "sfx",
+            "id": "archAlarm",
+            "at": "anchor:arch"
+          },
+          {
+            "do": "if",
+            "flag": "guard_arch_cool",
+            "is": false,
+            "then": [
+              {
+                "do": "if",
+                "flag": "guard_arch_1",
+                "is": false,
+                "then": [
+                  {
+                    "do": "say",
+                    "line": "guard_arch_01"
+                  },
+                  {
+                    "do": "setFlag",
+                    "flag": "guard_arch_1",
+                    "value": true
+                  }
+                ],
+                "else": [
+                  {
+                    "do": "if",
+                    "flag": "guard_arch_2",
+                    "is": false,
+                    "then": [
+                      {
+                        "do": "say",
+                        "line": "guard_arch_02"
+                      },
+                      {
+                        "do": "setFlag",
+                        "flag": "guard_arch_2",
+                        "value": true
+                      }
+                    ],
+                    "else": [
+                      {
+                        "do": "say",
+                        "line": "guard_arch_03"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "do": "emit",
+                "event": "dock:arch_cooldown"
+              }
+            ]
+          }
+        ],
+        "else": [
+          {
+            "do": "emit",
+            "event": "detector:scan",
+            "payload": {
+              "id": "dock_arch",
+              "result": "pass"
+            }
+          },
+          {
+            "do": "sfx",
+            "id": "archPass",
+            "at": "anchor:arch"
+          }
+        ]
+      },
+      {
+        "do": "wait",
+        "s": 0.6
+      }
+    ]
+  },
+  {
+    "id": "dock_arch_cooldown",
+    "trigger": {
+      "event": "dock:arch_cooldown"
+    },
+    "steps": [
+      {
+        "do": "setFlag",
+        "flag": "guard_arch_cool",
+        "value": true
+      },
+      {
+        "do": "wait",
+        "s": 20
+      },
+      {
+        "do": "setFlag",
+        "flag": "guard_arch_cool",
+        "value": false
+      }
+    ]
+  }
+]

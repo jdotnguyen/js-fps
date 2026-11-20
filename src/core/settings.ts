@@ -19,9 +19,9 @@ export interface Settings {
   sfxVolume: number;
   voiceVolume: number;
   filmGrain: boolean;
-  /** Seconds the skip key is held to skip a cutscene (ADR-0017). */
+  /** Seconds the skip key is held to skip a cutscene (intro-sequence spec). */
   skipHoldSeconds: number;
-  /** One press starts the skip countdown instead of holding the key (ADR-0017). */
+  /** One press starts the skip countdown instead of holding the key (intro-sequence spec). */
   skipAssist: boolean;
   /** Tutorial pop-ups: first time only (per profile), always, or off (ADR-0025). */
   tutorialPrompts: TutorialMode;

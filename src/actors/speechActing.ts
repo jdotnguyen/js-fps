@@ -4,7 +4,7 @@ import type { JointName } from './skeleton.ts';
 /**
  * Speech acting (ADR-0027): what a body does while it talks. Pure data and maths (no three.js), so it runs in node tests.
  *
- * Voices are non-verbal emote sounds under a subtitle (ADR-0010), so the *line* carries the performance: the subtitle text sets
+ * Each line carries an emote tag under its subtitle (voice: spec voice-playback), so the *line* carries the performance: the subtitle text sets
  * the rhythm of the mouth (one jaw pulse per syllable, pauses at spaces and punctuation) and the emote sets how big the jaw
  * opens and which gestures the hands and body make. Everything is a few seconds of additive joint rotations in degrees that
  * the animator layers on whatever pose the body is in.

@@ -1,9 +1,9 @@
 /**
- * Speech manager (ADR-0010): one voice at a time, with subtitles.
+ * Speech manager: one voice at a time, with subtitles.
  *
  * Priorities: story > hint > combat > idle. A higher priority interrupts the current
  * line; equal or lower waits in the queue. Lines said with `overlap: true` (a PA notice
- * the squad talks over, ADR-0017) skip the queue and play alongside it on their own lane.
+ * the squad talks over, intro-sequence spec) skip the queue and play alongside it on their own lane.
  * combat/idle lines are dropped instead of
  * waiting more than `maxWait` seconds, so stale barks never play late.
  *
@@ -28,7 +28,7 @@ export interface SpeechInfo {
   /** Display name for the subtitle. */
   name: string;
   text: string;
-  /** Tone of the line (ADR-0010), for acting it: null when the line only has recorded audio. */
+  /** Tone of the line, for acting it: null when the line only has recorded audio. */
   emote: Emote | null;
   channel: Channel;
   priority: Priority;
@@ -50,7 +50,7 @@ declare module '../core/events.ts' {
 export interface SayOptions {
   /** World position of the speaker's head, read every frame for `local` lines. */
   at?: () => Vec3Like;
-  /** Play now on the overlap lane, beside whatever is speaking, without queuing (ADR-0017). */
+  /** Play now on the overlap lane, beside whatever is speaking, without queuing (intro-sequence spec). */
   overlap?: boolean;
 }
 
@@ -100,7 +100,7 @@ interface Active extends Entry {
 export interface SpeechOptions {
   /** Silence between consecutive lines, seconds [Assumed]. */
   gap?: number;
-  /** combat/idle lines are dropped rather than wait longer than this (ADR-0010: 2 s). */
+  /** combat/idle lines are dropped rather than wait longer than this (2 s). */
   maxWait?: number;
 }
 

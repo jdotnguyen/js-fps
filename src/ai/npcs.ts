@@ -8,10 +8,12 @@ import type { TargetRef, Vec3Like } from '../script/types.ts';
 import { PLAYER_RADIUS } from './giveWay.ts';
 import type { Navigator, P3 } from './nav.ts';
 import { NpcActor, type NpcEnv } from './npcActor.ts';
+import { ChatGroup, type ChatMember } from './chatter.ts';
+import { AmbientDirector, isAmbientEligible, type AmbientAgent, type AmbientSpot } from './ambientLife.ts';
 import type { Squad, SquadId, SquadMate } from './squad.ts';
 
 /**
- * The NPC director (ADR-0009 NPC actions, ADR-0011 squad hand-over, ADR-0017/0023 cast).
+ * The NPC director (ADR-0009 NPC actions, ADR-0011 squad hand-over, ADR-0023 and intro-sequence spec cast).
  * Every named body the sequences can drive lives here: the squad (Giles, Okafor, lent by the
  * squad while a sequence drives them), the level's cast and crew (`Level.npcSpawns()`), and
  * bodies a sequence spawns. `command()` is `SequenceHost.npc`.
@@ -32,6 +34,14 @@ export interface NpcSpawn {
   pose?: string | undefined;
   /** Built so `transform` can infect it. */
   transformable?: boolean | undefined;
+  /** Conversation group (ADR-0029): NPCs sharing it talk to each other. */
+  chat?: string | undefined;
+  /** Imported body id (`data/body-models.json`) instead of the look's pick by NPC id. */
+  model?: string | undefined;
+  /** Activity spot initially claimed (ADR-0029). */
+  spot?: string | undefined;
+  /** Room id the NPC belongs to (ADR-0029 phase 2). */
+  room?: string | undefined;
 }
 
 export interface ResolvedTarget {
@@ -70,6 +80,10 @@ const PLAYER_MAX_PUSH = 0.06;
 const LYING_POSE = /^(corpse|squad_downed|squad_getUp|writhing|crawl|dragging|getUp)/;
 /** A walker this close to its goal is not shoved, so scripted arrivals always land. */
 const ARRIVE_LOCK = 0.8;
+/** Listen-look (ADR-0029): bodies this close (m) to a story speaker look at them. */
+export const LISTEN_RANGE = 4.5;
+/** Seconds the listen-look holds after a line ends (people keep looking a beat). */
+const LISTEN_LINGER = 1.2;
 /** A walker outweighs a standing body, so the standing one yields. */
 const WALKER_MASS = 4;
 
@@ -99,6 +113,18 @@ export class NpcDirector {
   private readonly pairA: SepBody = { x: 0, z: 0, r: 0, mass: 1 };
   private readonly pairB: SepBody = { x: 0, z: 0, r: 0, mass: Infinity };
   private readonly pair: SepBody[] = [this.pairA, this.pairB];
+  /** Background conversations (ADR-0029), by chat id. */
+  private readonly chats = new Map<string, ChatGroup>();
+  /** ADR-0029 phase 2: ambient crew wandering between activity spots. */
+  private ambientLife: AmbientDirector | null = null;
+  /** Dynamic table/bar conversations formed when wandering NPCs share a prop group. */
+  private readonly dynamicChats = new Map<string, { key: string; group: ChatGroup }>();
+  private readonly authoredEngaged = new Set<string>();
+  /** Listen-look (ADR-0029): who is speaking a story line now and who spoke before ('player' for Jay). */
+  private talker: string | null = null;
+  private lastTalker: string | null = null;
+  private talkGen = 0;
+  private readonly talkHeads = new Map<string, THREE.Vector3>();
 
   constructor(deps: NpcDirectorDeps) {
     this.deps = deps;
@@ -205,8 +231,141 @@ export class NpcDirector {
         continue;
       }
       this.levelSpawns.set(s.id, s);
-      this.create(s.id, s.look, s.pos, s.yaw, s.pose, s.transformable === true);
+      this.create(s.id, s.look, s.pos, s.yaw, s.pose, s.transformable === true, s.model);
     }
+    // ADR-0029: NPCs sharing a chat id talk to each other.
+    const byChat = new Map<string, string[]>();
+    for (const s of spawns) if (s.chat && !this.isSquad(s.id)) byChat.set(s.chat, [...(byChat.get(s.chat) ?? []), s.id]);
+    for (const [chat, ids] of byChat) {
+      if (ids.length < 2) {
+        this.warnOnce(`npc chat "${chat}": only ${ids[0]} is in it`);
+        continue;
+      }
+      this.chats.set(chat, new ChatGroup(chat, ids.map((id) => this.chatMember(id))));
+    }
+  }
+
+  /** A conversation's view of a level NPC, looked up by id each time (reset rebuilds bodies). */
+  private chatMember(id: string): ChatMember {
+    const get = (): NpcActor | null => this.actors.get(id) ?? null;
+    return {
+      id,
+      feet: () => get()?.position ?? { x: Infinity, z: Infinity },
+      head: (out) => get()?.head(out) ?? null,
+      available: () => {
+        const a = get();
+        return !!a && a.ambient && !a.busy && !a.offering && !a.givingWay && a.body.state === 'alive' && a.body.infection < 1 && a.body.group.visible;
+      },
+      speak: (text, emote, seconds, seed) => get()?.body.speak(text, emote, seconds, seed),
+      stopSpeaking: () => get()?.body.stopSpeaking(),
+      lookAt: (fn) => {
+        const a = get();
+        if (a) a.socialLook = fn;
+      },
+    };
+  }
+
+  // ------------------------------------------------------------------ listen-look
+
+  /** Eye point of a talker ('player' is Jay), or null if there is no such body. */
+  private talkerHead(id: string): THREE.Vector3 | null {
+    if (id === 'player') return this.env.playerHead;
+    let out = this.talkHeads.get(id);
+    if (!out) {
+      out = new THREE.Vector3();
+      this.talkHeads.set(id, out);
+    }
+    return this.head(id, out);
+  }
+
+  /**
+   * A story line started (`speech:started`; ADR-0029). Everyone within LISTEN_RANGE of the speaker looks at them; the
+   * speaker looks at whoever spoke last if they are close, else at Jay if he is close. `speaker` is an NPC id or
+   * 'player'; anything else (the PA, the radio) is ignored. Looks hold until LISTEN_LINGER s after the line ends.
+   */
+  lineStarted(speaker: string): void {
+    const at = speaker === 'player' ? this.env.playerFeet : this.actor(speaker, false)?.position;
+    if (!at) return;
+    this.talkGen++;
+    if (this.talker && this.talker !== speaker) this.lastTalker = this.talker;
+    this.talker = speaker;
+    const near = (p: { x: number; z: number } | null | undefined): boolean => !!p && Math.hypot(p.x - at.x, p.z - at.z) <= LISTEN_RANGE;
+    const toSpeaker = (): THREE.Vector3 | null => this.talkerHead(speaker);
+    const answer = this.lastTalker && this.lastTalker !== speaker && near(this.lastTalker === 'player' ? this.env.playerFeet : this.actor(this.lastTalker, false)?.position) ? this.lastTalker : near(this.env.playerFeet) && speaker !== 'player' ? 'player' : null;
+    const seen = new Set<NpcActor>();
+    for (const [id, a] of this.actors) {
+      if (seen.has(a)) continue;
+      seen.add(a);
+      if (a.body.state !== 'alive' || !a.body.group.visible) continue;
+      const self = id === speaker || this.actor(speaker, false) === a;
+      if (self) {
+        a.talkLook = answer ? () => this.talkerHead(answer) : null;
+        continue;
+      }
+      a.talkLook = near(a.position) ? toSpeaker : null;
+    }
+  }
+
+  /** `speaker`'s line ended: looks linger a moment, then go back to whatever the body was doing. */
+  lineEnded(speaker: string): void {
+    if (speaker !== this.talker) return; // the PA or an overlapping line ending does not end the conversation
+    const gen = this.talkGen;
+    this.timers.push({
+      left: LISTEN_LINGER,
+      fn: () => {
+        if (gen !== this.talkGen) return; // another line started meanwhile
+        for (const a of this.actors.values()) a.talkLook = null;
+      },
+    });
+  }
+
+  /** Conversation state (tests, debug): who is talking in each group. */
+  chatState(): Record<string, { speaking: string | null; engaged: readonly string[] }> {
+    const out: Record<string, { speaking: string | null; engaged: readonly string[] }> = {};
+    for (const [id, g] of this.chats) out[id] = { speaking: g.speaking, engaged: g.engaged };
+    for (const [id, d] of this.dynamicChats) out[`dyn:${id}`] = { speaking: d.group.speaking, engaged: d.group.engaged };
+    return out;
+  }
+
+  /**
+   * ADR-0029 phase 2: enable the ambient director over the level's activity spots.
+   * Story NPCs and desk workers stay put; everyone else in multi-spot rooms periodically
+   * walks between free seats and counters on the navmesh.
+   */
+  enableAmbientLife(spots: readonly AmbientSpot[]): void {
+    const agents: AmbientAgent[] = [];
+    for (const s of this.levelSpawns.values()) {
+      if (!s.room || !isAmbientEligible(s.id, s.pose)) continue;
+      const id = s.id;
+      agents.push({
+        id,
+        room: s.room,
+        initialSpot: s.spot ?? null,
+        available: () => {
+          const a = this.actors.get(id);
+          return !!a && a.ambient && !a.busy && !a.offering && !a.givingWay && a.body.state === 'alive' && a.body.infection < 1;
+        },
+        feet: () => {
+          const a = this.actors.get(id);
+          return a ? { x: a.motor.x, y: a.motor.y, z: a.motor.z } : { x: 0, y: 0, z: 0 };
+        },
+        walkTo: (pos, yaw, speed, onDone) => {
+          const a = this.actors.get(id);
+          if (!a) {
+            onDone();
+            return;
+          }
+          void a.moveTo(pos, { yaw, speed }).then(onDone);
+        },
+        settle: (pos, yaw, pose) => {
+          const a = this.actors.get(id);
+          if (!a) return;
+          const resolved = this.deps.ctx.poses.has(pose) ? pose : 'idle';
+          a.settleAt(pos, yaw, resolved, 0.75);
+        },
+      });
+    }
+    this.ambientLife = agents.length ? new AmbientDirector(spots, agents) : null;
   }
 
   /** Back to the level's starting layout (new game, load): scripted spawns go, cast return. */
@@ -214,11 +373,15 @@ export class NpcDirector {
     for (const id of [...this.spawned]) this.remove(id);
     for (const close of this.offers.values()) close();
     this.offers.clear();
+    this.talker = null;
+    this.lastTalker = null;
+    this.talkGen++;
+    for (const a of this.actors.values()) a.talkLook = null;
     this.timers = [];
     this.parked.clear();
     for (const a of this.actors.values()) a.untow();
     for (const s of this.levelSpawns.values()) {
-      const a = this.actors.get(s.id) ?? this.create(s.id, s.look, s.pos, s.yaw, s.pose, s.transformable === true);
+      const a = this.actors.get(s.id) ?? this.create(s.id, s.look, s.pos, s.yaw, s.pose, s.transformable === true, s.model);
       a.stopMove();
       a.followTarget(null);
       a.lookAt(null);
@@ -227,12 +390,16 @@ export class NpcDirector {
       a.resetPose(s.pose && this.deps.ctx.poses.has(s.pose) ? s.pose : 'idle');
       a.place(s.pos, s.yaw);
     }
+    for (const g of this.chats.values()) g.reset();
+    for (const d of this.dynamicChats.values()) d.group.reset();
+    this.dynamicChats.clear();
+    this.ambientLife?.reset();
     this.releaseAll();
   }
 
-  private create(id: string, look: string, at: Vec3Like, yaw: number, pose: string | undefined, transformable: boolean): NpcActor {
+  private create(id: string, look: string, at: Vec3Like, yaw: number, pose: string | undefined, transformable: boolean, model?: string): NpcActor {
     this.remove(id);
-    const spec = castSpec(look, id, (m) => this.warnOnce(m));
+    const spec = { ...castSpec(look, id, (m) => this.warnOnce(m)), ...(model ? { model } : {}) };
     let idle = pose ?? spec.pose ?? 'idle';
     if (!this.deps.ctx.poses.has(idle)) {
       this.warnOnce(`npc "${id}": unknown pose "${idle}", using idle`);
@@ -310,6 +477,7 @@ export class NpcDirector {
     }
     const a = this.actor(npc);
     if (!a) return Promise.resolve();
+    this.ambientLife?.interrupt(npc);
     switch (action) {
       case 'npcMoveTo': {
         const at = this.target(step['to'], action, npc);
@@ -489,7 +657,7 @@ export class NpcDirector {
   }
 
   /**
-   * `npcOffer` (ADR-0017): the NPC holds the item out and an interact prompt appears on
+   * `npcOffer` (intro-sequence spec): the NPC holds the item out and an interact prompt appears on
    * them; using it emits `event`. The action (actions.ts) owns the timeout and flags; this
    * only does the body and the prompt. `instant` is the skip end state: handed over.
    */
@@ -606,7 +774,7 @@ export class NpcDirector {
 
   // ------------------------------------------------------------------ per step
 
-  update(dt: number, camera: THREE.Vector3 | null): void {
+  update(dt: number, camera: THREE.Vector3 | null, cameraForward: { x: number; z: number } | null = null): void {
     const p = this.deps.player();
     this.env.playerFeet.copy(p.feet);
     this.env.playerHead.copy(p.head);
@@ -626,6 +794,7 @@ export class NpcDirector {
     }
     // The scene is over: squadmates go back to following Jay.
     if (this.held.size > this.parked.size && this.deps.sequenceRunning && !this.deps.sequenceRunning()) this.releaseUnparked();
+    this.ambientLife?.update(dt, { eye: camera, forward: cameraForward });
     const seen = new Set<NpcActor>();
     for (const [id, a] of this.actors) {
       if (seen.has(a)) continue;
@@ -634,6 +803,33 @@ export class NpcDirector {
       // Squadmates update through the squad unless held.
       if (mate && !mate.scripted) continue;
       a.update(dt, this.env);
+    }
+    this.authoredEngaged.clear();
+    for (const g of this.chats.values()) {
+      g.update(dt);
+      if (g.engaged.length >= 2) for (const id of g.engaged) this.authoredEngaged.add(id);
+    }
+    if (this.ambientLife) {
+      const groups = this.ambientLife.settledGroups();
+      const activeGroups = new Set<string>();
+      for (const [gid, ids] of groups) {
+        const free = ids.filter((id) => !this.authoredEngaged.has(id)).sort();
+        if (free.length < 2) continue;
+        activeGroups.add(gid);
+        const key = free.join(',');
+        let entry = this.dynamicChats.get(gid);
+        if (!entry || entry.key !== key) {
+          entry?.group.reset();
+          entry = { key, group: new ChatGroup(`dyn:${gid}:${key}`, free.map((id) => this.chatMember(id))) };
+          this.dynamicChats.set(gid, entry);
+        }
+        entry.group.update(dt);
+      }
+      for (const [gid, entry] of [...this.dynamicChats]) {
+        if (activeGroups.has(gid)) continue;
+        entry.group.reset();
+        this.dynamicChats.delete(gid);
+      }
     }
     this.separateActors();
   }

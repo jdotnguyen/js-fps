@@ -222,6 +222,27 @@
       "arm": null,
       "size": 1024
     },
+    "servicePaint": {
+      "set": "PaintedMetal014",
+      "color": "PaintedMetal014_2K-JPG/PaintedMetal014_2K-JPG_Color.jpg",
+      "normal": "PaintedMetal014_2K-JPG/PaintedMetal014_2K-JPG_NormalGL.jpg",
+      "ao": "PaintedMetal014_2K-JPG/PaintedMetal014_2K-JPG_AmbientOcclusion.jpg",
+      "roughness": "PaintedMetal014_2K-JPG/PaintedMetal014_2K-JPG_Roughness.jpg",
+      "metalness": "PaintedMetal014_2K-JPG/PaintedMetal014_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "size": 1024
+    },
+    "grating": {
+      "set": "MetalWalkway010",
+      "color": "MetalWalkway010_2K-JPG/MetalWalkway010_2K-JPG_Color.jpg",
+      "normal": "MetalWalkway010_2K-JPG/MetalWalkway010_2K-JPG_NormalGL.jpg",
+      "ao": null,
+      "roughness": "MetalWalkway010_2K-JPG/MetalWalkway010_2K-JPG_Roughness.jpg",
+      "metalness": "MetalWalkway010_2K-JPG/MetalWalkway010_2K-JPG_Metalness.jpg",
+      "arm": null,
+      "opacity": "MetalWalkway010_2K-JPG/MetalWalkway010_2K-JPG_Opacity.jpg",
+      "size": 1024
+    },
     "steelBrushed": {
       "set": "Metal009",
       "color": "Metal009_2K-JPG/Metal009_2K-JPG_Color.jpg",

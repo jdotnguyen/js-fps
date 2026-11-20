@@ -4,7 +4,7 @@ import type { Materials } from '../../render/materials.ts';
 import { createSeabed } from '../../render/fx/seabed.ts';
 import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { slab } from './shapes.ts';
-import type { PieceBuilder } from './types.ts';
+import { WINDOW_HEAD, WINDOW_SILL, type PieceBuilder } from './types.ts';
 import type { ResolvedPalette } from './palettes.ts';
 
 /**
@@ -34,6 +34,7 @@ export function inFrame(frame: THREE.Matrix4, x: number, y: number, z: number, r
 
 export interface WallOptions {
   length: number;
+  backdropDepth?: number;
   height: number;
   /** Back slab depth behind the face. */
   depth?: number;
@@ -41,7 +42,7 @@ export interface WallOptions {
   pilaster?: boolean;
   /** Cable tray with sagging cables near the top. */
   cables?: boolean;
-  /** Area palette (kit/palettes.ts); omitted = the original dark-panel look with clean hazard stripes. */
+  /** Area palette (kit/palettes.ts); omitted = dark panels and steel trim. */
   pal?: ResolvedPalette;
 }
 
@@ -52,7 +53,7 @@ function wallBase(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Matrix4, o:
   const depth = o.depth ?? 0.12;
   const trim = o.pal?.trim ?? m.steel;
   pb.add(slab(L, h + 0.1, depth), backing, inFrame(f, 0, h / 2 - 0.05, -depth / 2));
-  pb.add(slab(L - 0.08, 0.24, 0.03, o.pal?.hazardTile ?? 0.5), o.pal?.hazard ?? m.hazardClean, inFrame(f, 0, 0.12, 0.015));
+  pb.add(slab(L - 0.08, 0.24, 0.03), m.steelBrushed, inFrame(f, 0, 0.12, 0.015));
   pb.add(slab(L, 0.06, 0.06), trim, inFrame(f, 0, Math.min(2.55, h - 0.5), 0.03));
   keepoutIn(pb, f, 0, Math.min(2.55, h - 0.5), 0.03, L, 0.06, 0.06);
   if (o.pilaster) pilaster(pb, trim, f, -L / 2 + 0.11, h);
@@ -125,15 +126,21 @@ export function panelWall(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Mat
  * Window wall onto the abyss: low wall, glass, header, mullions. The abyss plane and
  * truss sit `outside` metres behind the face, so only use it on edges facing open water.
  */
-export function windowWall(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, o: WallOptions, abyss: { mesh: THREE.Mesh; uniforms: { uTime: { value: number } } } | null): void {
+export function windowWall(
+  pb: PieceBuilder,
+  m: Materials,
+  f: THREE.Matrix4,
+  o: WallOptions,
+  abyss: { mesh: THREE.Mesh; uniforms: { uTime: { value: number }; uPortal?: { value: THREE.Vector4 } } } | null,
+): void {
   const L = o.length;
   const h = o.height;
-  const sill = 0.9;
-  const head = 2.4;
+  const sill = WINDOW_SILL;
+  const head = WINDOW_HEAD;
   const trim = o.pal?.trim ?? m.steel;
   pb.add(slab(L, sill + 0.1, 0.12), m.black, inFrame(f, 0, sill / 2 - 0.05, -0.06));
   pb.add(slab(L, h - head + 0.1, 0.12), m.black, inFrame(f, 0, (h + head) / 2 + 0.05, -0.06));
-  pb.add(slab(L - 0.08, 0.24, 0.03, o.pal?.hazardTile ?? 0.5), o.pal?.hazard ?? m.hazardClean, inFrame(f, 0, 0.12, 0.015));
+  pb.add(slab(L - 0.08, 0.24, 0.03), m.steelBrushed, inFrame(f, 0, 0.12, 0.015));
   pb.add(rounded(L - 0.1, 0.48, 0.06), o.pal?.wallMain ?? m.paintDark, inFrame(f, 0, 0.58, 0.03));
   pb.add(rounded(L, 0.14, 0.3, 0.03), trim, inFrame(f, 0, sill - 0.02, 0.06));
   pb.add(rounded(L, 0.18, 0.3, 0.03), trim, inFrame(f, 0, head + 0.06, 0.06));
@@ -151,15 +158,24 @@ export function windowWall(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, o: 
   for (const x of [-L * 0.4, L * 0.35]) pb.add(slab(0.35, 10, 0.35), m.paintDark, inFrame(f, x, 1.2, -2.6));
   pb.add(slab(L * 3, 0.3, 0.3), m.paintDark, inFrame(f, 0, -0.8, -2.2));
   if (abyss) {
-    abyss.mesh.applyMatrix4(inFrame(f, 0, 1.5, -9));
+    const depth = o.backdropDepth ?? 9;
+    abyss.mesh.scale.set(depth / 9, depth / 9, 1);
+    abyss.mesh.applyMatrix4(inFrame(f, 0, 1.5, -depth));
+    abyss.uniforms.uPortal?.value.set(depth, (head + sill) / 2 - 1.5, L / 2 + 0.04, (head - sill) / 2 + 0.04);
     pb.dynamic(abyss.mesh);
     pb.tick((t) => {
       abyss.uniforms.uTime.value = t;
     });
-    // The sea floor under the backdrop (the abyss plane sits 9 m out).
-    const seabed = createSeabed({ length: L, depth: 9, floorY: -4.5, pad: 0.8, seed: Math.round(Math.abs(f.elements[12] * 31 + f.elements[14] * 17)) + 1 });
+    // Keep the foreground seabed close to the glass.
+    const seabed = createSeabed({ length: L, depth: Math.min(9, depth), floorY: -4.5, pad: 0.8, seed: Math.round(Math.abs(f.elements[12] * 31 + f.elements[14] * 17)) + 1 });
     seabed.applyMatrix4(f);
     pb.dynamic(seabed);
+    // Marker consumed by Level.buildRoom to batch 3D ocean life across every window in the room (1 Mesh + 1 Points per room).
+    const zone = new THREE.Object3D();
+    zone.name = 'ocean-zone';
+    zone.userData['oceanZone'] = { width: L, depth: Math.min(9, depth) };
+    zone.applyMatrix4(inFrame(f, 0, (head + sill) / 2, 0));
+    pb.dynamic(zone);
   }
 }
 

@@ -16,7 +16,7 @@ Nothing below is committed to git; Justin reviews and commits himself. Never run
 - Running many parallel subagents burns Justin's usage limit fast; prefer one or two at a time.
 
 ## Done (all tests passed at 352/352 before wave 2 started)
-- Design: intro rewritten (ADR-0017 rev 2), quiet half (0023), map/objectives/access (0024),
+- Design: intro rewritten (now openspec/specs/intro-sequence), quiet half (0023), map/objectives/access (0024),
   tutorial prompts (0025), amendments to 0010/0014/0022 and `docs/characters.md`.
   Screenplays: `docs/scripts/intro_shift_change.md`, `docs/scripts/briefing_gallery.md`.
 - Story data: intro (44 lines) and briefing (17 lines) sequences in
@@ -42,7 +42,7 @@ suite and finishing/fixing whatever is half-done. `src/data/dialogue/slice01_act
 exists (action-half new lines). Check `scripts/gen-slice01.mjs` for half-made edits.
 
 Remaining work, A then B (or both, carefully):
-A. Quiet half (ADR-0023, 0017): New game loads slice01 and plays the intro (keep ?level=kit_test
+A. Quiet half (ADR-0023, openspec/specs/intro-sequence): New game loads slice01 and plays the intro (keep ?level=kit_test
    and the demo room reachable); promote intro + briefing out of drafts/ (update intro.test.ts,
    briefing.test.ts); commons free time + `commons_dawdle`; briefing on
    trigger:gallery_brief_spot; three rounds in any order with crew moments, Level 2 Card from

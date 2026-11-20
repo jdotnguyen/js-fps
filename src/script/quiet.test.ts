@@ -1,5 +1,5 @@
 /**
- * The quiet half (ADR-0023, ADR-0017): commons free time and the dawdle catch, the briefing trigger,
+ * The quiet half (ADR-0023, intro-sequence spec): commons free time and the dawdle catch, the briefing trigger,
  * three morning rounds in any order, the Level 2 Card backtrack, TAG FM in rooms, the camera feed
  * glimpse, the PA call back and the drop. Every sequence loaded from data/sequences is checked against
  * the real dialogue, objectives, items, sounds and the slice01 level data (anchors, NPCs, doors), and
@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { ControlStack } from '../actors/control.ts';
-import { SOUND_SPECS } from '../audio/sounds.ts';
+import { SAMPLE_URLS, SOUND_SPECS } from '../audio/sounds.ts';
 import { DialogueLibrary } from '../dialogue/library.ts';
 import { isParallel } from './actions.ts';
 import type { CameraFeedOptions, SequenceHost } from './host.ts';
@@ -62,7 +62,7 @@ test('every shipped sequence names only things that exist: lines, sounds, anchor
         assert.ok(library.hasLine(s['line'] as string), `${where} line ${String(s['line'])}`);
         assert.equal(library.line(s['line'] as string).priority, 'story', `${where} ${String(s['line'])} must be story priority`);
       }
-      if (s['do'] === 'sfx') assert.ok((s['id'] as string) in SOUND_SPECS, `${where} sound ${String(s['id'])}`);
+      if (s['do'] === 'sfx') assert.ok((s['id'] as string) in SOUND_SPECS || (s['id'] as string) in SAMPLE_URLS, `${where} sound ${String(s['id'])}`);
       if (s['do'] === 'setObjective' || s['do'] === 'completeObjective') assert.ok(String(s['id']) in objectives, `${where} objective ${String(s['id'])}`);
       if (s['do'] === 'giveItem') assert.ok(String(s['item']) in items, `${where} item`);
       if (s['do'] === 'doorState') assert.ok(doorIds.has(s['id'] as string), `${where} door ${String(s['id'])}`);
@@ -545,4 +545,65 @@ test('TAG FM plays in the ruined junction once the first fight is over and stops
   walk(contact.steps, (s) => void names.push(`${String(s['do'])}${s['do'] === 'radio' ? `:${String(s['at'])}` : ''}${s['do'] === 'checkpoint' ? `:${String(s['id'])}` : ''}`));
   assert.ok(names.indexOf('radio:anchor:r05_radio') >= 0 && names.indexOf('radio:anchor:r05_radio') < names.indexOf('checkpoint:cp_contact_clear'));
   assert.ok(anchors.has('r05_radio'));
+});
+
+// ------------------------------------------------------------------------------- dock checkpoint (free play)
+
+/** The `jayArmed` hook main.ts registers, with Jay's weapons faked. */
+function dockGame(armed: boolean): Game {
+  const g = makeGame(['dock_arch', 'dock_arch_cooldown']);
+  g.m.registerHook('jayArmed', ({ flags }) => {
+    flags['jay_armed'] = armed;
+  });
+  g.host.flags['introSeen'] = true;
+  return g;
+}
+const scans = (g: Game): number => count(g, 'event detector:scan');
+const guardLines = (g: Game): number => g.log.filter((e) => /^say guard_arch_0\d$/.test(e)).length;
+
+test('dock arch, free play: Jay walks through armed, the arch alarms and the guard reacts', async () => {
+  const g = dockGame(true);
+  fire(g, 'trigger:dock_arch');
+  await advance(g, 2);
+  assert.equal(scans(g), 1);
+  assert.equal(count(g, 'sfx archAlarm'), 1);
+  assert.equal(said(g, 'guard_arch_01'), 1);
+  noWarnings(g);
+});
+
+test('dock arch, free play: Jay walks through unarmed, the arch passes and the guard says nothing', async () => {
+  const g = dockGame(false);
+  fire(g, 'trigger:dock_arch');
+  await advance(g, 2);
+  assert.equal(count(g, 'sfx archPass'), 1);
+  assert.equal(count(g, 'sfx archAlarm'), 0);
+  assert.equal(guardLines(g), 0);
+});
+
+test('dock arch, free play: back and forth within 20 s alarms twice, the guard speaks once, then again after the cooldown', async () => {
+  const g = dockGame(true);
+  fire(g, 'trigger:dock_arch');
+  await advance(g, 3);
+  fire(g, 'trigger:dock_arch');
+  await advance(g, 3);
+  assert.equal(count(g, 'sfx archAlarm'), 2, 'the arch alarms on every pass');
+  assert.equal(guardLines(g), 1, 'the guard speaks only the first time');
+  await advance(g, 20);
+  fire(g, 'trigger:dock_arch');
+  await advance(g, 3);
+  assert.equal(count(g, 'sfx archAlarm'), 3);
+  assert.deepEqual(g.log.filter((e) => /^say guard_arch_0\d$/.test(e)), ['say guard_arch_01', 'say guard_arch_02'], 'a different line the next time');
+});
+
+test('dock arch, free play: nothing before the intro is over or once the drop has started', async () => {
+  const before = makeGame(['dock_arch', 'dock_arch_cooldown']);
+  before.m.registerHook('jayArmed', ({ flags }) => void (flags['jay_armed'] = true));
+  fire(before, 'trigger:dock_arch');
+  await advance(before, 2);
+  assert.equal(scans(before), 0);
+  const after = dockGame(true);
+  after.host.flags['drop_started'] = true;
+  fire(after, 'trigger:dock_arch');
+  await advance(after, 2);
+  assert.equal(scans(after), 0);
 });

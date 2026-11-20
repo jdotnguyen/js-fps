@@ -1,7 +1,7 @@
 import type { ObjectiveDef } from '../data/types/objectives.ts';
 
 /**
- * Hint system (ADR-0010 step 5). When the player is stuck on the current required
+ * Hint system. When the player is stuck on the current required
  * objectives, a squadmate says a hint: vague first, explicit later (Giles asks questions,
  * Okafor states facts; the lines live in data/dialogue/barks01.json, keyed from
  * data/objectives.json `hints`). The last tier also fires the nav pulse (ADR-0012).
@@ -18,7 +18,7 @@ import type { ObjectiveDef } from '../data/types/objectives.ts';
  * cut off a combat/idle bark, which the speech manager allows by priority.
  */
 
-/** Distance gain that counts as progress (ADR-0010). */
+/** Distance gain that counts as progress. */
 export const PROGRESS_METRES = 3;
 
 export interface HintSpeech {

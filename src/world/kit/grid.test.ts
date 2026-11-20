@@ -13,6 +13,7 @@ import { createMaterials, createProceduralBrickMaterial } from '../../render/mat
 import { rounded } from './geom.ts';
 import { AoMergeBuilder } from './merge.ts';
 import { GridOccupancy } from './grid.ts';
+import { HullBuilder } from './exteriorHull.ts';
 import { snapModelToSocket } from './modelSnap.ts';
 import { STRUCTURE_PIECES } from './structure.ts';
 import { WALL_INSET, WALL_T } from './types.ts';
@@ -26,8 +27,9 @@ function fakeMaterials(): Materials {
     diamondHazard: s(0x886622), diamondRusty: s(0x775544), hazardClean: s(0xccaa00), rustHeavy: s(0x664433),
     rustDrip: s(0x775533), rustBlotch: s(0x887766), concreteFloor: s(0x55585a), concretePainted: s(0x333537),
     tileBroken: s(0x889096), tileWall: s(0xaaaaaa), tileWashroom: s(0x667777), signDanger: s(0xaa4422),
-    hullPlate: s(0x667076), boltPanel: s(0x778088), steelBrushed: s(0x88929a), deckCorrugated: s(0x444a50),
+    servicePaint: s(0x777879), hullPlate: s(0x667076), boltPanel: s(0x778088), steelBrushed: s(0x88929a), deckCorrugated: s(0x444a50),
     acousticCeiling: s(0x9a9e9a), vinylPanel: s(0xb8b0a0), officeCeiling: s(0xccccca), woodPanel: s(0x6a4a30), carpet: s(0x2e3440),
+    steelDark: s(0x465058), cleanWall: s(0xb8b6ac), cleanSlate: s(0x62707a), cleanTeal: s(0x3b787c),
     glass: new THREE.MeshPhysicalMaterial({ transparent: true }),
     black: s(0x000000), cable: s(0x111111), glowCyan: s(0x00ffff),
   };
@@ -35,6 +37,42 @@ function fakeMaterials(): Materials {
 
 test('PLAYER_TUNING.eyeHeight is true-to-life FPS 1.70 m', () => {
   assert.equal(PLAYER_TUNING.eyeHeight, 1.7);
+});
+
+test('the exterior preserves rotated openings, internal boundaries and the exposed side of a taller room', () => {
+  const builder = new HullBuilder();
+  builder.addPiece('left', [0, 0, 0], 'floor', 0, 3.2, []);
+  builder.addPiece('left', [0, 0, 0], 'corridor_window', 0, 3.2, []);
+  builder.addPiece('right', [2, 0, 0], 'wall_window', 90, 3.2, []);
+  builder.addPiece('tall', [0, 0, 1], 'door_frame', 180, 5, []);
+  builder.addPiece('upper', [2, 1, 0], 'floor', 0, 3.2, []);
+  const { group, windowViews } = builder.build([], fakeMaterials());
+  group.updateMatrixWorld(true);
+  assert.deepEqual([...windowViews.get('left')!], ['right']);
+  assert.deepEqual([...windowViews.get('right')!], ['left']);
+  const hits = (from: number[], dir: number[], far: number): number => new THREE.Raycaster(
+    new THREE.Vector3().fromArray(from), new THREE.Vector3().fromArray(dir), 0, far,
+  ).intersectObject(group).length;
+  assert.equal(hits([0, 1.6, 0], [1, 0, 0], 7), 0, 'both facing windows are open');
+  assert.ok(hits([4, 0.5, 0], [-1, 0, 0], 3), 'plate below the corridor sill');
+  assert.equal(hits([0, 1.6, 0], [0, 0, 1], 4), 0, 'shared cell edge');
+  assert.ok(hits([0, 4.3, 0], [0, 0, 1], 4), 'exposed upper wall');
+  assert.equal(hits([0, 1.6, 4], [0, 0, 1], 3), 0, 'exterior door aperture');
+  assert.ok(hits([0, 3, 7], [0, 0, -1], 2), 'plating above the door');
+  assert.equal(hits([8, 5, 0], [0, -1, 0], 4), 0, 'no internal roof between stacked decks');
+});
+
+test('the launch trunk cell hangs a closed skirt and outer hatch under the hull (rebuild-dive-bay)', () => {
+  const builder = new HullBuilder();
+  builder.addPiece('pool', [0, 0, 0], 'floor_moonpool', 0, 5, []);
+  const { group } = builder.build([], fakeMaterials());
+  group.updateMatrixWorld(true);
+  const hits = (from: number[], dir: number[], far: number): number => new THREE.Raycaster(
+    new THREE.Vector3().fromArray(from), new THREE.Vector3().fromArray(dir), 0, far,
+  ).intersectObject(group).length;
+  assert.ok(hits([0, -6, 0], [0, 1, 0], 3), 'the trunk opening is capped from below');
+  assert.ok(hits([3, -2, 0], [-1, 0, 0], 3), 'skirt side under the hull');
+  assert.ok(hits([1.8, -6, 1.8], [0, 1, 0], 6), 'hull bottom plate around the trunk');
 });
 
 test('GridOccupancy rejects duplicate same-side walls and walls overlapping door edges', () => {

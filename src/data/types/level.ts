@@ -30,7 +30,7 @@ export const DOOR_STATES = ['open', 'closed', 'locked', 'jammed', 'sealed'] as c
 export type DoorState = (typeof DOOR_STATES)[number];
 export const UNLOCK_SOURCES = ['player', 'engineer', 'medic', 'script'] as const;
 export type UnlockSource = (typeof UNLOCK_SOURCES)[number];
-export const AMBIENT_PRESETS = ['normal', 'emergency', 'flooded', 'dark', 'gallery'] as const;
+export const AMBIENT_PRESETS = ['normal', 'emergency', 'flooded', 'dark', 'dock', 'commons', 'admin', 'hydro', 'gallery'] as const;
 export type AmbientPreset = (typeof AMBIENT_PRESETS)[number];
 
 /**
@@ -120,6 +120,12 @@ const lightShape = {
   color: optional(color),
   intensity: optional(numRange(0, 500)),
   range: optional(numRange(1, 40)),
+  /** Volumetric shaft intensity for ceiling lights (0 disables the shaft mesh). */
+  shaft: optional(numRange(0, 0.3)),
+  /** Fixture diffuser emissive intensity override. */
+  emissive: optional(numRange(0, 8)),
+  /** Vertical drop (m) of the point light below its fixture origin (e.g. pendant-height pools). */
+  drop: optional(numRange(-0.5, 2.5)),
   /** false: glow-only. The fixture glows and follows patterns and tints but never takes a pooled real light. */
   pool: optional(bool),
 };
@@ -171,6 +177,8 @@ const npcShape = {
   spot: optional(oneOf(SPOT_KINDS)),
   /** ADR-0029: NPCs sharing a chat id talk to each other (turn-taking, looking at the speaker). */
   chat: optional(id),
+  /** Imported body (a `data/body-models.json` id) instead of the look's pick by NPC id, to spread faces across a room. */
+  model: optional(id),
 };
 
 /**

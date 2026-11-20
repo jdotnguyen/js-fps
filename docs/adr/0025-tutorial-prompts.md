@@ -3,7 +3,7 @@
 Status: Accepted (from the Nov 16 grilling) / Proposed (styling, numbers)
 
 ## Context
-After two-plus minutes on rails (ADR-0017), the player gets control in the commons and should
+After two-plus minutes on rails ([intro-sequence spec](../../openspec/specs/intro-sequence/spec.md)), the player gets control in the commons and should
 learn the controls there [Decided]. Justin wants blocking pop-ups that blur and pause the game
 and name the control, disappearing only when the player actually presses it [Decided].
 Pop-ups that are great on a first play are annoying on a third, and the game will be tested

@@ -60,11 +60,11 @@ Scored every 0.25 s; highest wins with hysteresis.
   otherwise 0.6.
 
 ### Hints and chatter
-- From ADR-0010. Idle chatter in quiet areas carries story and foreshadowing.
+- Idle chatter in quiet areas carries story and foreshadowing.
 
 ### Engineer reveal hooks
 - `giles.infectionStage` exists from the start (0). Visual tells: forearm rubbing, a bandage
-  after his off-screen moment, a cough, voice rasp (ADR-0010). The final sequence uses
+  after his off-screen moment, a cough, voice rasp. The final sequence uses
   `transform` (ADR-0006) on him.
 
 ## Consequences

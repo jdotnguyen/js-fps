@@ -94,6 +94,10 @@ export function createPost(
     origOverride();
     scene.traverse((obj) => {
       if (!obj.visible || !(obj instanceof THREE.Mesh)) return;
+      if (obj.userData['skipGtao']) {
+        obj.visible = false;
+        return;
+      }
       const mat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
       if (mat && (mat.transparent || !mat.depthWrite)) obj.visible = false;
     });

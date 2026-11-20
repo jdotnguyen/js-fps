@@ -139,7 +139,7 @@ test('a long real-audio file extends the line', () => {
   assert.equal(sm.speaking()?.duration, 4);
 });
 
-test('an overlap line plays beside a story line without queuing (PA under the squad, ADR-0017)', async () => {
+test('an overlap line plays beside a story line without queuing (PA under the squad, intro-sequence spec)', async () => {
   const { sm, log } = setup();
   sm.say('story_a');
   const pa = sm.say('story_b', { overlap: true });

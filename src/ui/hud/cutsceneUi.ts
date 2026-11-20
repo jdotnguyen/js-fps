@@ -1,7 +1,7 @@
 import { h } from '../dom.ts';
 
 /**
- * Cutscene chrome (ADR-0017): black letterbox bars while the player is on rails, and the
+ * Cutscene chrome (intro-sequence spec): black letterbox bars while the player is on rails, and the
  * hold-to-skip prompt with its progress bar. Text plus a bar, never colour alone, and the
  * bar is a real progressbar for assistive tech.
  */

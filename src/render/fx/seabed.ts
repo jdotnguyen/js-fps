@@ -27,6 +27,12 @@ interface SeabedSource {
 let source: SeabedSource | null = null;
 let loading: Promise<void> | null = null;
 const waiting: Array<() => void> = [];
+/** Shared clock driving animated underwater caustics across every seabed instance (0 extra draw calls). */
+const seabedTime = { value: 0 };
+
+export function tickSeabed(t: number): void {
+  seabedTime.value = t;
+}
 
 export interface SeabedOptions {
   /** Wall length the seabed must cover (m). */
@@ -92,7 +98,7 @@ function prepare(scene: THREE.Object3D): SeabedSource {
   return { geometries: ordered.map((b) => b.geometry), materials: out, size: Math.max(box.max.x - box.min.x, box.max.z - box.min.z) };
 }
 
-/** Deep water: the lights of the station don't reach out here, so the floor carries a faint glow of its own. */
+/** Deep water: the lights of the station don't reach out here, so the floor carries a faint glow plus animated caustics. */
 function tint(src: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
   const m = src.clone();
   m.color.set(0x8fa9ad);
@@ -104,6 +110,28 @@ function tint(src: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
   m.emissiveMap = src.map;
   m.emissiveIntensity = 0.55;
   m.side = THREE.FrontSide;
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms['uCausticTime'] = seabedTime;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vSeabedWorld;\nvarying vec3 vSeabedUp;')
+      .replace(
+        '#include <worldpos_vertex>',
+        '#include <worldpos_vertex>\nvec4 sbPos = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\nsbPos = instanceMatrix * sbPos;\n#endif\nvSeabedWorld = (modelMatrix * sbPos).xyz;\nvec3 sbN = objectNormal;\n#ifdef USE_INSTANCING\nsbN = mat3(instanceMatrix) * sbN;\n#endif\nvSeabedUp = normalize(mat3(modelMatrix) * sbN);',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uCausticTime;\nvarying vec3 vSeabedWorld;\nvarying vec3 vSeabedUp;')
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        vec2 cp = vSeabedWorld.xz * 0.55;
+        float w1 = sin(cp.x * 2.1 + uCausticTime * 0.85 + cos(cp.y * 1.7 - uCausticTime * 0.6));
+        float w2 = sin(cp.y * 2.4 - uCausticTime * 0.72 + cos(cp.x * 1.9 + uCausticTime * 0.55));
+        float caustic = pow(max(0.0, 0.5 + 0.5 * (w1 * w2)), 3.0);
+        float upMask = smoothstep(0.05, 0.85, vSeabedUp.y);
+        totalEmissiveRadiance += vec3(0.07, 0.24, 0.28) * caustic * upMask;`,
+      );
+  };
+  m.customProgramCacheKey = () => 'seabed-caustics';
   return m;
 }
 

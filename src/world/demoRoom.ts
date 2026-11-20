@@ -105,7 +105,7 @@ export function buildDemoRoom(m: Materials, rng: Rng): DemoRoom {
         mb.add(boxUv(0.1, 3.8, BAY), m.black, at(backX, 1.3, zc));
       }
 
-      mb.add(boxUv(0.04, 0.28, 2.18, 0.5), m.hazardClean, at(s * (HALF_W - 0.02), 0.14, zc));
+      mb.add(boxUv(0.04, 0.28, 2.18), m.steelBrushed, at(s * (HALF_W - 0.02), 0.14, zc));
       const px = s * (HALF_W - 0.03);
       for (const dz of [-0.55, 0.55]) {
         const z = zc + dz;
@@ -339,9 +339,9 @@ export function buildDemoRoom(m: Materials, rng: Rng): DemoRoom {
     mb.add(boxUv(2.2, 0.6, 0.1), m.paintDark, at(0, 2.9, dz - 0.05));
     for (const s of [-1, 1]) {
       mb.add(rounded(0.32, 2.8, 0.36, 0.03), m.steel, at(s * 1.26, 1.4, dz + 0.12));
-      mb.add(boxUv(0.22, 2.5, 0.02, 0.5), m.hazardClean, at(s * 1.26, 1.4, dz + 0.31));
+      mb.add(boxUv(0.22, 2.5, 0.02), m.paintDark, at(s * 1.26, 1.4, dz + 0.31));
       mb.add(rounded(1.1, 2.6, 0.12, 0.02), m.paintDark, at(s * 0.55, 1.3, dz + 0.02));
-      mb.add(boxUv(1.06, 0.22, 0.02, 0.5), m.hazardClean, at(s * 0.55, 0.9, dz + 0.09));
+      mb.add(boxUv(1.06, 0.22, 0.02), m.steelBrushed, at(s * 0.55, 0.9, dz + 0.09));
       mb.add(boxUv(0.3, 0.18, 0.02), m.black, at(s * 0.55, 1.95, dz + 0.085));
     }
     mb.add(rounded(2.84, 0.34, 0.36, 0.03), m.steel, at(0, 2.77, dz + 0.12));

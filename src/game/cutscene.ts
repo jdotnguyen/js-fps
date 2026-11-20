@@ -6,7 +6,7 @@ import { SkipHold } from '../script/skipHold.ts';
 import type { PlayerHud } from '../ui/hud/playerHud.ts';
 import type { CutsceneUi } from '../ui/hud/cutsceneUi.ts';
 
-/** The new-game opening (ADR-0017). */
+/** The new-game opening (intro-sequence spec). */
 export const INTRO_SEQUENCE = 'intro_shift_change';
 
 const HINT_START = 4;
@@ -24,12 +24,12 @@ export interface CutsceneDeps {
   ui: CutsceneUi;
   /** Label for the skip key, e.g. "Space". */
   skipKeyLabel: () => string;
-  /** Does this level have the opening's anchors (ADR-0017)? Default yes; kit_test and the demo room say no. */
+  /** Does this level have the opening's anchors (intro-sequence spec)? Default yes; kit_test and the demo room say no. */
   hasIntro?: () => boolean;
 }
 
 /**
- * Everything the player sees around a skippable sequence (ADR-0017): letterbox bars while
+ * Everything the player sees around a skippable sequence (intro-sequence spec): letterbox bars while
  * on rails, the hold-to-skip prompt, and the skip itself. The sequences are run and
  * ended by the ADR-0009 `SequenceManager`; this only decides when to skip.
  */

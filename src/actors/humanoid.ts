@@ -13,12 +13,16 @@ import { BodyDamage, DEFAULT_PROFILE, HERO_BASE_HP, HERO_PROFILE, POISE_WINDOW, 
 import { BELLY_WOUND } from './heroSculpt.ts';
 import { CastTells, NO_TELLS, type Tells } from './castTells.ts';
 import { FootIkSolver } from './footIk.ts';
+import { HandPhysicsSolver, type FingerName } from './handPhysics.ts';
+import { LimbContactSolver, type ContactKind } from './limbContact.ts';
+import type { ColliderQuery } from './motor.ts';
 import { SLAM, SlamState } from './slam.ts';
 import type { GoreSystem } from './gore.ts';
 import { solveTwoBone } from './ik.ts';
-import type { MocapLibrary } from './mocap.ts';
+import type { MocapLibrary, MotionSet } from './mocap.ts';
 import type { PoseLibrary } from './poses.ts';
 import { footprintOf } from './separation.ts';
+import { heldItemFor, makeHeld, type HeldItem } from './heldProps.ts';
 import { settleUprightTurn, stepUprightTurn, type UprightTurnState } from './springs.ts';
 import { CRAWL_TURN, DRAG_TURN, newTurnState, settleTurn, stepTurn, type TurnState } from './turning.ts';
 import { JOINT_INDEX, JOINTS, SEVER_JOINT, subtree, type JointName, type Region, type SeverableRegion, type Side } from './skeleton.ts';
@@ -75,6 +79,11 @@ export interface HumanoidSpec {
    * context has no library or the model failed to load; outfit, look and hero sculpting do not apply to it.
    */
   model?: string;
+  /**
+   * The character's own mocap clips (main characters): clip ids in src/data/mocap-clips.json per slot, over the default set.
+   * Giving a set also turns the procedural arm layers down, so the clips carry the motion.
+   */
+  motions?: Partial<MotionSet>;
 }
 
 export type FootstepKind = 'walk' | 'jog' | 'pivot' | 'shamble' | 'heavy';
@@ -96,6 +105,8 @@ export interface HumanoidContext {
   bodyModels?: BodyModelLibrary;
   /** Retargeted mocap clip library (Tier B); defaults to the shared compiled library. */
   mocap?: MocapLibrary;
+  /** World static/furniture colliders for general hand-vs-surface contact resolution. */
+  colliders?: ColliderQuery | null;
   /** Optional world-space footstep callback fired on foot plants (audio / perception). */
   onFootstep?: (step: FootstepEvent) => void;
 }
@@ -162,6 +173,8 @@ export class Humanoid {
   private readonly boneIndex = new Map<string, number>();
   private readonly extras = new Map<ExtraBone, THREE.Bone>();
   private readonly animator: Animator;
+  private readonly handPhysics: HandPhysicsSolver;
+  private readonly limbContact = new LimbContactSolver();
   private readonly capsules: CapsuleBinding[] = [];
   private readonly detached = new Set<JointName>();
   private readonly stumpsOn = new Set<JointName>();
@@ -211,6 +224,8 @@ export class Humanoid {
     this.buildMeshes();
     this.buildCapsules();
     this.animator = new Animator(this.jointBones(), ctx.poses, this.idlePose, this.rng.fork('anim'), ctx.mocap);
+    this.animator.setMotions(spec.motions, spec.role === 'npc' && (spec.outfit === 'medic' || spec.seed === 'director-hale'));
+    this.handPhysics = new HandPhysicsSolver(spec.seed, this.geo.handBones ?? [], this.extras);
     this.applyBoneScales();
     this.group.updateMatrixWorld(true);
     this.prevWorldPos.copy(this.group.position);
@@ -249,6 +264,29 @@ export class Humanoid {
   setPose(name: string, blend = 0.4): void {
     this.idlePose = name;
     this.animator.setPose(name, blend);
+  }
+
+  /** Show the item the pose holds (a mug for mug and drink poses, ADR-0029; the wand for wand poses) while alive; hide the rest. */
+  private syncHeld(): void {
+    this.heldFor = `${this.idlePose}|${this.state}`;
+    const want = this.state === 'alive' ? heldItemFor(this.idlePose) : null;
+    if (want && !this.heldItems.has(want)) {
+      const mesh = makeHeld(want);
+      this.heldItems.set(want, mesh);
+      this.bones.hand_R.add(mesh);
+    }
+    for (const [item, mesh] of this.heldItems) mesh.visible = item === want;
+  }
+
+  /** The item in the right hand right now, if any (tests). */
+  get holding(): HeldItem | null {
+    for (const [item, mesh] of this.heldItems) if (mesh.visible) return item;
+    return null;
+  }
+
+  /** Is the body holding a mug right now (tests)? */
+  get holdingMug(): boolean {
+    return this.holding === 'mug';
   }
 
   /**
@@ -391,6 +429,8 @@ export class Humanoid {
     this.prevWorldPos.copy(this.group.position);
     this.prevWorldVel.set(0, 0, 0);
     this.footIk.reset();
+    this.limbContact.reset();
+    this.handPhysics.reset();
     this.resetFootsteps();
     this.group.rotation.y = h;
   }
@@ -411,6 +451,46 @@ export class Humanoid {
   /** World-space foot-locking weight (0..1) for diagnostics and unit tests. */
   footLockWeight(side: Side): number {
     return this.footIk.lockWeight(side);
+  }
+
+  /** Whether this body carries preserved individual finger bones. */
+  get hasFingerRig(): boolean {
+    return this.handPhysics.hasFingerRig;
+  }
+
+  /** Whether this body carries preserved forearm twist bones. */
+  get hasForeArmTwists(): boolean {
+    return this.handPhysics.hasForeArmTwists;
+  }
+
+  /** Diagnostic getter for unit tests: current MCP curl (0..1+) of one finger. */
+  fingerCurl(side: Side, finger: FingerName): number {
+    return this.handPhysics.fingerCurl(side, finger);
+  }
+
+  /** Diagnostic getter for unit tests: current phalanx curls [mcp, pip, dip] of one finger. */
+  fingerPhalanxCurls(side: Side, finger: FingerName): [number, number, number] {
+    return this.handPhysics.fingerPhalanxCurls(side, finger);
+  }
+
+  /** Diagnostic getter for unit tests: magnitude of the inertial wrist spring offset (rad). */
+  wristSpringMagnitude(side: Side): number {
+    return this.handPhysics.wristSpringMagnitude(side);
+  }
+
+  /** Diagnostic getter for unit tests: latest extracted forearm pronation/supination twist (rad). */
+  foreArmTwist(side: Side): number {
+    return this.handPhysics.foreArmTwist(side);
+  }
+
+  /** Diagnostic getter for unit tests: smoothed hand contact weight (0..1) from LimbContactSolver. */
+  handContactWeight(side: Side): number {
+    return this.limbContact.contactOf(side).weight;
+  }
+
+  /** Diagnostic getter for unit tests: active hand contact kind ('none' | 'body' | 'world'). */
+  handContactKind(side: Side): ContactKind {
+    return this.limbContact.contactOf(side).kind;
   }
 
   // ---------------------------------------------------------------- hits
@@ -456,7 +536,15 @@ export class Humanoid {
     if (this.rng.chance(0.35)) gore.chunks(hit.point, dir.clone().multiplyScalar(0.4), 1);
 
     const localDir = dir.clone().applyQuaternion(this.group.quaternion.clone().invert());
-    this.animator.kick(hit.joint, localDir, Math.min(0.9, (amount / 18) * 0.38));
+    const hitKick = Math.min(0.9, (amount / 18) * 0.38);
+    this.animator.kick(hit.joint, localDir, hitKick);
+    if (hit.joint.endsWith('_L') || hit.joint.endsWith('_R')) {
+      const side: Side = hit.joint.endsWith('_L') ? 'L' : 'R';
+      this.handPhysics.impulseWrist(side, -localDir.z * hitKick * 8, 0, localDir.x * hitKick * 6);
+    } else {
+      this.handPhysics.impulseWrist('L', -localDir.z * hitKick * 4, 0, localDir.x * hitKick * 3);
+      this.handPhysics.impulseWrist('R', -localDir.z * hitKick * 4, 0, localDir.x * hitKick * 3);
+    }
     // Stagger (ADR-0019, ADR-0021): crowd bodies on every leg hit; tough bodies only when enough damage lands
     // close together, or on any weak-spot hit, which also cancels a slam.
     if (result.applied > 0 && !result.severed && this.state === 'alive') {
@@ -535,6 +623,7 @@ export class Humanoid {
     this.animator.kick(`foreArm_${side}`, this.strikeDir, strength);
     this.animator.kick(`upperArm_${side}`, this.strikeDir, strength * 0.8);
     this.animator.kick('chest', this.strikeDir, strength * 0.4);
+    this.handPhysics.impulseWrist(side, strength * 7.5, (side === 'R' ? 1 : -1) * strength * 3, 0);
   }
   private readonly strikeDir = new THREE.Vector3();
 
@@ -566,6 +655,7 @@ export class Humanoid {
 
   update(dt: number, cameraPosition: THREE.Vector3 | null = null): void {
     this.time += dt;
+    if (this.heldFor !== `${this.idlePose}|${this.state}`) this.syncHeld();
     this.updateTimers(dt);
     if (this.slam) {
       if (this.state !== 'alive' || this.locomotion.mode !== 'walk') this.slam.cancel();
@@ -589,7 +679,6 @@ export class Humanoid {
     this.animator.idleLife = this.state === 'alive' && this.spec.role === 'npc' && !this.locomotion.blind && !lying ? 1 : 0;
     const uprightAlive = this.state === 'alive' && this.locomotion.mode === 'walk' && !lying && this.spec.role !== 'corpse';
     this.animator.useMocap = uprightAlive && !(this.spec.role === 'npc' && this.locomotion.blind) && this.slam?.busy !== true;
-    this.animator.formalWalk = this.spec.role === 'npc' && (this.spec.outfit === 'medic' || this.spec.seed === 'director-hale');
     this.animator.charge = this.state === 'alive' && this.locomotion.mode === 'walk' ? Math.max(this.charge, this.speedScale > 1.2 ? 1 : 0) : 0;
     this.updateBloodTrail(dt);
     if (this.lookTarget && this.state === 'alive' && !this.locomotion.blind) {
@@ -599,8 +688,9 @@ export class Humanoid {
       this.animator.lookLocal = null;
     }
     this.animator.update(dt);
-    if (cameraPosition) {
-      const near = this.group.position.distanceTo(cameraPosition) < LOD_DISTANCE;
+    const cameraDist = cameraPosition ? this.group.position.distanceTo(cameraPosition) : null;
+    if (cameraDist !== null) {
+      const near = cameraDist < LOD_DISTANCE;
       if (near !== this.near) {
         this.near = near;
         for (const m of this.meshes) m.castShadow = near;
@@ -612,6 +702,53 @@ export class Humanoid {
     const pulse = 0.7 + 0.3 * Math.sin(this.time * 2.3 + this.glowPhase) * Math.sin(this.time * 0.7 + this.glowPhase);
     this.materials.uniforms.uGlow.value = smooth(0.8, 3, this.infectionLevel) * pulse * (this.state === 'dead' ? 0.3 : 1) * 0.9;
     this.solveIk(dt);
+    const ikTargetL = this.speed <= 0.1 && this.limbAttached('L', true) ? this.handTargets.L : null;
+    const ikTargetR = this.speed <= 0.1 && this.limbAttached('R', true) ? this.handTargets.R : null;
+    const handContactEligible =
+      this.state === 'alive' &&
+      this.spec.role !== 'corpse' &&
+      !lying &&
+      !this.transformAnim &&
+      this.locomotion.mode === 'walk' &&
+      this.near;
+    this.limbContact.solve({
+      group: this.group,
+      bones: this.bones,
+      capsules: this.capsules,
+      ...(this.geo.torsoHulls ? { torsoHulls: this.geo.torsoHulls } : {}),
+      colliders: this.ctx.colliders ?? null,
+      scaleY: this.geo.scale.y,
+      attachedL: this.limbAttached('L', true) && !this.animator.limp.has(JOINT_INDEX.hand_L),
+      attachedR: this.limbAttached('R', true) && !this.animator.limp.has(JOINT_INDEX.hand_R),
+      skipL: ikTargetL !== null,
+      skipR: ikTargetR !== null,
+      enabled: handContactEligible,
+      dt,
+    });
+    this.handPhysics.update({
+      group: this.group,
+      bones: this.bones,
+      dt,
+      alive: this.state !== 'dead' && this.state !== 'playingDead',
+      corpse: this.spec.role === 'corpse',
+      poseName: this.animator.poseName,
+      speed: this.speed,
+      accelFwd: this.animator.accelFwd,
+      accelLat: this.animator.accelLat,
+      infect: this.infectionLevel / 3,
+      twitchy: this.animator.twitchy,
+      speechEmote: this.animator.speechEmote,
+      speechWeight: this.animator.speechWeight,
+      speechPulse: this.animator.speechPulse,
+      speechPrimarySide: this.animator.speechPrimarySide,
+      limpL: !this.limbAttached('L', true) || this.animator.limp.has(JOINT_INDEX.hand_L),
+      limpR: !this.limbAttached('R', true) || this.animator.limp.has(JOINT_INDEX.hand_R),
+      ikTargetL,
+      ikTargetR,
+      contactL: this.limbContact.contactOf('L'),
+      contactR: this.limbContact.contactOf('R'),
+      cameraDist,
+    });
     this.updateFootsteps(dt);
   }
 
@@ -622,6 +759,9 @@ export class Humanoid {
   private readonly prevWorldVel = new THREE.Vector3();
   private readonly curWorldVel = new THREE.Vector3();
   private readonly footIk = new FootIkSolver();
+  /** ADR-0029: a mug in the right hand while the pose is a mug or drink pose (made on first use). */
+  private readonly heldItems = new Map<HeldItem, THREE.Mesh>();
+  private heldFor = '';
   private readonly footPlanted: [boolean, boolean] = [true, true];
   private readonly footCooldown: [number, number] = [0, 0];
   private readonly footPosTmp = new THREE.Vector3();
@@ -1094,10 +1234,17 @@ export class Humanoid {
 
     if (gore.mode === 'reduced') {
       // No detached parts: the limb goes limp and dark; dark fluid only.
-      for (const j of subtree(jointName)) {
+      const sub = new Set(subtree(jointName));
+      for (const j of sub) {
         this.animator.limp.add(JOINT_INDEX[j]);
         const idx = this.boneIndex.get(j);
         if (idx !== undefined) this.materials.uniforms.uDark.value[idx] = 1;
+      }
+      for (const e of this.geo.extraBones) {
+        if (sub.has(this.rootJointOf(e))) {
+          const idx = this.boneIndex.get(e.name);
+          if (idx !== undefined) this.materials.uniforms.uDark.value[idx] = 1;
+        }
       }
       gore.spurt(bone, new THREE.Vector3(), towardChild.clone().negate(), 1.0, true);
       gore.pool(world, 0.45, true);
@@ -1213,7 +1360,7 @@ export class Humanoid {
       else if (e.kind === 'shards') s = shards;
       else if (e.kind === 'ribs') s = smooth(1.9, 2.7, inf);
       else if (e.kind === 'tendril') s = e.name.endsWith('_0') ? (this.near ? smooth(1.3, 2.8, inf) : 0) : 1;
-      else if (e.kind === 'cloth') s = 1;
+      else if (e.kind === 'cloth' || e.kind === 'finger' || e.kind === 'twist') s = 1;
       else s = this.stumpsOn.has(e.name.slice('stump_'.length) as JointName) ? 1 : 0;
       bone.scale.setScalar(Math.max(TINY, s));
     }

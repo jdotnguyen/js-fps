@@ -353,7 +353,7 @@ export function distantMoan(sr: number, rng: Rng): Buf {
   return fadeEdges(normalize(b, 0.8), sr, 0.01, 0.1);
 }
 
-// ------------------------------------------------------------------ the supply sub (ADR-0017)
+// ------------------------------------------------------------------ the supply sub (intro-sequence spec)
 
 /**
  * A very large boat gliding past the window: a pressure wave you feel more than hear. Sub-bass swells

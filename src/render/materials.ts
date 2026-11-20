@@ -22,7 +22,6 @@ const TEXTURE_KEYS: TextureKey[] = [
 /** Shared material instances (ADR-0002). Per-object variants are cloned from these. */
 export interface Materials extends Record<PhotoSlotKey, THREE.MeshStandardMaterial> {
   steel: THREE.MeshStandardMaterial;
-  grating: THREE.MeshStandardMaterial;
   hazardClean: THREE.MeshStandardMaterial;
   glass: THREE.MeshPhysicalMaterial;
   black: THREE.MeshStandardMaterial;
@@ -82,10 +81,12 @@ function buildMaterialsFromSets(sets: Record<TextureKey, TexSet>, anisotropy: nu
   const photoMats = {} as Record<PhotoSlotKey, THREE.MeshStandardMaterial>;
   for (const k of PHOTO_SLOT_KEYS) photoMats[k] = photo(k);
 
+  photoMats.grating.alphaTest = 0.5;
+  photoMats.grating.side = THREE.DoubleSide;
+
   return {
     ...photoMats,
-    steel: pbr('steel', 'steel'),
-    grating: pbr('grating', 'grating', { alphaTest: 0.5, side: THREE.DoubleSide }),
+    steel: photoMats.steelBrushed,
     hazardClean: pbr('hazardClean', 'hazardClean'),
     glass: new THREE.MeshPhysicalMaterial({
       color: 0x9fbac2,

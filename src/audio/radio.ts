@@ -3,7 +3,7 @@ import { Rng } from '../core/rng.ts';
 import type { AudioEngine } from './engine.ts';
 
 /**
- * In-world radio (ADR-0017 / ADR-0023 "TAG FM"): a music file played through a small,
+ * In-world radio (intro-sequence spec / ADR-0023 "TAG FM"): a music file played through a small,
  * old speaker. The chain matches public/assets/audio/music/tag-fm/README.md so the game
  * sounds like tag-fm-01-radio-preview.wav:
  *   wow/flutter delay -> (+ hiss, crackle) -> HP 300 -> LP 3500 x2 -> peak 1.2 kHz

@@ -7,6 +7,7 @@ import type { DoorKit, DoorState } from '../../data/types/level.ts';
 import { at, rounded } from './geom.ts';
 import { slab } from './shapes.ts';
 import { AoMergeBuilder } from './merge.ts';
+import { AREA_PALETTES, type AreaPalette } from './palettes.ts';
 import { doorFrame } from './structure.ts';
 import { PieceBuilder, type BoxSpec, type PieceOutput } from './types.ts';
 
@@ -14,6 +15,13 @@ import { PieceBuilder, type BoxSpec, type PieceOutput } from './types.ts';
  * Door kits (ADR-0003): frame + animated leaves + a status screen on both sides of the
  * right jamb. Built in piece space: origin at the cell centre, door on the cell's -Z edge.
  */
+
+export interface DoorAreas {
+  /** Area of the room on the +Z (door cell) side. */
+  front?: string;
+  /** Area of the room on the -Z (far) side. */
+  back?: string;
+}
 
 export interface DoorVisual {
   /** Static frame geometry and colliders (merged with the door). */
@@ -48,9 +56,25 @@ function mergedLeaf(build: (mb: AoMergeBuilder) => void, name: string): THREE.Gr
   return mb.build(name, null);
 }
 
-export function buildDoor(kit: DoorKit, height: number, state: () => DoorState, _rng: Rng, m: Materials): DoorVisual {
+export function buildDoor(kit: DoorKit, height: number, state: () => DoorState, _rng: Rng, m: Materials, areas?: DoorAreas): DoorVisual {
   const pb = new PieceBuilder();
-  doorFrame(pb, m, 4, height);
+  const frontPal: AreaPalette | undefined = areas?.front ? AREA_PALETTES[areas.front] : undefined;
+  const backPal: AreaPalette | undefined = areas?.back ? AREA_PALETTES[areas.back] : undefined;
+  const leafKey = frontPal?.doorPanel ?? backPal?.doorPanel;
+  const leafMat = leafKey ? m[leafKey] : m.paintDark;
+  const glassBarKey = frontPal?.doorGlassBar ?? backPal?.doorGlassBar;
+  const glassBarMat = glassBarKey ? m[glassBarKey] : m.paintBone;
+  const framePaint = (pal: AreaPalette | undefined): THREE.MeshStandardMaterial =>
+    kit === 'bulkhead' ? m.servicePaint : pal?.doorPanel ? m[pal.doorPanel] : m.paintDark;
+  const frameSurround = (pal: AreaPalette | undefined): THREE.MeshStandardMaterial =>
+    pal?.doorSurround ? m[pal.doorSurround] : m.paintDark;
+  doorFrame(pb, m, 4, height, {
+    trim: m.steelBrushed,
+    paintFront: framePaint(frontPal),
+    paintBack: framePaint(backPal),
+    surroundFront: frameSurround(frontPal),
+    surroundBack: frameSurround(backPal),
+  });
   const leaves = new THREE.Group();
   leaves.name = `door-leaves:${kit}`;
   let setOpen: (f: number) => void;
@@ -59,10 +83,10 @@ export function buildDoor(kit: DoorKit, height: number, state: () => DoorState, 
   if (kit === 'bulkhead') {
     travelTime = 1.8;
     const leaf = mergedLeaf((mb) => {
-      mb.add(rounded(2.1, 2.5, 0.24, 0.04), m.paintDark, at(0, 0, 0));
+      mb.add(rounded(2.1, 2.5, 0.24, 0.04), leafMat, at(0, 0, 0));
       for (const y of [-0.8, 0, 0.8]) mb.add(rounded(2.02, 0.12, 0.32, 0.02), m.steel, at(0, y, 0));
       for (const fz of [-1, 1]) {
-        mb.add(slab(1.9, 0.22, 0.02, 0.5), m.hazardClean, at(0, -1.05, fz * 0.13));
+        mb.add(slab(1.9, 0.22, 0.02), m.steelBrushed, at(0, -1.05, fz * 0.13));
         mb.add(new THREE.TorusGeometry(0.26, 0.03, 8, 32), m.steel, at(0, 0.4, fz * 0.2));
         for (let k = 0; k < 3; k++) mb.add(slab(0.52, 0.025, 0.03), m.steel, at(0, 0.4, fz * 0.2, 0, 0, (k * PI) / 3));
         mb.add(slab(0.3, 0.12, 0.02), m.black, at(0.7, 0.9, fz * 0.13));
@@ -82,12 +106,13 @@ export function buildDoor(kit: DoorKit, height: number, state: () => DoorState, 
           mb.add(rounded(1.02, 0.18, 0.1, 0.02), m.steel, at(0, -1.11, 0));
           mb.add(rounded(0.08, 2.4, 0.1, 0.02), m.steel, at(-0.47, 0, 0));
           mb.add(rounded(0.08, 2.4, 0.12, 0.02), m.steel, at(0.47, 0, 0));
-          mb.add(slab(0.86, 0.06, 0.104), m.hazardClean, at(0, -0.15, 0));
+          mb.add(slab(0.86, 0.06, 0.104), glassBarMat, at(0, -0.15, 0));
         } else {
-          mb.add(rounded(1.02, 2.4, 0.14, 0.03), m.paintDark, at(0, 0, 0));
+          mb.add(rounded(1.02, 2.4, 0.14, 0.03), leafMat, at(0, 0, 0));
           mb.add(rounded(0.06, 2.4, 0.18, 0.02), m.steel, at(-s * 0.48, 0, 0));
           for (const fz of [-1, 1]) {
-            mb.add(slab(0.96, 0.22, 0.02, 0.5), m.hazardClean, at(0, -0.4, fz * 0.075));
+            mb.add(slab(0.96, 0.22, 0.02), m.steelBrushed, at(0, -0.98, fz * 0.075));
+            mb.add(slab(0.055, 0.14, 0.02), m.hazardClean, at(-s * 0.48, 0.2, fz * 0.095));
             mb.add(slab(0.3, 0.16, 0.02), m.black, at(s * 0.1, 0.7, fz * 0.075));
             mb.add(rounded(0.7, 0.05, 0.03, 0.01), m.steel, at(0, 0.3, fz * 0.08));
           }

@@ -1,6 +1,6 @@
 # Thalassa
 
-Deep-sea horror FPS (repo: `js-fps`).
+Repo: `js-fps`.
 
 A story-driven, Dead Space-style survival-horror FPS that runs in the browser.
 You are a security officer on a deep-sea research station overrun by an infection,

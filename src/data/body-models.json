@@ -34,6 +34,7 @@
     "variants": [],
     "share": 0,
     "sickTint": 0.3,
+    "handRig": true,
     "credit": {
       "title": "Mechanic 1",
       "author": "SidewalkNZ",
@@ -46,10 +47,11 @@
     "variants": [],
     "share": 0,
     "sickTint": 0.3,
+    "handRig": true,
     "credit": {
-      "title": "doctor",
-      "author": "Chenchanchong",
-      "source": "https://sketchfab.com/3d-models/doctor-cd00f4c4b7714bb88f7c1af12a91cf6e",
+      "title": "Doctor - Sketchfab Weekly - 13 Mar'23",
+      "author": "BrushDip",
+      "source": "https://sketchfab.com/3d-models/doctor-sketchfab-weekly-13-mar23-9c89a438a5e940e59a0f9a07c22d6ade",
       "license": "CC-BY-4.0"
     }
   },
@@ -58,10 +60,11 @@
     "variants": [],
     "share": 0,
     "sickTint": 0.3,
+    "handRig": true,
     "credit": {
-      "title": "Modern Indian Woman",
-      "author": "Pixel_Monster",
-      "source": "https://sketchfab.com/3d-models/modern-indian-woman-830d8ed3236a4221862290b81807f408",
+      "title": "elegant woman",
+      "author": "adri8restuz",
+      "source": "https://sketchfab.com/3d-models/elegant-woman-5f84869dd2fa4492b384bbb04ddf464e",
       "license": "CC-BY-4.0"
     }
   },
@@ -83,9 +86,9 @@
     "share": 0,
     "sickTint": 0.3,
     "credit": {
-      "title": "Modern Service Technician",
+      "title": "Blue Overalls Technician",
       "author": "restore50",
-      "source": "https://sketchfab.com/3d-models/modern-service-technician-18479da8b89d458893cc6f614cca01a6",
+      "source": "https://sketchfab.com/3d-models/blue-overalls-technician-5ff134cc3a8d4d99858964e1f2b4b0da",
       "license": "CC-BY-4.0"
     }
   },
@@ -106,6 +109,7 @@
     "variants": [],
     "share": 0,
     "sickTint": 0.3,
+    "handRig": true,
     "credit": {
       "title": "A Man in suit",
       "author": "anuragk1229",
@@ -197,6 +201,66 @@
       "title": "Zombie (Game character)",
       "author": "barnusmodels",
       "source": "https://sketchfab.com/3d-models/zombie-game-character-76760fc328ba47649d1abe929372f151",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "office1": {
+    "url": "assets/models/crew/office_1.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Eric Rigged 001 - Rigged 3D Business Man",
+      "author": "Renderpeople",
+      "source": "https://sketchfab.com/3d-models/eric-rigged-001-rigged-3d-business-man-a46bc9f67aaa415bb4f3241eef900e7f",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "office2": {
+    "url": "assets/models/crew/office_2.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Carla Rigged 001 - Rigged 3D Business Women",
+      "author": "Renderpeople",
+      "source": "https://sketchfab.com/3d-models/carla-rigged-001-rigged-3d-business-women-acf520f450d14dd799f98a6fede3edf5",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "office3": {
+    "url": "assets/models/crew/office_3.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Claudia Rigged 002 - 3D Rigged Business Women",
+      "author": "Renderpeople",
+      "source": "https://sketchfab.com/3d-models/claudia-rigged-002-3d-rigged-business-women-c659bd0accab47c6bbe390cf822a2b92",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "guard1": {
+    "url": "assets/models/crew/guard_1.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Security Guard - Rigged 3D Model",
+      "author": "Q.SARDOR",
+      "source": "https://sketchfab.com/3d-models/security-guard-rigged-3d-model-1e3307732bbf4453b30f021bfec5bcaf",
+      "license": "CC-BY-4.0"
+    }
+  },
+  "scientist1": {
+    "url": "assets/models/crew/scientist_1.glb",
+    "variants": [],
+    "share": 0,
+    "sickTint": 0.3,
+    "credit": {
+      "title": "SCP Scientist Male 1 - FIX RIGGER",
+      "author": "Maxime66410",
+      "source": "https://sketchfab.com/3d-models/scp-scientist-male-1-fix-rigger-17d85f54095647d697ca5f61a98dab1a",
       "license": "CC-BY-4.0"
     }
   }

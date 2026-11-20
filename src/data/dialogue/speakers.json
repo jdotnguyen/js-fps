@@ -27,6 +27,14 @@
     "name": "Station PA", "kind": "chime", "f0": 440, "formants": 1, "tempo": 1, "attack": 1,
     "breath": 0, "rasp": 0, "drive": 0, "detune": 0, "brightness": 6000, "channel": "radio"
   },
+  "crew_cook": {
+    "name": "Bram", "kind": "voice", "f0": 132, "formants": 0.96, "tempo": 1.05, "attack": 1.1,
+    "breath": 0.2, "rasp": 0.14, "drive": 0.22, "detune": 0, "brightness": 5000, "channel": "local"
+  },
+  "crew_dock_guard": {
+    "name": "Guard", "kind": "voice", "f0": 108, "formants": 0.93, "tempo": 0.95, "attack": 1.2,
+    "breath": 0.16, "rasp": 0.08, "drive": 0.2, "detune": 0, "brightness": 4600, "channel": "local"
+  },
   "crew": {
     "name": "Crew", "kind": "voice", "f0": 150, "formants": 1.03, "tempo": 1, "attack": 1,
     "breath": 0.15, "rasp": 0.05, "drive": 0.2, "detune": 0, "brightness": 6000, "channel": "local",

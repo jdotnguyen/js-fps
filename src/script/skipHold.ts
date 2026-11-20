@@ -1,5 +1,5 @@
 /**
- * Hold-to-skip (ADR-0017). Pure state machine: feed it the skip key's state each
+ * Hold-to-skip (intro-sequence spec). Pure state machine: feed it the skip key's state each
  * simulation step and it reports progress 0..1 and fires once at 1.
  *
  * - Hold mode: progress fills while the key is held and drains at 3x speed when released,

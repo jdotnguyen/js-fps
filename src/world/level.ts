@@ -6,6 +6,8 @@ import type { UiText } from '../data/types/uiText.ts';
 import type { Inventory } from '../game/inventory.ts';
 import { accessOpen, checkAccess, type AccessHint, type GateKind } from './access.ts';
 import { createShaft } from '../render/fx/shafts.ts';
+import { createOceanLife, type OceanZone } from '../render/fx/oceanLife.ts';
+import { tickSeabed } from '../render/fx/seabed.ts';
 import { Particulates } from '../render/fx/particulates.ts';
 import { LightController, type ControlledLight, type LightPattern, type ShaftUniforms } from '../render/lights.ts';
 import { createDebugCheckerMaterial, fixtureMaterial, type Materials } from '../render/materials.ts';
@@ -13,6 +15,7 @@ import { CollisionWorld, type Collider } from './collision.ts';
 import { at } from './kit/geom.ts';
 import { buildDoor, type DoorVisual } from './kit/doors.ts';
 import { GridOccupancy } from './kit/grid.ts';
+import { HullBuilder, type ExteriorHull } from './kit/exteriorHull.ts';
 import { AoMergeBuilder, applyWorldMeterUvs, withVertexColors, type AoFn } from './kit/merge.ts';
 import { snapModelToSocket, type SnapOptions } from './kit/modelSnap.ts';
 import { CELL, CORRIDOR_H, DECK_H, ROOM_H, WALL_MOUNTED_PROPS, transformBox, type BoxSpec, type LightSlotKind, type PieceOutput, type PieceParams, type Socket, type SocketKind } from './kit/types.ts';
@@ -73,11 +76,15 @@ export interface LevelDeps {
   debugChecker?: boolean;
 }
 
-export const AMBIENT: Record<AmbientPreset, { sky: number; ground: number; intensity: number }> = {
-  normal: { sky: 0x8fb0bd, ground: 0x0e1215, intensity: 0.22 },
-  emergency: { sky: 0xb04a3a, ground: 0x120606, intensity: 0.16 },
-  flooded: { sky: 0x2f7a80, ground: 0x031012, intensity: 0.24 },
-  dark: { sky: 0x4a5a64, ground: 0x050606, intensity: 0.07 },
+export const AMBIENT: Record<AmbientPreset, { sky: number; ground: number; intensity: number; keyColor: number; keyIntensity: number }> = {
+  normal: { sky: 0x8fb0bd, ground: 0x0e1215, intensity: 0.22, keyColor: 0x88a9bd, keyIntensity: 0.28 },
+  emergency: { sky: 0xb04a3a, ground: 0x120606, intensity: 0.16, keyColor: 0xa85040, keyIntensity: 0.22 },
+  flooded: { sky: 0x2f7a80, ground: 0x031012, intensity: 0.24, keyColor: 0x4a9ca6, keyIntensity: 0.26 },
+  dark: { sky: 0x4a5a64, ground: 0x050606, intensity: 0.07, keyColor: 0x566874, keyIntensity: 0.14 },
+  dock: { sky: 0x9ec0d2, ground: 0x182128, intensity: 0.34, keyColor: 0x9ec2d4, keyIntensity: 0.32 },
+  commons: { sky: 0xffe8cc, ground: 0x2a2018, intensity: 0.44, keyColor: 0xffdfba, keyIntensity: 0.34 },
+  admin: { sky: 0xffebd6, ground: 0x241d17, intensity: 0.42, keyColor: 0xffe4c4, keyIntensity: 0.34 },
+  hydro: { sky: 0xe6f2ea, ground: 0x1c2520, intensity: 0.42, keyColor: 0xf2faf4, keyIntensity: 0.34 },
   // Observation gallery (R03): dim and neutral, so its lamps and two ceiling pools carry the room and Lab B glows through the glass.
   gallery: { sky: 0x9ea6ab, ground: 0x0d0f11, intensity: 0.12, keyColor: 0xa4adb3, keyIntensity: 0.16 },
 };
@@ -136,7 +143,7 @@ interface RoomRuntime {
   ticks: Array<(t: number, dt: number) => void>;
   staticMeshes: THREE.Mesh[];
   merger: AoMergeBuilder;
-  ambient: { sky: THREE.Color; ground: THREE.Color; intensity: number };
+  ambient: { sky: THREE.Color; ground: THREE.Color; intensity: number; keyColor: THREE.Color; keyIntensity: number };
   fog: THREE.Color;
   fogDensity: number;
   visible: boolean;
@@ -243,6 +250,8 @@ export interface LevelNpc {
   seat?: number;
   /** Conversation group (ADR-0029). */
   chat?: string;
+  /** Imported body id, overriding the look's pick. */
+  model?: string;
   room: string;
 }
 
@@ -282,6 +291,7 @@ export class Level implements World {
   private readonly rooms: RoomRuntime[] = [];
   private readonly roomById = new Map<string, RoomRuntime>();
   private readonly doors: DoorRuntime[] = [];
+  private readonly hull: ExteriorHull;
   private readonly triggers: TriggerRuntime[] = [];
   private readonly vents: VentRuntime[] = [];
   private readonly pickups: PickupRuntime[] = [];
@@ -294,6 +304,7 @@ export class Level implements World {
   /** Authored walks by id (ADR-0028). */
   private readonly walks = new Map<string, NonNullable<LevelData['rooms'][number]['walks']>[number]>();
   private readonly hemi: THREE.HemisphereLight;
+  private readonly keyFill: THREE.DirectionalLight;
   private readonly dust: Particulates;
   private readonly visibleSlots: PooledSlot[] = [];
   private current: RoomRuntime | null = null;
@@ -323,18 +334,21 @@ export class Level implements World {
     this.pool = new LightPool(this.group, 8);
     this.hemi = new THREE.HemisphereLight(AMBIENT.normal.sky, AMBIENT.normal.ground, AMBIENT.normal.intensity);
     this.group.add(this.hemi);
-    const keyFill = new THREE.DirectionalLight(0x88a9bd, 0.28);
-    keyFill.name = 'level-key-fill';
-    keyFill.position.set(12, 24, 16);
-    keyFill.castShadow = false;
-    this.group.add(keyFill);
+    this.keyFill = new THREE.DirectionalLight(AMBIENT.normal.keyColor, AMBIENT.normal.keyIntensity);
+    this.keyFill.name = 'level-key-fill';
+    this.keyFill.position.set(12, 24, 16);
+    this.keyFill.castShadow = false;
+    this.group.add(this.keyFill);
 
     const occupancy = new GridOccupancy();
     for (const d of data.doors) {
       const claim = occupancy.claimDoor(d.id, d.cell, d.rot);
       if (!claim.ok) console.warn(`[level] ${claim.reason}`);
     }
-    for (const [index, r] of data.rooms.entries()) this.buildRoom(r, index, rng, occupancy);
+    const hull = new HullBuilder();
+    for (const [index, r] of data.rooms.entries()) this.buildRoom(r, index, rng, occupancy, hull);
+    this.hull = hull.build(data.doors, deps.materials);
+    this.group.add(this.hull.group);
     for (const d of data.doors) this.buildDoor(d, rng);
     this.initialPatterns = this.lights.items.map((it) => it.pattern);
     // Bake AO and merge once every collider exists, so walls shade across room seams.
@@ -399,6 +413,7 @@ export class Level implements World {
           ...(n.transformable ? { transformable: true } : {}),
           ...(spot ? { spot: spot.id, ...(spot.seat !== undefined ? { seat: spot.seat } : {}) } : {}),
           ...(n.chat ? { chat: n.chat } : {}),
+          ...(n.model ? { model: n.model } : {}),
           room: r.id,
         });
       }
@@ -425,7 +440,7 @@ export class Level implements World {
 
   // ---------------------------------------------------------------- building
 
-  private buildRoom(r: RoomData, index: number, rng: Rng, occupancy: GridOccupancy): void {
+  private buildRoom(r: RoomData, index: number, rng: Rng, occupancy: GridOccupancy, hull: HullBuilder): void {
     const { materials: m, registry } = this.deps;
     const height = r.height ?? ROOM_H;
     const preset = AMBIENT[r.atmosphere?.ambient ?? 'normal'];
@@ -439,7 +454,13 @@ export class Level implements World {
       ticks: [],
       staticMeshes: [],
       merger: new AoMergeBuilder(),
-      ambient: { sky: new THREE.Color(preset.sky), ground: new THREE.Color(preset.ground), intensity: preset.intensity },
+      ambient: {
+        sky: new THREE.Color(preset.sky),
+        ground: new THREE.Color(preset.ground),
+        intensity: preset.intensity,
+        keyColor: new THREE.Color(preset.keyColor),
+        keyIntensity: preset.keyIntensity,
+      },
       fog: new THREE.Color(r.atmosphere?.fog ?? DEFAULT_FOG),
       fogDensity: r.atmosphere?.fogDensity ?? DEFAULT_FOG_DENSITY,
       visible: true,
@@ -466,6 +487,8 @@ export class Level implements World {
         const matrix = cellMatrix(cell, rot);
         const params: PieceParams = { height, ...(r.area !== undefined ? { area: r.area } : {}), ...(piece.params ?? {}) };
         const out = registry.create(piece.kit, params, rng.fork(`${r.id}:${piece.kit}:${cell.join(',')}`), m);
+        const hullHeight = (piece.kit.startsWith('wall_') || piece.kit.startsWith('ceiling')) && typeof params.height === 'number' ? params.height : height;
+        hull.addPiece(r.id, cell, piece.kit, rot, hullHeight, out.sockets);
         for (const k of out.keepouts ?? []) {
           const box = new THREE.Box3(new THREE.Vector3(...k.min), new THREE.Vector3(...k.max)).applyMatrix4(matrix);
           this.debug.keepouts.push({ room: r.id, source: `${piece.kit}@${cell.join(',')}`, box });
@@ -528,13 +551,16 @@ export class Level implements World {
       const slot = rawSlots[idx]!;
       const def = SLOT_DEFAULTS[slot.kind];
       const color = new THREE.Color(light.color ?? def.color);
-      const glow = fixtureMaterial(color, def.emissive);
+      const emissiveBase = light.emissive ?? def.emissive;
+      const shaftBase = light.shaft ?? (slot.kind === 'ceiling' ? 0.05 : 0);
+      const drop = light.drop ?? def.drop;
+      const glow = fixtureMaterial(color, emissiveBase);
       const mesh = new THREE.Mesh(glowGeometry(slot.kind), glow);
       mesh.position.copy(slot.pos);
       mesh.rotation.y = slot.ry;
       room.group.add(mesh);
       const shafts: ShaftUniforms[] = [];
-      if (slot.kind === 'ceiling') {
+      if (slot.kind === 'ceiling' && shaftBase > 0) {
         const len = Math.min(slot.pos.y - 0.15, 3.2);
         const shaft = createShaft(0.55, 1.6, len, color);
         shaft.mesh.position.set(slot.pos.x, slot.pos.y - 0.04 - len / 2, slot.pos.z);
@@ -552,13 +578,13 @@ export class Level implements World {
         pattern: light.pattern,
         seed: 17 + index * 101 + idx * 31,
         emissives: [glow],
-        emissiveBase: def.emissive,
+        emissiveBase,
         shafts,
-        shaftBase: 0.05,
+        shaftBase,
       });
       room.slots.push({
         item,
-        position: slot.pos.clone().setY(slot.pos.y - def.drop),
+        position: slot.pos.clone().setY(slot.pos.y - drop),
         color,
         range: light.range ?? def.range,
         priority: 0,
@@ -580,6 +606,23 @@ export class Level implements World {
       const box = new THREE.Box3(new THREE.Vector3(...t.box[0]), new THREE.Vector3(...t.box[1]));
       this.triggers.push({ data: t, room, box, inside: false, fired: false });
       this.debug.triggers.push(box);
+    }
+
+    // Batch 3D exterior ocean life (fish + bubbles/plankton) once per windowed room (1 Mesh + 1 Points).
+    const oceanMarkers: THREE.Object3D[] = [];
+    const oceanZones: OceanZone[] = [];
+    room.group.updateMatrixWorld(true);
+    for (const child of room.group.children) {
+      const meta = child.userData['oceanZone'] as { width: number; depth: number } | undefined;
+      if (!meta) continue;
+      oceanMarkers.push(child);
+      oceanZones.push({ matrix: child.matrixWorld.clone(), width: meta.width, depth: meta.depth });
+    }
+    for (const mk of oceanMarkers) room.group.remove(mk);
+    if (oceanZones.length) {
+      const ocean = createOceanLife(oceanZones, rng.fork(`${r.id}:ocean`));
+      room.group.add(ocean.group);
+      room.ticks.push((t) => ocean.update(t));
     }
   }
 
@@ -643,6 +686,7 @@ export class Level implements World {
       };
       for (const room of this.rooms) collect(room.group);
       for (const door of this.doors) collect(door.group);
+      collect(this.hull.group);
     }
     this.checkerMat ??= withVertexColors(createDebugCheckerMaterial());
     this.checkerActive = enabled;
@@ -742,8 +786,19 @@ export class Level implements World {
     const a = this.roomById.get(d.between[0])!;
     const b = this.roomById.get(d.between[1])!;
     const height = Math.max(a.height, b.height);
+    const cellPt = new THREE.Vector3(d.cell[0] * CELL, d.cell[1] * DECK_H + 1, d.cell[2] * CELL);
+    const aIsFront = a.cells.some((box) => box.containsPoint(cellPt));
+    const frontArea = aIsFront ? a.data.area : b.data.area;
+    const backArea = aIsFront ? b.data.area : a.data.area;
     let ref: DoorRuntime | null = null;
-    const visual = buildDoor(d.kit, height, () => ref?.state ?? d.state, rng.fork(d.id), this.deps.materials);
+    const visual = buildDoor(
+      d.kit,
+      height,
+      () => ref?.state ?? d.state,
+      rng.fork(d.id),
+      this.deps.materials,
+      { ...(frontArea !== undefined ? { front: frontArea } : {}), ...(backArea !== undefined ? { back: backArea } : {}) },
+    );
     const matrix = cellMatrix(d.cell, d.rot);
     const group = new THREE.Group();
     group.name = `door:${d.id}`;
@@ -838,9 +893,9 @@ export class Level implements World {
     return this.rooms.map((r) => ({ id: r.data.id, name: r.data.name, ...r.stats }));
   }
 
-  /** Draw calls of everything currently visible (rooms + doors), before post. */
+  /** Draw calls of visible rooms, doors and the shared exterior, before post. */
   visibleDrawCalls(): number {
-    let n = 0;
+    let n = this.hull.group.children.length;
     for (const r of this.rooms) if (r.visible) n += r.stats.drawCalls;
     for (const d of this.doors) if (d.group.visible) d.group.traverse((o) => void (o instanceof THREE.Mesh && n++));
     return n;
@@ -1346,7 +1401,7 @@ export class Level implements World {
 
     // Portal-by-adjacency culling.
     const cur = this.current;
-    this.cull(cur);
+    this.cull(cur, room ? undefined : eye);
 
     // Atmosphere follows the current room.
     if (cur) {
@@ -1362,6 +1417,8 @@ export class Level implements World {
       this.hemi.color.lerp(cur.ambient.sky, k);
       this.hemi.groundColor.lerp(cur.ambient.ground, k);
       this.hemi.intensity += (cur.ambient.intensity - this.hemi.intensity) * k;
+      this.keyFill.color.lerp(cur.ambient.keyColor, k);
+      this.keyFill.intensity += (cur.ambient.keyIntensity - this.keyFill.intensity) * k;
     }
 
     // Light pool: slots of visible rooms, current room first.
@@ -1372,6 +1429,7 @@ export class Level implements World {
     this.pool.finish();
 
     for (const r of this.rooms) if (r.visible) for (const tick of r.ticks) tick(t, dt);
+    tickSeabed(t);
     for (const d of this.doors) if (d.group.visible) d.visual.tick(t);
     // Taken pickups stay gone, also after loading a save that holds the item.
     const inv = this.deps.inventory;
@@ -1380,7 +1438,7 @@ export class Level implements World {
   }
 
   /** Which rooms (and doors) draw when the view is in `cur`: it, what its open or see-through doors show, and its `visibleFrom` windows. */
-  private cull(cur: RoomRuntime | null): void {
+  private cull(cur: RoomRuntime | null, exteriorEye?: THREE.Vector3): void {
     for (const r of this.rooms) r.visible = cur === null;
     if (cur) {
       cur.visible = true;
@@ -1390,6 +1448,15 @@ export class Level implements World {
         else if (d.rooms[1] === cur) d.rooms[0].visible = true;
       }
       for (const r of this.rooms) if (r.data.visibleFrom?.includes(cur.data.id)) r.visible = true;
+      // Start at every room already drawn through a door or authored opening. Take a snapshot
+      // so a distant room's other windows don't recursively enable unrelated interiors.
+      const oceanViews = [];
+      for (const [id, views] of this.hull.windowViews) if (this.roomById.get(id)!.visible) oceanViews.push(views);
+      for (const views of oceanViews) for (const id of views) this.roomById.get(id)!.visible = true;
+      // An exterior camera can see directly into a seaward-facing pane without a source window.
+      if (exteriorEye) for (const w of this.hull.windows) {
+        if ((exteriorEye.x - w.x) * w.dx + (exteriorEye.z - w.z) * w.dz > 0) this.roomById.get(w.room)!.visible = true;
+      }
     }
     for (const r of this.rooms) r.group.visible = r.visible;
     for (const d of this.doors) d.group.visible = d.rooms[0].visible || d.rooms[1].visible;

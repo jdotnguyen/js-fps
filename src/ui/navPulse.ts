@@ -10,7 +10,7 @@ const MAX_LENGTH = 40;
 /**
  * Diegetic objective locator (ADR-0012): a glowing line along the navgraph path from Jay to
  * the current objective target, fading with distance and over 3 s. Q (`navPulse`) fires it;
- * the last hint tier fires it automatically (ADR-0010).
+ * the last hint tier fires it automatically.
  */
 export class NavPulse {
   readonly group = new THREE.Group();

@@ -2,7 +2,7 @@
 
 Status: Accepted (Nov 20). Justin found the crew "too much random idling": most people stand and do nothing. He wants them to
 sit in the cafeteria, lean on walls and tables, and talk to each other. He picked this design and asked for phase 1 first.
-Phase 1 is In progress; phases 2 and 3 are Proposed.
+Phase 1 is Done (Nov 20); phases 2 and 3 are Proposed.
 
 ## Context
 - Level NPCs spawn in one pose and never move unless a sequence moves them. While idle, `NpcActor.ambientGesture()` blends to a
@@ -39,6 +39,12 @@ nodes); it scales to every room without hand-scripting each person.
   spot in reach (1.5 m) logs a warning and falls back to `at`.
 
 ### Poses (phase 1)
+- Tuned by eye on real kit furniture in the pose bench, `/sandbox/poses.html` (dev server only). The page has free-fly
+  movement and `window.bench` helpers (`setPose`, `view`, `cam`, `cycle`, `speak`).
+- Placement rules the poses assume:
+  - a `lean_wall` body's feet are 0.45 m from the wall face
+  - `lean_counter` fits bar-height counters (about 1.05 m), with the feet about 0.18 m from the counter edge
+  - sofa spots sit the hips 4 cm in front of the cushion centre, so the shins clear the sofa base
 - New base poses: `sit_chair`, `sit_stool`, `sit_sofa`, `lean_wall` and `lean_counter`.
 - New ambient variants of each: glance either way, look down, drink, lean in on the table, hands together, cross arms.
 - A pose can `extends` another: it starts from that pose's joints and pelvis offset and overrides only what it lists. Every
@@ -52,6 +58,21 @@ nodes); it scales to every room without hand-scripting each person.
   - keeps breathing but drops the idle weight shift, which would slide it across the seat
 - Look-at pitch is measured from the body's own eye height (the pose's pelvis drop), so seated people look across the table and
   not down at it.
+
+### Story scenes: leaning, mugs and listen-look (Nov 20)
+- `lean_back` (and `lean_back_mug`): back against a counter about 0.92 m high, hips touching its edge, feet 0.36 m out.
+  It has glance, look-down and talk gestures, and `drink` on `lean_back_mug` is a sip.
+- **Held mug** (`actors/heldProps.ts`):
+  - any pose named with `mug` or `drink` (`idle_mug`, `offer_mug`, `drink`, `lean_back_mug`, `lean_back_mug_drink`) puts a mug
+    in the right hand
+  - a hand-off is the giver's `offer_mug` and the taker's mug pose on the same step
+  - seated drink gestures were dropped, so a mug never pops into an empty hand
+- **Timed gestures follow the base pose.** `npcAnim drink` on a body leaning with a mug plays `lean_back_mug_drink`, so a
+  sequence just says `drink`.
+- **Listen-look.** On every spoken line, the NPCs within 4.5 m of the speaker turn their heads to them. The speaker looks at
+  whoever spoke before if they are close, else at Jay. A script's own `npcLookAt` still wins. Looks hold 1.2 s after the line
+  ends, and the PA or an overlapping line ending does not cut them short.
+- **Intro kitchen.** Moved to the [intro-sequence spec](../../openspec/specs/intro-sequence/spec.md) ("Bram serves the squad").
 
 ### Conversations (phase 1)
 - NPCs that share a `chat` id talk to each other (`ai/chatter.ts`). One speaker at a time says an unvoiced, unsubtitled filler
@@ -75,14 +96,13 @@ nodes); it scales to every room without hand-scripting each person.
 ### Population (phase 1, Commons)
 - A believable mix in a social room is about 60% seated, 20% standing in small talking groups, 10% leaning and 10% moving or at
   a machine. This mix is the target for each room's static layout.
-- The Commons goes from 4 to 12 bodies:
+- The Commons goes from 4 to 13 bodies:
   - two tables talking (3 and 2)
-  - one person eating alone with a mug
-  - one at the window bar
-  - one on the lounge sofa watching the window
-  - two talking by the drinks station
-  - one leaning on the wall by the vending machine
-  - the cook (unchanged)
+  - one person alone with a mug at the east table
+  - two talking at the window bar (`crew_2` plus one)
+  - `crew_3` on the lounge sofa, watching the abyss
+  - two talking by the west wall, one leaning on it
+  - the cook and `crew_1` (unchanged)
 - `crew_1` is unchanged. The rounds sequence moves `crew_1` and the cook, and `quiet.test.ts` pins that.
 - Walking lanes stay clear (the N-S aisle, the gallery and hydroponics lanes, the servery queue). The scripted-walk tests prove
   this.
@@ -117,16 +137,16 @@ nodes); it scales to every room without hand-scripting each person.
 - Voiced background chatter: it needs recorded or generated murmur lines; the room ambience covers it for now.
 
 ## Tests
-- `world/spots.test.ts`:
+- `world/spots.test.ts` (on the real slice01 level):
   - dining tables, bar counters and sofas emit one spot per seat
   - each spot faces its table or counter and sits on its seat
 - `ai/chatter.test.ts`:
   - turns pass between members and nobody talks over anyone
   - listeners look at the speaker
   - a member who walks off or is held by a sequence drops out
-- `actors/idleLife.test.ts`:
-  - every seated and leaning pose and its gestures exist
-  - a seated body's legs do not move when it gestures
-- `world/slice01.test.ts`:
-  - every Commons NPC that asks for a spot gets one
-  - no two NPCs share a spot
+  - every Commons NPC that asks for a spot gets one, and no two share one
+  - every conversation has at least two people
+- `actors/placedPoses.test.ts`:
+  - every seated and leaning base pose has gestures that extend it
+  - a gesture keeps its base pose's legs and pelvis drop exactly
+  - `extends` must name a real pose and cannot loop

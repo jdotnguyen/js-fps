@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { TEXTURE_SPECS } from './generators.ts';
 import { PHOTO_SLOTS, PHOTO_SLOT_KEYS } from './manifest.ts';
 
@@ -7,7 +8,8 @@ const EXPECTED = [
   'paintBone', 'paintDark', 'paintTeal', 'labPanel', 'diamond', 'diamondHazard', 'diamondRusty', 'hazard', 'rubber',
   'rustHeavy', 'rustDrip', 'rustBlotch', 'concrete', 'concreteFloor', 'concretePainted', 'labTile', 'tileBroken',
   'tileWall', 'tileWashroom', 'signDanger', 'hullPlate', 'boltPanel', 'steelBrushed', 'deckCorrugated',
-  'acousticCeiling', 'vinylPanel', 'officeCeiling', 'woodPanel', 'carpet',
+  'acousticCeiling', 'vinylPanel', 'officeCeiling', 'woodPanel', 'carpet', 'servicePaint', 'grating',
+  'steelDark', 'cleanWall', 'cleanSlate', 'cleanTeal',
 ];
 
 test('photo slot list matches the design', () => {
@@ -21,11 +23,12 @@ test('every photo slot has a valid fallback, positive scale and sane tint', () =
     assert.ok(s.metersPerTile > 0, `${key} metersPerTile`);
     assert.ok(s.roughnessScale > 0, `${key} roughnessScale`);
     assert.ok(Number.isInteger(s.tint) && s.tint >= 0 && s.tint <= 0xffffff, `${key} tint`);
-    assert.equal(s.dir, key);
+    assert.ok(s.dir in PHOTO_SLOTS, `${key} dir ${s.dir}`);
+    assert.ok(existsSync(new URL(`../../../public/assets/textures/${s.dir}/color.webp`, import.meta.url)), `${key} textures/${s.dir}/color.webp`);
   }
 });
 
 test('procedural-only slots stay out of the photo manifest', () => {
-  for (const k of ['steel', 'grating', 'hazardClean']) assert.ok(!(k in PHOTO_SLOTS));
+  for (const k of ['steel', 'hazardClean']) assert.ok(!(k in PHOTO_SLOTS));
   assert.equal(PHOTO_SLOTS.signDanger.tiling, false);
 });
