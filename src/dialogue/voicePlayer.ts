@@ -1,9 +1,10 @@
 /**
- * Web Audio side of dialogue (ADR-0010): plays recorded VO files when loaded (falling back
+ * Web Audio side of dialogue (spec voice-playback): plays recorded VO files when loaded (falling back
  * to procedural emotes) through one of two channels:
  *   local: HRTF PannerNode at the speaker's head (or centred if no position) + room reverb send.
  *   radio: band-pass 300-3400 Hz -> waveshaper -> compressor, squelch clicks, static bed.
- * Output goes to its own `voice` gain node feeding the engine's master.
+ * Output goes to its own gain node, which the game connects to the engine's `voice` bus
+ * (spec: openspec/specs/voice-playback, openspec/specs/audio-mix).
  */
 import { Rng } from '../core/rng.ts';
 import { Biquad, fadeEdges, makeBuf, normalize, white, type Buf } from '../audio/dsp.ts';
@@ -11,9 +12,10 @@ import { audioUrls, type DialogueLine, type Emote } from '../data/types/dialogue
 import type { PlayRequest, VoicePlayback, VoicePlayer } from './speech.ts';
 import { renderUtterance } from './vocalSynth.ts';
 
-/** The part of AudioEngine (ADR-0013) dialogue needs. */
+/** The part of AudioEngine dialogue needs. */
 export interface AudioOut {
   readonly ctx: AudioContext;
+  /** Where dialogue goes: the engine's `voice` bus in the game (or master in debug pages). */
   readonly master: AudioNode;
   /** Optional shared room reverb bus so local voices sit inside the current room. */
   readonly reverbIn?: AudioNode;
@@ -121,7 +123,7 @@ export class WebAudioVoicePlayer implements VoicePlayer {
     }
   }
 
-  /** Fetch and decode every recorded VO file referenced by `lines` (ADR-0010 step 6). */
+  /** Fetch and decode every recorded VO file referenced by `lines`. */
   async loadLines(lines: Iterable<DialogueLine>, concurrency = 8): Promise<number> {
     const urls = [...new Set([...lines].flatMap((l) => audioUrls(l.audio)))];
     let loaded = 0;

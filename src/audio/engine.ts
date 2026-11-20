@@ -4,10 +4,23 @@ import { DEFAULT_REVERB, REVERB_CROSSFADE, REVERB_SPECS, renderReverbIr, resolve
 import { SAMPLE_URLS, SOUND_SPECS, type SampleName, type SoundName } from './sounds.ts';
 
 /**
- * Web Audio engine (ADR-0013): buses -> master -> limiter, a shared convolution
- * reverb send, HRTF-positioned voices, and procedurally rendered buffers.
+ * Web Audio engine (spec: openspec/specs/audio-mix): five buses -> master -> muffle -> limiter,
+ * a shared convolution reverb send, HRTF-positioned voices, and recorded or procedural buffers.
+ *
+ * Each bus is `input (base level) -> volume (player setting) -> duck -> master`. The input node
+ * is what sounds connect to; its gain is the mix's base level (tunable in the debug GUI).
  */
-export type BusName = 'ambience' | 'sfx' | 'ui' | 'music';
+export type BusName = 'ambience' | 'sfx' | 'ui' | 'music' | 'voice';
+
+/** Base level of each bus at 100% volume: the mix as tuned before volume settings existed. */
+export const BUS_BASE_LEVELS: Readonly<Record<BusName, number>> = { ambience: 1, sfx: 1, ui: 0.8, music: 0.3, voice: 1 };
+
+/** Buses lowered while a story line plays (audio-mix: Story ducking). */
+export const DUCKED_BUSES: readonly BusName[] = ['music', 'ambience'];
+
+/** Time constant (s) of duck and volume changes. */
+const LEVEL_TC = 0.05;
+const DUCK_TC = 0.15;
 
 export interface VoiceOptions {
   bus?: BusName;
@@ -46,7 +59,11 @@ export class AudioEngine {
   /** Low-pass on the whole mix, for the damage "muffle" (ADR-0004). */
   private readonly muffleFilter: BiquadFilterNode;
   readonly buses: Record<BusName, GainNode>;
-  /** Shared room convolution reverb input (ADR-0013); also fed by local dialogue (ADR-0010). */
+  /** Player volume setting per bus (0..1), after the base level. */
+  private readonly volumes: Record<BusName, GainNode>;
+  /** Story-ducking gain per bus (1 unless ducked). */
+  private readonly ducks: Record<BusName, GainNode>;
+  /** Shared room convolution reverb input (spec audio-mix: Room reverb); also fed by local dialogue. */
   readonly reverbIn: GainNode;
   private readonly reverbs = new Map<ReverbPreset, ReverbNode>();
   private activeReverb: ReverbPreset;
@@ -64,12 +81,13 @@ export class AudioEngine {
     this.master = new GainNode(this.ctx, { gain: 0.8 });
     this.muffleFilter = new BiquadFilterNode(this.ctx, { type: 'lowpass', frequency: 20000, Q: 0.5 });
     this.master.connect(this.muffleFilter).connect(limiter);
-    const bus = (gain: number): GainNode => {
-      const node = new GainNode(this.ctx, { gain });
-      node.connect(this.master);
-      return node;
-    };
-    this.buses = { ambience: bus(1), sfx: bus(1), ui: bus(0.8), music: bus(0.3) };
+    const names = Object.keys(BUS_BASE_LEVELS) as BusName[];
+    const make = (gain: (n: BusName) => number) =>
+      Object.fromEntries(names.map((n) => [n, new GainNode(this.ctx, { gain: gain(n) })])) as Record<BusName, GainNode>;
+    this.buses = make((n) => BUS_BASE_LEVELS[n]);
+    this.volumes = make(() => 1);
+    this.ducks = make(() => 1);
+    for (const n of names) this.buses[n].connect(this.volumes[n]).connect(this.ducks[n]).connect(this.master);
 
     this.reverbIn = new GainNode(this.ctx, { gain: 1 });
     this.activeReverb = DEFAULT_REVERB;
@@ -238,7 +256,29 @@ export class AudioEngine {
   }
 
   setMasterVolume(v: number): void {
-    this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05);
+    this.master.gain.setTargetAtTime(v, this.ctx.currentTime, LEVEL_TC);
+  }
+
+  /** Player volume for one bus, 0..1 (Settings: music, SFX, voice). */
+  setBusVolume(bus: BusName, v: number): void {
+    const clamped = Math.min(1, Math.max(0, v));
+    this.volumes[bus].gain.setTargetAtTime(clamped, this.ctx.currentTime, LEVEL_TC);
+  }
+
+  /** Current player volume of a bus (its target level). */
+  busVolume(bus: BusName): number {
+    return this.volumes[bus].gain.value;
+  }
+
+  /** Lower the ducked buses (music, ambience) by `db` dB; 0 restores them. Smooth, ~0.15 s. */
+  setDuck(db: number): void {
+    const g = Math.pow(10, -Math.max(0, db) / 20);
+    for (const n of DUCKED_BUSES) this.ducks[n].gain.setTargetAtTime(g, this.ctx.currentTime, DUCK_TC);
+  }
+
+  /** Current duck gain of a bus (1 = not ducked). */
+  duckGain(bus: BusName): number {
+    return this.ducks[bus].gain.value;
   }
 
   /** Follow the camera every frame. */

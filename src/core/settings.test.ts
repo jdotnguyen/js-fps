@@ -15,3 +15,18 @@ test('keeps valid values, drops wrong types and unknown options', () => {
   assert.equal(s.subtitles, false);
   assert.ok(!('extra' in s));
 });
+
+test('saves from before the bus volume settings load with full music, SFX and voice', () => {
+  const s = mergeSettings({ masterVolume: 0.5, fov: 90 });
+  assert.equal(s.masterVolume, 0.5);
+  assert.equal(s.musicVolume, 1);
+  assert.equal(s.sfxVolume, 1);
+  assert.equal(s.voiceVolume, 1);
+});
+
+test('bus volumes keep valid values and drop out-of-range ones', () => {
+  const s = mergeSettings({ musicVolume: 0.2, sfxVolume: 3, voiceVolume: -1 });
+  assert.equal(s.musicVolume, 0.2);
+  assert.equal(s.sfxVolume, 1);
+  assert.equal(s.voiceVolume, 1);
+});

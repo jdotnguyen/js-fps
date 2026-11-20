@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyBusVolumes } from '../audio/volume.ts';
 import type { Interactions } from '../actors/interaction.ts';
 import type { Player } from '../actors/player.ts';
 import type { AudioEngine } from '../audio/engine.ts';
@@ -273,10 +274,11 @@ export class Game {
     }
   }
 
-  /** Re-apply master volume with pause ducking. */
+  /** Re-apply master volume with pause ducking, and the music / SFX / voice bus volumes. */
   applyVolume(): void {
-    const v = this.d.settings.get().masterVolume * (this.mode === 'paused' ? 0.45 : 1);
-    this.d.audio.setMasterVolume(v);
+    const settings = this.d.settings.get();
+    this.d.audio.setMasterVolume(settings.masterVolume * (this.mode === 'paused' ? 0.45 : 1));
+    applyBusVolumes(this.d.audio, settings);
   }
 
   private spawnAtStart(): void {

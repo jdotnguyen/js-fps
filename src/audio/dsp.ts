@@ -1,5 +1,5 @@
 /**
- * Tiny offline DSP kit for procedural sounds (ADR-0013). Pure functions over
+ * Tiny offline DSP kit for procedural sounds (fallbacks; spec audio-assets). Pure functions over
  * Float32Arrays: runs in Node for tests/previews and in the browser before upload
  * to AudioBuffers.
  */

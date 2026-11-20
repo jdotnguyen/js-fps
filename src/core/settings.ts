@@ -14,6 +14,10 @@ export interface Settings {
   reducedFlashing: boolean;
   reducedMotion: boolean;
   masterVolume: number;
+  /** Bus volumes 0..1 (spec audio-mix: Volume settings). SFX covers sfx, ambience and ui. */
+  musicVolume: number;
+  sfxVolume: number;
+  voiceVolume: number;
   filmGrain: boolean;
   /** Seconds the skip key is held to skip a cutscene (ADR-0017). */
   skipHoldSeconds: number;
@@ -32,6 +36,9 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   reducedFlashing: false,
   reducedMotion: false,
   masterVolume: 0.8,
+  musicVolume: 1,
+  sfxVolume: 1,
+  voiceVolume: 1,
   filmGrain: true,
   skipHoldSeconds: 3,
   skipAssist: false,
@@ -55,6 +62,7 @@ export function mergeSettings(stored: unknown): Settings {
     if (key === 'quality' && !qualities.includes(v as string)) continue;
     if (key === 'tutorialPrompts' && !(TUTORIAL_MODES as readonly unknown[]).includes(v)) continue;
     if (typeof v === 'number' && !Number.isFinite(v)) continue;
+    if (key.endsWith('Volume') && ((v as number) < 0 || (v as number) > 1)) continue;
     if (key === 'skipHoldSeconds' && ((v as number) < 1.5 || (v as number) > 6)) continue;
     (out as unknown as Record<string, unknown>)[key] = v;
   }

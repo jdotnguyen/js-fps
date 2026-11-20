@@ -287,6 +287,37 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     prompt:
       'quiet clinical medical diagnostic monitor double soft electronic pulse beep in a quiet sterile hospital room, subtle muffled hospital equipment telemetry, no loud alarm, no music, no voice',
   },
+  // Dock checkpoint (dock-checkpoint spec): the walk-through metal detector arch and the guard's hand wand.
+  {
+    id: 'archPass',
+    file: 'oneshot-arch-pass.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.0,
+    promptInfluence: 0.7,
+    prompt:
+      'single short soft two-tone electronic confirmation chime from a walk-through airport security metal detector, clean and friendly, slight metal room reverb, no alarm, no music, no voice',
+  },
+  {
+    id: 'archAlarm',
+    file: 'oneshot-arch-alarm.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.6,
+    promptInfluence: 0.7,
+    prompt:
+      'walk-through airport security metal detector alarm, a fast repeating electronic warning beep for about one second, loud but not harsh, slight metal room reverb, no siren, no music, no voice',
+  },
+  {
+    id: 'wandBeep',
+    file: 'oneshot-wand-beep.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.2,
+    promptInfluence: 0.7,
+    prompt:
+      'handheld security metal detector wand being swept over a person, quiet rising and falling electronic hum with two short soft beeps, close and dry, no alarm, no music, no voice',
+  },
 ];
 
 function loadApiKey(): string {

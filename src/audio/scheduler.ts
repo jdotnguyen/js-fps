@@ -6,7 +6,7 @@ interface Entry {
   next: number;
 }
 
-/** Fires callbacks at random intervals; the backbone of the ambience (ADR-0013). */
+/** Fires callbacks at random intervals; the backbone of the ambience (spec in-world-audio). */
 export class Scheduler {
   private readonly entries: Entry[] = [];
   private readonly rng: Rng;

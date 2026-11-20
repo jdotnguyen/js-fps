@@ -17,6 +17,12 @@ Every decision line is tagged so it is clear who made it:
 Context, Decision, Details (numbers, schemas, APIs), Consequences, Alternatives rejected,
 Execution steps, Definition of done, Open questions.
 
+## Specs replace ADRs for audio
+
+Audio and voice behaviour (the mix, sound assets, voice playback and in-world sound) is specified with
+OpenSpec in [`openspec/specs/`](../../openspec/specs/), not in ADRs. ADR-0010 (dialogue, voice and hints)
+and ADR-0013 (audio) were retired on 2026-11-20 by the `establish-audio-spec` change.
+
 ## Index and execution order
 
 | # | Title | Depends on |
@@ -30,28 +36,25 @@ Execution steps, Definition of done, Open questions.
 | 0007 | Enemy AI, navigation and variants | 0003, 0006 |
 | 0008 | Difficulty and resource economy | 0005, 0007 |
 | 0009 | Sequence (scripting) system | 0003, 0004 |
-| 0010 | Dialogue, voice and hints | 0009 |
-| 0011 | Squad AI and specialists | 0006, 0007, 0009, 0010 |
-| 0012 | HUD, menus, settings and accessibility | 0004, 0005, 0010 |
-| 0013 | Audio | 0001, 0003 |
+| 0011 | Squad AI and specialists | 0006, 0007, 0009 |
+| 0012 | HUD, menus, settings and accessibility | 0004, 0005 |
 | 0014 | Slice content: map, beat sheet and script | all above |
 | 0015 | Performance budget, verification and workflow | applies to all |
 | 0016 | Save system and game state | 0001, 0008, 0012 |
-| 0017 | New-game intro cutscene (skippable, on rails) | 0004, 0006, 0009, 0010 |
+| 0017 | New-game intro cutscene (skippable, on rails) | 0004, 0006, 0009 |
 | 0018 | Actor separation (body-vs-body collision) | 0004, 0006, 0007 |
 | 0019 | Leg wounds (stagger, limp, then dismember and fall) | 0006, 0007 |
 | 0020 | Turn-then-move steering for crawlers and draggers | 0006 |
 | 0021 | Hero tier behaviour (heavy gait, slam, toughness, weak spot) | 0006, 0007, 0019 |
-| 0022 | Squad characters: personalities, backstory, infection arc | 0010, 0011, 0014 |
+| 0022 | Squad characters: personalities, backstory, infection arc | 0011, 0014 |
 | 0023 | The quiet half: commons, briefing and morning rounds | 0014, 0017, 0024, 0025 |
 | 0024 | Map, objectives and access gating | 0003, 0004, 0012, 0016 |
 | 0025 | Tutorial prompts | 0004, 0012, 0016 |
 | 0026 | Imported body models for the crowd | 0006, 0007 |
-| 0027 | Speech acting: talking mouths and tone-matched gestures | 0006, 0010, 0026 |
+| 0027 | Speech acting: talking mouths and tone-matched gestures | 0006, 0026 |
 | 0028 | Navmesh pathing and authored walks | 0007, 0009, 0017 |
 | 0029 | Ambient life: activity spots, conversations, ambient director | 0006, 0009, 0027, 0028 |
 
-0013 (audio) can run in parallel with 0004-0008 once 0003 exists.
 0015 is a standing rule set: read it before starting any ADR.
 
 ## Language

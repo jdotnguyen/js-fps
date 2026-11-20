@@ -1,5 +1,5 @@
 /**
- * Procedural music (ADR-0013). Renders a stereo, seamlessly looping track from a seeded RNG,
+ * Procedural music (the menu theme; plays on the music bus, spec audio-mix). Renders a stereo, seamlessly looping track from a seeded RNG,
  * so it is identical on every machine and needs no audio files.
  *
  * "Pressure" - the main menu theme and base mood for the station. A 64 s loop in D, built from

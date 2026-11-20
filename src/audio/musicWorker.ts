@@ -1,5 +1,5 @@
 /**
- * Renders the menu theme off the main thread (ADR-0013). The 64 s stereo loop takes seconds to
+ * Renders the menu theme off the main thread. The 64 s stereo loop takes seconds to
  * synthesise, which would freeze boot, so main.ts starts this worker and the music fades in
  * when it reports back.
  */

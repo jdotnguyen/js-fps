@@ -1,5 +1,5 @@
 /**
- * Procedural sound library (ADR-0013). Each generator renders a mono buffer from a
+ * Procedural sound library: fallbacks until recorded files load (spec audio-assets). Each generator renders a mono buffer from a
  * seeded RNG, so sounds are identical on every machine and need no audio files.
  * Loops are seamless; periodic parts complete whole cycles over the loop length.
  */
@@ -910,6 +910,11 @@ export const SAMPLE_URLS = {
   pressurePing: 'assets/audio/ambience/oneshot-pressure-ping.mp3',
   distantMoan: 'assets/audio/ambience/oneshot-distant-moan.mp3',
   medBeep: 'assets/audio/ambience/oneshot-med-beep.mp3',
+  // Dock checkpoint (dock-checkpoint spec): the walk-through arch and the guard's hand wand. Generate with
+  // `npm run ambience:generate -- --id archPass` (and archAlarm, wandBeep). Until the files exist, scans play with light only.
+  archPass: 'assets/audio/ambience/oneshot-arch-pass.mp3',
+  archAlarm: 'assets/audio/ambience/oneshot-arch-alarm.mp3',
+  wandBeep: 'assets/audio/ambience/oneshot-wand-beep.mp3',
 
   // Door motion and access feedback (ElevenLabs, scripts/doors-generate.ts).
   doorPressureOpen: 'assets/audio/doors/door-pressure-open.mp3',

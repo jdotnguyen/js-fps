@@ -83,6 +83,7 @@ import { loadDialogueLibrary } from './dialogue/load.ts';
 import { SpeechManager } from './dialogue/speech.ts';
 import { WebAudioVoicePlayer } from './dialogue/voicePlayer.ts';
 import { Subtitles } from './ui/hud/subtitles.ts';
+import { StoryDucker } from './audio/storyDuck.ts';
 
 /** The level New game plays (ADR-0014). */
 const DEFAULT_LEVEL = 'slice01';
@@ -439,7 +440,8 @@ async function boot(): Promise<void> {
   renderer.compile(scene, camera);
   // Speech (ADR-0010): one voice at a time with subtitles; lines unknown to the library are skipped.
   const dialogue = loadDialogueLibrary();
-  const voicePlayer = new WebAudioVoicePlayer(audio);
+  // Dialogue plays on the engine's voice bus (audio-mix: Mix buses), keeping the room reverb send.
+  const voicePlayer = new WebAudioVoicePlayer({ ctx: audio.ctx, master: audio.buses.voice, reverbIn: audio.reverbIn });
   void voicePlayer.loadLines(dialogue.allLines()).then((n) => {
     if (n > 0) console.info(`[boot] loaded ${n} VO clips`);
   });
@@ -459,12 +461,20 @@ async function boot(): Promise<void> {
     return speech.say(id, opts);
   };
   events.on('game:mode', ({ mode }) => {
-    if (mode === 'title') speech.stopAll();
+    if (mode !== 'title') return;
+    speech.stopAll();
+    storyDucker.reset();
+  });
+  events.on('game:restarted', () => {
+    speech.stopAll();
+    storyDucker.reset();
   });
   events.on('game:restarted', () => speech.stopAll());
   const guidance = new Guidance({
     events,
     input,
+  // Music and ambience dip under story lines (spec audio-mix: Story ducking).
+  const storyDucker = new StoryDucker(events, audio);
     ui: el<HTMLElement>('#ui'),
     scene,
     materials,

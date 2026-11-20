@@ -2,7 +2,7 @@ import type { Rng } from '../core/rng.ts';
 import { impulseResponse, type Buf, type IrShape } from './dsp.ts';
 
 /**
- * Per-room reverb presets (ADR-0013). Each is a procedural impulse response; rooms pick one
+ * Per-room reverb presets (spec audio-mix: Room reverb). Each is a procedural impulse response; rooms pick one
  * with the `atmosphere.reverb` key in level data.
  */
 export const REVERB_PRESETS = ['metal_corridor', 'metal_hall', 'small_office', 'flooded'] as const;
