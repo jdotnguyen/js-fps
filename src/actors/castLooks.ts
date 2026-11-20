@@ -149,6 +149,39 @@ const NAMED: Record<string, CastLook> = {
       outfitColors: { suit: '#15181c', over: '#a8861e', boots: '#0b0b0c' },
     },
   },
+  /**
+   * Dr. Lena Voss, Lab B microbiologist (`crew_lab`, NPC `researcher_b`): the researcher the bloom kills behind the Lab B glass
+   * (infection-kills spec). A fixed female body so she is the same woman every run. Stand-in: the "Claudia" business-woman model
+   * until a licensed lab-coat model replaces it. `outfit`/`look` below (white lab coat) only apply if it fails to load.
+   */
+  voss: {
+    seed: 'lena-voss',
+    model: 'office3',
+    outfit: 'lab',
+    height: 1.68,
+    build: 0.92,
+    look: {
+      skin: '#e6b99c',
+      hair: '#4a3626',
+      hairLine: 0.138,
+      facial: null,
+      mouth: 0.017,
+      tired: 0.8,
+      jaw: 0.88,
+      nose: 0.97,
+    },
+  },
+  /**
+   * The thing that grew inside Dr. Voss and bursts out of her chest in Lab B (infection-kills spec, `grownInside`). Imported body:
+   * the "Necromorph Slasher" model. Swap the model here for a smaller, wetter creature later; the kill does not change.
+   */
+  lab_creature: {
+    seed: 'lab-b-creature',
+    model: 'necromorph',
+    outfit: 'crew',
+    height: 1.85,
+    build: 0.9,
+  },
 };
 NAMED['bram'] = NAMED['cook']!;
 export const CAST: Readonly<Record<string, CastLook>> = NAMED;

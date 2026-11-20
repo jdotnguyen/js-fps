@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --no-warnings scripts/run-tests.ts",
     "textures": "node --experimental-strip-types scripts/textures/import.ts",
+    "props": "node --experimental-strip-types --no-warnings scripts/import-props.ts",
     "walks:suggest": "node --experimental-strip-types --no-warnings scripts/walk-suggest.ts",
     "textures:preview": "node --experimental-strip-types scripts/textures-preview.ts",
     "sounds:preview": "node --experimental-strip-types scripts/sounds-preview.ts",
@@ -19,7 +20,8 @@
     "vo:generate": "node --experimental-strip-types scripts/vo-generate.ts",
     "ambience:generate": "node --experimental-strip-types scripts/ambience-generate.ts",
     "doors:generate": "node --experimental-strip-types scripts/doors-generate.ts",
-    "footsteps:generate": "node --experimental-strip-types scripts/footsteps-generate.ts"
+    "footsteps:generate": "node --experimental-strip-types scripts/footsteps-generate.ts",
+    "gore:generate": "node --experimental-strip-types scripts/gore-generate.ts"
   },
   "dependencies": {
     "recast-navigation": "^0.44.0",
@@ -27,8 +29,11 @@
   },
   "devDependencies": {
     "@fission-ai/openspec": "^2.0.0",
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
     "@types/node": "^22.10.0",
     "@types/three": "^0.170.0",
+    "meshoptimizer-v1": "npm:meshoptimizer@^1.3.0",
     "typescript": "^5.8.0",
     "vite": "^6.0.0"
   }

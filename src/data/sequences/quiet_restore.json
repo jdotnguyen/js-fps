@@ -121,15 +121,10 @@
     "flag": "drop_done",
     "then": [
      {
-      "do": "transform",
+      "do": "kill",
       "npc": "researcher_b",
-      "to": 3,
-      "instant": true
-     },
-     {
-      "do": "npcAnim",
-      "npc": "researcher_b",
-      "anim": "shamble",
+      "kind": "grownInside",
+      "glass": "anchor:labb_glass",
       "instant": true
      },
      {
@@ -152,9 +147,28 @@
     "then": [
      {
       "do": "despawn",
-      "npc": "researcher_b"
+      "npc": "researcher_b_creature"
      }
     ]
+   },
+   {
+    "do": "if",
+    "flag": "dive_trunk_secured",
+    "then": [
+     {
+      "do": "emit",
+      "event": "trunk:state",
+      "payload": {
+       "state": "closed",
+       "instant": true
+      }
+     }
+    ]
+   },
+   {
+    "do": "setFlag",
+    "flag": "dive_leak_cool",
+    "value": false
    }
   ]
  }

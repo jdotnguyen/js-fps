@@ -24,6 +24,7 @@ export interface SpawnPointData {
   yaw?: number | undefined;
   outfit?: string | undefined;
   infection?: number | undefined;
+  model?: string | undefined;
   on?: string | undefined;
 }
 

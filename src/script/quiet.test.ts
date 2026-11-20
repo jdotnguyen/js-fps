@@ -55,6 +55,10 @@ function walk(steps: Step[], visit: (s: Record<string, unknown>) => void): void 
 test('every shipped sequence names only things that exist: lines, sounds, anchors, NPCs, doors, rooms, objectives, items', () => {
   assert.ok(byId.size >= 25);
   const npcSet = new Set([...npcIds, 'medbay_figure', 'r08_thing', 'researcher_a', 'giles', 'okafor']);
+  // A `grownInside` kill spawns the creature that comes out of the victim (infection-kills spec).
+  for (const def of defs) walk(def.steps, (s) => {
+    if (s['do'] === 'kill') npcSet.add(typeof s['creatureId'] === 'string' ? s['creatureId'] : `${String(s['npc'])}_creature`);
+  });
   for (const def of defs.filter((d) => !d.id.startsWith('test_') && !d.id.startsWith('cutscene_test'))) {
     walk(def.steps, (s) => {
       const where = `${def.id}: ${String(s['do'])}`;
@@ -68,7 +72,8 @@ test('every shipped sequence names only things that exist: lines, sounds, anchor
       if (s['do'] === 'doorState') assert.ok(doorIds.has(s['id'] as string), `${where} door ${String(s['id'])}`);
       if (s['do'] === 'lightState') assert.ok(roomIds.has(s['room'] as string), `${where} room ${String(s['room'])}`);
       if (typeof s['npc'] === 'string') assert.ok(npcSet.has(s['npc']), `${where} npc ${s['npc']}`);
-      for (const field of ['to', 'target', 'at', 'from', 'lookAt']) {
+      if (s['do'] === 'kill') for (const l of Object.values((s['lines'] as Record<string, string> | undefined) ?? {})) assert.ok(library.hasLine(l), `${where} cue line ${l}`);
+      for (const field of ['to', 'target', 'at', 'from', 'lookAt', 'glass']) {
         const v = s[field];
         if (typeof v === 'string' && v.startsWith('anchor:')) assert.ok(anchors.has(v.slice(7)), `${where}.${field} ${v}`);
         if (typeof v === 'string' && v.startsWith('npc:')) assert.ok(npcSet.has(v.slice(4)), `${where}.${field} ${v}`);
@@ -417,7 +422,7 @@ test('the drop does not start before the rounds are done, nor from the wrong doo
   assert.equal(g.host.flags['drop_started'], undefined);
 });
 
-test('the drop: seals the door, blinds up, Voss transforms, red lights and glass cracks, then control returns and cp_drop is taken', async () => {
+test('the drop: seals the door, blinds up, the bloom kills Voss, red lights, then control returns and cp_drop is taken', async () => {
   const g = makeGame();
   g.host.flags['briefingSeen'] = true;
   for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
@@ -433,7 +438,7 @@ test('the drop: seals the door, blinds up, Voss transforms, red lights and glass
   assert.equal(g.host.flags['drop_done'], true);
   assert.ok(g.log.includes('door D_R02_R03 locked') || at('door D_R02_R03') >= 0, 'R03 sealed');
   assert.ok(at('event blinds:set') >= 0, 'blinds up');
-  assert.ok(at('npc transform researcher_b') >= 0, 'Voss changes');
+  assert.ok(at('npc kill researcher_b') >= 0, 'the bloom kills Voss (infection-kills spec)');
   assert.ok(g.log.some((e) => e.startsWith('light ') && e.endsWith('alarm emergency')), 'red lights');
   assert.equal(g.log.includes('glass labb cracked'), false);
   assert.equal(count(g, 'event drop:done'), 1);
@@ -467,6 +472,38 @@ test('the cameraFeed action: validates, fills the host call, warns without a hos
   assert.ok(bare.log.some((e) => e.startsWith('warn')), 'no host: a warning, not a crash');
 });
 
+test('the drop follows the kill: each line and light change waits for its beat, not a clock (infection-kills spec)', async () => {
+  const g = makeGame();
+  g.host.flags['briefingSeen'] = true;
+  for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
+  await advance(g, 30);
+  fire(g, 'trigger:gallery_enter');
+  await until(g, () => g.log.some((e) => e.startsWith('npc kill researcher_b')), 30);
+  await advance(g, 0.2);
+  const beat = async (id: string): Promise<void> => {
+    g.host.events.emit(`kill:${id}`, { npc: 'researcher_b', beat: id });
+    await advance(g, 0.1);
+  };
+  assert.equal(g.log.includes('say drop_voss_01'), false, 'her plea waits for the scratch beat');
+  await beat('scratch');
+  assert.ok(g.log.includes('say drop_voss_01'), 'she says "it is under my skin" as she claws her arm');
+  assert.equal(g.log.includes('say drop_voss_02'), false, 'the scream waits for the glass');
+  await beat('panic');
+  await beat('glass');
+  assert.ok(g.log.indexOf('say drop_voss_02') > g.log.indexOf('say drop_voss_01'), 'she screams at the glass');
+  assert.equal(g.log.some((e) => e.endsWith('alarm emergency')), false, 'the alarm waits for the arch');
+  await beat('arch');
+  assert.ok(g.log.some((e) => e === 'light R04 alarm emergency'), 'alarm on the arch');
+  await beat('burst');
+  assert.ok(g.log.includes('shake'), 'the burst shakes the view');
+  await beat('still');
+  await advance(g, 3);
+  assert.ok(g.log.includes('say drop_giles_01'), 'Giles reacts once she is still');
+  await until(g, () => !g.m.isRunning('drop'), 60);
+  assert.equal(g.host.flags['drop_done'], true);
+  noWarnings(g);
+});
+
 // ------------------------------------------------------------------------------- restore, walk-by, ruined room
 
 test('quiet_restore on a load: radio, commons changes and the drop aftermath come back from the flags; a fresh game does nothing', async () => {
@@ -482,7 +519,8 @@ test('quiet_restore on a load: radio, commons changes and the drop aftermath com
   assert.equal(count(g, 'event screen:set'), 1);
   assert.ok(g.log.includes('npc npcMoveTo cook instant') && g.log.includes('npc npcMoveTo crew_1 instant') && g.log.includes('npc npcAnim crew_1 idle_mug instant'));
   assert.ok(g.log.includes('event blinds:set'));
-  assert.ok(g.log.includes('npc transform researcher_b instant') && g.log.includes('npc npcAnim researcher_b shamble instant'));
+  assert.ok(g.log.includes('npc kill researcher_b instant'), 'Voss lies dead and torn, the creature stands (infection-kills spec)');
+  assert.equal(g.log.includes('npc npcAnim researcher_b shamble instant'), false);
   assert.ok(g.log.includes('light R04 alarm emergency') && g.log.includes('light R03 steady emergency'));
   assert.equal(g.log.includes('glass labb cracked'), false);
   noWarnings(g);
@@ -606,4 +644,64 @@ test('dock arch, free play: nothing before the intro is over or once the drop ha
   fire(after, 'trigger:dock_arch');
   await advance(after, 2);
   assert.equal(scans(after), 0);
+});
+
+// ------------------------------------------------------------------------------- dive bay (rebuild-dive-bay)
+
+test('dive bay: the trunk is secured only after Sung and the mechanic finish, with chirp, hatch and vent at the trunk', async () => {
+  const g = makeGame(['dive_moment', 'dive_trunk_secure']);
+  const states: unknown[] = [];
+  g.host.events.on('trunk:state', (p) => void states.push(p));
+  g.host.flags['briefingSeen'] = true;
+  fire(g, 'trigger:dive_enter');
+  await advance(g, 12);
+  const at = (e: string): number => g.log.indexOf(e);
+  assert.ok(at('say dive_maint_01') >= 0 && at('say dive_maint_01') < at('sfx trunkChirp'), 'no chirp before the last line');
+  assert.equal(count(g, 'sfx trunkChirp'), 2);
+  assert.ok(at('event trunk:state') > at('sfx trunkChirp') && at('sfx trunkHatch') > at('event trunk:state') && at('sfx trunkVent') > at('sfx trunkHatch'));
+  assert.deepEqual(states, [{ state: 'closed' }]);
+  assert.equal(g.host.flags['dive_trunk_secured'], true);
+  assert.equal(count(g, 'event trunk:beacon'), 2, 'beacon on, then off');
+  g.host.events.emit('trunk:secure', undefined);
+  await advance(g, 8);
+  assert.equal(count(g, 'sfx trunkChirp'), 2, 'never replays');
+  noWarnings(g);
+});
+
+test('dive bay: before the briefing the trunk stays open', async () => {
+  const g = makeGame(['dive_moment', 'dive_trunk_secure']);
+  fire(g, 'trigger:dive_enter');
+  await advance(g, 12);
+  assert.equal(count(g, 'event trunk:state'), 0);
+  assert.equal(g.host.flags['dive_trunk_secured'], undefined);
+});
+
+test('dive bay: a load after securing shows the hatch closed at once, with no beacon, chirp or hiss', async () => {
+  const g = makeGame(['quiet_restore', 'dive_trunk_secure']);
+  const states: unknown[] = [];
+  g.host.events.on('trunk:state', (p) => void states.push(p));
+  g.host.flags['dive_trunk_secured'] = true;
+  g.host.events.emit('game:mode', { mode: 'playing' });
+  await advance(g, 2);
+  assert.deepEqual(states, [{ state: 'closed', instant: true }]);
+  assert.equal(count(g, 'sfx trunkChirp') + count(g, 'sfx trunkVent') + count(g, 'event trunk:beacon'), 0);
+  const fresh = makeGame(['quiet_restore']);
+  const none: unknown[] = [];
+  fresh.host.events.on('trunk:state', (p) => void none.push(p));
+  fresh.host.events.emit('game:mode', { mode: 'playing' });
+  await advance(fresh, 1);
+  assert.equal(none.length, 0, 'an unsecured trunk is left open');
+});
+
+test('dive bay: the R13d leak hisses at most once per 20 s', async () => {
+  const g = makeGame(['dive_leak']);
+  fire(g, 'trigger:dive_leak');
+  await advance(g, 5);
+  fire(g, 'trigger:dive_leak');
+  await advance(g, 5);
+  assert.equal(count(g, 'sfx leakHiss'), 1);
+  await advance(g, 12);
+  fire(g, 'trigger:dive_leak');
+  await advance(g, 1);
+  assert.equal(count(g, 'sfx leakHiss'), 2);
 });

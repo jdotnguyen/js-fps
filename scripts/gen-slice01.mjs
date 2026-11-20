@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generates src/data/levels/slice01.json (ADR-0014 map as amended, ADR-0017 intro, ADR-0023 hubs).
+ * Generates src/data/levels/slice01.json (ADR-0014 map as amended, intro-sequence spec, ADR-0023 hubs).
  *
  *   node scripts/gen-slice01.mjs            write the level
  *   node scripts/gen-slice01.mjs --check    print the room/cell table only
@@ -70,6 +70,10 @@ function room(id, name, cells, o = {}) {
     /** `params.material` on every wall tile / every ceiling tile (a palette slot, e.g. "steel"). */
     wallMaterial: o.wallMaterial,
     ceilingMaterial: o.ceilingMaterial,
+    /** `params.material` on every floor tile that has no per-cell `floorParams` (a palette slot, e.g. "diamondRusty"). */
+    floorMaterial: o.floorMaterial,
+    /** Omit ceiling light housings on unclaimed ceiling cells so inhabited rooms have no dead black fixtures. */
+    noDeadFixtures: o.noDeadFixtures === true,
     props: [],
     lights: o.lights ?? [],
     triggers: [],
@@ -122,7 +126,8 @@ function opening(a, b, x, z, side) {
   }
 }
 
-const wallKit = (r, x, z, s, kit) => {
+const wallKit = (r, x, z, s, kit, params) => {
+  if (params) (r.wallParams ??= {})[edgeKey(x, z, s)] = params;
   r.wallOverride[edgeKey(x, z, s)] = kit;
 };
 
@@ -209,11 +214,12 @@ function station(r, id, area, x, z, s, along = 0) {
   mapStations.push({ id, pos: w.pos, reveals: area, rot: (w.rot + 180) % 360, room: r.id });
 }
 /** Light on the ceiling slot of the room's `slot`-th cell (ceilings are emitted first, in cell order). */
-const L = (slot, pattern = 'steady', color, intensity, range) => {
+const L = (slot, pattern = 'steady', color, intensity, range, extra) => {
   const l = { slot, pattern };
   if (color) l.color = color;
   if (intensity !== undefined) l.intensity = intensity;
   if (range !== undefined) l.range = range;
+  if (extra) Object.assign(l, extra);
   return l;
 };
 
@@ -222,32 +228,61 @@ const L = (slot, pattern = 'steady', color, intensity, range) => {
 const QUIET_FOG = { fog: '#070b0d', fogDensity: 0.028 };
 
 // ---------------------------------------------------------------- R01 docking ring (dock)
+const DOCK_FOG = { fog: '#0a1014', fogDensity: 0.018, ambient: 'dock' };
 const R01 = room('R01', 'Docking Ring', rect(0, 3, 0, 1), {
   area: 'dock',
-  atmosphere: { ...QUIET_FOG, reverb: 'metal_hall', ambience: 'hull_hum' },
+  atmosphere: { ...DOCK_FOG, reverb: 'metal_hall', ambience: 'hull_hum' },
   ceiling: 'ceiling_pipes',
-  lights: [L(1, 'steady', '#dcefff'), L(3, 'steady', '#dcefff'), L(5, 'steady', '#ffe2bf'), L(6, 'steady')],
+  noDeadFixtures: true,
+  lights: [
+    L(0, 'steady', '#cfe8ff', 13, 12, { shaft: 0.045, emissive: 2.6 }),
+    L(1, 'steady', '#d8eeff', 12, 12, { shaft: 0.04, emissive: 2.6 }),
+    L(3, 'steady', '#cfe8ff', 13, 12, { shaft: 0.04, emissive: 2.6 }),
+    L(5, 'steady', '#ffddb3', 15, 12, { drop: 0.45, shaft: 0.025, emissive: 2.8 }),
+    L(6, 'steady', '#ffe8cc', 13, 12, { shaft: 0.02, emissive: 2.5 }),
+  ],
 });
 // The walk to the commons: its own room (culling, draw-call budget), open to the dock hall.
 const R01w = room('R01w', 'Docking Ring Walk', [[4, 0], [5, 0], [6, 0], [6, 1], [6, 2]], {
   area: 'dock',
-  atmosphere: { ...QUIET_FOG, reverb: 'metal_corridor', ambience: 'hull_hum' },
+  atmosphere: { ...DOCK_FOG, reverb: 'metal_corridor', ambience: 'hull_hum' },
   ceiling: 'ceiling_pipes',
-  lights: [L(0, 'steady', '#cfe6ff'), L(2, 'steady'), L(4, 'steady')],
+  noDeadFixtures: true,
+  lights: [
+    L(0, 'steady', '#d4ebff', 12, 12, { shaft: 0.035, emissive: 2.6 }),
+    L(2, 'steady', '#d4ebff', 12, 12, { shaft: 0.035, emissive: 2.6 }),
+    L(4, 'steady', '#ffe4c4', 13, 12, { shaft: 0.025, emissive: 2.6 }),
+  ],
 });
 opening('R01', 'R01w', 3, 0, 'e');
-for (const x of [1, 2, 3]) wallKit(R01, x, 0, 'n', 'wall_window'); // the big dock window
-for (const x of [5, 6]) wallKit(R01w, x, 0, 'n', 'wall_window'); // abyss window on the walk
-wallKit(R01w, 6, 1, 'e', 'wall_window');
-const R01a = room('R01a', 'Dock Airlock', [[-1, 0]], { area: 'dock', atmosphere: { ...QUIET_FOG, reverb: 'small_office' }, ceilingMaterial: 'boltPanel', walls: ['wall_plain'], lights: [L(0, 'steady', '#ffe9c8', 7)] });
-wallKit(R01a, -1, 0, 'w', 'wall_vent');
-const dockDoor = door('D_dock', 'R01', 'R01a', 0, 0, 'w');
-prop(R01, 'supply_sub', [8, 0.4, -7.2], 0, { state: 'away', dockTime: 10 });
-// Jay's security post: a waist-high teal counter in front of the dock window, a monitor on the back wall.
-prop(R01, 'half_wall', [5.9, 0, 1.8], 0, { width: 3.0, height: 1.08, material: 'paintTeal' });
+for (const x of [1, 2, 3]) wallKit(R01, x, 0, 'n', 'wall_window', { backdropDepth: 32 }); // the big dock window
+for (const x of [5, 6]) wallKit(R01w, x, 0, 'n', 'wall_window', { backdropDepth: 32 }); // abyss window on the walk
+wallKit(R01w, 6, 1, 'e', 'wall_window', { backdropDepth: 7 }); // courtyard window: keep seabed west of Admin
+const R01a = room('R01a', 'Dock Airlock', [[0, -1]], { area: 'dock', atmosphere: { ...QUIET_FOG, reverb: 'small_office' }, ceilingMaterial: 'boltPanel', walls: ['wall_plain'], lights: [L(0, 'steady', '#ffe9c8', 7)] });
+wallKit(R01a, 0, -1, 'w', 'wall_vent');
+// Its outer hull is visible through both runs of dock windows even with D_dock shut.
+R01a.visibleFrom = ['R01', 'R01w'];
+const dockDoor = door('D_dock', 'R01', 'R01a', 0, 0, 'n');
+const berthBow = [5, 0.4, -9];
+prop(R01, 'supply_sub', berthBow, 0, { state: 'away', dockTime: 10, alignBow: true });
+// Jay's security post (dock-checkpoint spec): a corner counter booth facing the dock window, closed on the arrivals
+// side and open to the east, a desk under a wall of camera feeds, and the detector line from the counter's east end
+// to the window. With the gate shut, the arch is the only way from the dock side to the station side.
+prop(R01, 'half_wall', [5.9, 0, 1.8], 0, { width: 3.0, height: 1.08, material: 'cleanTeal' });
+prop(R01, 'half_wall', [4.5, 0, 3.775], 90, { width: 4.15, height: 1.08, material: 'cleanTeal' });
 prop(R01, 'mug', [6.75, 1.08, 1.86], 0, { color: 'teal' });
-prop(R01, 'security_monitor', [6, 0, 5.3], 0, { id: 'dock_post', camera: 'CAM 02  DOCK AIRLOCK' });
-prop(R01, 'chair', [6, 0, 4.35], 180);
+// The CCTV bank sits between the south wall's pilasters at x 6.0 and 7.9 (wall-mounted props stay clear of wall structure).
+prop(R01, 'office_desk', [6.95, 0, 5.1], 0, { width: 1.8, monitor: false, keyboards: 2, papers: 2, top: 'panel' });
+prop(R01, 'cctv_wall', [6.95, 0, 5.69], 0, { id: 'dock_post', camera: 'CAM 02  DOCK AIRLOCK', width: 1.84 });
+prop(R01, 'chair', [5.45, 0, 4.55], 150); // pushed aside: Jay leans on the desk instead of sitting
+// Detector line at x = 7.675: arch (1.2 m clear, z 0.57..1.77; the navmesh needs more than 1.1 m) against the counter,
+// then rail, the fixed staff gate, rail to the window.
+const ARCH = [7.675, 0, 1.17];
+prop(R01, 'metal_detector', ARCH, 90, { id: 'dock_arch', opening: 1.2 });
+prop(R01, 'rail', [7.675, 0, 0.26], 90, { length: 0.3 });
+prop(R01, 'staff_gate', [7.675, 0, -0.49], 90, { width: 1.2 });
+prop(R01, 'rail', [7.675, 0, -1.48], 90, { length: 0.76 });
+prop(R01, 'tray_table', [7.0, 0, 0.12], 90);
 wallProp(R01, 'tag_poster', 0, 1, 's', -0.9, { slogan: 'WELCOME TO THALASSA' });
 wallProp(R01, 'notice_board', 1, 1, 's', 1.1, { text: 'SHIFT ROSTER', detail: '06:40 CHANGEOVER' });
 prop(R01, 'crate', [-1.2, 0, 4.4], 0, { size: 0.7 });
@@ -258,36 +293,55 @@ prop(R01, 'potted_plant', [13.2, 0, 3.2], 0, { kind: 'palm', pot: 'dark' });
 prop(R01w, 'pipe_run', [18, 0, 1.4], 0, { length: 7, height: 0.35, paint: 'teal' });
 prop(R01, 'cable_bundle', [8, 0, 5.6], 0, { length: 12, height: 2.9 });
 prop(R01, 'locker', [-1.45, 0, 3.0], 270, { count: 2, label: 'DOCK SEC' });
-prop(R01a, 'locker', [-4, 0, -1.4], 180, { count: 2, label: 'EVA' });
-anchor(R01, 'post_front', [6, 0, 2.6], 0);
-anchor(R01, 'dock_window', [8, 1.5, -2.2]);
+prop(R01a, 'locker', [0, 0, -5.5], 180, { count: 2, label: 'EVA' });
+// Jay's post: leaning back against the security desk at the rear of the booth, facing between the dock
+// door (front left, ~45 deg) and the guard past the arch (front right, ~45 deg), so everyone coming through is in view.
+const POST = [6.95, 0, 4.3];
+anchor(R01, 'post_front', POST, 2);
+anchor(R01, 'dock_window', [5.8, 1.5, -2.2]);
 anchor(R01, 'dock_door', dockDoor.center);
-anchor(R01, 'walkby_stop', [4.4, 0, 1.0], face([4.4, 0, 1], [6, 0, 2.6]));
-anchor(R01, 'walkby_queue', [3.4, 0, 0.2], 225);
-anchor(R01, 'post_okafor', [5.3, 0, 0.9], face([5.3, 0, 0.9], [6, 0, 2.6]));
-anchor(R01, 'post_giles', [6.9, 0, 1.0], face([6.9, 0, 1], [6, 0, 2.6]));
+// The checkpoint: badge in at the counter in front of Jay (the next arrival queues behind), through the arch, stop
+// past it in front of the guard. Okafor and Giles then wait on the station side by the booth's open side.
+anchor(R01, 'walkby_stop', [6, 0, 1.15], 180);
+anchor(R01, 'walkby_queue', [4.7, 0, 0.45], face([4.7, 0, 0.45], [6, 0, 1.15]));
+anchor(R01, 'arch', [ARCH[0], 1.6, ARCH[2]]);
+const GUARD = [9.75, 0, 1.25]; // 1.15 m past the scan spot: face to face, arms-out room, no bumping
+anchor(R01, 'arch_scan', [8.6, 0, 1.25], face([8.6, 0, 1.25], GUARD));
+anchor(R01, 'guard_post', GUARD, face(GUARD, [8.6, 0, 1.25]));
+// Past the guard, on the north lane, before heading on to the Commons (`checkpoint_exit` swings round him).
+anchor(R01, 'arch_exit', [10.6, 0, -0.3], 270);
+walk(R01, 'checkpoint_exit', ['arch_scan', [9.0, 0, 0.35], 'arch_exit']);
+// The dock guard (dock-checkpoint spec): on his post past the arch, facing it, wand in hand. The only guard1 body in the slice.
+npc(R01, 'dock_guard', 'security', 'guard_post', 'idle_wand', { model: 'guard1' });
+anchor(R01, 'post_okafor', [8.2, 0, 2.9], face([8.2, 0, 2.9], POST));
+anchor(R01, 'post_giles', [9.6, 0, 3.4], face([9.6, 0, 3.4], POST));
 anchor(R01, 'walk_mid', [14, 0, 0.6], 270);
-// Intro walks (ADR-0028): curves down the middle of the passage, Giles a step to Okafor's side.
-walk(R01, 'intro_jay_kitchen', ['post_front', [7.9, 0, 3], [14.3, 0, 0], [22.1, 0, 0.3], [23.4, 0, 2], [24, 0, 10.5], 'kitchen_stand']);
-walk(R01, 'intro_okafor_arrive', ['dock_door', 'post_okafor']);
-walk(R01, 'intro_giles_arrive', ['dock_door', [6.1, 0, 0.5], 'post_giles']);
-walk(R01, 'intro_okafor_counter', ['post_okafor', [7, 0, 0.3], [14.3, 0, 0], [22.1, 0, 0.3], [24, 0, 3.2], [24, 0, 10.5], [25.1, 0, 11.6], 'counter_okafor']);
-walk(R01, 'intro_giles_counter', ['post_giles', [11, 0, -0.75], [20.5, 0, -0.75], [22, 0, 0.15], [23.4, 0, 2.05], [24.2, 0, 10.85], [26, 0, 12.05], 'counter_giles']);
+// Intro walks (ADR-0028, `npm run walks:suggest`): one at a time from the airlock to the counter (the next arrival
+// waits in the queue spot), then from the station side to the kitchen. The guard stands at GUARD, so the kitchen
+// walks leave along the south lane, Jay behind the squad.
+walk(R01, 'intro_jay_kitchen', ['post_front', [7.85, 0, 3.5], [10.8, 0, 2.7], [14.3, 0, 0], [22.1, 0, 0.3], [23.4, 0, 2], [24, 0, 10.5], 'kitchen_stand']);
+walk(R01, 'intro_okafor_arrive', ['okafor_start', [0.35, 0, -0.95], 'walkby_stop']);
+walk(R01, 'intro_giles_arrive', ['giles_start', [0.05, 0, -2.85], [0.25, 0, -1.05], 'walkby_queue']);
+// ADR-0029 kitchen beat: in through the north door, round Bram at the coffee machine, then along the counter and settle back against it.
+walk(R01, 'intro_okafor_counter', ['post_okafor', [10.6, 0, 2.5], [14.2, 0, 0.05], [21.6, 0, 0.05], [22.9, 0, 1.05], [24, 0, 3.25], [24.2, 0, 10.85], [25.8, 0, 11.95], [27, 0, 11.95], 'counter_okafor']);
+walk(R01, 'intro_giles_counter', ['post_giles', [14.5, 0, -0.75], [20.5, 0, -0.75], [22, 0, 0.15], [23.4, 0, 2.05], [24.2, 0, 10.85], [26, 0, 12.2], [27.7, 0, 12.35], [28.45, 0, 11.85], 'counter_giles']);
 anchor(R01w, 'walk_window', [20, 0, -0.4], 0);
 // Separate spots at the window so the two NPCs and Jay stand side by side (~0.9 m apart); Jay is on the west so his walk in does not cross them.
 anchor(R01w, 'window_jay', [18.9, 0, -0.9], 0);
 anchor(R01w, 'window_giles', [19.8, 0, -0.9], 0);
 anchor(R01w, 'window_okafor', [20.7, 0, -0.9], 0);
 anchor(R01w, 'abyss_window_walk', [21, 1.7, -2.4]);
-anchor(R01, 'sub_dock', [8, 0.4, -7.2]);
-anchor(R01a, 'giles_start', [-4.6, 0, 0.6], 270);
-anchor(R01a, 'okafor_start', [-4.6, 0, -0.6], 270);
-anchor(R01a, 'ruiz_start', [-3.4, 0, 0.9], 270);
-anchor(R01a, 'sung_start', [-3.4, 0, -0.9], 270);
+anchor(R01, 'sub_dock', berthBow);
+anchor(R01a, 'giles_start', [0.65, 0, -4.55], 180);
+anchor(R01a, 'okafor_start', [-0.65, 0, -4.55], 180);
+anchor(R01a, 'ruiz_start', [0.75, 0, -3.25], 180);
+anchor(R01a, 'sung_start', [-0.75, 0, -3.25], 180);
 npc(R01a, 'giles', 'giles', 'giles_start');
 npc(R01a, 'okafor', 'okafor', 'okafor_start');
 npc(R01a, 'ruiz', 'ruiz', 'ruiz_start');
 npc(R01a, 'sung', 'sung', 'sung_start');
+// dock-checkpoint free play: walking through the arch (either way) after the intro. dock_checkpoint.json reacts.
+trigger(R01, 'trig_dock_arch', [[7.42, 0, 0.6], [7.93, 2.2, 1.74]], 'trigger:dock_arch', { once: false });
 trigger(R01w, 'trig_walk_window', cellBox(5, 5, 0, 0), 'trigger:walk_window', { once: false });
 
 // ---------------------------------------------------------------- R02 commons + kitchen (commons)
@@ -303,17 +357,19 @@ trigger(R01w, 'trig_walk_window', cellBox(5, 5, 0, 0), 'trigger:walk_window', { 
 const R02 = room('R02', 'Commons', rect(4, 8, 3, 6), {
   area: 'commons',
   height: 4,
-  atmosphere: { fog: '#0a0c0d', fogDensity: 0.02, reverb: 'metal_hall', ambience: 'commons_murmur' },
+  atmosphere: { fog: '#121312', fogDensity: 0.012, ambient: 'commons', reverb: 'metal_hall', ambience: 'commons_murmur' },
   floorOverride: { '7,3': 'floor_tiles', '8,3': 'floor_tiles' },
-  // Ceiling slots follow the cell order (z rows of x 4..8): galley 3-4, dining 6/8/11, bar 15, lounge 18.
+  noDeadFixtures: true,
+  // Ceiling slots follow the cell order (z rows of x 4..8): entry/drinks 1, galley 3-4, dining 6/8/10, bar 16, lounge 18.
   lights: [
-    L(3, 'steady', '#ffe6c8', 15, 12),
-    L(4, 'steady', '#ffdcb4', 14, 12),
-    L(6, 'steady', '#fff1dc', 14, 12),
-    L(8, 'steady', '#fff1dc', 14, 12),
-    L(11, 'steady', '#ffe6c8', 13, 12),
-    L(15, 'steady', '#ffd6a8', 13, 11),
-    L(18, 'steady', '#ffcf9a', 15, 11),
+    L(1, 'steady', '#fff0da', 16, 14, { drop: 0.4, shaft: 0.015, emissive: 2.6 }),
+    L(3, 'steady', '#fff4e4', 18, 13, { drop: 0.35, shaft: 0.01, emissive: 2.8 }),
+    L(4, 'steady', '#ffe4bd', 16, 12, { drop: 0.55, shaft: 0.01, emissive: 2.6 }),
+    L(6, 'steady', '#ffe0b2', 17, 13, { drop: 1.25, shaft: 0.012, emissive: 2.2 }),
+    L(8, 'steady', '#ffe2b8', 17, 13, { drop: 1.25, shaft: 0.012, emissive: 2.2 }),
+    L(10, 'steady', '#ffe4bc', 15, 13, { drop: 1.0, shaft: 0.01, emissive: 2.2 }),
+    L(16, 'steady', '#ffd096', 15, 12, { drop: 1.35, shaft: 0.01, emissive: 2.0 }),
+    L(18, 'steady', '#ffcca0', 16, 13, { drop: 1.1, shaft: 0.01, emissive: 2.2 }),
   ],
 });
 for (const x of [7, 8]) wallKit(R02, x, 3, 'n', 'wall_tiles');
@@ -364,7 +420,7 @@ prop(R02, 'coffee_table', [29.6, 0, 23.9], 0, { width: 1.4, depth: 0.7 });
 prop(R02, 'mug', [29.3, 0.44, 23.8], 0, { color: 'red' });
 prop(R02, 'sofa', [27.5, 0, 24.1], 225, { width: 1.0 });
 prop(R02, 'sofa', [31.7, 0, 24.1], 135, { width: 1.0 });
-wallProp(R02, 'wall_screen', 8, 6, 'e', -0.4, { id: 'commons_tv', width: 2.2, state: 'off' });
+wallProp(R02, 'wall_screen', 8, 6, 'e', -0.4, { id: 'commons_tv', width: 2.2, channel: 'commons', state: 'on' });
 // Greens: corner pots, hanging baskets by the windows.
 for (const [x, z, kind] of [[14.8, 10.8, 'palm'], [14.9, 25.2, 'tall'], [21.2, 25.25, 'shrub'], [33.2, 25.2, 'fern']]) prop(R02, 'potted_plant', [x, 0, z], 0, { kind, pot: 'white' });
 prop(R02, 'hanging_plant', [26.2, 0, 24.9], 0, { ceiling: R02_CEIL, drop: 1.1 });
@@ -375,8 +431,15 @@ anchor(R02, 'counter', [29.2, 0.95, counterZ]);
 anchor(R02, 'coffee_machine', [26.8, 1.2, counterZ]);
 anchor(R02, 'radio', [31.6, 1.05, counterZ + 0.1]);
 anchor(R02, 'cook_stand', [30.6, 0, 11.7], 0);
-anchor(R02, 'counter_okafor', [27.4, 0, 12.3], 10);
-anchor(R02, 'counter_giles', [28.6, 0, 12.5], 350);
+// Backs against the counter (front edge z 10.91; feet 0.36 m out for lean_back), turned a little toward each other.
+anchor(R02, 'counter_okafor', [27.65, 0, 11.27], 200);
+anchor(R02, 'counter_giles', [28.65, 0, 11.27], 160);
+// Bram at the coffee machine: he turns to hand Okafor his mug, then goes round to Giles's far (east) side, so Jay
+// (kitchen_stand) sees the hand-off side-on instead of Bram's back, and from there on to his station.
+anchor(R02, 'cook_coffee', [26.75, 0, 11.32], 0);
+anchor(R02, 'cook_turn_okafor', [26.75, 0, 11.32], 270);
+anchor(R02, 'cook_serve_giles', [29.3, 0, 11.85], face([29.3, 0, 11.85], [28.65, 0, 11.27]));
+walk(R02, 'cook_to_giles', ['cook_turn_okafor', [27.35, 0, 12.3], [28.6, 0, 12.35], 'cook_serve_giles']);
 anchor(R02, 'kitchen_stand', [25.6, 0, 13.4], face([25.6, 0, 13.4], [28, 0, 11.5]));
 anchor(R02, 'priya_enter', [24, 0, 24.6], 0);
 anchor(R02, 'priya_stand', [27.4, 0, 13.6], face([27.4, 0, 13.6], [25.6, 0, 13.4]));
@@ -391,9 +454,21 @@ anchor(R02, 'dawdle_call', [16.2, 0, 15.2], 270);
 anchor(R02, 'crew_ruiz_commons', [19.6, 0, 12.0], face([19.6, 0, 12], [21.6, 0, 12.6]));
 anchor(R02, 'crew_sung_commons', [21.6, 0, 12.6], face([21.6, 0, 12.6], [19.6, 0, 12]));
 npc(R02, 'cook', 'cook', 'cook_stand', 'idle');
-npc(R02, 'crew_1', 'crew', [19.4, 0, 15.6], 'idle_mug');
-npc(R02, 'crew_2', 'lab', [18.4, 0, 24.2], 'idle_weight', { yaw: 180 }); // behind the bar stools, looking out
-npc(R02, 'crew_3', 'maintenance', [29.9, 0, 25.0], 'idle_crossed', { yaw: 180 }); // between the armchairs, looking out of the lounge window
+npc(R02, 'crew_1', 'crew', [19.4, 0, 15.6], 'idle_mug', { model: 'scientist1' });
+// ADR-0029 ambient life: most of the room sits, a few talk, one leans. `spot` takes the nearest free seat of that kind
+// to `at` (seats come from the tables, the bar and the sofas); `chat` groups talk to each other. Lanes stay clear.
+// `model` spreads the imported crew bodies so nobody sits beside their twin (and no named character's body is reused).
+npc(R02, 'crew_2', 'lab', [18.7, 0, 24.8], undefined, { spot: 'sit_stool', chat: 'commons_bar', model: 'scientist1' }); // at the window bar
+npc(R02, 'bar_1', 'crew', [19.4, 0, 24.8], undefined, { spot: 'sit_stool', chat: 'commons_bar', model: 'office2' });
+npc(R02, 'crew_3', 'maintenance', [29.9, 0, 22.6], undefined, { spot: 'sit_sofa', model: 'office1' }); // on the lounge sofa, watching the abyss
+npc(R02, 'diner_1', 'crew', [20.1, 0, 17.8], undefined, { spot: 'sit_chair', chat: 'commons_t17', model: 'botanist2' });
+npc(R02, 'diner_3', 'crew', [20.9, 0, 19.4], undefined, { spot: 'sit_chair', chat: 'commons_t17', model: 'assistant' });
+npc(R02, 'diner_7', 'crew', [21.7, 0, 17.8], undefined, { spot: 'sit_chair', chat: 'commons_t17', model: 'office1' });
+npc(R02, 'diner_6', 'crew', [16.5, 0, 22.6], undefined, { spot: 'sit_chair', chat: 'commons_t19', model: 'botanist3' });
+npc(R02, 'diner_2', 'lab', [17.2, 0, 21.0], undefined, { spot: 'sit_chair', chat: 'commons_t19', model: 'office3' });
+npc(R02, 'tea_1', 'lab', [30.9, 0, 17.7], undefined, { spot: 'sit_chair', model: 'botanist1' }); // alone with a mug at the east table
+npc(R02, 'wall_1', 'crew', [14.7, 0, 22.6], undefined, { spot: 'lean_wall', yaw: 270, chat: 'commons_wall', model: 'office3' }); // back to the west wall; not guard1, that body is the dock guard's
+npc(R02, 'chat_5', 'engineer', [15.55, 0, 22.75], 'idle', { yaw: 90, chat: 'commons_wall', model: 'botanist1' });
 trigger(R02, 'trig_commons_enter', cellBox(6, 6, 3, 3), 'trigger:commons_enter', { once: false });
 trigger(R02, 'trig_commons_to_gallery', cellBox(4, 4, 4, 4), 'trigger:commons_to_gallery', { once: false });
 trigger(R02, 'trig_commons_radio', around([31.6, 0, counterZ - 0.4], 0.6, 1.6), 'commons:radio', { on: 'use', prompt: 'Listen', once: false });
@@ -476,7 +551,7 @@ anchor(R03, 'drop_jay', [8, 0, 19.6], 180);
 anchor(R03, 'cp_briefing', [8, 0, 17.4], 180);
 anchor(R04, 'labb_victim', [8, 0, 26.5], 0);
 npc(R03, 'heins', 'heins', 'brief_heins', 'idle_crossed');
-npc(R04, 'researcher_b', 'lab', 'labb_victim', 'typing', { transformable: true }); // Dr. Voss: transforms in the drop (ADR-0023)
+npc(R04, 'researcher_b', 'voss', 'labb_victim', 'typing', { transformable: true }); // Dr. Voss: transforms in the drop (ADR-0023)
 trigger(R03, 'trig_gallery_enter', cellBox(1, 3, 4, 5), 'trigger:gallery_enter', { once: false });
 trigger(R03, 'trig_gallery_brief', around([8, 0, 17.4], 1.0, 2.2), 'trigger:gallery_brief_spot', { once: false });
 
@@ -521,7 +596,8 @@ prop(R05, 'radio', [1.5, 0.95, 19.1], 250);
 anchor(R05, 'r05_radio', [1.5, 1.08, 19.1]);
 anchor(R06, 'r06_panel', [-0.6, 0, 37.0], 180);
 anchor(R06, 'r06_hold', [-2, 0, 31], 0);
-spawn(R05, 'r05_door', [8, 0, 26.5], 'door', 'r05_contact', { yaw: 90, outfit: 'lab' });
+// The creature that burst out of Voss (infection-kills spec): it spawns where it stands pounding the Lab B glass and breaks out at contact.
+spawn(R05, 'r05_door', [8, 0, 22.51], 'door', 'r05_contact', { yaw: 180, outfit: 'lab', model: 'necromorph', infection: 1 });
 // The first one breaks through the sealed Lab B door (group r05_contact); two to three more trickle in
 // after it dies (group r05_trickle, ADR-0014 beat 3).
 spawn(R05, 'r05_vent', [-5.2, 2.7, 22], 'vent', 'r05_trickle', { count: 2, interval: 6 });
@@ -704,20 +780,71 @@ trigger(R11, 'trig_r11_enter', cellBox(8, 8, 11, 11), 'trigger:r11_enter');
 checkpoints.push({ id: 'cp_climax', room: 'R11', pos: [32, 0, 43], yaw: 0 });
 
 // ---------------------------------------------------------------- R12 hydroponics hub
-const HYDRO = { fog: '#0a1a10', fogDensity: 0.045, reverb: 'small_office', ambience: 'hydro_misters' };
-const R12a = room('R12a', 'Hydroponics Vestibule', [[9, 5]], { area: 'hydroponics', atmosphere: HYDRO, floor: 'floor_tiles', lights: [L(0, 'steady', '#e0ffe0', 8)] });
+const HYDRO = { fog: '#141e1b', fogDensity: 0.016, ambient: 'hydro', reverb: 'small_office', ambience: 'hydro_misters' };
+const R12a = room('R12a', 'Hydroponics Vestibule', [[9, 5]], {
+  area: 'hydroponics',
+  atmosphere: HYDRO,
+  floor: 'floor_tiles',
+  ceilingMaterial: 'officeCeiling',
+  walls: ['wall_panel', 'wall_plain'],
+  noDeadFixtures: true,
+  lights: [L(0, 'steady', '#f0f7f4', 11, 10, { shaft: 0.02 })],
+});
 const R12b = room('R12b', 'Grow Hall', rect(10, 12, 4, 6), {
   area: 'hydroponics',
   height: 4.5,
-  atmosphere: { ...HYDRO, fogDensity: 0.05, reverb: 'metal_hall' },
+  atmosphere: { ...HYDRO, fogDensity: 0.018, reverb: 'metal_hall' },
   floor: 'floor_grate',
+  floorOverride: { '11,4': 'floor_tiles', '11,5': 'floor_tiles', '11,6': 'floor_tiles' },
   ceiling: 'ceiling_pipes',
-  walls: ['wall_greenhouse', 'wall_panel'],
-  lights: [L(1, 'steady', '#d8ffd0', 10), L(3, 'steady', '#d8ffd0', 9), L(5, 'steady', '#d8ffd0', 9), L(7, 'steady', '#e8ffe0', 10)],
+  walls: ['wall_panel', 'wall_plain'],
+  noDeadFixtures: true,
+  lights: [
+    L(1, 'steady', '#f0f7f2', 13, 12, { shaft: 0.03 }),
+    L(3, 'steady', '#edf5ff', 12, 12, { shaft: 0.025 }),
+    L(5, 'steady', '#edf5ff', 12, 12, { shaft: 0.025 }),
+    L(7, 'steady', '#f2f8f4', 13, 12, { shaft: 0.03 }),
+  ],
 });
-const R12c = room('R12c', 'Seed Lab', [[13, 4], [13, 5]], { area: 'hydroponics', atmosphere: HYDRO, floor: 'floor_tiles', walls: ['wall_tiles', 'wall_greenhouse'], lights: [L(0, 'steady', '#f0fff0', 8), L(1, 'steady', '#f0fff0', 7)] });
-const R12d = room('R12d', 'Nutrient Room', [[11, 7], [12, 7]], { area: 'hydroponics', atmosphere: { ...HYDRO, reverb: 'metal_corridor' }, ceiling: 'ceiling_pipes', walls: ['wall_plain', 'wall_panel'], wallMaterial: 'tileWashroom', lights: [L(0, 'steady', '#c8ffd8', 7), L(1, 'flicker', '#c8ffd8', 6)] });
-const R12e = room('R12e', 'Hydroponics Storeroom', [[10, 7]], { area: 'hydroponics', atmosphere: { ...HYDRO, reverb: 'small_office' }, walls: ['wall_plain'], lights: [L(0, 'steady', '#ffe2b8', 6)] });
+const R12c = room('R12c', 'Seed Lab', [[13, 4], [13, 5]], {
+  area: 'hydroponics',
+  atmosphere: HYDRO,
+  floor: 'floor_tiles',
+  ceilingMaterial: 'officeCeiling',
+  walls: ['wall_tiles'],
+  noDeadFixtures: true,
+  visibleFrom: ['R12b'],
+  lights: [
+    L(0, 'steady', '#f4faf6', 11, 10, { shaft: 0.02 }),
+    L(1, 'steady', '#f4faf6', 10, 10, { shaft: 0.02 }),
+  ],
+});
+const R12d = room('R12d', 'Nutrient Room', [[11, 7], [12, 7]], {
+  area: 'hydroponics',
+  atmosphere: { ...HYDRO, reverb: 'metal_corridor' },
+  floor: 'floor_tiles',
+  ceiling: 'ceiling_pipes',
+  walls: ['wall_plain', 'wall_panel'],
+  wallMaterial: 'tileWall',
+  noDeadFixtures: true,
+  lights: [
+    L(0, 'steady', '#eef6f4', 10, 10, { shaft: 0.02 }),
+    L(1, 'flicker', '#eef6f4', 9, 10, { shaft: 0.02 }),
+  ],
+});
+const R12e = room('R12e', 'Hydroponics Storeroom', [[10, 7]], {
+  area: 'hydroponics',
+  atmosphere: { ...HYDRO, reverb: 'small_office' },
+  floor: 'floor_tiles',
+  walls: ['wall_plain'],
+  noDeadFixtures: true,
+  lights: [L(0, 'steady', '#ffe2b8', 9, 9, { shaft: 0.02 })],
+});
+// Open-abyss ocean viewports on the east seaward hull (Grow Hall south-east bay & Seed Lab east wall).
+wallKit(R12b, 12, 6, 'e', 'wall_window', { backdropDepth: 22 });
+wallKit(R12c, 13, 4, 'e', 'wall_window', { backdropDepth: 22 });
+// Full-height glass partition between the Grow Hall and Seed Lab beside the glass door.
+glass('R12b', 12, 5, 'e');
 wallKit(R12d, 12, 7, 'e', 'wall_vent');
 door('D_R02_R12a', 'R02', 'R12a', 8, 5, 'e');
 door('D_R12a_R12b', 'R12a', 'R12b', 9, 5, 'e', { kit: 'glass_slide' });
@@ -726,72 +853,87 @@ door('D_R12b_R12d', 'R12b', 'R12d', 12, 6, 's');
 door('hydro_store', 'R12b', 'R12e', 10, 6, 's', { access: { requires: 'card_l2' } });
 // The sealed vent: the wall_vent tile on R12d's east wall (fan 0.9 m along, 0.55 m up).
 vents.push({ id: 'hydro_vent', room: 'R12d', box: [[49.4, 0.2, 27.0], [50.0, 0.9, 28.8]], access: { requires: 'vent_driver' } });
-station(R12a, 'hydro_map', 'hydroponics', 9, 5, 'n');
-prop(R12a, 'potted_plant', [37, 0, 22.6], 0, { kind: 'fern', pot: 'white' });
-prop(R12a, 'potted_plant', [38.6, 0, 22.4], 0, { kind: 'succulent', pot: 'clay' });
-prop(R12a, 'locker', [34.6, 0, 18.6], 270, { count: 1, label: 'HYDRO' });
-// Rows keep clear of the doors at (50, 16) east, (48, 26) and (40, 26) south.
-for (const z of [17.6, 20, 22.4]) {
-  prop(R12b, 'plant_rack', [42.4, 0, z], 0, { length: 3.2, tiers: 3, light: z < 20 ? 'magenta' : 'white' });
-  prop(R12b, 'plant_rack', [47.2, 0, z], 0, { length: 3.2, tiers: 3, light: 'magenta' });
-}
-prop(R12b, 'plant_rack', [43.6, 0, 24.6], 0, { length: 2.4, tiers: 2, light: 'white' });
-for (const z of [16.4, 18.8, 21.2, 23.6, 25.6]) prop(R12b, 'mister', [45, 0, z], 0, { length: 8, period: 7 + (Math.round(z) % 3) });
-for (const [x, z] of [[40.4, 15], [49.6, 15.2], [40.4, 26], [49.6, 26]]) prop(R12b, 'hanging_plant', [x, 0, z], 0, { drop: 1.1 });
-prop(R12b, 'console', [45, 0, 14.8], 180, { screen: 'status' });
-prop(R12b, 'potted_plant', [39.2, 0, 14.6], 0, { kind: 'palm', pot: 'clay', size: 1.3 });
-prop(R12b, 'potted_plant', [50.6, 0, 22], 0, { kind: 'tall', pot: 'dark', size: 1.2 });
-prop(R12c, 'lab_bench', [53.4, 0, 17.2], 270, { width: 3.2 });
-prop(R12c, 'storage_shelf', [51.6, 0, 22.8], 0, { width: 1.8 });
-for (const [x, z, kind] of [[50.6, 14.6, 'succulent'], [53.4, 14.6, 'fern'], [53.4, 20.6, 'shrub'], [50.6, 19.6, 'palm']]) prop(R12c, 'potted_plant', [x, 0, z], 0, { kind });
-prop(R12d, 'specimen_tank', [43.6, 0, 29.4]);
-prop(R12d, 'specimen_tank', [46, 0, 29.4]);
-prop(R12d, 'pipe_run', [44, 0, 26.6], 0, { length: 3, height: 0.6, paint: 'teal' });
-prop(R12d, 'console', [48.6, 0, 29.6], 0, { screen: 'log' });
-prop(R12d, 'valve', [44.8, 0, 27.4]);
-prop(R12e, 'storage_shelf', [38.6, 0, 28], 270, { width: 2.4 });
-prop(R12e, 'desk', [41.2, 0, 29.4], 0, { width: 1.2 });
-prop(R12e, 'chair', [41.2, 0, 28.6]);
-prop(R12e, 'radio', [41.6, 0.78, 29.5], 160);
-prop(R12e, 'potted_plant', [41.6, 0, 26.6], 0, { kind: 'succulent', pot: 'white', size: 0.7 });
-prop(R12e, 'potted_plant', [41.4, 0, 30.4], 0, { kind: 'fern', pot: 'clay', size: 0.8 });
-anchor(R12a, 'hydro_entry', [36.4, 0, 20], 270);
-anchor(R12b, 'hydro_log', [45, 1.2, 14.8]);
-anchor(R12b, 'cp_round_hydro', [45, 0, 18], 180);
-anchor(R12b, 'botanist_1_spot', [45, 0, 17.9], 180);
-anchor(R12b, 'botanist_2_spot', [45, 0, 23.1], 90);
-anchor(R12d, 'hydro_alarm', [48.6, 1.2, 29.6]);
-anchor(R12e, 'hydro_store_moment', [41.2, 0, 27.6], 180);
-anchor(R12e, 'hydro_radio', [41.6, 0.9, 29.5]);
+// R12a Biosecurity Air-Lock: map station, stainless hand-wash station + bio sign, locker, lab coat/boot rack, floor boot-wash mat.
+station(R12a, 'hydro_map', 'hydroponics', 9, 5, 'n', -0.45);
+prop(R12a, 'bio_wash_station', [37.05, 0, 18.52], 180);
+prop(R12a, 'locker', [34.65, 0, 18.58], 180, { count: 1, label: 'HYDRO' });
+prop(R12a, 'coat_rack', [36.0, 0, 21.48], 0, { width: 1.6 });
+prop(R12a, 'boot_wash_mat', [36.0, 0, 20.0], 0, { width: 1.6, depth: 1.2 });
+// R12b Grow Hall: multi-crop tiered racks flanking an open central vista (z=20) to the Seed Lab glass, waist-high NFT troughs under the ocean windows, and the irrigation workstation.
+prop(R12b, 'plant_rack', [41.2, 0, 17.6], 0, { length: 3.0, tiers: 3, light: 'magenta', crop: 'tomatoes' });
+prop(R12b, 'plant_rack', [46.8, 0, 17.6], 0, { length: 3.0, tiers: 3, light: 'magenta', crop: 'tomatoes' });
+prop(R12b, 'plant_rack', [41.2, 0, 22.4], 0, { length: 3.0, tiers: 3, light: 'white', crop: 'greens' });
+prop(R12b, 'plant_rack', [46.8, 0, 22.4], 0, { length: 3.0, tiers: 3, light: 'magenta', crop: 'herbs' });
+prop(R12b, 'plant_rack', [44.0, 0, 24.4], 0, { length: 2.6, tiers: 3, light: 'white', crop: 'greens' });
+prop(R12b, 'hydro_trough', [40.6, 0, 14.95], 0, { length: 2.6 });
+prop(R12b, 'hydro_trough', [47.4, 0, 14.95], 0, { length: 2.6 });
+prop(R12b, 'hydro_workstation', [44.0, 0, 14.8], 180);
+prop(R12b, 'harvest_cart', [48.9, 0, 20.6], 90);
+for (const z of [16.4, 18.8, 21.2, 23.6]) prop(R12b, 'mister', [44.0, 0, z], 0, { length: 8, period: 7 + (Math.round(z) % 3) });
+// R12c Propagation & Harvest Prep Lab: germination incubator, lab bench, cold-storage seed vault, harvest cart (all strictly within bounds).
+prop(R12c, 'germination_cabinet', [52.0, 0, 14.68], 180, { width: 1.8 });
+prop(R12c, 'lab_bench', [53.32, 0, 19.5], 270, { width: 2.6 });
+prop(R12c, 'seed_vault', [52.2, 0, 21.38], 0, { width: 1.4 });
+prop(R12c, 'harvest_cart', [50.95, 0, 20.6], 0);
+// R12d Fertigation & Climate Plant Room: industrial A/B nutrient mixing tanks, HVAC dehumidifier with live humidity fault beacon, telemetry console.
+prop(R12d, 'fertigation_tank', [43.8, 0, 28.9], 0, { label: 'TANK A · NITROGEN', fluid: 'blue' });
+prop(R12d, 'fertigation_tank', [45.6, 0, 28.9], 0, { label: 'TANK B · MINERALS', fluid: 'amber' });
+prop(R12d, 'hvac_dehumidifier', [42.78, 0, 27.15], 270);
+prop(R12d, 'pipe_run', [44.8, 0, 26.52], 0, { length: 3.0, height: 0.55, paint: 'teal' });
+prop(R12d, 'valve', [46.5, 0, 26.75]);
+prop(R12d, 'console', [48.6, 0, 29.28], 0, { screen: 'hydro' });
+// R12e Hydroponics Storeroom: fertiliser pallet + shelf near entry, hidden camp cot + desk + warm radio + kettle & framed dog photo.
+prop(R12e, 'fertiliser_pallet', [38.8, 0, 27.1], 270);
+prop(R12e, 'storage_shelf', [38.6, 0, 28.85], 270, { width: 1.5 });
+prop(R12e, 'camp_cot', [41.25, 0, 27.4], 90);
+prop(R12e, 'desk', [40.65, 0, 29.3], 0, { width: 1.3 });
+prop(R12e, 'chair', [40.45, 0, 28.58]);
+prop(R12e, 'radio', [41.05, 0.78, 29.35], 160);
+prop(R12e, 'kettle_set', [40.42, 0.78, 29.3], 0);
+anchor(R12a, 'hydro_entry', [36.0, 0, 20.0], 270);
+anchor(R12b, 'hydro_log', [44.0, 1.2, 14.8]);
+anchor(R12b, 'cp_round_hydro', [44.0, 0, 19.8], 180);
+anchor(R12b, 'botanist_1_spot', [43.8, 0, 17.8], 90);
+anchor(R12b, 'botanist_2_spot', [44.2, 0, 22.4], 270);
+anchor(R12d, 'hydro_alarm', [48.6, 1.2, 29.28]);
+anchor(R12e, 'hydro_store_moment', [39.9, 0, 27.5], 180);
+anchor(R12e, 'hydro_radio', [41.05, 0.9, 29.35]);
 npc(R12b, 'botanist_1', 'botanist', 'botanist_1_spot', 'crouchWork');
 npc(R12b, 'botanist_2', 'botanist', 'botanist_2_spot', 'clipboard');
-npc(R12c, 'botanist_3', 'botanist', [52.2, 0, 17.2], 'typing');
+npc(R12c, 'botanist_3', 'botanist', [52.35, 0, 19.5], 'typing', { yaw: 270 });
 trigger(R12a, 'trig_hydro_enter', cellBox(9, 9, 5, 5), 'trigger:hydro_enter', { once: false });
-trigger(R12b, 'trig_hydro_log', around([45, 0, 15.8], 0.8, 2), 'round:hydro_log', { on: 'use', prompt: 'Sign irrigation log' });
-trigger(R12d, 'trig_hydro_alarm', around([48.6, 0, 28.6], 0.8, 2), 'round:hydro_alarm', { on: 'use', prompt: 'Reset humidity alarm' });
+trigger(R12b, 'trig_hydro_log', around([44.0, 0, 15.7], 0.85, 2), 'round:hydro_log', { on: 'use', prompt: 'Sign irrigation log' });
+trigger(R12d, 'trig_hydro_alarm', around([48.6, 0, 28.4], 0.85, 2), 'round:hydro_alarm', { on: 'use', prompt: 'Reset humidity alarm' });
 trigger(R12e, 'trig_hydro_store', cellBox(10, 10, 7, 7), 'trigger:hydro_store_enter');
 
 // ---------------------------------------------------------------- R13 dive bay hub
-const DIVE = { fog: '#06151a', fogDensity: 0.05, reverb: 'metal_hall', ambience: 'dive_drip' };
-const R13a = room('R13a', 'Dive Bay Access', [[6, 7]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'metal_corridor' }, floor: 'floor_grate', ceiling: 'ceiling_pipes', lights: [L(0, 'steady', '#bfefff', 8)] });
+// rebuild-dive-bay: neutral work light and thin fog; the only strong blue comes up out of the launch trunk.
+const DIVE = { fog: '#0b1316', fogDensity: 0.015, reverb: 'metal_hall', ambience: 'dive_drip' };
+const WORK = '#eef4f6';
+const R13a = room('R13a', 'Wet Vestibule', [[6, 7]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'metal_corridor' }, floor: 'floor_grate', ceiling: 'ceiling_pipes', lights: [L(0, 'steady', WORK, 8, undefined, { shaft: 0.01 })] });
 const R13b = room('R13b', 'Moon Pool', rect(5, 7, 8, 10), {
   area: 'dive_bay',
   height: 5,
-  atmosphere: DIVE,
+  atmosphere: { ...DIVE, ambience: 'launch_bay' },
   floor: 'floor_grate',
   floorOverride: { '6,9': 'floor_moonpool' },
   ceiling: 'ceiling_pipes',
-  lights: [L(0, 'steady', '#9fe8ff', 10), L(2, 'steady', '#9fe8ff', 9), L(4, 'steady', '#bff4ff', 12), L(6, 'steady', '#9fe8ff', 9), L(8, 'flicker', '#9fe8ff', 8)],
+  // Five neutral work lights, and the trunk's own shaft lamp (its only wall slot) throwing blue up out of the trunk.
+  lights: [...[0, 2, 4, 6, 8].map((slot) => L(slot, 'steady', WORK, slot === 4 ? 14 : 13, undefined, { shaft: 0.01 })), L('wall', 'steady', '#58c8e0', 7, 9)],
 });
-const R13c = room('R13c', 'Suit Room', [[4, 8], [4, 9]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'small_office' }, floor: 'floor_tiles', lights: [L(0, 'steady', '#d8f4ff', 7), L(1, 'steady', '#d8f4ff', 6)] });
+const R13c = room('R13c', 'ROV Workshop', [[4, 8], [4, 9]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'small_office' }, floor: 'floor_tiles', lights: [L(0, 'steady', WORK, 7), L(1, 'steady', WORK, 6)] });
 const R13d = room('R13d', 'Maintenance Corridor', rect(8, 10, 8, 8), {
   area: 'dive_bay',
+  // The only decayed room in the bay (rebuild-dive-bay): rust by override so the dive map still reveals it.
+  wallMaterial: 'rustBlotch',
+  ceilingMaterial: 'paintDark',
+  floorMaterial: 'diamondRusty',
   atmosphere: { fog: '#020405', fogDensity: 0.09, ambient: 'dark', reverb: 'metal_corridor', ambience: 'hull_groan' },
   ceiling: 'ceiling_pipes',
   walls: ['wall_plain', 'wall_vent'],
   lights: [L(2, 'dying', '#ffcf9a', 3, 6)],
 });
-const R13e = room('R13e', 'Dive Lockers', [[4, 10]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'small_office' }, floor: 'floor_tiles', lights: [L(0, 'steady', '#d8f4ff', 7)] });
+const R13e = room('R13e', 'Sample Store', [[4, 10]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'small_office' }, floor: 'floor_tiles', lights: [L(0, 'steady', WORK, 7)] });
 door('D_R02_R13a', 'R02', 'R13a', 6, 6, 's');
 door('D_R13a_R13b', 'R13a', 'R13b', 6, 7, 's');
 door('D_R13b_R13c', 'R13b', 'R13c', 5, 8, 'w');
@@ -799,21 +941,63 @@ door('D_R13b_R13d', 'R13b', 'R13d', 7, 8, 'e');
 door('D_R13b_R13e', 'R13b', 'R13e', 5, 10, 'w');
 door('D_R13d_R11', 'R13d', 'R11', 9, 8, 's', { kit: 'bulkhead', access: { sealed: true, text: 'lockdown' } });
 station(R13a, 'dive_map', 'dive_bay', 6, 7, 'w');
-prop(R13a, 'locker', [25.6, 0, 26.4], 90, { count: 1, label: 'DIVE' });
-prop(R13b, 'rib_frame', [24, 0, 36], 0, { width: 4, height: 4.6 });
-prop(R13b, 'crate_stack', [20.6, 0, 33.4], 20);
-prop(R13b, 'crate', [27.4, 0, 39.4], 10, { size: 0.9 });
-prop(R13b, 'pipe_run', [24, 0, 41.4], 0, { length: 10, height: 0.4, paint: 'teal' });
-prop(R13b, 'cable_bundle', [24, 0, 36], 90, { length: 10, height: 4.4 });
-prop(R13b, 'console', [27.6, 0, 33], 270, { screen: 'status' });
-prop(R13b, 'dive_suit_rack', [20.6, 0, 38.4], 90, { suits: 2 });
-prop(R13c, 'dive_suit_rack', [14.6, 0, 31.4], 270, { suits: 3 });
-prop(R13c, 'dive_suit_rack', [14.6, 0, 36], 270, { suits: 3 });
-prop(R13c, 'locker', [17.4, 0, 37.4], 90, { count: 2, label: 'DIVE' });
+// R13a wet vestibule: boot wash and coveralls on the east wall, a grated wash mat over the drain on the centreline.
+wallProp(R13a, 'boot_wash', 6, 7, 'e', -0.9, { width: 1.3 }, 0.01);
+wallProp(R13a, 'coverall_hooks', 6, 7, 'e', 0.8, { count: 3 }, 0.01);
+prop(R13a, 'boot_wash_mat', [24, 0, 28.0], 0, { width: 1.4, depth: 1.0 });
+// R13b launch-and-recovery hall (rebuild-dive-bay, design.md §5): gantry over the recovered ROV, pilot console on the
+// north wall, wet bench and core rack on the west wall, winch in the south-east, eyewash and tool board on the south wall.
+prop(R13b, 'gantry_crane', [24, 0, 36], 0, { width: 10.2, length: 10, height: 4.5, bridge: 2.4, trolley: 4.4, hook: 2.15 });
+prop(R13b, 'rov', [28.4, 0, 38.4], 90, { name: 'NEREUS' });
+prop(R13b, 'tether_winch', [28.7, 0, 40.55], 0);
+prop(R13b, 'pilot_console', [28.0, 0, 30.75], 180);
+wallProp(R13b, 'whiteboard', 5, 8, 'n', -0.4, { lines: 'DIVE 214 · TRENCH WALL|ROV: NEREUS   PILOT: SUNG|TASK: 6 CORES FOR LAB B|RECOVERED 06:42 · CASE TO COLD STORE|NEXT: DIVE 215 — TBC|!KEEP TRUNK GATE SHUT' });
+wallProp(R13b, 'wet_bench', 5, 9, 'w', 0, { width: 2.2 }, 0.01);
+wallProp(R13b, 'core_rack', 5, 9, 'w', -2.0, undefined, 0.01);
+wallProp(R13b, 'eyewash_station', 5, 10, 's', 0.7, undefined, 0.01);
+wallProp(R13b, 'shadow_board', 6, 10, 's', 0, undefined, 0.01);
+prop(R13b, 'pipe_run', [24.5, 0, 41.4], 0, { length: 8, height: 0.4, paint: 'teal' });
+prop(R13b, 'crate', [26.5, 0, 40.65], 10, { size: 0.6 });
+// Signage (task 5.1): a plate and life-support panel by each entry, pipe labels on the service runs.
+wallProp(R13a, 'room_sign', 6, 7, 'w', 1.1, { code: 'R13A', name: 'WET VESTIBULE', warn: 'WET AREA · NON-SLIP BOOTS', y: 2.2, co2: 610, rh: 78 }, 0.01);
+wallProp(R13b, 'room_sign', 5, 8, 'n', 1.3, { code: 'R13B', name: 'LAUNCH TRUNK 1', warn: 'KEEP TRUNK GATE SHUT', co2: 650, rh: 81 }, 0.01);
+wallProp(R13c, 'room_sign', 4, 9, 'e', -0.95, { code: 'R13C', name: 'ROV WORKSHOP', co2: 720, rh: 64 }, 0.01);
+wallProp(R13e, 'room_sign', 4, 10, 's', -1.05, { code: 'R13E', name: 'SAMPLE STORE', warn: 'LAB B CHAIN OF CUSTODY', co2: 590, rh: 55 }, 0.01);
+wallProp(R13d, 'room_sign', 8, 8, 'n', -1.2, { code: 'R13D', name: 'MAINTENANCE', panel: false }, 0.01);
+prop(R13b, 'pipe_labels', [24.5, 0, 41.4], 0, { length: 8, y: 0.4, radius: 0.1, labels: 'SEAWATER COOLING:#2f7a3a|HYDRAULIC RETURN:#b4551c' });
+prop(R13d, 'pipe_labels', [36, 0, 33.4], 0, { length: 11, y: 0.5, radius: 0.1, labels: 'SEAWATER COOLING:#2f7a3a|HYDRAULIC SUPPLY:#b4551c|FRESH WATER:#2b5d8a' });
+// Wear by rule (task 5.2): wet where water is, oil under the workshop bench, salt rings at drains and doors.
+for (const [x, z, w, d, rot] of [[24, 33.9, 2.6, 0.7, 0], [21.8, 36, 2.4, 0.6, 90], [24, 38.15, 2.4, 0.6, 180], [27.3, 38.4, 1.4, 1.0, 0]]) prop(R13b, 'floor_wear', [x, 0, z], rot, { kind: 'puddle', width: w, depth: d });
+prop(R13b, 'floor_wear', [22.4, 0, 31.6], 20, { kind: 'prints', width: 0.9, depth: 2.4 });
+prop(R13b, 'floor_wear', [19.5, 0, 36.6], 0, { kind: 'salt', width: 0.9, depth: 0.8 });
+prop(R13a, 'floor_wear', [25.2, 0, 27.1], 0, { kind: 'puddle', width: 0.9, depth: 1.3 });
+prop(R13a, 'floor_wear', [24.1, 0, 26.9], 0, { kind: 'prints', width: 0.9, depth: 1.6 });
+prop(R13a, 'floor_wear', [24, 0, 28.0], 0, { kind: 'salt', width: 1.6, depth: 1.2 });
+prop(R13a, 'floor_wear', [25.3, 0, 28.8], 90, { kind: 'puddle', width: 1.4, depth: 0.5 });
+prop(R13c, 'floor_wear', [14.9, 0, 35.5], 0, { kind: 'oil', width: 0.9, depth: 1.6 });
+prop(R13c, 'floor_wear', [17.2, 0, 36.6], 0, { kind: 'puddle', width: 0.7, depth: 0.7 });
+prop(R13c, 'floor_wear', [17.2, 0, 32], 90, { kind: 'prints', width: 0.9, depth: 1.4 });
+prop(R13c, 'floor_wear', [16.5, 0, 33.6], 30, { kind: 'oil', width: 0.6, depth: 0.5 });
+prop(R13e, 'floor_wear', [15.2, 0, 38.95], 0, { kind: 'puddle', width: 0.9, depth: 0.5 });
+prop(R13e, 'floor_wear', [15.4, 0, 41.0], 0, { kind: 'puddle', width: 1.4, depth: 0.45 });
+prop(R13e, 'floor_wear', [17.2, 0, 40], 90, { kind: 'prints', width: 0.9, depth: 1.2 });
+prop(R13e, 'floor_wear', [15.6, 0, 40], 0, { kind: 'salt', width: 0.8, depth: 0.8 });
+// R13c ROV workshop: bench and battery charger on the west wall, parts bins on the north, gas and hose to the south-east.
+wallProp(R13c, 'workbench', 4, 9, 'w', 0.5, { width: 2.4 }, 0.01);
+wallProp(R13c, 'battery_charger', 4, 8, 'w', 0.5, undefined, 0.01);
+wallProp(R13c, 'parts_bins', 4, 8, 'n', 0, { width: 1.6 }, 0.01);
+wallProp(R13c, 'gas_cylinder_rack', 4, 9, 's', -1.0, undefined, 0.01);
+wallProp(R13c, 'hose_reel', 4, 9, 'e', 0.6, undefined, 0.01);
 prop(R13d, 'pipe_run', [36, 0, 33.4], 0, { length: 11, height: 0.5, paint: 'dark' });
 prop(R13d, 'crate', [41, 0, 30.8], 15, { size: 0.7 });
 prop(R13d, 'debris_pile', [37.6, 0, 31.2]);
-prop(R13e, 'locker', [14.6, 0, 40], 270, { count: 3, label: 'AIRLOCK' });
+// R13e sample store: the Lab B cold store (the stow point) on the west wall, fridges on the south, freezer, pressure
+// cabinet and survival suits on the north.
+wallProp(R13e, 'cold_store', 4, 10, 'w', 0, undefined, 0.01);
+wallProp(R13e, 'core_fridge', 4, 10, 's', 0.6, undefined, 0.01);
+wallProp(R13e, 'freezer', 4, 10, 'n', -1.0, undefined, 0.01);
+wallProp(R13e, 'pressure_cabinet', 4, 10, 'n', 0.1, undefined, 0.01);
+wallProp(R13e, 'survival_suits', 4, 10, 'n', 1.15, { count: 3 }, 0.01);
 prop(R13e, 'crate', [17.4, 0, 41.4], 0, { size: 0.6 });
 anchor(R13a, 'dive_entry', [24, 0, 27.4], 180);
 // Priya waits outside the commons' south door until the intro brings her in with the tray.
@@ -825,11 +1009,15 @@ anchor(R13b, 'diver_1_spot', [21.4, 0, 36], 270); // Sung (he walks in from the 
 anchor(R13b, 'dive_case_pickup', [21.4, 0, 37.2], 270);
 anchor(R13e, 'dive_case_locker', [15, 1.0, 40]);
 anchor(R13d, 'dark_corridor', [32, 0, 32], 270);
+// A hissing leak on the R13d pipe run (rebuild-dive-bay): steam puff, and `trigger:dive_leak` plays the hiss.
+prop(R13d, 'pipe_leak', [38.5, 0.5, 33.4], 0);
+anchor(R13d, 'dive_leak', [38.5, 0.6, 33.4]);
 npc(R13b, 'diver_1', 'diver', [26.4, 0, 35.4], 'idle_hips');
-npc(R13b, 'maint_1', 'maintenance', [27, 0, 37.6], 'crouchWork');
+npc(R13b, 'maint_1', 'maintenance', [26.6, 0, 37.9], 'crouchWork', { yaw: 270 }); // at the ROV's core basket
 npc(R13e, 'diver_2', 'diver', [16.6, 0, 39.4], 'idle_weight');
 trigger(R13a, 'trig_dive_enter', cellBox(6, 6, 7, 7), 'trigger:dive_enter', { once: false });
 trigger(R13d, 'trig_dive_dark', cellBox(8, 8, 8, 8), 'area:dark');
+trigger(R13d, 'trig_dive_leak', around([38.5, 0, 32.9], 1.4, 2.2), 'trigger:dive_leak', { once: false });
 trigger(R13e, 'trig_dive_case', around([15.6, 0, 40], 0.8, 2), 'round:dive_case', { on: 'use', prompt: 'Stow sample case', once: false });
 // TAG FM follows Jay between rooms (ADR-0023): a second radio in the dive lockers.
 prop(R13e, 'radio', [17.2, 0.62, 41.4], 200);
@@ -837,18 +1025,65 @@ anchor(R13e, 'dive_radio', [17.2, 0.75, 41.4]);
 trigger(R13e, 'trig_dive_lockers', cellBox(4, 4, 10, 10), 'trigger:dive_lockers_enter', { once: false });
 
 // ---------------------------------------------------------------- R14 TAG admin office hub
-const ADMIN = { fog: '#0b0a08', fogDensity: 0.02, reverb: 'small_office', ambience: 'office_hvac' };
-const WARM = '#ffe2c0';
-const R14a = room('R14a', 'TAG Reception', [[9, 2], [9, 3]], { area: 'admin', atmosphere: ADMIN, floor: 'floor_carpet', walls: ['wall_wood'], lights: [L(0, 'steady', WARM, 8), L(1, 'steady', WARM, 8)] });
-const R14b = room('R14b', 'Open Office', rect(10, 12, 1, 2), { area: 'admin', atmosphere: ADMIN, floor: 'floor_carpet', walls: ['wall_wood'], lights: [L(0, 'steady', WARM, 8), L(2, 'steady', WARM, 8), L(4, 'steady', WARM, 8)] });
-const R14c = room('R14c', "Director's Office", [[13, 1], [13, 2]], { area: 'admin', atmosphere: ADMIN, floor: 'floor_carpet', walls: ['wall_wood'], lights: [L(0, 'steady', '#ffd9a8', 7), L(1, 'steady', '#ffd9a8', 6)] });
-const R14d = room('R14d', 'Meeting Room', [[10, 0], [11, 0]], { area: 'admin', atmosphere: ADMIN, floor: 'floor_carpet', walls: ['wall_wood'], lights: [L(0, 'steady', WARM, 7), L(1, 'steady', WARM, 7)] });
-const R14e = room('R14e', 'Security Booth', [[9, 1]], { area: 'admin', atmosphere: { ...ADMIN, fogDensity: 0.03 }, ceilingMaterial: 'boltPanel', floor: 'floor_carpet', walls: ['wall_wood'], lights: [L(0, 'steady', '#cfe0ff', 5)] });
+const ADMIN = { fog: '#14110e', fogDensity: 0.012, ambient: 'admin', reverb: 'small_office', ambience: 'office_hvac' };
+const R14a = room('R14a', 'TAG Reception', [[9, 2], [9, 3]], {
+  area: 'admin',
+  atmosphere: ADMIN,
+  floor: 'floor_carpet',
+  walls: ['wall_wood'],
+  lights: [
+    L(0, 'steady', '#ffebd0', 13, 12, { shaft: 0.01, emissive: 2.2 }),
+    L(1, 'steady', '#ffebd0', 13, 12, { shaft: 0.01, emissive: 2.2 }),
+  ],
+});
+const R14b = room('R14b', 'Open Office', rect(10, 12, 1, 2), {
+  area: 'admin',
+  atmosphere: ADMIN,
+  floor: 'floor_carpet',
+  walls: ['wall_wood'],
+  noDeadFixtures: true,
+  lights: [
+    L(0, 'steady', '#fff0d8', 14, 13, { shaft: 0.01, emissive: 2.2 }),
+    L(2, 'steady', '#fff0d8', 14, 13, { shaft: 0.01, emissive: 2.2 }),
+    L(4, 'steady', '#ffebd0', 14, 13, { shaft: 0.01, emissive: 2.2 }),
+  ],
+});
+const R14c = room('R14c', "Director's Office", [[13, 1], [13, 2]], {
+  area: 'admin',
+  atmosphere: { ...ADMIN, fog: '#14100c' },
+  floor: 'floor_carpet',
+  walls: ['wall_wood'],
+  lights: [
+    L(0, 'steady', '#ffd8a6', 10, 11, { shaft: 0.015, emissive: 1.9 }),
+    L(1, 'steady', '#ffd096', 14, 12, { drop: 0.4, shaft: 0.015, emissive: 2.1 }),
+  ],
+});
+// 3x2 executive boardroom (12 m x 8 m) with > 2.3 m walkway around the conference table and chairs.
+const R14d = room('R14d', 'Boardroom', rect(10, 12, -1, 0), {
+  area: 'admin',
+  atmosphere: { ...ADMIN, fogDensity: 0.011 },
+  floor: 'floor_carpet',
+  walls: ['wall_wood'],
+  noDeadFixtures: true,
+  lights: [
+    L(0, 'steady', '#ffebd0', 13, 13, { shaft: 0.01, emissive: 2.1 }),
+    L(2, 'steady', '#ffe4be', 13, 13, { shaft: 0.01, emissive: 2.1 }),
+    L(4, 'steady', '#ffdcad', 16, 14, { drop: 0.85, shaft: 0.018, emissive: 2.2 }),
+  ],
+});
+const R14e = room('R14e', 'Security Booth', [[9, 1]], {
+  area: 'admin',
+  atmosphere: { fog: '#0b0e12', fogDensity: 0.02, ambient: 'normal', reverb: 'small_office', ambience: 'office_hvac' },
+  ceilingMaterial: 'boltPanel',
+  floor: 'floor_carpet',
+  walls: ['wall_wood'],
+  lights: [L(0, 'steady', '#b8d8ff', 10, 9, { shaft: 0.025, emissive: 2.2 })],
+});
 wallKit(R14c, 13, 1, 'n', 'wall_window');
 wallKit(R14c, 13, 1, 'e', 'wall_window');
-wallKit(R14d, 10, 0, 'n', 'wall_window');
-wallKit(R14d, 11, 0, 'n', 'wall_window');
-glass('R14b', 10, 1, 'n'); // meeting room seen from the open office
+for (const x of [10, 11, 12]) wallKit(R14d, x, -1, 'n', 'wall_window');
+glass('R14b', 10, 1, 'n'); // full-width glass frontage into the 3x2 boardroom
+glass('R14b', 12, 1, 'n');
 glass('R14b', 12, 2, 'e'); // Hale's office behind glass
 door('D_R02_R14a', 'R02', 'R14a', 8, 3, 'e', { kit: 'glass_slide' });
 door('D_R14a_R14b', 'R14a', 'R14b', 9, 2, 'e', { kit: 'glass_slide' });
@@ -866,17 +1101,22 @@ workstation(R14a, [36.5, 0, 10.7], 270, {
 });
 // Waiting sofa flush against the west wall of [9,2], facing east (rot 270) into reception, poster centred above it.
 prop(R14a, 'sofa', [34.72, 0, 8.4], 270, { width: 1.8, tone: 'warm' });
+npc(R14a, 'admin_visitor', 'lab', [34.72, 0, 8.4], undefined, { spot: 'sit_sofa', model: 'scientist1' });
 wallProp(R14a, 'tag_poster', 9, 2, 'w', 0.4, { slogan: 'THE FUTURE IS DEEP.' });
 for (const [x, z, kind] of [[34.65, 6.65, 'palm'], [37.35, 13.35, 'fern'], [37.35, 6.65, 'tall']]) prop(R14a, 'potted_plant', [x, 0, z], 0, { kind, pot: 'white', size: 1.0 });
 // Open office: four workstations facing north (rot 180 puts sitter/chair on south side facing the screen), leaving clear aisles to all 3 doors.
 workstation(R14b, [40.6, 0, 3.2], 180, {
   width: 1.6,
   papers: 2,
-  npc: { id: 'exec_2', look: 'exec', pose: 'sit_typing' },
+  npc: { id: 'exec_2', look: 'exec', pose: 'sit_typing', extra: { model: 'office1' } },
 });
 workstation(R14b, [46.8, 0, 3.2], 180, { width: 1.6, papers: 2 });
 workstation(R14b, [41.6, 0, 7.4], 180, { width: 1.6, papers: 2 });
-workstation(R14b, [45.6, 0, 7.4], 180, { width: 1.6, papers: 2 });
+workstation(R14b, [45.6, 0, 7.4], 180, {
+  width: 1.6,
+  papers: 2,
+  npc: { id: 'exec_4', look: 'exec', pose: 'sit_typing', extra: { model: 'botanist2' } },
+});
 prop(R14b, 'bookshelf', [48.4, 0, 9.52], 0, { width: 1.6 });
 for (const [x, z, kind] of [[38.65, 2.65, 'tall'], [49.35, 2.65, 'fern'], [38.65, 9.35, 'shrub'], [43.6, 9.35, 'palm']]) prop(R14b, 'potted_plant', [x, 0, z], 0, { kind, pot: 'white' });
 prop(R14b, 'hanging_plant', [43.6, 0, 5.6], 0, { drop: 0.7, pot: 'white' });
@@ -887,10 +1127,20 @@ prop(R14c, 'sofa', [51.4, 0, 9.28], 0, { width: 1.8, tone: 'warm' });
 prop(R14c, 'potted_plant', [50.65, 0, 2.65], 0, { kind: 'palm', pot: 'dark', size: 1.2 });
 prop(R14c, 'potted_plant', [53.35, 0, 2.65], 0, { kind: 'fern', pot: 'dark' });
 wallProp(R14c, 'tag_poster', 13, 2, 's', 0, { slogan: 'TAG INDUSTRIES - 40 YEARS DEEP', width: 1.1 });
-// Meeting room: conference table clear of the west presentation screen and the south-east entry door.
-prop(R14d, 'dining_table', [41.8, 0, -0.15], 0, { width: 2.8, seats: 6, mugs: 3 });
-wallProp(R14d, 'wall_screen', 10, 0, 'w', 0, { id: 'admin_tv', width: 2 });
-prop(R14d, 'potted_plant', [45.35, 0, -1.35], 0, { kind: 'tall', pot: 'white' });
+// Executive boardroom: dark-wood conference table under brass pendants, live TAG slide deck, coffee credenza, and active 4-person meeting.
+prop(R14d, 'conference_table', [44.0, 0, -2.0], 0, { width: 4.4, depth: 1.3, sideSeats: 3, endEast: true });
+prop(R14d, 'pendant_light', [44.0, 0, -2.0], 0, { ceiling: 3.2, drop: 1.05, count: 3, spacing: 1.4, shade: 'brass' });
+prop(R14d, 'wall_screen', [38.31, 0, -2.0], 270, { id: 'admin_tv', width: 3.0, channel: 'boardroom', state: 'on' });
+prop(R14d, 'credenza', [49.45, 0, -2.0], 90, { width: 2.6 });
+prop(R14d, 'bookshelf', [49.55, 0, 0.35], 90, { width: 1.4, height: 2.2 });
+prop(R14d, 'tag_poster', [49.69, 0, -4.4], 90, { slogan: 'DEEPER. FURTHER. TOGETHER.', width: 1.0 });
+prop(R14d, 'potted_plant', [38.7, 0, -5.25], 0, { kind: 'palm', pot: 'dark', size: 1.1 });
+prop(R14d, 'potted_plant', [49.25, 0, -5.25], 0, { kind: 'tall', pot: 'white', size: 1.0 });
+prop(R14d, 'potted_plant', [38.7, 0, 1.25], 0, { kind: 'fern', pot: 'white', size: 1.0 });
+npc(R14d, 'board_1', 'exec', [42.5, 0, -3.07], undefined, { spot: 'sit_chair', chat: 'admin_boardroom', model: 'office1' });
+npc(R14d, 'board_2', 'exec', [45.5, 0, -3.07], undefined, { spot: 'sit_chair', chat: 'admin_boardroom', model: 'office2' });
+npc(R14d, 'board_3', 'lab', [44.0, 0, -0.93], undefined, { spot: 'sit_chair', chat: 'admin_boardroom', model: 'scientist1' });
+npc(R14d, 'board_4', 'exec', [40.5, 0, -2.0], 'idle', { yaw: 270, chat: 'admin_boardroom', model: 'office3' });
 prop(R14e, 'security_monitor', [36, 0, 2.8], 180, { id: 'admin_cam', camera: 'CAM 04  MEDICAL BAY', feed: 'live' });
 prop(R14e, 'chair', [35.2, 0, 3.9], 0, { fixed: true });
 pickups.push({ id: 'P_card_l2', room: 'R14c', item: 'card_l2', pos: [52.4, 0.78, 5.5], rot: 15 });
@@ -902,7 +1152,8 @@ anchor(R14c, 'hale_stand', [52.4, 0, 8.3], 90);
 anchor(R14c, 'cp_round_admin', [51, 0, 5.4], 270);
 anchor(R14e, 'admin_cam_monitor', [36, 1.4, 2.6]);
 anchor(R14e, 'admin_cam_view', [36.4, 0, 4.2], 0);
-npc(R14b, 'exec_1', 'exec', [44.0, 0, 5.6], 'talk_gesture', { yaw: 90 });
+npc(R14b, 'exec_1', 'exec', [44.2, 0, 5.6], 'idle', { yaw: 90, chat: 'admin_hall', model: 'office3' });
+npc(R14b, 'exec_3', 'exec', [43.2, 0, 5.6], 'clipboard', { yaw: 270, chat: 'admin_hall', model: 'office2' });
 npc(R14c, 'hale', 'hale', 'hale_stand', 'idle_hips');
 trigger(R14a, 'trig_admin_enter', cellBox(9, 9, 3, 3), 'trigger:admin_enter', { once: false });
 trigger(R14c, 'trig_hale_office', cellBox(13, 13, 1, 2), 'trigger:hale_office', { once: false });
@@ -927,6 +1178,24 @@ for (const [anchorId, kind] of SUPPLIES) {
   pickups.push({ id: `S_${anchorId}`, room: r.id, kind, pos: a.pos });
 }
 
+// Wall loudspeakers. Small adjoining vestibules share a fixture with the room at their door.
+wallProp(R01, 'pa_speaker', 0, 0, 'w', 1, { id: 'pa_dock', serves: 'R01a' }, 0.012);
+wallProp(R01w, 'pa_speaker', 5, 0, 's', -0.9, { id: 'pa_walk' }, 0.012);
+wallProp(R02, 'pa_speaker', 7, 3, 'n', 1, { id: 'pa_commons' }, 0.012);
+wallProp(R03, 'pa_speaker', 1, 4, 'n', 1, { id: 'pa_gallery' }, 0.012);
+wallProp(R12b, 'pa_speaker', 10, 4, 'w', -1, { id: 'pa_grow', serves: 'R12a' }, 0.012);
+wallProp(R12c, 'pa_speaker', 13, 5, 's', 1, { id: 'pa_seed' }, 0.012);
+wallProp(R12d, 'pa_speaker', 11, 7, 's', 1, { id: 'pa_nutrients' }, 0.012);
+wallProp(R12e, 'pa_speaker', 10, 7, 'w', 1, { id: 'pa_hydro_store' }, 0.012);
+wallProp(R13b, 'pa_speaker', 7, 8, 'n', -0.9, { id: 'pa_moon_pool', serves: 'R13a' }, 0.012);
+wallProp(R13c, 'pa_speaker', 4, 8, 'n', 1, { id: 'pa_workshop' }, 0.012);
+wallProp(R13d, 'pa_speaker', 8, 8, 'n', 1, { id: 'pa_maintenance' }, 0.012);
+wallProp(R13e, 'pa_speaker', 4, 10, 's', 1, { id: 'pa_sample_store' }, 0.012);
+wallProp(R14a, 'pa_speaker', 9, 2, 'w', 1, { id: 'pa_reception', serves: 'R14e' }, 0.012);
+wallProp(R14b, 'pa_speaker', 10, 2, 's', -1, { id: 'pa_office' }, 0.012);
+wallProp(R14c, 'pa_speaker', 13, 2, 's', 1, { id: 'pa_director' }, 0.012);
+wallProp(R14d, 'pa_speaker', 12, -1, 'e', 1, { id: 'pa_boardroom' }, 0.012);
+
 // ================================================================== build
 
 /**
@@ -938,7 +1207,7 @@ async function detectSpawnFields() {
   const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/data/types/level.ts'), 'utf8');
   const m = src.match(/spawnShape\s*=\s*\{([\s\S]*?)\n\};/) ?? src.match(/spawns:\s*optional\(arr\(obj\(\{([^}]*)\}/);
   const body = m ? m[1] : '';
-  return new Set(['group', 'active', 'variant', 'count', 'interval', 'yaw', 'outfit', 'infection', 'on'].filter((f) => new RegExp(`\\b${f}\\b`).test(body)));
+  return new Set(['group', 'active', 'variant', 'count', 'interval', 'yaw', 'outfit', 'infection', 'model', 'on'].filter((f) => new RegExp(`\\b${f}\\b`).test(body)));
 }
 
 function build() {
@@ -964,20 +1233,28 @@ function build() {
     const ceilParams = r.ceilingMaterial ? { material: r.ceilingMaterial } : undefined;
     const wallParams = r.wallMaterial ? { material: r.wallMaterial } : undefined;
     // Ceilings first, one entry per cell, so numeric light slots follow the cell order.
+    // When `noDeadFixtures` is set, unclaimed ceiling tiles omit housings (`fixture: false`) and
+    // claimed numeric light slots remap onto the emitted fixture slots.
+    const litCells = r.noDeadFixtures ? new Set(r.lights.filter((l) => typeof l.slot === 'number').map((l) => l.slot)) : null;
+    const slotMap = new Map();
+    let nextSlot = 0;
     r.cells.forEach(([x, z], i) => {
       const c = { kit: r.ceiling === 'ceiling_pipes' && i % 2 === 0 ? 'ceiling' : r.ceiling, cell: [x, 0, z] };
-      if (ceilParams) c.params = ceilParams;
+      const p = { ...(ceilParams ?? {}) };
+      if (litCells && !litCells.has(i)) p.fixture = false;
+      else slotMap.set(i, nextSlot++);
+      if (Object.keys(p).length) c.params = p;
       pieces.push(c);
     });
     for (const [x, z] of r.cells) {
-      put(r.floorOverride[`${x},${z}`] ?? r.floor, [x, 0, z], 0, r.floorParams[`${x},${z}`]);
+      put(r.floorOverride[`${x},${z}`] ?? r.floor, [x, 0, z], 0, r.floorParams[`${x},${z}`] ?? (r.floorMaterial ? { material: r.floorMaterial } : undefined));
       for (const s of ['n', 'e', 's', 'w']) {
         const [nx, nz] = neighbour(x, z, s);
         if (inRoom.has(`${nx},${nz}`)) continue;
         const ek = edgeKey(x, z, s);
         if (doorEdges.has(ek) || glassEdges.has(ek) || openEdges.has(ek)) continue;
         const kit = r.wallOverride[ek] ?? r.walls[Math.abs(x * 7 + z * 3 + s.charCodeAt(0)) % r.walls.length];
-        put(kit, [x, 0, z], WALL_ROT[s], wallParams);
+        put(kit, [x, 0, z], WALL_ROT[s], r.wallParams?.[ek] ?? wallParams);
       }
     }
     for (const g of group.values()) {
@@ -994,7 +1271,7 @@ function build() {
     if (r.visibleFrom) o.visibleFrom = r.visibleFrom;
     o.pieces = pieces;
     if (r.props.length) o.props = r.props;
-    if (r.lights.length) o.lights = r.lights;
+    if (r.lights.length) o.lights = litCells ? r.lights.map((l) => (typeof l.slot === 'number' ? { ...l, slot: slotMap.get(l.slot) } : l)) : r.lights;
     if (r.triggers.length) o.triggers = r.triggers;
     if (r.spawns.length) {
       o.spawns = r.spawns.map((s) => {
@@ -1012,8 +1289,8 @@ function build() {
     id: 'slice01',
     name: 'Slice 01: Thalassa Deep',
     seed: 1337,
-    playerStart: { room: 'R01', pos: [6, 0, 2.6], yaw: 0 },
-    squadStart: { engineer: [-4.6, 0, 0.6], medic: [-4.6, 0, -0.6] },
+    playerStart: { room: 'R01', pos: [6.95, 0, 4.3], yaw: 2 },
+    squadStart: { engineer: [0.65, 0, -4.55], medic: [-0.65, 0, -4.55] },
     rooms: out,
     doors,
     vents,

@@ -56,7 +56,8 @@ function walk(steps: Step[], visit: (s: Record<string, unknown>) => void): void 
 
 test('the action sequences name only things that exist: lines, sounds, anchors, NPCs, doors, rooms, objectives, groups', () => {
   assert.equal(actionDefs.length, 17);
-  const npcSet = new Set([...npcIds, 'giles', 'okafor', 'r08_thing']);
+  // `researcher_b_creature`: what grows out of Voss in the drop's kill (infection-kills spec), gone through the door at contact.
+  const npcSet = new Set([...npcIds, 'giles', 'okafor', 'r08_thing', 'researcher_b_creature']);
   for (const def of actionDefs) {
     walk(def.steps, (s) => {
       const where = `${def.id}: ${String(s['do'])}`;

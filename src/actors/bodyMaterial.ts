@@ -3,6 +3,9 @@ import * as THREE from 'three';
 /** Upper bound on bones per humanoid (21 joints + detail hand/twist bones + growths, ribs, tendrils, stumps). */
 export const MAX_BONES = 96;
 
+/** Lumps that can crawl under the skin at once (infection-kills spec: something moving under the skin). */
+export const MAX_BULGES = 4;
+
 export interface BodyUniforms {
   /** 0 = human skin, 1 = fully infected (stage 3). */
   uInfect: THREE.IUniform<number>;
@@ -10,6 +13,15 @@ export interface BodyUniforms {
   uGlow: THREE.IUniform<number>;
   /** Per-bone darkening (Reduced gore marks dead limbs this way). */
   uDark: THREE.IUniform<Float32Array>;
+  /**
+   * Lumps under the skin, in bind-pose body space: xyz centre, w radius (0 = off). Displaced before skinning, so they ride
+   * the bones of any body, procedural or imported.
+   */
+  uBulge: THREE.IUniform<THREE.Vector4[]>;
+  /** Outward push of each lump (m). */
+  uBulgeAmp: THREE.IUniform<Float32Array>;
+  /** A torn-open wound on the front of the body, in bind-pose body space: xyz centre, w radius (0 = none). */
+  uTear: THREE.IUniform<THREE.Vector4>;
 }
 
 /** A textured material for imported body models (one per model material). Textures are shared between bodies. */
@@ -41,7 +53,12 @@ varying float vGlow;
 varying float vRot;
 varying float vDark;
 varying vec3 vBodyPos;
+varying float vBulge;
+varying float vTear;
 uniform float uDark[${MAX_BONES}];
+uniform vec4 uBulge[${MAX_BULGES}];
+uniform float uBulgeAmp[${MAX_BULGES}];
+uniform vec4 uTear;
 `;
 
 const VERT_MAIN = /* glsl */ `
@@ -49,6 +66,26 @@ vSkin = aSkin;
 vGlow = aGlow;
 vRot = aRot;
 vBodyPos = position;
+// Lumps under the skin swell the surface along its rest normal; the bones then carry them (infection-kills spec).
+vBulge = 0.0;
+for (int i = 0; i < ${MAX_BULGES}; i++) {
+  vec4 b = uBulge[i];
+  if (b.w <= 0.0) continue;
+  float d = length(position - b.xyz) / b.w;
+  float f = exp(-d * d * 2.5);
+  vBulge += f;
+  transformed += normal * (uBulgeAmp[i] * f);
+}
+// A torn chest: the front caves in and turns to wet meat (the shader cannot open a hole without showing the inside).
+vTear = 0.0;
+if (uTear.w > 0.0) {
+  // A ragged edge: the distance wobbles with the surface position.
+  float rag = sin(position.x * 57.0 + sin(position.y * 43.0) * 2.0) * sin(position.y * 39.0 + position.z * 23.0);
+  float d = length(position - uTear.xyz) / uTear.w * (1.0 + 0.16 * rag);
+  float front = smoothstep(0.0, 0.35, -normal.z) * (1.0 - smoothstep(0.08, 0.13, abs(position.x - uTear.x)));
+  vTear = (1.0 - smoothstep(0.6, 1.0, d)) * front;
+  transformed -= normal * (0.045 * vTear * (1.0 - d * 0.6));
+}
 #ifdef USE_SKINNING
   vDark = uDark[int(skinIndex.x + 0.5)];
 #else
@@ -62,6 +99,8 @@ varying float vGlow;
 varying float vRot;
 varying float vDark;
 varying vec3 vBodyPos;
+varying float vBulge;
+varying float vTear;
 uniform float uInfect;
 uniform float uGlow;
 float gRot;
@@ -98,6 +137,20 @@ const FRAG_COLOR = /* glsl */ `
   // Milky, sick eyes.
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.47, 0.4), step(0.5, vGlow) * uInfect * 0.8);
   diffuseColor.rgb *= 1.0 - 0.82 * vDark;
+  // Skin stretched over a lump: bruised, purple-dark, with a dark vein web round it.
+  float lump = clamp(vBulge, 0.0, 1.0);
+  float web = smoothstep(0.92, 1.0, v1) * smoothstep(0.05, 0.5, lump) * (1.0 - smoothstep(0.75, 1.0, lump));
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.62, 0.42, 0.55), lump * 0.75);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.08, 0.02, 0.05), web * 0.85);
+  // Torn open: a dark clotted rim round glistening meat.
+  if (vTear > 0.01) {
+    vec3 tq = vBodyPos * 70.0;
+    float tg = 0.5 + 0.5 * sin(tq.x + sin(tq.y * 1.3) * 2.0) * sin(tq.z * 1.7 + tq.y);
+    // Dark clotted rim, then wet meat that only goes bright deep inside, with darker pits.
+    vec3 meat = mix(vec3(0.14, 0.008, 0.015), vec3(0.34, 0.03, 0.045), tg * smoothstep(0.45, 0.9, vTear));
+    vec3 wound = mix(vec3(0.035, 0.003, 0.005), meat, smoothstep(0.2, 0.55, vTear));
+    diffuseColor.rgb = mix(diffuseColor.rgb, wound, smoothstep(0.02, 0.22, vTear));
+  }
 }
 `;
 
@@ -105,6 +158,7 @@ const FRAG_ROUGH = /* glsl */ `
 roughnessFactor = mix(roughnessFactor, 0.32, vSkin * uInfect);
 roughnessFactor = mix(roughnessFactor, mix(0.55, 0.12, inner), gRot);
 roughnessFactor = mix(roughnessFactor, 0.1, clamp(-vRot, 0.0, 1.0));
+roughnessFactor = mix(roughnessFactor, 0.12, smoothstep(0.02, 0.3, vTear));
 `;
 
 const FRAG_EMISSIVE = /* glsl */ `
@@ -116,6 +170,9 @@ function hook(material: THREE.MeshStandardMaterial, uniforms: BodyUniforms, key:
     shader.uniforms.uInfect = uniforms.uInfect;
     shader.uniforms.uGlow = uniforms.uGlow;
     shader.uniforms.uDark = uniforms.uDark;
+    shader.uniforms.uBulge = uniforms.uBulge;
+    shader.uniforms.uBulgeAmp = uniforms.uBulgeAmp;
+    shader.uniforms.uTear = uniforms.uTear;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${VERT_PARS}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_MAIN}`);
@@ -135,13 +192,16 @@ export function createBodyMaterials(surfaceDefs: Readonly<Record<string, Surface
     uInfect: { value: 0 },
     uGlow: { value: 0 },
     uDark: { value: new Float32Array(MAX_BONES) },
+    uBulge: { value: Array.from({ length: MAX_BULGES }, () => new THREE.Vector4(0, 0, 0, 0)) },
+    uBulgeAmp: { value: new Float32Array(MAX_BULGES) },
+    uTear: { value: new THREE.Vector4(0, 0, 0, 0) },
   };
   const body = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0 });
   body.name = 'humanoid-body';
   const wet = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.2, metalness: 0, envMapIntensity: 1.8 });
   wet.name = 'humanoid-wet';
-  hook(body, uniforms, 'tag-humanoid-body-v3');
-  hook(wet, uniforms, 'tag-humanoid-wet-v3');
+  hook(body, uniforms, 'tag-humanoid-body-v4');
+  hook(wet, uniforms, 'tag-humanoid-wet-v4');
   const surfaces: Record<string, THREE.MeshStandardMaterial> = {};
   for (const [key, def] of Object.entries(surfaceDefs)) {
     // Vertex colours stay on (white on imported pieces) so the infection shader reads the same inputs.
@@ -156,7 +216,7 @@ export function createBodyMaterials(surfaceDefs: Readonly<Record<string, Surface
       side: def.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
     });
     m.name = `humanoid-surface:${key}`;
-    hook(m, uniforms, 'tag-humanoid-surface-v1');
+    hook(m, uniforms, 'tag-humanoid-surface-v2');
     surfaces[key] = m;
   }
   return { body, wet, surfaces, uniforms };

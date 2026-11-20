@@ -14,9 +14,17 @@ script has a manifest of prompts at the top; add an entry there, then generate i
 | Ambience beds, spatial emitters, one-shots | `npm run ambience:generate -- --id <id>` | `public/assets/audio/ambience/` |
 | Door motion and access feedback | `npm run doors:generate -- --id <id>` | `public/assets/audio/doors/` |
 | Footsteps | `npm run footsteps:generate -- --id <id>` | `public/assets/audio/footsteps/` |
+| Infected-kill body sounds (bone crunches, tearing, the burst, blood on glass, drips, the creature) | `npm run gore:generate -- --id <id>` | `public/assets/audio/gore/` |
 
 `--list` shows the manifest, `--all` generates everything missing, and `--force` regenerates.
 Do not add a new procedural synth for a new sound: procedural audio is fallback-only.
+
+Kill sounds (`data/kills.json`, infection-kills spec) name a list of sounds per event: the first that exists plays, so a
+recording still to be generated falls back to an existing stand-in (`kill_crunch` -> `fleshTear`). After
+`npm run gore:generate -- --all`, `npm run gore:generate -- --register` prints the `SAMPLE_URLS` entries to add. Voss's
+panting and whimpers (`voss_panic_breath`) are vocal reactions, so they come from Gemini TTS:
+`node --experimental-strip-types scripts/vo-reactions.ts --only react_voss_panic`, then register
+`react_voss_panic_01..03.mp3` under `voss_panic_breath`. Her screams stay the credited OpenGameArt clips.
 
 ## 2. Register it by name
 

@@ -11,6 +11,7 @@ test('speakers map to the NPCs that say their lines', () => {
   assert.equal(npcIdForSpeaker('nurse'), 'priya');
   assert.equal(npcIdForSpeaker('chief'), 'heins');
   assert.equal(npcIdForSpeaker('crew_cook'), 'cook');
+  assert.equal(npcIdForSpeaker('crew_lab'), 'researcher_b', 'Voss says her own lines behind the Lab B glass (drop_voss_01)');
   for (const s of ['player', 'pa', 'director', 'infected', 'crew']) assert.equal(npcIdForSpeaker(s), null, s);
 });
 

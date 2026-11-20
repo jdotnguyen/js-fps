@@ -9,6 +9,8 @@ import keymapJson from './data/keymap.json';
 import difficultyJson from './data/difficulty.json';
 import { validateKeymap } from './data/types/keymap.ts';
 import { validateDifficultyTable } from './data/types/difficulty.ts';
+import { validateKillTable } from './data/types/kills.ts';
+import killsJson from './data/kills.json';
 import { createDebugTools, readDebugFlags, type DebugTools } from './core/debug.ts';
 import { EventBus } from './core/events.ts';
 import { FreeCamera } from './core/freeCamera.ts';
@@ -18,6 +20,7 @@ import { Rng } from './core/rng.ts';
 import { SettingsStore } from './core/settings.ts';
 import { isScratchSession, persistentStore } from './core/storage.ts';
 import { validate } from './core/validate.ts';
+import type { SoundName } from './audio/sounds.ts';
 import { applyQuality, createRenderer } from './render/renderer.ts';
 import { createMaterialsAsync } from './render/materials.ts';
 import { createPost } from './render/post.ts';
@@ -81,7 +84,8 @@ import { objectivesValidator } from './data/types/objectives.ts';
 import type { MapModel, MapState } from './ui/mapModel.ts';
 import { Guidance } from './game/guidance.ts';
 import { loadDialogueLibrary } from './dialogue/load.ts';
-import { SpeechManager } from './dialogue/speech.ts';
+import { SpeechManager, type SayOptions } from './dialogue/speech.ts';
+import type { ScriptSpeechOptions } from './script/host.ts';
 import { WebAudioVoicePlayer } from './dialogue/voicePlayer.ts';
 import { StoryDucker } from './audio/storyDuck.ts';
 import { Subtitles } from './ui/hud/subtitles.ts';
@@ -407,8 +411,17 @@ async function boot(): Promise<void> {
     emit: (name, payload) => events.emit(name as never, payload as never),
     sequenceRunning: () => (sequences?.running().length ?? 0) > 0,
     walk: (id) => level?.walk(id) ?? null,
+    kills: validate(validateKillTable, killsJson, 'data/kills.json'),
+    listen: (name, fn) => events.on(name as never, fn as never),
+    sfx: (ids, at) => {
+      // The first sound that exists: a recording still to be generated, then its existing stand-in (infection-kills spec).
+      const id = ids.find((n) => audio.hasSound(n as SoundName));
+      if (!id) return false;
+      audio.play(id as SoundName, { position: new THREE.Vector3(at.x, at.y, at.z) });
+      return true;
+    },
   });
-  scene.add(npcs.group);
+  scene.add(npcs.group, npcs.fx);
   // Scripted walks path round corners, and everyone (cast, spawned NPCs, squad) is solid to Jay.
   player.setNav(world.navGraph());
   player.setBodies(() => npcs.solidBodies());
@@ -456,12 +469,21 @@ async function boot(): Promise<void> {
   // Speech: one voice at a time with subtitles; lines unknown to the library are skipped.
   const dialogue = loadDialogueLibrary();
   // Dialogue plays on the engine's voice bus (audio-mix: Mix buses), keeping the room reverb send.
-  const voicePlayer = new WebAudioVoicePlayer({ ctx: audio.ctx, master: audio.buses.voice, reverbIn: audio.reverbIn });
+  const voicePlayer = new WebAudioVoicePlayer({ ctx: audio.ctx, master: audio.buses.voice, reverbIn: audio.voiceReverbIn });
   memProbe?.attach({ threeInfo: () => renderer.info.memory, audioBytes: () => audio.decodedBytes() + voicePlayer.decodedBytes() });
   void voicePlayer.loadLines(dialogue.allLines()).then((n) => {
     if (n > 0) console.info(`[boot] loaded ${n} VO clips`);
   });
   const speech = new SpeechManager(events, dialogue, voicePlayer);
+  const speakerHead = new THREE.Vector3();
+  /** A speaker's head, for a speaker with a body on this level (voice-playback: local lines play from the speaker's head). */
+  const speakerHeadAt = (speaker: string): { x: number; y: number; z: number } | null => {
+    const id = npcIdForSpeaker(speaker);
+    const body = id && npcs.has(id) ? npcs.actor(id, false)?.body : null;
+    if (!body) return null;
+    const h = body.jointWorld('head', speakerHead);
+    return { x: h.x, y: h.y, z: h.z };
+  };
   squad.setSpeech(speech);
   // ADR-0027: whoever says a line acts it: mouth on the subtitle's syllables, hands and body on the emote.
   wireSpeechActing(events, (speaker) => {
@@ -481,10 +503,18 @@ async function boot(): Promise<void> {
   new Subtitles(el<HTMLElement>('#ui'), events, settings);
   // Music and ambience dip under story lines (spec audio-mix: Story ducking).
   const storyDucker = new StoryDucker(events, audio);
-  const say = (id: string, opts?: { overlap?: boolean; at?: () => { x: number; y: number; z: number } }) => {
+  const say = (id: string, opts?: SayOptions & ScriptSpeechOptions) => {
     if (!dialogue.hasLine(id)) {
       console.warn(`[speech] unknown line "${id}"`);
       return null;
+    }
+    if (dialogue.line(id).channel === 'pa') {
+      return speech.say(id, { ...opts, at: () => level?.paSpeakerAt(camera.position, opts?.fixture) ?? null });
+    }
+    const line = dialogue.line(id);
+    if (line.channel === 'local' && !opts?.at && speakerHeadAt(line.speaker)) {
+      const speaker = line.speaker;
+      return speech.say(id, { ...opts, at: () => speakerHeadAt(speaker) });
     }
     return speech.say(id, opts);
   };
@@ -512,9 +542,11 @@ async function boot(): Promise<void> {
     barkLines: dialogue.allLines().filter((l) => l.id.startsWith('bark_') || l.id.startsWith('hint_')),
     speech: { speaking: () => speech.speaking(), say },
     speakerAt: (sp) => {
-      if (sp !== 'engineer' && sp !== 'medic') return null;
-      const p = squad.mate(sp).position;
-      return { x: p.x, y: p.y + 1.6, z: p.z };
+      if (sp === 'engineer' || sp === 'medic') {
+        const p = squad.mate(sp).position;
+        return { x: p.x, y: p.y + 1.6, z: p.z };
+      }
+      return speakerHeadAt(sp);
     },
     nav: () => world.navGraph(),
     difficulties,
@@ -838,7 +870,24 @@ async function boot(): Promise<void> {
     // ?debug&jump=r05|r06|r07|r09|r11: skip the quiet half and start at that action beat with the flags it needs
     // (ADR-0014 Part B). The intro still gets cancelled; doors are re-applied by the `action_restore` sequence.
     const jump = new URLSearchParams(location.search).get('jump');
-    if (jump && level) {
+    // ?debug&jump=drop: rounds done, Jay put inside the Observation Gallery, so the Lab B drop (and Voss's death) plays at once.
+    if (jump === 'drop' && level) {
+      const off = events.on('game:mode', ({ mode }) => {
+        if (mode !== 'playing') return;
+        off();
+        setTimeout(() => {
+          sequences?.cancelAll();
+          Object.assign(game.flags, { introSeen: true, briefingSeen: true, rounds_done: true });
+          // The intro opens on black and fades in; cancelling it early leaves the screen black.
+          hud.setFade(0, 0.4);
+          const at = level.anchor('gallery_enter');
+          if (!at) return console.warn('[debug] jump=drop: no anchor gallery_enter');
+          // Inside the gallery's entry trigger, facing the Lab B glass: entering it starts the drop.
+          player.placeAtEye(new THREE.Vector3(at.pos.x - 1, at.pos.y + PLAYER_TUNING.eyeHeight, at.pos.z + 1), Math.PI / 4);
+        }, 400);
+      });
+    }
+    if (jump && jump !== 'drop' && level) {
       const base: Record<string, boolean | number> = { introSeen: true, briefingSeen: true, rounds_done: true, drop_started: true, drop_done: true };
       const steps: Array<[string, string, Record<string, boolean | number>]> = [
         ['r05', 'cp_first_contact', {}],
@@ -969,7 +1018,7 @@ async function boot(): Promise<void> {
       gore,
       titleCard: new TitleCard(el<HTMLElement>('#ui')),
       showCredits,
-      speech: { say: (id: string, opts?: { overlap?: boolean }) => say(id, opts), stopAll: () => speech.stopAll() },
+      speech: { say, stopAll: () => speech.stopAll() },
       anchors: room ? { door: room.anchors.door, window: room.anchors.window, vent: room.anchors.vent, console: room.anchors.console, abyss: room.anchors.abyss } : undefined,
       setTimeScale: (scale) => {
         loop.clock.scale = scale;

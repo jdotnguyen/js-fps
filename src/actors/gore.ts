@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Rng } from '../core/rng.ts';
-import { clipCoord, sameClip, type GoreClip } from './goreClip.ts';
+import { clearOfBand, clipCoord, sameClip, type ClearBand, type GoreClip } from './goreClip.ts';
 
 /**
  * Severing effects (ADR-0006): rigid debris, fluid spurts and floor pools. One instance per
@@ -13,6 +13,8 @@ export type GoreMode = 'full' | 'reduced';
 export const MAX_DEBRIS = 24;
 export const MAX_POOLS = 28;
 export const MAX_CHUNKS = 64;
+/** Marks on glass panes (hand smears, splats, running streaks), ring-buffered. */
+export const MAX_GLASS_MARKS = 20;
 const MAX_PARTICLES = 1400;
 const GRAVITY = 9.8;
 const DEBRIS_SLEEP_AFTER = 3;
@@ -51,6 +53,50 @@ interface Pool {
   mesh: THREE.Mesh;
   target: number;
   grow: number;
+}
+
+export type GlassMarkKind = 'print' | 'splat' | 'streak';
+
+interface GlassMark {
+  mesh: THREE.Mesh;
+  kind: GlassMarkKind;
+  /** Streaks: full length (m) and seconds to run down; others grow in quickly. */
+  length: number;
+  run: number;
+  age: number;
+}
+
+/** Vertical runs of blood from a top edge (a streak's alpha), generated once. */
+function streakTexture(): THREE.CanvasTexture {
+  const w = 128;
+  const h = 512;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  if (!ctx) throw new Error('2D canvas unavailable');
+  const rng = new Rng('blood-streak');
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.beginPath();
+  ctx.ellipse(w / 2, 34, w * 0.42, 30, 0, 0, Math.PI * 2);
+  ctx.fill();
+  for (let i = 0; i < 9; i++) {
+    const x = rng.range(w * 0.12, w * 0.88);
+    const len = rng.range(h * 0.35, h * 0.97);
+    const rw = rng.range(3, 9);
+    const g = ctx.createLinearGradient(0, 30, 0, len);
+    g.addColorStop(0, 'rgba(255,255,255,0.9)');
+    g.addColorStop(0.85, 'rgba(255,255,255,0.75)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - rw / 2, 30, rw, len - 30);
+    ctx.beginPath();
+    ctx.arc(x, len - 4, rw * 0.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.NoColorSpace;
+  return tex;
 }
 
 /** A soft, irregular pool texture, generated once. */
@@ -98,6 +144,12 @@ export class GoreSystem {
   private readonly pools: Pool[] = [];
   private poolCursor = 0;
   private readonly poolMats: { full: THREE.MeshStandardMaterial; reduced: THREE.MeshStandardMaterial };
+  private readonly glassMarks: GlassMark[] = [];
+  private glassCursor = 0;
+  private glassMats: Record<GlassMarkKind | 'reduced' | 'reducedStreak', THREE.MeshStandardMaterial> | null = null;
+  private readonly glassPlane = new THREE.PlaneGeometry(1, 1);
+  /** The same plane with its top edge at the origin, so a streak grows downward. */
+  private readonly streakPlane = new THREE.PlaneGeometry(1, 1).translate(0, -0.5, 0);
 
   // Particles: one Points object with ring-buffer slots.
   private readonly points: THREE.Points;
@@ -184,6 +236,88 @@ export class GoreSystem {
 
   get activePools(): number {
     return this.pools.length;
+  }
+
+  get activeGlassMarks(): number {
+    return this.glassMarks.length;
+  }
+
+  /** World heights of the glass marks' bottom and top edges once fully grown (tests: the clear band). */
+  glassMarkExtents(): Array<{ kind: GlassMarkKind; min: number; max: number }> {
+    return this.glassMarks.map((m) => {
+      const h = ((m.mesh.userData['full'] as [number, number] | undefined) ?? [1, m.length])[1];
+      const top = m.kind === 'streak' ? m.mesh.position.y : m.mesh.position.y + h / 2;
+      return { kind: m.kind, min: top - h, max: top };
+    });
+  }
+
+  private glassMaterials(): Record<GlassMarkKind | 'reduced' | 'reducedStreak', THREE.MeshStandardMaterial> {
+    if (this.glassMats) return this.glassMats;
+    const blob = poolTexture();
+    const runs = streakTexture();
+    const mat = (color: number, alphaMap: THREE.Texture, opacity: number, roughness: number): THREE.MeshStandardMaterial =>
+      new THREE.MeshStandardMaterial({
+        color,
+        alphaMap,
+        transparent: true,
+        opacity,
+        depthWrite: false,
+        roughness,
+        metalness: 0,
+        side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4,
+      });
+    this.glassMats = {
+      // A sweaty, greasy palm smear: pale and faint, not blood.
+      print: mat(0xd8dcd6, blob, 0.2, 0.6),
+      splat: mat(0x5a0508, blob, 0.92, 0.15),
+      streak: mat(0x4a0407, runs, 0.95, 0.12),
+      reduced: mat(0x0a0808, blob, 0.85, 0.3),
+      reducedStreak: mat(0x0a0808, runs, 0.85, 0.3),
+    };
+    return this.glassMats;
+  }
+
+  /**
+   * A mark on a glass pane at `at`, facing along `normal` (toward the side it was made from). `size` is the mark's height
+   * (m); a streak is `size` long and runs down over `run` seconds from its top at `at`. With a `band`, the mark is moved
+   * clear of it so the player can still see through the glass there (infection-kills spec).
+   */
+  glassMark(at: THREE.Vector3, normal: THREE.Vector3, kind: GlassMarkKind, size: number, opts: { band?: ClearBand; run?: number; dark?: boolean } = {}): void {
+    const mats = this.glassMaterials();
+    const dark = opts.dark ?? this.mode === 'reduced';
+    let m = this.glassMarks.length < MAX_GLASS_MARKS ? undefined : this.glassMarks[this.glassCursor];
+    if (!m) {
+      const mesh = new THREE.Mesh(this.glassPlane, mats.splat);
+      mesh.renderOrder = 2;
+      this.group.add(mesh);
+      m = { mesh, kind, length: size, run: 0.2, age: 0 };
+      this.glassMarks.push(m);
+    } else {
+      this.glassCursor = (this.glassCursor + 1) % MAX_GLASS_MARKS;
+    }
+    m.kind = kind;
+    m.age = 0;
+    m.length = size;
+    m.run = kind === 'streak' ? Math.max(0.2, opts.run ?? 6) : 0.12;
+    m.mesh.geometry = kind === 'streak' ? this.streakPlane : this.glassPlane;
+    m.mesh.material = kind === 'print' ? mats.print : dark ? (kind === 'streak' ? mats.reducedStreak : mats.reduced) : kind === 'streak' ? mats.streak : mats.splat;
+    const width = kind === 'streak' ? size * 0.28 : kind === 'print' ? size * 0.8 : size;
+    let y = at.y;
+    if (kind === 'streak') {
+      // The whole run (top down to top - size) stays out of the band: start it below the band if it would cross.
+      if (opts.band && y - size < opts.band.max && y > opts.band.min) y = Math.min(y, opts.band.min - 0.01);
+    } else if (kind !== 'print') {
+      y = clearOfBand(y, size, opts.band);
+    }
+    m.mesh.position.set(at.x, y, at.z).addScaledVector(normal, 0.004);
+    m.mesh.lookAt(m.mesh.position.x + normal.x, m.mesh.position.y + normal.y, m.mesh.position.z + normal.z);
+    m.mesh.rotateZ(kind === 'streak' ? this.rng.range(-0.04, 0.04) : this.rng.range(0, Math.PI * 2));
+    m.mesh.scale.set(width, kind === 'streak' ? 0.001 : size, 1);
+    if (kind !== 'streak') m.mesh.scale.multiplyScalar(0.3);
+    m.mesh.userData['full'] = [width, size];
   }
 
   /**
@@ -289,6 +423,14 @@ export class GoreSystem {
     this.updateEmitters(dt);
     this.updateParticles(dt);
     this.updateChunks(dt);
+    for (const m of this.glassMarks) {
+      if (m.age >= m.run) continue;
+      m.age = Math.min(m.run, m.age + dt);
+      const k = m.age / m.run;
+      const [w, h] = (m.mesh.userData['full'] as [number, number] | undefined) ?? [1, 1];
+      if (m.kind === 'streak') m.mesh.scale.set(w, Math.max(0.001, h * (1 - (1 - k) ** 2)), 1);
+      else m.mesh.scale.set(w * (0.3 + 0.7 * k), h * (0.3 + 0.7 * k), 1);
+    }
     for (const p of this.pools) {
       if (p.grow >= 1) continue;
       p.grow = Math.min(1, p.grow + dt / 2.5);
@@ -305,6 +447,9 @@ export class GoreSystem {
     this.emitters.length = 0;
     for (const p of this.pools) p.mesh.removeFromParent();
     this.pools.length = 0;
+    for (const m of this.glassMarks) m.mesh.removeFromParent();
+    this.glassMarks.length = 0;
+    this.glassCursor = 0;
     this.poolCursor = 0;
     this.pPos.fill(-999);
     this.pLife.fill(0);

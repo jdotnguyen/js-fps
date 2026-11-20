@@ -79,7 +79,7 @@
      },
      {
       "do": "despawn",
-      "npc": "researcher_b"
+      "npc": "researcher_b_creature"
      },
      {
       "do": "spawnGroup",

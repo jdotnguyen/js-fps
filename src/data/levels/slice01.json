@@ -5,22 +5,22 @@
  "playerStart": {
   "room": "R01",
   "pos": [
-   6,
+   6.95,
    0,
-   2.6
+   4.3
   ],
-  "yaw": 0
+  "yaw": 2
  },
  "squadStart": {
   "engineer": [
-   -4.6,
+   0.65,
    0,
-   0.6
+   -4.55
   ],
   "medic": [
-   -4.6,
+   -0.65,
    0,
-   -0.6
+   -4.55
   ]
  },
  "rooms": [
@@ -29,8 +29,9 @@
    "name": "Docking Ring",
    "area": "dock",
    "atmosphere": {
-    "fog": "#070b0d",
-    "fogDensity": 0.028,
+    "fog": "#0a1014",
+    "fogDensity": 0.018,
+    "ambient": "dock",
     "reverb": "metal_hall",
     "ambience": "hull_hum"
    },
@@ -60,7 +61,10 @@
       2,
       0,
       0
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling_pipes",
@@ -76,7 +80,10 @@
       0,
       0,
       1
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling_pipes",
@@ -100,7 +107,10 @@
       3,
       0,
       1
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "floor",
@@ -148,14 +158,15 @@
      ]
     },
     {
-     "kit": "wall_panel",
+     "kit": "wall_plain",
      "cells": [
       [
        0,
        0,
        0
       ]
-     ]
+     ],
+     "rot": 90
     },
     {
      "kit": "wall_window",
@@ -175,7 +186,10 @@
        0,
        0
       ]
-     ]
+     ],
+     "params": {
+      "backdropDepth": 32
+     }
     },
     {
      "kit": "wall_panel",
@@ -236,13 +250,14 @@
     {
      "kit": "supply_sub",
      "pos": [
-      8,
+      5,
       0.4,
-      -7.2
+      -9
      ],
      "params": {
       "state": "away",
-      "dockTime": 10
+      "dockTime": 10,
+      "alignBow": true
      }
     },
     {
@@ -255,7 +270,21 @@
      "params": {
       "width": 3,
       "height": 1.08,
-      "material": "paintTeal"
+      "material": "cleanTeal"
+     }
+    },
+    {
+     "kit": "half_wall",
+     "pos": [
+      4.5,
+      0,
+      3.78
+     ],
+     "rot": 90,
+     "params": {
+      "width": 4.15,
+      "height": 1.08,
+      "material": "cleanTeal"
      }
     },
     {
@@ -270,25 +299,99 @@
      }
     },
     {
-     "kit": "security_monitor",
+     "kit": "office_desk",
      "pos": [
-      6,
+      6.95,
       0,
-      5.3
+      5.1
+     ],
+     "params": {
+      "width": 1.8,
+      "monitor": false,
+      "keyboards": 2,
+      "papers": 2,
+      "top": "panel"
+     }
+    },
+    {
+     "kit": "cctv_wall",
+     "pos": [
+      6.95,
+      0,
+      5.69
      ],
      "params": {
       "id": "dock_post",
-      "camera": "CAM 02  DOCK AIRLOCK"
+      "camera": "CAM 02  DOCK AIRLOCK",
+      "width": 1.84
      }
     },
     {
      "kit": "chair",
      "pos": [
-      6,
+      5.45,
       0,
-      4.35
+      4.55
      ],
-     "rot": 180
+     "rot": 150
+    },
+    {
+     "kit": "metal_detector",
+     "pos": [
+      7.68,
+      0,
+      1.17
+     ],
+     "rot": 90,
+     "params": {
+      "id": "dock_arch",
+      "opening": 1.2
+     }
+    },
+    {
+     "kit": "rail",
+     "pos": [
+      7.68,
+      0,
+      0.26
+     ],
+     "rot": 90,
+     "params": {
+      "length": 0.3
+     }
+    },
+    {
+     "kit": "staff_gate",
+     "pos": [
+      7.68,
+      0,
+      -0.49
+     ],
+     "rot": 90,
+     "params": {
+      "width": 1.2
+     }
+    },
+    {
+     "kit": "rail",
+     "pos": [
+      7.68,
+      0,
+      -1.48
+     ],
+     "rot": 90,
+     "params": {
+      "length": 0.76
+     }
+    },
+    {
+     "kit": "tray_table",
+     "pos": [
+      7,
+      0,
+      0.12
+     ],
+     "rot": 90
     },
     {
      "kit": "tag_poster",
@@ -389,43 +492,103 @@
       "count": 2,
       "label": "DOCK SEC"
      }
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      -1.74,
+      0,
+      -1
+     ],
+     "rot": 270,
+     "params": {
+      "id": "pa_dock",
+      "serves": "R01a"
+     }
     }
    ],
    "lights": [
     {
+     "slot": 0,
+     "pattern": "steady",
+     "color": "#cfe8ff",
+     "intensity": 13,
+     "range": 12,
+     "shaft": 0.045,
+     "emissive": 2.6
+    },
+    {
      "slot": 1,
      "pattern": "steady",
-     "color": "#dcefff"
+     "color": "#d8eeff",
+     "intensity": 12,
+     "range": 12,
+     "shaft": 0.04,
+     "emissive": 2.6
+    },
+    {
+     "slot": 2,
+     "pattern": "steady",
+     "color": "#cfe8ff",
+     "intensity": 13,
+     "range": 12,
+     "shaft": 0.04,
+     "emissive": 2.6
     },
     {
      "slot": 3,
      "pattern": "steady",
-     "color": "#dcefff"
+     "color": "#ffddb3",
+     "intensity": 15,
+     "range": 12,
+     "drop": 0.45,
+     "shaft": 0.025,
+     "emissive": 2.8
     },
     {
-     "slot": 5,
+     "slot": 4,
      "pattern": "steady",
-     "color": "#ffe2bf"
-    },
+     "color": "#ffe8cc",
+     "intensity": 13,
+     "range": 12,
+     "shaft": 0.02,
+     "emissive": 2.5
+    }
+   ],
+   "triggers": [
     {
-     "slot": 6,
-     "pattern": "steady"
+     "id": "trig_dock_arch",
+     "box": [
+      [
+       7.42,
+       0,
+       0.6
+      ],
+      [
+       7.93,
+       2.2,
+       1.74
+      ]
+     ],
+     "on": "enter",
+     "emit": "trigger:dock_arch",
+     "once": false
     }
    ],
    "anchors": [
     {
      "id": "post_front",
      "pos": [
-      6,
+      6.95,
       0,
-      2.6
+      4.3
      ],
-     "yaw": 0
+     "yaw": 2
     },
     {
      "id": "dock_window",
      "pos": [
-      8,
+      5.8,
       1.5,
       -2.2
      ]
@@ -433,46 +596,81 @@
     {
      "id": "dock_door",
      "pos": [
-      -2,
+      0,
       1.2,
-      0
+      -2
      ]
     },
     {
      "id": "walkby_stop",
      "pos": [
-      4.4,
+      6,
       0,
-      1
+      1.15
      ],
-     "yaw": 225
+     "yaw": 180
     },
     {
      "id": "walkby_queue",
      "pos": [
-      3.4,
+      4.7,
       0,
-      0.2
+      0.45
      ],
-     "yaw": 225
+     "yaw": 241.7
+    },
+    {
+     "id": "arch",
+     "pos": [
+      7.68,
+      1.6,
+      1.17
+     ]
+    },
+    {
+     "id": "arch_scan",
+     "pos": [
+      8.6,
+      0,
+      1.25
+     ],
+     "yaw": 270
+    },
+    {
+     "id": "guard_post",
+     "pos": [
+      9.75,
+      0,
+      1.25
+     ],
+     "yaw": 90
+    },
+    {
+     "id": "arch_exit",
+     "pos": [
+      10.6,
+      0,
+      -0.3
+     ],
+     "yaw": 270
     },
     {
      "id": "post_okafor",
      "pos": [
-      5.3,
+      8.2,
       0,
-      0.9
+      2.9
      ],
-     "yaw": 202.38
+     "yaw": 138.24
     },
     {
      "id": "post_giles",
      "pos": [
-      6.9,
+      9.6,
       0,
-      1
+      3.4
      ],
-     "yaw": 150.64
+     "yaw": 108.76
     },
     {
      "id": "walk_mid",
@@ -486,21 +684,47 @@
     {
      "id": "sub_dock",
      "pos": [
-      8,
+      5,
       0.4,
-      -7.2
+      -9
      ]
     }
    ],
+   "npcs": [
+    {
+     "id": "dock_guard",
+     "look": "security",
+     "at": "guard_post",
+     "model": "guard1",
+     "pose": "idle_wand"
+    }
+   ],
    "walks": [
+    {
+     "id": "checkpoint_exit",
+     "points": [
+      "arch_scan",
+      [
+       9,
+       0,
+       0.35
+      ],
+      "arch_exit"
+     ]
+    },
     {
      "id": "intro_jay_kitchen",
      "points": [
       "post_front",
       [
-       7.9,
+       7.85,
        0,
-       3
+       3.5
+      ],
+      [
+       10.8,
+       0,
+       2.7
       ],
       [
        14.3,
@@ -528,20 +752,30 @@
     {
      "id": "intro_okafor_arrive",
      "points": [
-      "dock_door",
-      "post_okafor"
+      "okafor_start",
+      [
+       0.35,
+       0,
+       -0.95
+      ],
+      "walkby_stop"
      ]
     },
     {
      "id": "intro_giles_arrive",
      "points": [
-      "dock_door",
+      "giles_start",
       [
-       6.1,
+       0.05,
        0,
-       0.5
+       -2.85
       ],
-      "post_giles"
+      [
+       0.25,
+       0,
+       -1.05
+      ],
+      "walkby_queue"
      ]
     },
     {
@@ -549,34 +783,44 @@
      "points": [
       "post_okafor",
       [
-       7,
+       10.6,
        0,
-       0.3
+       2.5
       ],
       [
-       14.3,
+       14.2,
        0,
-       0
+       0.05
       ],
       [
-       22.1,
+       21.6,
        0,
-       0.3
+       0.05
+      ],
+      [
+       22.9,
+       0,
+       1.05
       ],
       [
        24,
        0,
-       3.2
+       3.25
       ],
       [
-       24,
+       24.2,
        0,
-       10.5
+       10.85
       ],
       [
-       25.1,
+       25.8,
        0,
-       11.6
+       11.95
+      ],
+      [
+       27,
+       0,
+       11.95
       ],
       "counter_okafor"
      ]
@@ -586,7 +830,7 @@
      "points": [
       "post_giles",
       [
-       11,
+       14.5,
        0,
        -0.75
       ],
@@ -613,7 +857,17 @@
       [
        26,
        0,
-       12.05
+       12.2
+      ],
+      [
+       27.7,
+       0,
+       12.35
+      ],
+      [
+       28.45,
+       0,
+       11.85
       ],
       "counter_giles"
      ]
@@ -625,8 +879,9 @@
    "name": "Docking Ring Walk",
    "area": "dock",
    "atmosphere": {
-    "fog": "#070b0d",
-    "fogDensity": 0.028,
+    "fog": "#0a1014",
+    "fogDensity": 0.018,
+    "ambient": "dock",
     "reverb": "metal_corridor",
     "ambience": "hull_hum"
    },
@@ -648,7 +903,10 @@
       5,
       0,
       0
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -664,7 +922,10 @@
       6,
       0,
       1
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -738,7 +999,10 @@
        0,
        0
       ]
-     ]
+     ],
+     "params": {
+      "backdropDepth": 32
+     }
     },
     {
      "kit": "wall_panel",
@@ -776,6 +1040,9 @@
        1
       ]
      ],
+     "params": {
+      "backdropDepth": 7
+     },
      "rot": 270
     },
     {
@@ -814,21 +1081,46 @@
       "height": 0.35,
       "paint": "teal"
      }
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      20.9,
+      0,
+      1.74
+     ],
+     "params": {
+      "id": "pa_walk"
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#cfe6ff"
+     "color": "#d4ebff",
+     "intensity": 12,
+     "range": 12,
+     "shaft": 0.035,
+     "emissive": 2.6
+    },
+    {
+     "slot": 1,
+     "pattern": "steady",
+     "color": "#d4ebff",
+     "intensity": 12,
+     "range": 12,
+     "shaft": 0.035,
+     "emissive": 2.6
     },
     {
      "slot": 2,
-     "pattern": "steady"
-    },
-    {
-     "slot": 4,
-     "pattern": "steady"
+     "pattern": "steady",
+     "color": "#ffe4c4",
+     "intensity": 13,
+     "range": 12,
+     "shaft": 0.025,
+     "emissive": 2.6
     }
    ],
    "triggers": [
@@ -907,13 +1199,17 @@
     "fogDensity": 0.028,
     "reverb": "small_office"
    },
+   "visibleFrom": [
+    "R01",
+    "R01w"
+   ],
    "pieces": [
     {
      "kit": "ceiling",
      "cell": [
-      -1,
       0,
-      0
+      0,
+      -1
      ],
      "params": {
       "material": "boltPanel"
@@ -923,9 +1219,9 @@
      "kit": "floor",
      "cells": [
       [
-       -1,
        0,
-       0
+       0,
+       -1
       ]
      ]
     },
@@ -933,9 +1229,9 @@
      "kit": "wall_plain",
      "cells": [
       [
-       -1,
        0,
-       0
+       0,
+       -1
       ]
      ]
     },
@@ -943,20 +1239,20 @@
      "kit": "wall_plain",
      "cells": [
       [
-       -1,
        0,
-       0
+       0,
+       -1
       ]
      ],
-     "rot": 180
+     "rot": 270
     },
     {
      "kit": "wall_vent",
      "cells": [
       [
-       -1,
        0,
-       0
+       0,
+       -1
       ]
      ],
      "rot": 90
@@ -966,9 +1262,9 @@
     {
      "kit": "locker",
      "pos": [
-      -4,
       0,
-      -1.4
+      0,
+      -5.5
      ],
      "rot": 180,
      "params": {
@@ -989,38 +1285,38 @@
     {
      "id": "giles_start",
      "pos": [
-      -4.6,
+      0.65,
       0,
-      0.6
+      -4.55
      ],
-     "yaw": 270
+     "yaw": 180
     },
     {
      "id": "okafor_start",
      "pos": [
-      -4.6,
+      -0.65,
       0,
-      -0.6
+      -4.55
      ],
-     "yaw": 270
+     "yaw": 180
     },
     {
      "id": "ruiz_start",
      "pos": [
-      -3.4,
+      0.75,
       0,
-      0.9
+      -3.25
      ],
-     "yaw": 270
+     "yaw": 180
     },
     {
      "id": "sung_start",
      "pos": [
-      -3.4,
+      -0.75,
       0,
-      -0.9
+      -3.25
      ],
-     "yaw": 270
+     "yaw": 180
     }
    ],
    "npcs": [
@@ -1052,8 +1348,9 @@
    "area": "commons",
    "height": 4,
    "atmosphere": {
-    "fog": "#0a0c0d",
-    "fogDensity": 0.02,
+    "fog": "#121312",
+    "fogDensity": 0.012,
+    "ambient": "commons",
     "reverb": "metal_hall",
     "ambience": "commons_murmur"
    },
@@ -1064,7 +1361,10 @@
       4,
       0,
       3
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -1080,7 +1380,10 @@
       6,
       0,
       3
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -1104,7 +1407,10 @@
       4,
       0,
       4
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -1120,7 +1426,10 @@
       6,
       0,
       4
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -1136,7 +1445,10 @@
       8,
       0,
       4
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -1152,7 +1464,10 @@
       5,
       0,
       5
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -1160,7 +1475,10 @@
       6,
       0,
       5
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -1168,7 +1486,10 @@
       7,
       0,
       5
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -1176,7 +1497,10 @@
       8,
       0,
       5
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -1184,7 +1508,10 @@
       4,
       0,
       6
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -1200,7 +1527,10 @@
       6,
       0,
       6
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -1216,7 +1546,10 @@
       8,
       0,
       6
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "floor",
@@ -1917,7 +2250,8 @@
      "params": {
       "id": "commons_tv",
       "width": 2.2,
-      "state": "off"
+      "channel": "commons",
+      "state": "on"
      }
     },
     {
@@ -2003,57 +2337,100 @@
      "params": {
       "area": "COMMONS"
      }
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      29,
+      0,
+      10.26
+     ],
+     "rot": 180,
+     "params": {
+      "id": "pa_commons"
+     }
     }
    ],
    "lights": [
     {
+     "slot": 0,
+     "pattern": "steady",
+     "color": "#fff0da",
+     "intensity": 16,
+     "range": 14,
+     "drop": 0.4,
+     "shaft": 0.015,
+     "emissive": 2.6
+    },
+    {
+     "slot": 1,
+     "pattern": "steady",
+     "color": "#fff4e4",
+     "intensity": 18,
+     "range": 13,
+     "drop": 0.35,
+     "shaft": 0.01,
+     "emissive": 2.8
+    },
+    {
+     "slot": 2,
+     "pattern": "steady",
+     "color": "#ffe4bd",
+     "intensity": 16,
+     "range": 12,
+     "drop": 0.55,
+     "shaft": 0.01,
+     "emissive": 2.6
+    },
+    {
      "slot": 3,
      "pattern": "steady",
-     "color": "#ffe6c8",
-     "intensity": 15,
-     "range": 12
+     "color": "#ffe0b2",
+     "intensity": 17,
+     "range": 13,
+     "drop": 1.25,
+     "shaft": 0.012,
+     "emissive": 2.2
     },
     {
      "slot": 4,
      "pattern": "steady",
-     "color": "#ffdcb4",
-     "intensity": 14,
-     "range": 12
+     "color": "#ffe2b8",
+     "intensity": 17,
+     "range": 13,
+     "drop": 1.25,
+     "shaft": 0.012,
+     "emissive": 2.2
+    },
+    {
+     "slot": 5,
+     "pattern": "steady",
+     "color": "#ffe4bc",
+     "intensity": 15,
+     "range": 13,
+     "drop": 1,
+     "shaft": 0.01,
+     "emissive": 2.2
     },
     {
      "slot": 6,
      "pattern": "steady",
-     "color": "#fff1dc",
-     "intensity": 14,
-     "range": 12
-    },
-    {
-     "slot": 8,
-     "pattern": "steady",
-     "color": "#fff1dc",
-     "intensity": 14,
-     "range": 12
-    },
-    {
-     "slot": 11,
-     "pattern": "steady",
-     "color": "#ffe6c8",
-     "intensity": 13,
-     "range": 12
-    },
-    {
-     "slot": 15,
-     "pattern": "steady",
-     "color": "#ffd6a8",
-     "intensity": 13,
-     "range": 11
-    },
-    {
-     "slot": 18,
-     "pattern": "steady",
-     "color": "#ffcf9a",
+     "color": "#ffd096",
      "intensity": 15,
-     "range": 11
+     "range": 12,
+     "drop": 1.35,
+     "shaft": 0.01,
+     "emissive": 2
+    },
+    {
+     "slot": 7,
+     "pattern": "steady",
+     "color": "#ffcca0",
+     "intensity": 16,
+     "range": 13,
+     "drop": 1.1,
+     "shaft": 0.01,
+     "emissive": 2.2
     }
    ],
    "triggers": [
@@ -2196,20 +2573,47 @@
     {
      "id": "counter_okafor",
      "pos": [
-      27.4,
+      27.65,
       0,
-      12.3
+      11.27
      ],
-     "yaw": 10
+     "yaw": 200
     },
     {
      "id": "counter_giles",
      "pos": [
-      28.6,
+      28.65,
       0,
-      12.5
+      11.27
      ],
-     "yaw": 350
+     "yaw": 160
+    },
+    {
+     "id": "cook_coffee",
+     "pos": [
+      26.75,
+      0,
+      11.32
+     ],
+     "yaw": 0
+    },
+    {
+     "id": "cook_turn_okafor",
+     "pos": [
+      26.75,
+      0,
+      11.32
+     ],
+     "yaw": 270
+    },
+    {
+     "id": "cook_serve_giles",
+     "pos": [
+      29.3,
+      0,
+      11.85
+     ],
+     "yaw": 48.26
     },
     {
      "id": "kitchen_stand",
@@ -2333,18 +2737,32 @@
       0,
       15.6
      ],
+     "model": "scientist1",
      "pose": "idle_mug"
     },
     {
      "id": "crew_2",
      "look": "lab",
      "at": [
-      18.4,
+      18.7,
       0,
-      24.2
+      24.8
      ],
-     "yaw": 180,
-     "pose": "idle_weight"
+     "spot": "sit_stool",
+     "chat": "commons_bar",
+     "model": "scientist1"
+    },
+    {
+     "id": "bar_1",
+     "look": "crew",
+     "at": [
+      19.4,
+      0,
+      24.8
+     ],
+     "spot": "sit_stool",
+     "chat": "commons_bar",
+     "model": "office2"
     },
     {
      "id": "crew_3",
@@ -2352,10 +2770,126 @@
      "at": [
       29.9,
       0,
-      25
+      22.6
      ],
-     "yaw": 180,
-     "pose": "idle_crossed"
+     "spot": "sit_sofa",
+     "model": "office1"
+    },
+    {
+     "id": "diner_1",
+     "look": "crew",
+     "at": [
+      20.1,
+      0,
+      17.8
+     ],
+     "spot": "sit_chair",
+     "chat": "commons_t17",
+     "model": "botanist2"
+    },
+    {
+     "id": "diner_3",
+     "look": "crew",
+     "at": [
+      20.9,
+      0,
+      19.4
+     ],
+     "spot": "sit_chair",
+     "chat": "commons_t17",
+     "model": "assistant"
+    },
+    {
+     "id": "diner_7",
+     "look": "crew",
+     "at": [
+      21.7,
+      0,
+      17.8
+     ],
+     "spot": "sit_chair",
+     "chat": "commons_t17",
+     "model": "office1"
+    },
+    {
+     "id": "diner_6",
+     "look": "crew",
+     "at": [
+      16.5,
+      0,
+      22.6
+     ],
+     "spot": "sit_chair",
+     "chat": "commons_t19",
+     "model": "botanist3"
+    },
+    {
+     "id": "diner_2",
+     "look": "lab",
+     "at": [
+      17.2,
+      0,
+      21
+     ],
+     "spot": "sit_chair",
+     "chat": "commons_t19",
+     "model": "office3"
+    },
+    {
+     "id": "tea_1",
+     "look": "lab",
+     "at": [
+      30.9,
+      0,
+      17.7
+     ],
+     "spot": "sit_chair",
+     "model": "botanist1"
+    },
+    {
+     "id": "wall_1",
+     "look": "crew",
+     "at": [
+      14.7,
+      0,
+      22.6
+     ],
+     "spot": "lean_wall",
+     "yaw": 270,
+     "chat": "commons_wall",
+     "model": "office3"
+    },
+    {
+     "id": "chat_5",
+     "look": "engineer",
+     "at": [
+      15.55,
+      0,
+      22.75
+     ],
+     "yaw": 90,
+     "chat": "commons_wall",
+     "model": "botanist1",
+     "pose": "idle"
+    }
+   ],
+   "walks": [
+    {
+     "id": "cook_to_giles",
+     "points": [
+      "cook_turn_okafor",
+      [
+       27.35,
+       0,
+       12.3
+      ],
+      [
+       28.6,
+       0,
+       12.35
+      ],
+      "cook_serve_giles"
+     ]
     }
    ]
   },
@@ -2724,28 +3258,44 @@
       "spacing": 0.9,
       "slots": true
      }
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      5,
+      0,
+      14.26
+     ],
+     "rot": 180,
+     "params": {
+      "id": "pa_gallery"
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#eef1f4"
+     "color": "#eef1f4",
+     "pool": false
     },
     {
      "slot": 2,
      "pattern": "steady",
-     "color": "#eef1f4"
+     "color": "#eef1f4",
+     "pool": false
     },
     {
      "slot": 3,
      "pattern": "steady",
-     "color": "#eef1f4"
+     "color": "#eef1f4",
+     "pool": false
     },
     {
      "slot": 5,
      "pattern": "steady",
-     "color": "#eef1f4"
+     "color": "#eef1f4",
+     "pool": false
     },
     {
      "slot": 1,
@@ -2778,7 +3328,8 @@
     {
      "slot": 8,
      "pattern": "steady",
-     "color": "#ffcf99"
+     "color": "#ffcf99",
+     "pool": false
     }
    ],
    "triggers": [
@@ -3226,7 +3777,7 @@
    "npcs": [
     {
      "id": "researcher_b",
-     "look": "lab",
+     "look": "voss",
      "at": "labb_victim",
      "transformable": true,
      "pose": "typing"
@@ -3500,13 +4051,15 @@
      "pos": [
       8,
       0,
-      26.5
+      22.51
      ],
      "kind": "door",
      "group": "r05_contact",
      "active": false,
-     "yaw": 90,
-     "outfit": "lab"
+     "yaw": 180,
+     "outfit": "lab",
+     "infection": 1,
+     "model": "necromorph"
     },
     {
      "id": "r05_vent",
@@ -6391,8 +6944,9 @@
    "name": "Hydroponics Vestibule",
    "area": "hydroponics",
    "atmosphere": {
-    "fog": "#0a1a10",
-    "fogDensity": 0.045,
+    "fog": "#141e1b",
+    "fogDensity": 0.016,
+    "ambient": "hydro",
     "reverb": "small_office",
     "ambience": "hydro_misters"
    },
@@ -6403,7 +6957,10 @@
       9,
       0,
       5
-     ]
+     ],
+     "params": {
+      "material": "officeCeiling"
+     }
     },
     {
      "kit": "floor_tiles",
@@ -6441,7 +6998,7 @@
     {
      "kit": "map_station",
      "pos": [
-      36,
+      35.55,
       0,
       18.31
      ],
@@ -6451,40 +7008,48 @@
      }
     },
     {
-     "kit": "potted_plant",
+     "kit": "bio_wash_station",
      "pos": [
-      37,
+      37.05,
       0,
-      22.6
+      18.52
      ],
-     "params": {
-      "kind": "fern",
-      "pot": "white"
-     }
-    },
-    {
-     "kit": "potted_plant",
-     "pos": [
-      38.6,
-      0,
-      22.4
-     ],
-     "params": {
-      "kind": "succulent",
-      "pot": "clay"
-     }
+     "rot": 180
     },
     {
      "kit": "locker",
      "pos": [
-      34.6,
+      34.65,
       0,
-      18.6
+      18.58
      ],
-     "rot": 270,
+     "rot": 180,
      "params": {
       "count": 1,
       "label": "HYDRO"
+     }
+    },
+    {
+     "kit": "coat_rack",
+     "pos": [
+      36,
+      0,
+      21.48
+     ],
+     "params": {
+      "width": 1.6
+     }
+    },
+    {
+     "kit": "boot_wash_mat",
+     "pos": [
+      36,
+      0,
+      20
+     ],
+     "params": {
+      "width": 1.6,
+      "depth": 1.2
      }
     }
    ],
@@ -6492,8 +7057,10 @@
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#e0ffe0",
-     "intensity": 8
+     "color": "#f0f7f4",
+     "intensity": 11,
+     "range": 10,
+     "shaft": 0.02
     }
    ],
    "triggers": [
@@ -6520,7 +7087,7 @@
     {
      "id": "hydro_entry",
      "pos": [
-      36.4,
+      36,
       0,
       20
      ],
@@ -6534,8 +7101,9 @@
    "area": "hydroponics",
    "height": 4.5,
    "atmosphere": {
-    "fog": "#0a1a10",
-    "fogDensity": 0.05,
+    "fog": "#141e1b",
+    "fogDensity": 0.018,
+    "ambient": "hydro",
     "reverb": "metal_hall",
     "ambience": "hydro_misters"
    },
@@ -6546,7 +7114,10 @@
       10,
       0,
       4
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling_pipes",
@@ -6562,7 +7133,10 @@
       12,
       0,
       4
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling_pipes",
@@ -6578,7 +7152,10 @@
       11,
       0,
       5
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling_pipes",
@@ -6594,7 +7171,10 @@
       10,
       0,
       6
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling_pipes",
@@ -6610,7 +7190,10 @@
       12,
       0,
       6
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "floor_grate",
@@ -6621,11 +7204,6 @@
        4
       ],
       [
-       11,
-       0,
-       4
-      ],
-      [
        12,
        0,
        4
@@ -6636,22 +7214,12 @@
        5
       ],
       [
-       11,
-       0,
-       5
-      ],
-      [
        12,
        0,
        5
       ],
       [
        10,
-       0,
-       6
-      ],
-      [
-       11,
        0,
        6
       ],
@@ -6663,7 +7231,7 @@
      ]
     },
     {
-     "kit": "wall_greenhouse",
+     "kit": "wall_panel",
      "cells": [
       [
        10,
@@ -6678,7 +7246,7 @@
      ]
     },
     {
-     "kit": "wall_panel",
+     "kit": "wall_plain",
      "cells": [
       [
        10,
@@ -6694,7 +7262,27 @@
      "rot": 90
     },
     {
-     "kit": "wall_panel",
+     "kit": "floor_tiles",
+     "cells": [
+      [
+       11,
+       0,
+       4
+      ],
+      [
+       11,
+       0,
+       5
+      ],
+      [
+       11,
+       0,
+       6
+      ]
+     ]
+    },
+    {
+     "kit": "wall_plain",
      "cells": [
       [
        11,
@@ -6704,7 +7292,7 @@
      ]
     },
     {
-     "kit": "wall_greenhouse",
+     "kit": "wall_glass_partition",
      "cells": [
       [
        12,
@@ -6715,7 +7303,7 @@
      "rot": 270
     },
     {
-     "kit": "wall_greenhouse",
+     "kit": "wall_panel",
      "cells": [
       [
        11,
@@ -6726,7 +7314,7 @@
      "rot": 180
     },
     {
-     "kit": "wall_panel",
+     "kit": "wall_window",
      "cells": [
       [
        12,
@@ -6734,6 +7322,9 @@
        6
       ]
      ],
+     "params": {
+      "backdropDepth": 22
+     },
      "rot": 270
     }
    ],
@@ -6741,98 +7332,117 @@
     {
      "kit": "plant_rack",
      "pos": [
-      42.4,
+      41.2,
       0,
       17.6
      ],
      "params": {
-      "length": 3.2,
+      "length": 3,
       "tiers": 3,
-      "light": "magenta"
+      "light": "magenta",
+      "crop": "tomatoes"
      }
     },
     {
      "kit": "plant_rack",
      "pos": [
-      47.2,
+      46.8,
       0,
       17.6
      ],
      "params": {
-      "length": 3.2,
+      "length": 3,
       "tiers": 3,
-      "light": "magenta"
+      "light": "magenta",
+      "crop": "tomatoes"
      }
     },
     {
      "kit": "plant_rack",
      "pos": [
-      42.4,
-      0,
-      20
-     ],
-     "params": {
-      "length": 3.2,
-      "tiers": 3,
-      "light": "white"
-     }
-    },
-    {
-     "kit": "plant_rack",
-     "pos": [
-      47.2,
-      0,
-      20
-     ],
-     "params": {
-      "length": 3.2,
-      "tiers": 3,
-      "light": "magenta"
-     }
-    },
-    {
-     "kit": "plant_rack",
-     "pos": [
-      42.4,
+      41.2,
       0,
       22.4
      ],
      "params": {
-      "length": 3.2,
+      "length": 3,
       "tiers": 3,
-      "light": "white"
+      "light": "white",
+      "crop": "greens"
      }
     },
     {
      "kit": "plant_rack",
      "pos": [
-      47.2,
+      46.8,
       0,
       22.4
      ],
      "params": {
-      "length": 3.2,
+      "length": 3,
       "tiers": 3,
-      "light": "magenta"
+      "light": "magenta",
+      "crop": "herbs"
      }
     },
     {
      "kit": "plant_rack",
      "pos": [
-      43.6,
+      44,
       0,
-      24.6
+      24.4
      ],
      "params": {
-      "length": 2.4,
-      "tiers": 2,
-      "light": "white"
+      "length": 2.6,
+      "tiers": 3,
+      "light": "white",
+      "crop": "greens"
      }
+    },
+    {
+     "kit": "hydro_trough",
+     "pos": [
+      40.6,
+      0,
+      14.95
+     ],
+     "params": {
+      "length": 2.6
+     }
+    },
+    {
+     "kit": "hydro_trough",
+     "pos": [
+      47.4,
+      0,
+      14.95
+     ],
+     "params": {
+      "length": 2.6
+     }
+    },
+    {
+     "kit": "hydro_workstation",
+     "pos": [
+      44,
+      0,
+      14.8
+     ],
+     "rot": 180
+    },
+    {
+     "kit": "harvest_cart",
+     "pos": [
+      48.9,
+      0,
+      20.6
+     ],
+     "rot": 90
     },
     {
      "kit": "mister",
      "pos": [
-      45,
+      44,
       0,
       16.4
      ],
@@ -6844,7 +7454,7 @@
     {
      "kit": "mister",
      "pos": [
-      45,
+      44,
       0,
       18.8
      ],
@@ -6856,7 +7466,7 @@
     {
      "kit": "mister",
      "pos": [
-      45,
+      44,
       0,
       21.2
      ],
@@ -6868,7 +7478,7 @@
     {
      "kit": "mister",
      "pos": [
-      45,
+      44,
       0,
       23.6
      ],
@@ -6878,124 +7488,51 @@
      }
     },
     {
-     "kit": "mister",
+     "kit": "pa_speaker",
      "pos": [
-      45,
+      38.26,
       0,
-      25.6
+      17
      ],
+     "rot": 270,
      "params": {
-      "length": 8,
-      "period": 9
-     }
-    },
-    {
-     "kit": "hanging_plant",
-     "pos": [
-      40.4,
-      0,
-      15
-     ],
-     "params": {
-      "drop": 1.1
-     }
-    },
-    {
-     "kit": "hanging_plant",
-     "pos": [
-      49.6,
-      0,
-      15.2
-     ],
-     "params": {
-      "drop": 1.1
-     }
-    },
-    {
-     "kit": "hanging_plant",
-     "pos": [
-      40.4,
-      0,
-      26
-     ],
-     "params": {
-      "drop": 1.1
-     }
-    },
-    {
-     "kit": "hanging_plant",
-     "pos": [
-      49.6,
-      0,
-      26
-     ],
-     "params": {
-      "drop": 1.1
-     }
-    },
-    {
-     "kit": "console",
-     "pos": [
-      45,
-      0,
-      14.8
-     ],
-     "rot": 180,
-     "params": {
-      "screen": "status"
-     }
-    },
-    {
-     "kit": "potted_plant",
-     "pos": [
-      39.2,
-      0,
-      14.6
-     ],
-     "params": {
-      "kind": "palm",
-      "pot": "clay",
-      "size": 1.3
-     }
-    },
-    {
-     "kit": "potted_plant",
-     "pos": [
-      50.6,
-      0,
-      22
-     ],
-     "params": {
-      "kind": "tall",
-      "pot": "dark",
-      "size": 1.2
+      "id": "pa_grow",
+      "serves": "R12a"
      }
     }
    ],
    "lights": [
     {
+     "slot": 0,
+     "pattern": "steady",
+     "color": "#f0f7f2",
+     "intensity": 13,
+     "range": 12,
+     "shaft": 0.03
+    },
+    {
      "slot": 1,
      "pattern": "steady",
-     "color": "#d8ffd0",
-     "intensity": 10
+     "color": "#edf5ff",
+     "intensity": 12,
+     "range": 12,
+     "shaft": 0.025
+    },
+    {
+     "slot": 2,
+     "pattern": "steady",
+     "color": "#edf5ff",
+     "intensity": 12,
+     "range": 12,
+     "shaft": 0.025
     },
     {
      "slot": 3,
      "pattern": "steady",
-     "color": "#d8ffd0",
-     "intensity": 9
-    },
-    {
-     "slot": 5,
-     "pattern": "steady",
-     "color": "#d8ffd0",
-     "intensity": 9
-    },
-    {
-     "slot": 7,
-     "pattern": "steady",
-     "color": "#e8ffe0",
-     "intensity": 10
+     "color": "#f2f8f4",
+     "intensity": 13,
+     "range": 12,
+     "shaft": 0.03
     }
    ],
    "triggers": [
@@ -7003,14 +7540,14 @@
      "id": "trig_hydro_log",
      "box": [
       [
-       44.2,
+       43.15,
        0,
-       15
+       14.85
       ],
       [
-       45.8,
+       44.85,
        2,
-       16.6
+       16.55
       ]
      ],
      "on": "use",
@@ -7022,7 +7559,7 @@
     {
      "id": "hydro_log",
      "pos": [
-      45,
+      44,
       1.2,
       14.8
      ]
@@ -7030,29 +7567,29 @@
     {
      "id": "cp_round_hydro",
      "pos": [
-      45,
+      44,
       0,
-      18
+      19.8
      ],
      "yaw": 180
     },
     {
      "id": "botanist_1_spot",
      "pos": [
-      45,
+      43.8,
       0,
-      17.9
+      17.8
      ],
-     "yaw": 180
+     "yaw": 90
     },
     {
      "id": "botanist_2_spot",
      "pos": [
-      45,
+      44.2,
       0,
-      23.1
+      22.4
      ],
-     "yaw": 90
+     "yaw": 270
     }
    ],
    "npcs": [
@@ -7075,11 +7612,15 @@
    "name": "Seed Lab",
    "area": "hydroponics",
    "atmosphere": {
-    "fog": "#0a1a10",
-    "fogDensity": 0.045,
+    "fog": "#141e1b",
+    "fogDensity": 0.016,
+    "ambient": "hydro",
     "reverb": "small_office",
     "ambience": "hydro_misters"
    },
+   "visibleFrom": [
+    "R12b"
+   ],
    "pieces": [
     {
      "kit": "ceiling",
@@ -7087,7 +7628,10 @@
       13,
       0,
       4
-     ]
+     ],
+     "params": {
+      "material": "officeCeiling"
+     }
     },
     {
      "kit": "ceiling",
@@ -7095,7 +7639,10 @@
       13,
       0,
       5
-     ]
+     ],
+     "params": {
+      "material": "officeCeiling"
+     }
     },
     {
      "kit": "floor_tiles",
@@ -7113,7 +7660,7 @@
      ]
     },
     {
-     "kit": "wall_greenhouse",
+     "kit": "wall_tiles",
      "cells": [
       [
        13,
@@ -7123,7 +7670,7 @@
      ]
     },
     {
-     "kit": "wall_tiles",
+     "kit": "wall_window",
      "cells": [
       [
        13,
@@ -7131,10 +7678,13 @@
        4
       ]
      ],
+     "params": {
+      "backdropDepth": 22
+     },
      "rot": 270
     },
     {
-     "kit": "wall_greenhouse",
+     "kit": "wall_tiles",
      "cells": [
       [
        13,
@@ -7145,7 +7695,7 @@
      "rot": 270
     },
     {
-     "kit": "wall_greenhouse",
+     "kit": "wall_tiles",
      "cells": [
       [
        13,
@@ -7154,85 +7704,61 @@
       ]
      ],
      "rot": 180
-    },
-    {
-     "kit": "wall_greenhouse",
-     "cells": [
-      [
-       13,
-       0,
-       5
-      ]
-     ],
-     "rot": 90
     }
    ],
    "props": [
     {
-     "kit": "lab_bench",
+     "kit": "germination_cabinet",
      "pos": [
-      53.4,
+      52,
       0,
-      17.2
+      14.68
      ],
-     "rot": 270,
-     "params": {
-      "width": 3.2
-     }
-    },
-    {
-     "kit": "storage_shelf",
-     "pos": [
-      51.6,
-      0,
-      22.8
-     ],
+     "rot": 180,
      "params": {
       "width": 1.8
      }
     },
     {
-     "kit": "potted_plant",
+     "kit": "lab_bench",
      "pos": [
-      50.6,
+      53.32,
       0,
-      14.6
+      19.5
      ],
+     "rot": 270,
      "params": {
-      "kind": "succulent"
+      "width": 2.6
      }
     },
     {
-     "kit": "potted_plant",
+     "kit": "seed_vault",
      "pos": [
-      53.4,
+      52.2,
       0,
-      14.6
+      21.38
      ],
      "params": {
-      "kind": "fern"
+      "width": 1.4
      }
     },
     {
-     "kit": "potted_plant",
+     "kit": "harvest_cart",
      "pos": [
-      53.4,
+      50.95,
       0,
       20.6
-     ],
-     "params": {
-      "kind": "shrub"
-     }
+     ]
     },
     {
-     "kit": "potted_plant",
+     "kit": "pa_speaker",
      "pos": [
-      50.6,
+      51,
       0,
-      19.6
+      21.74
      ],
      "params": {
-      "kind": "palm"
+      "id": "pa_seed"
      }
     }
    ],
@@ -7240,14 +7766,18 @@
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#f0fff0",
-     "intensity": 8
+     "color": "#f4faf6",
+     "intensity": 11,
+     "range": 10,
+     "shaft": 0.02
     },
     {
      "slot": 1,
      "pattern": "steady",
-     "color": "#f0fff0",
-     "intensity": 7
+     "color": "#f4faf6",
+     "intensity": 10,
+     "range": 10,
+     "shaft": 0.02
     }
    ],
    "npcs": [
@@ -7255,10 +7785,11 @@
      "id": "botanist_3",
      "look": "botanist",
      "at": [
-      52.2,
+      52.35,
       0,
-      17.2
+      19.5
      ],
+     "yaw": 270,
      "pose": "typing"
     }
    ]
@@ -7268,8 +7799,9 @@
    "name": "Nutrient Room",
    "area": "hydroponics",
    "atmosphere": {
-    "fog": "#0a1a10",
-    "fogDensity": 0.045,
+    "fog": "#141e1b",
+    "fogDensity": 0.016,
+    "ambient": "hydro",
     "reverb": "metal_corridor",
     "ambience": "hydro_misters"
    },
@@ -7291,7 +7823,7 @@
      ]
     },
     {
-     "kit": "floor",
+     "kit": "floor_tiles",
      "cells": [
       [
        11,
@@ -7315,7 +7847,7 @@
       ]
      ],
      "params": {
-      "material": "tileWashroom"
+      "material": "tileWall"
      }
     },
     {
@@ -7328,7 +7860,7 @@
       ]
      ],
      "params": {
-      "material": "tileWashroom"
+      "material": "tileWall"
      },
      "rot": 180
     },
@@ -7342,7 +7874,7 @@
       ]
      ],
      "params": {
-      "material": "tileWashroom"
+      "material": "tileWall"
      },
      "rot": 90
     },
@@ -7356,7 +7888,7 @@
       ]
      ],
      "params": {
-      "material": "tileWashroom"
+      "material": "tileWall"
      },
      "rot": 270
     },
@@ -7370,73 +7902,105 @@
       ]
      ],
      "params": {
-      "material": "tileWashroom"
+      "material": "tileWall"
      },
      "rot": 180
     }
    ],
    "props": [
     {
-     "kit": "specimen_tank",
+     "kit": "fertigation_tank",
      "pos": [
-      43.6,
+      43.8,
       0,
-      29.4
-     ]
+      28.9
+     ],
+     "params": {
+      "label": "TANK A · NITROGEN",
+      "fluid": "blue"
+     }
     },
     {
-     "kit": "specimen_tank",
+     "kit": "fertigation_tank",
      "pos": [
-      46,
+      45.6,
       0,
-      29.4
-     ]
+      28.9
+     ],
+     "params": {
+      "label": "TANK B · MINERALS",
+      "fluid": "amber"
+     }
+    },
+    {
+     "kit": "hvac_dehumidifier",
+     "pos": [
+      42.78,
+      0,
+      27.15
+     ],
+     "rot": 270
     },
     {
      "kit": "pipe_run",
      "pos": [
-      44,
+      44.8,
       0,
-      26.6
+      26.52
      ],
      "params": {
       "length": 3,
-      "height": 0.6,
+      "height": 0.55,
       "paint": "teal"
      }
+    },
+    {
+     "kit": "valve",
+     "pos": [
+      46.5,
+      0,
+      26.75
+     ]
     },
     {
      "kit": "console",
      "pos": [
       48.6,
       0,
-      29.6
+      29.28
      ],
      "params": {
-      "screen": "log"
+      "screen": "hydro"
      }
     },
     {
-     "kit": "valve",
+     "kit": "pa_speaker",
      "pos": [
-      44.8,
+      43,
       0,
-      27.4
-     ]
+      29.74
+     ],
+     "params": {
+      "id": "pa_nutrients"
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#c8ffd8",
-     "intensity": 7
+     "color": "#eef6f4",
+     "intensity": 10,
+     "range": 10,
+     "shaft": 0.02
     },
     {
      "slot": 1,
      "pattern": "flicker",
-     "color": "#c8ffd8",
-     "intensity": 6
+     "color": "#eef6f4",
+     "intensity": 9,
+     "range": 10,
+     "shaft": 0.02
     }
    ],
    "triggers": [
@@ -7444,14 +8008,14 @@
      "id": "trig_hydro_alarm",
      "box": [
       [
-       47.8,
+       47.75,
        0,
-       27.8
+       27.55
       ],
       [
-       49.4,
+       49.45,
        2,
-       29.4
+       29.25
       ]
      ],
      "on": "use",
@@ -7465,7 +8029,7 @@
      "pos": [
       48.6,
       1.2,
-      29.6
+      29.28
      ]
     }
    ]
@@ -7475,8 +8039,9 @@
    "name": "Hydroponics Storeroom",
    "area": "hydroponics",
    "atmosphere": {
-    "fog": "#0a1a10",
-    "fogDensity": 0.045,
+    "fog": "#141e1b",
+    "fogDensity": 0.016,
+    "ambient": "hydro",
     "reverb": "small_office",
     "ambience": "hydro_misters"
    },
@@ -7490,7 +8055,7 @@
      ]
     },
     {
-     "kit": "floor",
+     "kit": "floor_tiles",
      "cells": [
       [
        10,
@@ -7535,69 +8100,81 @@
    ],
    "props": [
     {
+     "kit": "fertiliser_pallet",
+     "pos": [
+      38.8,
+      0,
+      27.1
+     ],
+     "rot": 270
+    },
+    {
      "kit": "storage_shelf",
      "pos": [
       38.6,
       0,
-      28
+      28.85
      ],
      "rot": 270,
      "params": {
-      "width": 2.4
+      "width": 1.5
      }
+    },
+    {
+     "kit": "camp_cot",
+     "pos": [
+      41.25,
+      0,
+      27.4
+     ],
+     "rot": 90
     },
     {
      "kit": "desk",
      "pos": [
-      41.2,
+      40.65,
       0,
-      29.4
+      29.3
      ],
      "params": {
-      "width": 1.2
+      "width": 1.3
      }
     },
     {
      "kit": "chair",
      "pos": [
-      41.2,
+      40.45,
       0,
-      28.6
+      28.58
      ]
     },
     {
      "kit": "radio",
      "pos": [
-      41.6,
+      41.05,
       0.78,
-      29.5
+      29.35
      ],
      "rot": 160
     },
     {
-     "kit": "potted_plant",
+     "kit": "kettle_set",
      "pos": [
-      41.6,
-      0,
-      26.6
-     ],
-     "params": {
-      "kind": "succulent",
-      "pot": "white",
-      "size": 0.7
-     }
+      40.42,
+      0.78,
+      29.3
+     ]
     },
     {
-     "kit": "potted_plant",
+     "kit": "pa_speaker",
      "pos": [
-      41.4,
+      38.26,
       0,
-      30.4
+      27
      ],
+     "rot": 270,
      "params": {
-      "kind": "fern",
-      "pot": "clay",
-      "size": 0.8
+      "id": "pa_hydro_store"
      }
     }
    ],
@@ -7606,7 +8183,9 @@
      "slot": 0,
      "pattern": "steady",
      "color": "#ffe2b8",
-     "intensity": 6
+     "intensity": 9,
+     "range": 9,
+     "shaft": 0.02
     }
    ],
    "triggers": [
@@ -7632,29 +8211,29 @@
     {
      "id": "hydro_store_moment",
      "pos": [
-      41.2,
+      39.9,
       0,
-      27.6
+      27.5
      ],
      "yaw": 180
     },
     {
      "id": "hydro_radio",
      "pos": [
-      41.6,
+      41.05,
       0.9,
-      29.5
+      29.35
      ]
     }
    ]
   },
   {
    "id": "R13a",
-   "name": "Dive Bay Access",
+   "name": "Wet Vestibule",
    "area": "dive_bay",
    "atmosphere": {
-    "fog": "#06151a",
-    "fogDensity": 0.05,
+    "fog": "#0b1316",
+    "fogDensity": 0.015,
     "reverb": "metal_corridor",
     "ambience": "dive_drip"
    },
@@ -7714,16 +8293,109 @@
      }
     },
     {
-     "kit": "locker",
+     "kit": "boot_wash",
      "pos": [
-      25.6,
+      25.74,
       0,
-      26.4
+      27.1
      ],
      "rot": 90,
      "params": {
-      "count": 1,
-      "label": "DIVE"
+      "width": 1.3
+     }
+    },
+    {
+     "kit": "coverall_hooks",
+     "pos": [
+      25.74,
+      0,
+      28.8
+     ],
+     "rot": 90,
+     "params": {
+      "count": 3
+     }
+    },
+    {
+     "kit": "boot_wash_mat",
+     "pos": [
+      24,
+      0,
+      28
+     ],
+     "params": {
+      "width": 1.4,
+      "depth": 1
+     }
+    },
+    {
+     "kit": "room_sign",
+     "pos": [
+      22.26,
+      0,
+      26.9
+     ],
+     "rot": 270,
+     "params": {
+      "code": "R13A",
+      "name": "WET VESTIBULE",
+      "warn": "WET AREA · NON-SLIP BOOTS",
+      "y": 2.2,
+      "co2": 610,
+      "rh": 78
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      25.2,
+      0,
+      27.1
+     ],
+     "params": {
+      "kind": "puddle",
+      "width": 0.9,
+      "depth": 1.3
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      24.1,
+      0,
+      26.9
+     ],
+     "params": {
+      "kind": "prints",
+      "width": 0.9,
+      "depth": 1.6
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      24,
+      0,
+      28
+     ],
+     "params": {
+      "kind": "salt",
+      "width": 1.6,
+      "depth": 1.2
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      25.3,
+      0,
+      28.8
+     ],
+     "rot": 90,
+     "params": {
+      "kind": "puddle",
+      "width": 1.4,
+      "depth": 0.5
      }
     }
    ],
@@ -7731,8 +8403,9 @@
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#bfefff",
-     "intensity": 8
+     "color": "#eef4f6",
+     "intensity": 8,
+     "shaft": 0.01
     }
    ],
    "triggers": [
@@ -7790,10 +8463,10 @@
    "area": "dive_bay",
    "height": 5,
    "atmosphere": {
-    "fog": "#06151a",
-    "fogDensity": 0.05,
+    "fog": "#0b1316",
+    "fogDensity": 0.015,
     "reverb": "metal_hall",
-    "ambience": "dive_drip"
+    "ambience": "launch_bay"
    },
    "pieces": [
     {
@@ -8001,86 +8674,246 @@
    ],
    "props": [
     {
-     "kit": "rib_frame",
+     "kit": "gantry_crane",
      "pos": [
       24,
       0,
       36
      ],
      "params": {
-      "width": 4,
-      "height": 4.6
-     }
-    },
-    {
-     "kit": "crate_stack",
-     "pos": [
-      20.6,
-      0,
-      33.4
-     ],
-     "rot": 20
-    },
-    {
-     "kit": "crate",
-     "pos": [
-      27.4,
-      0,
-      39.4
-     ],
-     "rot": 10,
-     "params": {
-      "size": 0.9
-     }
-    },
-    {
-     "kit": "pipe_run",
-     "pos": [
-      24,
-      0,
-      41.4
-     ],
-     "params": {
+      "width": 10.2,
       "length": 10,
-      "height": 0.4,
-      "paint": "teal"
+      "height": 4.5,
+      "bridge": 2.4,
+      "trolley": 4.4,
+      "hook": 2.15
      }
     },
     {
-     "kit": "cable_bundle",
+     "kit": "rov",
      "pos": [
-      24,
-      0,
-      36
-     ],
-     "rot": 90,
-     "params": {
-      "length": 10,
-      "height": 4.4
-     }
-    },
-    {
-     "kit": "console",
-     "pos": [
-      27.6,
-      0,
-      33
-     ],
-     "rot": 270,
-     "params": {
-      "screen": "status"
-     }
-    },
-    {
-     "kit": "dive_suit_rack",
-     "pos": [
-      20.6,
+      28.4,
       0,
       38.4
      ],
      "rot": 90,
      "params": {
-      "suits": 2
+      "name": "NEREUS"
+     }
+    },
+    {
+     "kit": "tether_winch",
+     "pos": [
+      28.7,
+      0,
+      40.55
+     ]
+    },
+    {
+     "kit": "pilot_console",
+     "pos": [
+      28,
+      0,
+      30.75
+     ],
+     "rot": 180
+    },
+    {
+     "kit": "whiteboard",
+     "pos": [
+      19.6,
+      0,
+      30.31
+     ],
+     "rot": 180,
+     "params": {
+      "lines": "DIVE 214 · TRENCH WALL|ROV: NEREUS   PILOT: SUNG|TASK: 6 CORES FOR LAB B|RECOVERED 06:42 · CASE TO COLD STORE|NEXT: DIVE 215 — TBC|!KEEP TRUNK GATE SHUT"
+     }
+    },
+    {
+     "kit": "wet_bench",
+     "pos": [
+      18.26,
+      0,
+      36
+     ],
+     "rot": 270,
+     "params": {
+      "width": 2.2
+     }
+    },
+    {
+     "kit": "core_rack",
+     "pos": [
+      18.26,
+      0,
+      38
+     ],
+     "rot": 270
+    },
+    {
+     "kit": "eyewash_station",
+     "pos": [
+      19.3,
+      0,
+      41.74
+     ]
+    },
+    {
+     "kit": "shadow_board",
+     "pos": [
+      24,
+      0,
+      41.74
+     ]
+    },
+    {
+     "kit": "pipe_run",
+     "pos": [
+      24.5,
+      0,
+      41.4
+     ],
+     "params": {
+      "length": 8,
+      "height": 0.4,
+      "paint": "teal"
+     }
+    },
+    {
+     "kit": "crate",
+     "pos": [
+      26.5,
+      0,
+      40.65
+     ],
+     "rot": 10,
+     "params": {
+      "size": 0.6
+     }
+    },
+    {
+     "kit": "room_sign",
+     "pos": [
+      21.3,
+      0,
+      30.26
+     ],
+     "rot": 180,
+     "params": {
+      "code": "R13B",
+      "name": "LAUNCH TRUNK 1",
+      "warn": "KEEP TRUNK GATE SHUT",
+      "co2": 650,
+      "rh": 81
+     }
+    },
+    {
+     "kit": "pipe_labels",
+     "pos": [
+      24.5,
+      0,
+      41.4
+     ],
+     "params": {
+      "length": 8,
+      "y": 0.4,
+      "radius": 0.1,
+      "labels": "SEAWATER COOLING:#2f7a3a|HYDRAULIC RETURN:#b4551c"
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      24,
+      0,
+      33.9
+     ],
+     "params": {
+      "kind": "puddle",
+      "width": 2.6,
+      "depth": 0.7
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      21.8,
+      0,
+      36
+     ],
+     "rot": 90,
+     "params": {
+      "kind": "puddle",
+      "width": 2.4,
+      "depth": 0.6
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      24,
+      0,
+      38.15
+     ],
+     "rot": 180,
+     "params": {
+      "kind": "puddle",
+      "width": 2.4,
+      "depth": 0.6
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      27.3,
+      0,
+      38.4
+     ],
+     "params": {
+      "kind": "puddle",
+      "width": 1.4,
+      "depth": 1
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      22.4,
+      0,
+      31.6
+     ],
+     "rot": 20,
+     "params": {
+      "kind": "prints",
+      "width": 0.9,
+      "depth": 2.4
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      19.5,
+      0,
+      36.6
+     ],
+     "params": {
+      "kind": "salt",
+      "width": 0.9,
+      "depth": 0.8
+     }
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      27.1,
+      0,
+      30.26
+     ],
+     "rot": 180,
+     "params": {
+      "id": "pa_moon_pool",
+      "serves": "R13a"
      }
     }
    ],
@@ -8088,32 +8921,44 @@
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#9fe8ff",
-     "intensity": 10
+     "color": "#eef4f6",
+     "intensity": 13,
+     "shaft": 0.01
     },
     {
      "slot": 2,
      "pattern": "steady",
-     "color": "#9fe8ff",
-     "intensity": 9
+     "color": "#eef4f6",
+     "intensity": 13,
+     "shaft": 0.01
     },
     {
      "slot": 4,
      "pattern": "steady",
-     "color": "#bff4ff",
-     "intensity": 12
+     "color": "#eef4f6",
+     "intensity": 14,
+     "shaft": 0.01
     },
     {
      "slot": 6,
      "pattern": "steady",
-     "color": "#9fe8ff",
-     "intensity": 9
+     "color": "#eef4f6",
+     "intensity": 13,
+     "shaft": 0.01
     },
     {
      "slot": 8,
-     "pattern": "flicker",
-     "color": "#9fe8ff",
-     "intensity": 8
+     "pattern": "steady",
+     "color": "#eef4f6",
+     "intensity": 13,
+     "shaft": 0.01
+    },
+    {
+     "slot": "wall",
+     "pattern": "steady",
+     "color": "#58c8e0",
+     "intensity": 7,
+     "range": 9
     }
    ],
    "anchors": [
@@ -8168,21 +9013,22 @@
      "id": "maint_1",
      "look": "maintenance",
      "at": [
-      27,
+      26.6,
       0,
-      37.6
+      37.9
      ],
+     "yaw": 270,
      "pose": "crouchWork"
     }
    ]
   },
   {
    "id": "R13c",
-   "name": "Suit Room",
+   "name": "ROV Workshop",
    "area": "dive_bay",
    "atmosphere": {
-    "fog": "#06151a",
-    "fogDensity": 0.05,
+    "fog": "#0b1316",
+    "fogDensity": 0.015,
     "reverb": "small_office",
     "ambience": "dive_drip"
    },
@@ -8275,40 +9121,134 @@
    ],
    "props": [
     {
-     "kit": "dive_suit_rack",
+     "kit": "room_sign",
      "pos": [
-      14.6,
+      17.74,
       0,
-      31.4
-     ],
-     "rot": 270,
-     "params": {
-      "suits": 3
-     }
-    },
-    {
-     "kit": "dive_suit_rack",
-     "pos": [
-      14.6,
-      0,
-      36
-     ],
-     "rot": 270,
-     "params": {
-      "suits": 3
-     }
-    },
-    {
-     "kit": "locker",
-     "pos": [
-      17.4,
-      0,
-      37.4
+      35.05
      ],
      "rot": 90,
      "params": {
-      "count": 2,
-      "label": "DIVE"
+      "code": "R13C",
+      "name": "ROV WORKSHOP",
+      "co2": 720,
+      "rh": 64
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      14.9,
+      0,
+      35.5
+     ],
+     "params": {
+      "kind": "oil",
+      "width": 0.9,
+      "depth": 1.6
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      17.2,
+      0,
+      36.6
+     ],
+     "params": {
+      "kind": "puddle",
+      "width": 0.7,
+      "depth": 0.7
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      17.2,
+      0,
+      32
+     ],
+     "rot": 90,
+     "params": {
+      "kind": "prints",
+      "width": 0.9,
+      "depth": 1.4
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      16.5,
+      0,
+      33.6
+     ],
+     "rot": 30,
+     "params": {
+      "kind": "oil",
+      "width": 0.6,
+      "depth": 0.5
+     }
+    },
+    {
+     "kit": "workbench",
+     "pos": [
+      14.26,
+      0,
+      35.5
+     ],
+     "rot": 270,
+     "params": {
+      "width": 2.4
+     }
+    },
+    {
+     "kit": "battery_charger",
+     "pos": [
+      14.26,
+      0,
+      31.5
+     ],
+     "rot": 270
+    },
+    {
+     "kit": "parts_bins",
+     "pos": [
+      16,
+      0,
+      30.26
+     ],
+     "rot": 180,
+     "params": {
+      "width": 1.6
+     }
+    },
+    {
+     "kit": "gas_cylinder_rack",
+     "pos": [
+      17,
+      0,
+      37.74
+     ]
+    },
+    {
+     "kit": "hose_reel",
+     "pos": [
+      17.74,
+      0,
+      36.6
+     ],
+     "rot": 90
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      17,
+      0,
+      30.26
+     ],
+     "rot": 180,
+     "params": {
+      "id": "pa_workshop"
      }
     }
    ],
@@ -8316,13 +9256,13 @@
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#d8f4ff",
+     "color": "#eef4f6",
      "intensity": 7
     },
     {
      "slot": 1,
      "pattern": "steady",
-     "color": "#d8f4ff",
+     "color": "#eef4f6",
      "intensity": 6
     }
    ]
@@ -8345,7 +9285,10 @@
       8,
       0,
       8
-     ]
+     ],
+     "params": {
+      "material": "paintDark"
+     }
     },
     {
      "kit": "ceiling_pipes",
@@ -8353,7 +9296,10 @@
       9,
       0,
       8
-     ]
+     ],
+     "params": {
+      "material": "paintDark"
+     }
     },
     {
      "kit": "ceiling",
@@ -8361,7 +9307,10 @@
       10,
       0,
       8
-     ]
+     ],
+     "params": {
+      "material": "paintDark"
+     }
     },
     {
      "kit": "floor",
@@ -8381,7 +9330,10 @@
        0,
        8
       ]
-     ]
+     ],
+     "params": {
+      "material": "diamondRusty"
+     }
     },
     {
      "kit": "wall_plain",
@@ -8396,7 +9348,10 @@
        0,
        8
       ]
-     ]
+     ],
+     "params": {
+      "material": "rustBlotch"
+     }
     },
     {
      "kit": "wall_vent",
@@ -8412,6 +9367,9 @@
        8
       ]
      ],
+     "params": {
+      "material": "rustBlotch"
+     },
      "rot": 180
     },
     {
@@ -8422,7 +9380,10 @@
        0,
        8
       ]
-     ]
+     ],
+     "params": {
+      "material": "rustBlotch"
+     }
     },
     {
      "kit": "wall_vent",
@@ -8433,10 +9394,41 @@
        8
       ]
      ],
+     "params": {
+      "material": "rustBlotch"
+     },
      "rot": 270
     }
    ],
    "props": [
+    {
+     "kit": "room_sign",
+     "pos": [
+      30.8,
+      0,
+      30.26
+     ],
+     "rot": 180,
+     "params": {
+      "code": "R13D",
+      "name": "MAINTENANCE",
+      "panel": false
+     }
+    },
+    {
+     "kit": "pipe_labels",
+     "pos": [
+      36,
+      0,
+      33.4
+     ],
+     "params": {
+      "length": 11,
+      "y": 0.5,
+      "radius": 0.1,
+      "labels": "SEAWATER COOLING:#2f7a3a|HYDRAULIC SUPPLY:#b4551c|FRESH WATER:#2b5d8a"
+     }
+    },
     {
      "kit": "pipe_run",
      "pos": [
@@ -8469,6 +9461,26 @@
       0,
       31.2
      ]
+    },
+    {
+     "kit": "pipe_leak",
+     "pos": [
+      38.5,
+      0.5,
+      33.4
+     ]
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      33,
+      0,
+      30.26
+     ],
+     "rot": 180,
+     "params": {
+      "id": "pa_maintenance"
+     }
     }
    ],
    "lights": [
@@ -8497,6 +9509,24 @@
      ],
      "on": "enter",
      "emit": "area:dark"
+    },
+    {
+     "id": "trig_dive_leak",
+     "box": [
+      [
+       37.1,
+       0,
+       31.5
+      ],
+      [
+       39.9,
+       2.2,
+       34.3
+      ]
+     ],
+     "on": "enter",
+     "emit": "trigger:dive_leak",
+     "once": false
     }
    ],
    "anchors": [
@@ -8508,16 +9538,24 @@
       32
      ],
      "yaw": 270
+    },
+    {
+     "id": "dive_leak",
+     "pos": [
+      38.5,
+      0.6,
+      33.4
+     ]
     }
    ]
   },
   {
    "id": "R13e",
-   "name": "Dive Lockers",
+   "name": "Sample Store",
    "area": "dive_bay",
    "atmosphere": {
-    "fog": "#06151a",
-    "fogDensity": 0.05,
+    "fog": "#0b1316",
+    "fogDensity": 0.015,
     "reverb": "small_office",
     "ambience": "dive_drip"
    },
@@ -8575,16 +9613,118 @@
    ],
    "props": [
     {
-     "kit": "locker",
+     "kit": "room_sign",
      "pos": [
-      14.6,
+      17.05,
+      0,
+      41.74
+     ],
+     "params": {
+      "code": "R13E",
+      "name": "SAMPLE STORE",
+      "warn": "LAB B CHAIN OF CUSTODY",
+      "co2": 590,
+      "rh": 55
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      15.2,
+      0,
+      38.95
+     ],
+     "params": {
+      "kind": "puddle",
+      "width": 0.9,
+      "depth": 0.5
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      15.4,
+      0,
+      41
+     ],
+     "params": {
+      "kind": "puddle",
+      "width": 1.4,
+      "depth": 0.45
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      17.2,
       0,
       40
      ],
-     "rot": 270,
+     "rot": 90,
      "params": {
-      "count": 3,
-      "label": "AIRLOCK"
+      "kind": "prints",
+      "width": 0.9,
+      "depth": 1.2
+     }
+    },
+    {
+     "kit": "floor_wear",
+     "pos": [
+      15.6,
+      0,
+      40
+     ],
+     "params": {
+      "kind": "salt",
+      "width": 0.8,
+      "depth": 0.8
+     }
+    },
+    {
+     "kit": "cold_store",
+     "pos": [
+      14.26,
+      0,
+      40
+     ],
+     "rot": 270
+    },
+    {
+     "kit": "core_fridge",
+     "pos": [
+      15.4,
+      0,
+      41.74
+     ]
+    },
+    {
+     "kit": "freezer",
+     "pos": [
+      15,
+      0,
+      38.26
+     ],
+     "rot": 180
+    },
+    {
+     "kit": "pressure_cabinet",
+     "pos": [
+      16.1,
+      0,
+      38.26
+     ],
+     "rot": 180
+    },
+    {
+     "kit": "survival_suits",
+     "pos": [
+      17.15,
+      0,
+      38.26
+     ],
+     "rot": 180,
+     "params": {
+      "count": 3
      }
     },
     {
@@ -8606,13 +9746,24 @@
       41.4
      ],
      "rot": 200
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      15,
+      0,
+      41.74
+     ],
+     "params": {
+      "id": "pa_sample_store"
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#d8f4ff",
+     "color": "#eef4f6",
      "intensity": 7
     }
    ],
@@ -8691,8 +9842,9 @@
    "name": "TAG Reception",
    "area": "admin",
    "atmosphere": {
-    "fog": "#0b0a08",
-    "fogDensity": 0.02,
+    "fog": "#14110e",
+    "fogDensity": 0.012,
+    "ambient": "admin",
     "reverb": "small_office",
     "ambience": "office_hvac"
    },
@@ -8862,20 +10014,39 @@
       "pot": "white",
       "size": 1
      }
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      34.26,
+      0,
+      7
+     ],
+     "rot": 270,
+     "params": {
+      "id": "pa_reception",
+      "serves": "R14e"
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#ffe2c0",
-     "intensity": 8
+     "color": "#ffebd0",
+     "intensity": 13,
+     "range": 12,
+     "shaft": 0.01,
+     "emissive": 2.2
     },
     {
      "slot": 1,
      "pattern": "steady",
-     "color": "#ffe2c0",
-     "intensity": 8
+     "color": "#ffebd0",
+     "intensity": 13,
+     "range": 12,
+     "shaft": 0.01,
+     "emissive": 2.2
     }
    ],
    "triggers": [
@@ -8920,6 +10091,17 @@
      ],
      "yaw": 90,
      "pose": "sit_typing"
+    },
+    {
+     "id": "admin_visitor",
+     "look": "lab",
+     "at": [
+      34.72,
+      0,
+      8.4
+     ],
+     "spot": "sit_sofa",
+     "model": "scientist1"
     }
    ]
   },
@@ -8928,8 +10110,9 @@
    "name": "Open Office",
    "area": "admin",
    "atmosphere": {
-    "fog": "#0b0a08",
-    "fogDensity": 0.02,
+    "fog": "#14110e",
+    "fogDensity": 0.012,
+    "ambient": "admin",
     "reverb": "small_office",
     "ambience": "office_hvac"
    },
@@ -8948,7 +10131,10 @@
       11,
       0,
       1
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -8964,7 +10150,10 @@
       10,
       0,
       2
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -8980,7 +10169,10 @@
       12,
       0,
       2
-     ]
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "floor_carpet",
@@ -9024,6 +10216,11 @@
        10,
        0,
        1
+      ],
+      [
+       12,
+       0,
+       1
       ]
      ]
     },
@@ -9037,16 +10234,6 @@
       ]
      ],
      "rot": 90
-    },
-    {
-     "kit": "wall_wood",
-     "cells": [
-      [
-       12,
-       0,
-       1
-      ]
-     ]
     },
     {
      "kit": "wall_wood",
@@ -9167,7 +10354,10 @@
       45.6,
       0,
       8.12
-     ]
+     ],
+     "params": {
+      "fixed": true
+     }
     },
     {
      "kit": "bookshelf",
@@ -9239,26 +10429,46 @@
       "drop": 0.7,
       "pot": "white"
      }
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      41,
+      0,
+      9.74
+     ],
+     "params": {
+      "id": "pa_office"
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#ffe2c0",
-     "intensity": 8
+     "color": "#fff0d8",
+     "intensity": 14,
+     "range": 13,
+     "shaft": 0.01,
+     "emissive": 2.2
+    },
+    {
+     "slot": 1,
+     "pattern": "steady",
+     "color": "#fff0d8",
+     "intensity": 14,
+     "range": 13,
+     "shaft": 0.01,
+     "emissive": 2.2
     },
     {
      "slot": 2,
      "pattern": "steady",
-     "color": "#ffe2c0",
-     "intensity": 8
-    },
-    {
-     "slot": 4,
-     "pattern": "steady",
-     "color": "#ffe2c0",
-     "intensity": 8
+     "color": "#ffebd0",
+     "intensity": 14,
+     "range": 13,
+     "shaft": 0.01,
+     "emissive": 2.2
     }
    ],
    "npcs": [
@@ -9271,18 +10481,46 @@
       3.92
      ],
      "yaw": 0,
+     "model": "office1",
+     "pose": "sit_typing"
+    },
+    {
+     "id": "exec_4",
+     "look": "exec",
+     "at": [
+      45.6,
+      0,
+      8.12
+     ],
+     "yaw": 0,
+     "model": "botanist2",
      "pose": "sit_typing"
     },
     {
      "id": "exec_1",
      "look": "exec",
      "at": [
-      44,
+      44.2,
       0,
       5.6
      ],
      "yaw": 90,
-     "pose": "talk_gesture"
+     "chat": "admin_hall",
+     "model": "office3",
+     "pose": "idle"
+    },
+    {
+     "id": "exec_3",
+     "look": "exec",
+     "at": [
+      43.2,
+      0,
+      5.6
+     ],
+     "yaw": 270,
+     "chat": "admin_hall",
+     "model": "office2",
+     "pose": "clipboard"
     }
    ]
   },
@@ -9291,8 +10529,9 @@
    "name": "Director's Office",
    "area": "admin",
    "atmosphere": {
-    "fog": "#0b0a08",
-    "fogDensity": 0.02,
+    "fog": "#14100c",
+    "fogDensity": 0.012,
+    "ambient": "admin",
     "reverb": "small_office",
     "ambience": "office_hvac"
    },
@@ -9463,20 +10702,38 @@
       "slogan": "TAG INDUSTRIES - 40 YEARS DEEP",
       "width": 1.1
      }
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      51,
+      0,
+      9.74
+     ],
+     "params": {
+      "id": "pa_director"
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#ffd9a8",
-     "intensity": 7
+     "color": "#ffd8a6",
+     "intensity": 10,
+     "range": 11,
+     "shaft": 0.015,
+     "emissive": 1.9
     },
     {
      "slot": 1,
      "pattern": "steady",
-     "color": "#ffd9a8",
-     "intensity": 6
+     "color": "#ffd096",
+     "intensity": 14,
+     "range": 12,
+     "drop": 0.4,
+     "shaft": 0.015,
+     "emissive": 2.1
     }
    ],
    "triggers": [
@@ -9538,11 +10795,12 @@
   },
   {
    "id": "R14d",
-   "name": "Meeting Room",
+   "name": "Boardroom",
    "area": "admin",
    "atmosphere": {
-    "fog": "#0b0a08",
-    "fogDensity": 0.02,
+    "fog": "#14110e",
+    "fogDensity": 0.011,
+    "ambient": "admin",
     "reverb": "small_office",
     "ambience": "office_hvac"
    },
@@ -9555,8 +10813,38 @@
      "cell": [
       10,
       0,
-      0
+      -1
      ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      11,
+      0,
+      -1
+     ],
+     "params": {
+      "fixture": false
+     }
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      12,
+      0,
+      -1
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      10,
+      0,
+      0
+     ],
+     "params": {
+      "fixture": false
+     }
     },
     {
      "kit": "ceiling",
@@ -9567,8 +10855,34 @@
      ]
     },
     {
+     "kit": "ceiling",
+     "cell": [
+      12,
+      0,
+      0
+     ],
+     "params": {
+      "fixture": false
+     }
+    },
+    {
      "kit": "floor_carpet",
      "cells": [
+      [
+       10,
+       0,
+       -1
+      ],
+      [
+       11,
+       0,
+       -1
+      ],
+      [
+       12,
+       0,
+       -1
+      ],
       [
        10,
        0,
@@ -9576,6 +10890,11 @@
       ],
       [
        11,
+       0,
+       0
+      ],
+      [
+       12,
        0,
        0
       ]
@@ -9587,18 +10906,28 @@
       [
        10,
        0,
-       0
+       -1
       ],
       [
        11,
        0,
-       0
+       -1
+      ],
+      [
+       12,
+       0,
+       -1
       ]
      ]
     },
     {
      "kit": "wall_wood",
      "cells": [
+      [
+       10,
+       0,
+       -1
+      ],
       [
        10,
        0,
@@ -9611,7 +10940,12 @@
      "kit": "wall_wood",
      "cells": [
       [
-       11,
+       12,
+       0,
+       -1
+      ],
+      [
+       12,
        0,
        0
       ]
@@ -9621,16 +10955,32 @@
    ],
    "props": [
     {
-     "kit": "dining_table",
+     "kit": "conference_table",
      "pos": [
-      41.8,
+      44,
       0,
-      -0.15
+      -2
      ],
      "params": {
-      "width": 2.8,
-      "seats": 6,
-      "mugs": 3
+      "width": 4.4,
+      "depth": 1.3,
+      "sideSeats": 3,
+      "endEast": true
+     }
+    },
+    {
+     "kit": "pendant_light",
+     "pos": [
+      44,
+      0,
+      -2
+     ],
+     "params": {
+      "ceiling": 3.2,
+      "drop": 1.05,
+      "count": 3,
+      "spacing": 1.4,
+      "shade": "brass"
      }
     },
     {
@@ -9638,24 +10988,103 @@
      "pos": [
       38.31,
       0,
-      0
+      -2
      ],
      "rot": 270,
      "params": {
       "id": "admin_tv",
-      "width": 2
+      "width": 3,
+      "channel": "boardroom",
+      "state": "on"
+     }
+    },
+    {
+     "kit": "credenza",
+     "pos": [
+      49.45,
+      0,
+      -2
+     ],
+     "rot": 90,
+     "params": {
+      "width": 2.6
+     }
+    },
+    {
+     "kit": "bookshelf",
+     "pos": [
+      49.55,
+      0,
+      0.35
+     ],
+     "rot": 90,
+     "params": {
+      "width": 1.4,
+      "height": 2.2
+     }
+    },
+    {
+     "kit": "tag_poster",
+     "pos": [
+      49.69,
+      0,
+      -4.4
+     ],
+     "rot": 90,
+     "params": {
+      "slogan": "DEEPER. FURTHER. TOGETHER.",
+      "width": 1
      }
     },
     {
      "kit": "potted_plant",
      "pos": [
-      45.35,
+      38.7,
       0,
-      -1.35
+      -5.25
+     ],
+     "params": {
+      "kind": "palm",
+      "pot": "dark",
+      "size": 1.1
+     }
+    },
+    {
+     "kit": "potted_plant",
+     "pos": [
+      49.25,
+      0,
+      -5.25
      ],
      "params": {
       "kind": "tall",
-      "pot": "white"
+      "pot": "white",
+      "size": 1
+     }
+    },
+    {
+     "kit": "potted_plant",
+     "pos": [
+      38.7,
+      0,
+      1.25
+     ],
+     "params": {
+      "kind": "fern",
+      "pot": "white",
+      "size": 1
+     }
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      49.74,
+      0,
+      -3
+     ],
+     "rot": 90,
+     "params": {
+      "id": "pa_boardroom"
      }
     }
    ],
@@ -9663,14 +11092,81 @@
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#ffe2c0",
-     "intensity": 7
+     "color": "#ffebd0",
+     "intensity": 13,
+     "range": 13,
+     "shaft": 0.01,
+     "emissive": 2.1
     },
     {
      "slot": 1,
      "pattern": "steady",
-     "color": "#ffe2c0",
-     "intensity": 7
+     "color": "#ffe4be",
+     "intensity": 13,
+     "range": 13,
+     "shaft": 0.01,
+     "emissive": 2.1
+    },
+    {
+     "slot": 2,
+     "pattern": "steady",
+     "color": "#ffdcad",
+     "intensity": 16,
+     "range": 14,
+     "drop": 0.85,
+     "shaft": 0.018,
+     "emissive": 2.2
+    }
+   ],
+   "npcs": [
+    {
+     "id": "board_1",
+     "look": "exec",
+     "at": [
+      42.5,
+      0,
+      -3.07
+     ],
+     "spot": "sit_chair",
+     "chat": "admin_boardroom",
+     "model": "office1"
+    },
+    {
+     "id": "board_2",
+     "look": "exec",
+     "at": [
+      45.5,
+      0,
+      -3.07
+     ],
+     "spot": "sit_chair",
+     "chat": "admin_boardroom",
+     "model": "office2"
+    },
+    {
+     "id": "board_3",
+     "look": "lab",
+     "at": [
+      44,
+      0,
+      -0.93
+     ],
+     "spot": "sit_chair",
+     "chat": "admin_boardroom",
+     "model": "scientist1"
+    },
+    {
+     "id": "board_4",
+     "look": "exec",
+     "at": [
+      40.5,
+      0,
+      -2
+     ],
+     "yaw": 270,
+     "chat": "admin_boardroom",
+     "model": "office3",
+     "pose": "idle"
     }
    ]
   },
@@ -9679,8 +11175,9 @@
    "name": "Security Booth",
    "area": "admin",
    "atmosphere": {
-    "fog": "#0b0a08",
-    "fogDensity": 0.03,
+    "fog": "#0b0e12",
+    "fogDensity": 0.02,
+    "ambient": "normal",
     "reverb": "small_office",
     "ambience": "office_hvac"
    },
@@ -9770,8 +11267,11 @@
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#cfe0ff",
-     "intensity": 5
+     "color": "#b8d8ff",
+     "intensity": 10,
+     "range": 9,
+     "shaft": 0.025,
+     "emissive": 2.2
     }
    ],
    "triggers": [
@@ -9827,7 +11327,7 @@
     0,
     0
    ],
-   "rot": 90,
+   "rot": 0,
    "state": "closed"
   },
   {
@@ -10411,7 +11911,7 @@
   {
    "id": "hydro_map",
    "pos": [
-    36,
+    35.55,
     0,
     18.31
    ],

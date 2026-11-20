@@ -1,0 +1,151 @@
+{
+  "grownInside": {
+    "kind": "grownInside",
+    "creature": "lab_creature",
+    "clearBand": { "min": 1.1, "max": 1.8 },
+    "glassStand": 0.65,
+    "beats": [
+      {
+        "id": "scratch",
+        "poses": ["kill_scratch_0", "kill_scratch_1"],
+        "period": 0.2,
+        "blend": 0.14,
+        "convulse": 0.15,
+        "rate": 0.6,
+        "until": "line",
+        "max": 6,
+        "bulges": [{ "path": ["hand_L", "foreArm_L", "upperArm_L"], "radius": 0.055, "amp": 0.02 }],
+        "events": [
+          { "t": 0.0, "do": "sfx", "id": ["voss_panic_breath"], "joint": "head" },
+          { "t": 0.6, "do": "kick", "joint": "foreArm_L", "dir": "up", "strength": 0.5 },
+          { "t": 1.5, "do": "kick", "joint": "head", "dir": "left", "strength": 0.4 }
+        ]
+      },
+      {
+        "id": "panic",
+        "poses": ["kill_panic_0", "kill_panic_1"],
+        "period": 0.34,
+        "blend": 0.2,
+        "convulse": 0.45,
+        "rate": 0.5,
+        "until": "arrive",
+        "max": 5,
+        "bulges": [{ "path": ["upperArm_L", "chest"], "radius": 0.07, "amp": 0.028 }],
+        "events": [
+          { "t": 0.0, "do": "toGlass", "speed": 2.2 },
+          { "t": 0.0, "do": "light", "state": "on" },
+          { "t": 0.25, "do": "kick", "joint": "spine", "dir": "back", "strength": 0.7 },
+          { "t": 0.9, "do": "kick", "joint": "head", "dir": "right", "strength": 0.6 },
+          { "t": 1.6, "do": "kick", "joint": "chest", "dir": "left", "strength": 0.6 }
+        ]
+      },
+      {
+        "id": "glass",
+        "poses": ["kill_glass_0", "kill_glass_1"],
+        "period": 0.4,
+        "blend": 0.12,
+        "convulse": 0.5,
+        "until": "line",
+        "max": 4,
+        "needsGlass": true,
+        "bulges": [{ "path": ["chest", "spine"], "radius": 0.08, "amp": 0.03 }],
+        "events": [
+          { "t": 0.0, "do": "face" },
+          { "t": 0.4, "do": "glass", "kind": "print", "hand": "L", "size": 0.16 },
+          { "t": 0.4, "do": "sfx", "id": ["palm_glass_hit", "glassThud"], "joint": "hand_L" },
+          { "t": 0.4, "do": "kick", "joint": "chest", "dir": "back", "strength": 0.5 },
+          { "t": 0.8, "do": "glass", "kind": "print", "hand": "R", "size": 0.16 },
+          { "t": 0.8, "do": "sfx", "id": ["palm_glass_hit", "glassThud"], "joint": "hand_R" },
+          { "t": 1.2, "do": "glass", "kind": "print", "hand": "L", "size": 0.15 },
+          { "t": 1.2, "do": "sfx", "id": ["palm_glass_hit", "glassThud"], "joint": "hand_L" },
+          { "t": 1.2, "do": "kick", "joint": "chest", "dir": "back", "strength": 0.5 },
+          { "t": 1.6, "do": "glass", "kind": "print", "hand": "R", "size": 0.15 },
+          { "t": 1.6, "do": "sfx", "id": ["palm_glass_hit", "glassThud"], "joint": "hand_R" }
+        ]
+      },
+      {
+        "id": "arch",
+        "poses": ["kill_arch_0", "kill_arch_1"],
+        "period": 0.45,
+        "blend": 0.3,
+        "convulse": 0.9,
+        "rate": 0.9,
+        "until": "time",
+        "s": 2.4,
+        "max": 2.4,
+        "bulges": [
+          { "path": ["spine", "chest"], "radius": 0.14, "amp": 0.085 },
+          { "path": ["chest", "neck"], "radius": 0.06, "amp": 0.025 }
+        ],
+        "events": [
+          { "t": 0.3, "do": "sfx", "id": ["kill_crunch", "fleshTear"], "joint": "chest" },
+          { "t": 0.3, "do": "kick", "joint": "chest", "dir": "back", "strength": 1.3 },
+          { "t": 1.0, "do": "sfx", "id": ["kill_crunch", "fleshTear"], "joint": "spine" },
+          { "t": 1.0, "do": "kick", "joint": "spine", "dir": "back", "strength": 1.4 },
+          { "t": 1.7, "do": "sfx", "id": ["kill_crunch", "fleshTear"], "joint": "neck" },
+          { "t": 1.7, "do": "kick", "joint": "neck", "dir": "left", "strength": 1.2 }
+        ]
+      },
+      {
+        "id": "burst",
+        "poses": ["kill_burst"],
+        "blend": 0.08,
+        "convulse": 1,
+        "rate": 20,
+        "until": "time",
+        "s": 0.6,
+        "max": 0.6,
+        "events": [
+          { "t": 0.0, "do": "light", "state": "dip" },
+          { "t": 0.0, "do": "tear", "radius": 0.17 },
+          { "t": 0.0, "do": "sfx", "id": ["kill_burst", "fleshTear"], "joint": "chest" },
+          { "t": 0.0, "do": "sfx", "id": ["kill_tear", "fleshTear"], "joint": "chest" },
+          { "t": 0.0, "do": "kick", "joint": "chest", "dir": "back", "strength": 2.5 },
+          { "t": 0.0, "do": "gore", "kind": "burst", "joint": "chest", "count": 220 },
+          { "t": 0.0, "do": "gore", "kind": "chunks", "joint": "chest", "count": 20 },
+          { "t": 0.0, "do": "gore", "kind": "spurt", "joint": "chest", "s": 4 },
+          { "t": 0.03, "do": "creature", "pose": "getUp_0" },
+          { "t": 0.05, "do": "glass", "kind": "splat", "size": 0.34 },
+          { "t": 0.05, "do": "glass", "kind": "splat", "size": 0.22 },
+          { "t": 0.08, "do": "glass", "kind": "splat", "size": 0.28 },
+          { "t": 0.1, "do": "glass", "kind": "streak", "size": 0.9, "s": 6 },
+          { "t": 0.12, "do": "sfx", "id": ["blood_splat_glass", "drip"], "joint": "chest" },
+          { "t": 0.15, "do": "gore", "kind": "burst", "joint": "spine", "count": 90 }
+        ]
+      },
+      {
+        "id": "still",
+        "poses": ["corpseSupine"],
+        "convulse": 0,
+        "rate": 20,
+        "until": "time",
+        "s": 1.6,
+        "max": 1.6,
+        "events": [
+          { "t": 0.0, "do": "die", "pose": "corpseSupine", "blend": 0.55 },
+          { "t": 0.3, "do": "gore", "kind": "pool", "joint": "chest", "size": 1.7 },
+          { "t": 0.5, "do": "sfx", "id": ["blood_drip", "drip"], "joint": "chest" },
+          { "t": 0.7, "do": "kick", "joint": "thigh_L", "dir": "up", "strength": 0.6 },
+          { "t": 1.25, "do": "kick", "joint": "hand_R", "dir": "up", "strength": 0.5 }
+        ]
+      },
+      {
+        "id": "creature",
+        "poses": ["corpseSupine"],
+        "convulse": 0,
+        "until": "creature",
+        "max": 4.5,
+        "events": [
+          { "t": 0.0, "do": "sfx", "id": ["creature_clicks", "zombieVoice"], "joint": "chest" },
+          { "t": 0.6, "do": "light", "state": "off" }
+        ]
+      }
+    ]
+  },
+  "converted": {
+    "kind": "converted",
+    "beats": [
+      { "id": "turn", "poses": ["writhing"], "convulse": 0.6, "until": "time", "s": 7, "max": 7 }
+    ]
+  }
+}

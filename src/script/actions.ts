@@ -447,6 +447,13 @@ export const ACTIONS: Record<string, ActionDef> = {
   /** `stay`: hold a squadmate where he is even after the sequence ends (until a later `npcFollow`). */
   npcFollow: npcAct('npcFollow', { npc: str, target: optional(target), stop: optional(bool), stay: optional(bool) }),
   transform: npcAct('transform', { npc: str, to: num, duration: optional(numRange(0, 120)) }),
+  /**
+   * A scripted infected kill (infection-kills spec, data/kills.json): `kind` is the kill style (default `grownInside`).
+   * `glass`: the partition she staggers to and pounds on; `lines`: beat id -> the line whose end closes that beat; `creature`:
+   * the creature's look (default the style's). Emits `kill:<beat>` as each beat begins and `kill:done` at the end.
+   * Skipped or restored (`instant`): the end state (torn corpse, the creature standing).
+   */
+  kill: npcAct('kill', { npc: str, kind: optional(str), glass: optional(target), lines: optional(record(str)), creature: optional(str), creatureId: optional(str) }),
   spawn: npcAct('spawn', { npc: str, kind: optional(str), at: target }),
   despawn: npcAct('despawn', { npc: str }),
   attachToTrack: npcAct('attachToTrack', { npc: str, track: str, speed: optional(numRange(0.1, 20)), pose: optional(str) }),
@@ -636,9 +643,12 @@ export const ACTIONS: Record<string, ActionDef> = {
 
   // ---- story
   /** `overlap`: play beside the current line instead of queuing (a PA the squad talks over). */
-  say: act({ line: str, wait, overlap: optional(bool) }, (s, ctx) => {
+  say: act({ line: str, wait, overlap: optional(bool), fixture: optional(str) }, (s, ctx) => {
     if (!ctx.host.say) return ctx.missing('say');
-    const h = ctx.host.say(s.line, s.overlap ? { overlap: true } : undefined);
+    const h = ctx.host.say(s.line, {
+      ...(s.overlap ? { overlap: true } : {}),
+      ...(s.fixture !== undefined ? { fixture: s.fixture } : {}),
+    });
     if (h && s.wait !== false) return { ...pending(h.done), skip: () => ctx.host.markLinePlayed?.(s.line) };
   }),
 
@@ -727,7 +737,7 @@ const SKIPS: Record<string, SkipFn> = {
     if (ctx.host.npc) void ctx.host.npc('npcOffer', { ...s, wait: false, instant: true });
   },
 };
-for (const name of ['npcMoveTo', 'npcAnim', 'npcLookAt', 'npcTask', 'npcFollow', 'transform', 'spawn', 'despawn', 'attachToTrack', 'npcDrag']) {
+for (const name of ['npcMoveTo', 'npcAnim', 'npcLookAt', 'npcTask', 'npcFollow', 'transform', 'kill', 'spawn', 'despawn', 'attachToTrack', 'npcDrag']) {
   SKIPS[name] = (s, ctx) => {
     if (ctx.host.npc) void ctx.host.npc(name, { ...s, wait: false, instant: true });
   };

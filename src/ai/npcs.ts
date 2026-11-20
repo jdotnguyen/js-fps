@@ -11,6 +11,8 @@ import { NpcActor, type NpcEnv } from './npcActor.ts';
 import { ChatGroup, type ChatMember } from './chatter.ts';
 import { AmbientDirector, isAmbientEligible, type AmbientAgent, type AmbientSpot } from './ambientLife.ts';
 import type { Squad, SquadId, SquadMate } from './squad.ts';
+import type { KillTable } from '../data/types/kills.ts';
+import { KillDirector } from './npcKills.ts';
 
 /**
  * The NPC director (ADR-0009 NPC actions, ADR-0011 squad hand-over, ADR-0023 and intro-sequence spec cast).
@@ -71,6 +73,12 @@ export interface NpcDirectorDeps {
   track?: (id: string) => P3[] | null;
   /** Authored walks (ADR-0028) for `via` and `attachToTrack`: control points and default speed. */
   walk?: (id: string) => { points: P3[]; speed?: number } | null;
+  /** Scripted kill styles (`data/kills.json`, infection-kills spec) for the `kill` command. */
+  kills?: Readonly<KillTable>;
+  /** Subscribe to a bus event (a kill listens for its lines ending); returns the unsubscriber. */
+  listen?: (name: string, fn: (payload: unknown) => void) => () => void;
+  /** Play the first of `ids` that exists, at a world point; false when none does. */
+  sfx?: (ids: readonly string[], at: Vec3Like) => boolean;
 }
 
 /** Names a sequence may use for the squad. */
@@ -91,6 +99,8 @@ const SQUAD_NAMES: Readonly<Record<string, SquadId>> = { giles: 'engineer', engi
 
 export class NpcDirector {
   readonly group = new THREE.Group();
+  /** Scene-level effects the NPCs own (the kill key light); add to the scene beside `group`. */
+  readonly fx = new THREE.Group();
   private readonly deps: NpcDirectorDeps;
   private readonly actors = new Map<string, NpcActor>();
   /** Squadmates currently lent to a sequence. */
@@ -126,9 +136,38 @@ export class NpcDirector {
   private talkGen = 0;
   private readonly talkHeads = new Map<string, THREE.Vector3>();
 
+  /** Scripted infected kills (`kill` command). */
+  readonly kills: KillDirector;
+
   constructor(deps: NpcDirectorDeps) {
     this.deps = deps;
     this.group.name = 'npcs';
+    this.fx.name = 'npc-fx';
+    this.kills = new KillDirector(
+      {
+        ctx: deps.ctx,
+        kills: deps.kills,
+        emit: (n, p) => deps.emit?.(n, p),
+        listen: deps.listen,
+        sfx: deps.sfx,
+        warn: (m) => this.warnOnce(m),
+        resolve: (ref) => this.resolver?.(ref) ?? (Array.isArray(ref) ? { pos: { x: ref[0] as number, y: ref[1] as number, z: ref[2] as number } } : null),
+        spawn: (id, look, at, yaw, pose) => {
+          const a = this.create(id, look, at, yaw, pose, false);
+          this.spawned.add(id);
+          this.hold(id);
+          a.ambient = false;
+          return a;
+        },
+        hold: (id) => {
+          this.hold(id);
+          const a = this.actors.get(id);
+          if (a) a.ambient = false;
+        },
+        exists: (id, actor) => this.actors.get(id) === actor,
+      },
+      this.fx,
+    );
     this.env = { nav: deps.nav, colliders: deps.colliders, playerHead: new THREE.Vector3(), playerFeet: new THREE.Vector3(), camera: null, playerWish: { x: 0, z: 0 }, occupied: (x, z, r, self) => this.occupiedAt(x, z, r, self), bodies: (self, fn) => this.eachSolid((x, z, r, owner) => owner !== self && fn(x, z, r)) };
   }
 
@@ -370,7 +409,13 @@ export class NpcDirector {
 
   /** Back to the level's starting layout (new game, load): scripted spawns go, cast return. */
   reset(): void {
+    this.kills.reset();
     for (const id of [...this.spawned]) this.remove(id);
+    // A body a kill tore open or killed is rebuilt from scratch (the Lab B researcher alive at her desk again).
+    for (const s of this.levelSpawns.values()) {
+      const b = this.actors.get(s.id)?.body;
+      if (b && (b.killing || b.chestTorn || !b.alive)) this.remove(s.id);
+    }
     for (const close of this.offers.values()) close();
     this.offers.clear();
     this.talker = null;
@@ -550,6 +595,9 @@ export class NpcDirector {
       }
       case 'npcTask':
         return this.task(npc, a, step, instant);
+      case 'kill':
+        this.ambientLife?.interrupt(npc);
+        return this.kills.start(npc, a, step, instant);
       case 'transform': {
         const to = typeof step['to'] === 'number' ? step['to'] : 3;
         const dur = typeof step['duration'] === 'number' ? step['duration'] : 0;
@@ -795,6 +843,7 @@ export class NpcDirector {
     // The scene is over: squadmates go back to following Jay.
     if (this.held.size > this.parked.size && this.deps.sequenceRunning && !this.deps.sequenceRunning()) this.releaseUnparked();
     this.ambientLife?.update(dt, { eye: camera, forward: cameraForward });
+    this.kills.update(dt);
     const seen = new Set<NpcActor>();
     for (const [id, a] of this.actors) {
       if (seen.has(a)) continue;

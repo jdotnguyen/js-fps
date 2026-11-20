@@ -83,6 +83,18 @@ const BATCHES: ReactionBatch[] = [
       { id: 'react_voss_scream_03', direction: 'frantic terrified scream over station comms', vocalization: 'Aaaahhh! Aah!' },
     ],
   },
+  {
+    // Her panic as the thing crawls up her arm (infection-kills spec, the scratch beat: sound `voss_panic_breath`). Its own batch so
+    // `--only react_voss_panic` never regenerates her credited OpenGameArt screams above.
+    name: 'react_voss_panic',
+    voice: 'Leda',
+    character: 'Dr. Lena Voss, 34 female microbiologist (sharp female voice, something is moving under the skin of her arm)',
+    takes: [
+      { id: 'react_voss_panic_01', direction: 'fast shallow terrified panting, breath catching, close to the mic', vocalization: 'Hh— hh— hh— hhh—' },
+      { id: 'react_voss_panic_02', direction: 'choked whimpering sobs of disgust and fear, trying not to scream', vocalization: 'Nn— nnh— oh god— nnh—' },
+      { id: 'react_voss_panic_03', direction: 'ragged hyperventilating gasps turning into a whimper', vocalization: 'Hah— hah— hahh— nnnh—' },
+    ],
+  },
 ];
 
 /** Maps each non-verbal dialogue line to its 3-variant character-matched reaction pool. */

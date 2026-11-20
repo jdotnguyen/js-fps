@@ -886,6 +886,19 @@ export const SAMPLE_URLS = {
   // Seven boot steps cut from the first ~4 s of freesound_community "metal footsteps" (14727).
   footPlate: [1, 2, 3, 4, 5, 6, 7].map((i) => `assets/audio/footsteps/foot-metal-${i}.mp3`),
 
+  // Infected-kill body sounds (ElevenLabs, scripts/gore-generate.ts; infection-kills spec, data/kills.json).
+  kill_crunch: ['assets/audio/gore/kill-crunch-1.mp3', 'assets/audio/gore/kill-crunch-2.mp3', 'assets/audio/gore/kill-crunch-3.mp3', 'assets/audio/gore/kill-crunch-4.mp3'],
+  kill_tear: 'assets/audio/gore/kill-tear.mp3',
+  kill_burst: 'assets/audio/gore/kill-burst.mp3',
+  blood_splat_glass: ['assets/audio/gore/blood-splat-glass-1.mp3', 'assets/audio/gore/blood-splat-glass-2.mp3', 'assets/audio/gore/blood-splat-glass-3.mp3'],
+  blood_drip: 'assets/audio/gore/blood-drip.mp3',
+  creature_clicks: 'assets/audio/gore/creature-clicks.mp3',
+  // The creature hammering on the Lab B glass, and Voss's palms on it (ElevenLabs, scripts/gore-generate.ts).
+  creature_glass_hit: [1, 2, 3, 4].map((i) => `assets/audio/gore/creature-glass-hit-${i}.mp3`),
+  palm_glass_hit: [1, 2, 3].map((i) => `assets/audio/gore/palm-glass-hit-${i}.mp3`),
+  // Voss panting and whimpering as it crawls up her arm (Gemini TTS, scripts/vo-reactions.ts --only react_voss_panic).
+  voss_panic_breath: ['assets/vo/react_voss_panic_01.mp3', 'assets/vo/react_voss_panic_02.mp3', 'assets/vo/react_voss_panic_03.mp3'],
+
   // Environmental ambient beds, spatial emitters, and foley one-shots (ElevenLabs, scripts/ambience-generate.ts).
   // Keys matching SOUND_SPECS replace their procedural fallback once loaded; amb* beds power AmbienceDirector.
   roomTone: 'assets/audio/ambience/bed-hull-hum.mp3',

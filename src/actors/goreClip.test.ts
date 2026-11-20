@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CLIP_GAP, clipCoord, crossed, sameClip, type GoreClip } from './goreClip.ts';
+import { CLIP_GAP, clipCoord, crossed, sameClip, type GoreClip, clearOfBand } from './goreClip.ts';
 
 const glass: GoreClip = { axis: 'z', at: 46.05, keep: 'above' };
 
@@ -33,4 +33,15 @@ test('a simulated spray thrown at the glass never ends up on Jay\'s side', () =>
     [z, vz] = clipCoord(glass, z, vz);
     assert.ok(z >= 46.05, `z=${z}`);
   }
+});
+
+test('blood marks on glass move out of the clear band, below or above it (infection-kills spec)', () => {
+  const band = { min: 1.1, max: 1.8 };
+  assert.equal(clearOfBand(0.6, 0.3, band), 0.6, 'already below');
+  assert.equal(clearOfBand(2.1, 0.3, band), 2.1, 'already above');
+  const low = clearOfBand(1.2, 0.3, band);
+  assert.ok(low + 0.15 <= band.min, 'a mark low in the band drops below it');
+  const high = clearOfBand(1.7, 0.3, band);
+  assert.ok(high - 0.15 >= band.max, 'a mark high in the band rises above it');
+  assert.equal(clearOfBand(1.4, 0.3, undefined), 1.4, 'no band, no move');
 });

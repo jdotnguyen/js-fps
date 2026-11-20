@@ -76,25 +76,16 @@
     "line": "drop_okafor_01"
    },
    {
-    "do": "npcAnim",
-    "npc": "researcher_b",
-    "anim": "writhing"
-   },
-   {
-    "do": "say",
-    "line": "drop_voss_01"
-   },
-   {
-    "do": "say",
-    "line": "drop_okafor_02"
-   },
-   {
     "parallel": [
      {
-      "do": "transform",
+      "do": "kill",
       "npc": "researcher_b",
-      "to": 3,
-      "duration": 7,
+      "kind": "grownInside",
+      "glass": "anchor:labb_glass",
+      "lines": {
+       "scratch": "drop_voss_01",
+       "glass": "drop_voss_02"
+      },
       "wait": true
      },
      {
@@ -102,12 +93,28 @@
       "count": 1,
       "steps": [
        {
-        "do": "wait",
-        "s": 0.5
+        "do": "waitFor",
+        "event": "kill:scratch",
+        "timeout": 3
        },
        {
         "do": "say",
-        "line": "drop_heins_02"
+        "line": "drop_voss_01"
+       },
+       {
+        "do": "say",
+        "line": "drop_okafor_02"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "waitFor",
+        "event": "kill:panic",
+        "timeout": 9
        },
        {
         "do": "lightState",
@@ -118,6 +125,17 @@
         "do": "lightState",
         "room": "R03",
         "pattern": "flicker"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "waitFor",
+        "event": "kill:glass",
+        "timeout": 13
        },
        {
         "do": "say",
@@ -125,7 +143,7 @@
        },
        {
         "do": "say",
-        "line": "drop_giles_01"
+        "line": "drop_heins_02"
        }
       ]
      },
@@ -134,8 +152,9 @@
       "count": 1,
       "steps": [
        {
-        "do": "wait",
-        "s": 2.0
+        "do": "waitFor",
+        "event": "kill:arch",
+        "timeout": 18
        },
        {
         "do": "lightState",
@@ -148,16 +167,6 @@
         "room": "R03",
         "pattern": "alarm",
         "tint": "emergency"
-       }
-      ]
-     },
-     {
-      "do": "loop",
-      "count": 1,
-      "steps": [
-       {
-        "do": "wait",
-        "s": 3.0
        },
        {
         "do": "loop",
@@ -175,6 +184,37 @@
         ]
        }
       ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "waitFor",
+        "event": "kill:burst",
+        "timeout": 20
+       },
+       {
+        "do": "cameraShake",
+        "amount": 0.3,
+        "s": 0.5
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "waitFor",
+        "event": "kill:still",
+        "timeout": 21
+       },
+       {
+        "do": "say",
+        "line": "drop_giles_01"
+       }
+      ]
      }
     ]
    },
@@ -185,6 +225,7 @@
    {
     "do": "say",
     "line": "drop_pa_lockdown_01",
+    "fixture": "pa_gallery",
     "wait": false,
     "overlap": true
    },
@@ -195,11 +236,6 @@
    {
     "do": "say",
     "line": "drop_okafor_03"
-   },
-   {
-    "do": "npcAnim",
-    "npc": "researcher_b",
-    "anim": "shamble"
    },
    {
     "do": "lightState",

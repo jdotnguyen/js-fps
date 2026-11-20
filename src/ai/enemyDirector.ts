@@ -522,6 +522,7 @@ export class EnemyDirector implements EnemyHost {
     const opts: Parameters<EnemyDirector['spawn']>[3] = { group: r.group, start, id: r.index === 0 ? p.id : `${p.id}.${r.index}` };
     if (p.outfit !== undefined) opts.outfit = p.outfit;
     if (p.infection !== undefined) opts.infection = p.infection;
+    if (p.model !== undefined) opts.model = p.model;
     const e = this.spawn(r.variant, pos, ((p.yaw ?? 0) * Math.PI) / 180, opts);
     // Door and vent spawns arrive hunting; floor and corpse spawns wait to notice someone.
     if (p.kind === 'door' && e.state === 'dormant') {

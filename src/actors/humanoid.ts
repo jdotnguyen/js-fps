@@ -7,7 +7,7 @@ import type { Emote } from '../data/types/dialogue.ts';
 import { bodyGeometryFromModel } from './bodyModel.ts';
 import type { BodyModelLibrary } from './bodyModelLibrary.ts';
 import { buildBodyGeometry, triangleCount, woundCap, type BodyGeometry, type ExtraBone, type ExtraBoneDef, type Look, type Outfit, type PartGeometry } from './bodyGeometry.ts';
-import { createBodyMaterials, MAX_BONES, type BodyMaterials } from './bodyMaterial.ts';
+import { createBodyMaterials, MAX_BONES, MAX_BULGES, type BodyMaterials } from './bodyMaterial.ts';
 import { rayCapsule } from './capsule.ts';
 import { BodyDamage, DEFAULT_PROFILE, HERO_BASE_HP, HERO_PROFILE, POISE_WINDOW, SHAMBLER_BASE_HP, type HitResult, type LocomotionState } from './damage.ts';
 import { BELLY_WOUND } from './heroSculpt.ts';
@@ -181,6 +181,12 @@ export class Humanoid {
   private readonly hitboxes: THREE.Object3D[] = [];
   private infectionLevel: number;
   private transformAnim: { from: number; t: number; dur: number } | null = null;
+  /** A scripted kill in progress (infection-kills spec): convulsion eases toward `target` at `rate` per second. */
+  private kill: { target: number; rate: number } | null = null;
+  /** Joint positions in bind-pose body space (the space the body shader's `position` lives in), for lumps and wounds. */
+  private readonly bindJoint = new Map<JointName, THREE.Vector3>();
+  /** Bind-space z of the body's front surface (its most -Z skin or cloth) at each joint, found on first use. */
+  private readonly frontZ = new Map<JointName, number>();
   private castTells: CastTells | null = null;
   private stateTimer = 0;
   private pendingPool = -1;
@@ -332,6 +338,128 @@ export class Humanoid {
 
   get transforming(): boolean {
     return this.transformAnim !== null;
+  }
+
+  // ---------------------------------------------------------------- scripted kills (infection-kills spec)
+
+  /** Hand the body to a scripted kill: no mocap, foot IK, hand contact or idle life fight the authored beats. */
+  beginKill(): void {
+    this.transformAnim = null;
+    this.kill = { target: 0, rate: 2 };
+  }
+
+  get killing(): boolean {
+    return this.kill !== null;
+  }
+
+  /** The convulsion the body eases toward (0..1), at `rate` per second. */
+  killConvulse(target: number, rate = 1.5): void {
+    if (this.kill) {
+      this.kill.target = THREE.MathUtils.clamp(target, 0, 1);
+      this.kill.rate = rate;
+    }
+  }
+
+  /** Current convulsion strength (tests, debug). */
+  get convulsion(): number {
+    return this.animator.convulse;
+  }
+
+  /** An additive jolt through `joint` and its parents; `dir` in body (group) space, the body faces -Z. */
+  killKick(joint: JointName, dir: THREE.Vector3, strength: number): void {
+    this.animator.kick(joint, dir, strength);
+  }
+
+  /**
+   * Lump `i` under the skin, `t` (0..1) of the way along the joint chain `path`, pushed a little to the body's front.
+   * `radius` 0 turns it off.
+   */
+  setBulge(i: number, path: readonly JointName[], t: number, radius: number, amp: number): void {
+    if (i < 0 || i >= MAX_BULGES) return;
+    const u = this.materials.uniforms;
+    const slot = u.uBulge.value[i]!;
+    // Each point of the path sits just under the body's own front surface there, so thick torsos, coats and thin limbs
+    // all show the lump (on the bone line it can be 10 cm behind a heavy torso's skin).
+    const pts = path
+      .map((j) => {
+        const b = this.bindJoint.get(j);
+        return b ? b.clone().setZ(this.frontAt(j) + radius * 0.45) : undefined;
+      })
+      .filter((p): p is THREE.Vector3 => p !== undefined);
+    if (radius <= 0 || pts.length === 0) {
+      slot.set(0, 0, 0, 0);
+      u.uBulgeAmp.value[i] = 0;
+      return;
+    }
+    const k = THREE.MathUtils.clamp(t, 0, 1) * (pts.length - 1);
+    const a = pts[Math.floor(k)]!;
+    const b = pts[Math.min(pts.length - 1, Math.floor(k) + 1)]!;
+    const f = k - Math.floor(k);
+    slot.set(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f, a.z + (b.z - a.z) * f, radius);
+    u.uBulgeAmp.value[i] = amp;
+  }
+
+  /** The front surface's bind-space z near a joint: the most -Z vertex in a small slab round it (the joint's own z if none). */
+  private frontAt(j: JointName): number {
+    const cached = this.frontZ.get(j);
+    if (cached !== undefined) return cached;
+    const c = this.bindJoint.get(j);
+    if (!c) return 0;
+    let front = c.z;
+    for (const m of this.meshes) {
+      const pos = m.geometry.getAttribute('position');
+      for (let i = 0; i < pos.count; i++) {
+        if (Math.abs(pos.getY(i) - c.y) > 0.05 || Math.abs(pos.getX(i) - c.x) > 0.06) continue;
+        const z = pos.getZ(i);
+        if (z < front) front = z;
+      }
+    }
+    this.frontZ.set(j, front);
+    return front;
+  }
+
+  clearBulges(): void {
+    for (let i = 0; i < MAX_BULGES; i++) this.setBulge(i, [], 0, 0, 0);
+  }
+
+  /** Tear the chest open (radius in metres; 0 heals it, as a checkpoint reload does). */
+  tearChest(radius: number): void {
+    const c = this.bindJoint.get('chest');
+    const t = this.materials.uniforms.uTear.value;
+    if (!c || radius <= 0) t.set(0, 0, 0, 0);
+    else t.set(c.x, c.y - 0.02, this.frontAt('chest') + radius * 0.72, radius); // under the front surface: the opening is ~0.7 of the radius
+  }
+
+  get chestTorn(): boolean {
+    return this.materials.uniforms.uTear.value.w > 0;
+  }
+
+  /** Die where she stands, into `pose`: no random corpse pose and no long death twitch (the kill twitches her itself). */
+  killDie(pose: string, blend = 0.5): void {
+    this.state = 'dead';
+    this.speed = 0;
+    this.transformAnim = null;
+    this.animator.convulse = 0;
+    this.animator.deathTwitch = 0;
+    this.idlePose = pose;
+    this.animator.setPose(pose, blend);
+    this.charge = 0;
+    if (this.kill) this.kill.target = 0;
+  }
+
+  /** The kill is over (or undone by a reload). */
+  endKill(): void {
+    this.kill = null;
+    this.animator.convulse = 0;
+  }
+
+  /** Back to a living body after a checkpoint reload rebuilt the scene before the kill. */
+  reviveAfterKill(pose: string): void {
+    this.endKill();
+    this.clearBulges();
+    this.tearChest(0);
+    this.state = 'alive';
+    this.setPose(pose, 0.01);
   }
 
   /** A body lying still that gets up when disturbed (ADR-0007 play-dead). */
@@ -676,9 +804,9 @@ export class Humanoid {
     this.animator.setWound(this.locomotion.limpSide, this.locomotion.limp);
     this.animator.infect = this.infectionLevel / 3;
     this.animator.twitchy = moving && (this.spec.role === 'enemy' || this.infectionLevel >= 1);
-    this.animator.idleLife = this.state === 'alive' && this.spec.role === 'npc' && !this.locomotion.blind && !lying ? 1 : 0;
+    this.animator.idleLife = this.state === 'alive' && this.spec.role === 'npc' && !this.locomotion.blind && !lying && !this.kill ? 1 : 0;
     const uprightAlive = this.state === 'alive' && this.locomotion.mode === 'walk' && !lying && this.spec.role !== 'corpse';
-    this.animator.useMocap = uprightAlive && !(this.spec.role === 'npc' && this.locomotion.blind) && this.slam?.busy !== true;
+    this.animator.useMocap = uprightAlive && !(this.spec.role === 'npc' && this.locomotion.blind) && this.slam?.busy !== true && !this.kill;
     this.animator.charge = this.state === 'alive' && this.locomotion.mode === 'walk' ? Math.max(this.charge, this.speedScale > 1.2 ? 1 : 0) : 0;
     this.updateBloodTrail(dt);
     if (this.lookTarget && this.state === 'alive' && !this.locomotion.blind) {
@@ -709,6 +837,7 @@ export class Humanoid {
       this.spec.role !== 'corpse' &&
       !lying &&
       !this.transformAnim &&
+      !this.kill &&
       this.locomotion.mode === 'walk' &&
       this.near;
     this.limbContact.solve({
@@ -792,7 +921,7 @@ export class Humanoid {
       return;
     }
     const lying = Humanoid.LYING_POSE.test(this.idlePose);
-    if (this.locomotion.mode !== 'walk' || lying || this.transformAnim) {
+    if (this.locomotion.mode !== 'walk' || lying || this.transformAnim || this.kill) {
       this.footReady = false;
       return;
     }
@@ -1059,6 +1188,11 @@ export class Humanoid {
 
   private buildMeshes(): void {
     this.group.updateMatrixWorld(true);
+    // Bind-pose joint positions in the space the merged geometry is built in (bone world at build time).
+    for (const j of JOINTS) {
+      const bone = this.bones[j.name];
+      if (bone) this.bindJoint.set(j.name, bone.getWorldPosition(new THREE.Vector3()));
+    }
     const layers = new Map<string, THREE.BufferGeometry[]>();
     for (const part of this.geo.parts) {
       const bone = this.boneOf(part.bone);
@@ -1170,6 +1304,11 @@ export class Humanoid {
         this.animator.convulse = 0;
       }
     }
+    if (this.kill) {
+      const c = this.animator.convulse;
+      const step = this.kill.rate * dt;
+      this.animator.convulse = c + THREE.MathUtils.clamp(this.kill.target - c, -step, step);
+    }
     this.materials.uniforms.uInfect.value = this.infectionLevel / 3;
   }
 
@@ -1204,6 +1343,8 @@ export class Humanoid {
     else if (this.spec.role === 'npc' && this.speed > 0.05) pose = 'walk';
     else if (this.spec.role === 'enemy') pose = this.spec.pose ?? 'shamble';
     if (this.carried) pose = this.carried;
+    if (this.kill) pose = this.idlePose; // a kill stagger keeps its authored upper body; the legs still step
+
     this.animator.setPose(pose, 0.45);
   }
 
@@ -1375,7 +1516,7 @@ export class Humanoid {
   }
 
   private solveIk(dt: number): void {
-    if (this.state !== 'alive' || this.transformAnim) {
+    if (this.state !== 'alive' || this.transformAnim || this.kill) {
       this.footIk.reset();
       return;
     }

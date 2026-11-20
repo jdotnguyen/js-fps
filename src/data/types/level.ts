@@ -199,6 +199,8 @@ const spawnShape = {
   yaw: optional(num),
   outfit: optional(oneOf(SPAWN_OUTFITS)),
   infection: optional(numRange(0, 3)),
+  /** Imported body (a `data/body-models.json` id) for this point's enemies, e.g. the creature that came out of Voss. */
+  model: optional(id),
   on: optional(str),
 };
 

@@ -1,0 +1,240 @@
+/**
+ * ElevenLabs Sound Effects generator for the infected-kill body sounds (infection-kills spec): bone crunches, flesh
+ * tearing, the chest burst, blood hitting glass, drips and the creature. Same pipeline as `ambience-generate.ts`.
+ *
+ * Reads `ELEVENLABS_API_KEY` from `.env` or the process environment (never logged or written to code), writes
+ * `public/assets/audio/gore/`, normalises one-shots to -6 dB peak and loops to -24 dB mean when ffmpeg is available.
+ * Vocal reactions (Voss panting, whimpers, screams) are not made here: they come from Gemini TTS (audio-assets spec).
+ *
+ * After generating, register each sound in `SAMPLE_URLS` (`src/audio/sounds.ts`); `--register` prints the entries.
+ * Until a sound exists, `data/kills.json` plays its stand-in (the second id in its `sfx` list).
+ *
+ * Usage:
+ *   npm run gore:generate -- --list
+ *   npm run gore:generate -- --id kill_crunch_1
+ *   npm run gore:generate -- --all
+ *   npm run gore:generate -- --register
+ */
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+
+const ROOT = resolve(import.meta.dirname, '..');
+const OUT_DIR = join(ROOT, 'public/assets/audio/gore');
+const API_URL = 'https://api.elevenlabs.io/v1/sound-generation';
+const MODEL_ID = 'eleven_text_to_sound_v2';
+const OUTPUT_FORMAT = 'mp3_44100_128';
+
+export interface GoreAssetSpec {
+  id: string;
+  /** The sound name it is a variant of (SAMPLE_URLS key, the id `data/kills.json` asks for). */
+  sound: string;
+  file: string;
+  loop: boolean;
+  duration: number;
+  promptInfluence: number;
+  prompt: string;
+}
+
+const DRY = 'close-miked, dry, no room reverb, no music, no voice, no screaming, no speech';
+
+const crunch = (n: number, detail: string): GoreAssetSpec => ({
+  id: `kill_crunch_${n}`,
+  sound: 'kill_crunch',
+  file: `kill-crunch-${n}.mp3`,
+  loop: false,
+  duration: 1.2,
+  promptInfluence: 0.6,
+  prompt: `single visceral bone break inside a human torso, ${detail}, wet cartilage pop, sickening organic snap, horror game foley, ${DRY}`,
+});
+
+const splat = (n: number, detail: string): GoreAssetSpec => ({
+  id: `blood_splat_glass_${n}`,
+  sound: 'blood_splat_glass',
+  file: `blood-splat-glass-${n}.mp3`,
+  loop: false,
+  duration: 1.0,
+  promptInfluence: 0.55,
+  prompt: `thick blood and gore splattering hard against a thick glass window pane, ${detail}, wet slap on glass, horror foley, ${DRY}`,
+});
+
+const GLASS = 'no shattering, no breaking glass, no music, no voice, no speech';
+
+const slam = (n: number, detail: string): GoreAssetSpec => ({
+  id: `creature_glass_hit_${n}`,
+  sound: 'creature_glass_hit',
+  file: `creature-glass-hit-${n}.mp3`,
+  loop: false,
+  duration: 1.2,
+  promptInfluence: 0.65,
+  prompt: `a huge monstrous creature slamming ${detail} against a thick reinforced laboratory observation window from the inside, deep heavy dull thump, the glass pane flexing and rattling hard in its steel frame, low resonant boom through the glass, horror game foley, close and heavy, ${GLASS}`,
+});
+
+const palm = (n: number, detail: string): GoreAssetSpec => ({
+  id: `palm_glass_hit_${n}`,
+  sound: 'palm_glass_hit',
+  file: `palm-glass-hit-${n}.mp3`,
+  loop: false,
+  duration: 0.8,
+  promptInfluence: 0.65,
+  prompt: `a terrified person ${detail} on a thick laboratory observation window, flat dull slap and thump on heavy glass, the pane buzzing slightly in its metal frame, close-miked foley, ${GLASS}`,
+});
+
+export const GORE_MANIFEST: readonly GoreAssetSpec[] = [
+  slam(1, 'its whole body'),
+  slam(2, 'its bony bladed forearms'),
+  slam(3, 'its shoulder and skull'),
+  slam(4, 'both clawed arms at once'),
+  palm(1, 'slamming both open palms flat'),
+  palm(2, 'pounding a fist'),
+  palm(3, 'slapping one palm hard'),
+  crunch(1, 'ribs cracking one after another'),
+  crunch(2, 'spine vertebra snapping under strain'),
+  crunch(3, 'collarbone and sternum crunching'),
+  crunch(4, 'neck vertebrae grinding then cracking'),
+  {
+    id: 'kill_tear',
+    sound: 'kill_tear',
+    file: 'kill-tear.mp3',
+    loop: false,
+    duration: 1.6,
+    promptInfluence: 0.6,
+    prompt: `human flesh and skin ripping open from the inside, slow wet tearing then a sudden rip, muscle fibres splitting, horror foley, ${DRY}`,
+  },
+  {
+    id: 'kill_burst',
+    sound: 'kill_burst',
+    file: 'kill-burst.mp3',
+    loop: false,
+    duration: 2.0,
+    promptInfluence: 0.6,
+    prompt: `violent wet chest cavity burst, ribcage exploding outward, heavy gush of blood and gore spraying, organic squelch, horror creature birth foley, ${DRY}`,
+  },
+  splat(1, 'one heavy spray'),
+  splat(2, 'a few smaller wet chunks hitting'),
+  splat(3, 'a long arterial spurt across the glass'),
+  {
+    id: 'blood_drip',
+    sound: 'blood_drip',
+    file: 'blood-drip.mp3',
+    loop: true,
+    duration: 8,
+    promptInfluence: 0.5,
+    prompt: `slow thick drips of blood falling onto a metal lab floor and pooling, irregular wet drips, seamless loop, quiet, ${DRY}`,
+  },
+  {
+    id: 'creature_clicks',
+    sound: 'creature_clicks',
+    file: 'creature-clicks.mp3',
+    loop: false,
+    duration: 3.5,
+    promptInfluence: 0.55,
+    prompt: `newborn alien creature unfolding wet chitinous limbs, insect-like clicking and joint popping, low wet breathing rasp, slime squelches, horror creature foley, ${DRY}`,
+  },
+];
+
+function loadApiKey(): string {
+  if (process.env.ELEVENLABS_API_KEY) return process.env.ELEVENLABS_API_KEY.trim();
+  const envPath = join(ROOT, '.env');
+  if (existsSync(envPath)) {
+    const match = readFileSync(envPath, 'utf8').match(/^ELEVENLABS_API_KEY=(.+)$/m);
+    if (match?.[1]) return match[1].trim().replace(/^["']|["']$/g, '');
+  }
+  throw new Error('ELEVENLABS_API_KEY not found in environment or .env');
+}
+
+function sizeOf(filePath: string): string {
+  return `${(statSync(filePath).size / 1024).toFixed(1)}KB`;
+}
+
+function detectVolume(filePath: string): { mean: number; max: number } | null {
+  const res = spawnSync('ffmpeg', ['-hide_banner', '-i', filePath, '-af', 'volumedetect', '-f', 'null', '-'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const out = `${res.stdout ?? ''}\n${res.stderr ?? ''}`;
+  const mean = out.match(/mean_volume:\s*([-\d.]+)\s*dB/);
+  const max = out.match(/max_volume:\s*([-\d.]+)\s*dB/);
+  return mean?.[1] && max?.[1] ? { mean: Number(mean[1]), max: Number(max[1]) } : null;
+}
+
+/** Pure linear gain (no compression, so the drip loop seam stays intact). */
+function normalize(filePath: string, loop: boolean): string | null {
+  const vol = detectVolume(filePath);
+  if (!vol) return null;
+  const gainDb = loop ? Math.min(-24 - vol.mean, -3 - vol.max) : -6 - vol.max;
+  if (Math.abs(gainDb) < 1.5) return 'unchanged';
+  const tmp = `${filePath}.norm.mp3`;
+  execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-i', filePath, '-af', `volume=${gainDb.toFixed(2)}dB`, '-c:a', 'libmp3lame', '-b:a', '128k', tmp], { stdio: ['ignore', 'pipe', 'pipe'] });
+  renameSync(tmp, filePath);
+  return `gain ${gainDb >= 0 ? '+' : ''}${gainDb.toFixed(1)}dB`;
+}
+
+async function generateOne(spec: GoreAssetSpec, apiKey: string, force: boolean): Promise<boolean> {
+  const outPath = join(OUT_DIR, spec.file);
+  if (existsSync(outPath) && !force) {
+    console.log(`[skip] ${spec.id} -> ${spec.file} (${sizeOf(outPath)})`);
+    return false;
+  }
+  mkdirSync(OUT_DIR, { recursive: true });
+  const res = await fetch(`${API_URL}?output_format=${encodeURIComponent(OUTPUT_FORMAT)}`, {
+    method: 'POST',
+    headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+    body: JSON.stringify({ text: spec.prompt, model_id: MODEL_ID, duration_seconds: spec.duration, prompt_influence: spec.promptInfluence, loop: spec.loop }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} generating "${spec.id}": ${await res.text()}`);
+  writeFileSync(outPath, Buffer.from(await res.arrayBuffer()));
+  const norm = normalize(outPath, spec.loop);
+  console.log(`[ok]   ${spec.id} -> ${spec.file} (${sizeOf(outPath)}${norm ? `, ${norm}` : ''})`);
+  return true;
+}
+
+/** The `SAMPLE_URLS` entries for every sound whose files all exist. */
+export function registrationLines(exists: (file: string) => boolean = (f) => existsSync(join(OUT_DIR, f))): string[] {
+  const bySound = new Map<string, string[]>();
+  for (const s of GORE_MANIFEST) bySound.set(s.sound, [...(bySound.get(s.sound) ?? []), s.file]);
+  const lines: string[] = [];
+  for (const [sound, files] of bySound) {
+    if (!files.every(exists)) continue;
+    const urls = files.map((f) => `'assets/audio/gore/${f}'`);
+    lines.push(`  ${sound}: ${urls.length === 1 ? urls[0] : `[${urls.join(', ')}]`},`);
+  }
+  return lines;
+}
+
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  const force = args.includes('--force');
+  const all = args.includes('--all');
+  const ids: string[] = [];
+  for (let i = 0; i < args.length; i++) if (args[i] === '--id' && args[i + 1]) ids.push(args[++i]!);
+
+  if (args.includes('--register')) {
+    const lines = registrationLines();
+    console.log(lines.length ? `Add to SAMPLE_URLS in src/audio/sounds.ts:\n  // Infected-kill body sounds (ElevenLabs, scripts/gore-generate.ts).\n${lines.join('\n')}` : 'No complete sound yet; generate first.');
+    return;
+  }
+  if (args.includes('--list') || (!all && ids.length === 0)) {
+    console.log(`Gore manifest (${GORE_MANIFEST.length} assets -> public/assets/audio/gore/):\n`);
+    for (const s of GORE_MANIFEST) {
+      const have = existsSync(join(OUT_DIR, s.file)) ? 'YES' : '---';
+      console.log(`  [${have}] ${s.id.padEnd(20)} ${s.sound.padEnd(18)} ${s.loop ? 'loop' : 'shot'} ${String(s.duration).padStart(4)}s  ${s.file}`);
+    }
+    return;
+  }
+  const targets = all
+    ? [...GORE_MANIFEST]
+    : ids.map((id) => {
+        const found = GORE_MANIFEST.find((s) => s.id === id);
+        if (!found) throw new Error(`Unknown asset id "${id}". Run with --list to see available ids.`);
+        return found;
+      });
+  const apiKey = loadApiKey();
+  let made = 0;
+  for (const spec of targets) if (await generateOne(spec, apiKey, force)) made++;
+  console.log(`\nDone: ${made} generated, ${targets.length - made} skipped. Next: npm run gore:generate -- --register`);
+}
+
+if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}` || process.argv[1]?.endsWith('gore-generate.ts')) {
+  main().catch((err: unknown) => {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  });
+}

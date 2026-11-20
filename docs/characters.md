@@ -171,7 +171,7 @@ reveal; the player is **Jay**, silent, with **no written backstory with anyone**
 
 | Character | Who they are | Where they appear | Detail that surfaces |
 |---|---|---|---|
-| **Dr. Lena Voss** | Lab B microbiologist, the bloom's lead researcher. Brilliant, ambitious, scared for three days. | R04: the researcher who transforms behind the glass. | Her name badge on the floor of R05 afterwards; her voice log on a terminal ("It's not an infection. It's a *conversion*."). |
+| **Dr. Lena Voss** | Lab B microbiologist, the bloom's lead researcher. Brilliant, ambitious, scared for three days. | R04: the researcher killed behind the glass when the bloom grows out of her chest (infection-kills spec, `grownInside`). NPC `researcher_b`, look `voss` (a fixed female body; stand-in `office3` until a lab-coat model is licensed); speaker `crew_lab`, whose lines move her jaw and play from her head. | Her name badge on the floor of R05 afterwards; her voice log on a terminal ("It's not an infection. It's a *conversion*."). |
 | **Priya Anand** | Okafor's nurse, 29, two years on station. Cheerful, competent, the one person who calls him "Tomas". | R08: dragged away through the glass. | Okafor says her name once. Her cardigan on the sickbay chair. |
 | **Bram** (cook, `crew_cook`) | Contractor like Giles; runs the kitchen; dry, gossipy, knows everything through the pipes. | Intro kitchen. | "Nobody tells the kitchen anything. We just hear the pipes." His fixed kettle (Giles fixed it). |
 | **Ines Ruiz** (tech, `crew_tech`) | Comms technician; curious, asks the question nobody else will. | Intro kitchen. | "Third quarantine this month. Anyone know what's actually in Lab B?" Later found in R09. |

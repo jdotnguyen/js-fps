@@ -9,7 +9,7 @@ import { CREW_PREFIX } from '../data/types/dialogue.ts';
  */
 
 /** Named speakers that are cast NPCs, by NPC id. Jay, the PA and the director on the radio have no body here. */
-const SPEAKER_NPC: Readonly<Record<string, string>> = { engineer: 'giles', medic: 'okafor', nurse: 'priya', chief: 'heins' };
+const SPEAKER_NPC: Readonly<Record<string, string>> = { engineer: 'giles', medic: 'okafor', nurse: 'priya', chief: 'heins', crew_lab: 'researcher_b' };
 
 /** The NPC id for a speaker id, or null (the player, the PA, anonymous crew, the infected). */
 export function npcIdForSpeaker(speaker: string): string | null {
