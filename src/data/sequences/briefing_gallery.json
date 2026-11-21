@@ -1,48 +1,83 @@
 {
   "id": "briefing_gallery",
   "trigger": { "event": "trigger:gallery_brief_spot", "requires": "introSeen", "unless": "briefingSeen" },
-  "exclusive": "rails",
   "skippable": true,
   "once": true,
   "steps": [
     {
-      "do": "playerControl",
-      "move": "locked",
-      "look": "clamped",
-      "weapons": false,
-      "interact": false,
-      "flashlight": false
+      "do": "completeObjective",
+      "id": "obj_briefing"
     },
     {
-      "parallel": [
-        {
-          "do": "playerWalkTo",
-          "to": "anchor:brief_jay",
-          "wait": true
-        },
-        {
-          "do": "npcMoveTo",
-          "npc": "giles",
-          "to": "anchor:brief_giles",
-          "wait": true
-        },
-        {
-          "do": "npcMoveTo",
-          "npc": "okafor",
-          "to": "anchor:brief_okafor",
-          "wait": true
-        }
-      ]
+      "do": "npcMoveTo",
+      "npc": "sung",
+      "to": "anchor:brief_sung",
+      "speed": 2.2
     },
     {
-      "do": "playerFrame",
-      "target": "npc:heins",
-      "duration": 1.2,
-      "wait": true
+      "do": "npcMoveTo",
+      "npc": "giles",
+      "to": "anchor:brief_giles",
+      "speed": 2.2
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "okafor",
+      "to": "anchor:brief_okafor",
+      "speed": 2.2
     },
     {
       "do": "say",
       "line": "brief_heins_01"
+    },
+    {
+      "do": "squadCatchUpIn",
+      "room": "R03",
+      "at": "anchor:gallery_enter"
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "giles",
+      "to": "anchor:brief_giles",
+      "speed": 2.2
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "okafor",
+      "to": "anchor:brief_okafor",
+      "speed": 2.2
+    },
+    {
+      "do": "say",
+      "line": "brief_heins_door"
+    },
+    {
+      "do": "squadCatchUpIn",
+      "room": "R03",
+      "at": "anchor:gallery_enter"
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "giles",
+      "to": "anchor:brief_giles",
+      "speed": 2.2
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "okafor",
+      "to": "anchor:brief_okafor",
+      "speed": 2.2
+    },
+    {
+      "do": "doorState",
+      "id": "D_R02_R03",
+      "state": "locked",
+      "ifAllIn": "R03"
+    },
+    {
+      "do": "sfx",
+      "id": "click",
+      "at": "door:D_R02_R03"
     },
     {
       "do": "say",
@@ -57,12 +92,6 @@
       "line": "brief_heins_03"
     },
     {
-      "do": "playerFrame",
-      "target": "npc:giles",
-      "duration": 0.8,
-      "wait": true
-    },
-    {
       "do": "say",
       "line": "brief_giles_01"
     },
@@ -75,14 +104,42 @@
       "line": "brief_giles_02"
     },
     {
-      "do": "playerFrame",
-      "target": "npc:heins",
-      "duration": 0.8,
-      "wait": true
-    },
-    {
-      "do": "say",
-      "line": "brief_heins_05"
+      "parallel": [
+        {
+          "do": "say",
+          "line": "brief_heins_05"
+        },
+        {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+            {
+              "do": "wait",
+              "s": 0.9
+            },
+            {
+              "do": "setObjective",
+              "id": "round_hydro"
+            },
+            {
+              "do": "wait",
+              "s": 0.9
+            },
+            {
+              "do": "setObjective",
+              "id": "round_dive"
+            },
+            {
+              "do": "wait",
+              "s": 0.9
+            },
+            {
+              "do": "setObjective",
+              "id": "round_admin"
+            }
+          ]
+        }
+      ]
     },
     {
       "do": "say",
@@ -106,12 +163,6 @@
       }
     },
     {
-      "do": "playerFrame",
-      "target": "anchor:brief_screen",
-      "duration": 1.0,
-      "wait": true
-    },
-    {
       "do": "say",
       "line": "brief_hale_01"
     },
@@ -120,20 +171,8 @@
       "line": "brief_hale_02"
     },
     {
-      "do": "playerFrame",
-      "target": "anchor:labb_blinds",
-      "duration": 1.4,
-      "wait": true
-    },
-    {
       "do": "say",
       "line": "brief_hale_03"
-    },
-    {
-      "do": "playerFrame",
-      "target": "anchor:brief_screen",
-      "duration": 1.0,
-      "wait": true
     },
     {
       "do": "say",
@@ -149,23 +188,11 @@
     },
     {
       "do": "wait",
-      "s": 1.2
-    },
-    {
-      "do": "playerFrame",
-      "target": "npc:heins",
-      "duration": 0.8,
-      "wait": true
+      "s": 0.45
     },
     {
       "do": "say",
       "line": "brief_heins_07"
-    },
-    {
-      "do": "playerFrame",
-      "target": "npc:okafor",
-      "duration": 0.8,
-      "wait": true
     },
     {
       "do": "npcAnim",
@@ -174,48 +201,25 @@
     },
     {
       "do": "wait",
-      "s": 1.5
-    },
-    {
-      "do": "playerFrame",
-      "target": "npc:giles",
-      "duration": 0.8,
-      "wait": true
+      "s": 0.6
     },
     {
       "do": "say",
       "line": "brief_giles_03"
     },
     {
-      "do": "playerFrame",
-      "target": "npc:heins",
-      "duration": 0.8,
-      "wait": true
-    },
-    {
       "do": "say",
       "line": "brief_heins_08"
     },
     {
-      "do": "setObjective",
-      "id": "round_hydro"
-    },
-    {
-      "do": "setObjective",
-      "id": "round_dive"
-    },
-    {
-      "do": "setObjective",
-      "id": "round_admin"
+      "do": "doorState",
+      "id": "D_R02_R03",
+      "state": "closed"
     },
     {
       "do": "setFlag",
       "flag": "briefingSeen",
       "value": true
-    },
-    {
-      "do": "playerControl",
-      "reset": true
     },
     {
       "do": "checkpoint",

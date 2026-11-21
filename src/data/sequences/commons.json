@@ -17,6 +17,16 @@
     "value": true
    },
    {
+    "do": "setObjective",
+    "id": "obj_briefing"
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "sung",
+    "to": "anchor:brief_sung",
+    "speed": 1.6
+   },
+   {
     "do": "waitFor",
     "event": [
      "trigger:commons_to_gallery",
@@ -77,49 +87,19 @@
    "unless": "briefingSeen"
   },
   "once": true,
-  "skippable": true,
-  "exclusive": "rails",
   "steps": [
-   {
-    "do": "playerControl",
-    "move": "locked",
-    "look": "clamped",
-    "weapons": false,
-    "interact": false,
-    "flashlight": false
-   },
-   {
-    "do": "playerFrame",
-    "target": "npc:giles",
-    "duration": 0.7,
-    "wait": true
-   },
    {
     "do": "say",
     "line": "commons_giles_hey_01"
    },
    {
-    "parallel": [
-     {
-      "do": "say",
-      "line": "commons_giles_hey_02"
-     },
-     {
-      "do": "playerWalkTo",
-      "to": "anchor:dawdle_call",
-      "wait": true,
-      "timeout": 14
-     }
-    ]
+    "do": "say",
+    "line": "commons_giles_hey_02"
    },
    {
     "do": "setFlag",
     "flag": "dawdle_caught",
     "value": true
-   },
-   {
-    "do": "playerControl",
-    "reset": true
    }
   ]
  },

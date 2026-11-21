@@ -18,6 +18,11 @@ export type EventMatch = Infer<typeof eventMatchShape>;
 /** One hint tier: a line id, or variants used in turn on repeat visits. */
 const tier: Validator<string[]> = (v, p) => (typeof v === 'string' ? [str(v, p)] : arr(str)(v, p));
 
+const heldTargetShape = {
+  item: str,
+  target: str,
+};
+
 const objectiveShape = {
   title: str,
   required: bool,
@@ -25,6 +30,8 @@ const objectiveShape = {
   area: optional(str),
   /** Explicit target instead of the area: "room:<id>", "door:<id>" or "anchor:<id>". */
   target: optional(str),
+  /** Alternate target once the player holds `item` (e.g. dive sample case -> airlock locker). */
+  targetWhenHeld: optional(obj(heldTargetShape)),
   /** Hint tiers, vague to explicit. The last tier also fires the nav pulse. */
   hints: optional(arr(tier)),
   startOn: optional(obj(eventMatchShape)),
@@ -43,6 +50,9 @@ export function objectivesValidator(lineIds?: ReadonlySet<string>): Validator<Ob
       const ip = `${p} > ${id}`;
       if (!/^[a-z0-9_]+$/.test(id)) throw new ValidationError(ip, `objective ids are lower_snake_case, got "${id}"`);
       if (def.target !== undefined && !/^(room|door|anchor):[A-Za-z0-9_-]+$/.test(def.target)) throw new ValidationError(`${ip} > target`, 'expected "room:<id>", "door:<id>" or "anchor:<id>"');
+      if (def.targetWhenHeld !== undefined && !/^(room|door|anchor):[A-Za-z0-9_-]+$/.test(def.targetWhenHeld.target)) {
+        throw new ValidationError(`${ip} > targetWhenHeld > target`, 'expected "room:<id>", "door:<id>" or "anchor:<id>"');
+      }
       (def.hints ?? []).forEach((t, i) => {
         if (t.length === 0) throw new ValidationError(`${ip} > hints[${i}]`, 'empty hint tier');
         for (const line of t) if (lineIds && !lineIds.has(line)) throw new ValidationError(`${ip} > hints[${i}]`, `unknown dialogue line "${line}"`);

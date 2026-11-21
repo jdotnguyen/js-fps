@@ -186,3 +186,97 @@
   .hud-vitals.low .hud-fill.hp, .hud-ammo.empty .hud-ammo-loaded { animation: none; }
 }
 #ui:has(.cine.on) .hud-vitals, #ui:has(.cine.on) .hud-ammo { display: none; }
+
+/* Minimal N/E/S/W top compass with objective markers and distance (hud-wayfinding spec). */
+.compass-hud {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(26rem, 60vw);
+  height: 2.35rem;
+  z-index: 6;
+  font-family: var(--mono, ui-monospace, monospace);
+  color: var(--visor);
+  background: linear-gradient(90deg, transparent, rgb(5 9 12 / 0.62) 12%, rgb(5 9 12 / 0.62) 88%, transparent);
+  border-bottom: 1px solid rgb(207 232 240 / 0.35);
+  pointer-events: none;
+}
+.compass-hud[hidden] { display: none; }
+#ui:has(.cine.on) .compass-hud { display: none; }
+.compass-hud.spotlight-focus {
+  z-index: 12;
+  background: rgb(5 9 12 / 0.88);
+  border: 1px solid rgb(127 212 255 / 0.85);
+  box-shadow: 0 0 18px rgb(57 255 208 / 0.35);
+}
+.compass-track {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.compass-center {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 2px;
+  height: 0.45rem;
+  transform: translateX(-50%);
+  background: rgb(207 232 240 / 0.75);
+}
+.compass-cardinal {
+  position: absolute;
+  top: 0.35rem;
+  transform: translateX(-50%);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.9);
+}
+.compass-mark {
+  position: absolute;
+  top: 0.2rem;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  line-height: 1;
+  color: #39ffd0;
+  text-shadow: 0 1px 4px rgb(0 0 0 / 0.95);
+}
+.compass-mark.optional { color: #ffc95c; }
+.compass-mark.clamped-left { transform: translateX(0.15rem); opacity: 0.82; }
+.compass-mark.clamped-right { transform: translateX(calc(-100% - 0.15rem)); opacity: 0.82; }
+.compass-pip { font-size: 0.85rem; }
+.compass-dist { font-size: 0.65rem; letter-spacing: 0.04em; margin-top: 0.1rem; }
+
+/* Adjacency-gated screen-projected objective markers (same room or 1 door away). */
+.world-markers {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+.world-markers[hidden] { display: none; }
+#ui:has(.cine.on) .world-markers { display: none; }
+.world-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 0.12rem;
+  font-family: var(--mono, ui-monospace, monospace);
+  color: #39ffd0;
+  text-shadow: 0 1px 4px rgb(0 0 0 / 0.95);
+}
+.world-marker.optional { color: #ffc95c; }
+.world-marker.door .world-marker-glyph { font-size: 1.15rem; opacity: 0.92; }
+.world-marker.target .world-marker-glyph { font-size: 1.25rem; }
+.world-marker-dist {
+  padding: 0.05rem 0.3rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  background: rgb(5 9 12 / 0.72);
+  border: 1px solid currentColor;
+}

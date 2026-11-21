@@ -153,6 +153,8 @@
       "emote": "neutral", "channel": "local", "priority": "story", "audio": "assets/vo/intro_giles_14.mp3", "minDuration": 2.5, "choices": [] },
     { "id": "brief_heins_01", "speaker": "chief", "text": "Morning, all. Grab a wall, this'll be quick.",
       "emote": "neutral", "channel": "local", "priority": "story", "audio": "assets/vo/brief_heins_01.mp3", "minDuration": 2.5, "choices": [] },
+    { "id": "brief_heins_door", "speaker": "chief", "text": "Hit the lock on that door behind you — keep the hall noise out.",
+      "emote": "neutral", "channel": "local", "priority": "story", "audio": "assets/vo/brief_heins_door.mp3", "minDuration": 2.5, "choices": [] },
     { "id": "brief_heins_02", "speaker": "chief", "text": "Halcyon came in on time, for once. Divers, your sample run's cleared for oh-nine-hundred.",
       "emote": "neutral", "channel": "local", "priority": "story", "audio": "assets/vo/brief_heins_02.mp3", "minDuration": 4, "choices": [] },
     { "id": "brief_sung_01", "speaker": "crew_sung", "text": "Finally.",

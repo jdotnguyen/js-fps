@@ -2,12 +2,13 @@ import { h } from '../dom.ts';
 import { ObjectiveBanner, type ObjectiveTracker } from '../objectives.ts';
 
 /**
- * The top-left objective line (ADR-0012): shown for 5 s when an objective starts or is done,
- * and again on the `objective` action (Tab). Announced politely to screen readers.
+ * Persistent right-side objective list (hud-wayfinding spec): shows active objectives
+ * continuously while playing, highlights new ones briefly, shows a brief checkmark when
+ * completed, and pulses on Tab. Announced politely to screen readers.
  */
 export class ObjectiveHud {
   readonly banner = new ObjectiveBanner();
-  private readonly el: HTMLElement;
+  readonly el: HTMLElement;
   private shown = '';
   private readonly tracker: ObjectiveTracker;
 
@@ -18,23 +19,40 @@ export class ObjectiveHud {
     tracker.onChange((c) => this.banner.push(c));
   }
 
-  /** Tab: show what is active again. */
+  /** Tab: emphasize the active objective list. */
   recall(): void {
     this.banner.recall(this.tracker.active());
+  }
+
+  /** Elevate above the wayfinding spotlight backdrop during the post-intro tutorial. */
+  setSpotlight(on: boolean): void {
+    this.el.classList.toggle('spotlight-focus', on);
   }
 
   /** Per frame (real time); `visible` false hides it (title, cutscene bars, map). */
   update(dt: number, visible: boolean): void {
     this.banner.update(dt);
-    const on = visible && this.banner.visible;
-    const key = on ? this.banner.lines.map((l) => `${l.label}|${l.text}|${l.done}`).join('\n') : '';
+    const snap = this.banner.snapshot(this.tracker.active());
+    const on = visible && snap.visible;
+    const key = on
+      ? `${snap.pulsed ? 'P' : ''}|${snap.lines.map((l) => `${l.id}|${l.text}|${l.done}|${l.fresh}|${l.optional}`).join('\n')}`
+      : '';
     if (key === this.shown) return;
     this.shown = key;
     this.el.hidden = !on;
+    this.el.classList.toggle('pulsed', on && snap.pulsed);
     if (!on) return;
     this.el.replaceChildren(
-      ...this.banner.lines.map((l) =>
-        h('div', { class: `objective-line${l.done ? ' done' : ''}` }, h('span', { class: 'objective-label', text: l.label }), h('span', { class: 'objective-text', text: l.done ? `✓ ${l.text}` : l.text })),
+      h('div', { class: 'objective-heading', text: 'Objectives' }),
+      ...snap.lines.map((l) =>
+        h(
+          'div',
+          {
+            class: `objective-line${l.done ? ' done' : ''}${l.fresh ? ' fresh' : ''}${l.optional ? ' optional' : ''}`,
+          },
+          l.optional || l.done ? h('span', { class: 'objective-label', text: l.label }) : '',
+          h('span', { class: 'objective-text', text: l.done ? `✓ ${l.text}` : l.text }),
+        ),
       ),
     );
   }

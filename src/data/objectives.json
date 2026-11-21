@@ -1,8 +1,15 @@
 {
+  "obj_briefing": {
+    "title": "Observation gallery: attend the morning briefing",
+    "required": true,
+    "area": "gallery",
+    "target": "anchor:brief_jay"
+  },
   "round_hydro": {
     "title": "Hydroponics: sign the irrigation log",
     "required": true,
     "area": "hydroponics",
+    "target": "anchor:hydro_log",
     "hints": [
       [
         "hint_hydro_1a",
@@ -22,6 +29,11 @@
     "title": "Dive bay: take the sample case to the airlock locker",
     "required": true,
     "area": "dive_bay",
+    "target": "anchor:dive_case_pickup",
+    "targetWhenHeld": {
+      "item": "sample_case",
+      "target": "anchor:dive_case_locker"
+    },
     "hints": [
       [
         "hint_dive_1a",
@@ -41,6 +53,7 @@
     "title": "TAG admin: collect your Level 2 Card from Hale",
     "required": true,
     "area": "admin",
+    "target": "anchor:hale_desk",
     "hints": [
       [
         "hint_admin_1a",
@@ -58,7 +71,8 @@
   "round_return": {
     "title": "Return to the observation gallery",
     "required": true,
-    "area": "gallery"
+    "area": "gallery",
+    "target": "anchor:drop_jay"
   },
   "obj_survive_lab": {
     "title": "Get out of Lab B alive",

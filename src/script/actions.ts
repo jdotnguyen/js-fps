@@ -494,6 +494,17 @@ export const ACTIONS: Record<string, ActionDef> = {
     ctx.host.squadRegroup(s.distance);
   }),
   /**
+   * Bring any squadmate outside `room` inside it without popping visibly in front of Jay
+   * (morning-briefing spec): prefers an unseen spot at `at` (e.g. inside the doorway) or behind
+   * Jay inside the room; leaves visible squadmates walking naturally. Instant.
+   * Skipped: places any outside squadmates inside the room.
+   */
+  squadCatchUpIn: act({ room: str, at: optional(target) }, (s, ctx) => {
+    if (!ctx.host.squadCatchUpIn) return ctx.missing('squadCatchUpIn');
+    const entry = s.at !== undefined ? resolve('squadCatchUpIn', s.at, ctx) : null;
+    ctx.host.squadCatchUpIn(s.room, entry);
+  }),
+  /**
    * Wait until Jay and both squadmates are inside `room` (before a scene seals the door behind them).
    * After `timeout` (default 8 s) squadmates still outside are placed inside near Jay; the step then
    * waits for Jay alone. Skipped: the squad is placed inside and the step ends.
@@ -596,8 +607,12 @@ export const ACTIONS: Record<string, ActionDef> = {
   ),
 
   // ---- world
-  doorState: act({ id: str, state: oneOf(DOOR_STATES) }, (s, ctx) => {
+  doorState: act({ id: str, state: oneOf(DOOR_STATES), ifAllIn: optional(str) }, (s, ctx) => {
     if (!ctx.host.setDoor) return ctx.missing('doorState');
+    if (s.ifAllIn !== undefined && ctx.host.inRoom) {
+      const r = s.ifAllIn;
+      if (!ctx.host.inRoom('player', r) || !ctx.host.inRoom('giles', r) || !ctx.host.inRoom('okafor', r)) return;
+    }
     if (!ctx.host.setDoor(s.id, s.state)) ctx.host.warn(`${ctx.seqId}: doorState: no door "${s.id}"`);
   }),
 
@@ -741,6 +756,9 @@ const SKIPS: Record<string, SkipFn> = {
   gore: NOOP,
   waitGroup: NOOP,
   gatherIn: (s, ctx) => {
+    ctx.host.squadPlaceIn?.(String(s['room']));
+  },
+  squadCatchUpIn: (s, ctx) => {
     ctx.host.squadPlaceIn?.(String(s['room']));
   },
   if: (s, ctx) => {

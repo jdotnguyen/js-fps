@@ -33,6 +33,7 @@ function playThrough(q: TutorialQueue): string[] {
   const dismissWith: Record<PromptId, TutorialStepInput> = {
     move: press('moveForward'),
     look: { ...idle, looked: true },
+    wayfinding: press('objective'),
     interact: press('interact'),
     flashlight: press('flashlight'),
     combat: press('fire'),
@@ -47,11 +48,22 @@ function playThrough(q: TutorialQueue): string[] {
   return shown;
 }
 
-test('fresh profile: each pop-up fires once, Look follows Move', () => {
+test('fresh profile: each pop-up fires once, Look follows Move, Wayfinding follows Look', () => {
   const { q } = setup();
-  assert.deepEqual(playThrough(q), ['move', 'look', 'interact', 'flashlight', 'combat']);
+  assert.deepEqual(playThrough(q), ['move', 'look', 'wayfinding', 'interact', 'flashlight', 'combat']);
   q.trigger('interact');
   assert.equal(q.step(0.016, idle).opened, null, 'a repeat trigger in the same run does nothing');
+});
+
+test('wayfinding spotlight prompt dismisses on click or Tab/Space, ignores Esc/pause, and marks seen', () => {
+  const { q, profile } = setup();
+  q.trigger('wayfinding');
+  const opened = q.step(0.016, idle).opened;
+  assert.equal(opened?.id, 'wayfinding');
+  assert.equal(opened?.spotlight, true);
+  assert.equal(q.step(0.016, press('pause')).dismissed, null, 'Esc/pause does not dismiss');
+  assert.equal(q.step(0.016, { ...idle, clicked: true }).dismissed?.id, 'wayfinding');
+  assert.ok(profile.has('wayfinding'));
 });
 
 test("'first': a second run (new game, same profile) shows none", () => {
@@ -68,7 +80,7 @@ test("'off' shows none, 'always' shows all every run", () => {
   const store = memoryStore();
   playThrough(setup('first', store).q);
   const { q } = setup('always', store);
-  const all = ['move', 'look', 'interact', 'flashlight', 'combat'];
+  const all = ['move', 'look', 'wayfinding', 'interact', 'flashlight', 'combat'];
   assert.deepEqual(playThrough(q), all);
   assert.deepEqual(playThrough(q), all);
 });

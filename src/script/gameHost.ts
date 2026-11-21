@@ -233,6 +233,7 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
       ? {
           squadRegroup: (distance?: number) => d.npcs!.regroup(distance),
           squadPlaceIn: (room: string) => d.npcs!.placeSquadIn((p) => roomIs(p, room)),
+          squadCatchUpIn: (room: string, entry?: Vec3Like | null) => d.npcs!.catchUpSquadIn((p) => roomIs(p, room), entry),
           inRoom: (who: 'player' | 'giles' | 'okafor', room: string) => {
             const p = who === 'player' ? { x: d.player.body.x, y: d.player.body.y, z: d.player.body.z } : d.npcs!.squadFeet(who);
             return p ? roomIs(p, room) : true;

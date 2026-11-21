@@ -275,6 +275,13 @@ export class NpcDirector {
     return moved;
   }
 
+  /** Scene step `squadCatchUpIn` (morning-briefing spec): bring unseen stragglers outside the room inside. */
+  catchUpSquadIn(inside: (p: { x: number; y: number; z: number }) => boolean, entry?: Vec3Like | null): SquadId[] {
+    const moved = this.deps.squad?.catchUpIn(inside, entry) ?? [];
+    for (const id of moved) this.actor(id === 'engineer' ? 'giles' : 'okafor', false)?.stopMove();
+    return moved;
+  }
+
   /** Where a squadmate's feet are, for room tests (`gatherIn`). */
   squadFeet(id: 'giles' | 'okafor'): { x: number; y: number; z: number } | null {
     const m = this.mateOf(id);

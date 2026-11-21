@@ -128,6 +128,8 @@ export interface SequenceHost {
   inRoom?(who: 'player' | 'giles' | 'okafor', room: string): boolean;
   /** `gatherIn` timed out or skipped: put squadmates still outside the room near Jay; returns the ids moved. */
   squadPlaceIn?(room: string): string[];
+  /** `squadCatchUpIn` (morning-briefing spec): move unseen squadmates outside the room inside it without popping in view. */
+  squadCatchUpIn?(room: string, entry?: Vec3Like | null): string[];
 }
 
 export type { Scalar };

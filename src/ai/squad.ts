@@ -981,6 +981,33 @@ export class Squad {
     return moved;
   }
 
+  /**
+   * Scene step `squadCatchUpIn` (morning-briefing spec): move any squadmate outside `inside` into
+   * the room ONLY when they are out of Jay's view, landing at an unseen spot (preferring `entry`
+   * just inside the doorway, or a spot behind Jay inside the room). Never pops visibly in view.
+   */
+  catchUpIn(inside: (p: P3) => boolean, entry?: P3 | null): SquadId[] {
+    this.readPlayer();
+    const moved: SquadId[] = [];
+    for (const m of this.mates) {
+      if (m.downed || inside(m.position) || this.canSee(m.position)) continue;
+      let spot: P3 | null = null;
+      if (entry && inside(entry) && !this.canSee(tmpA.set(entry.x, entry.y, entry.z)) && this.standable(entry)) {
+        const off = m.id === 'engineer' ? -0.45 : 0.45;
+        const alt = { x: entry.x, y: entry.y, z: entry.z + off };
+        spot = inside(alt) && this.standable(alt) && !this.canSee(tmpA.set(alt.x, alt.y, alt.z)) ? alt : entry;
+      }
+      if (!spot) {
+        const behind = this.spawnSpot(m);
+        if (inside(behind) && !this.canSee(tmpA.set(behind.x, behind.y, behind.z))) spot = behind;
+      }
+      if (!spot) continue;
+      m.place(spot, this.player.yaw);
+      moved.push(m.id);
+    }
+    return moved;
+  }
+
   private spawnSpot(m: SquadMate): P3 {
     const p = this.playerFeet;
     const role = ROLES.find((r) => r.id === m.id)!;

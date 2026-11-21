@@ -355,6 +355,7 @@ async function boot(): Promise<void> {
   });
   currentPreset = () => game.preset;
   // Tutorial pop-ups (ADR-0025): pause the simulation while one is open (see the loop).
+  let setWayfindingSpotlight: ((on: boolean) => void) | null = null;
   const tutorials = new TutorialPrompts({
     parent: el<HTMLElement>('#ui'),
     events,
@@ -368,6 +369,7 @@ async function boot(): Promise<void> {
     sequenceRunning: (id) => sequences?.isRunning(id) ?? false,
     flashlightOn: () => flashlight.on,
     focusId: () => interactions.focus?.target.id ?? null,
+    onSpotlight: (on) => setWayfindingSpotlight?.(on),
   });
 
   // Squad (ADR-0011): Giles and Okafor follow Jay through the shared navgraph (ADR-0007).
@@ -590,6 +592,7 @@ async function boot(): Promise<void> {
     input,
     ui: el<HTMLElement>('#ui'),
     scene,
+    camera,
     materials,
     interactions,
     toasts,
@@ -612,6 +615,7 @@ async function boot(): Promise<void> {
     flags: () => game.flags,
     mode: () => game.mode,
     busy: () => game.flying || player.onRails || (sequences?.skippable ?? false) || tutorials.blocking,
+    onRails: () => player.onRails,
     openMap: () => game.openMap(),
     resume: () => game.resume(),
     player: {
@@ -642,6 +646,7 @@ async function boot(): Promise<void> {
     holds: (id) => inventory.satisfies(id),
     keys: (a) => keymap[a],
   });
+  setWayfindingSpotlight = (on) => guidance.setSpotlight(on);
   const menuRoot = el<HTMLElement>('#menu');
   let credits: EndCredits | null = null;
   const showCredits = (): void => {
@@ -1058,8 +1063,8 @@ async function boot(): Promise<void> {
       // Camera feeds first: they rebind room visibility and lights, which world.update sets back for Jay.
       if (game.mode === 'playing') cameraFeeds.update(frameDt, simTime);
       tutorials.render();
-      guidance.render(frameDt);
       game.render(frameDt);
+      guidance.render(frameDt);
       viewmodel.update(frameDt);
       flashlight.update(frameDt);
       world.update(simTime, frameDt, camera.position, settings.get().reducedFlashing);

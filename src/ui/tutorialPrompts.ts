@@ -47,6 +47,8 @@ export interface TutorialPromptsDeps {
   flashlightOn: () => boolean;
   /** Id of the interactable in view, if any (`interactions.focus`). */
   focusId: () => string | null;
+  /** Called when a spotlight callout opens/closes so live HUD elements can elevate above the backdrop. */
+  onSpotlight?: (on: boolean) => void;
 }
 
 /**
@@ -71,6 +73,7 @@ export class TutorialPrompts {
   private readonly hintEl: HTMLElement;
   private readonly live: HTMLElement;
   private lookAccum = 0;
+  private clicked = false;
   private lastFocus: string | null = null;
   private lastMode = '';
   private introCheck = false;
@@ -92,6 +95,9 @@ export class TutorialPrompts {
       this.body,
     );
     this.overlay = h('div', { class: 'tutorial', hidden: true }, this.card);
+    this.overlay.addEventListener('pointerdown', () => {
+      if (this.queue.current?.spotlight) this.clicked = true;
+    });
     this.hintEl = h('div', { class: 'tutorial-hint', role: 'status', 'aria-live': 'polite', hidden: true });
     this.live = h('div', { class: 'sr-only', role: 'status', 'aria-live': 'assertive' });
     deps.parent.append(this.overlay, this.hintEl, this.live);
@@ -136,8 +142,10 @@ export class TutorialPrompts {
       onRails: this.d.onRails(),
       pressed: (a) => input.wasPressed(a),
       looked: this.lookAccum >= LOOK_THRESHOLD,
+      clicked: this.clicked || input.wasPressed('fire'),
     });
     this.lookAccum = 0;
+    this.clicked = false;
     if (r.dismissed) {
       this.close();
       this.d.events.emit('tutorial:dismissed', { id: r.dismissed.id });
@@ -166,28 +174,47 @@ export class TutorialPrompts {
     // Pause menu on top: hide the pop-up, bring it back on Resume.
     const show = mode === 'playing' && this.queue.current !== null;
     if (show && this.overlay.hidden) this.open(this.queue.current!);
-    else if (!show) this.overlay.hidden = true;
+    else if (!show) {
+      this.overlay.hidden = true;
+      this.d.onSpotlight?.(false);
+    }
     if (mode !== 'playing') this.hintEl.hidden = true;
   }
 
   private open(def: PromptDef): void {
     const { groups, sentence } = describePrompt(def, this.d.bindings);
     this.overlay.classList.toggle('reduced', this.d.settings.get().reducedMotion);
+    this.overlay.classList.toggle('spotlight', def.spotlight === true);
     this.icon.textContent = def.icon;
     this.title.textContent = def.title;
+    const bullets = def.items?.length
+      ? [
+          h(
+            'ul',
+            { class: 'tutorial-bullets' },
+            ...def.items.map((it) =>
+              h('li', {}, h('strong', { text: `${it.heading}: ` }), h('span', { text: it.detail })),
+            ),
+          ),
+        ]
+      : [];
     this.body.replaceChildren(
+      ...bullets,
       ...groups.map((g) =>
         h('p', { class: 'tutorial-line' }, h('span', { class: 'tutorial-keys', 'aria-hidden': 'true' }, ...g.keys.map((k) => h('kbd', { text: k }))), h('span', { text: g.text })),
       ),
     );
     const wasHidden = this.overlay.hidden;
     this.overlay.hidden = false;
+    this.d.onSpotlight?.(def.spotlight === true);
     if (wasHidden) this.restoreFocus = document.activeElement;
     this.card.focus({ preventScroll: true });
     this.live.textContent = sentence;
   }
 
   private close(): void {
+    this.d.onSpotlight?.(false);
+    this.overlay.classList.remove('spotlight');
     if (this.overlay.hidden) return;
     this.overlay.hidden = true;
     const back = this.restoreFocus;

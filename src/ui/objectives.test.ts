@@ -25,8 +25,14 @@ function bus(): LooseBus & { log: Array<[string, unknown]> } {
 
 const defs = validate(objectivesValidator(), objectivesJson, 'data/objectives.json');
 
-test('shipped objectives validate; rounds are required, optionals are not', () => {
+test('shipped objectives validate; briefing and rounds are required with concrete targets, optionals are not', () => {
+  assert.equal(defs['obj_briefing']!.required, true);
+  assert.equal(defs['obj_briefing']!.target, 'anchor:brief_jay');
   assert.equal(defs['round_hydro']!.required, true);
+  assert.equal(defs['round_hydro']!.target, 'anchor:hydro_log');
+  assert.equal(defs['round_dive']!.target, 'anchor:dive_case_pickup');
+  assert.deepEqual(defs['round_dive']!.targetWhenHeld, { item: 'sample_case', target: 'anchor:dive_case_locker' });
+  assert.equal(defs['round_admin']!.target, 'anchor:hale_desk');
   assert.equal(defs['opt_hydro_storeroom']!.required, false);
   assert.throws(() => validate(objectivesValidator(new Set()), objectivesJson, 'x'), /unknown dialogue line/);
 });
@@ -69,23 +75,42 @@ test('startOn / completeOn fire from matching game events only', () => {
   assert.equal(eventMatches({ event: 'x', match: { a: 1 } }, { a: 2 }), false);
 });
 
-test('banner: 5 s on change, changes stack, Tab recalls the active list', () => {
-  const banner = new ObjectiveBanner(5);
-  assert.equal(banner.visible, false);
+test('persistent objective list stays visible while active, highlights new, lingers briefly on completion, and pulses on Tab', () => {
+  const banner = new ObjectiveBanner(3.5, 2.5, 2.0);
+  assert.equal(banner.snapshot([]).visible, false);
+
   banner.push({ kind: 'new', def: defs['round_hydro']! });
-  banner.update(2);
-  banner.push({ kind: 'new', def: defs['round_dive']! });
-  assert.deepEqual(banner.lines.map((l) => l.label), ['New objective', 'New objective']);
-  banner.update(4.9);
-  assert.equal(banner.visible, true, 'the second change restarted the 5 s');
-  banner.update(0.2);
-  assert.equal(banner.visible, false);
-  banner.push({ kind: 'done', def: defs['round_dive']! });
-  assert.deepEqual(banner.lines.map((l) => l.label), ['Objective complete'], 'a new banner starts fresh');
-  banner.recall([defs['round_hydro']!, defs['opt_map_hydro']!]);
-  assert.deepEqual(banner.lines.map((l) => l.label), ['Objective', 'Optional']);
-  banner.push({ kind: 'new', def: defs['round_admin']! });
-  assert.equal(banner.lines.length, 1, 'a change replaces the recalled list');
+  let snap = banner.snapshot([defs['round_hydro']!]);
+  assert.equal(snap.visible, true);
+  assert.equal(snap.lines[0]!.fresh, true);
+
+  // Even long after NEW_SECONDS expires, active objectives remain visible.
+  banner.update(10);
+  snap = banner.snapshot([defs['round_hydro']!, defs['opt_map_hydro']!]);
+  assert.equal(snap.visible, true);
+  assert.equal(snap.lines.length, 2);
+  assert.equal(snap.lines[0]!.fresh, false);
+  assert.equal(snap.lines[1]!.optional, true);
+
+  // Completing an objective lingers with a checkmark for doneSeconds, then clears.
+  banner.push({ kind: 'done', def: defs['round_hydro']! });
+  snap = banner.snapshot([defs['opt_map_hydro']!]);
+  assert.equal(snap.lines.length, 2);
+  assert.equal(snap.lines[1]!.done, true);
+  banner.update(3.6);
+  snap = banner.snapshot([defs['opt_map_hydro']!]);
+  assert.equal(snap.lines.length, 1);
+
+  // Tab pulses the list, and when empty briefly shows "No current objectives".
+  banner.recall([defs['opt_map_hydro']!]);
+  assert.equal(banner.pulsed, true);
+  banner.update(2.1);
+  assert.equal(banner.pulsed, false);
+
   banner.recall([]);
-  assert.equal(banner.lines[0]!.text, 'No current objectives');
+  snap = banner.snapshot([]);
+  assert.equal(snap.visible, true);
+  assert.equal(snap.lines[0]!.text, 'No current objectives');
+  banner.update(2.1);
+  assert.equal(banner.snapshot([]).visible, false);
 });

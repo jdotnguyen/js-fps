@@ -8,12 +8,15 @@ import type { ObjectiveDef, ObjectiveTable } from '../data/types/objectives.ts';
 import { BarkSystem, type BarkLine } from '../dialogue/barks.ts';
 import { HintDirector } from '../dialogue/hints.ts';
 import { fixtureMaterial, type Materials } from '../render/materials.ts';
-import type { Toasts } from '../ui/toast.ts';
+import { Toasts } from '../ui/toast.ts';
+import { CompassHud } from '../ui/hud/compassHud.ts';
 import { ObjectiveHud } from '../ui/hud/objectiveHud.ts';
+import { WorldMarkerHud } from '../ui/hud/worldMarkerHud.ts';
 import { MAP_DECK_H, type MapModel, type MapState, type MapStation } from '../ui/mapModel.ts';
 import { MapScreen } from '../ui/mapScreen.ts';
 import { NavPulse } from '../ui/navPulse.ts';
 import { ObjectiveTracker, type Flags, type LooseBus } from '../ui/objectives.ts';
+import { buildRoomAdjacency, resolveWorldMarker, type CompassObjectiveInput, type RoomAdjacency, type WorldMarkerResult } from '../ui/wayfinding.ts';
 import type { Level } from '../world/level.ts';
 import { Supplies } from './supplies.ts';
 import type { AmmoWeapon } from './pickups.ts';
@@ -48,6 +51,7 @@ export interface GuidanceDeps {
   input: Input;
   ui: HTMLElement;
   scene: THREE.Scene;
+  camera?: THREE.Camera | null;
   materials: Materials;
   interactions: Interactions;
   toasts: Toasts;
@@ -66,6 +70,8 @@ export interface GuidanceDeps {
   mode: () => string;
   /** On rails, cutscene, or a tutorial pop-up open: no map, hints or barks. */
   busy: () => boolean;
+  /** On rails (letterbox bars): hide the compass, objective list, and world markers. */
+  onRails?: () => boolean;
   openMap: () => void;
   resume: () => void;
   player: {
@@ -93,12 +99,17 @@ export interface GuidanceDeps {
 export class Guidance {
   readonly tracker: ObjectiveTracker;
   readonly hud: ObjectiveHud;
+  readonly compass: CompassHud;
+  readonly worldMarkers: WorldMarkerHud;
   readonly map: MapScreen | null;
   readonly pulse: NavPulse;
   readonly hints: HintDirector;
   readonly barks: BarkSystem;
   readonly supplies: Supplies;
   private readonly d: GuidanceDeps;
+  private readonly adjacency: RoomAdjacency;
+  private readonly tmpPos = new THREE.Vector3();
+  private spotlight = false;
   private readonly areasEntered = new Set<string>();
   private lowAmmoSaid = false;
   private lowHealthSaid = false;
@@ -109,6 +120,9 @@ export class Guidance {
     const bus = loose(d.events);
     this.tracker = new ObjectiveTracker(d.objectives, d.flags, bus);
     this.hud = new ObjectiveHud(d.ui, this.tracker);
+    this.compass = new CompassHud(d.ui);
+    this.worldMarkers = new WorldMarkerHud(d.ui);
+    this.adjacency = buildRoomAdjacency(d.model?.doors ?? []);
     this.pulse = new NavPulse(d.nav);
     d.scene.add(this.pulse.group);
 
@@ -228,16 +242,62 @@ export class Guidance {
     this.pulse.update(dt);
   }
 
+  /** Elevate compass and objective list above the wayfinding spotlight backdrop. */
+  setSpotlight(on: boolean): void {
+    this.spotlight = on;
+    this.hud.setSpotlight(on);
+    this.compass.setSpotlight(on);
+  }
+
+  /** Room ids that count as "the objective's room" for adjacency-gated world markers. */
+  private targetRoomsOf(o: ObjectiveDef, pos: { x: number; y: number; z: number }): string[] {
+    const ref = this.targetRefOf(o);
+    if (ref?.startsWith('room:')) return [ref.slice(5)];
+    if (ref?.startsWith('door:')) {
+      const id = ref.slice(5);
+      const door = this.d.model?.doors.find((d) => d.id === id);
+      if (door) return [...new Set(door.rooms)];
+    }
+    const r = this.d.level?.roomAt(this.tmpPos.set(pos.x, pos.y + 0.5, pos.z))?.data.id;
+    return r ? [r] : [];
+  }
+
   /** Per rendered frame (real time). */
   render(frameDt: number): void {
-    this.hud.update(frameDt, this.d.mode() === 'playing' && !this.mapOpen);
+    const rails = this.d.onRails?.() ?? false;
+    const playing = this.d.mode() === 'playing' && !this.mapOpen && !rails;
+    this.hud.update(frameDt, playing);
+    const active = playing ? this.tracker.active() : [];
+    const feet = this.d.player.feet();
+    const yaw = this.d.player.yaw();
+    const compassItems: CompassObjectiveInput[] = [];
+    const markerItems: WorldMarkerResult[] = [];
+    const playerRoom = this.d.level?.currentRoomId() ?? null;
+    for (const o of active) {
+      const pos = this.targetOf(o);
+      if (!pos) continue;
+      compassItems.push({ id: o.id, pos, required: o.required });
+      if (!this.spotlight) {
+        const m = resolveWorldMarker(o.id, o.required, playerRoom, feet, this.targetRoomsOf(o, pos), pos, this.adjacency);
+        if (m) markerItems.push(m);
+      }
+    }
+    this.compass.update(playing, feet, yaw, compassItems);
+    this.worldMarkers.update(playing && !this.spotlight, this.d.camera ?? null, markerItems);
+  }
+
+  /** Explicit target ref for `o`, swapping to `targetWhenHeld` once its item is carried. */
+  targetRefOf(o: ObjectiveDef): string | undefined {
+    if (o.targetWhenHeld && this.d.holds(o.targetWhenHeld.item)) return o.targetWhenHeld.target;
+    return o.target;
   }
 
   /** Where an objective points: its explicit target, else the nearest room of its area. */
   targetOf(o: ObjectiveDef): { x: number; y: number; z: number } | null {
     const level = this.d.level;
-    if (o.target && level) {
-      const [kind, id] = o.target.split(':') as [string, string];
+    const ref = this.targetRefOf(o);
+    if (ref && level) {
+      const [kind, id] = ref.split(':') as [string, string];
       const p = kind === 'anchor' ? level.anchor(id)?.pos : level.anchorPosition(kind as 'door' | 'room', id);
       if (p) return { x: p.x, y: kind === 'anchor' ? p.y : Math.floor(p.y / MAP_DECK_H) * MAP_DECK_H, z: p.z };
     }

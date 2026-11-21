@@ -46,6 +46,12 @@ function setup(steps: unknown[], skippable = false) {
       log.push(`regroup ${distance ?? 'default'}`);
       return [];
     },
+    squadCatchUpIn: (room, entry) => {
+      log.push(`catchUpIn ${room}${entry ? ' at' : ''}`);
+      const moved = (['giles', 'okafor'] as const).filter((w) => !inside[w]);
+      for (const w of moved) inside[w] = true;
+      return [...moved];
+    },
   };
   const defs = validateSequences({ 'test.json': [{ id: 'scene', ...(skippable ? { skippable: true } : {}), steps }] });
   const m = new SequenceManager(host, defs);
@@ -114,6 +120,35 @@ test('squadRegroup asks the host to regroup and goes straight on', () => {
   m.start('scene');
   tick(0.2);
   assert.deepEqual(log, ['regroup default', 'regroup 20', 'door D_R02_R03 sealed']);
+});
+
+test('squadCatchUpIn brings outside squadmates in without blocking, and doorState ifAllIn skips locking when someone is outside', () => {
+  // Player stepped out: door does not lock.
+  const out = setup([{ do: 'doorState', id: 'D_R02_R03', state: 'locked', ifAllIn: 'R03' }]);
+  out.inside.player = false;
+  out.inside.giles = true;
+  out.inside.okafor = true;
+  out.m.start('scene');
+  out.tick(0.2);
+  assert.ok(!out.log.includes('door D_R02_R03 locked'), 'does not lock Jay out');
+
+  // Squadmate still outside (e.g. visible walking in): door does not lock.
+  const squadOut = setup([{ do: 'doorState', id: 'D_R02_R03', state: 'locked', ifAllIn: 'R03' }]);
+  squadOut.inside.player = true;
+  squadOut.inside.giles = false;
+  squadOut.inside.okafor = true;
+  squadOut.m.start('scene');
+  squadOut.tick(0.2);
+  assert.ok(!squadOut.log.includes('door D_R02_R03 locked'), 'does not lock squadmate out');
+
+  // Catch up, then guarded lock succeeds immediately.
+  const ok = setup([
+    { do: 'squadCatchUpIn', room: 'R03', at: 'anchor:gallery_enter' },
+    { do: 'doorState', id: 'D_R02_R03', state: 'locked', ifAllIn: 'R03' },
+  ]);
+  ok.m.start('scene');
+  ok.tick(0.2);
+  assert.deepEqual(ok.log, ['catchUpIn R03 at', 'door D_R02_R03 locked']);
 });
 
 test('slice01 data: the gallery seals only after the gather; the squad job beats regroup first', async () => {

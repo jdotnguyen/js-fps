@@ -97,16 +97,15 @@ test('the three rounds and the way back are objectives with the area they live i
   assert.ok(level.pickups.some((p: any) => p.item === 'sample_case' && p.room === 'R13b'));
 });
 
-test('the quiet sequences keep Jay in control except the two on rails; the drop cannot be skipped', () => {
-  assert.equal(byId.get('commons_dawdle')?.skippable, true);
+test('the quiet sequences keep Jay in control; briefing and intro stay skippable, drop cannot be skipped', () => {
   assert.equal(byId.get('briefing_gallery')?.skippable, true);
   assert.equal(byId.get('intro_shift_change')?.skippable, true);
-  for (const id of ['commons_free', 'hydro_moment', 'dive_moment', 'admin_hale', 'admin_glimpse', 'rounds_return', 'drop']) {
+  for (const id of ['commons_free', 'commons_dawdle', 'hydro_moment', 'dive_moment', 'admin_hale', 'admin_glimpse', 'rounds_return', 'drop']) {
     assert.notEqual(byId.get(id)?.skippable, true, `${id} stays unskippable`);
   }
   assert.equal(byId.get('drop')?.exclusive, 'rails');
-  assert.equal(byId.get('briefing_gallery')?.exclusive, 'rails');
-  assert.equal(byId.get('commons_dawdle')?.exclusive, 'rails');
+  assert.equal(byId.get('briefing_gallery')?.exclusive, undefined);
+  assert.equal(byId.get('commons_dawdle')?.exclusive, undefined);
 });
 
 // ------------------------------------------------------------------------------- harness
@@ -158,6 +157,7 @@ function makeGame(only?: string[]) {
     squadRegroup: () => [],
     inRoom: () => true,
     squadPlaceIn: () => [],
+    squadCatchUpIn: () => [],
     npc: (action, step) => {
       const extra =
         step['anim']
@@ -234,34 +234,19 @@ test('commons free time: a player who heads for the gallery on their own is not 
   assert.equal(said(g, 'commons_giles_call_01'), 0);
 });
 
-test('commons_dawdle: still wandering 45 s after the call, Giles says Hey and Jay is walked over on rails', async () => {
+test('commons_dawdle: still wandering 45 s after the call, Giles calls out without locking Jay on rails', async () => {
   const g = makeGame();
   endIntro(g);
+  assert.equal(g.host.flags['obj:obj_briefing'], 'active', 'briefing objective starts right after intro');
   await until(g, () => count(g, 'event commons:dawdle') === 1);
   assert.equal(g.m.isRunning('commons_dawdle'), true);
-  assert.equal(g.control.state.move, 'locked', 'on rails: the bars come in');
+  assert.equal(g.control.state.move, 'free', 'never locks movement on rails');
   await advance(g, 30);
   assert.equal(said(g, 'commons_giles_hey_01'), 1);
   assert.equal(said(g, 'commons_giles_hey_02'), 1);
   assert.equal(g.host.flags['dawdle_caught'], true);
   assert.equal(g.control.state.move, 'free');
-  assert.equal(g.log.filter((e) => e === 'frame' || e === 'unframe').at(-1), 'unframe');
   noWarnings(g);
-});
-
-test('skipping the dawdle catch ends in the same place: Jay placed, both lines marked played, control free', async () => {
-  const g = makeGame();
-  endIntro(g);
-  await until(g, () => count(g, 'event commons:dawdle') === 1);
-  assert.equal(g.m.isRunning('commons_dawdle'), true);
-  assert.equal(g.m.skippable, true);
-  assert.equal(g.m.skip(), true);
-  assert.equal(g.m.isRunning('commons_dawdle'), false);
-  assert.equal(g.host.flags['dawdle_caught'], true);
-  assert.equal(g.control.state.move, 'free');
-  assert.ok(g.log.includes('place') || g.log.includes('played commons_giles_hey_02'));
-  assert.ok(g.log.includes('played commons_giles_hey_02'));
-  assert.equal(g.log.filter((e) => e === 'frame' || e === 'unframe').at(-1), 'unframe');
 });
 
 test('the dawdle catch never runs once the briefing is done', async () => {
@@ -280,16 +265,17 @@ test('a cancelled intro (back to the title) does not start free time', () => {
   assert.equal(g.m.isRunning('commons_free'), false);
 });
 
-test('the briefing starts on the gallery spot once the intro is seen, and only once', async () => {
+test('the briefing starts on the gallery spot once the intro is seen, stays free-roam, and runs only once', async () => {
   const g = makeGame();
   fire(g, 'trigger:gallery_brief_spot');
   assert.equal(g.m.isRunning('briefing_gallery'), false, 'not before the intro');
   g.host.flags['introSeen'] = true;
   fire(g, 'trigger:gallery_brief_spot');
   assert.equal(g.m.isRunning('briefing_gallery'), true);
-  assert.equal(g.control.state.move, 'locked');
+  assert.equal(g.control.state.move, 'free', 'free-roam briefing');
   await advance(g, 120);
   assert.equal(g.host.flags['briefingSeen'], true);
+  assert.equal(g.host.flags['obj:obj_briefing'], 'done');
   assert.equal(g.host.flags['obj:round_hydro'], 'active');
   fire(g, 'trigger:gallery_brief_spot');
   assert.equal(g.m.isRunning('briefing_gallery'), false, 'once');

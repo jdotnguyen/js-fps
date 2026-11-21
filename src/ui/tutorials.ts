@@ -20,22 +20,43 @@ export interface PromptGroup {
   verb: string;
 }
 
+export interface PromptBullet {
+  heading: string;
+  detail: string;
+}
+
 export interface PromptDef {
   id: PromptId;
   title: string;
   /** Decorative glyph (aria-hidden). */
   icon: string;
   groups: readonly PromptGroup[];
-  /** Queued straight after this one is dismissed (Move -> Look). */
+  /** Non-fullscreen spotlight callout that highlights live HUD widgets over a dark backdrop. */
+  spotlight?: boolean;
+  /** Short callout bullets for spotlight prompts. */
+  items?: readonly PromptBullet[];
+  /** Queued straight after this one is dismissed (Move -> Look -> Wayfinding). */
   next?: PromptId;
 }
 
-export const PROMPT_IDS = ['move', 'look', 'interact', 'flashlight', 'combat'] as const;
+export const PROMPT_IDS = ['move', 'look', 'wayfinding', 'interact', 'flashlight', 'combat'] as const;
 export type PromptId = (typeof PROMPT_IDS)[number];
 
 export const PROMPTS: Readonly<Record<PromptId, PromptDef>> = {
   move: { id: 'move', title: 'Move', icon: '✥', groups: [{ actions: ['moveForward', 'moveLeft', 'moveBack', 'moveRight'], verb: 'move' }], next: 'look' },
-  look: { id: 'look', title: 'Look', icon: '◎', groups: [{ actions: ['look'], verb: 'look around' }] },
+  look: { id: 'look', title: 'Look', icon: '◎', groups: [{ actions: ['look'], verb: 'look around' }], next: 'wayfinding' },
+  wayfinding: {
+    id: 'wayfinding',
+    title: 'Wayfinding',
+    icon: '◈',
+    spotlight: true,
+    groups: [{ actions: ['jump', 'skipCutscene', 'objective'], verb: 'continue' }],
+    items: [
+      { heading: 'Compass (top)', detail: 'Shows N / E / S / W and direction + distance to active objectives.' },
+      { heading: 'Objectives (right)', detail: 'Stays visible with your current tasks as they update.' },
+      { heading: 'Room markers', detail: 'Appear in the world only when you are in the same or an adjacent room.' },
+    ],
+  },
   interact: { id: 'interact', title: 'Interact', icon: '◇', groups: [{ actions: ['interact'], verb: 'use what you are looking at' }] },
   flashlight: { id: 'flashlight', title: 'Flashlight', icon: '☼', groups: [{ actions: ['flashlight'], verb: 'switch your flashlight on or off' }] },
   // One pop-up for both: first contact is no time for two blocking prompts. Either key dismisses it.
@@ -119,11 +140,18 @@ function orList(keys: string[]): string {
 /** What the pop-up shows and announces, built from the current bindings. */
 export function describePrompt(def: PromptDef, bindings: Bindings): { groups: DescribedGroup[]; sentence: string } {
   const groups = def.groups.map((g) => {
-    const keys = g.actions.map((a) => inputLabel(a, bindings) ?? 'Unbound');
-    const text = g.actions.length === 1 && g.actions[0] === 'look' ? `Move the mouse to ${g.verb}.` : `Press ${orList(keys)} to ${g.verb}.`;
+    const keys = [...new Set(g.actions.map((a) => inputLabel(a, bindings) ?? 'Unbound'))];
+    const text =
+      g.actions.length === 1 && g.actions[0] === 'look'
+        ? `Move the mouse to ${g.verb}.`
+        : def.spotlight
+          ? `Press ${orList(keys)} or click to ${g.verb}.`
+          : `Press ${orList(keys)} to ${g.verb}.`;
     return { keys, text };
   });
-  return { groups, sentence: `${def.title}. ${groups.map((g) => g.text).join(' ')}` };
+  const bullets = (def.items ?? []).map((it) => `${it.heading}: ${it.detail}`).join(' ');
+  const parts = [def.title + '.', bullets, groups.map((g) => g.text).join(' ')].filter(Boolean);
+  return { groups, sentence: parts.join(' ') };
 }
 
 /** Hint text, or null when the action has no binding (the hint is then skipped). */
@@ -207,6 +235,8 @@ export interface TutorialStepInput {
   pressed: (action: Action) => boolean;
   /** The mouse moved enough since the last step. */
   looked: boolean;
+  /** Mouse click edge this step (dismisses spotlight callouts). */
+  clicked?: boolean;
 }
 
 export interface TutorialStepResult {
@@ -297,7 +327,9 @@ export class TutorialQueue {
     }
     const cur = this.current;
     if (cur) {
-      const hit = cur.groups.some((g) => g.actions.some((a) => (a === 'look' ? input.looked : input.pressed(a))));
+      const hit =
+        (cur.spotlight && input.clicked === true) ||
+        cur.groups.some((g) => g.actions.some((a) => (a === 'look' ? input.looked : input.pressed(a))));
       if (hit) {
         this.current = null;
         this.seen.add(cur.id);

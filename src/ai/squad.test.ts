@@ -451,3 +451,17 @@ test('placeIn moves only the squadmates outside the room, to Jay', () => {
   assert.deepEqual(moved, [squad.mates[1]!.id]);
   for (const m of squad.mates) assert.ok(m.position.z < 0, `${m.id} inside`);
 });
+
+test('catchUpIn moves unseen squadmates outside the room inside without popping visible ones', () => {
+  // Jay at z=-5 facing -Z (yaw 0); both squadmates behind him at z=+5 (outside z<0, unseen).
+  const unseen = spread(-5, 5);
+  const moved = unseen.squad.catchUpIn((p) => p.z < 0, { x: 0, y: 0, z: -1 });
+  assert.equal(moved.length, 2, 'both unseen outside mates caught up');
+  for (const m of unseen.squad.mates) assert.ok(m.position.z < 0, `${m.id} placed inside room`);
+
+  // Jay at z=+5 facing -Z (yaw 0), looking straight at squadmates at z=-5 (visible): never pops them.
+  const visible = spread(5, -5);
+  const movedVis = visible.squad.catchUpIn((p) => p.z > 0, { x: 0, y: 0, z: 1 });
+  assert.deepEqual(movedVis, [], 'visible squadmates are never popped');
+  for (const m of visible.squad.mates) assert.ok(m.position.z < 0, `${m.id} stayed where it was`);
+});
