@@ -106,9 +106,13 @@ export function worldTileMeters(material: THREE.Material): number {
   return WORLD_TILE_METERS[material.name] ?? 1;
 }
 
-/** True when a material's textures repeat (photo/procedural tiling sets), so world UVs suit it. */
+/**
+ * True when a material's textures repeat (photo/procedural tiling sets), so world UVs suit it. Imported props
+ * (`userData.keepUvs`, set by the kit registry) keep the UVs they were authored with, even though glTF samplers
+ * repeat by default.
+ */
 export function takesWorldUvs(material: THREE.Material): boolean {
-  if (material.transparent || material.name.startsWith('signDanger')) return false;
+  if (material.transparent || material.name.startsWith('signDanger') || material.userData['keepUvs'] === true) return false;
   const map = (material as THREE.MeshStandardMaterial).map;
   return !map || map.wrapS === THREE.RepeatWrapping;
 }

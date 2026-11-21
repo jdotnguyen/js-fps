@@ -4,7 +4,7 @@
 
 Thalassa is a browser FPS built with Three.js, TypeScript, and Vite. `src/main.ts` wires the game together. Gameplay and simulation live in `src/game/`, `src/actors/`, and `src/ai/`. Level construction and the modular kit live in `src/world/`, authored data in `src/data/`, and presentation in `src/render/`, `src/ui/`, and `src/audio/`. Tests sit alongside the modules they cover. Runtime assets live in `public/assets/`, and asset utilities live in `scripts/`.
 
-Check `openspec/specs/` (OpenSpec) before changing architectural decisions. Follow `docs/audio-assets.md` when adding or replacing sounds. Follow `docs/modular-grid-standard.md` and `docs/surface-dressing-standard.md` when editing levels, and `docs/voice-casting-standard.md` when adding or regenerating dialogue VO. Record third-party asset attribution in `CREDITS.md`.
+Check `openspec/specs/` (OpenSpec) before changing architectural decisions. Follow `docs/audio-assets.md` when adding or replacing sounds, and `docs/imported-props.md` when adding a downloaded 3D prop. Follow `docs/modular-grid-standard.md` and `docs/surface-dressing-standard.md` when editing levels, and `docs/voice-casting-standard.md` when adding or regenerating dialogue VO. Record third-party asset attribution in `CREDITS.md`.
 
 ## Build, Test, and Development Commands
 

@@ -1,0 +1,229 @@
+{
+  "props": {
+    "bloom_growth_a": {
+      "url": "assets/models/props/bloom_growth_a.glb",
+      "size": [
+        1.504,
+        0.3,
+        1.525
+      ],
+      "triangles": 512,
+      "materials": 1,
+      "transparentMaterials": 0,
+      "texturePixels": 3145728,
+      "bytes": 618184,
+      "parts": [],
+      "source": {
+        "title": "PBR material Biomasse",
+        "author": "Bessarabian Femboy (@vjuhandkx)",
+        "licence": "CC BY 4.0",
+        "url": "https://sketchfab.com/3d-models/pbr-material-biomasse-a3503d87b5b04649855b4e4d47761a2b"
+      }
+    },
+    "bloom_growth_b": {
+      "url": "assets/models/props/bloom_growth_b.glb",
+      "size": [
+        1.869,
+        0.3,
+        1.824
+      ],
+      "triangles": 512,
+      "materials": 1,
+      "transparentMaterials": 0,
+      "texturePixels": 3145728,
+      "bytes": 618184,
+      "parts": [],
+      "source": {
+        "title": "PBR material Biomasse",
+        "author": "Bessarabian Femboy (@vjuhandkx)",
+        "licence": "CC BY 4.0",
+        "url": "https://sketchfab.com/3d-models/pbr-material-biomasse-a3503d87b5b04649855b4e4d47761a2b"
+      }
+    },
+    "bloom_growth_c": {
+      "url": "assets/models/props/bloom_growth_c.glb",
+      "size": [
+        0.8,
+        0.8,
+        0.8
+      ],
+      "triangles": 960,
+      "materials": 1,
+      "transparentMaterials": 0,
+      "texturePixels": 786432,
+      "bytes": 245088,
+      "parts": [],
+      "source": {
+        "title": "PBR material Biomasse",
+        "author": "Bessarabian Femboy (@vjuhandkx)",
+        "licence": "CC BY 4.0",
+        "url": "https://sketchfab.com/3d-models/pbr-material-biomasse-a3503d87b5b04649855b4e4d47761a2b"
+      }
+    },
+    "bloom_growth_d": {
+      "url": "assets/models/props/bloom_growth_d.glb",
+      "size": [
+        0.828,
+        0.8,
+        0.829
+      ],
+      "triangles": 768,
+      "materials": 1,
+      "transparentMaterials": 0,
+      "texturePixels": 786432,
+      "bytes": 239008,
+      "parts": [],
+      "source": {
+        "title": "PBR material Biomasse",
+        "author": "Bessarabian Femboy (@vjuhandkx)",
+        "licence": "CC BY 4.0",
+        "url": "https://sketchfab.com/3d-models/pbr-material-biomasse-a3503d87b5b04649855b4e4d47761a2b"
+      }
+    },
+    "cable_drum": {
+      "url": "assets/models/props/cable_drum.glb",
+      "size": [
+        1,
+        1,
+        0.754
+      ],
+      "triangles": 2496,
+      "materials": 1,
+      "transparentMaterials": 0,
+      "texturePixels": 786432,
+      "bytes": 262976,
+      "parts": [],
+      "source": {
+        "title": "Free CC0 Industrial 3D Models: Cable Drum",
+        "author": "3dmodelscc0",
+        "licence": "CC0",
+        "url": "https://3dmodelscc0.itch.io/free-cc0-industrial-3d-models"
+      }
+    },
+    "electrical_box": {
+      "url": "assets/models/props/electrical_box.glb",
+      "size": [
+        0.45,
+        0.81,
+        0.307
+      ],
+      "triangles": 2140,
+      "materials": 1,
+      "transparentMaterials": 0,
+      "texturePixels": 3145728,
+      "bytes": 505832,
+      "parts": [],
+      "source": {
+        "title": "Free CC0 Industrial 3D Models: Electrical Box",
+        "author": "3dmodelscc0",
+        "licence": "CC0",
+        "url": "https://3dmodelscc0.itch.io/free-cc0-industrial-3d-models"
+      }
+    },
+    "electrical_box_02": {
+      "url": "assets/models/props/electrical_box_02.glb",
+      "size": [
+        0.898,
+        2.1,
+        1.85
+      ],
+      "triangles": 1436,
+      "materials": 1,
+      "transparentMaterials": 0,
+      "texturePixels": 3145728,
+      "bytes": 232176,
+      "parts": [],
+      "source": {
+        "title": "Free CC0 Industrial 3D Models: Electrical Box Large",
+        "author": "3dmodelscc0",
+        "licence": "CC0",
+        "url": "https://3dmodelscc0.itch.io/free-cc0-industrial-3d-models"
+      }
+    },
+    "gas_cylinder": {
+      "url": "assets/models/props/gas_cylinder.glb",
+      "size": [
+        0.39,
+        0.71,
+        0.39
+      ],
+      "triangles": 1860,
+      "materials": 1,
+      "transparentMaterials": 0,
+      "texturePixels": 3145728,
+      "bytes": 511832,
+      "parts": [],
+      "source": {
+        "title": "Free CC0 Industrial 3D Models: Gas Cylinder",
+        "author": "3dmodelscc0",
+        "licence": "CC0",
+        "url": "https://3dmodelscc0.itch.io/free-cc0-industrial-3d-models"
+      }
+    },
+    "lab_cabinet": {
+      "url": "assets/models/props/lab_cabinet.glb",
+      "size": [
+        1.2,
+        1.8,
+        0.47
+      ],
+      "triangles": 576,
+      "materials": 2,
+      "transparentMaterials": 1,
+      "texturePixels": 5242880,
+      "bytes": 517928,
+      "parts": [
+        "door_l",
+        "door_r"
+      ],
+      "source": {
+        "title": "Laboratory Cabinet Storage PBR Low Poly Free",
+        "author": "Naked Singularity Studio",
+        "licence": "CC BY 4.0",
+        "url": "https://sketchfab.com/3d-models/laboratory-cabinet-storage-pbr-low-poly-free-6c5d3bde09dd4f55ad973d8429441190"
+      }
+    },
+    "platform_trolley": {
+      "url": "assets/models/props/platform_trolley.glb",
+      "size": [
+        1.628,
+        0.98,
+        0.829
+      ],
+      "triangles": 1540,
+      "materials": 1,
+      "transparentMaterials": 0,
+      "texturePixels": 3145728,
+      "bytes": 335128,
+      "parts": [],
+      "source": {
+        "title": "Free CC0 Industrial 3D Models: Platform Trolley",
+        "author": "3dmodelscc0",
+        "licence": "CC0",
+        "url": "https://3dmodelscc0.itch.io/free-cc0-industrial-3d-models"
+      }
+    },
+    "power_box": {
+      "url": "assets/models/props/power_box.glb",
+      "size": [
+        0.458,
+        0.5,
+        0.396
+      ],
+      "triangles": 3951,
+      "materials": 1,
+      "transparentMaterials": 0,
+      "texturePixels": 786432,
+      "bytes": 364768,
+      "parts": [
+        "door"
+      ],
+      "source": {
+        "title": "Power Box 01",
+        "author": "Rico Cilliers",
+        "licence": "CC0",
+        "url": "https://polyhaven.com/a/power_box_01"
+      }
+    }
+  }
+}

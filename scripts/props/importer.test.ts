@@ -1,0 +1,41 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { Document } from '@gltf-transform/core';
+import type { PropSource } from './config.ts';
+import { runImport, type RecordsFile } from './importer.ts';
+import { addBox, tempDir, writeGlb } from './testFixtures.ts';
+
+const entry = (id: string, source: string): PropSource => ({ id, source, licence: 'CC0', author: 'a', title: 't', url: 'https://example.com', height: 1, triBudget: 1000 });
+
+test('One broken source: it is named with its step, the others import, records and manifest are written together', async () => {
+  const raw = tempDir();
+  const out = tempDir();
+  const doc = new Document();
+  doc.createBuffer();
+  doc.createMaterial('paint');
+  doc.createScene().addChild(doc.createNode('box').setMesh(addBox(doc, 'box', [0, 0, 0], [0.5, 2, 0.5])));
+  await writeGlb(doc, raw, 'good.glb');
+  const recordsPath = join(out, 'imported-props.json');
+  const manifestPath = join(out, 'kit-manifest.json');
+  writeFileSync(manifestPath, JSON.stringify({ glb: { older_prop: 'assets/models/props/older_prop.glb' } }));
+  const logs: string[] = [];
+  const { ok, failed } = await runImport([entry('broken_box', 'missing.fbx'), entry('good_box', 'good.glb')], { rawDir: raw, outDir: out, recordsPath, manifestPath, magick: 'magick' }, (s) => void logs.push(s));
+  assert.deepEqual(ok, ['good_box']);
+  assert.equal(failed.length, 1);
+  assert.equal(failed[0]!.id, 'broken_box');
+  assert.equal(failed[0]!.step, 'read');
+  assert.ok(logs.some((l) => /broken_box: FAILED at read/.test(l)));
+  assert.ok(existsSync(join(out, 'good_box.glb')));
+  const records = JSON.parse(readFileSync(recordsPath, 'utf8')) as RecordsFile;
+  assert.deepEqual(Object.keys(records.props), ['good_box']);
+  const rec = records.props.good_box!;
+  assert.equal(rec.url, 'assets/models/props/good_box.glb');
+  assert.equal(rec.triangles, 12);
+  assert.equal(rec.materials, 1);
+  assert.equal(rec.bytes, readFileSync(join(out, 'good_box.glb')).byteLength);
+  assert.deepEqual(rec.size, [0.25, 1, 0.25]);
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { glb: Record<string, string> };
+  assert.deepEqual(manifest.glb, { good_box: 'assets/models/props/good_box.glb', older_prop: 'assets/models/props/older_prop.glb' });
+});

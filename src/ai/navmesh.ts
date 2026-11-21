@@ -226,6 +226,9 @@ const END_SLACK = 0.45;
 /** Furthest a goal may be off the walkable floor and still be walked to (nooks, furniture), metres. */
 const GOAL_SNAP = 1.6;
 
+/** Height of the bands `nodes` samples per column (m). Below the 1.5 m+ gap between a floor and a slab top. */
+const NODE_LAYER = 1.0;
+
 export class NavMeshNav implements Navigator {
   readonly world: ColliderQuery;
   readonly doors: NavDoor[];
@@ -319,7 +322,8 @@ export class NavMeshNav implements Navigator {
     return this.snap(p, reach);
   }
 
-  /** Walkable points about a metre apart over the mesh (squad spot search, enemy spawn search). */
+  /** Walkable points about a metre apart over the mesh, one per walkable level in each column (squad spot search,
+   *  enemy spawn search, the director's reachability check). */
   get nodes(): P3[] {
     if (this.sampleNodes) return this.sampleNodes;
     const out: P3[] = [];
@@ -328,10 +332,18 @@ export class NavMeshNav implements Navigator {
     if (h) {
       const min = { x: h.bmin(0), y: h.bmin(1), z: h.bmin(2) };
       const max = { x: h.bmax(0), y: h.bmax(1), z: h.bmax(2) };
+      // One query spanning the whole height returns a single poly per column, usually a ceiling-slab top, which
+      // hid the floors from `reachable()`. Query in NODE_LAYER bands instead so every walkable level is kept.
       for (let x = min.x + 0.5; x <= max.x; x += 1)
         for (let z = min.z + 0.5; z <= max.z; z += 1) {
-          const r = this.query.findClosestPoint({ x, y: (min.y + max.y) / 2, z }, { halfExtents: { x: 0.05, y: max.y - min.y, z: 0.05 } });
-          if (r.success && r.polyRef && r.isPointOverPoly) out.push({ x: r.point.x, y: r.point.y, z: r.point.z });
+          const column: P3[] = [];
+          for (let y = min.y + NODE_LAYER / 2; y < max.y + NODE_LAYER / 2; y += NODE_LAYER) {
+            const r = this.query.findClosestPoint({ x, y, z }, { halfExtents: { x: 0.05, y: NODE_LAYER / 2, z: 0.05 } });
+            if (!r.success || !r.polyRef || !r.isPointOverPoly) continue;
+            const p = { x: r.point.x, y: r.point.y, z: r.point.z };
+            if (!column.some((c) => Math.abs(c.y - p.y) < 0.3)) column.push(p);
+          }
+          out.push(...column);
         }
     }
     this.sampleNodes = out;

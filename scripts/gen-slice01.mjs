@@ -498,7 +498,7 @@ const R03 = room('R03', 'Observation Gallery', rect(1, 3, 4, 5), {
 const R04 = room('R04', 'Lab B', rect(1, 3, 6, 7), {
   area: 'labs',
   height: 3.6,
-  atmosphere: { fog: '#05080a', fogDensity: 0.035, reverb: 'small_office', ambience: 'lab_hum' },
+  atmosphere: { fog: '#05080a', fogDensity: 0.02, reverb: 'small_office', ambience: 'lab_hum' },
   floor: 'floor_tiles',
   walls: ['wall_tiles', 'wall_panel'],
   visibleFrom: ['R03'],
@@ -532,13 +532,25 @@ prop(R03, 'potted_plant', [13.35, 0, 21.3], 0, { kind: 'tall', pot: 'white' });
 // Low warm lamps (real light slots, claimed above): one over the observation station, a pair over the coffee table.
 prop(R03, 'pendant_light', [3.9, 0, 20.35], 0, { drop: 1.55, slots: true });
 prop(R03, 'pendant_light', [12, 0, 19.9], 0, { drop: 1.55, count: 2, spacing: 0.9, slots: true });
+// Lab B (rebuild-lab-wing D4): Voss's culture lab, composed for the gallery glass. Voss's spot (labb_victim), her benches,
+// the gurney, chair and desk console stay where voss-burst-death expects them; the culture column takes the specimen
+// tank's place behind her; the rest of the equipment stands against the east and south walls, out of the glass sight lines.
 prop(R04, 'lab_bench', [5.5, 0, 26.8], 90, { width: 3 });
 prop(R04, 'lab_bench', [12.2, 0, 29.4], 0, { width: 3 });
-prop(R04, 'specimen_tank', [9.5, 0, 28.6]);
+prop(R04, 'culture_column', [9.5, 0, 28.6]);
 prop(R04, 'gurney', [8, 0, 25.2], 90);
 prop(R04, 'console', [12.8, 0, 25.6], 270, { screen: 'log' });
 prop(R04, 'chair', [7.4, 0, 27.2]);
 prop(R04, 'sign_danger', [2.25, 0, 25.66], 270); // beside the Lab B bulkhead (slice01.test: sign_danger)
+prop(R04, 'lab_cabinet', [4.0, 0, 29.48]); // imported (import-lab-props): glass doors closed, back on the south wall
+prop(R04, 'freezer_ultra', [6.6, 0, 29.75]);
+wallProp(R04, 'biosafety_cabinet', 3, 7, 'e', -0.1, undefined, 0);
+wallProp(R04, 'incubator_stack', 3, 6, 'e', -1.0, undefined, 0);
+wallProp(R04, 'pressure_gauge', 1, 6, 'w', 1.45, { y: 1.7 });
+// The service wall: the warped access panel on the coolant line, where Giles cut his arm (the tag lands here later).
+// A plain service wall behind it: a panel tile's mid-bay rib would cross the panel (level-kit clearance test).
+wallKit(R04, 1, 7, 'w', 'wall_plain');
+wallProp(R04, 'service_panel', 1, 7, 'w', 0, { y: 1.25 });
 anchor(R03, 'brief_screen', [8, 1.85, 14.4]);
 anchor(R03, 'labb_blinds', [8, 1.5, 22.3]);
 anchor(R03, 'labb_glass', [8, 1.5, 21.8]);
@@ -556,12 +568,19 @@ trigger(R03, 'trig_gallery_enter', cellBox(1, 3, 4, 5), 'trigger:gallery_enter',
 trigger(R03, 'trig_gallery_brief', around([8, 0, 17.4], 1.0, 2.2), 'trigger:gallery_brief_spot', { once: false });
 
 // ---------------------------------------------------------------- R05 lab junction, R06 pressure door hall (labs)
-const ACTION_FOG = { fog: '#05080a', fogDensity: 0.06 };
+// rebuild-lab-wing: the wing is in lockdown when the player first enters it (after the drop). Red alarm light, with one
+// steady white work light over each fight's focus so enemies stay readable; the other fixtures glow red without
+// taking a pooled light. Ceiling slots run in cell order: R05 (-1,4)(0,4)(-1,5)(0,5)(-1,6)(0,6), R06 the same from z 7.
+const ACTION_FOG = { fog: '#0a0607', fogDensity: 0.025 };
+const LOCKDOWN = '#ff2a1c';
+const LAB_WORK = '#eef2f4';
+const redGlow = (slot) => L(slot, 'alarm', LOCKDOWN, undefined, undefined, { pool: false });
 const R05 = room('R05', 'Lab Junction', rect(-1, 0, 4, 6), {
   area: 'labs',
   atmosphere: { ...ACTION_FOG, reverb: 'metal_corridor', ambience: 'hull_groan' },
   ceiling: 'ceiling_pipes',
-  lights: [L(0, 'flicker'), L(3, 'steady'), L(5, 'dying')],
+  // Work light over the middle of the junction (slot 3, cell 0,5); red alarms at both ends.
+  lights: [L(0, 'alarm', LOCKDOWN, 6), L(3, 'steady', LAB_WORK, 8), L(4, 'alarm', LOCKDOWN, 6), redGlow(1), redGlow(2), redGlow(5)],
 });
 wallKit(R05, -1, 5, 'w', 'wall_vent');
 const R06 = room('R06', 'Pressure Door Hall', rect(-1, 0, 7, 9), {
@@ -569,48 +588,88 @@ const R06 = room('R06', 'Pressure Door Hall', rect(-1, 0, 7, 9), {
   height: 4,
   atmosphere: { ...ACTION_FOG, reverb: 'metal_hall', ambience: 'hull_groan' },
   ceiling: 'ceiling_pipes',
-  lights: [L(0, 'steady'), L(3, 'flicker'), L(5, 'steady', '#ffd9b0')],
+  // Work light over Giles's panel cell (slot 4, cell -1,9); red alarms at the north end and by the hold point.
+  lights: [L(0, 'alarm', LOCKDOWN, 7), L(3, 'alarm', LOCKDOWN, 6), L(4, 'steady', LAB_WORK, 9), redGlow(1), redGlow(2), redGlow(5)],
 });
-wallKit(R06, -1, 8, 'w', 'wall_vent');
-wallKit(R06, 0, 7, 'e', 'wall_vent');
+
+// R05 (rebuild-lab-wing D5): the lab wing's decon junction, an hour after the evacuation. Cover against the walls and
+// corners; the middle stays open so the three sources read: the Lab B bulkhead (east), the west vent, the floor drain.
 door('D_R05_R06', 'R05', 'R06', 0, 6, 's');
 door('D_R06_R07', 'R06', 'R07', 0, 9, 's', { kit: 'bulkhead', state: 'locked', unlockBy: 'engineer', task: 'bypass_short' });
-prop(R05, 'crate_stack', [-4.6, 0, 14.6], 10);
-prop(R05, 'debris_pile', [-1.5, 0, 22.5]);
+prop(R05, 'emergency_shower', [-5.15, 0, 14.85]);
+for (const [i, x] of [-3.0, -2.38, -1.76].entries()) prop(R05, 'ppe_locker', [x, 0, 14.25], 180, i === 1 ? { open: true } : undefined);
+wallKit(R05, 0, 4, 'n', 'wall_plain'); // plain behind the directory (level-kit clearance test)
+wallProp(R05, 'directory_sign', 0, 4, 'n', 0.7, { y: 1.8 });
+prop(R05, 'hazmat_rack', [-5.75, 0, 21.2], 270, { count: 3 });
+prop(R05, 'sample_cart', [-5.3, 0, 18.0], 90); // upright, against the west wall; the R05 ammo sits on it
+prop(R05, 'sample_cart', [-1.4, 0, 20.6], 30, { tipped: true });
+prop(R05, 'floor_drain', [-4.6, 0, 24.6]);
 prop(R05, 'console', [1.2, 0, 19.4], 270, { screen: 'log' });
 prop(R05, 'emergency_beacon', [-5.7, 2.6, 20], 0, { wall: true });
 prop(R05, 'cable_bundle', [-2, 0, 18], 90, { length: 10, height: 2.9 });
-prop(R06, 'crate_stack', [-4.4, 0, 29], 0);
-prop(R06, 'crate', [1.2, 0, 32.4], 20, { size: 0.9 });
-prop(R06, 'crate', [-3.2, 0, 34.6], 40, { size: 0.8 });
-prop(R06, 'pipe_run', [-5.4, 0, 32], 90, { length: 10, height: 0.5, paint: 'dark' });
-prop(R06, 'valve', [1.0, 0, 28.6]);
+anchor(R05, 'r05_entry', [-1.6, 0, 16.2], 180);
+anchor(R05, 'ammo_r05', [-5.3, 0.84, 18.0]);
+// TAG FM is still playing in the ruined junction after the first fight (ADR-0023); the radio sits on the console.
+prop(R05, 'radio', [1.5, 0.95, 19.1], 250);
+anchor(R05, 'r05_radio', [1.5, 1.08, 19.1]);
+
+// R06 (rebuild-lab-wing D6): a compartment boundary, built around the cover-me fight. Giles works the bypass panel on the
+// coolant line beside the south bulkhead, back to the hall; four sources: the ruptured duct (bloom), the service trench,
+// the east vent near him, and the corridor behind. Cover: pump skid (1.2 m), cylinder cage (1.4 m), switchgear (2.1 m),
+// and the cable drum (1.0 m), a deliberate perch far from Giles.
+wallKit(R06, 0, 9, 'e', 'wall_vent');
+prop(R06, 'pump_skid', [-3.9, 0, 32.6], 90);
+prop(R06, 'cylinder_cage', [1.45, 0, 27.6], 90);
+for (const z of [27.15, 27.6, 28.05]) prop(R06, 'gas_cylinder', [1.45, 0.04, z], Math.round(z * 97) % 360, { solid: false }); // the cage collides
+prop(R06, 'electrical_box_02', [1.25, 0, 31.6]); // switchgear, its door swung open toward the hall
+prop(R06, 'cable_drum', [-5.0, 0, 27.4]);
+prop(R06, 'trench_grate', [-5.15, 0, 35.4], 90, { length: 2.4 });
+prop(R06, 'ruptured_duct', [-3.4, 0, 30.3], 0, { length: 4, y: 3.3 });
 prop(R06, 'emergency_beacon', [1.7, 2.8, 36], 270, { wall: true });
 prop(R06, 'emergency_beacon', [-5.7, 2.8, 30], 90, { wall: true });
 prop(R06, 'sign_danger', [-1.66, 0, 26.25], 180); // beside the doors in and out of the hall
 prop(R06, 'sign_danger', [-1.66, 0, 37.75], 0);
-anchor(R05, 'r05_entry', [-1.6, 0, 16.2], 180);
-anchor(R05, 'ammo_r05', [-4.8, 0.9, 14.6]);
-// TAG FM is still playing in the ruined junction after the first fight (ADR-0023); the radio sits on the console.
-prop(R05, 'radio', [1.5, 0.95, 19.1], 250);
-anchor(R05, 'r05_radio', [1.5, 1.08, 19.1]);
-anchor(R06, 'r06_panel', [-0.6, 0, 37.0], 180);
-anchor(R06, 'r06_hold', [-2, 0, 31], 0);
+// The bulkhead: dogging wheel, pressure manifold, status board (green when Giles's bypass opens it); his panel.
+wallProp(R06, 'bulkhead_wheel', 0, 9, 's', -1.4, { y: 1.3 });
+wallProp(R06, 'pressure_manifold', -1, 9, 's', 0.2, { y: 1.15 });
+wallProp(R06, 'status_board', 0, 9, 's', 0, { y: 3.0, door: 'D_R06_R07' });
+prop(R06, 'power_box', [-2.6, 1.1, 37.5]); // imported (import-lab-props): Giles's bypass panel, door open
+// Giles's bypass panel (the imported power box) on the coolant line, on the south wall west of the bulkhead (rebuild-lab-wing D6).
+anchor(R06, 'r06_panel', [-2.6, 0, 37.0], 180);
+anchor(R06, 'r06_hold', [-0.5, 0, 29.2], 180);
 // The creature that burst out of Voss (infection-kills spec): it spawns where it stands pounding the Lab B glass and breaks out at contact.
 spawn(R05, 'r05_door', [8, 0, 22.51], 'door', 'r05_contact', { yaw: 180, outfit: 'lab', model: 'necromorph', infection: 1 });
 // The first one breaks through the sealed Lab B door (group r05_contact); two to three more trickle in
-// after it dies (group r05_trickle, ADR-0014 beat 3).
+// after it dies (group r05_trickle, ADR-0014 beat 3): two from the west vent, one up out of the floor drain.
 spawn(R05, 'r05_vent', [-5.2, 2.7, 22], 'vent', 'r05_trickle', { count: 2, interval: 6 });
-spawn(R05, 'r05_floor', [-3.4, 0, 25], 'floor', 'r05_trickle', { count: 1, interval: 8, outfit: 'crew' });
-spawn(R06, 'r06_vent_w', [-5.6, 1.0, 32], 'vent', 'r06_cover', { count: 2, interval: 4 });
-spawn(R06, 'r06_vent_e', [1.6, 1.0, 28], 'vent', 'r06_cover', { count: 2, interval: 5 });
-spawn(R06, 'r06_ceiling', [-2, 3.8, 34], 'ceiling', 'r06_cover', { count: 1 });
+spawn(R05, 'r05_drain', [-4.6, 0, 24.6], 'floor', 'r05_trickle', { count: 1, interval: 8, outfit: 'crew' });
+spawn(R06, 'r06_duct', [-2.6, 3.3, 30.3], 'ceiling', 'r06_cover', { count: 1 });
+spawn(R06, 'r06_trench', [-5.15, 0, 35.4], 'floor', 'r06_cover', { count: 2, interval: 4 });
+spawn(R06, 'r06_vent_e', [1.6, 1.0, 36], 'vent', 'r06_cover', { count: 2, interval: 5 });
 spawn(R06, 'r06_corridor', [-0.5, 0, 22], 'door', 'r06_cover', { count: 1, yaw: 180 });
 trigger(R05, 'trig_r05_enter', cellBox(-1, 0, 4, 4), 'trigger:r05_enter');
 trigger(R06, 'trig_r06_enter', cellBox(-1, 0, 7, 7), 'trigger:r06_enter');
 trigger(R06, 'trig_r06_door', cellBox(-1, 0, 9, 9), 'trigger:r06_door');
 checkpoints.push({ id: 'cp_first_contact', room: 'R05', pos: [-1.6, 0, 16.4], yaw: 180 });
 checkpoints.push({ id: 'cp_cover_me', room: 'R06', pos: [-2, 0, 28.6], yaw: 180 });
+
+// The coolant line (rebuild-lab-wing D2): one route, column -> Lab B service wall -> R05 ceiling -> R06 west side ->
+// Giles's panel. One piece per room so each room merges its own part; collars where it passes through a wall.
+prop(R04, 'coolant_line', [0, 0, 0], 0, { path: '9.85,2.9,29.25;2.45,2.9,29.25;2.45,2.9,28;2.45,2.9,25.3;2.0,2.9,25.3', valves: '2', sight: '1', collars: '4' });
+prop(R04, 'coolant_line', [0, 0, 0], 0, { path: '2.45,2.9,28;2.45,1.75,28' }); // the branch down into the service panel
+prop(R05, 'coolant_line', [0, 0, 0], 0, { path: '2.0,2.8,25.3;1.55,2.8,25.3;-3.5,2.8,25.3;-3.5,2.8,26.0', collars: '0;3', valves: '1', sight: '2' });
+prop(R06, 'coolant_line', [0, 0, 0], 0, { path: '-3.5,2.8,26.0;-3.5,2.8,26.5;-5.5,2.8,26.5;-5.5,2.8,37.5;-2.6,2.8,37.5;-2.6,1.62,37.5', collars: '0', sight: '3' });
+// The bloom follows the line (D3). Lab B: inside the column from the start; outside it only after the drop's burst
+// (`reveal: 'spread'`). R05 and R06 are only ever entered after the drop, so their growth is always there.
+prop(R04, 'bloom_growth_c', [9.3, 0, 29.45], 20, { material: 'bloom', reveal: 'spread', breathe: true });
+prop(R04, 'bloom_growth_a', [3.1, 0, 28.6], 70, { material: 'bloom', reveal: 'spread' });
+prop(R04, 'bloom_growth_d', [2.7, 0, 27.2], 0, { material: 'bloom', reveal: 'spread' });
+wallProp(R04, 'bloom_decal', 1, 7, 'w', 0.15, { w: 1.4, h: 1.2, y: 1.6, seed: 0, reveal: 'spread' });
+prop(R04, 'bloom_decal', [6.0, 0, 29.25], 0, { w: 2.0, h: 0.8, y: 2.95, ceiling: true, seed: 1, reveal: 'spread' });
+prop(R05, 'bloom_growth_a', [-2.6, 0, 25.15], 15, { material: 'bloom' });
+prop(R05, 'bloom_decal', [-1.6, 0, 25.75], 0, { w: 1.0, h: 0.7, y: 2.45, seed: 2 });
+prop(R06, 'bloom_growth_c', [-4.6, 0, 29.6], 200, { material: 'bloom', breathe: true });
+prop(R06, 'bloom_decal', [-3.25, 0, 37.73], 0, { w: 0.8, h: 1.1, y: 0.95, seed: 3 });
 
 // ---------------------------------------------------------------- R07 security + armory, R08 medical bay
 const R07 = room('R07', 'Security Office', rect(-1, 1, 10, 11), {

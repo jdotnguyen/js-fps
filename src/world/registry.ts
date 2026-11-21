@@ -6,6 +6,10 @@ import type { Materials } from '../render/materials.ts';
 import { PROP_PIECES } from './kit/props.ts';
 import { STRUCTURE_PIECES } from './kit/structure.ts';
 import { SLICE_PROPS, SLICE_STRUCTURE } from './kit/slice.ts';
+import { DIVE_BAY_PROPS } from './kit/diveBay.ts';
+import { IMPORTED_PROP_PIECES } from './kit/importedProps.ts';
+import { LAB_WING_PROPS } from './kit/labWing.ts';
+import { applyPlacementFx } from './kit/placementFx.ts';
 import {
   LIGHT_SLOT_KINDS,
   SURFACE_MATERIALS,
@@ -26,8 +30,12 @@ import {
  *   SOCKET_<name>    empty, connection point; its -Z axis is the direction
  *   LIGHT_<kind>_*   empty, light slot (ceiling|wall|emergency)
  *   NAV_*            empty, walkable point for ADR-0007
- * Pivot: floor centre, facing -Z, metres. Full write-up goes in docs/kit-authoring.md
- * with the first real GLB.
+ * Pivot: floor centre, facing -Z, metres. Write-up: docs/imported-props.md.
+ *
+ * Imported props (spec imported-props, kit/importedProps.ts) work differently: their procedural piece is a
+ * stand-in that owns colliders, surfaces, spots and keep-outs, and the model only replaces its visible meshes.
+ * Their materials keep their own UVs (`userData.keepUvs`), and `PART_*` hinge nodes and see-through meshes stay
+ * unmerged (`userData.dynamic`). A model that fails to load leaves the stand-in in place, with one warning.
  */
 
 export interface KitManifest {
@@ -36,12 +44,17 @@ export interface KitManifest {
 
 export const validateKitManifest: Validator<KitManifest> = obj({ glb: record(str) });
 
+/** Every built-in kit piece (procedural generators and imported-prop stand-ins). */
+export const KIT_PIECES: readonly PieceDef[] = [...STRUCTURE_PIECES, ...PROP_PIECES, ...SLICE_STRUCTURE, ...SLICE_PROPS, ...DIVE_BAY_PROPS, ...LAB_WING_PROPS, ...IMPORTED_PROP_PIECES];
+
 export class KitRegistry {
   private readonly defs = new Map<string, PieceDef>();
   private readonly glbs = new Map<string, THREE.Group>();
+  /** One `keepUvs` clone per palette slot, shared by every imported prop drawn with that slot (`material` param). */
+  private readonly slotClones = new Map<string, THREE.Material>();
   private readonly manifest: KitManifest;
 
-  constructor(manifest: KitManifest, defs: PieceDef[] = [...STRUCTURE_PIECES, ...PROP_PIECES, ...SLICE_STRUCTURE, ...SLICE_PROPS]) {
+  constructor(manifest: KitManifest, defs: readonly PieceDef[] = KIT_PIECES) {
     this.manifest = manifest;
     for (const d of defs) {
       if (this.defs.has(d.id)) throw new Error(`kit id "${d.id}" registered twice`);
@@ -56,19 +69,59 @@ export class KitRegistry {
     return { structure, prop };
   }
 
-  /** Load every GLB the manifest lists for the given IDs (call before create). */
-  async preload(ids: Iterable<string>): Promise<void> {
+  /**
+   * Load every GLB the manifest lists for the given IDs (call before create). An imported prop whose model fails
+   * to load keeps its stand-in, with one warning naming the id; any other kit GLB failing is an error.
+   */
+  async preload(ids: Iterable<string>, load?: (url: string) => Promise<{ scene: THREE.Group }>): Promise<void> {
     const wanted = [...new Set(ids)].filter((id) => this.manifest.glb[id] && !this.glbs.has(id));
     if (!wanted.length) return;
-    const { createGltfLoader } = await import('../render/gltf.ts');
-    const loader = await createGltfLoader();
+    if (!load) {
+      const { createGltfLoader } = await import('../render/gltf.ts');
+      const loader = await createGltfLoader();
+      load = (url) => loader.loadAsync(url);
+    }
     await Promise.all(
       wanted.map(async (id) => {
         const url = this.manifest.glb[id]!;
-        const gltf = await loader.loadAsync(url);
-        this.glbs.set(id, gltf.scene);
+        const imported = this.defs.get(id)?.importedProp === true;
+        try {
+          const gltf = await load(url);
+          if (imported) tagImported(gltf.scene);
+          this.glbs.set(id, gltf.scene);
+        } catch (e) {
+          if (!imported) throw e;
+          console.warn(`[kit] imported prop "${id}": model failed to load (${url}); showing its stand-in. ${(e as Error).message ?? ''}`);
+        }
       }),
     );
+  }
+
+  /** An imported prop's recorded cost (null for any other piece). */
+  importedCost(id: string): { materials: number; triangles: number; standInTriangles: number } | null {
+    return this.defs.get(id)?.importedCost ?? null;
+  }
+
+  /**
+   * The `material` param of an imported prop: draw the model with a palette slot (e.g. the bloom growths with
+   * `bloom`) instead of its own textures. The clone shares the slot's textures and keeps the model's UVs.
+   */
+  private slotMaterial(params: PieceParams, m: Materials): THREE.Material | null {
+    const key = params['material'];
+    if (typeof key !== 'string') return null;
+    let clone = this.slotClones.get(key);
+    if (!clone) {
+      const base = (m as unknown as Record<string, THREE.Material | undefined>)[key];
+      if (!base) {
+        console.warn(`[kit] material "${key}" is not a palette slot; keeping the model's own`);
+        return null;
+      }
+      clone = base.clone();
+      clone.name = `${base.name || key}:imported`;
+      clone.userData['keepUvs'] = true;
+      this.slotClones.set(key, clone);
+    }
+    return clone;
   }
 
   source(id: string): 'glb' | 'procedural' {
@@ -76,15 +129,64 @@ export class KitRegistry {
   }
 
   create(id: string, params: PieceParams, rng: Rng, m: Materials): PieceOutput {
+    return applyPlacementFx(this.createBase(id, params, rng, m), params);
+  }
+
+  private createBase(id: string, params: PieceParams, rng: Rng, m: Materials): PieceOutput {
     const glb = this.glbs.get(id);
-    if (glb) return fromGlb(glb.clone(true));
     const def = this.defs.get(id);
+    if (glb && def?.importedProp) return withModel(def.generate(params, rng, m), glb.clone(true), this.slotMaterial(params, m));
+    if (glb) return fromGlb(glb.clone(true));
     if (!def) throw new Error(`unknown kit piece "${id}"`);
     return def.generate(params, rng, m);
   }
 }
 
 const v3 = (v: THREE.Vector3): Vec3 => [v.x, v.y, v.z];
+
+/** Mark an imported model once at load: its materials keep their own UVs (clones share the materials). */
+function tagImported(scene: THREE.Object3D): void {
+  scene.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    for (const mat of Array.isArray(o.material) ? o.material : [o.material]) mat.userData['keepUvs'] = true;
+  });
+}
+
+/**
+ * Swap a stand-in's visible meshes for the model; everything else (colliders, surfaces, spots, keep-outs, sockets,
+ * light slots) stays the stand-in's. Hinged `PART_*` nodes and see-through meshes become direct children marked
+ * dynamic, so the room merger leaves them separate.
+ */
+export function withModel(out: PieceOutput, model: THREE.Object3D, material: THREE.Material | null = null): PieceOutput {
+  for (const child of [...out.object.children]) {
+    child.removeFromParent();
+    child.traverse((c) => {
+      if (c instanceof THREE.Mesh) c.geometry.dispose();
+    });
+  }
+  if (material) model.traverse((o) => void (o instanceof THREE.Mesh && (o.material = material)));
+  out.object.add(model);
+  out.object.updateMatrixWorld(true);
+  const lift: THREE.Object3D[] = [];
+  model.traverse((o) => {
+    if (o.name.startsWith('PART_')) lift.push(o);
+    else if (o instanceof THREE.Mesh && !lift.some((p) => isInside(o, p))) {
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      if (mats.some((x) => x.transparent)) lift.push(o);
+    }
+  });
+  for (const o of lift) {
+    if (lift.some((p) => p !== o && isInside(o, p))) continue;
+    out.object.attach(o);
+    o.userData['dynamic'] = true;
+  }
+  return out;
+}
+
+const isInside = (o: THREE.Object3D, ancestor: THREE.Object3D): boolean => {
+  for (let x = o.parent; x; x = x.parent) if (x === ancestor) return true;
+  return false;
+};
 
 function boxOf(o: THREE.Object3D): BoxSpec {
   const b = new THREE.Box3().setFromObject(o);

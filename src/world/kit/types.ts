@@ -85,7 +85,7 @@ export interface PieceOutput {
 }
 
 /** Props hung on a wall (back on their local z = 0): they must not overlap any wall piece's `keepouts`. */
-export const WALL_MOUNTED_PROPS: readonly string[] = ['wall_screen', 'tag_poster', 'notice_board', 'wall_clock', 'menu_board', 'cctv_wall'];
+export const WALL_MOUNTED_PROPS: readonly string[] = ['wall_screen', 'tag_poster', 'notice_board', 'wall_clock', 'menu_board', 'cctv_wall', 'pressure_gauge', 'service_panel', 'directory_sign', 'bulkhead_wheel', 'pressure_manifold', 'status_board'];
 
 export type PieceParams = Record<string, string | number | boolean>;
 
@@ -97,6 +97,13 @@ export interface PieceDef {
   /** Cells covered in x and z. Props use [0, 0] (placed freely in metres). */
   footprint: [number, number];
   generate(params: PieceParams, rng: Rng, m: Materials): PieceOutput;
+  /**
+   * A stand-in for an imported model (spec imported-props): when the registry has the model, it replaces only the
+   * stand-in's visible meshes; colliders, surfaces, spots and keep-outs stay the stand-in's.
+   */
+  importedProp?: boolean;
+  /** For imported props: the model's recorded cost, and the stand-in's own triangles, for the room budgets. */
+  importedCost?: { materials: number; triangles: number; standInTriangles: number };
 }
 
 export function numParam(p: PieceParams, key: string, fallback: number): number {

@@ -3475,7 +3475,7 @@
    "height": 3.6,
    "atmosphere": {
     "fog": "#05080a",
-    "fogDensity": 0.035,
+    "fogDensity": 0.02,
     "reverb": "small_office",
     "ambience": "lab_hum"
    },
@@ -3594,7 +3594,7 @@
      "rot": 180
     },
     {
-     "kit": "wall_panel",
+     "kit": "wall_plain",
      "cells": [
       [
        1,
@@ -3697,7 +3697,7 @@
      }
     },
     {
-     "kit": "specimen_tank",
+     "kit": "culture_column",
      "pos": [
       9.5,
       0,
@@ -3741,6 +3741,160 @@
       25.66
      ],
      "rot": 270
+    },
+    {
+     "kit": "lab_cabinet",
+     "pos": [
+      4,
+      0,
+      29.48
+     ]
+    },
+    {
+     "kit": "freezer_ultra",
+     "pos": [
+      6.6,
+      0,
+      29.75
+     ]
+    },
+    {
+     "kit": "biosafety_cabinet",
+     "pos": [
+      13.75,
+      0,
+      27.9
+     ],
+     "rot": 90
+    },
+    {
+     "kit": "incubator_stack",
+     "pos": [
+      13.75,
+      0,
+      23
+     ],
+     "rot": 90
+    },
+    {
+     "kit": "pressure_gauge",
+     "pos": [
+      2.31,
+      0,
+      22.55
+     ],
+     "rot": 270,
+     "params": {
+      "y": 1.7
+     }
+    },
+    {
+     "kit": "service_panel",
+     "pos": [
+      2.31,
+      0,
+      28
+     ],
+     "rot": 270,
+     "params": {
+      "y": 1.25
+     }
+    },
+    {
+     "kit": "coolant_line",
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "params": {
+      "path": "9.85,2.9,29.25;2.45,2.9,29.25;2.45,2.9,28;2.45,2.9,25.3;2.0,2.9,25.3",
+      "valves": "2",
+      "sight": "1",
+      "collars": "4"
+     }
+    },
+    {
+     "kit": "coolant_line",
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "params": {
+      "path": "2.45,2.9,28;2.45,1.75,28"
+     }
+    },
+    {
+     "kit": "bloom_growth_c",
+     "pos": [
+      9.3,
+      0,
+      29.45
+     ],
+     "rot": 20,
+     "params": {
+      "material": "bloom",
+      "reveal": "spread",
+      "breathe": true
+     }
+    },
+    {
+     "kit": "bloom_growth_a",
+     "pos": [
+      3.1,
+      0,
+      28.6
+     ],
+     "rot": 70,
+     "params": {
+      "material": "bloom",
+      "reveal": "spread"
+     }
+    },
+    {
+     "kit": "bloom_growth_d",
+     "pos": [
+      2.7,
+      0,
+      27.2
+     ],
+     "params": {
+      "material": "bloom",
+      "reveal": "spread"
+     }
+    },
+    {
+     "kit": "bloom_decal",
+     "pos": [
+      2.31,
+      0,
+      27.85
+     ],
+     "rot": 270,
+     "params": {
+      "w": 1.4,
+      "h": 1.2,
+      "y": 1.6,
+      "seed": 0,
+      "reveal": "spread"
+     }
+    },
+    {
+     "kit": "bloom_decal",
+     "pos": [
+      6,
+      0,
+      29.25
+     ],
+     "params": {
+      "w": 2,
+      "h": 0.8,
+      "y": 2.95,
+      "ceiling": true,
+      "seed": 1,
+      "reveal": "spread"
+     }
     }
    ],
    "lights": [
@@ -3789,8 +3943,8 @@
    "name": "Lab Junction",
    "area": "labs",
    "atmosphere": {
-    "fog": "#05080a",
-    "fogDensity": 0.06,
+    "fog": "#0a0607",
+    "fogDensity": 0.025,
     "reverb": "metal_corridor",
     "ambience": "hull_groan"
    },
@@ -3885,6 +4039,11 @@
        -1,
        0,
        4
+      ],
+      [
+       0,
+       0,
+       4
       ]
      ]
     },
@@ -3903,16 +4062,6 @@
       ]
      ],
      "rot": 90
-    },
-    {
-     "kit": "wall_panel",
-     "cells": [
-      [
-       0,
-       0,
-       4
-      ]
-     ]
     },
     {
      "kit": "wall_vent",
@@ -3950,20 +4099,94 @@
    ],
    "props": [
     {
-     "kit": "crate_stack",
+     "kit": "emergency_shower",
+     "pos": [
+      -5.15,
+      0,
+      14.85
+     ]
+    },
+    {
+     "kit": "ppe_locker",
+     "pos": [
+      -3,
+      0,
+      14.25
+     ],
+     "rot": 180
+    },
+    {
+     "kit": "ppe_locker",
+     "pos": [
+      -2.38,
+      0,
+      14.25
+     ],
+     "rot": 180,
+     "params": {
+      "open": true
+     }
+    },
+    {
+     "kit": "ppe_locker",
+     "pos": [
+      -1.76,
+      0,
+      14.25
+     ],
+     "rot": 180
+    },
+    {
+     "kit": "directory_sign",
+     "pos": [
+      0.7,
+      0,
+      14.31
+     ],
+     "rot": 180,
+     "params": {
+      "y": 1.8
+     }
+    },
+    {
+     "kit": "hazmat_rack",
+     "pos": [
+      -5.75,
+      0,
+      21.2
+     ],
+     "rot": 270,
+     "params": {
+      "count": 3
+     }
+    },
+    {
+     "kit": "sample_cart",
+     "pos": [
+      -5.3,
+      0,
+      18
+     ],
+     "rot": 90
+    },
+    {
+     "kit": "sample_cart",
+     "pos": [
+      -1.4,
+      0,
+      20.6
+     ],
+     "rot": 30,
+     "params": {
+      "tipped": true
+     }
+    },
+    {
+     "kit": "floor_drain",
      "pos": [
       -4.6,
       0,
-      14.6
-     ],
-     "rot": 10
-    },
-    {
-     "kit": "debris_pile",
-     "pos": [
-      -1.5,
-      0,
-      22.5
+      24.6
      ]
     },
     {
@@ -4010,20 +4233,84 @@
       19.1
      ],
      "rot": 250
+    },
+    {
+     "kit": "coolant_line",
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "params": {
+      "path": "2.0,2.8,25.3;1.55,2.8,25.3;-3.5,2.8,25.3;-3.5,2.8,26.0",
+      "collars": "0;3",
+      "valves": "1",
+      "sight": "2"
+     }
+    },
+    {
+     "kit": "bloom_growth_a",
+     "pos": [
+      -2.6,
+      0,
+      25.15
+     ],
+     "rot": 15,
+     "params": {
+      "material": "bloom"
+     }
+    },
+    {
+     "kit": "bloom_decal",
+     "pos": [
+      -1.6,
+      0,
+      25.75
+     ],
+     "params": {
+      "w": 1,
+      "h": 0.7,
+      "y": 2.45,
+      "seed": 2
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
-     "pattern": "flicker"
+     "pattern": "alarm",
+     "color": "#ff2a1c",
+     "intensity": 6
     },
     {
      "slot": 3,
-     "pattern": "steady"
+     "pattern": "steady",
+     "color": "#eef2f4",
+     "intensity": 8
+    },
+    {
+     "slot": 4,
+     "pattern": "alarm",
+     "color": "#ff2a1c",
+     "intensity": 6
+    },
+    {
+     "slot": 1,
+     "pattern": "alarm",
+     "color": "#ff2a1c",
+     "pool": false
+    },
+    {
+     "slot": 2,
+     "pattern": "alarm",
+     "color": "#ff2a1c",
+     "pool": false
     },
     {
      "slot": 5,
-     "pattern": "dying"
+     "pattern": "alarm",
+     "color": "#ff2a1c",
+     "pool": false
     }
    ],
    "triggers": [
@@ -4075,11 +4362,11 @@
      "interval": 6
     },
     {
-     "id": "r05_floor",
+     "id": "r05_drain",
      "pos": [
-      -3.4,
+      -4.6,
       0,
-      25
+      24.6
      ],
      "kind": "floor",
      "group": "r05_trickle",
@@ -4102,9 +4389,9 @@
     {
      "id": "ammo_r05",
      "pos": [
-      -4.8,
-      0.9,
-      14.6
+      -5.3,
+      0.84,
+      18
      ]
     },
     {
@@ -4123,8 +4410,8 @@
    "area": "labs",
    "height": 4,
    "atmosphere": {
-    "fog": "#05080a",
-    "fogDensity": 0.06,
+    "fog": "#0a0607",
+    "fogDensity": 0.025,
     "reverb": "metal_hall",
     "ambience": "hull_groan"
    },
@@ -4239,7 +4526,7 @@
      "rot": 90
     },
     {
-     "kit": "wall_vent",
+     "kit": "wall_panel",
      "cells": [
       [
        0,
@@ -4250,7 +4537,7 @@
      "rot": 270
     },
     {
-     "kit": "wall_vent",
+     "kit": "wall_panel",
      "cells": [
       [
        -1,
@@ -4283,7 +4570,7 @@
      "rot": 180
     },
     {
-     "kit": "wall_panel",
+     "kit": "wall_vent",
      "cells": [
       [
        0,
@@ -4296,58 +4583,98 @@
    ],
    "props": [
     {
-     "kit": "crate_stack",
+     "kit": "pump_skid",
      "pos": [
-      -4.4,
+      -3.9,
       0,
-      29
+      32.6
+     ],
+     "rot": 90
+    },
+    {
+     "kit": "cylinder_cage",
+     "pos": [
+      1.45,
+      0,
+      27.6
+     ],
+     "rot": 90
+    },
+    {
+     "kit": "gas_cylinder",
+     "pos": [
+      1.45,
+      0.04,
+      27.15
+     ],
+     "rot": 114,
+     "params": {
+      "solid": false
+     }
+    },
+    {
+     "kit": "gas_cylinder",
+     "pos": [
+      1.45,
+      0.04,
+      27.6
+     ],
+     "rot": 157,
+     "params": {
+      "solid": false
+     }
+    },
+    {
+     "kit": "gas_cylinder",
+     "pos": [
+      1.45,
+      0.04,
+      28.05
+     ],
+     "rot": 201,
+     "params": {
+      "solid": false
+     }
+    },
+    {
+     "kit": "electrical_box_02",
+     "pos": [
+      1.25,
+      0,
+      31.6
      ]
     },
     {
-     "kit": "crate",
+     "kit": "cable_drum",
      "pos": [
-      1.2,
+      -5,
       0,
-      32.4
-     ],
-     "rot": 20,
-     "params": {
-      "size": 0.9
-     }
+      27.4
+     ]
     },
     {
-     "kit": "crate",
+     "kit": "trench_grate",
      "pos": [
-      -3.2,
+      -5.15,
       0,
-      34.6
-     ],
-     "rot": 40,
-     "params": {
-      "size": 0.8
-     }
-    },
-    {
-     "kit": "pipe_run",
-     "pos": [
-      -5.4,
-      0,
-      32
+      35.4
      ],
      "rot": 90,
      "params": {
-      "length": 10,
-      "height": 0.5,
-      "paint": "dark"
+      "length": 2.4
      }
     },
     {
-     "kit": "valve",
+     "kit": "ruptured_duct",
      "pos": [
-      1,
+      -3.4,
       0,
-      28.6
-     ]
+      30.3
+     ],
+     "params": {
+      "length": 4,
+      "y": 3.3
+     }
     },
     {
      "kit": "emergency_beacon",
@@ -4389,21 +4716,126 @@
       0,
       37.75
      ]
+    },
+    {
+     "kit": "bulkhead_wheel",
+     "pos": [
+      1.4,
+      0,
+      37.69
+     ],
+     "params": {
+      "y": 1.3
+     }
+    },
+    {
+     "kit": "pressure_manifold",
+     "pos": [
+      -4.2,
+      0,
+      37.69
+     ],
+     "params": {
+      "y": 1.15
+     }
+    },
+    {
+     "kit": "status_board",
+     "pos": [
+      0,
+      0,
+      37.69
+     ],
+     "params": {
+      "y": 3,
+      "door": "D_R06_R07"
+     }
+    },
+    {
+     "kit": "power_box",
+     "pos": [
+      -2.6,
+      1.1,
+      37.5
+     ]
+    },
+    {
+     "kit": "coolant_line",
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "params": {
+      "path": "-3.5,2.8,26.0;-3.5,2.8,26.5;-5.5,2.8,26.5;-5.5,2.8,37.5;-2.6,2.8,37.5;-2.6,1.62,37.5",
+      "collars": "0",
+      "sight": "3"
+     }
+    },
+    {
+     "kit": "bloom_growth_c",
+     "pos": [
+      -4.6,
+      0,
+      29.6
+     ],
+     "rot": 200,
+     "params": {
+      "material": "bloom",
+      "breathe": true
+     }
+    },
+    {
+     "kit": "bloom_decal",
+     "pos": [
+      -3.25,
+      0,
+      37.73
+     ],
+     "params": {
+      "w": 0.8,
+      "h": 1.1,
+      "y": 0.95,
+      "seed": 3
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
-     "pattern": "steady"
+     "pattern": "alarm",
+     "color": "#ff2a1c",
+     "intensity": 7
     },
     {
      "slot": 3,
-     "pattern": "flicker"
+     "pattern": "alarm",
+     "color": "#ff2a1c",
+     "intensity": 6
+    },
+    {
+     "slot": 4,
+     "pattern": "steady",
+     "color": "#eef2f4",
+     "intensity": 9
+    },
+    {
+     "slot": 1,
+     "pattern": "alarm",
+     "color": "#ff2a1c",
+     "pool": false
+    },
+    {
+     "slot": 2,
+     "pattern": "alarm",
+     "color": "#ff2a1c",
+     "pool": false
     },
     {
      "slot": 5,
-     "pattern": "steady",
-     "color": "#ffd9b0"
+     "pattern": "alarm",
+     "color": "#ff2a1c",
+     "pool": false
     }
    ],
    "triggers": [
@@ -4444,13 +4876,25 @@
    ],
    "spawns": [
     {
-     "id": "r06_vent_w",
+     "id": "r06_duct",
      "pos": [
-      -5.6,
-      1,
-      32
+      -2.6,
+      3.3,
+      30.3
      ],
-     "kind": "vent",
+     "kind": "ceiling",
+     "group": "r06_cover",
+     "active": false,
+     "count": 1
+    },
+    {
+     "id": "r06_trench",
+     "pos": [
+      -5.15,
+      0,
+      35.4
+     ],
+     "kind": "floor",
      "group": "r06_cover",
      "active": false,
      "count": 2,
@@ -4461,25 +4905,13 @@
      "pos": [
       1.6,
       1,
-      28
+      36
      ],
      "kind": "vent",
      "group": "r06_cover",
      "active": false,
      "count": 2,
      "interval": 5
-    },
-    {
-     "id": "r06_ceiling",
-     "pos": [
-      -2,
-      3.8,
-      34
-     ],
-     "kind": "ceiling",
-     "group": "r06_cover",
-     "active": false,
-     "count": 1
     },
     {
      "id": "r06_corridor",
@@ -4499,7 +4931,7 @@
     {
      "id": "r06_panel",
      "pos": [
-      -0.6,
+      -2.6,
       0,
       37
      ],
@@ -4508,11 +4940,11 @@
     {
      "id": "r06_hold",
      "pos": [
-      -2,
+      -0.5,
       0,
-      31
+      29.2
      ],
-     "yaw": 0
+     "yaw": 180
     }
    ]
   },
@@ -11810,9 +12242,9 @@
    "room": "R05",
    "kind": "ammo_pistol",
    "pos": [
-    -4.8,
-    0.9,
-    14.6
+    -5.3,
+    0.84,
+    18
    ]
   },
   {

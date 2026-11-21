@@ -365,6 +365,7 @@ export class Level implements World {
           room.stats.triangles += (g.index ? g.index.count : g.getAttribute('position').count) / 3;
         }
       });
+      this.addImportedCost(room);
     }
     this.collectLabBFloor();
     this.deps.events.on('glass:set' as EventName, ((e: { id?: string; state?: string } | undefined) => {
@@ -889,6 +890,26 @@ export class Level implements World {
     return this.current?.data.id ?? null;
   }
 
+  /**
+   * Imported props whose model is not loaded (headless builds, the level tests) still count against the room
+   * budgets at their recorded cost (spec imported-props): materials once per prop type, triangles per copy, minus
+   * the stand-ins already counted (their boxes, and the one draw call all stand-ins in a room share). A loaded model
+   * is counted by the traversal like any other mesh.
+   */
+  private addImportedCost(room: RoomRuntime): void {
+    const { registry } = this.deps;
+    const copies = new Map<string, number>();
+    for (const p of room.data.props ?? []) if (registry.importedCost(p.kit)) copies.set(p.kit, (copies.get(p.kit) ?? 0) + 1);
+    let standIns = false;
+    for (const [id, n] of copies) {
+      if (registry.source(id) === 'glb') continue;
+      const cost = registry.importedCost(id)!;
+      room.stats.drawCalls += cost.materials;
+      room.stats.triangles += (cost.triangles - cost.standInTriangles) * n;
+      standIns = true;
+    }
+    if (standIns) room.stats.drawCalls -= 1;
+  }
   roomStats(): RoomStats[] {
     return this.rooms.map((r) => ({ id: r.data.id, name: r.data.name, ...r.stats }));
   }

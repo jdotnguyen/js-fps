@@ -1,0 +1,152 @@
+{
+  "_comment": "Third-party props for `npm run props` (openspec import-lab-props). Paths are relative to the raw folder (default ../props-src). Heights are the props' real heights in metres. Selectors: exact node name, `prefix*`, `mat:<material>`, `#<node index>`.",
+  "props": [
+    {
+      "id": "power_box",
+      "source": "power_box_01_2k.gltf/power_box_01_2k.gltf",
+      "licence": "CC0",
+      "author": "Rico Cilliers",
+      "title": "Power Box 01",
+      "url": "https://polyhaven.com/a/power_box_01",
+      "height": 0.5,
+      "front": "+z",
+      "triBudget": 4000,
+      "parts": {
+        "door": {
+          "node": "power_box_01_door"
+        }
+      }
+    },
+    {
+      "id": "lab_cabinet",
+      "source": "laboratory_cabinet_storage__pbr_low_poly__free.glb",
+      "licence": "CC BY 4.0",
+      "author": "Naked Singularity Studio",
+      "title": "Laboratory Cabinet Storage PBR Low Poly Free",
+      "url": "https://sketchfab.com/3d-models/laboratory-cabinet-storage-pbr-low-poly-free-6c5d3bde09dd4f55ad973d8429441190",
+      "height": 1.8,
+      "front": "+z",
+      "triBudget": 600,
+      "texturePxPerM": 512,
+      "parts": {
+        "door_l": {
+          "node": "lab_cabinet_l_door_NakedSingularity",
+          "closed": true
+        },
+        "door_r": {
+          "node": "lab_cabinet_r_door_NakedSingularity",
+          "closed": true
+        }
+      }
+    },
+    {
+      "id": "bloom_growth_a",
+      "source": "pbr_material_biomasse.glb",
+      "licence": "CC BY 4.0",
+      "author": "Bessarabian Femboy (@vjuhandkx)",
+      "title": "PBR material Biomasse",
+      "url": "https://sketchfab.com/3d-models/pbr-material-biomasse-a3503d87b5b04649855b4e4d47761a2b",
+      "height": 0.3,
+      "triBudget": 600,
+      "texturePxPerM": 512,
+      "keep": [
+        "#7"
+      ]
+    },
+    {
+      "id": "bloom_growth_b",
+      "source": "pbr_material_biomasse.glb",
+      "licence": "CC BY 4.0",
+      "author": "Bessarabian Femboy (@vjuhandkx)",
+      "title": "PBR material Biomasse",
+      "url": "https://sketchfab.com/3d-models/pbr-material-biomasse-a3503d87b5b04649855b4e4d47761a2b",
+      "height": 0.3,
+      "triBudget": 600,
+      "texturePxPerM": 512,
+      "keep": [
+        "#19"
+      ]
+    },
+    {
+      "id": "bloom_growth_c",
+      "source": "pbr_material_biomasse.glb",
+      "licence": "CC BY 4.0",
+      "author": "Bessarabian Femboy (@vjuhandkx)",
+      "title": "PBR material Biomasse",
+      "url": "https://sketchfab.com/3d-models/pbr-material-biomasse-a3503d87b5b04649855b4e4d47761a2b",
+      "height": 0.8,
+      "triBudget": 1000,
+      "texturePxPerM": 512,
+      "keep": [
+        "#11"
+      ]
+    },
+    {
+      "id": "bloom_growth_d",
+      "source": "pbr_material_biomasse.glb",
+      "licence": "CC BY 4.0",
+      "author": "Bessarabian Femboy (@vjuhandkx)",
+      "title": "PBR material Biomasse",
+      "url": "https://sketchfab.com/3d-models/pbr-material-biomasse-a3503d87b5b04649855b4e4d47761a2b",
+      "height": 0.8,
+      "triBudget": 800,
+      "texturePxPerM": 512,
+      "keep": [
+        "#17"
+      ]
+    },
+    {
+      "id": "electrical_box",
+      "source": "IndustrialPack/ElectricalBox/ElectricalBox.fbx",
+      "licence": "CC0",
+      "author": "3dmodelscc0",
+      "title": "Free CC0 Industrial 3D Models: Electrical Box",
+      "url": "https://3dmodelscc0.itch.io/free-cc0-industrial-3d-models",
+      "height": 0.81,
+      "triBudget": 2200
+    },
+    {
+      "id": "electrical_box_02",
+      "source": "IndustrialPack/ElectricalBox02/ElectricalBox02.fbx",
+      "licence": "CC0",
+      "author": "3dmodelscc0",
+      "title": "Free CC0 Industrial 3D Models: Electrical Box Large",
+      "url": "https://3dmodelscc0.itch.io/free-cc0-industrial-3d-models",
+      "height": 2.1,
+      "triBudget": 1500,
+      "texturePxPerM": 480
+    },
+    {
+      "id": "gas_cylinder",
+      "source": "IndustrialPack/Gas_Cylinder/Gas_Cylinder.fbx",
+      "licence": "CC0",
+      "author": "3dmodelscc0",
+      "title": "Free CC0 Industrial 3D Models: Gas Cylinder",
+      "url": "https://3dmodelscc0.itch.io/free-cc0-industrial-3d-models",
+      "height": 0.71,
+      "triBudget": 1900
+    },
+    {
+      "id": "platform_trolley",
+      "source": "IndustrialPack/Platform_Trolley/Platform_Trolley.fbx",
+      "licence": "CC0",
+      "author": "3dmodelscc0",
+      "title": "Free CC0 Industrial 3D Models: Platform Trolley",
+      "url": "https://3dmodelscc0.itch.io/free-cc0-industrial-3d-models",
+      "height": 0.98,
+      "triBudget": 1600,
+      "texturePxPerM": 512
+    },
+    {
+      "id": "cable_drum",
+      "source": "IndustrialPack/CableDrum/CableDrum.fbx",
+      "licence": "CC0",
+      "author": "3dmodelscc0",
+      "title": "Free CC0 Industrial 3D Models: Cable Drum",
+      "url": "https://3dmodelscc0.itch.io/free-cc0-industrial-3d-models",
+      "height": 1.0,
+      "triBudget": 2500,
+      "texturePxPerM": 512
+    }
+  ]
+}

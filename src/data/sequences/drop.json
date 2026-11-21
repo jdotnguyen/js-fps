@@ -195,6 +195,10 @@
         "timeout": 20
        },
        {
+        "do": "emit",
+        "event": "bloom:spread"
+       },
+       {
         "do": "cameraShake",
         "amount": 0.3,
         "s": 0.5

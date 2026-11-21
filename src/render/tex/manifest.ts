@@ -82,6 +82,8 @@ const RAW = {
   cleanWall: slot(2, 0xb8b6ac, 'paintBone', { dir: 'vinylPanel', roughnessScale: 0.95, normalScale: 0.35 }),
   cleanSlate: slot(2, 0x62707a, 'paintDark', { dir: 'vinylPanel', roughnessScale: 0.85, normalScale: 0.35 }),
   cleanTeal: slot(2, 0x3b787c, 'paintTeal', { dir: 'vinylPanel', roughnessScale: 0.85, normalScale: 0.35 }),
+  // The bloom's wet growth (Biomasse, CC BY 4.0; openspec import-lab-props). Source roughness factor 0.38 kept as the scale.
+  bloom: slot(1.5, 0xc8c8c8, 'rubber', { roughnessScale: 0.38 }),
 } satisfies Record<string, PhotoSlot>;
 
 export type PhotoSlotKey = keyof typeof RAW;

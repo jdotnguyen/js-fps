@@ -27,11 +27,11 @@ test('likeness credits include Katie Heins and August Giles', () => {
 });
 
 test('model, texture, and audio credits cover third-party assets from CREDITS.md', () => {
-  assert.equal(MODEL_CREDITS.length, 19);
+  assert.equal(MODEL_CREDITS.length, 23);
   for (const m of MODEL_CREDITS) {
     assert.ok(m.asset.length > 0);
     assert.ok(m.author.length > 0);
-    assert.ok(m.licence.startsWith('CC '));
+    assert.ok(/^CC( |0$)/.test(m.licence), m.licence);
     assert.ok(m.usedAs.length > 0);
   }
   assert.equal(TEXTURE_CREDITS.length, 3);

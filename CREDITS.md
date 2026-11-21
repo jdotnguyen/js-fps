@@ -30,6 +30,10 @@ Third-party assets in this project, with their licences. Add one entry per asset
 | SCP Scientist Male 1 - FIX RIGGER | Maxime66410 | [Sketchfab](https://sketchfab.com/3d-models/scp-scientist-male-1-fix-rigger-17d85f54095647d697ca5f61a98dab1a) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Lab crew body (`public/assets/models/crew/scientist_1.glb`, `scientist1`; same script: animation and unused maps dropped, textures re-encoded as JPEG: 5.6 MB -> 1.5 MB) |
 | Kilo-class Submarine | spacelynxcanfly | [Sketchfab](https://sketchfab.com/3d-models/kilo-class-submarine-a573bceca8ae47ab81b881e7da83f436) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | The supply sub that docks in the intro (`public/assets/models/vehicles/kilo_submarine.glb`; material converted by `scripts/fix-kilo-glb.mjs`, framed by `src/render/fx/subModel.ts`) |
 | Location underground laboratory | bazz4r | [Sketchfab](https://sketchfab.com/3d-models/location-underground-laboratory-7f70eebd1f044277b91c197fb17c513e) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Walkable lab sandbox (`?level=lab`; `public/assets/models/lab/`, built from the 18.6 MB source by `scripts/fix-lab-glb.mjs`: meshes merged into tiles, materials converted, box colliders baked, spawn and lamp points found; see `src/world/labWorld.ts`) |
+| Power Box 01 | Rico Cilliers (modelling, texturing), Yann Kervran (rigging) | [Poly Haven](https://polyhaven.com/a/power_box_01) | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | Giles's bypass panel (`public/assets/models/props/power_box.glb`, imported by `npm run props`: simplified from 21k to about 4k triangles, door kept as a hinged part, textures re-encoded as WebP) |
+| Laboratory Cabinet Storage PBR Low Poly Free | Naked Singularity Studio | [Sketchfab](https://sketchfab.com/3d-models/laboratory-cabinet-storage-pbr-low-poly-free-6c5d3bde09dd4f55ad973d8429441190) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Lab storage cabinet (`public/assets/models/props/lab_cabinet.glb`, imported by `npm run props`: doors kept as closed hinged parts, preview animation dropped, textures re-encoded as WebP) |
+| PBR material Biomasse | Bessarabian Femboy (@vjuhandkx) | [Sketchfab](https://sketchfab.com/3d-models/pbr-material-biomasse-a3503d87b5b04649855b4e4d47761a2b) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | The bloom's growth (`public/assets/models/props/bloom_growth_a.glb`, `props/bloom_growth_b.glb`, `props/bloom_growth_c.glb`, `props/bloom_growth_d.glb`: four meshes taken from the demo scene by `npm run props`, its wall, light and camera dropped, textures re-encoded as WebP) |
+| Free CC0 Industrial 3D Models | 3dmodelscc0 | [itch.io](https://3dmodelscc0.itch.io/free-cc0-industrial-3d-models) | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | Lab-wing industrial props (`public/assets/models/props/electrical_box.glb`, `props/electrical_box_02.glb`, `props/gas_cylinder.glb`, `props/platform_trolley.glb`, `props/cable_drum.glb`: FBX converted by `npm run props`, DirectX normals flipped to OpenGL, textures re-encoded as WebP). `Water_Barrel.fbx` is also kept as an import test fixture in `scripts/props/fixtures/` |
 
 CC BY-NC: credit required, no commercial use. While this model ships, the game must stay free.
 
@@ -41,7 +45,7 @@ CC BY-NC: credit required, no commercial use. While this model ships, the game m
 
 ## Textures
 
-All CC0 (public domain, no credit required); listed so the sources are on record. Raw downloads live outside the repo in `../textures`; `npm run textures` (`scripts/textures/import.ts`) converts them into `public/assets/textures/<slot>/`.
+All CC0 (public domain, no credit required) except where marked; listed so the sources are on record. Raw downloads live outside the repo in `../textures`; `npm run textures` (`scripts/textures/import.ts`) converts them into `public/assets/textures/<slot>/`.
 
 | Set | Source | Licence | Slot(s) |
 |---|---|---|---|
@@ -56,6 +60,7 @@ All CC0 (public domain, no credit required); listed so the sources are on record
 | Leather018, Wood027, Carpet012 | [ambientCG](https://ambientcg.com) | CC0 | vinylPanel, woodPanel, carpet |
 | Concrete Wall 008, Brushed Concrete 2, Painted Concrete 02 | [Poly Haven](https://polyhaven.com) | CC0 | concrete, concreteFloor, concretePainted |
 | Metal 0001, 0051, 0053 | [TextureCan](https://www.texturecan.com) | CC0 | diamondRusty, rustBlotch, rustDrip |
+| Biomasse (`mat_biomass` maps from "PBR material Biomasse" by Bessarabian Femboy, @vjuhandkx) | [Sketchfab](https://sketchfab.com/3d-models/pbr-material-biomasse-a3503d87b5b04649855b4e4d47761a2b) | **CC BY 4.0** (credit required; listed with the models above) | bloom |
 
 ## Audio
 

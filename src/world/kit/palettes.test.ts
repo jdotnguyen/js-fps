@@ -4,14 +4,14 @@ import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import type { Materials } from '../../render/materials.ts';
 import { PHOTO_SLOT_KEYS } from '../../render/tex/manifest.ts';
+import { AREA_PALETTES, DEFAULT_PALETTE, PALETTE_MATERIAL_KEYS, isPaletteMaterialKey, paletteFor, resolvePalette } from './palettes.ts';
 import { Rng } from '../../core/rng.ts';
 import { STRUCTURE_PIECES } from './structure.ts';
-import { AREA_PALETTES, DEFAULT_PALETTE, PALETTE_MATERIAL_KEYS, isPaletteMaterialKey, paletteFor, resolvePalette } from './palettes.ts';
 
 // Area palettes (openspec adopt-photoscanned-textures, group 5): every slice01 area has one, every entry names a
-// real Materials key, hazard stripes are rusty only in the tunnel and dive bay, and `params.material` overrides.
+// real Materials key, hazard stripes are rusty only in the tunnel (the dive bay went clean in rebuild-dive-bay), and `params.material` overrides.
 
-const MATERIAL_KEYS = [...PHOTO_SLOT_KEYS, 'steel', 'grating', 'hazardClean', 'glass', 'black', 'cable', 'glowCyan'];
+const MATERIAL_KEYS = [...PHOTO_SLOT_KEYS, 'steel', 'hazardClean', 'glass', 'black', 'cable', 'glowCyan'];
 
 function stubMaterials(): Materials {
   const out: Record<string, THREE.MeshStandardMaterial> = {};
@@ -40,9 +40,9 @@ test('every area in slice01 has a palette, and every palette entry is a valid Ma
   for (const k of PALETTE_MATERIAL_KEYS) assert.ok(MATERIAL_KEYS.includes(k), k);
 });
 
-test('rusty photo hazard stripes are only used in the tunnel and dive bay', () => {
+test('rusty photo hazard stripes are only used in the tunnel', () => {
   const rusty = Object.entries(AREA_PALETTES).filter(([, p]) => p.hazard === 'hazard').map(([a]) => a);
-  assert.deepEqual(rusty.sort(), ['dive_bay', 'tunnel']);
+  assert.deepEqual(rusty.sort(), ['tunnel']);
 });
 
 test('resolvePalette follows the area and falls back to the default for unknown or missing areas', () => {
@@ -55,29 +55,37 @@ test('resolvePalette follows the area and falls back to the default for unknown 
   assert.equal(tunnel.floor, m.concreteFloor);
   assert.equal(tunnel.floorAlt, m.diamondRusty);
   assert.equal(tunnel.hazard, m.hazard);
-  assert.equal(tunnel.hazardTile, 1, 'photo hazard needs metre UVs');
   const dock = resolvePalette({ area: 'dock' }, m);
-  assert.equal(dock.wallMain, m.hullPlate);
+  assert.equal(dock.wallMain, m.cleanSlate);
   assert.equal(dock.wallAlt, m.boltPanel);
-  assert.equal(dock.ceiling, m.deckCorrugated);
+  assert.equal(dock.ceiling, m.steelDark);
   assert.equal(dock.trim, m.steelBrushed);
+  assert.equal(dock.doorSurround, m.cleanSlate);
+  assert.equal(dock.doorPanel, m.steelDark);
+  assert.equal(dock.pipeAccent, m.cleanTeal);
+  assert.equal(dock.pipeMain, m.steelDark);
   const commons = resolvePalette({ area: 'commons' }, m);
   assert.equal(commons.wallMain, m.vinylPanel);
-  assert.equal(commons.wallAlt, m.paintBone);
-  assert.equal(commons.ceiling, m.acousticCeiling);
+  assert.equal(commons.wallAlt, m.cleanWall);
+  assert.equal(commons.ceiling, m.officeCeiling);
   assert.equal(commons.trim, m.steelBrushed);
+  assert.equal(commons.doorSurround, m.vinylPanel);
+  assert.equal(commons.doorPanel, m.steelDark);
+  assert.equal(commons.doorGlassBar, m.cleanWall);
   const admin = resolvePalette({ area: 'admin' }, m);
   assert.equal(admin.ceiling, m.officeCeiling);
   assert.equal(admin.trim, m.steelBrushed);
-  const labs = resolvePalette({ area: 'labs' }, m);
-  assert.equal(labs.wallMain, m.labPanel);
-  assert.equal(labs.floor, m.labTile);
-  assert.equal(labs.wallAlt, m.labPanel, 'wallAlt defaults to wallMain');
-  assert.equal(labs.ceiling, m.paintDark, 'ceiling defaults to paintDark');
-  assert.equal(labs.trim, m.steel, 'trim defaults to steel');
-  assert.equal(labs.floorAlt, m.steel, 'floorAlt defaults to steel');
-  assert.equal(labs.hazard, m.hazardClean);
-  assert.equal(labs.hazardTile, 0.5);
+  assert.equal(admin.doorSurround, m.woodPanel);
+  assert.equal(admin.doorPanel, m.steelDark);
+  assert.equal(admin.doorGlassBar, m.steelBrushed);
+  const med = resolvePalette({ area: 'medbay' }, m);
+  assert.equal(med.wallMain, m.paintBone);
+  assert.equal(med.floor, m.labTile);
+  assert.equal(med.wallAlt, m.paintBone, 'wallAlt defaults to wallMain');
+  assert.equal(med.ceiling, m.paintDark, 'ceiling defaults to paintDark');
+  assert.equal(med.trim, m.steel, 'trim defaults to steel');
+  assert.equal(med.floorAlt, m.steel, 'floorAlt defaults to steel');
+  assert.equal(med.hazard, m.hazardClean);
   assert.equal(paletteFor('nowhere'), DEFAULT_PALETTE);
   assert.equal(resolvePalette({}, m).wallMain, m[DEFAULT_PALETTE.wallMain]);
 });
@@ -98,7 +106,7 @@ test('params.material overrides the main surfaces but not hazard or trim', () =>
   assert.throws(() => resolvePalette({ material: 5 }, m), /not a palette material/);
 });
 
-test('slice01 piece overrides name valid palette materials; the nutrient room uses tileWashroom', () => {
+test('slice01 piece overrides name valid palette materials; the nutrient room uses clean tileWall', () => {
   for (const r of level.rooms) {
     for (const pc of r.pieces) {
       const ov = pc.params?.material;
@@ -107,7 +115,7 @@ test('slice01 piece overrides name valid palette materials; the nutrient room us
   }
   const walls = level.rooms.find((r) => r.id === 'R12d')!.pieces.filter((p) => p.kit.startsWith('wall_'));
   assert.ok(walls.length > 0);
-  for (const w of walls) assert.equal(w.params?.material, 'tileWashroom');
+  for (const w of walls) assert.equal(w.params?.material, 'tileWall');
 });
 
 test('the observation gallery palette is clean: no rusty paintDark on its walls, ceiling or glass partition, and its console is the clean variant', () => {
@@ -132,4 +140,18 @@ test('the observation gallery palette is clean: no rusty paintDark on its walls,
   // props.ts `console` builds its clean variant (cleanWall base) whenever the area's doorPanel is not paintDark.
   assert.notEqual(pal.doorPanel, m.paintDark, 'gallery console is the clean variant');
   assert.equal(pal.floorAlt, m.steelBrushed, 'bare strip material');
+});
+
+/** Photo slots that show rust or peeling paint (surface-textures: the lab wing keeps them out of its base). */
+const WORN_SLOTS = ['rustHeavy', 'rustDrip', 'rustBlotch', 'diamondRusty', 'hazard', 'servicePaint', 'labPanel', 'paintBone', 'paintTeal', 'paintDark'] as const;
+
+test('Lab wing walls: the labs palette is clean, with a slate band and no worn slot anywhere in it', () => {
+  const m = stubMaterials();
+  const labs = resolvePalette({ area: 'labs' }, m);
+  assert.equal(labs.wallMain, m.cleanWall);
+  assert.equal(labs.wallAlt, m.cleanSlate);
+  for (const [k, v] of Object.entries(labs)) {
+    if (k === 'overridden') continue;
+    for (const w of WORN_SLOTS) assert.notEqual(v, m[w], `labs.${k} is ${w}`);
+  }
 });

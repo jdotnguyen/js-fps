@@ -168,3 +168,23 @@ test('static glows share one emissive draw call; their colour x intensity rides 
     assert.deepEqual([col.getX(i), col.getY(i), col.getZ(i)], expect, 'no AO darkening on emitters');
   }
 });
+
+test('imported-prop materials (keepUvs) keep their source UVs through the merger; plain repeat maps still get world UVs', () => {
+  const map = new THREE.Texture();
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  const imported = new THREE.MeshStandardMaterial({ name: 'cabinet_metal', map });
+  imported.userData['keepUvs'] = true;
+  const kit = new THREE.MeshStandardMaterial({ name: 'labPanel', map });
+  assert.equal(takesWorldUvs(imported), false);
+  assert.equal(takesWorldUvs(kit), true);
+  const uvsAfterMerge = (material: THREE.MeshStandardMaterial): number[] => {
+    const b = new AoMergeBuilder();
+    // A 1 m quad far from the origin: world-metre UVs would be ~ (10, 11); source UVs are 0..1.
+    b.add(new THREE.PlaneGeometry(1, 1), material, new THREE.Matrix4().makeTranslation(10.5, 1, 7));
+    const mesh = b.build('room:test', null).children[0] as THREE.Mesh;
+    return Array.from(mesh.geometry.getAttribute('uv').array as Float32Array);
+  };
+  const importedUvs = uvsAfterMerge(imported);
+  assert.ok(importedUvs.every((v) => v >= 0 && v <= 1), `source UVs kept: ${importedUvs.join(',')}`);
+  assert.ok(uvsAfterMerge(kit).some((v) => v > 5), 'kit material re-tiled in world metres');
+});

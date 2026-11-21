@@ -21,11 +21,15 @@ data checkpoints `cp_first_contact`, `cp_cover_me`, `cp_security`, `cp_flooded`,
 **R05 first contact** (`jump=r05`)
 - Three knocks, Giles/Okafor lines, the sealed Lab B door gives and one shambler comes. "Legs! Take its legs!" plays. Shoot a leg: the "The legs. Did you see?" line plays only after the kill, then the revive-rule line.
 - 3 more arrive (vent x2, floor). The door to R06 stays locked until all are dead ("Sealed from the other side."), then opens; `cp_contact_clear` toast.
+- Lab wing look (openspec rebuild-lab-wing): clean slate walls under red lockdown lights with one white work light; the three sources are the gallery door, the west vent and the floor drain grate by the south wall (`r05_drain`), so check the floor shambler climbs out of the grate. The coolant line runs along the ceiling from Lab B into R06; after the drop, one bloom mass and a wall patch sit where it leaves the room.
 - Die mid-fight: you should restart in R05 and the fight replays from the knocks.
 
 **R06 cover me** (`jump=r06`)
 - Walk to the bulkhead: Giles runs to the panel, "Cover me", 6 enemies from two vents, the ceiling and the corridor. The 20 s job pauses while enemies are on him. Door opens when the job ends; the stage-1 tell (flexes hand, numb-hand line, Okafor "August?") only after all 6 are dead.
 - Check the enemies really come at Giles and Jay, not only at one of you; the bulkhead stays shut until the job is done.
+- Four sources (rebuild-lab-wing): the ruptured ceiling duct (`r06_duct`), the drain trench along the west wall (`r06_trench`, two), the east vent low on the south-east wall (`r06_vent_e`, two) and the corridor door behind you (`r06_corridor`). The hold point (`r06_hold`) is the spot north of the pump skid; from there you should see Giles at the panel and the trench and duct without turning more than about 75°.
+- The status board over the bulkhead reads COMPARTMENT 3 LOCKDOWN in red and turns green when the bulkhead opens; after a death it should be red again.
+- Giles on the line: the coolant line comes down the wall into the power box he works on (`r06_panel`, south wall left of the bulkhead). Check he faces the box, and that the dropped pipe and the DANGER sign don't hide his hands.
 
 **R07 armory and Priya** (`jump=r07`)
 - Enter: Giles opens the armory on his own (8 s). Pick up the shotgun (press 2). Pistol only before it. One play-dead on the floor rises as you pass.

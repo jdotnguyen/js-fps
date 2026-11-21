@@ -9,12 +9,11 @@ import type { PieceParams, SurfaceMaterial } from './types.ts';
  * call `resolvePalette(params, m)` to get their materials. A piece can override the main
  * surface with `params.material: "<slot>"` (any key in `PALETTE_MATERIAL_KEYS`).
  *
- * UV contract: photo slots need metre UVs (`tile` = 1 in kit geometry); `steel`, `grating`
- * and `hazardClean` are procedural and keep their old tile values.
+ * UV contract: photo slots need metre UVs (`tile` = 1 in kit geometry). The clean warning paint keeps its finer procedural tile.
  */
 
 /** Materials a palette entry or `params.material` override may name (surface materials, not glass/black/cable/glow). */
-export const PALETTE_MATERIAL_KEYS = [...PHOTO_SLOT_KEYS, 'steel', 'grating', 'hazardClean'] as const satisfies ReadonlyArray<keyof Materials>;
+export const PALETTE_MATERIAL_KEYS = [...PHOTO_SLOT_KEYS, 'steel', 'hazardClean'] as const satisfies ReadonlyArray<keyof Materials>;
 export type PaletteMaterialKey = (typeof PALETTE_MATERIAL_KEYS)[number];
 
 export function isPaletteMaterialKey(k: string): k is PaletteMaterialKey {
@@ -36,12 +35,45 @@ export interface AreaPalette {
   floorAlt?: PaletteMaterialKey;
   /** Hazard striping: photo `hazard` is rusty (dive bay, tunnel); everywhere else the clean procedural stripes. */
   hazard: 'hazard' | 'hazardClean';
+  /** Wall filler surround flanking and above door frames; defaults to `paintDark`. */
+  doorSurround?: PaletteMaterialKey;
+  /** Door jamb/lintel inset accent and pressure-door leaf panels; defaults to `paintDark`. */
+  doorPanel?: PaletteMaterialKey;
+  /** Glass-door horizontal mid-bar; defaults to `paintBone`. */
+  doorGlassBar?: PaletteMaterialKey;
+  /** Accent ceiling/wall pipes (and valve wheels); defaults to `paintTeal`. */
+  pipeAccent?: PaletteMaterialKey;
+  /** Main dark ceiling/wall pipes; defaults to `paintDark`. */
+  pipeMain?: PaletteMaterialKey;
 }
 
 export const AREA_PALETTES: Record<string, AreaPalette> = {
-  dock: { wallMain: 'hullPlate', wallAlt: 'boltPanel', ceiling: 'deckCorrugated', trim: 'steelBrushed', floor: 'concretePainted', floorAlt: 'diamond', hazard: 'hazardClean' },
-  // The cafeteria lounge (R02): upholstered vinyl lower walls, bone paint upper band, perforated acoustic ceiling, tiled floor.
-  commons: { wallMain: 'vinylPanel', wallAlt: 'paintBone', ceiling: 'acousticCeiling', trim: 'steelBrushed', floor: 'labTile', hazard: 'hazardClean' },
+  dock: {
+    wallMain: 'cleanSlate',
+    wallAlt: 'boltPanel',
+    ceiling: 'steelDark',
+    trim: 'steelBrushed',
+    floor: 'concretePainted',
+    floorAlt: 'diamond',
+    hazard: 'hazardClean',
+    doorSurround: 'cleanSlate',
+    doorPanel: 'steelDark',
+    doorGlassBar: 'steelBrushed',
+    pipeAccent: 'cleanTeal',
+    pipeMain: 'steelDark',
+  },
+  // The cafeteria lounge (R02): clean vinyl lower walls, smooth matte bone upper band, drop acoustic ceiling, tiled floor.
+  commons: {
+    wallMain: 'vinylPanel',
+    wallAlt: 'cleanWall',
+    ceiling: 'officeCeiling',
+    trim: 'steelBrushed',
+    floor: 'labTile',
+    hazard: 'hazardClean',
+    doorSurround: 'vinylPanel',
+    doorPanel: 'steelDark',
+    doorGlassBar: 'cleanWall',
+  },
   // The observation gallery (R03): a clean, dim lounge before the drop. Slate walls, teal upper band, the commons'
   // acoustic ceiling, brushed trim; `floorAlt` is the bare metal strip along the Lab B glass (floor_carpet `bare`).
   gallery: {
@@ -58,15 +90,72 @@ export const AREA_PALETTES: Record<string, AreaPalette> = {
     pipeAccent: 'cleanTeal',
     pipeMain: 'steelDark',
   },
-  labs: { wallMain: 'labPanel', floor: 'labTile', hazard: 'hazardClean' },
+  // Lab wing (R04-R06, openspec rebuild-lab-wing): a clean, working lab wing that went bad an hour ago. Wear is
+  // placed (decals, blood, the bloom), never baked into the base. Lab B's `floor_tiles` falls back to `labTile`, so
+  // the outbreak swap to `tileBroken` still applies there.
+  labs: {
+    wallMain: 'cleanWall',
+    wallAlt: 'cleanSlate',
+    ceiling: 'steelDark',
+    trim: 'steelBrushed',
+    floor: 'rubber',
+    floorAlt: 'steelBrushed',
+    hazard: 'hazardClean',
+    doorSurround: 'cleanWall',
+    doorPanel: 'steelDark',
+    doorGlassBar: 'steelBrushed',
+    pipeAccent: 'cleanTeal',
+    pipeMain: 'steelDark',
+  },
   security: { wallMain: 'paintDark', floor: 'rubber', hazard: 'hazardClean' },
   medbay: { wallMain: 'paintBone', floor: 'labTile', hazard: 'hazardClean' },
   tunnel: { wallMain: 'rustHeavy', wallAlt: 'concrete', floor: 'concreteFloor', floorAlt: 'diamondRusty', hazard: 'hazard' },
   control: { wallMain: 'paintDark', floor: 'concretePainted', hazard: 'hazardClean' },
-  hydroponics: { wallMain: 'paintTeal', floor: 'labTile', hazard: 'hazardClean' },
-  dive_bay: { wallMain: 'rustBlotch', wallAlt: 'paintDark', floor: 'diamondRusty', floorAlt: 'diamondHazard', hazard: 'hazard' },
-  // Admin uses corporate drop ceiling, wood panelling (wall_wood / wall_window) and navy carpet (floor_carpet).
-  admin: { wallMain: 'woodPanel', wallAlt: 'vinylPanel', ceiling: 'officeCeiling', trim: 'steelBrushed', floor: 'diamond', hazard: 'hazardClean' },
+  // Hydroponics (R12a-R12e): clean washable white FRP-style panels, cool slate upper service band, stainless trim and dark structural ceiling.
+  hydroponics: {
+    wallMain: 'cleanWall',
+    wallAlt: 'cleanSlate',
+    ceiling: 'steelDark',
+    trim: 'steelBrushed',
+    floor: 'labTile',
+    floorAlt: 'steelBrushed',
+    hazard: 'hazardClean',
+    doorSurround: 'cleanWall',
+    doorPanel: 'steelDark',
+    doorGlassBar: 'steelBrushed',
+    pipeAccent: 'cleanTeal',
+    pipeMain: 'steelDark',
+  },
+  // Dive bay (R13a-e, openspec rebuild-dive-bay): a working 1-atm launch-and-recovery facility in the station's clean
+  // service finish (slate panels, a bolted upper band), with clean treadplate and grating. `servicePaint` is a
+  // peeling-rust photo and `boltPanel` alone reads black without reflections, so neither is the main wall.
+  // Rust lives only in R13d, by per-room material overrides.
+  dive_bay: {
+    wallMain: 'cleanSlate',
+    wallAlt: 'boltPanel',
+    ceiling: 'steelDark',
+    trim: 'steelBrushed',
+    floor: 'diamond',
+    floorAlt: 'grating',
+    hazard: 'hazardClean',
+    doorSurround: 'cleanSlate',
+    doorPanel: 'steelDark',
+    doorGlassBar: 'steelBrushed',
+    pipeAccent: 'cleanTeal',
+    pipeMain: 'steelDark',
+  },
+  // Admin uses corporate drop ceiling, wood panelling (wall_wood / wall_window), clean wood door surrounds and navy carpet (floor_carpet).
+  admin: {
+    wallMain: 'woodPanel',
+    wallAlt: 'cleanWall',
+    ceiling: 'officeCeiling',
+    trim: 'steelBrushed',
+    floor: 'diamond',
+    hazard: 'hazardClean',
+    doorSurround: 'woodPanel',
+    doorPanel: 'steelDark',
+    doorGlassBar: 'steelBrushed',
+  },
 };
 
 /** Used when a piece has no area (corridors, test rooms): the docking ring look. */
@@ -84,6 +173,11 @@ export interface ResolvedPalette {
   hazard: THREE.MeshStandardMaterial;
   /** Tile argument for thin hazard strips: photo `hazard` needs metre UVs, the procedural stripes want 0.5. */
   hazardTile: number;
+  doorSurround: THREE.MeshStandardMaterial;
+  doorPanel: THREE.MeshStandardMaterial;
+  doorGlassBar: THREE.MeshStandardMaterial;
+  pipeAccent: THREE.MeshStandardMaterial;
+  pipeMain: THREE.MeshStandardMaterial;
   /** True when `params.material` replaced the area's main surfaces. */
   overridden: boolean;
 }
@@ -131,6 +225,11 @@ export function resolvePalette(params: PieceParams, m: Materials): ResolvedPalet
     floorSurface: floorSurfaceForKey(floor),
     hazard: m[pal.hazard],
     hazardTile: pal.hazard === 'hazard' ? 1 : 0.5,
+    doorSurround: m[pal.doorSurround ?? 'paintDark'],
+    doorPanel: m[pal.doorPanel ?? 'paintDark'],
+    doorGlassBar: m[pal.doorGlassBar ?? 'paintBone'],
+    pipeAccent: m[pal.pipeAccent ?? 'paintTeal'],
+    pipeMain: m[pal.pipeMain ?? 'paintDark'],
     overridden: overrideKey !== undefined,
   };
 }

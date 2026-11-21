@@ -91,6 +91,10 @@ export const MODEL_CREDITS: readonly ModelCredit[] = [
   { asset: 'Ocean floor scene', author: 'teacherap123', licence: 'CC BY 4.0', usedAs: 'Sea Floor' },
   { asset: 'Kilo-class Submarine', author: 'spacelynxcanfly', licence: 'CC BY 4.0', usedAs: 'Supply Submarine' },
   { asset: 'Location underground laboratory', author: 'bazz4r', licence: 'CC BY 4.0', usedAs: 'Underground Lab' },
+  { asset: 'Laboratory Cabinet Storage PBR Low Poly Free', author: 'Naked Singularity Studio', licence: 'CC BY 4.0', usedAs: 'Lab Cabinet' },
+  { asset: 'PBR material Biomasse', author: 'Bessarabian Femboy (@vjuhandkx)', licence: 'CC BY 4.0', usedAs: 'The Bloom' },
+  { asset: 'Power Box 01', author: 'Rico Cilliers, Yann Kervran (Poly Haven)', licence: 'CC0', usedAs: 'Bypass Panel' },
+  { asset: 'Free CC0 Industrial 3D Models', author: '3dmodelscc0', licence: 'CC0', usedAs: 'Industrial Props' },
 ];
 
 export const TEXTURE_CREDITS: readonly CreditEntry[] = [
@@ -319,7 +323,7 @@ export class EndCredits {
     const modelsSection = h(
       'div',
       { class: 'credits-section' },
-      h('h2', { class: 'credits-section-heading', text: '3D Models — Sketchfab' }),
+      h('h2', { class: 'credits-section-heading', text: '3D Models' }),
       ...MODEL_CREDITS.map((m) =>
         h(
           'div',

@@ -40,6 +40,10 @@ Wall and floor pieces SHALL take their materials from the room's area palette un
 - **WHEN** the outbreak sequence event fires
 - **THEN** Lab B's floor material changes from `labTile` to `tileBroken`
 
+#### Scenario: Lab wing walls
+- **WHEN** the lab wing (R04, R05, R06) is built
+- **THEN** its walls use clean panel materials with a slate service band, and no rust or peeling-paint material
+
 ### Requirement: Import pipeline
 The project SHALL provide one command that converts the raw downloaded texture sets into the game's slot format, and the raw downloads SHALL stay out of the repository.
 

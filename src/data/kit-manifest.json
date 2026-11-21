@@ -1,3 +1,15 @@
 {
-  "glb": {}
+  "glb": {
+    "bloom_growth_a": "assets/models/props/bloom_growth_a.glb",
+    "bloom_growth_b": "assets/models/props/bloom_growth_b.glb",
+    "bloom_growth_c": "assets/models/props/bloom_growth_c.glb",
+    "bloom_growth_d": "assets/models/props/bloom_growth_d.glb",
+    "cable_drum": "assets/models/props/cable_drum.glb",
+    "electrical_box": "assets/models/props/electrical_box.glb",
+    "electrical_box_02": "assets/models/props/electrical_box_02.glb",
+    "gas_cylinder": "assets/models/props/gas_cylinder.glb",
+    "lab_cabinet": "assets/models/props/lab_cabinet.glb",
+    "platform_trolley": "assets/models/props/platform_trolley.glb",
+    "power_box": "assets/models/props/power_box.glb"
+  }
 }

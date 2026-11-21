@@ -314,6 +314,16 @@
       "metalness": null,
       "arm": null,
       "size": 1024
+    },
+    "bloom": {
+      "set": "Biomasse",
+      "color": "Biomasse/Biomasse_color.png",
+      "normal": "Biomasse/Biomasse_normal_gl.png",
+      "ao": null,
+      "roughness": "Biomasse/Biomasse_roughness.png",
+      "metalness": null,
+      "arm": null,
+      "size": 1024
     }
   }
 }

@@ -9,7 +9,7 @@ const EXPECTED = [
   'rustHeavy', 'rustDrip', 'rustBlotch', 'concrete', 'concreteFloor', 'concretePainted', 'labTile', 'tileBroken',
   'tileWall', 'tileWashroom', 'signDanger', 'hullPlate', 'boltPanel', 'steelBrushed', 'deckCorrugated',
   'acousticCeiling', 'vinylPanel', 'officeCeiling', 'woodPanel', 'carpet', 'servicePaint', 'grating',
-  'steelDark', 'cleanWall', 'cleanSlate', 'cleanTeal',
+  'steelDark', 'cleanWall', 'cleanSlate', 'cleanTeal', 'bloom',
 ];
 
 test('photo slot list matches the design', () => {
