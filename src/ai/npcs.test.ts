@@ -285,6 +285,61 @@ test('a sequence borrows Giles: his AI yields, he goes back to following when th
   assert.equal(giles.task, null);
 });
 
+test('npcMoveTo whenUnseen waits until the NPC is out of Jay\'s view; a skip places it at once (intro-sequence spec)', async () => {
+  const { npcs, player } = setup();
+  const eye = player.eyePosition(new THREE.Vector3());
+  const towards = { x: 0, z: -1 }; // Jay at z 8 looking down the room at her
+  const away = { x: 0, z: 1 };
+  await npcs.command('spawn', { npc: 'nurse', kind: 'lab', at: [0, 0, 2] });
+  await npcs.command('npcMoveTo', { npc: 'nurse', to: 'anchor:b', whenUnseen: true });
+  for (let i = 0; i < 30; i++) npcs.update(1 / 60, eye, towards);
+  assert.ok(npcs.actor('nurse')!.position.distanceTo(new THREE.Vector3(0, 0, 2)) < 0.05, 'she stays put while Jay is looking at her');
+  npcs.update(1 / 60, eye, away);
+  assert.ok(npcs.actor('nurse')!.position.distanceTo(new THREE.Vector3(1, 0, -4)) < 0.05, 'she is moved once he looks away');
+
+  // A later command replaces a move still waiting.
+  await npcs.command('npcMoveTo', { npc: 'nurse', to: [0, 0, 2], instant: true });
+  await npcs.command('npcMoveTo', { npc: 'nurse', to: 'anchor:b', whenUnseen: true });
+  await npcs.command('npcAnim', { npc: 'nurse', anim: 'idle' });
+  npcs.update(1 / 60, eye, away);
+  assert.ok(npcs.actor('nurse')!.position.distanceTo(new THREE.Vector3(0, 0, 2)) < 0.05, 'the waiting move was dropped');
+
+  // Skipped (instant): placed now, even in full view.
+  await npcs.command('npcMoveTo', { npc: 'nurse', to: 'anchor:b', whenUnseen: true, instant: true });
+  assert.ok(npcs.actor('nurse')!.position.distanceTo(new THREE.Vector3(1, 0, -4)) < 0.05, 'a skip places her at once');
+});
+
+test('npcMoveTo whenUnseen: taken off-stage mid-walk the moment she leaves Jay\'s view cone (intro-sequence spec)', async () => {
+  const { npcs, player } = setup();
+  const eye = player.eyePosition(new THREE.Vector3());
+  // Jay at z 8 looks 60 degrees to the right of her (she is at 60 degrees, inside the 70 degree cone).
+  const forward = { x: Math.sin(Math.PI / 3), z: -Math.cos(Math.PI / 3) };
+  const offAxis = (p: THREE.Vector3): number => {
+    const dx = p.x - eye.x;
+    const dz = p.z - eye.z;
+    return THREE.MathUtils.radToDeg(Math.acos((dx * forward.x + dz * forward.z) / Math.hypot(dx, dz)));
+  };
+  await npcs.command('spawn', { npc: 'nurse', kind: 'lab', at: [0, 0, 2] });
+  // She walks off to his left, out past the edge of his view.
+  const goal = new THREE.Vector3(-2.3, 0, 6);
+  void npcs.command('npcMoveTo', { npc: 'nurse', to: [goal.x, goal.y, goal.z] });
+  await npcs.command('npcMoveTo', { npc: 'nurse', to: 'anchor:a', whenUnseen: true });
+  const last = new THREE.Vector3(0, 0, 2);
+  let placed = false;
+  for (let i = 0; i < 60 * 10 && !placed; i++) {
+    npcs.update(1 / 60, eye, forward);
+    const p = npcs.actor('nurse')!.position;
+    if (p.distanceTo(new THREE.Vector3(0, 0, 4)) < 0.05) placed = true;
+    else {
+      assert.ok(offAxis(p) <= 71, `still on screen at ${offAxis(p).toFixed(0)} degrees`);
+      last.copy(p);
+    }
+  }
+  assert.ok(placed, 'she was taken off-stage');
+  assert.ok(offAxis(last) > 65, `moved as she reached the edge of his view (${offAxis(last).toFixed(0)} degrees)`);
+  assert.ok(last.distanceTo(goal) > 0.5, 'mid-walk, not at the end of it');
+});
+
 test('spawn and despawn by script', async () => {
   const { npcs } = setup();
   await npcs.command('spawn', { npc: 'lab_researcher_01', kind: 'lab', at: [0, 0, -2] });

@@ -72,6 +72,31 @@
       "npc": "dock_guard",
       "task": "return_to_desk",
       "instant": true
+     },
+     {
+      "do": "if",
+      "flag": "priya_met",
+      "then": [
+       {
+        "do": "if",
+        "flag": "sec_done",
+        "then": [],
+        "else": [
+         {
+          "do": "npcMoveTo",
+          "npc": "priya",
+          "to": "anchor:priya_offstage",
+          "instant": true
+         },
+         {
+          "do": "npcAnim",
+          "npc": "priya",
+          "anim": "idle",
+          "instant": true
+         }
+        ]
+       }
+      ]
      }
     ]
    },
@@ -90,7 +115,13 @@
      {
       "do": "npcMoveTo",
       "npc": "cook",
-      "to": "anchor:priya_exit",
+      "to": "anchor:cook_stand",
+      "instant": true
+     },
+     {
+      "do": "npcAnim",
+      "npc": "cook",
+      "anim": "idle",
       "instant": true
      }
     ]

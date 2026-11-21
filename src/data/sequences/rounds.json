@@ -638,7 +638,13 @@
      {
       "do": "npcMoveTo",
       "npc": "cook",
-      "to": "anchor:priya_exit",
+      "to": "anchor:cook_stand",
+      "instant": true
+     },
+     {
+      "do": "npcAnim",
+      "npc": "cook",
+      "anim": "idle",
       "instant": true
      },
      {

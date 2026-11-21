@@ -438,7 +438,8 @@ export const ACTIONS: Record<string, ActionDef> = {
 
   // ---- NPCs (ADR-0006/0011: stubs until those systems exist)
   /** `via`: an authored level walk (ADR-0028) to follow on the way, as a smooth curve. */
-  npcMoveTo: npcAct('npcMoveTo', { npc: str, to: target, via: optional(str), speed: optional(numRange(0.1, 10)), pose: optional(str) }),
+  /** `whenUnseen`: move off-stage the moment Jay cannot see the NPC, even mid-walk (skipped: at once). */
+  npcMoveTo: npcAct('npcMoveTo', { npc: str, to: target, via: optional(str), speed: optional(numRange(0.1, 10)), pose: optional(str), whenUnseen: optional(bool) }),
   /** `by` drags the body along on a rope (lying pose, no gait); `stop` lets go. Skipped: let go. */
   npcDrag: npcAct('npcDrag', { npc: str, by: optional(str), pose: optional(str), distance: optional(numRange(0.3, 4)), stop: optional(bool) }),
   npcAnim: npcAct('npcAnim', { npc: str, anim: str }),

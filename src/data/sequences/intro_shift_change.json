@@ -1148,7 +1148,13 @@
     {
       "do": "npcMoveTo",
       "npc": "priya",
-      "to": "anchor:priya_exit"
+      "to": "anchor:priya_walkout"
+    },
+    {
+      "do": "npcMoveTo",
+      "npc": "priya",
+      "to": "anchor:priya_offstage",
+      "whenUnseen": true
     },
     {
       "do": "say",

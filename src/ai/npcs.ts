@@ -93,6 +93,11 @@ const PLAYER_MAX_PUSH = 0.06;
 const LYING_POSE = /^(corpse|squad_downed|squad_getUp|writhing|crawl|dragging|getUp)/;
 /** A walker this close to its goal is not shoved, so scripted arrivals always land. */
 const ARRIVE_LOCK = 0.8;
+/**
+ * `npcMoveTo { whenUnseen }`: half-angle of Jay's view cone, in degrees. The screen edge is about 56 degrees off
+ * centre at the default 80 degree FOV (16:9) and under 65 at 100, so 70 also covers a body's width at the edge.
+ */
+const UNSEEN_HALF_ANGLE = 70;
 /** Listen-look (ADR-0029): bodies this close (m) to a story speaker look at them. */
 export const LISTEN_RANGE = 4.5;
 /** Seconds the listen-look holds after a line ends (people keep looking a beat). */
@@ -116,6 +121,8 @@ export class NpcDirector {
   private readonly spawned = new Set<string>();
   private readonly offers = new Map<string, () => void>();
   private timers: Array<{ left: number; fn: () => void }> = [];
+  /** `npcMoveTo { whenUnseen }`: moves made the moment Jay cannot see the NPC, even while it is walking. */
+  private readonly unseenMoves = new Map<string, { pos: P3; yaw: number | undefined }>();
   private resolver: ((ref: TargetRef) => ResolvedTarget | null) | null = null;
   private readonly env: NpcEnv;
   private readonly warned = new Set<string>();
@@ -538,10 +545,35 @@ export class NpcDirector {
     return new Promise((resolve) => this.timers.push({ left: seconds, fn: resolve }));
   }
 
+  /** Make the `whenUnseen` moves whose NPC is out of Jay's view: outside his view cone, or behind a wall. */
+  private placeUnseen(eye: P3, forward: { x: number; z: number } | null): void {
+    const clear = (a: P3, b: P3): boolean => (this.deps.nav ? this.deps.nav.direct(a, b, 0) : true);
+    const cone = Math.cos(THREE.MathUtils.degToRad(UNSEEN_HALF_ANGLE));
+    for (const [npc, to] of this.unseenMoves) {
+      const a = this.actor(npc);
+      if (!a) {
+        this.unseenMoves.delete(npc);
+        continue;
+      }
+      const p = a.position;
+      const dx = p.x - eye.x;
+      const dz = p.z - eye.z;
+      const len = Math.hypot(dx, dz) || 1;
+      const fl = forward ? Math.hypot(forward.x, forward.z) || 1 : 1;
+      const inCone = !forward || (dx * forward.x + dz * forward.z) / (len * fl) > cone;
+      const seen = inCone && clear({ x: eye.x, y: eye.y - 1.25, z: eye.z }, p);
+      if (seen) continue;
+      a.place(to.pos, to.yaw);
+      this.unseenMoves.delete(npc);
+    }
+  }
+
   /** `SequenceHost.npc`: run one NPC action. Resolves when it is done. */
   command(action: string, step: Readonly<Record<string, unknown>>): Promise<void> {
     const npc = String(step['npc'] ?? '');
     const instant = step['instant'] === true;
+    // Any later command for this NPC replaces a move still waiting to be unseen.
+    this.unseenMoves.delete(npc);
     switch (action) {
       case 'spawn': {
         const at = this.target(step['at'], action, npc);
@@ -573,6 +605,12 @@ export class NpcDirector {
         const at = this.target(step['to'], action, npc);
         if (!at) return Promise.resolve();
         this.hold(npc);
+        // Off-stage move: it happens the moment Jay cannot see the NPC, even mid-walk, so no one pops out of
+        // view (intro-sequence spec "She walks out"). Skipped or restored (`instant`), it happens now.
+        if (step['whenUnseen'] === true && !instant) {
+          this.unseenMoves.set(npc, { pos: { x: at.pos.x, y: at.pos.y, z: at.pos.z }, yaw: at.yaw });
+          return Promise.resolve();
+        }
         const via = typeof step['via'] === 'string' ? step['via'] : undefined;
         const walk = via ? (this.deps.walk?.(via) ?? null) : null;
         if (via && !walk) this.warnOnce(`npcMoveTo: no walk "${via}"`);
@@ -888,6 +926,7 @@ export class NpcDirector {
       });
       for (const fn of due) fn();
     }
+    if (this.unseenMoves.size) this.placeUnseen(camera ?? p.head, cameraForward);
     // The scene is over: squadmates go back to following Jay.
     if (this.held.size > this.parked.size && this.deps.sequenceRunning && !this.deps.sequenceRunning()) this.releaseUnparked();
     this.ambientLife?.update(dt, { eye: camera, forward: cameraForward });

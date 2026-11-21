@@ -467,7 +467,6 @@ anchor(R02, 'kitchen_stand', [25.6, 0, 13.4], face([25.6, 0, 13.4], [28, 0, 11.5
 anchor(R02, 'priya_enter', [24, 0, 24.6], 0);
 anchor(R02, 'priya_stand', [27.4, 0, 13.6], face([27.4, 0, 13.6], [25.6, 0, 13.4]));
 anchor(R02, 'priya_offer', [26.5, 0, 13.0], face([26.5, 0, 13], [25.6, 0, 13.4]));
-anchor(R02, 'priya_exit', [24, 0, 25.4], 180);
 anchor(R02, 'priya_chair', [26.1, 0, 18.6], 0); // a standing spot beside the east tables (crew_1 moves here)
 anchor(R02, 'gallery_door', [14, 1.2, 16]);
 anchor(R02, 'cp_intro', [25.6, 0, 13.4], face([25.6, 0, 13.4], [28, 0, 11.5]));
@@ -583,6 +582,9 @@ anchor(R03, 'brief_heins', [8, 0, 20.4], 0);
 anchor(R03, 'gallery_enter', [13, 0, 16], 90);
 anchor(R03, 'drop_jay', [8, 0, 19.6], 180);
 anchor(R03, 'cp_briefing', [8, 0, 17.4], 180);
+// After the coffee hand-off Priya leaves for the medical bay by the gallery, the way to it, and is taken off-stage
+// from here once Jay can't see her (intro-sequence spec "She walks out"). Clear of the doors and the briefing spots.
+anchor(R03, 'priya_walkout', [5.6, 0, 15.4], face([5.6, 0, 15.4], [2, 0, 16]));
 anchor(R04, 'labb_victim', [8, 0, 26.5], 0);
 npc(R03, 'heins', 'heins', 'brief_heins', 'idle_crossed');
 npc(R04, 'researcher_b', 'voss', 'labb_victim', 'typing', { transformable: true }); // Dr. Voss: transforms in the drop (ADR-0023)
@@ -795,6 +797,9 @@ anchor(R08b, 'r08_drag_end', [7.1, 0, 53.0], 90); // where the drag leaves her, 
 anchor(R08b, 'stinger_cam', [9.65, 2.85, 50.35]);
 anchor(R08b, 'stinger_look', [8.1, 0.55, 52.9]);
 anchor(R08b, 'priya_hide', [8.7, 0, 53.35], 300);
+// Where Priya waits off-stage between the intro and the security wing (priya-commons-exit): she "went to the medbay",
+// but the medbay itself is on the admin booth's CAM 04 feed, so she waits in the shut surgery, out of every view.
+anchor(R08b, 'priya_offstage', [9.3, 0, 50.9], 0);
 anchor(R08b, 'stinger_enter', [6.7, 0, 52], 270);
 anchor(R08b, 'stinger_kill', [8.0, 0, 52.6], 225);
 // One play-dead in R07 (gets up as the player passes, ADR-0014 beat 5); the other bodies are dressing.

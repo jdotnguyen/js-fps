@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import * as THREE from 'three';
 import { validate } from '../core/validate.ts';
 import { EventBus } from '../core/events.ts';
@@ -15,6 +15,7 @@ import { Rng } from '../core/rng.ts';
 import type { Interactable, Interactions } from '../actors/interaction.ts';
 import { DEFAULT_MOTOR, moveBody, type MotorState } from '../actors/motor.ts';
 import type { P3 } from '../ai/nav.ts';
+import { GIVE_WAY } from '../ai/giveWay.ts';
 
 // slice01 (ADR-0014/0023, intro-sequence spec): the level validates, builds headlessly (no WebGL, a stub 2D
 // canvas), provides every anchor the draft sequences use, keeps rooms in the draw-call budget,
@@ -92,7 +93,8 @@ test('slice01 builds headlessly; every anchor the draft sequences use exists; NP
     assert.ok(names.length >= (file === 'drop' ? 1 : 3), file);
     for (const n of names) assert.ok(level.anchor(n), `${file}: anchor:${n}`);
   }
-  for (const n of ['dock_door', 'dock_window', 'post_front', 'abyss_window_walk', 'window_jay', 'window_giles', 'window_okafor', 'kitchen_door', 'kitchen_stand', 'counter', 'counter_giles', 'counter_okafor', 'priya_enter', 'priya_offer', 'priya_exit']) assert.ok(level.anchor(n), `intro-sequence anchor ${n}`);
+  for (const n of ['dock_door', 'dock_window', 'post_front', 'abyss_window_walk', 'window_jay', 'window_giles', 'window_okafor', 'kitchen_door', 'kitchen_stand', 'counter', 'counter_giles', 'counter_okafor', 'priya_enter', 'priya_offer', 'priya_walkout', 'priya_offstage']) assert.ok(level.anchor(n), `intro-sequence anchor ${n}`);
+  assert.equal(level.anchor('priya_exit'), null, 'the old doorway spot is gone (priya-commons-exit)');
   for (const n of ['walkby_stop', 'walkby_queue', 'arch', 'arch_scan', 'arch_exit', 'guard_post', 'post_okafor', 'post_giles']) assert.ok(level.anchor(n), `dock-checkpoint anchor ${n}`);
   const npcs = new Map(level.npcSpawns().map((n) => [n.id, n]));
   for (const id of ['giles', 'okafor', 'priya', 'cook', 'ruiz', 'sung', 'heins', 'hale']) assert.ok(npcs.has(id), `npc ${id}`);
@@ -785,4 +787,59 @@ test('dive bay signage and wear: plates by the entries, and 4-8 wear decals per 
   }
   assert.equal(props('R13d').find((p) => p.kit === 'room_sign')!.params!['panel'], false, 'R13d plate only');
   for (const id of ['R13b', 'R13d']) assert.ok(props(id).some((p) => p.kit === 'pipe_labels'), `${id} pipe labels`);
+});
+
+test('no one waits in a Commons doorway: R02 NPC spots stay out of door give-way reach (intro-sequence spec)', () => {
+  const room = data.rooms.find((r) => r.id === 'R02')!;
+  const anchors = new Map((room.anchors ?? []).map((a) => [a.id, a.pos as [number, number, number]]));
+  // Every spot an NPC is sent to in the Commons by any sequence, plus where the level puts its NPCs.
+  const spots: Array<{ label: string; x: number; z: number }> = [];
+  const visit = (node: unknown, file: string): void => {
+    if (Array.isArray(node)) return node.forEach((n) => visit(n, file));
+    if (!node || typeof node !== 'object') return;
+    const o = node as Record<string, unknown>;
+    const target = o['do'] === 'npcMoveTo' ? o['to'] : o['do'] === 'spawn' ? o['at'] : undefined;
+    const id = typeof target === 'string' && target.startsWith('anchor:') ? target.slice(7) : undefined;
+    const pos = id ? anchors.get(id) : undefined;
+    if (pos) spots.push({ label: `${file}: ${String(o['npc'])} -> ${id}`, x: pos[0], z: pos[2] });
+    for (const v of Object.values(o)) visit(v, file);
+  };
+  for (const file of readdirSync(new URL('../data/sequences/', import.meta.url)).filter((f) => f.endsWith('.json'))) {
+    visit(JSON.parse(readFileSync(new URL(`../data/sequences/${file}`, import.meta.url), 'utf8')), file);
+  }
+  for (const n of room.npcs ?? []) {
+    const pos = typeof n.at === 'string' ? anchors.get(n.at) : (n.at as [number, number, number]);
+    if (pos) spots.push({ label: `level npc ${n.id}`, x: pos[0], z: pos[2] });
+  }
+  assert.ok(spots.length >= 10, `found ${spots.length} Commons NPC spots`);
+  // A door's front box on either side: 1.0 m each way along it, GIVE_WAY.doorReach (1.2 m) out from it.
+  const SIDE: Record<number, [number, number]> = { 0: [0, -1], 90: [-1, 0], 180: [0, 1], 270: [1, 0] };
+  const bad: string[] = [];
+  for (const d of data.doors.filter((x) => x.between.includes('R02'))) {
+    const [sx, sz] = SIDE[d.rot]!;
+    const ex = d.cell[0] * 4 + sx * 2;
+    const ez = d.cell[2] * 4 + sz * 2;
+    const hx = sx !== 0 ? GIVE_WAY.doorReach : 1.0;
+    const hz = sz !== 0 ? GIVE_WAY.doorReach : 1.0;
+    for (const s of spots) if (Math.abs(s.x - ex) < hx && Math.abs(s.z - ez) < hz) bad.push(`${s.label} (${s.x}, ${s.z}) waits in front of ${d.id}`);
+  }
+  assert.deepEqual(bad, [], bad.join('\n'));
+});
+
+test('Priya waits off-stage in the shut surgery, outside the admin booth CAM 04 medbay shot (priya-commons-exit)', () => {
+  const anchors = new Map(data.rooms.flatMap((r) => (r.anchors ?? []).map((a) => [a.id, { room: r.id, pos: a.pos as [number, number, number] }] as const)));
+  const spot = anchors.get('priya_offstage');
+  assert.ok(spot, 'priya_offstage exists');
+  assert.equal(spot.room, 'R08b');
+  // The feed (rounds.json) looks from cam04_pos to cam04_look with a 62 degree vertical FOV. Even a wide 16:9 frame
+  // is under 100 degrees across, so a point more than 50 degrees off the view axis (or behind it) is out of frame.
+  const from = anchors.get('cam04_pos')!.pos;
+  const to = anchors.get('cam04_look')!.pos;
+  const offAxis = (p: [number, number, number]): number => {
+    const ax = to[0] - from[0], az = to[2] - from[2];
+    const px = p[0] - from[0], pz = p[2] - from[2];
+    return THREE.MathUtils.radToDeg(Math.acos((ax * px + az * pz) / (Math.hypot(ax, az) * Math.hypot(px, pz))));
+  };
+  assert.ok(offAxis(spot.pos) > 50, `priya_offstage is ${offAxis(spot.pos).toFixed(0)} degrees off the CAM 04 axis`);
+  assert.ok(offAxis(anchors.get('priya_r08')!.pos) < 31, 'priya_r08 is in the CAM 04 shot, which is why she does not wait there');
 });

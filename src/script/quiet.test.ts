@@ -168,6 +168,7 @@ function makeGame(only?: string[]) {
               ? ` ${String(step['target'])}`
               : '';
       log.push(`npc ${action} ${String(step['npc'])}${extra}${step['instant'] ? ' instant' : ''}${step['stay'] ? ' stay' : ''}`);
+      if (action === 'npcMoveTo') log.push(`to ${String(step['npc'])} ${String(step['to'])}`);
     },
   };
   const m = new SequenceManager(host, only ? defs.filter((d) => only.includes(d.id)) : defs);
@@ -206,15 +207,19 @@ const endIntro = (g: Game, skipped = false): void => {
 
 // ------------------------------------------------------------------------------- commons
 
-test('commons free time: after the intro Giles calls at 45 s and the squad heads for the gallery door', async () => {
+test('commons free time: the squad heads straight for the gallery, and at 45 s Giles comes back beside the door to call', async () => {
   const g = makeGame();
   endIntro(g);
   assert.equal(g.m.isRunning('commons_free'), true);
-  await advance(g, 40);
+  await advance(g, 1);
+  // "Briefing's in the gallery in ten": they go and wait at their briefing spots, not in the doorway.
+  assert.ok(g.log.includes('to giles anchor:brief_giles') && g.log.includes('to okafor anchor:brief_okafor'), 'the squad waits in the gallery');
+  await advance(g, 39);
   assert.equal(said(g, 'commons_giles_call_01'), 0, 'free time first');
   await advance(g, 8);
   assert.equal(said(g, 'commons_giles_call_01'), 1);
-  assert.ok(g.log.includes('npc npcMoveTo giles') && g.log.includes('npc npcMoveTo okafor'));
+  assert.ok(g.log.includes('to giles anchor:dawdle_call'), 'Giles calls from beside the gallery door');
+  assert.ok(!g.log.some((e) => e.includes('gallery_door')), 'no one waits in the doorway');
   // Jay walks to the gallery door in time: no dawdle catch.
   fire(g, 'trigger:commons_to_gallery');
   await advance(g, 60);
@@ -521,6 +526,18 @@ test('quiet_restore on a load: radio, commons changes and the drop aftermath com
   assert.ok(g.log.includes('npc npcTask dock_guard return_to_desk instant'), 'post-intro restore seats the dock guard at his desk');
   assert.equal(count(g, 'event screen:set'), 1);
   assert.ok(g.log.includes('npc npcMoveTo cook instant') && g.log.includes('npc npcMoveTo crew_1 instant') && g.log.includes('npc npcAnim crew_1 idle_mug instant'));
+  // intro-sequence spec "The Commons after the intro": Bram back at his station, Priya off-stage at the medical bay.
+  assert.ok(g.log.includes('to cook anchor:cook_stand') && g.log.includes('npc npcAnim cook idle instant'), 'Bram is at his station');
+  assert.ok(!g.log.some((e) => e.includes('priya_exit')), 'no one is sent to the old doorway spot');
+  assert.ok(!g.log.some((e) => e.startsWith('to priya')), 'no priya_met flag: Priya is left alone');
+  const met = makeGame(['quiet_restore']);
+  Object.assign(met.host.flags, { introSeen: true, priya_met: true });
+  met.host.events.emit('game:mode', { mode: 'playing' });
+  assert.ok(met.log.includes('to priya anchor:priya_offstage'), 'Load after the intro: Priya waits off-stage, out of every view');
+  const afterR08 = makeGame(['quiet_restore']);
+  Object.assign(afterR08.host.flags, { introSeen: true, priya_met: true, sec_done: true });
+  afterR08.host.events.emit('game:mode', { mode: 'playing' });
+  assert.ok(!afterR08.log.some((e) => e.startsWith('to priya')), 'after R08 the action restore owns her body');
   assert.ok(g.log.includes('event blinds:set'));
   assert.ok(g.log.includes('npc kill researcher_b instant'), 'Voss lies dead and torn, the creature stands (infection-kills spec)');
   assert.equal(g.log.includes('npc npcAnim researcher_b shamble instant'), false);
@@ -540,6 +557,16 @@ test('quiet_restore on a load: radio, commons changes and the drop aftermath com
     r.host.events.emit('game:mode', { mode: 'playing' });
     assert.equal(count(r, 'radio tag_fm_01'), 1, place);
   }
+});
+
+test('the first round changes the Commons with Bram back at his station, not in a doorway (intro-sequence spec "Bram at his station")', async () => {
+  const g = makeGame(['rounds_commons_changes']);
+  fire(g, 'rounds:progress');
+  await advance(g, 1);
+  assert.equal(g.host.flags['commons_changed_1'], true);
+  assert.ok(g.log.includes('to cook anchor:cook_stand') && g.log.includes('npc npcAnim cook idle instant'));
+  assert.ok(!g.log.some((e) => e.includes('priya_exit')));
+  noWarnings(g);
 });
 
 test('the silent researcher walks through the commons after the first round, once, and Jay gets no answer', async () => {

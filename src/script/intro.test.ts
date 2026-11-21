@@ -454,6 +454,20 @@ async function runIntro(skipWhen: ((log: string[]) => boolean) | null, opts: { w
   return { flags: { ...host.flags }, spot, pose, lines, checkpoints: log.filter((e) => e.startsWith('checkpoint')) };
 }
 
+test('Priya walks out by the gallery door and is taken off-stage only once she is unseen (intro-sequence spec "She walks out")', () => {
+  const moves = intro.steps.filter((s) => !isParallel(s) && s['do'] === 'npcMoveTo' && s['npc'] === 'priya');
+  const last = moves.slice(-2);
+  assert.deepEqual(last.map((s) => (s as Record<string, unknown>)['to']), ['anchor:priya_walkout', 'anchor:priya_offstage']);
+  assert.equal((last[0] as Record<string, unknown>)['instant'], undefined, 'she walks out, she is not placed');
+  assert.equal((last[1] as Record<string, unknown>)['whenUnseen'], true, 'the move off-stage waits until Jay cannot see her');
+  assert.ok(!JSON.stringify(intro).includes('priya_exit'), 'no one is sent to the old doorway spot');
+  // The walk-out spot is in the gallery, through D_R02_R03, and clear of its doors.
+  const level = json('../data/levels/slice01.json') as { rooms: Array<{ id: string; anchors?: Array<{ id: string; pos: number[] }> }> };
+  const walkout = level.rooms.find((r) => r.id === 'R03')?.anchors?.find((a) => a.id === 'priya_walkout');
+  assert.ok(walkout, 'priya_walkout is an R03 anchor');
+  for (const door of [[14, 16], [2, 16]]) assert.ok(Math.hypot(walkout.pos[0]! - door[0]!, walkout.pos[2]! - door[1]!) > 2, `walk-out spot clear of the door at ${door.join(',')}`);
+});
+
 test('skipping mid-scan or mid-walk ends exactly like watching the intro through', async () => {
   const watched = await runIntro(null);
   assert.equal(watched.spot['dock_guard'], 'anchor:guard_seat');
@@ -464,7 +478,10 @@ test('skipping mid-scan or mid-walk ends exactly like watching the intro through
     ['mid-scan (Ruiz arms out)', (log) => log.includes('anim ruiz arms_out'), {}],
     ['mid-alarm (Giles at the arch)', (log) => log.filter((e) => e === 'event detector:scan').length === 4, {}],
     ['mid-walk to the kitchen', (log) => log.includes('walk'), { walkHangs: true }],
+    ['during the hand-off (Priya holding out the mug)', (log) => log.includes('event intro:coffee_ready'), {}],
   ];
+  // "Skip during the hand-off" / "She walks out": Priya ends off-stage at the medical bay, not in a Commons doorway.
+  assert.equal(watched.spot['priya'], 'anchor:priya_offstage');
   for (const [label, when, opts] of points) {
     const skipped = await runIntro(when, opts);
     assert.deepEqual(skipped.flags, watched.flags, `${label}: flags`);
