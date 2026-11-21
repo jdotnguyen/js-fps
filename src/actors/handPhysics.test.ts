@@ -12,7 +12,9 @@ import {
   extractTwistY,
   FINGER_LOD_DISTANCE,
   FINGER_NAMES,
+  HAND_SHAPE_CURLS,
   handPersonalityFor,
+  phalanxCurlAngle,
   tenodesisDelta,
   type FingerBoneDef,
 } from './handPhysics.ts';
@@ -302,5 +304,105 @@ test('body-models.json enables handRig on Phase 1 main cast (mechanic, doctor, p
   }
   for (const id of ['zombieWalk', 'necromorphCrowd', 'gameChar', 'necromorph']) {
     assert.ok(!table[id]?.handRig, `crowd/enemy ${id} stays lean without handRig`);
+  }
+});
+
+/** Each prepared vertex in the rest frame, its skin influences, and the triangles' vertex indices. */
+function restSkin(m: PreparedBodyModel): { p: THREE.Vector3[]; skin: Array<Array<[number, number]>>; tris: number[] } {
+  const world = {} as Record<string, THREE.Vector3>;
+  for (const j of JOINTS) world[j.name] = (j.parent ? world[j.parent]!.clone() : new THREE.Vector3()).add(new THREE.Vector3(...m.jointOffsets[j.name]));
+  const p: THREE.Vector3[] = [];
+  const skin: Array<Array<[number, number]>> = [];
+  const tris: number[] = [];
+  for (const part of m.parts) {
+    const pos = part.geometry.getAttribute('position');
+    const si = part.geometry.getAttribute('skinIndex');
+    const sw = part.geometry.getAttribute('skinWeight');
+    const base = p.length;
+    for (let i = 0; i < pos.count; i++) {
+      p.push(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).add(world[part.joint]!));
+      const s: Array<[number, number]> = [];
+      for (let k = 0; k < 4; k++) if (sw.getComponent(i, k) > 0) s.push([si.getComponent(i, k), sw.getComponent(i, k)]);
+      skin.push(s);
+    }
+    for (const x of Array.from(part.geometry.getIndex()!.array)) tris.push(base + x);
+  }
+  return { p, skin, tris };
+}
+
+// openspec per-character-motion (imported-body-models): every named character's hands carry skin on each of their finger bones.
+// mechanic.glb paints no finger weights at all and models the fingers in a relaxed curl away from its straight finger bones, so
+// prepareBodyModel re-traces its finger chains through the skin and auto-skins them; the other three rigs are measured as a yardstick.
+test('main cast hands: every finger bone of all four rigs carries its own strip of skin', async () => {
+  for (const id of ['mechanic', 'doctor', 'priya', 'hale'] as const) {
+    const m = await loadMainCast(id);
+    const { skin } = restSkin(m);
+    const count = new Map<number, number>();
+    for (const s of skin) for (const [slot, w] of s) if (w > 0.3) count.set(slot, (count.get(slot) ?? 0) + 1);
+    for (const side of ['L', 'R'] as const) {
+      const bones = m.handBones.flatMap((b, k) => (b.kind === 'finger' && b.side === side ? [{ name: b.name, slot: JOINTS.length + k }] : []));
+      assert.equal(bones.length, 15, `${id} ${side}: 15 finger bones`);
+      const per = bones.map((b) => ({ name: b.name, n: count.get(b.slot) ?? 0 }));
+      const thin = per.filter((b) => b.n < 3);
+      assert.deepEqual(thin, [], `${id} ${side}: finger bones with under 3 vertices weighted over 0.3`);
+      const total = per.reduce((a, b) => a + b.n, 0);
+      assert.ok(total >= 250, `${id} ${side}: ${total} vertices weighted over 0.3 to finger bones`);
+    }
+  }
+});
+
+// The same requirement's fused-finger scenario: curling the fingers never tears the skin (mechanic.glb's fingers are joined by webs
+// and its thumb lies against the palm). Every hand shape the solver poses (with its sympathetic coupling), and each finger curled
+// alone halfway with the rest straight, is applied by linear blend skinning in the rest frame; no edge of 3 mm or longer may stretch
+// past 2.5x.
+test('Giles\'s auto-skinned hands curl through every hand shape, and one finger at a time, without tearing', async () => {
+  const m = await loadMainCast('mechanic');
+  const { p, skin, tris } = restSkin(m);
+  const poses: Array<[string, Float32Array]> = Object.entries(HAND_SHAPE_CURLS).map(([shape, curl]) => {
+    const coupled = new Float32Array(5);
+    applySympatheticCoupling(curl, 1, coupled);
+    return [shape, coupled];
+  });
+  FINGER_NAMES.forEach((fn, i) => poses.push([`${fn} alone`, Float32Array.from(FINGER_NAMES, (_, k) => (k === i ? 0.5 : 0))]));
+  for (const [shape, coupled] of poses) {
+    // Each bone's skinning matrix: its parent's, then a turn about its own joint.
+    const mats: THREE.Matrix4[] = JOINTS.map(() => new THREE.Matrix4());
+    const jointWorld = new Map<string, THREE.Vector3>();
+    for (const j of JOINTS) jointWorld.set(j.name, (j.parent ? jointWorld.get(j.parent)!.clone() : new THREE.Vector3()).add(new THREE.Vector3(...m.jointOffsets[j.name])));
+    const matOf = new Map<string, THREE.Matrix4>();
+    for (const b of m.handBones) {
+      const at = jointWorld.get(b.parent)!.clone().add(new THREE.Vector3(...b.offset));
+      jointWorld.set(b.name, at);
+      const parent = matOf.get(b.parent) ?? new THREE.Matrix4();
+      let local = new THREE.Matrix4();
+      if (b.kind === 'finger') {
+        const angle = phalanxCurlAngle(b, coupled[FINGER_NAMES.indexOf(b.finger)]!);
+        local = new THREE.Matrix4()
+          .makeTranslation(at.x, at.y, at.z)
+          .multiply(new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(...b.curlAxis).normalize(), angle))
+          .multiply(new THREE.Matrix4().makeTranslation(-at.x, -at.y, -at.z));
+      }
+      const mat = parent.clone().multiply(local);
+      matOf.set(b.name, mat);
+      mats.push(mat);
+    }
+    const posed = p.map((v, i) => {
+      const out = new THREE.Vector3();
+      for (const [slot, w] of skin[i]!) out.addScaledVector(v.clone().applyMatrix4(mats[slot]!), w);
+      return out;
+    });
+    let worst = 0;
+    let at = '';
+    for (let t = 0; t < tris.length; t += 3) {
+      for (let k = 0; k < 3; k++) {
+        const a = tris[t + k]!;
+        const b = tris[t + ((k + 1) % 3)]!;
+        const rest = p[a]!.distanceTo(p[b]!);
+        if (rest < 0.003) continue;
+        const stretch = posed[a]!.distanceTo(posed[b]!) / rest;
+        if (stretch > worst) [worst, at] = [stretch, p[a]!.toArray().map((x) => x.toFixed(3)).join(', ')];
+      }
+    }
+    assert.ok(worst <= 2.5, `mechanic ${shape}: an edge at (${at}) stretches ${worst.toFixed(2)}x`);
   }
 });

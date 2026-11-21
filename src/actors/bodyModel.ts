@@ -565,6 +565,107 @@ export function prepareBodyModel(root: THREE.Object3D, opts: PrepareOptions = {}
       else f.splayAxis.set(1, 0, 0);
     }
 
+    // Hands whose finger bones exist in the skeleton but carry (almost) no painted vertex weight are auto-skinned further down
+    // (e.g. mechanic.glb, where every hand vertex was left on Hand). A hand qualifies when fewer than half its finger bones carry
+    // painted skin, so a partly painted hand is repaired too, while a fully painted one with a few thin phalanges is left alone.
+    const fingerSlotsBySide: Record<Side, Set<number>> = { L: new Set(), R: new Set() };
+    const slotByBoneName = new Map<string, number>();
+    for (const pf of pendingFingers) {
+      fingerSlotsBySide[pf.side].add(pf.slot);
+      slotByBoneName.set(pf.name, pf.slot);
+    }
+    const paintedPerSlot = new Map<number, number>();
+    const seenVerts = new Set<Vert>();
+    for (const t of tris) {
+      for (const v of t.v) {
+        if (seenVerts.has(v)) continue;
+        seenVerts.add(v);
+        for (const [slot, w] of v.joints) {
+          if (w >= 0.15 && (fingerSlotsBySide.L.has(slot) || fingerSlotsBySide.R.has(slot))) {
+            paintedPerSlot.set(slot, (paintedPerSlot.get(slot) ?? 0) + 1);
+          }
+        }
+      }
+    }
+    const autoSkin: Record<Side, boolean> = { L: false, R: false };
+    for (const s of ['L', 'R'] as const) {
+      const slots = [...fingerSlotsBySide[s]];
+      const painted = slots.filter((slot) => (paintedPerSlot.get(slot) ?? 0) >= 3).length;
+      autoSkin[s] = slots.length > 0 && painted * 2 < slots.length;
+    }
+
+    // An unpainted hand's bones were never fitted to its skin either: mechanic.glb models the fingers in a relaxed curl, the tips
+    // 4-6 cm palm-ward of its straight finger bones. Re-trace each finger's chain through the skin, keeping the knuckle and each
+    // phalanx's length: from each joint, the next one sits on the centreline of the finger's skin one phalanx further on (the
+    // centroid of the finger's vertices in a thin shell round the joint). The bones then lie inside the fingers, their rest curl
+    // is measured below as a baked curl, and the auto-skin binds each finger's strip to its own chain.
+    const fittedTip = new Map<FingerBoneName, THREE.Vector3>();
+    for (const s of ['L', 'R'] as const) {
+      if (!autoSkin[s]) continue;
+      const handSlot = JOINT_INDEX[`hand_${s}`];
+      const handPos = world[`hand_${s}`];
+      const f = handFrame[s];
+      const handVerts: Vert[] = [];
+      for (const v of seenVerts) {
+        if ((v.joints.find(([j]) => j === handSlot)?.[1] ?? 0) >= 0.5 && v.p.distanceTo(handPos) < 0.25) handVerts.push(v);
+      }
+      // Non-thumb fingers keep to a lane across the hand (the curl swings a finger within its own lane).
+      const laneOf = (p: THREE.Vector3): number => p.clone().sub(handPos).dot(f.across);
+      const lanes = FINGER_NAMES.filter((fn) => fn !== 'thumb' && fingerWorld.has(`finger_${s}_${fn}_1`)).map((fn) => ({
+        fn,
+        c: laneOf(fingerWorld.get(`finger_${s}_${fn}_1`)!),
+      }));
+      lanes.sort((a, b) => a.c - b.c);
+      const spacing = lanes.length > 1 ? Math.abs(lanes[lanes.length - 1]!.c - lanes[0]!.c) / (lanes.length - 1) : 0.02;
+      for (const fn of FINGER_NAMES) {
+        const chain: Array<{ name: FingerBoneName; p: THREE.Vector3 }> = [];
+        for (let k = 1; k <= 3; k++) {
+          const name = `finger_${s}_${fn}_${k as PhalanxIndex}` as FingerBoneName;
+          const p = fingerWorld.get(name);
+          if (!p) break;
+          chain.push({ name, p });
+        }
+        if (chain.length < 2) continue;
+        const last = pendingFingers.find((pf) => pf.name === chain[chain.length - 1]!.name)!;
+        const pts = chain.map((c) => c.p.clone());
+        const prev = pts[pts.length - 1]!.clone().sub(pts[pts.length - 2]!);
+        pts.push(last.tipBoneIdx !== null ? posNorm(last.tipBoneIdx) : pts[pts.length - 1]!.clone().addScaledVector(prev, 0.75));
+        const li = lanes.findIndex((l) => l.fn === fn);
+        const lo = li < 0 ? -Infinity : li === 0 ? lanes[0]!.c - spacing * 0.6 : (lanes[li - 1]!.c + lanes[li]!.c) / 2;
+        const hi = li < 0 ? Infinity : li === lanes.length - 1 ? lanes[li]!.c + spacing * 0.6 : (lanes[li]!.c + lanes[li + 1]!.c) / 2;
+        const own = handVerts.filter((v) => {
+          const a = laneOf(v.p);
+          return a >= lo && a <= hi;
+        });
+        const cone = Math.cos(fn === 'thumb' ? 0.8 : 1.05);
+        const joint = pts[0]!.clone();
+        const dir = pts[1]!.clone().sub(pts[0]!).normalize();
+        const fitted: THREE.Vector3[] = [joint.clone()];
+        const d = new THREE.Vector3();
+        for (let k = 1; k < pts.length; k++) {
+          const len = pts[k]!.distanceTo(pts[k - 1]!);
+          const band = Math.max(0.004, len * 0.25);
+          const c = new THREE.Vector3();
+          let n = 0;
+          for (const v of own) {
+            d.subVectors(v.p, joint);
+            const r = d.length();
+            if (Math.abs(r - len) > band || d.dot(dir) < cone * r) continue;
+            c.add(v.p);
+            n++;
+          }
+          if (n >= 4) {
+            const next = c.divideScalar(n).sub(joint);
+            if (next.lengthSq() > 1e-8) dir.copy(next.normalize());
+          }
+          joint.addScaledVector(dir, len);
+          fitted.push(joint.clone());
+        }
+        chain.forEach((c, k) => fingerWorld.set(c.name, fitted[k]!));
+        fittedTip.set(chain[chain.length - 1]!.name, fitted[fitted.length - 1]!);
+      }
+    }
+
     // Emit in exact slot order (JOINTS.length + k) so ExtraBone indices match skinIndex 1:1.
     const bySlot = new Map<number, HandDetailBone>();
     for (const tw of pendingTwists) {
@@ -586,11 +687,12 @@ export function prepareBodyModel(root: THREE.Object3D, opts: PrepareOptions = {}
       const parentPos = pf.phalanx === 1 ? world[`hand_${pf.side}`] : fingerWorld.get(pf.parent)!;
       const off = cur.clone().sub(parentPos);
       const nextPos =
-        pf.phalanx < 3
+        fittedTip.get(pf.name) ??
+        (pf.phalanx < 3
           ? fingerWorld.get(`finger_${pf.side}_${pf.finger}_${(pf.phalanx + 1) as PhalanxIndex}`)
           : pf.tipBoneIdx !== null
             ? posNorm(pf.tipBoneIdx)
-            : undefined;
+            : undefined);
       const f = handFrame[pf.side];
       const prevDir = cur.clone().sub(parentPos);
       if (prevDir.lengthSq() > 1e-8) prevDir.normalize();
@@ -647,31 +749,9 @@ export function prepareBodyModel(root: THREE.Object3D, opts: PrepareOptions = {}
       if (def) handBones.push(def);
     }
 
-    // Fallback auto-skinning for rigged GLBs whose finger bones exist in the skeleton but carry
-    // zero painted vertex weights (e.g. mechanic.glb, where all hand verts were left on Hand).
-    const fingerSlotsBySide: Record<Side, Set<number>> = { L: new Set(), R: new Set() };
-    const slotByBoneName = new Map<string, number>();
-    for (let slot = JOINTS.length; slot < slotOwner.length; slot++) {
-      const def = bySlot.get(slot);
-      if (!def || def.kind !== 'finger') continue;
-      fingerSlotsBySide[def.side].add(slot);
-      slotByBoneName.set(def.name, slot);
-    }
-    const vertCountPerSide: Record<Side, number> = { L: 0, R: 0 };
-    const seenVerts = new Set<Vert>();
-    for (const t of tris) {
-      for (const v of t.v) {
-        if (seenVerts.has(v)) continue;
-        seenVerts.add(v);
-        for (const [slot, w] of v.joints) {
-          if (w < 0.15) continue;
-          if (fingerSlotsBySide.L.has(slot)) vertCountPerSide.L++;
-          else if (fingerSlotsBySide.R.has(slot)) vertCountPerSide.R++;
-        }
-      }
-    }
+    // Fallback auto-skinning for the hands picked out above, against their re-traced finger chains.
     for (const s of ['L', 'R'] as const) {
-      if (fingerSlotsBySide[s].size === 0 || vertCountPerSide[s] >= 10) continue;
+      if (!autoSkin[s]) continue;
       const handSlot = JOINT_INDEX[`hand_${s}`];
       interface Seg {
         finger: FingerName;
@@ -697,23 +777,65 @@ export function prepareBodyModel(root: THREE.Object3D, opts: PrepareOptions = {}
         const baseDir = p2.clone().sub(p1).normalize();
         segs.push({ finger: fn, phalanx: 1, slot: s1, parentSlot: handSlot, nextSlot: s2, a: p1, b: p2, knuckle: p1, dir: baseDir });
         if (p3 && s3 !== undefined) {
-          const tip = p3.clone().addScaledVector(p3.clone().sub(p2), 0.75);
+          const tip = fittedTip.get(`finger_${s}_${fn}_3`) ?? p3.clone().addScaledVector(p3.clone().sub(p2), 0.75);
           segs.push({ finger: fn, phalanx: 2, slot: s2, parentSlot: s1, nextSlot: s3, a: p2, b: p3, knuckle: p1, dir: baseDir });
           segs.push({ finger: fn, phalanx: 3, slot: s3, parentSlot: s2, nextSlot: null, a: p3, b: tip, knuckle: p1, dir: baseDir });
         } else {
-          const tip = p2.clone().addScaledVector(p2.clone().sub(p1), 0.75);
+          const tip = fittedTip.get(`finger_${s}_${fn}_2`) ?? p2.clone().addScaledVector(p2.clone().sub(p1), 0.75);
           segs.push({ finger: fn, phalanx: 2, slot: s2, parentSlot: s1, nextSlot: null, a: p2, b: tip, knuckle: p1, dir: baseDir });
         }
       }
+      const REACH = 0.026; // skin further than this from every finger segment stays on the hand
+      const WEB_BLEND = 0.024; // a vertex this much nearer its own finger than the next takes no share of the next
+      // Smoothing of each vertex's finger shares (below): passes, and how far each pass moves a share toward its neighbours' mean.
+      // Twelve half-steps spread a share over about four edges, enough for mechanic.glb's webbed fingers to curl one at a time.
+      const SMOOTH_PASSES = 12;
+      const SMOOTH_RATE = 0.5;
       const ab = new THREE.Vector3();
       const ap = new THREE.Vector3();
       const closest = new THREE.Vector3();
+      // A vertex's weights along one finger's chain: its phalanx, eased into the neighbouring joints near each end.
+      const chainWeights = (seg: Seg, u: number, along: number): Array<[number, number]> => {
+        if (seg.phalanx === 1 && along < 0) {
+          const t = THREE.MathUtils.clamp((along + 0.012) / 0.012, 0, 1);
+          return [[seg.slot, t], [handSlot, 1 - t]];
+        }
+        if (u < 0.25) {
+          const t = 0.5 + (u / 0.25) * 0.5;
+          return [[seg.slot, t], [seg.parentSlot, 1 - t]];
+        }
+        if (u > 0.75 && seg.nextSlot !== null) {
+          const t = ((u - 0.75) / 0.25) * 0.5;
+          return [[seg.slot, 1 - t], [seg.nextSlot, t]];
+        }
+        return [[seg.slot, 1]];
+      };
+      // Each hand vertex's weights are a mix of profiles: for each finger, its weights along that finger's chain at the vertex
+      // (above), and for 'hand', what the model painted. The shares of the mix start on the vertex's own finger (or the hand) and
+      // are then smoothed over the surface; skin far from every finger keeps the painted weights and anchors the smoothing.
+      type Owner = FingerName | 'hand';
+      interface Node {
+        verts: Vert[];
+        free: boolean;
+        profile: Map<Owner, Array<[number, number]>>;
+        share: Map<Owner, number>;
+      }
+      // Coincident vertices (UV seams) are one node, so they move as one.
+      const keyOf = (p: THREE.Vector3): string => `${Math.round(p.x / 1e-4)},${Math.round(p.y / 1e-4)},${Math.round(p.z / 1e-4)}`;
+      const nodes = new Map<string, Node>();
       for (const v of seenVerts) {
         const handW = v.joints.find(([j]) => j === handSlot)?.[1] ?? 0;
         if (handW < 0.5) continue;
-        let bestSeg: Seg | null = null;
-        let bestDist = 0.026;
-        let bestU = 0;
+        const key = keyOf(v.p);
+        const known = nodes.get(key);
+        if (known) {
+          known.verts.push(v);
+          continue;
+        }
+        const node: Node = { verts: [v], free: false, profile: new Map([['hand', v.joints]]), share: new Map([['hand', 1]]) };
+        nodes.set(key, node);
+        // The nearest segment of each finger.
+        const nearest = new Map<FingerName, { seg: Seg; d: number; u: number }>();
         for (const seg of segs) {
           ab.subVectors(seg.b, seg.a);
           const lenSq = ab.lengthSq();
@@ -722,37 +844,60 @@ export function prepareBodyModel(root: THREE.Object3D, opts: PrepareOptions = {}
           const u = THREE.MathUtils.clamp(ap.dot(ab) / lenSq, 0, 1);
           closest.copy(seg.a).addScaledVector(ab, u);
           const d = v.p.distanceTo(closest);
-          if (d < bestDist) {
-            bestDist = d;
-            bestSeg = seg;
-            bestU = u;
+          const cur = nearest.get(seg.finger);
+          if (!cur || d < cur.d) nearest.set(seg.finger, { seg, d, u });
+        }
+        const ranked = [...nearest.values()].sort((a, b) => a.d - b.d);
+        const first = ranked[0];
+        if (!first || first.d >= REACH * 1.5) continue;
+        node.free = true;
+        for (const [fn, n] of nearest) node.profile.set(fn, chainWeights(n.seg, n.u, v.p.clone().sub(n.seg.knuckle).dot(n.seg.dir)));
+        if (first.d >= REACH || v.p.clone().sub(first.seg.knuckle).dot(first.seg.dir) < -0.012) continue;
+        // Scan fingers are often joined by a web of skin. A vertex about as near the next finger as its own shares the two
+        // fingers (half and half on the midline), so curling one finger alone stretches the web instead of tearing it.
+        const second = ranked[1];
+        const share = second && second.d < REACH ? 0.5 * THREE.MathUtils.clamp(1 - (second.d - first.d) / WEB_BLEND, 0, 1) : 0;
+        node.share = new Map<Owner, number>([[first.seg.finger, 1 - share]]);
+        if (share > 0) node.share.set(second!.seg.finger, share);
+      }
+      // Smooth the shares over the hand's surface. Wherever the scan's skin joins two parts that move apart (a finger web, a thumb
+      // modelled lying against the palm) a hard step would tear the edge across it; a few passes spread each step over several
+      // edges. Only the shares are smoothed, never the profiles, so a phalanx's skin does not bleed along the finger into the next.
+      const neighbours = new Map<Node, Set<Node>>();
+      for (const t of tris) {
+        const ns = t.v.map((v) => nodes.get(keyOf(v.p)));
+        for (const a of ns) {
+          if (!a?.free) continue;
+          for (const b of ns) {
+            if (!b || b === a) continue;
+            let set = neighbours.get(a);
+            if (!set) neighbours.set(a, (set = new Set()));
+            set.add(b);
           }
         }
-        if (!bestSeg) continue;
-        const along = v.p.clone().sub(bestSeg.knuckle).dot(bestSeg.dir);
-        if (along < -0.012) continue;
-        // Blend smoothly ONLY along this finger's own chain so adjacent fingers never web together.
-        const out: Array<[number, number]> = [];
-        if (bestSeg.phalanx === 1 && along < 0) {
-          const t = THREE.MathUtils.clamp((along + 0.012) / 0.012, 0, 1);
-          if (t > 0.01) out.push([bestSeg.slot, t]);
-          if (1 - t > 0.01) out.push([handSlot, 1 - t]);
-        } else if (bestU < 0.25) {
-          const t = 0.5 + (bestU / 0.25) * 0.5;
-          out.push([bestSeg.slot, t], [bestSeg.parentSlot, 1 - t]);
-        } else if (bestU > 0.75 && bestSeg.nextSlot !== null) {
-          const t = ((bestU - 0.75) / 0.25) * 0.5;
-          out.push([bestSeg.slot, 1 - t], [bestSeg.nextSlot, t]);
-        } else {
-          out.push([bestSeg.slot, 1]);
+      }
+      for (let pass = 0; pass < SMOOTH_PASSES; pass++) {
+        const next = new Map<Node, Map<Owner, number>>();
+        for (const [node, ns] of neighbours) {
+          const acc = new Map<Owner, number>();
+          for (const [o, w] of node.share) acc.set(o, w * (1 - SMOOTH_RATE));
+          for (const n of ns) for (const [o, w] of n.share) acc.set(o, (acc.get(o) ?? 0) + (w * SMOOTH_RATE) / ns.size);
+          next.set(node, acc);
         }
-        if (out.length > 0) {
-          // Renormalise: a share under 1% is dropped above, which would leave the vertex short of full weight.
-          const total = out.reduce((acc, [, w]) => acc + w, 0);
-          for (const o of out) o[1] /= total;
-          out.sort((a, b) => b[1] - a[1]);
-          v.joints = out;
+        for (const [node, share] of next) node.share = share;
+      }
+      for (const node of nodes.values()) {
+        if (!node.free) continue;
+        const mix = new Map<number, number>();
+        for (const [o, k] of node.share) {
+          // A finger with no segment in reach of this vertex lends the hand's profile.
+          for (const [slot, w] of node.profile.get(o) ?? node.profile.get('hand')!) mix.set(slot, (mix.get(slot) ?? 0) + w * k);
         }
+        // At most four influences; a share under 1% is dropped, and the rest renormalised to full weight.
+        const kept = [...mix.entries()].filter(([, w]) => w > 0.01).sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const total = kept.reduce((acc, [, w]) => acc + w, 0);
+        if (total <= 0) continue;
+        for (const v of node.verts) v.joints = kept.map(([slot, w]) => [slot, w / total] as [number, number]);
       }
     }
   }
