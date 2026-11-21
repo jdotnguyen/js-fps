@@ -34,6 +34,11 @@
             "is": false,
             "then": [
               {
+                "do": "npcLookAt",
+                "npc": "dock_guard",
+                "target": "player"
+              },
+              {
                 "do": "if",
                 "flag": "guard_arch_1",
                 "is": false,
@@ -76,6 +81,15 @@
               {
                 "do": "emit",
                 "event": "dock:arch_cooldown"
+              },
+              {
+                "do": "wait",
+                "s": 1.0
+              },
+              {
+                "do": "npcLookAt",
+                "npc": "dock_guard",
+                "target": "none"
               }
             ]
           }

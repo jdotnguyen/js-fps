@@ -12,6 +12,7 @@ import { LightController, type ControlledLight, type LightPattern, type ShaftUni
 import { createDebugCheckerMaterial, fixtureMaterial, type Materials } from '../render/materials.ts';
 import { CollisionWorld, type Collider } from './collision.ts';
 import { at } from './kit/geom.ts';
+import { grillePosition, selectPaSpeaker, type PaSpeaker } from './paSpeakers.ts';
 import { buildDoor, type DoorVisual } from './kit/doors.ts';
 import { GridOccupancy } from './kit/grid.ts';
 import { HullBuilder, type ExteriorHull } from './kit/exteriorHull.ts';
@@ -19,6 +20,7 @@ import { AoMergeBuilder, applyWorldMeterUvs, withVertexColors, type AoFn } from 
 import { snapModelToSocket, type SnapOptions } from './kit/modelSnap.ts';
 import { CELL, CORRIDOR_H, DECK_H, ROOM_H, WALL_MOUNTED_PROPS, transformBox, type BoxSpec, type LightSlotKind, type PieceOutput, type PieceParams, type Socket, type SocketKind } from './kit/types.ts';
 import { LightPool, type PooledSlot } from './lightPool.ts';
+import { flashingState } from '../render/flashing.ts';
 import type { KitRegistry } from './registry.ts';
 import type { Interactable, Interactions } from '../actors/interaction.ts';
 import type { Aabb } from '../actors/motor.ts';
@@ -290,6 +292,7 @@ export class Level implements World {
   readonly pool: LightPool;
   private readonly deps: LevelDeps;
   private readonly rooms: RoomRuntime[] = [];
+  private readonly paSpeakers: PaSpeaker[] = [];
   private readonly roomById = new Map<string, RoomRuntime>();
   private readonly doors: DoorRuntime[] = [];
   private readonly hull: ExteriorHull;
@@ -308,6 +311,19 @@ export class Level implements World {
   private readonly spotList: WorldSpot[] = [];
   /** Named positions from room `anchors` (yaw in radians). */
   private readonly anchors = new Map<string, { pos: THREE.Vector3; yaw: number; room: string }>();
+  /** Controllable named props (e.g. dock_chair, dock_wand) whose transform/visibility and colliders stay in sync. */
+  private readonly movableProps = new Map<
+    string,
+    {
+      object: THREE.Object3D;
+      yaw: number;
+      initialPos: THREE.Vector3;
+      initialYaw: number;
+      initialVisible: boolean;
+      localColliders: BoxSpec[];
+      colliders: Collider[];
+    }
+  >();
   private readonly npcList: LevelNpc[] = [];
   private readonly named = new Map<string, Set<() => void>>();
   /** Authored walks by id (ADR-0028). */
@@ -385,7 +401,13 @@ export class Level implements World {
     this.deps.events.on('glass:set' as EventName, ((e: { id?: string; state?: string } | undefined) => {
       if (e?.id === LAB_B.glass && (e.state === 'cracked' || e.state === 'shattered')) this.breakLabBFloor(true);
     }) as never);
-    this.deps.events.on('level:reset', () => this.breakLabBFloor(false));
+    this.deps.events.on('level:reset', () => {
+      this.breakLabBFloor(false);
+      for (const [id, mp] of this.movableProps) {
+        this.setPropTransform(id, mp.initialPos, mp.initialYaw);
+        this.setPropVisible(id, mp.initialVisible);
+      }
+    });
     for (const door of this.doors) {
       const mb = new AoMergeBuilder();
       for (const mesh of door.staticMeshes) mb.addMesh(mesh);
@@ -522,6 +544,11 @@ export class Level implements World {
     for (const [pi, prop] of (r.props ?? []).entries()) {
       const ry = deg(prop.rot ?? 0);
       const matrix = at(prop.pos[0], prop.pos[1], prop.pos[2], 0, ry, 0);
+      if (prop.kit === 'pa_speaker' && typeof prop.params?.id === 'string') {
+        const adjacentRoom = prop.params.serves;
+        this.paSpeakers.push({ id: prop.params.id, room: r.id, position: grillePosition(matrix),
+          ...(typeof adjacentRoom === 'string' ? { adjacentRoom } : {}) });
+      }
       const params: PieceParams = { ceiling: height - prop.pos[1], ...(r.area !== undefined ? { area: r.area } : {}), ...(prop.params ?? {}) };
       const out = registry.create(prop.kit, params, rng.fork(`${r.id}:${prop.kit}:${prop.pos.join(',')}`), m);
       if (WALL_MOUNTED_PROPS.includes(prop.kit)) {
@@ -746,9 +773,11 @@ export class Level implements World {
     const obj = out.object;
     obj.applyMatrix4(matrix);
     obj.updateMatrixWorld(true);
+    let movableObj: { id: string; object: THREE.Object3D } | null = null;
     for (const child of [...obj.children]) {
       if (child.userData.dynamic) {
         room.group.attach(child);
+        if (typeof child.userData['propId'] === 'string') movableObj = { id: child.userData['propId'], object: child };
         child.traverse((c) => {
           if (c instanceof THREE.Mesh) {
             const mat = Array.isArray(c.material) ? c.material[0] : c.material;
@@ -766,7 +795,21 @@ export class Level implements World {
         });
       }
     }
-    this.addColliders(out, matrix, `room:${room.data.id}`);
+    const addedColliders = this.addColliders(out, matrix, `room:${room.data.id}`);
+    if (movableObj) {
+      movableObj.object.rotation.order = 'YXZ';
+      movableObj.object.rotation.set(0, ry, 0);
+      movableObj.object.updateMatrixWorld(true);
+      this.movableProps.set(movableObj.id, {
+        object: movableObj.object,
+        yaw: ry,
+        initialPos: movableObj.object.position.clone(),
+        initialYaw: ry,
+        initialVisible: movableObj.object.visible,
+        localColliders: out.colliders.map((c) => ({ min: [...c.min], max: [...c.max], ...(c.acoustic ? { acoustic: c.acoustic } : {}) })),
+        colliders: addedColliders.slice(0, out.colliders.length),
+      });
+    }
     for (const s of out.lightSlots) slots.push({ pos: new THREE.Vector3(...s.pos).applyMatrix4(matrix), kind: s.kind, ry: s.ry + ry });
     for (const s of out.sockets) {
       const pos = new THREE.Vector3(...s.pos).applyMatrix4(matrix);
@@ -788,15 +831,49 @@ export class Level implements World {
     }
   }
 
-  private addColliders(out: PieceOutput, matrix: THREE.Matrix4, tag: string): void {
+  /** Move a controllable named prop (e.g. dock_chair) and keep its collision boxes aligned. */
+  setPropTransform(id: string, pos: { x: number; y: number; z: number }, yaw: number): boolean {
+    const mp = this.movableProps.get(id);
+    if (!mp) return false;
+    mp.yaw = yaw;
+    mp.object.position.set(pos.x, pos.y, pos.z);
+    mp.object.rotation.set(0, yaw, 0);
+    mp.object.updateMatrixWorld(true);
+    const mat = at(pos.x, pos.y, pos.z, 0, yaw, 0);
+    for (let i = 0; i < mp.colliders.length; i++) {
+      const col = mp.colliders[i];
+      const local = mp.localColliders[i];
+      if (col && local) this.collision.move(col, transformBox(local, mat));
+    }
+    return true;
+  }
+
+  /** Show or hide a controllable named prop (e.g. dock_wand). */
+  setPropVisible(id: string, visible: boolean): boolean {
+    const mp = this.movableProps.get(id);
+    if (!mp) return false;
+    mp.object.visible = visible;
+    return true;
+  }
+
+  /** Current transform, visibility and colliders of a controllable named prop (tests and choreography). */
+  propState(id: string): { pos: THREE.Vector3; yaw: number; visible: boolean; colliders: readonly Collider[] } | null {
+    const mp = this.movableProps.get(id);
+    if (!mp) return null;
+    return { pos: mp.object.position.clone(), yaw: mp.yaw, visible: mp.object.visible, colliders: mp.colliders };
+  }
+
+  private addColliders(out: PieceOutput, matrix: THREE.Matrix4, tag: string): Collider[] {
     const surfaceOf = new Map<BoxSpec, PieceOutput['surfaces'][number]['material']>();
+    const added: Collider[] = [];
     for (const s of out.surfaces) surfaceOf.set(s.box, s.material);
     for (const c of out.colliders) {
-      this.collision.add(transformBox(c, matrix), tag, surfaceOf.get(c) ?? null);
+      added.push(this.collision.add(transformBox(c, matrix), tag, surfaceOf.get(c) ?? null));
       surfaceOf.delete(c);
     }
     // Surface-only boxes (e.g. gratings inside a larger floor collider).
-    for (const [box, material] of surfaceOf) this.collision.add(transformBox(box, matrix), tag, material);
+    for (const [box, material] of surfaceOf) added.push(this.collision.add(transformBox(box, matrix), tag, material));
+    return added;
   }
 
   private buildDoor(d: DoorData, rng: Rng): void {
@@ -907,6 +984,11 @@ export class Level implements World {
     return this.roomAt(eye)?.data.name ?? null;
   }
 
+  paSpeakerAt(listener: THREE.Vector3, fixture?: string): THREE.Vector3 | null {
+    const room = this.roomAt(listener)?.data.id ?? this.currentRoomId();
+    return selectPaSpeaker(this.paSpeakers, room, listener, fixture);
+  }
+
   currentRoomId(): string | null {
     return this.current?.data.id ?? null;
   }
@@ -931,6 +1013,7 @@ export class Level implements World {
     }
     if (standIns) room.stats.drawCalls -= 1;
   }
+
   /** World-space lamps of shown `exterior-lamp` markers (userData.exteriorLamp: local dir, colour, intensity, range, cone). */
   private pieceLamps(): ExteriorLamp[] {
     this.movingLamps.length = 0;
@@ -1495,6 +1578,7 @@ export class Level implements World {
     this.bindLights(cur, eye);
     this.lastTime = t;
     this.lastFlashing = reducedFlashing;
+    flashingState.reduced = reducedFlashing;
     this.lights.update(t, reducedFlashing);
     this.pool.finish();
 

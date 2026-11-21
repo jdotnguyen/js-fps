@@ -105,7 +105,8 @@
     },
     {
       "do": "say",
-      "line": "intro_pa_shift_01"
+      "line": "intro_pa_shift_01",
+      "fixture": "pa_dock"
     },
     {
       "do": "music",
@@ -161,10 +162,34 @@
           "count": 1,
           "steps": [
             {
-              "do": "npcMoveTo",
-              "npc": "ruiz",
-              "to": "anchor:arch_scan",
-              "wait": true
+              "parallel": [
+                {
+                  "do": "npcMoveTo",
+                  "npc": "ruiz",
+                  "to": "anchor:arch_scan",
+                  "wait": true
+                },
+                {
+                  "do": "loop",
+                  "count": 1,
+                  "steps": [
+                    {
+                      "do": "npcLookAt",
+                      "npc": "dock_guard",
+                      "target": "npc:ruiz"
+                    },
+                    {
+                      "do": "wait",
+                      "s": 0.3
+                    },
+                    {
+                      "do": "npcAnim",
+                      "npc": "dock_guard",
+                      "anim": "wand_attend"
+                    }
+                  ]
+                }
+              ]
             },
             {
               "do": "emit",
@@ -195,21 +220,29 @@
               "wait": true
             },
             {
-              "do": "sfx",
-              "id": "wandBeep",
-              "at": "npc:dock_guard"
-            },
-            {
-              "do": "npcAnim",
-              "npc": "dock_guard",
-              "anim": "wand_down",
-              "wait": true
-            },
-            {
-              "do": "npcAnim",
-              "npc": "dock_guard",
-              "anim": "wand_up",
-              "wait": true
+              "parallel": [
+                {
+                  "do": "npcAnim",
+                  "npc": "dock_guard",
+                  "anim": "wand_down",
+                  "wait": true
+                },
+                {
+                  "do": "loop",
+                  "count": 1,
+                  "steps": [
+                    {
+                      "do": "wait",
+                      "s": 0.35
+                    },
+                    {
+                      "do": "sfx",
+                      "id": "wandBeep",
+                      "at": "npc:dock_guard"
+                    }
+                  ]
+                }
+              ]
             },
             {
               "do": "npcAnim",
@@ -224,6 +257,11 @@
               "do": "npcAnim",
               "npc": "ruiz",
               "anim": "idle"
+            },
+            {
+              "do": "npcLookAt",
+              "npc": "dock_guard",
+              "target": "none"
             },
             {
               "do": "npcMoveTo",
@@ -280,10 +318,34 @@
           "count": 1,
           "steps": [
             {
-              "do": "npcMoveTo",
-              "npc": "sung",
-              "to": "anchor:arch_scan",
-              "wait": true
+              "parallel": [
+                {
+                  "do": "npcMoveTo",
+                  "npc": "sung",
+                  "to": "anchor:arch_scan",
+                  "wait": true
+                },
+                {
+                  "do": "loop",
+                  "count": 1,
+                  "steps": [
+                    {
+                      "do": "npcLookAt",
+                      "npc": "dock_guard",
+                      "target": "npc:sung"
+                    },
+                    {
+                      "do": "wait",
+                      "s": 0.3
+                    },
+                    {
+                      "do": "npcAnim",
+                      "npc": "dock_guard",
+                      "anim": "wand_attend"
+                    }
+                  ]
+                }
+              ]
             },
             {
               "do": "emit",
@@ -301,6 +363,16 @@
             {
               "do": "say",
               "line": "intro_guard_03"
+            },
+            {
+              "do": "npcAnim",
+              "npc": "dock_guard",
+              "anim": "idle_wand"
+            },
+            {
+              "do": "npcLookAt",
+              "npc": "dock_guard",
+              "target": "none"
             },
             {
               "do": "npcMoveTo",
@@ -405,10 +477,34 @@
           "count": 1,
           "steps": [
             {
-              "do": "npcMoveTo",
-              "npc": "okafor",
-              "to": "anchor:arch_scan",
-              "wait": true
+              "parallel": [
+                {
+                  "do": "npcMoveTo",
+                  "npc": "okafor",
+                  "to": "anchor:arch_scan",
+                  "wait": true
+                },
+                {
+                  "do": "loop",
+                  "count": 1,
+                  "steps": [
+                    {
+                      "do": "npcLookAt",
+                      "npc": "dock_guard",
+                      "target": "npc:okafor"
+                    },
+                    {
+                      "do": "wait",
+                      "s": 0.3
+                    },
+                    {
+                      "do": "npcAnim",
+                      "npc": "dock_guard",
+                      "anim": "wand_attend"
+                    }
+                  ]
+                }
+              ]
             },
             {
               "do": "emit",
@@ -448,6 +544,16 @@
       "line": "intro_guard_04"
     },
     {
+      "do": "npcAnim",
+      "npc": "dock_guard",
+      "anim": "idle_wand"
+    },
+    {
+      "do": "npcLookAt",
+      "npc": "dock_guard",
+      "target": "none"
+    },
+    {
       "parallel": [
         {
           "do": "npcMoveTo",
@@ -484,10 +590,34 @@
       "line": "intro_giles_03"
     },
     {
-      "do": "npcMoveTo",
-      "npc": "giles",
-      "to": "anchor:arch_scan",
-      "wait": true
+      "parallel": [
+        {
+          "do": "npcMoveTo",
+          "npc": "giles",
+          "to": "anchor:arch_scan",
+          "wait": true
+        },
+        {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+            {
+              "do": "npcLookAt",
+              "npc": "dock_guard",
+              "target": "npc:giles"
+            },
+            {
+              "do": "wait",
+              "s": 0.3
+            },
+            {
+              "do": "npcAnim",
+              "npc": "dock_guard",
+              "anim": "wand_attend"
+            }
+          ]
+        }
+      ]
     },
     {
       "do": "emit",
@@ -523,6 +653,16 @@
       "npc": "giles",
       "to": "anchor:post_giles",
       "wait": true
+    },
+    {
+      "do": "npcAnim",
+      "npc": "dock_guard",
+      "anim": "idle_wand"
+    },
+    {
+      "do": "npcLookAt",
+      "npc": "dock_guard",
+      "target": "none"
     },
     {
       "do": "say",
@@ -605,6 +745,7 @@
                     {
                       "do": "say",
                       "line": "pa_quarantine_01",
+                      "fixture": "pa_walk",
                       "wait": false,
                       "overlap": true
                     },
@@ -736,6 +877,12 @@
               "duration": 0.8
             }
           ]
+        },
+        {
+          "do": "npcTask",
+          "npc": "dock_guard",
+          "task": "return_to_desk",
+          "wait": true
         }
       ]
     },

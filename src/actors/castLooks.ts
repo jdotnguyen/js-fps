@@ -9,7 +9,7 @@ import { GILES, OKAFOR } from './squadLooks.ts';
  *
  * Outfits are the five body outfits (ADR-0006) recoloured through `look.outfitColors`.
  */
-export type CastLook = Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 'look' | 'pose' | 'model' | 'motions'>;
+export type CastLook = Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 'look' | 'pose' | 'model' | 'profile'>;
 
 /** Named characters, by look id. */
 const NAMED: Record<string, CastLook> = {
@@ -23,9 +23,9 @@ const NAMED: Record<string, CastLook> = {
   priya: {
     seed: 'priya-anand',
     model: 'priya',
-    // Her own motion set. Until her clips are baked (priya_idle, priya_talk, priya_walk) she runs the library's calm set, but with
-    // the procedural arm layers turned down like every character that has one.
-    motions: { idle: 'idle', talk: 'idle_talk', walk: 'walk_formal', jog: 'jog' },
+    // Her motion profile (data/motion-profiles.json): her own clips (CMU subject 22, Bandai feminine walk and run) in the `priya`
+    // clip pack, loaded with her body, plus an `intro` variant. Her R08 death-scene variants land with task 6.4.
+    profile: 'priya',
     outfit: 'medic',
     height: 1.63,
     build: 0.9,
@@ -48,6 +48,7 @@ const NAMED: Record<string, CastLook> = {
    */
   heins: {
     seed: 'katie-heins',
+    profile: 'heins',
     model: 'heins',
     outfit: 'security',
     height: 1.7,
@@ -72,6 +73,7 @@ const NAMED: Record<string, CastLook> = {
    */
   hale: {
     seed: 'director-hale',
+    profile: 'hale',
     model: 'hale',
     outfit: 'crew',
     height: 1.76,
@@ -95,6 +97,7 @@ const NAMED: Record<string, CastLook> = {
    */
   cook: {
     seed: 'bram-cook',
+    profile: 'bram',
     model: 'bram',
     outfit: 'crew',
     height: 1.78,
@@ -117,6 +120,7 @@ const NAMED: Record<string, CastLook> = {
    */
   ruiz: {
     seed: 'ines-ruiz',
+    profile: 'ruiz',
     model: 'ruiz',
     outfit: 'crew',
     height: 1.66,
@@ -137,6 +141,7 @@ const NAMED: Record<string, CastLook> = {
    */
   sung: {
     seed: 'diver-sung',
+    profile: 'sung',
     model: 'sung',
     outfit: 'crew',
     height: 1.75,
@@ -156,6 +161,7 @@ const NAMED: Record<string, CastLook> = {
    */
   voss: {
     seed: 'lena-voss',
+    profile: 'voss',
     model: 'office3',
     outfit: 'lab',
     height: 1.68,
@@ -226,6 +232,11 @@ function hashId(id: string): number {
   return h >>> 0;
 }
 
+/** Per-NPC-id motion profiles for generic-look characters with bespoke duty motion (dock-checkpoint: dock_guard). */
+const NPC_PROFILES: Readonly<Record<string, string>> = {
+  dock_guard: 'dock_guard',
+};
+
 /**
  * The body spec for a look id. Named cast ignore `npcId`; generic crew use it as the seed.
  * Unknown ids fall back to plain crew (and say so through `warn`).
@@ -237,7 +248,14 @@ export function castSpec(lookId: string, npcId: string, warn?: (m: string) => vo
   if (!crew) warn?.(`npc "${npcId}": unknown look "${lookId}", using crew`);
   const c = crew ?? CREW['crew']!;
   const model = CREW_MODELS[lookId];
-  return { seed: `crew:${npcId}`, outfit: c.outfit, ...(c.look ? { look: c.look } : {}), ...(model ? { model: model[hashId(npcId) % model.length]! } : {}) };
+  const profile = NPC_PROFILES[npcId];
+  return {
+    seed: `crew:${npcId}`,
+    outfit: c.outfit,
+    ...(c.look ? { look: c.look } : {}),
+    ...(model ? { model: model[hashId(npcId) % model.length]! } : {}),
+    ...(profile ? { profile } : {}),
+  };
 }
 
 export function isKnownLook(lookId: string): boolean {

@@ -29,12 +29,13 @@ export const NPC_ANIMS: Readonly<Record<string, { pose: string; hold: number; bl
   crouchWork: { pose: 'crouchWork', hold: Infinity },
   kneel: { pose: 'kneel_revive', hold: Infinity },
   idle: { pose: 'idle', hold: 0 },
-  // dock-checkpoint: a scan. The arrival holds `arms_out` while the guard sweeps the wand up and down, then both go back to
-  // their base poses (`idle`, `idle_wand`).
+  // dock-checkpoint: a scan. The arrival holds `arms_out` while the guard shifts weight (`wand_attend`), sweeps the wand
+  // in one continuous reach and pass (`wand_up` -> `wand_down`), and recovers to `idle_wand`.
   arms_out: { pose: 'arms_out', hold: Infinity, blend: 0.45 },
-  idle_wand: { pose: 'idle_wand', hold: Infinity, blend: 0.4 },
-  wand_up: { pose: 'wand_up', hold: 0.7, blend: 0.35 },
-  wand_down: { pose: 'wand_down', hold: 0.8, blend: 0.45 },
+  idle_wand: { pose: 'idle_wand', hold: Infinity, blend: 0.5 },
+  wand_attend: { pose: 'wand_attend', hold: Infinity, blend: 0.45 },
+  wand_up: { pose: 'wand_up', hold: 0.55, blend: 0.45 },
+  wand_down: { pose: 'wand_down', hold: 0.8, blend: 0.65 },
 };
 
 /** Small ambient gestures by base pose, picked now and then while an NPC is idle. */
@@ -76,7 +77,7 @@ export const NPC_TUNING = {
 } as const;
 
 /** Base poses of someone working or seated in place: never shoved off their station. */
-const WORK_POSES: ReadonlySet<string> = new Set(['typing', 'sit_idle', 'sit_typing', 'crouchWork', 'kneel_revive']);
+const WORK_POSES: ReadonlySet<string> = new Set(['typing', 'sit_idle', 'sit_typing', 'sit_typing_cctv', 'crouchWork', 'kneel_revive', 'wand_place', 'chair_pull']);
 
 const MOTOR: MotorConfig = { ...DEFAULT_MOTOR, radius: 0.3 };
 
@@ -202,6 +203,9 @@ export class NpcActor {
     this.gestureT = this.rng.range(NPC_TUNING.gestureEvery[0], NPC_TUNING.gestureEvery[1]);
   }
 
+  /** Held in a `mauled` attacker's hand (infection-kills spec): the kill places this body, nothing pushes it. */
+  gripped = false;
+
   get position(): THREE.Vector3 {
     return this.body.group.position;
   }
@@ -244,7 +248,7 @@ export class NpcActor {
    * (typing at a console, crouched at a panel, kneeling over a body, holding out an offer).
    */
   get separationExempt(): boolean {
-    return this.tow !== null || this.body.carried !== null || this.offering !== null || WORK_POSES.has(this.basePose) || PLACED_POSE.test(this.basePose);
+    return this.gripped || this.tow !== null || this.body.carried !== null || this.offering !== null || WORK_POSES.has(this.basePose) || PLACED_POSE.test(this.basePose);
   }
 
   /** Soft push from actor separation: slides the body (through level collision), never a teleport. */
@@ -574,7 +578,8 @@ export class NpcActor {
 
     if (this.ambient && !this.busy && !this.offering) this.ambientGesture(dt);
 
-    if (camD < NPC_TUNING.sleepDistance || !env.camera) this.body.update(dt, env.camera);
+    // A body in a scripted kill never sleeps: it may be on a camera feed far from Jay (the stinger's surgery feed).
+    if (camD < NPC_TUNING.sleepDistance || !env.camera || this.body.killing) this.body.update(dt, env.camera);
   }
 
   /**

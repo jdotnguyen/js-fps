@@ -39,6 +39,12 @@ import { DoorAudio } from './audio/doorAudio.ts';
 import { AudioEngine } from './audio/engine.ts';
 import { FootstepAudio } from './audio/footsteps.ts';
 import { MenuMusic } from './audio/menuMusic.ts';
+import { wallOccluder } from './audio/occlusion.ts';
+import { ScorePlayer, type RenderedScore } from './audio/scorePlayer.ts';
+import { engineScoreAudio } from './audio/scoreAudio.ts';
+import type { ScoreWorkerReply } from './audio/scoreWorker.ts';
+import { validateScoreTable } from './data/types/scores.ts';
+import scoresJson from './data/scores.json';
 import type { FootstepEvent } from './actors/humanoid.ts';
 import { CollisionWorld } from './world/collision.ts';
 import { Game } from './game/game.ts';
@@ -54,6 +60,11 @@ import { PlayerHud, keyLabel } from './ui/hud/playerHud.ts';
 import { SaveStore } from './game/save.ts';
 import { createMenus } from './ui/menus/screens.ts';
 import type { EndCredits } from './ui/credits.ts';
+import { sharedMocapLibrary } from './actors/mocap.ts';
+import { loadMocapPacks } from './actors/mocapPacks.ts';
+import { sharedMotionProfiles } from './actors/motionProfiles.ts';
+import { motionScene } from './actors/motionScene.ts';
+import { readDetailFlag } from './actors/detailPass.ts';
 import { startSplash } from './ui/splash.ts';
 import { Toasts } from './ui/toast.ts';
 import { TutorialPrompts } from './ui/tutorialPrompts.ts';
@@ -61,6 +72,7 @@ import { TutorialProfile } from './ui/tutorials.ts';
 import { loadWeaponModels } from './render/viewmodel/glbWeapons.ts';
 import { Viewmodel } from './render/viewmodel/viewmodel.ts';
 import { Squad } from './ai/squad.ts';
+import { REVIVE_TASK } from './ai/squadBrain.ts';
 import { NpcDirector } from './ai/npcs.ts';
 import { cameraForwardXZ } from './ai/ambientLife.ts';
 import { npcIdForSpeaker, wireSpeechActing } from './ai/speakerBodies.ts';
@@ -122,6 +134,7 @@ async function boot(): Promise<void> {
   const events = new EventBus();
   const settings = new SettingsStore(events);
   const flags = readDebugFlags(location.search);
+  readDetailFlag(location.search);
   // All data goes through validators so bad JSON fails here with a readable path.
   const keymap = validate(validateKeymap, keymapJson, 'data/keymap.json');
   const difficulties = validate(validateDifficultyTable, difficultyJson, 'data/difficulty.json');
@@ -165,6 +178,24 @@ async function boot(): Promise<void> {
   const menuMusic = new MenuMusic(audio, 'title');
   menuMusic.start();
   splash.attachMusicReady(menuMusic.ready);
+  // Adaptive scores (adaptive-music spec): rendered in a worker when first loaded or cued, on the music bus.
+  const renderScore = (id: string): Promise<RenderedScore> =>
+    new Promise((resolve, reject) => {
+      const t0 = performance.now();
+      const worker = new Worker(new URL('./audio/scoreWorker.ts', import.meta.url), { type: 'module' });
+      worker.onmessage = (e: MessageEvent<ScoreWorkerReply>): void => {
+        worker.terminate();
+        if ('error' in e.data) return reject(new Error(e.data.error));
+        console.info(`[audio] score ${id} rendered in ${(performance.now() - t0).toFixed(0)} ms`);
+        resolve(e.data.score);
+      };
+      worker.onerror = (e): void => {
+        worker.terminate();
+        reject(new Error(e.message));
+      };
+      worker.postMessage({ id });
+    });
+  const score = new ScorePlayer(engineScoreAudio(audio), validate(validateScoreTable, scoresJson, 'data/scores.json'), renderScore);
   addEventListener('pointerdown', () => void audio.resume(), { capture: true });
   addEventListener('keydown', () => void audio.resume(), { capture: true });
 
@@ -350,28 +381,21 @@ async function boot(): Promise<void> {
   const bodyModelsParam = new URLSearchParams(location.search).get('bodyModels');
   if (bodyModelsParam === 'all') bodyModels.forceShare = 1;
   if (bodyModelsParam === 'off') bodyModels.forceShare = 0;
-  await bodyModels.load(import.meta.env.BASE_URL);
+  // Each named character's own clips (per-character-motion) load with the bodies, as their own chunks.
+  await Promise.all([bodyModels.load(import.meta.env.BASE_URL), loadMocapPacks(sharedMocapLibrary(), Object.keys(sharedMotionProfiles().profiles))]);
   const collisionWorld = world.playerWorld.colliders instanceof CollisionWorld ? world.playerWorld.colliders : null;
+  // One wall test for footsteps and every other positional sound (in-world-audio: World sound occlusion).
+  const occluder = collisionWorld ? wallOccluder((...ray) => collisionWorld.raycast(...ray)) : null;
   const footsteps = new FootstepAudio({
     audio,
     rng: new Rng('footsteps'),
     listener: () => camera.position,
     surfaceAt: (x, y, z) => (collisionWorld ? collisionWorld.surfaceAt(x, y, z) : world.playerWorld.surfaceAt(x, z)),
-    ...(collisionWorld
-      ? {
-          isOccluded: (from: THREE.Vector3, to: THREE.Vector3): boolean => {
-            const dx = to.x - from.x;
-            const dy = to.y - from.y;
-            const dz = to.z - from.z;
-            const dist = Math.hypot(dx, dy, dz);
-            if (dist <= 0.5) return false;
-            const hit = collisionWorld.raycast(from.x, from.y, from.z, dx, dy, dz, dist - 0.35);
-            // Only full-height barriers (walls, closed doors >= 2 m) muffle sound; low counters/crates diffract over.
-            return hit !== null && hit.collider.maxY >= 2.0;
-          },
-        }
-      : {}),
+    ...(occluder ? { isOccluded: occluder } : {}),
   });
+  // The title screen muffles nothing; play uses the level's walls.
+  audio.setOccluder(game.mode === 'title' ? null : occluder);
+  events.on('game:mode', ({ mode }) => audio.setOccluder(mode === 'title' ? null : occluder));
   const onCharacterFootstep = (step: FootstepEvent): void => {
     if (game.mode === 'playing' && !game.flying) footsteps.playCharacter(step);
   };
@@ -388,6 +412,20 @@ async function boot(): Promise<void> {
   });
   scene.add(squad.group);
   squad.group.visible = false;
+  // Scene variants (per-character-motion): what is running, who is on which task, Giles's stage, story flags.
+  motionScene.flags = () => game.flags;
+  const SQUAD_PROFILE: Record<string, string> = { engineer: 'giles', medic: 'okafor' };
+  events.on('sequence:started', ({ id }) => motionScene.startSequence(id));
+  events.on('sequence:ended', ({ id }) => motionScene.endSequence(id));
+  events.on('squad:taskStarted', ({ id, task }) => SQUAD_PROFILE[id] && motionScene.setTask(SQUAD_PROFILE[id], task));
+  events.on('squad:taskDone', ({ id, task }) => {
+    const profile = SQUAD_PROFILE[id];
+    if (!profile) return;
+    // A revive interrupts a panel job (revive > task): when it ends, the motion goes back to the job he still has.
+    const job = task === REVIVE_TASK ? squad.mate(id).task : null;
+    motionScene.setTask(profile, job && !job.done ? job.kind : null);
+  });
+  events.on('squad:infectionStage', ({ stage }) => motionScene.setStage(stage));
   console.info(`[boot] squad built in ${(performance.now() - t1).toFixed(0)} ms`);
   events.on('game:mode', ({ mode }) => {
     squad.group.visible = mode !== 'title';
@@ -411,13 +449,17 @@ async function boot(): Promise<void> {
     emit: (name, payload) => events.emit(name as never, payload as never),
     sequenceRunning: () => (sequences?.running().length ?? 0) > 0,
     walk: (id) => level?.walk(id) ?? null,
+    setPropTransform: (id, pos, yaw) => level?.setPropTransform(id, pos, yaw) ?? false,
+    setPropVisible: (id, visible) => level?.setPropVisible(id, visible) ?? false,
+    propState: (id) => level?.propState(id) ?? null,
     kills: validate(validateKillTable, killsJson, 'data/kills.json'),
     listen: (name, fn) => events.on(name as never, fn as never),
     sfx: (ids, at) => {
       // The first sound that exists: a recording still to be generated, then its existing stand-in (infection-kills spec).
       const id = ids.find((n) => audio.hasSound(n as SoundName));
       if (!id) return false;
-      audio.play(id as SoundName, { position: new THREE.Vector3(at.x, at.y, at.z) });
+      // Kill sounds play as authored, e.g. through Lab B's glass (in-world-audio: World sound occlusion).
+      audio.play(id as SoundName, { position: new THREE.Vector3(at.x, at.y, at.z), occlude: false });
       return true;
     },
   });
@@ -522,6 +564,18 @@ async function boot(): Promise<void> {
     }
     return speech.say(id, opts);
   };
+  // infection-kills "The victim's voice worsens": a mauled victim's lines play beside anything else that is speaking
+  // (never queued behind it), from her head; an impact or the throw cuts the one she is on.
+  const killLines = new Map<string, string>();
+  events.on('kill:say', ({ npc, line }) => {
+    if (say(line, { overlap: true })) killLines.set(npc, line);
+  });
+  events.on('kill:cut', ({ npc }) => {
+    const line = killLines.get(npc);
+    if (line === undefined) return;
+    killLines.delete(npc);
+    speech.stop(line);
+  });
   events.on('game:mode', ({ mode }) => {
     if (mode !== 'title') return;
     speech.stopAll();
@@ -665,6 +719,18 @@ async function boot(): Promise<void> {
   });
   events.on('level:reset', () => ambience?.reset());
   events.on('game:restarted', () => menuMusic.cue(null));
+  // A score never survives a restart or the title; a restore into a scored stretch starts it again (adaptive-music).
+  events.on('game:restarted', () => {
+    score.stopAll();
+    score.resume(game.flags);
+  });
+  events.on('game:mode', ({ mode }) => {
+    if (mode === 'title') score.stopAll();
+  });
+  for (const name of score.events()) events.on(name as never, () => score.onEvent(name));
+  events.on('score:stinger' as never, (p: { id?: string }) => {
+    if (typeof p?.id === 'string') score.stinger(p.id);
+  });
   events.on('player:flashlight', () => roomAudio?.flashlightClick());
   events.on('player:footstep', (f) => {
     if (game.mode === 'playing' && !game.flying) footsteps.playPlayer(f);
@@ -961,6 +1027,7 @@ async function boot(): Promise<void> {
   });
 
   const npcCamFwd = { x: 0, z: -1 };
+  const scoreFeet = { x: 0, y: 0, z: 0 };
   let simTime = 0;
   const loop = new Loop({
     update: (dt) => {
@@ -979,6 +1046,10 @@ async function boot(): Promise<void> {
         npcs.update(dt, camera.position, cameraForwardXZ(camera, npcCamFwd));
         gore.update(dt);
         guidance.update(dt);
+        scoreFeet.x = player.body.x;
+        scoreFeet.y = player.body.y;
+        scoreFeet.z = player.body.z;
+        score.update(dt, scoreFeet, (t) => gameHost.resolve(t as never));
       }
       input.endStep();
     },
@@ -1006,8 +1077,7 @@ async function boot(): Promise<void> {
     },
   });
 
-  sequences = new SequenceManager(
-    createGameHost({
+  const gameHost = createGameHost({
       events,
       game,
       player,
@@ -1016,6 +1086,7 @@ async function boot(): Promise<void> {
       audio,
       ambience,
       music: menuMusic,
+      score,
       hud,
       toasts,
       inventory,
@@ -1030,9 +1101,8 @@ async function boot(): Promise<void> {
       setTimeScale: (scale) => {
         loop.clock.scale = scale;
       },
-    }),
-    loadSequences(),
-  );
+    });
+  sequences = new SequenceManager(gameHost, loadSequences());
   // dock-checkpoint: does Jay carry a weapon through the dock arch? (`runHook jayArmed`, then `if jay_armed`.)
   sequences.registerHook('jayArmed', ({ flags: f }) => {
     f['jay_armed'] = viewmodel.owns('pistol') || viewmodel.owns('shotgun');

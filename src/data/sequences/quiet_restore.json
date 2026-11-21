@@ -65,6 +65,18 @@
    },
    {
     "do": "if",
+    "flag": "introSeen",
+    "then": [
+     {
+      "do": "npcTask",
+      "npc": "dock_guard",
+      "task": "return_to_desk",
+      "instant": true
+     }
+    ]
+   },
+   {
+    "do": "if",
     "flag": "commons_changed_1",
     "then": [
      {

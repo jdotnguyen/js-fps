@@ -22,11 +22,14 @@ export interface Collider extends Aabb {
   /** Free-form owner label, e.g. "static", "door:D_R01_R02". */
   tag: string;
   surface: ColliderSurface | null;
+  /** `'glass'`: a see-through partition that muffles sound only lightly (in-world-audio: Glass muffles lightly). */
+  acoustic?: 'glass';
 }
 
 export interface BoxLike {
   min: readonly [number, number, number];
   max: readonly [number, number, number];
+  acoustic?: 'glass';
 }
 
 export interface RayHit {
@@ -69,6 +72,7 @@ export class CollisionWorld implements ColliderQuery {
       enabled: true,
       tag,
       surface,
+      ...(box.acoustic ? { acoustic: box.acoustic } : {}),
     };
     this.colliders.push(c);
     if (c.id >= this.stamps.length) {
@@ -93,6 +97,44 @@ export class CollisionWorld implements ColliderQuery {
       }
     }
     return c;
+  }
+
+  /** Move an existing collider to a new world box, updating the spatial hash cleanly. */
+  move(c: Collider, box: BoxLike): void {
+    const s = this.cellSize;
+    for (let ix = Math.floor(c.minX / s); ix <= Math.floor(c.maxX / s); ix++) {
+      for (let iz = Math.floor(c.minZ / s); iz <= Math.floor(c.maxZ / s); iz++) {
+        const list = this.cells.get((ix + 32768) * 65536 + (iz + 32768));
+        if (!list) continue;
+        const idx = list.indexOf(c);
+        if (idx >= 0) list.splice(idx, 1);
+      }
+    }
+    const minX = Math.min(box.min[0], box.max[0]);
+    const minY = Math.min(box.min[1], box.max[1]);
+    const minZ = Math.min(box.min[2], box.max[2]);
+    const maxX = Math.max(box.min[0], box.max[0]);
+    const maxY = Math.max(box.min[1], box.max[1]);
+    const maxZ = Math.max(box.min[2], box.max[2]);
+    c.minX = minX;
+    c.minY = minY;
+    c.minZ = minZ;
+    c.maxX = maxX;
+    c.maxY = maxY;
+    c.maxZ = maxZ;
+    c.min = [minX, minY, minZ];
+    c.max = [maxX, maxY, maxZ];
+    for (let ix = Math.floor(minX / s); ix <= Math.floor(maxX / s); ix++) {
+      for (let iz = Math.floor(minZ / s); iz <= Math.floor(maxZ / s); iz++) {
+        const key = (ix + 32768) * 65536 + (iz + 32768);
+        let list = this.cells.get(key);
+        if (!list) {
+          list = [];
+          this.cells.set(key, list);
+        }
+        list.push(c);
+      }
+    }
   }
 
   /** ColliderQuery for the ADR-0004 motor: append overlapping enabled boxes to `out`. */

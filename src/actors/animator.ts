@@ -5,16 +5,19 @@ import {
   sampleLocomotion,
   sampleZombieLocomotion,
   sharedMocapLibrary,
-  resolveMotions,
-  DEFAULT_MOTIONS,
+  sampleFingers,
+  FINGER_CHANNELS,
   type LocomotionSample,
   type MocapLibrary,
   type MotionSet,
 } from './mocap.ts';
+import { locomotionSet, postureFamily, poseTreatment, resolveProfile, sharedMotionProfiles, type PostureFamily, type ResolvedMotion } from './motionProfiles.ts';
 import { blendPose, copyPose, emptyPose, type CompiledPose, type PoseLibrary } from './poses.ts';
 import type { Emote } from '../data/types/dialogue.ts';
 import { JOINT_INDEX, JOINTS, type JointName, type Side } from './skeleton.ts';
 import { gesture, hash01, mouthOpenAt, type SpeechPlan } from './speechActing.ts';
+import { solveTwoBone } from './ik.ts';
+import { detailPass } from './detailPass.ts';
 import { Spring1D } from './springs.ts';
 
 /**
@@ -117,11 +120,13 @@ export class Animator {
   idleLife = 0;
   /** Enable Tier B hybrid mocap base layer for this body (living upright human NPCs). */
   useMocap = false;
-  /** The clips this body idles, talks and moves with (set once by the body, see `setMotions`). */
-  motions: MotionSet = DEFAULT_MOTIONS;
+  /** This body's resolved motion profile (set once by the body, see `setMotion`). */
+  motion!: ResolvedMotion;
+  /** The locomotion clips from `motion` (idle, talk, walk, jog) the blend space samples. */
+  motions!: MotionSet;
   /**
-   * 0..1 scale on the procedural arm layers (speech gestures, idle fidgets and breathing, balance flare). A body with its own
-   * motion set runs at `Animator.OWN_MOTION_ARMS`, so its captured arm motion is not buried under generated motion.
+   * 0..1 scale on the procedural arm layers (speech gestures, idle fidgets and breathing, balance flare). A body whose profile
+   * names clips of its own runs at `Animator.OWN_MOTION_ARMS`, so its captured arm motion is not buried under generated motion.
    */
   armLayer = 1;
   /** Scale `add` applies to arm joints while an arm-damped layer runs. */
@@ -143,6 +148,10 @@ export class Animator {
   private readonly restPos: THREE.Vector3[];
   private readonly poses: PoseLibrary;
   private readonly mocap: MocapLibrary;
+  /** The clip library this body samples. */
+  get mocapLibrary(): MocapLibrary {
+    return this.mocap;
+  }
   private readonly current = emptyPose('current');
   private readonly from = emptyPose('from');
   private readonly mocapPose = emptyPose('mocap');
@@ -203,6 +212,8 @@ export class Animator {
   private speechT = 0;
   private speechW = 0;
   private speechBeat = 0;
+  /** Share of generated arm gestures displaced by Giles's captured standing dialogue this frame. */
+  private capturedSpeechArms = 0;
   private speechEnding = false;
   private readonly speechSink = (joint: JointName, x: number, y: number, z: number): void => {
     this.add(joint, x, y, z);
@@ -241,6 +252,7 @@ export class Animator {
     this.phase = rng.range(0, Math.PI * 2);
     this.locoPhase = rng.range(0, 1);
     this.idlePhase = rng.range(0, 1);
+    this.setMotion(resolveProfile(this.mocap, sharedMotionProfiles(), undefined, 'm'));
   }
 
   get poseName(): string {
@@ -261,11 +273,20 @@ export class Animator {
     return this.locoInfo.jogWeight;
   }
 
-  /** Blend to a pose from wherever the body is now. */
+  /** Blend to a pose from wherever the body is now. `blend <= 0` snaps immediately. */
   setPose(name: string, blend = 0.4): void {
     if (this.to.name === name && !this.seq) return;
     this.seq = null;
-    this.startBlend(this.poses.get(name), blend);
+    const target = this.poses.get(name);
+    if (blend <= 0) {
+      this.to = target;
+      copyPose(target, this.current);
+      copyPose(target, this.finalPose);
+      this.blendT = 1;
+      this.blendDur = 0;
+      return;
+    }
+    this.startBlend(target, blend);
   }
 
   playSequence(name: string, onDone: (() => void) | null = null): void {
@@ -309,20 +330,31 @@ export class Animator {
     this.footContacts[1] = 1;
 
     const mocapActive = this.updateMocapBase(dt);
+    if (this.fadeT > 0) {
+      this.fadeT = Math.max(0, this.fadeT - dt);
+      const k = 1 - this.fadeT / this.fadeLen;
+      blendPose(this.fadeFrom, this.finalPose, k * k * (3 - 2 * k), this.finalPose);
+    }
+    this.distributeSpine();
+    this.updateHold(dt);
     this.updateGait(dt, mocapActive);
-    this.armScale = this.armLayer;
+    // Turned bodies ignore their living profile, including its damped arm layers.
+    const arms = this.twitchy ? 1 : this.armLayer;
+    this.armScale = arms;
     this.updateInertialPhysics(dt);
     this.armScale = 1;
     this.updateTurnInPlace(dt);
-    this.armScale = this.armLayer;
+    this.armScale = arms;
     this.updateIdleLife(dt);
     this.updateSpeech(dt);
     this.armScale = 1;
     this.updateLook(dt);
+    this.updateInjury(dt);
     this.updateInfected(dt);
     this.updateReactions(dt);
     this.addConvulsions();
-    this.write();
+    if (this.holdW >= 0.005 && this.holdClip) this.writeWithHold();
+    else this.write();
   }
 
   // ---------------------------------------------------------------- base pose + staggered follow-through
@@ -382,6 +414,7 @@ export class Animator {
    * Returns true when mocap owns the locomotion cycle (so legacy sine-wave walk/shamble legs stay off).
    */
   private updateMocapBase(dt: number): boolean {
+    this.capturedSpeechArms = 0;
     const poseName = this.to.name;
     let targetW = 0;
     let mode: 'loco' | 'shamble' | 'heavy' | 'pistol' | 'kneel' | 'crouch' | 'none' = 'none';
@@ -420,6 +453,7 @@ export class Animator {
     }
     if (this.mocapW < 0.005) {
       this.mocapW = 0;
+      this.clipFingerW = 0;
       copyPose(this.current, this.finalPose);
       return false;
     }
@@ -429,14 +463,15 @@ export class Animator {
       mode === 'shamble' || mode === 'heavy'
         ? 'zombie_idle'
         : mode === 'pistol'
-          ? 'pistol_idle'
+          ? this.motion.clips.aimPistol
           : mode === 'kneel'
-            ? 'kneel_fix'
+            ? this.motion.clips.kneel
             : mode === 'crouch'
-              ? 'crouch_idle'
+              ? this.motion.clips.crouch
               : this.motions.idle,
     );
-    this.idlePhase = (this.idlePhase + dt / Math.max(0.1, idleClip.duration)) % 1;
+    // Living profile tempo only; infected bodies keep the infected timing (character-motion spec).
+    this.idlePhase = (this.idlePhase + (dt * (this.twitchy ? 1 : this.tempo)) / Math.max(0.1, idleClip.duration)) % 1;
 
     if (mode === 'shamble' || mode === 'heavy') {
       const zStride = Math.max(0.9, this.mocap.get('zombie_walk').stride || 1.5);
@@ -475,9 +510,20 @@ export class Animator {
         const talkClip = this.mocap.get(this.motions.talk);
         const talkPhase = (this.idlePhase * (idleClip.duration / talkClip.duration)) % 1;
         sampleClip(talkClip, talkPhase, this.talkPose);
-        const tw = this.speechW * (1 - this.locoInfo.moveWeight) * 0.35;
-        this.mocapPose.pelvis.lerp(this.talkPose.pelvis, tw);
-        for (const jName of ['pelvis', 'spine', 'chest', 'shoulder_L', 'shoulder_R'] as const) {
+        // A character with a talk capture of its own plays it on the arms too (character-motion: captured motion is not buried
+        // under generated motion); everyone else keeps the shared clip subtle, on the trunk only.
+        const own = this.motion.ownClips && this.motions.talk !== this.motions.idle;
+        const tw = this.speechW * (1 - this.locoInfo.moveWeight) * (own ? Animator.OWN_TALK_WEIGHT : 0.35);
+        const calmGiles = this.motions.talk === 'giles_talk';
+        let joints = own ? Animator.TALK_JOINTS_OWN : Animator.TALK_JOINTS;
+        if (calmGiles) {
+          // His one-handed accent plays over the standing idle, including its relaxed clavicles.
+          joints = Animator.TALK_ARMS;
+          this.capturedSpeechArms = this.speechW * (1 - this.locoInfo.moveWeight) * this.mocapW;
+        } else {
+          this.mocapPose.pelvis.lerp(this.talkPose.pelvis, tw);
+        }
+        for (const jName of joints) {
           const idx = J[jName];
           const a = this.mocapPose.joints[idx];
           const b = this.talkPose.joints[idx];
@@ -518,10 +564,18 @@ export class Animator {
       blendPose(this.current, this.mocapPose, this.mocapW, this.finalPose);
     }
 
+    this.updateClipFingers(mode);
     return mode === 'loco' && this.mocapW > 0.4;
   }
 
   private readonly talkPose = emptyPose('mocap_talk');
+  /** How much of its own talk capture a speaking character plays (the rest stays its idle). */
+  static readonly OWN_TALK_WEIGHT = 0.85;
+  private static readonly TALK_JOINTS: readonly JointName[] = ['pelvis', 'spine', 'chest', 'shoulder_L', 'shoulder_R'];
+  private static readonly TALK_ARMS: readonly JointName[] = [
+    'upperArm_L', 'foreArm_L', 'hand_L', 'upperArm_R', 'foreArm_R', 'hand_R',
+  ];
+  private static readonly TALK_JOINTS_OWN = [...Animator.TALK_JOINTS, ...Animator.TALK_ARMS];
 
   // ---------------------------------------------------------------- speech
 
@@ -606,7 +660,7 @@ export class Animator {
 
     const busy = Animator.ARMS_BUSY.has(this.to.name) ? 0.25 : 1;
     const moveFactor = this.useMocap ? this.locoInfo.moveWeight : Math.min(1, this.amp * 1.4);
-    const armsK = busy * (1 - moveFactor * 0.85);
+    const armsK = busy * (1 - moveFactor * 0.85) * (1 - this.capturedSpeechArms);
     gesture(plan, this.speechT, w, armsK, this.speechSink);
   }
 
@@ -621,15 +675,135 @@ export class Animator {
   }
 
   /**
-   * Pick the body's clips: `own` (a main character's motion set) over the default or formal set. A body with its own set gets
-   * its procedural arm layers turned down to `Animator.OWN_MOTION_ARMS`.
+   * Set the body's motion profile (character-motion spec). A profile with clips of its own gets its procedural arm layers turned
+   * down to `Animator.OWN_MOTION_ARMS`.
    */
-  setMotions(own: Partial<MotionSet> | undefined, formal: boolean): void {
-    this.motions = resolveMotions(this.mocap, own, formal);
-    this.armLayer = own ? Animator.OWN_MOTION_ARMS : 1;
+  setMotion(motion: ResolvedMotion, blend = 0): void {
+    if (blend > 0 && this.motion) {
+      // Cross-fade from the pose as it is now, so switching clips (a scene variant starting or ending) never pops.
+      copyPose(this.finalPose, this.fadeFrom);
+      this.fadeT = blend;
+      this.fadeLen = blend;
+    }
+    this.motion = motion;
+    this.motions = locomotionSet(motion);
+    this.armLayer = motion.ownClips ? Animator.OWN_MOTION_ARMS : 1;
+    // Crew on a shared default vary by body (character-motion spec): tempo within ±8%, posture within ±0.15. Derived from the
+    // body's noise seed (not drawn from the rng), so adding it changes no other seeded value.
+    const vary = motion.isDefault ? 1 : 0;
+    this.tempo = motion.style.tempo * (1 + vary * 0.08 * Math.sin(this.noiseSeed * 12.9898 + 1.3));
+    this.posture = motion.style.posture + vary * 0.15 * Math.sin(this.noiseSeed * 78.233 + 0.7);
   }
 
-  /** Procedural arm-layer strength for characters with their own motion set. */
+  private readonly fadeFrom = emptyPose('fade');
+  private fadeT = 0;
+  private fadeLen = 0;
+
+  /** Finger motion of the clip playing now, as offsets from the clip's average (for the hand solver), and its weight (0 = none). */
+  readonly clipFingers = new Float32Array(FINGER_CHANNELS);
+  clipFingerW = 0;
+
+  /** Sample the dominant playing clip's finger track (idle, talk or the walk/jog cycle). */
+  private updateClipFingers(mode: string): void {
+    let w = 0;
+    if (this.mocapW > 0.05 && (mode === 'loco' || mode === 'pistol' || mode === 'kneel' || mode === 'crouch')) {
+      const moving = this.locoInfo.moveWeight > 0.5;
+      const id =
+        mode === 'pistol' ? this.motion.clips.aimPistol : mode === 'kneel' ? this.motion.clips.kneel : mode === 'crouch' ? this.motion.clips.crouch
+          : moving ? (this.locoInfo.jogWeight > 0.5 ? this.motions.jog : this.motions.walk)
+            : this.speechW > 0.3 ? this.motions.talk : this.motions.idle;
+      const clip = this.mocap.has(id) ? this.mocap.get(id) : null;
+      if (clip && sampleFingers(clip, moving ? this.locoPhase : this.idlePhase, this.clipFingers, true)) w = this.mocapW;
+    }
+    this.clipFingerW = w;
+  }
+
+  /** 0..1 target and current weight of the injured-arm favouring (design D12; only Giles sets it). */
+  injuryTarget = 0;
+  injuryW = 0;
+  /** Which arm the injury favours. */
+  injurySide: Side = 'L';
+
+  /**
+   * Favour the injured arm: carried in against the body, elbow bent, shoulder raised a little, the head dipping toward it, and
+   * less swing while walking. Procedural until the character's own injured clips are baked (task 6.1); weighted by `injuryW`.
+   */
+  private updateInjury(dt: number): void {
+    this.injuryW += (this.injuryTarget - this.injuryW) * (1 - Math.exp(-6 * dt));
+    const w = this.injuryW;
+    if (w < 0.003 || this.twitchy) {
+      this.guardFresh = false;
+      return;
+    }
+    const s = this.injurySide;
+    const sign = s === 'L' ? 1 : -1;
+    // Hands on the job (a panel, the keyboard, a counter, a mug) stay there: the arm is not drawn in, only guarded (guardArm),
+    // so at the panel he works mostly with the other hand instead of pulling this one off the work.
+    if (!this.handsOnSomething()) {
+      const up = this.finalPose.joints[J[`upperArm_${s}`]];
+      const fo = this.finalPose.joints[J[`foreArm_${s}`]];
+      if (up) up.slerp(Animator.IDENTITY, 0.55 * w);
+      if (fo) fo.slerp(Animator.IDENTITY, 0.55 * w);
+      // +X flexes forward here (a hanging limb rotated +X swings its end toward -Z).
+      this.add(`upperArm_${s}`, 14 * w, 0, 10 * sign * w); // +Z on the left arm (-Z on the right) draws it in toward the body
+      this.add(`foreArm_${s}`, 48 * w, 6 * sign * w, 0);
+      this.add(`hand_${s}`, 8 * w, 0, 0);
+    }
+    this.add(`shoulder_${s}`, 0, 0, -6 * sign * w);
+    this.add('head', -3 * w, 4 * sign * w, 0);
+    this.add('chest', 0, 3 * sign * w, 2 * sign * w);
+  }
+
+  /** The injured hand's slow-following copy of its own world position (guarded motion). */
+  private readonly guardHand = new THREE.Vector3();
+  private readonly guardCur = new THREE.Vector3();
+  private readonly guardElbow = new THREE.Vector3();
+  private readonly guardRot = new THREE.Quaternion();
+  private guardFresh = false;
+  /** How far a fully favoured hand stays toward its slow copy (0..1), and how fast the copy follows (1/s). */
+  static readonly GUARD_DAMP = 0.75;
+  static readonly GUARD_RATE = 1.5;
+
+  /**
+   * A guarded arm moves less and more slowly (character-motion: working the panel, he works mostly with his right hand). After
+   * the pose is written, the injured hand eases toward a slow-following copy of its own world path, more so the higher the
+   * injury weight, and the arm is solved to reach it with the hand keeping its orientation. This quiets whatever moves the
+   * hand: the arm's own motion, the trunk carrying the shoulder, a hold, or the hand being pushed off the body. The body calls it
+   * after its hand-contact solve, so the slow copy follows positions already clear of the body. No allocation per frame.
+   */
+  guardArm(dt: number): void {
+    const w = this.injuryW;
+    if (w < 0.003 || this.twitchy || !this.bones[0]) {
+      this.guardFresh = false;
+      return;
+    }
+    const s = this.injurySide;
+    const up = this.bones[J[`upperArm_${s}`]];
+    const lo = this.bones[J[`foreArm_${s}`]];
+    const hand = this.bones[J[`hand_${s}`]];
+    if (!up || !lo || !hand || this.limp.has(J[`hand_${s}`]) || this.limp.has(J[`foreArm_${s}`])) return;
+    this.bones[0].updateWorldMatrix(true, true);
+    hand.getWorldPosition(this.guardCur);
+    if (!this.guardFresh) this.guardHand.copy(this.guardCur);
+    else this.guardHand.lerp(this.guardCur, 1 - Math.exp(-Animator.GUARD_RATE * dt));
+    this.guardFresh = true;
+    lo.getWorldPosition(this.guardElbow);
+    hand.getWorldQuaternion(this.guardRot);
+    // A favoured arm is guarded fully well before the favouring itself is: a half-drawn arm hovers at the body, where contact
+    // pushes come and go, and needs steadying most.
+    this.guardCur.lerp(this.guardHand, Animator.GUARD_DAMP * THREE.MathUtils.smoothstep(w, 0, 0.35));
+    solveTwoBone(up, lo, hand, this.guardCur, this.guardElbow);
+    const parentQ = lo.getWorldQuaternion(this.holdQ);
+    hand.quaternion.copy(parentQ.invert().multiply(this.guardRot));
+    hand.updateMatrixWorld(true);
+  }
+
+  /** Playback rate of idle clips and procedural idle life for this body (profile tempo, times crew variation). */
+  tempo = 1;
+  /** Upright (>0) or slumped (<0) chest for this body, -1..1 (profile posture plus crew variation). */
+  posture = 0;
+
+  /** Procedural arm-layer strength for characters whose profile names clips of its own. */
   static readonly OWN_MOTION_ARMS = 0.35;
 
   private n(t: number, k: number): number {
@@ -1127,7 +1301,7 @@ export class Animator {
   private static readonly PLACED = /^(sit_|lean_)/;
 
   /** Poses where the arms are doing a job: their idle fidgets shrink. */
-  private static readonly ARMS_BUSY: ReadonlySet<string> = new Set(['aim_pistol', 'typing', 'sit_typing', 'clipboard', 'crouchWork', 'kneel_revive', 'drink', 'offer_mug']);
+  private static readonly ARMS_BUSY: ReadonlySet<string> = new Set(['aim_pistol', 'typing', 'sit_typing', 'sit_typing_cctv', 'clipboard', 'crouchWork', 'kneel_revive', 'drink', 'offer_mug']);
 
   /**
    * Ambient life for standing bodies: slow breathing with clavicle lift, lateral weight shift
@@ -1140,10 +1314,20 @@ export class Animator {
     this.lifeW += (target - this.lifeW) * Math.min(1, dt * 2);
     const w = this.lifeW;
     if (w < 1e-3) return;
-    const t = this.time;
+    const t = this.time * (this.twitchy ? 1 : this.tempo);
     const s = this.noiseSeed;
     // Mocap idle already provides subtle breathing/sway; layer lighter individualized variation on top.
     const k = 1 - this.mocapW * 0.55;
+    // Profile posture and head carriage (character-motion spec), on standing bodies.
+    if (this.posture !== 0) {
+      // +x extends (the inhale lifts the chest with +x): upright extends spine and chest, the head counters to stay level.
+      // Shared evenly between spine and chest, so the trunk curves (imported-body-models: no segment carries most of the bend).
+      this.add('spine', 3 * this.posture * w, 0, 0);
+      this.add('chest', 3 * this.posture * w, 0, 0);
+      this.add('head', -2 * this.posture * w, 0, 0);
+    }
+    // headPitch is + = down, and -x pitches the head down.
+    if (this.motion.style.headPitch !== 0) this.add('head', -this.motion.style.headPitch * w, 0, 0);
     const breath = Math.sin(t * 1.5 + s) * (1 + 0.25 * Math.sin(t * 0.37 + s * 1.7)) * w * k;
     this.add('spine', 0.5 * breath, 0, 0);
     this.add('chest', 1.1 * breath, 0, 0);
@@ -1167,10 +1351,17 @@ export class Animator {
     const a = w * f * k;
     this.add('upperArm_L', 0, 0, 0.8 * sh * f);
     this.add('upperArm_R', 0, 0, 0.8 * sh * f);
-    this.add('foreArm_L', 1.0 * this.n(t * 0.5, 7) * a, 0, 0);
-    this.add('foreArm_R', 1.0 * this.n(t * 0.5, 8) * a, 0, 0);
-    this.add('hand_L', 1.5 * this.n(t * 0.5, 9) * a, 0, 0);
-    this.add('hand_R', 1.5 * this.n(t * 0.5, 10) * a, 0, 0);
+    // Profile style (character-motion spec): fidget rate speeds and enlarges the arm fidgets, asymmetry favours one side.
+    const st = this.motion.style;
+    const fr = st.fidgetRate;
+    const amp = a * (0.55 + 0.45 * fr);
+    const aL = amp * (1 + 0.6 * st.asymmetry);
+    const aR = amp * (1 - 0.6 * st.asymmetry);
+    const ft = t * 0.5 * (0.6 + 0.4 * fr);
+    this.add('foreArm_L', 1.0 * this.n(ft, 7) * aL, 0, 0);
+    this.add('foreArm_R', 1.0 * this.n(ft, 8) * aR, 0, 0);
+    this.add('hand_L', 1.5 * this.n(ft, 9) * aL, 0, 0);
+    this.add('hand_R', 1.5 * this.n(ft, 10) * aR, 0, 0);
   }
 
   /**
@@ -1243,6 +1434,140 @@ export class Animator {
       // Jerky: fast sines plus a gated spike.
       const jerk = Math.sin(t * 5.3 + i * 2.1) > 0.75 ? 1.8 : 1;
       this.add(name, amp * jerk * Math.sin(t * 31 + i * 1.7) * 0.5, amp * 0.6 * Math.sin(t * 23 + i * 2.9) * 0.5, amp * jerk * Math.sin(t * 17.3 + i * 3.1) * 0.5);
+    }
+  }
+
+  // ---------------------------------------------------------------- spine distribution (imported-body-models)
+
+  private readonly spineTotal = new THREE.Quaternion();
+  private readonly spineHalf = new THREE.Quaternion();
+
+  /**
+   * Spread a bend over the trunk so the back and neck curve instead of kinking at one joint: spine+chest share their combined
+   * rotation evenly and neck+head 45/55. The chest's and head's world orientations are unchanged (the product is kept), so arms,
+   * look-at and held props are unaffected. Upright authored poses only (captured clips already curve naturally).
+   */
+  private distributeSpine(): void {
+    if (!detailPass.enabled || this.mocapW > 0.5 || this.twitchy || this.seq) return;
+    if (this.gait !== 'none' && this.gait !== 'walk') return;
+    const pairs: [JointName, JointName, number][] = [['spine', 'chest', 0.5], ['neck', 'head', 0.45]];
+    for (const [a, b, share] of pairs) {
+      const qa = this.finalPose.joints[J[a]];
+      const qb = this.finalPose.joints[J[b]];
+      if (!qa || !qb) continue;
+      this.spineTotal.copy(qa).multiply(qb);
+      this.spineHalf.slerpQuaternions(Animator.IDENTITY, this.spineTotal, share);
+      qa.copy(this.spineHalf);
+      qb.copy(this.spineHalf.invert().multiply(this.spineTotal)).normalize();
+    }
+  }
+
+  // ---------------------------------------------------------------- posture holds (character-motion: poses held in character)
+
+  /** Strength of a profile's additive hold clip on top of an authored pose. */
+  static readonly HOLD_WEIGHT = 0.85;
+  /** 0..1 current weight of the hold layer. */
+  holdW = 0;
+  private holdClip: string | null = null;
+  private holdPhase = 0;
+  private readonly holdPose = emptyPose('hold');
+  private readonly holdQ = new THREE.Quaternion();
+  private static readonly IDENTITY = new THREE.Quaternion();
+
+  /**
+   * Layer the profile's hold clip for the current authored pose's posture family (an additive clip: offsets from its own mean
+   * pose) over the pose, so a character holds `lean_counter` or `sit_stool` with their own breathing and weight shifts. Contact
+   * solves (feet, hands on surfaces, held props) run after this and keep the pose's contact points where they are.
+   * Poses that are an activity (`typing` is work, `drink` and `*_drink` are drinking) take the profile's clip for that activity
+   * instead, when it is an additive clip: the character works or drinks in their own way with the hands kept on the job.
+   */
+  private updateHold(dt: number): void {
+    const pose = this.to.name;
+    const act = poseTreatment(pose);
+    const actClip = act ? this.motion.clips[act] : undefined;
+    const treat = actClip && this.mocap.has(actClip) && this.mocap.get(actClip).additive === true ? actClip : undefined;
+    const fam = treat ? act : postureFamily(pose);
+    const id = treat ?? (fam ? this.motion.holds[fam as PostureFamily] : undefined);
+    const clip = id && this.mocap.has(id) ? this.mocap.get(id) : null;
+    const active = clip?.additive === true && !this.seq && this.convulse <= 0.01 && !this.twitchy && this.mocapW < 0.5;
+    if (active && id !== this.holdClip) {
+      this.holdClip = id ?? null;
+      this.holdPhase = this.idlePhase;
+    }
+    const target = active ? Animator.HOLD_WEIGHT : 0;
+    this.holdW += (target - this.holdW) * (1 - Math.exp(-4 * dt));
+    if (this.holdW < 0.005 || !this.holdClip) {
+      this.holdW = active ? this.holdW : 0;
+      return;
+    }
+    const hc = this.mocap.get(this.holdClip);
+    this.holdPhase = (this.holdPhase + (dt * this.tempo) / Math.max(0.1, hc.duration)) % 1;
+    sampleClip(hc, this.holdPhase, this.holdPose);
+    this.holdFamily = fam;
+    this.holdSeated = pose.startsWith('sit_');
+  }
+
+  /** Posture family (or treated activity) of the hold being played. */
+  private holdFamily: string | null = null;
+  private holdSeated = false;
+  private readonly pinHand = [new THREE.Vector3(), new THREE.Vector3()];
+  private readonly pinElbow = [new THREE.Vector3(), new THREE.Vector3()];
+  private readonly pinRot = [new THREE.Quaternion(), new THREE.Quaternion()];
+
+  /** Whether the current pose's hands rest on something (busy arms, or a posture whose hands rest on a surface or prop). */
+  private handsOnSomething(): boolean {
+    const pose = this.to.name;
+    return Animator.ARMS_BUSY.has(pose) || poseTreatment(pose) !== null || Animator.pinsHands(postureFamily(pose));
+  }
+
+  /** Families whose hands rest on something (a counter, a seat, a held mug, the keyboard): the hold must not move them. */
+  private static pinsHands(fam: string | null): boolean {
+    return fam !== null && fam !== 'stand';
+  }
+
+  /**
+   * Write the pose with the hold layered on. Where the posture's hands rest on something, the pose is written once without the
+   * hold to record where the hands are, then the hold is applied and the arms are solved back onto those points (two-bone IK,
+   * elbows on their own side, hands keeping their orientation), so breathing and weight shifts never slide a hand off the counter.
+   */
+  private writeWithHold(): void {
+    const w = this.holdW;
+    const pin = Animator.pinsHands(this.holdFamily);
+    const root = this.bones[0];
+    const B = (n: JointName): THREE.Bone | undefined => this.bones[J[n]];
+    if (pin && root) {
+      this.write();
+      root.updateWorldMatrix(true, true);
+      for (const [k, s] of (['L', 'R'] as const).entries()) {
+        B(`hand_${s}`)?.getWorldPosition(this.pinHand[k]!);
+        B(`foreArm_${s}`)?.getWorldPosition(this.pinElbow[k]!);
+        B(`hand_${s}`)?.getWorldQuaternion(this.pinRot[k]!);
+      }
+    }
+    for (let i = 0; i < N; i++) {
+      const out = this.finalPose.joints[i];
+      const add = this.holdPose.joints[i];
+      if (!out || !add) continue;
+      this.holdQ.slerpQuaternions(Animator.IDENTITY, add, w);
+      out.multiply(this.holdQ);
+    }
+    // A captured hold bends the spine and chest by different amounts; share the trunk's bend again so it still curves.
+    this.distributeSpine();
+    // Seated bodies stay on the seat; the rest breathe with the clip's pelvis.
+    if (!this.holdSeated) this.finalPose.pelvis.addScaledVector(this.holdPose.pelvis, w);
+    this.write();
+    if (!pin || !root) return;
+    root.updateWorldMatrix(true, true);
+    for (const [k, s] of (['L', 'R'] as const).entries()) {
+      const up = B(`upperArm_${s}`);
+      const lo = B(`foreArm_${s}`);
+      const hand = B(`hand_${s}`);
+      if (!up || !lo || !hand || this.limp.has(J[`hand_${s}`]) || this.limp.has(J[`foreArm_${s}`])) continue;
+      solveTwoBone(up, lo, hand, this.pinHand[k]!, this.pinElbow[k]!);
+      // Restore the hand's world orientation (palm on the counter, mug upright).
+      const parentQ = lo.getWorldQuaternion(this.holdQ);
+      hand.quaternion.copy(parentQ.invert().multiply(this.pinRot[k]!));
+      hand.updateMatrixWorld(true);
     }
   }
 

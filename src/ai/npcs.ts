@@ -12,6 +12,7 @@ import { ChatGroup, type ChatMember } from './chatter.ts';
 import { AmbientDirector, isAmbientEligible, type AmbientAgent, type AmbientSpot } from './ambientLife.ts';
 import type { Squad, SquadId, SquadMate } from './squad.ts';
 import type { KillTable } from '../data/types/kills.ts';
+import { DockGuardRoutine } from './dockGuardRoutine.ts';
 import { KillDirector } from './npcKills.ts';
 
 /**
@@ -79,6 +80,10 @@ export interface NpcDirectorDeps {
   listen?: (name: string, fn: (payload: unknown) => void) => () => void;
   /** Play the first of `ids` that exists, at a world point; false when none does. */
   sfx?: (ids: readonly string[], at: Vec3Like) => boolean;
+  /** Controllable level props (dock_chair, dock_wand) driven by scripted NPC routines. */
+  setPropTransform?: (id: string, pos: { x: number; y: number; z: number }, yaw: number) => boolean;
+  setPropVisible?: (id: string, visible: boolean) => boolean;
+  propState?: (id: string) => { pos: THREE.Vector3; yaw: number; visible: boolean } | null;
 }
 
 /** Names a sequence may use for the squad. */
@@ -138,11 +143,21 @@ export class NpcDirector {
 
   /** Scripted infected kills (`kill` command). */
   readonly kills: KillDirector;
+  /** Scripted dock guard return to the security booth desk (`npcTask return_to_desk`). */
+  readonly dockGuard: DockGuardRoutine;
 
   constructor(deps: NpcDirectorDeps) {
     this.deps = deps;
     this.group.name = 'npcs';
     this.fx.name = 'npc-fx';
+    this.dockGuard = new DockGuardRoutine({
+      resolve: (ref) => this.resolver?.(ref) ?? (Array.isArray(ref) ? { pos: { x: ref[0] as number, y: ref[1] as number, z: ref[2] as number } } : null),
+      walk: (id) => deps.walk?.(id) ?? null,
+      playerFeet: () => this.deps.player().feet,
+      ...(deps.setPropTransform ? { setPropTransform: deps.setPropTransform } : {}),
+      ...(deps.setPropVisible ? { setPropVisible: deps.setPropVisible } : {}),
+      ...(deps.propState ? { propState: deps.propState } : {}),
+    });
     this.kills = new KillDirector(
       {
         ctx: deps.ctx,
@@ -165,6 +180,8 @@ export class NpcDirector {
           if (a) a.ambient = false;
         },
         exists: (id, actor) => this.actors.get(id) === actor,
+        find: (id) => this.actors.get(id) ?? null,
+        playerEye: () => this.deps.player().head,
       },
       this.fx,
     );
@@ -429,6 +446,7 @@ export class NpcDirector {
 
   /** Back to the level's starting layout (new game, load): scripted spawns go, cast return. */
   reset(): void {
+    this.dockGuard.reset(this.actors.get('dock_guard'));
     this.kills.reset();
     for (const id of [...this.spawned]) this.remove(id);
     // A body a kill tore open or killed is rebuilt from scratch (the Lab B researcher alive at her desk again).
@@ -687,6 +705,9 @@ export class NpcDirector {
   /** `npcTask`: squad panel jobs run in the squad AI (pause/resume, defend); others just work. */
   private task(npc: string, a: NpcActor, step: Readonly<Record<string, unknown>>, instant: boolean): Promise<void> {
     const kind = String(step['task'] ?? 'bypass');
+    if (npc === 'dock_guard' && kind === 'return_to_desk') {
+      return this.dockGuard.start(a, instant);
+    }
     const args = (step['args'] ?? {}) as Record<string, unknown>;
     const at = args['at'] !== undefined ? this.target(args['at'], 'npcTask', npc) : null;
     const duration = typeof args['duration'] === 'number' ? args['duration'] : undefined;
@@ -782,7 +803,7 @@ export class NpcDirector {
 
   /** Is this actor a standing, visible body (not towed, carried, downed, lying or hidden)? */
   private isStanding(a: NpcActor, mate: SquadMate | null): boolean {
-    if (!a.body.group.visible || a.towed || a.body.carried !== null || mate?.downed) return false;
+    if (!a.body.group.visible || a.towed || a.gripped || a.body.carried !== null || mate?.downed) return false;
     return a.body.state === 'alive' && !LYING_POSE.test(a.body.idlePose);
   }
 
@@ -863,6 +884,7 @@ export class NpcDirector {
     // The scene is over: squadmates go back to following Jay.
     if (this.held.size > this.parked.size && this.deps.sequenceRunning && !this.deps.sequenceRunning()) this.releaseUnparked();
     this.ambientLife?.update(dt, { eye: camera, forward: cameraForward });
+    this.dockGuard.update(dt);
     this.kills.update(dt);
     const seen = new Set<NpcActor>();
     for (const [id, a] of this.actors) {
@@ -873,6 +895,8 @@ export class NpcDirector {
       if (mate && !mate.scripted) continue;
       a.update(dt, this.env);
     }
+    // After every body has moved and posed: a gripped victim is put back in the attacker's hand.
+    this.kills.lateUpdate(dt);
     this.authoredEngaged.clear();
     for (const g of this.chats.values()) {
       g.update(dt);
@@ -943,7 +967,7 @@ export class NpcDirector {
       const m = a.motor;
       if (a.separationExempt || mate?.downed) {
         // Still a solid thing others keep out of, unless it is being carried.
-        if (!a.towed && a.body.carried === null) put(m.x, m.z, fp.r, Infinity, null);
+        if (!a.towed && !a.gripped && a.body.carried === null) put(m.x, m.z, fp.r, Infinity, null);
         continue;
       }
       if (mate && !mate.scripted) {

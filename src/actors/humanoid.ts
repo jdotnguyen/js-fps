@@ -19,11 +19,15 @@ import type { ColliderQuery } from './motor.ts';
 import { SLAM, SlamState } from './slam.ts';
 import type { GoreSystem } from './gore.ts';
 import { solveTwoBone } from './ik.ts';
-import type { MocapLibrary, MotionSet } from './mocap.ts';
+import type { MocapLibrary } from './mocap.ts';
+import { resolveProfile, sharedMotionProfiles, type Gender, type MotionProfileFile } from './motionProfiles.ts';
+import { motionScene } from './motionScene.ts';
+import { hasMocapPack } from './mocapPacks.ts';
 import type { PoseLibrary } from './poses.ts';
 import { footprintOf } from './separation.ts';
-import { heldItemFor, makeHeld, type HeldItem } from './heldProps.ts';
-import { settleUprightTurn, stepUprightTurn, type UprightTurnState } from './springs.ts';
+import { heldGripFor, type HeldGrip } from './heldGrip.ts';
+import { HELD_GRIP_RADIUS, heldItemFor, heldTiltFor, levelHeld, makeHeld, MOUTH_IN_HEAD, mouthFromJaw, MUG_RIM, type HeldItem } from './heldProps.ts';
+import { settleUprightTurn, Spring1D, stepUprightTurn, type UprightTurnState } from './springs.ts';
 import { CRAWL_TURN, DRAG_TURN, newTurnState, settleTurn, stepTurn, type TurnState } from './turning.ts';
 import { JOINT_INDEX, JOINTS, SEVER_JOINT, subtree, type JointName, type Region, type SeverableRegion, type Side } from './skeleton.ts';
 
@@ -80,10 +84,12 @@ export interface HumanoidSpec {
    */
   model?: string;
   /**
-   * The character's own mocap clips (main characters): clip ids in src/data/mocap-clips.json per slot, over the default set.
-   * Giving a set also turns the procedural arm layers down, so the clips carry the motion.
+   * The character's motion profile (src/data/motion-profiles.json, character-motion spec). Named characters have their own;
+   * everyone else uses the default for their body's gender.
    */
-  motions?: Partial<MotionSet>;
+  profile?: string;
+  /** Gender for the default motion profile when the body has no imported model (an imported model's own gender wins). */
+  gender?: Gender;
 }
 
 export type FootstepKind = 'walk' | 'jog' | 'pivot' | 'shamble' | 'heavy';
@@ -105,6 +111,8 @@ export interface HumanoidContext {
   bodyModels?: BodyModelLibrary;
   /** Retargeted mocap clip library (Tier B); defaults to the shared compiled library. */
   mocap?: MocapLibrary;
+  /** Motion profiles (tests); defaults to src/data/motion-profiles.json. */
+  motionProfiles?: MotionProfileFile;
   /** World static/furniture colliders for general hand-vs-surface contact resolution. */
   colliders?: ColliderQuery | null;
   /** Optional world-space footstep callback fired on foot plants (audio / perception). */
@@ -159,6 +167,8 @@ export class Humanoid {
   lookTarget: THREE.Vector3 | null = null;
   /** World points the hands reach for (consoles, panels), or null. */
   readonly handTargets: { L: THREE.Vector3 | null; R: THREE.Vector3 | null } = { L: null, R: null };
+  /** 0..1 blend weights for `handTargets` two-bone IK (1 = full reach). */
+  readonly handTargetWeights: { L: number; R: number } = { L: 1, R: 1 };
   /** Keep feet planted on the floor (crouching, kneeling work poses). */
   plantFeet = false;
   /** Standing-still pose for npcs; animation picks walk/crawl variants itself. */
@@ -230,8 +240,22 @@ export class Humanoid {
     this.buildMeshes();
     this.buildCapsules();
     this.animator = new Animator(this.jointBones(), ctx.poses, this.idlePose, this.rng.fork('anim'), ctx.mocap);
-    this.animator.setMotions(spec.motions, spec.role === 'npc' && (spec.outfit === 'medic' || spec.seed === 'director-hale'));
-    this.handPhysics = new HandPhysicsSolver(spec.seed, this.geo.handBones ?? [], this.extras);
+    this.motionGender = (spec.model ? ctx.bodyModels?.table?.[spec.model]?.gender : undefined) ?? spec.gender ?? 'm';
+    this.motionFormal = spec.role === 'npc' && (spec.outfit === 'medic' || spec.seed === 'director-hale');
+    this.hasVariants = Boolean(spec.profile && (ctx.motionProfiles ?? sharedMotionProfiles()).profiles[spec.profile]?.variants);
+    const motion = this.resolveMotion();
+    this.animator.setMotion(motion);
+    const ownInitial = motion.poses[this.idlePose];
+    if (ownInitial && ctx.poses.has(ownInitial)) {
+      this.idlePose = ownInitial;
+      this.animator.setPose(ownInitial, 0);
+    }
+    // Hold the character's clip pack while this body exists (released in dispose).
+    if (spec.profile && hasMocapPack(spec.profile)) {
+      this.mocapPack = spec.profile;
+      this.animator.mocapLibrary.retainPack(spec.profile);
+    }
+    this.handPhysics = new HandPhysicsSolver(spec.seed, this.geo.handBones ?? [], this.extras, this.animator.motion.hands);
     this.applyBoneScales();
     this.group.updateMatrixWorld(true);
     this.prevWorldPos.copy(this.group.position);
@@ -268,16 +292,35 @@ export class Humanoid {
   // ---------------------------------------------------------------- control
 
   setPose(name: string, blend = 0.4): void {
+    // The character's profile or a scene variant may give it its own version of the pose (character-motion spec). Its own
+    // version also blends at the character's tempo (Okafor's slow, steady glance).
+    const own = this.animator.motion?.poses[name];
+    if (own && this.ctx.poses.has(own)) {
+      name = own;
+      blend /= Math.max(0.5, this.animator.tempo);
+    }
     this.idlePose = name;
     this.animator.setPose(name, blend);
   }
 
-  /** Show the item the pose holds (a mug for mug and drink poses, ADR-0029; the wand for wand poses) while alive; hide the rest. */
+  /**
+   * Explicitly override what the right hand holds (`'wand'`, `'mug'`, or `null` for empty hand); pass `undefined`
+   * to follow the current pose again. Applies synchronously so prop handoffs never show zero or two items.
+   */
+  setHeldItem(item: HeldItem | null | undefined): void {
+    this.heldOverride = item;
+    this.syncHeld();
+  }
+
+  /** Show the item the pose holds (or the explicit `heldOverride`) while alive; hide the rest. */
   private syncHeld(): void {
-    this.heldFor = `${this.idlePose}|${this.state}`;
-    const want = this.state === 'alive' ? heldItemFor(this.idlePose) : null;
+    this.heldFor = `${this.idlePose}|${this.state}|${String(this.heldOverride)}`;
+    const want = this.state === 'alive' ? (this.heldOverride !== undefined ? this.heldOverride : heldItemFor(this.idlePose)) : null;
+    this.heldNow = want;
     if (want && !this.heldItems.has(want)) {
-      const mesh = makeHeld(want);
+      // A mug in a hand with finger bones: its rig's own grip frame (D4) and the wrap solved for it, handle turned into the opening (D5).
+      if (want === 'mug') this.mugGrip = heldGripFor(this.geo.handBones);
+      const mesh = makeHeld(want, want === 'mug' ? (this.mugGrip?.frame ?? null) : null);
       this.heldItems.set(want, mesh);
       this.bones.hand_R.add(mesh);
     }
@@ -301,7 +344,10 @@ export class Humanoid {
    */
   speak(text: string, emote: Emote | null, duration: number, seed = text): void {
     if (this.state !== 'alive' || this.infectionLevel >= 1) return;
-    this.animator.speak(planSpeech(text, emote, duration, seed));
+    const plan = planSpeech(text, emote, duration, seed);
+    // A mug in the right hand: gesture with the free left hand (upright-mug-grip D3b).
+    if (heldItemFor(this.idlePose) === 'mug') plan.side = 1;
+    this.animator.speak(plan);
   }
 
   /** The line ended or was cut off. */
@@ -783,7 +829,7 @@ export class Humanoid {
 
   update(dt: number, cameraPosition: THREE.Vector3 | null = null): void {
     this.time += dt;
-    if (this.heldFor !== `${this.idlePose}|${this.state}`) this.syncHeld();
+    if (this.heldFor !== `${this.idlePose}|${this.state}|${String(this.heldOverride)}`) this.syncHeld();
     this.updateTimers(dt);
     if (this.slam) {
       if (this.state !== 'alive' || this.locomotion.mode !== 'walk') this.slam.cancel();
@@ -796,6 +842,7 @@ export class Humanoid {
         this.ctx.gore.burst(this.slamImpact.clone().setY(0.1), new THREE.Vector3(0, 1.2, 0), 26);
       }
     }
+    this.updateSceneMotion(dt);
     this.updateInfection(dt);
     this.updateKinematics(dt);
     this.chooseAnimation();
@@ -854,6 +901,8 @@ export class Humanoid {
       enabled: handContactEligible,
       dt,
     });
+    // A favoured (injured) arm moves less and more slowly, contact pushes included (character-motion, design D12).
+    this.animator.guardArm(dt);
     this.handPhysics.update({
       group: this.group,
       bones: this.bones,
@@ -877,9 +926,88 @@ export class Humanoid {
       contactL: this.limbContact.contactOf('L'),
       contactR: this.limbContact.contactOf('R'),
       cameraDist,
+      clipFingers: this.animator.clipFingers,
+      clipFingerWeight: this.animator.clipFingerW,
+      // The wand keeps the radius wrap; a mug uses its solved contact pose (a hand without finger bones has nothing to wrap).
+      heldRadiusR: this.heldNow === 'wand' ? HELD_GRIP_RADIUS.wand : null,
+      heldGripR: this.heldNow === 'mug' ? this.mugGrip : null,
     });
+    this.levelHeldMug(dt);
     this.updateFootsteps(dt);
   }
+
+  /** How far the held mug leans from vertical (radians), eased toward the pose's tilt so a sip never snaps. */
+  private readonly heldTilt = new Spring1D({ f: 2.2, z: 1 });
+  private heldTiltReady = false;
+  private readonly towardFace = new THREE.Vector3();
+
+  /**
+   * Keep a held mug upright, or tipped toward the face in a drink pose (held-props spec, upright-mug-grip D3), by swinging the
+   * right hand after everything else has moved it (pose, hold clip, contact, wrist springs, speech).
+   */
+  private levelHeldMug(dt: number): void {
+    const mug = this.heldNow === 'mug' ? this.heldItems.get('mug') : undefined;
+    const limpR = !this.limbAttached('R', true) || this.animator.limp.has(JOINT_INDEX.hand_R) || this.animator.limp.has(JOINT_INDEX.foreArm_R);
+    if (!mug?.visible || this.state !== 'alive' || limpR) {
+      this.heldTiltReady = false;
+      return;
+    }
+    const want = heldTiltFor(this.animator.poseName);
+    if (!this.heldTiltReady) {
+      this.heldTilt.reset(want);
+      this.heldTiltReady = true;
+    } else if (dt > 0) {
+      this.heldTilt.step(want, Math.min(dt, 0.05));
+    }
+    // From in front of the body back toward the face (the body faces -Z).
+    this.towardFace.set(0, 0, 1).applyQuaternion(this.group.quaternion);
+    const tilt = Math.max(0, this.heldTilt.value);
+    this.heldSwing = levelHeld(this.bones.hand_R, mug, tilt, this.towardFace);
+    const reach = THREE.MathUtils.clamp(tilt / heldTiltFor('drink'), 0, 1);
+    if (reach > 0.01) this.reachMugToMouth(mug, tilt, reach);
+  }
+
+  /** This body's mouth in its head bone's frame (measured from its jaw mesh once, on the first sip). */
+  private mouth: { y: number; z: number } | null = null;
+  private readonly reachTmp = { mouth: new THREE.Vector3(), rim: new THREE.Vector3(), up: new THREE.Vector3(), side: new THREE.Vector3(), target: new THREE.Vector3(), elbow: new THREE.Vector3(), handQ: new THREE.Quaternion(), parentQ: new THREE.Quaternion() };
+
+  /**
+   * Drink poses (upright-mug-grip D3c): move the leveled mug so its rim is at the mouth, solving the right arm with two-bone IK
+   * (the elbow keeps its side) and keeping the hand's leveled orientation. `weight` blends from the authored arm (0) to the reach (1).
+   */
+  private reachMugToMouth(mug: THREE.Object3D, tilt: number, weight: number): void {
+    const t = this.reachTmp;
+    const hand = this.bones.hand_R;
+    const upper = this.bones.upperArm_R;
+    const lower = this.bones.foreArm_R;
+    this.group.updateMatrixWorld(true);
+    // The mouth, a little in front of the lips.
+    this.mouth ??= mouthFromJaw(this.geo.parts, this.geo.jointOffsets.jaw) ?? MOUTH_IN_HEAD;
+    this.bones.head.localToWorld(t.mouth.set(0, this.mouth.y, this.mouth.z));
+    t.mouth.addScaledVector(this.towardFace, -0.015);
+    // The rim point nearest the face, on the leveled mug.
+    const e = mug.matrixWorld.elements;
+    t.up.set(e[4]!, e[5]!, e[6]!);
+    const worldScale = t.up.length();
+    t.up.divideScalar(worldScale);
+    t.side.copy(this.towardFace).addScaledVector(t.up, -this.towardFace.dot(t.up));
+    if (t.side.lengthSq() < 1e-8) return;
+    t.side.normalize();
+    mug.localToWorld(t.rim.set(0, MUG_RIM.y, 0)).addScaledVector(t.side, MUG_RIM.r * worldScale);
+    // Where the hand must go for that rim to sit at the mouth.
+    hand.getWorldPosition(t.target).add(t.mouth).sub(t.rim);
+    hand.getWorldQuaternion(t.handQ);
+    lower.getWorldPosition(t.elbow);
+    solveTwoBone(upper, lower, hand, t.target, t.elbow.addScaledVector(this.towardFace, 0.1), weight);
+    // Keep the hand's leveled orientation through the arm's new angles, then level out what the solve left.
+    hand.parent!.getWorldQuaternion(t.parentQ).invert();
+    hand.quaternion.copy(t.parentQ.multiply(t.handQ));
+    hand.updateMatrixWorld(true);
+    levelHeld(hand, mug, tilt, this.towardFace);
+  }
+
+  /** How far (radians) the last frame's leveling had to swing the right hand to keep the held mug at its tilt (tests). */
+  heldSwing = 0;
 
   private static readonly LYING_POSE = /^(corpse|squad_downed|squad_getUp|writhing|crawl|dragging|getUp)/;
   private static readonly SEATED_POSE = /^sit_/;
@@ -890,7 +1018,13 @@ export class Humanoid {
   private readonly footIk = new FootIkSolver();
   /** ADR-0029: a mug in the right hand while the pose is a mug or drink pose (made on first use). */
   private readonly heldItems = new Map<HeldItem, THREE.Mesh>();
+  /** The solved mug wrap for this body's hand, or null for a hand without finger bones. */
+  private mugGrip: HeldGrip | null = null;
   private heldFor = '';
+  /** Explicit held-item override (`undefined` follows pose; `null` forces empty hand). */
+  private heldOverride: HeldItem | null | undefined = undefined;
+  /** What the right hand holds now (for the hand solver's grip). */
+  private heldNow: HeldItem | null = null;
   private readonly footPlanted: [boolean, boolean] = [true, true];
   private readonly footCooldown: [number, number] = [0, 0];
   private readonly footPosTmp = new THREE.Vector3();
@@ -1121,7 +1255,56 @@ export class Humanoid {
     for (const h of this.hitboxes) h.visible = on;
   }
 
+  private motionGender: Gender = 'm';
+  private motionFormal = false;
+  private hasVariants = false;
+  private sceneVersion = -1;
+  private sceneCheck = 0;
+
+  /** This body's motion profile with the scene variants in effect (character-motion spec). */
+  private resolveMotion(): ReturnType<typeof resolveProfile> {
+    const profile = this.spec.profile;
+    const scene = profile
+      ? { sequences: motionScene.sequences, task: motionScene.tasks.get(profile) ?? null, stage: motionScene.stage, flag: (n: string) => Boolean(motionScene.flags()[n]) }
+      : undefined;
+    return resolveProfile(this.animator.mocapLibrary, this.ctx.motionProfiles ?? sharedMotionProfiles(), profile, this.motionGender, this.motionFormal, scene);
+  }
+
+  /** Re-resolve scene variants when the scene changes (and a few times a second, for story flags); cross-fade over 0.3 s. */
+  private updateSceneMotion(dt: number): void {
+    if (!this.hasVariants) return;
+    this.sceneCheck -= dt;
+    if (motionScene.version === this.sceneVersion && this.sceneCheck > 0) return;
+    this.sceneVersion = motionScene.version;
+    this.sceneCheck = 0.25;
+    const next = this.resolveMotion();
+    if (next.variants.join('|') === this.animator.motion.variants.join('|')) return;
+    this.animator.setMotion(next, 0.3);
+  }
+
+  /** Show a concealed injury at this weight (0..1, see injury.ts): Giles's favoured left arm. */
+  setInjury(weight: number, side: Side = 'L'): void {
+    this.animator.injuryTarget = THREE.MathUtils.clamp(weight, 0, 1);
+    this.animator.injurySide = side;
+  }
+
+  /** Infection stage for the involuntary finger twitch of characters whose hands twitch (Giles). */
+  setHandTwitchStage(stage: number): void {
+    this.handPhysics.twitchStage = stage;
+  }
+
+  get injuryWeight(): number {
+    return this.animator.injuryW;
+  }
+
+  /** The clip pack this body holds, if its character has one. */
+  private mocapPack: string | null = null;
+
   dispose(): void {
+    if (this.mocapPack) {
+      this.animator.mocapLibrary.releasePack(this.mocapPack);
+      this.mocapPack = null;
+    }
     this.castTells?.dispose();
     this.group.removeFromParent();
     for (const m of this.meshes) m.geometry.dispose();
@@ -1545,10 +1728,11 @@ export class Humanoid {
         if (!solved) this.group.updateMatrixWorld(true);
         for (const s of ['L', 'R'] as const) {
           const target = this.handTargets[s];
-          if (!target || !this.limbAttached(s, true)) continue;
+          const weight = THREE.MathUtils.clamp(this.handTargetWeights[s], 0, 1);
+          if (!target || weight <= 1e-4 || !this.limbAttached(s, true)) continue;
           const x = s === 'L' ? -1 : 1;
           this.group.localToWorld(this.ikPole.set(x * 0.7, 0.9, 0.8));
-          solveTwoBone(this.bones[`upperArm_${s}`], this.bones[`foreArm_${s}`], this.bones[`hand_${s}`], target, this.ikPole);
+          solveTwoBone(this.bones[`upperArm_${s}`], this.bones[`foreArm_${s}`], this.bones[`hand_${s}`], target, this.ikPole, weight);
           solved = true;
         }
       }

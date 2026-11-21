@@ -185,3 +185,54 @@ test('checkpoint moves keep a body width clear of the guard and the squadmate al
   }
   assert.deepEqual(bad, []);
 });
+
+test('guard return staging: route clears counter, Jay and waiting squad; chair and seat align facing the keyboard', () => {
+  // All four staging anchors and the authored return walk exist in R01.
+  for (const name of ['guard_desk_approach', 'guard_wand_spot', 'guard_chair_grip', 'guard_seat']) {
+    assert.ok(level.anchor(name), `R01 anchor ${name}`);
+  }
+  const route = level.walk('guard_return_desk');
+  assert.ok(route, 'guard_return_desk walk exists');
+
+  // The return route clears the counter corner, Jay's booth spot and the waiting squad spots.
+  const pts = planWalk(P('guard_post'), P('guard_desk_approach'), { nav, world: level.collision, radius: 0.3 }, route.points.map((p) => ({ ...p, y: 0 }))).points;
+  const distTo = (x: number, z: number): number => {
+    let best = Infinity;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1]!;
+      const b = pts[i]!;
+      for (let t = 0; t <= 1; t += 0.02) best = Math.min(best, Math.hypot(a.x + (b.x - a.x) * t - x, a.z + (b.z - a.z) * t - z));
+    }
+    return best;
+  };
+  // Every point along the route stays clear of the front counter collider (x <= 7.4, z <= 1.93), Jay's booth exit and the waiting squad.
+  assert.ok(distTo(7.4, 1.93) >= 0.42, `route clears front counter east corner (${distTo(7.4, 1.93).toFixed(2)} m)`);
+  assert.ok(distTo(P('post_okafor').x, P('post_okafor').z) >= 0.72, `route clears post_okafor (${distTo(P('post_okafor').x, P('post_okafor').z).toFixed(2)} m)`);
+  assert.ok(distTo(P('post_giles').x, P('post_giles').z) >= CLEAR, `route clears post_giles (${distTo(P('post_giles').x, P('post_giles').z).toFixed(2)} m)`);
+  // Along the approach before reaching the desk, keep clear of Jay's exit lane.
+  assert.ok(distTo(7.85, 3.5) >= 0.85, `route clears Jay's booth exit waypoint (${distTo(7.85, 3.5).toFixed(2)} m)`);
+
+  // Final seat faces the left keyboard (x = 6.45, z = 4.98) and the CCTV wall (+Z, yaw = PI).
+  const seat = level.anchor('guard_seat')!;
+  assert.ok(Math.abs(seat.pos.x - 6.45) < 0.05, 'aligned with left keyboard X');
+  assert.ok(Math.abs(seat.pos.z - 4.38) < 0.05, 'workstation chair distance from desk');
+  const fwdZ = -Math.cos(seat.yaw);
+  assert.ok(fwdZ > 0.99, `final seat faces +Z toward keyboard and CCTV wall (fwdZ=${fwdZ.toFixed(3)})`);
+
+  // Controllable chair and desk wand exist, keep mesh and collider aligned when moved, and reset cleanly.
+  const chair0 = level.propState('dock_chair');
+  assert.ok(chair0 && chair0.colliders.length === 1, 'dock_chair registered with collider');
+  assert.ok(Math.hypot(chair0.pos.x - 5.45, chair0.pos.z - 4.55) < 0.02);
+  const wand0 = level.propState('dock_wand');
+  assert.ok(wand0 && wand0.visible === false, 'dock_wand starts hidden on desk');
+
+  assert.equal(level.setPropTransform('dock_chair', seat.pos, seat.yaw), true);
+  const chair1 = level.propState('dock_chair')!;
+  const col = chair1.colliders[0]!;
+  assert.ok(Math.hypot(chair1.pos.x - seat.pos.x, chair1.pos.z - seat.pos.z) < 1e-4);
+  assert.ok(Math.abs((col.minX + col.maxX) / 2 - seat.pos.x) < 0.01 && Math.abs((col.minZ + col.maxZ) / 2 - seat.pos.z) < 0.01, 'chair collider tracks moved mesh');
+  assert.ok(level.collision.find(seat.pos.x - 0.1, seat.pos.z - 0.1, seat.pos.x + 0.1, seat.pos.z + 0.1).includes(col), 'spatial hash finds moved chair collider');
+  assert.ok(!level.collision.find(5.45 - 0.1, 4.55 - 0.1, 5.45 + 0.1, 4.55 + 0.1).includes(col), 'old chair position is cleared in spatial hash');
+  // Restore chair to start so later tests see initial level state.
+  level.setPropTransform('dock_chair', chair0.pos, chair0.yaw);
+});

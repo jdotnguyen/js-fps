@@ -1,0 +1,285 @@
+{
+  "defaults": {
+    "m": "crew_m",
+    "f": "crew_f"
+  },
+  "profiles": {
+    "crew_m": {
+      "gender": "m"
+    },
+    "crew_f": {
+      "gender": "f"
+    },
+    "giles": {
+      "gender": "m",
+      "inherits": "crew_m",
+      "clips": {
+        "idle": "giles_idle",
+        "talk": "giles_talk",
+        "walk": "giles_walk",
+        "jog": "giles_jog",
+        "work": "giles_console",
+        "drink": "giles_coffee",
+        "aimPistol": "pistol_idle"
+      },
+      "variants": {
+        "intro": {
+          "when": { "sequence": "intro_shift_change" },
+          "holds": { "lean_back": "giles_coffee" },
+          "style": { "tempo": 0.9 }
+        },
+        "panel": {
+          "when": { "task": ["bypass", "bypass_short", "bypass_long", "unlock_locker"] },
+          "holds": { "crouch": "giles_panel" }
+        },
+        "console": {
+          "when": { "task": ["power_restore", "reroute"] },
+          "clips": { "work": "giles_console" },
+          "style": { "headPitch": 10, "fidgetRate": 0.7 }
+        },
+        "reveal": {
+          "when": { "stage": [4, 4] },
+          "holds": { "stand": "giles_reveal" },
+          "style": { "posture": -0.6, "headPitch": 10, "tempo": 0.9, "fidgetRate": 2 }
+        }
+      },
+      "holds": {
+        "stand": "giles_hold",
+        "lean_back": "giles_hold",
+        "lean_wall": "giles_hold",
+        "lean_counter": "giles_hold",
+        "sit_chair": "giles_hold",
+        "sit_stool": "giles_hold",
+        "crouch": "giles_hold",
+        "kneel": "giles_hold"
+      },
+      "style": {
+        "tempo": 0.95,
+        "fidgetRate": 1.35,
+        "posture": -0.25,
+        "headPitch": 4
+      },
+      "hands": {
+        "tension": 0.58,
+        "stiffness": 1.08,
+        "fidget": 0.48,
+        "restCurl": 0.56,
+        "twitch": 1
+      }
+    },
+    "okafor": {
+      "gender": "m",
+      "inherits": "crew_m",
+      "clips": {
+        "idle": "okafor_idle",
+        "talk": "okafor_talk",
+        "walk": "okafor_walk",
+        "jog": "okafor_jog",
+        "work": "okafor_console",
+        "drink": "okafor_coffee",
+        "aimPistol": "pistol_idle"
+      },
+      "holds": {
+        "stand": "okafor_hold",
+        "lean_back": "okafor_hold",
+        "lean_wall": "okafor_hold",
+        "lean_counter": "okafor_hold",
+        "sit_chair": "okafor_hold",
+        "sit_stool": "okafor_hold",
+        "crouch": "okafor_hold",
+        "kneel": "okafor_hold"
+      },
+      "poses": {
+        "glance": "okafor_glance",
+        "glance_other": "okafor_glance_other"
+      },
+      "style": {
+        "tempo": 0.85,
+        "fidgetRate": 0.4,
+        "posture": 0.3,
+        "headPitch": -2
+      },
+      "variants": {
+        "intro": {
+          "when": { "sequence": "intro_shift_change" },
+          "holds": { "lean_back": "okafor_coffee" }
+        },
+        "console": {
+          "when": { "task": "biometric" },
+          "clips": { "work": "okafor_console" },
+          "style": { "headPitch": 6, "fidgetRate": 0.25 }
+        },
+        "revive": {
+          "when": { "task": "revive" },
+          "holds": { "kneel": "okafor_revive" },
+          "style": { "tempo": 1.1, "fidgetRate": 0.2 }
+        }
+      },
+      "hands": {
+        "tension": 0.24,
+        "stiffness": 0.92,
+        "fidget": 0.18,
+        "restCurl": 0.42
+      }
+    },
+    "priya": {
+      "gender": "f",
+      "inherits": "crew_f",
+      "clips": {
+        "idle": "priya_idle",
+        "talk": "priya_talk",
+        "walk": "priya_walk",
+        "jog": "priya_jog",
+        "work": "priya_lean",
+        "drink": "priya_drink",
+        "aimPistol": "pistol_idle"
+      },
+      "holds": {
+        "stand": "priya_lean",
+        "lean_back": "priya_lean",
+        "lean_wall": "priya_lean",
+        "lean_counter": "priya_lean",
+        "sit_chair": "priya_lean",
+        "sit_stool": "priya_lean",
+        "crouch": "priya_lean",
+        "kneel": "priya_lean"
+      },
+      "style": {
+        "tempo": 1.12,
+        "fidgetRate": 1.25,
+        "armCarry": 1.15,
+        "posture": 0.2,
+        "headPitch": -2
+      },
+      "variants": {
+        "intro": {
+          "when": { "sequence": "intro_shift_change" },
+          "style": { "tempo": 1.2, "armCarry": 1.25, "headPitch": -4 }
+        }
+      },
+      "hands": {
+        "tension": 0.32,
+        "stiffness": 1.12,
+        "fidget": 0.36,
+        "restCurl": 0.38
+      }
+    },
+    "voss": {
+      "gender": "f",
+      "inherits": "crew_f",
+      "clips": {
+        "idle": "voss_idle",
+        "talk": "voss_idle",
+        "walk": "voss_walk",
+        "jog": "voss_jog",
+        "work": "voss_work",
+        "drink": "voss_drink",
+        "aimPistol": "pistol_idle"
+      },
+      "holds": {
+        "stand": "voss_hold",
+        "lean_back": "voss_hold",
+        "lean_wall": "voss_hold",
+        "lean_counter": "voss_hold",
+        "sit_chair": "voss_seated",
+        "sit_stool": "voss_seated",
+        "sit_sofa": "voss_seated",
+        "crouch": "voss_hold",
+        "kneel": "voss_hold"
+      },
+      "style": {
+        "tempo": 0.95,
+        "fidgetRate": 1.6,
+        "armCarry": 0.8,
+        "posture": -0.35,
+        "headPitch": 8,
+        "asymmetry": 0.2
+      },
+      "variants": {
+        "labb": {
+          "when": { "sequence": ["briefing_gallery", "drop"] },
+          "style": { "tempo": 1.25, "fidgetRate": 2.4, "headPitch": 10 }
+        }
+      },
+      "hands": {
+        "tension": 0.66,
+        "stiffness": 1.14,
+        "fidget": 0.58,
+        "restCurl": 0.6
+      }
+    },
+    "bram": {
+      "gender": "m",
+      "inherits": "crew_m",
+      "hands": {
+        "tension": 0.3,
+        "stiffness": 0.82,
+        "fidget": 0.22,
+        "restCurl": 0.62
+      }
+    },
+    "ruiz": {
+      "gender": "f",
+      "inherits": "crew_f",
+      "hands": {
+        "tension": 0.36,
+        "stiffness": 1.2,
+        "fidget": 0.52,
+        "restCurl": 0.34
+      }
+    },
+    "heins": {
+      "gender": "f",
+      "inherits": "crew_f",
+      "hands": {
+        "tension": 0.5,
+        "stiffness": 1.0,
+        "fidget": 0.12,
+        "restCurl": 0.5
+      }
+    },
+    "hale": {
+      "gender": "m",
+      "inherits": "crew_m",
+      "hands": {
+        "tension": 0.72,
+        "stiffness": 1.18,
+        "fidget": 0.68,
+        "restCurl": 0.52
+      }
+    },
+    "sung": {
+      "gender": "m",
+      "inherits": "crew_m",
+      "hands": {
+        "tension": 0.2,
+        "stiffness": 0.78,
+        "fidget": 0.26,
+        "restCurl": 0.66
+      }
+    },
+    "dock_guard": {
+      "gender": "m",
+      "inherits": "crew_m",
+      "poses": {
+        "idle_wand": "dock_guard_idle_wand",
+        "wand_up": "dock_guard_wand_up",
+        "wand_down": "dock_guard_wand_down",
+        "sit_typing": "sit_typing_cctv"
+      },
+      "style": {
+        "tempo": 0.9,
+        "fidgetRate": 0.45,
+        "armCarry": 0.9,
+        "posture": 0.08,
+        "asymmetry": 0.35
+      },
+      "hands": {
+        "tension": 0.32,
+        "stiffness": 0.95,
+        "fidget": 0.16,
+        "restCurl": 0.46
+      }
+    }
+  }
+}

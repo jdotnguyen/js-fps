@@ -52,7 +52,7 @@ test('mug poses put a mug in the hand; other seated and leaning poses do not', a
 
 test('wand poses put the wand in the hand, mug poses the mug, and the scan poses exist (dock-checkpoint)', async () => {
   const { heldItemFor } = await import('./heldProps.ts');
-  for (const name of ['idle_wand', 'wand_up', 'wand_down']) {
+  for (const name of ['idle_wand', 'dock_guard_idle_wand', 'wand_attend', 'wand_up', 'dock_guard_wand_up', 'wand_down', 'dock_guard_wand_down']) {
     assert.ok(poses.has(name), name);
     assert.equal(heldItemFor(name), 'wand', name);
   }

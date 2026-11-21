@@ -121,20 +121,126 @@ test('only Giles sets off the arch; everyone else passes, and Ruiz alone gets th
   assert.deepEqual(wanded, ['ruiz']);
 });
 
-test('the guard never leaves his post and ends the scan with the wand at rest', () => {
-  const guard: Array<Record<string, unknown>> = [];
-  walk(intro.steps, (s) => {
-    if (s['npc'] === 'dock_guard') guard.push(s);
-  });
+test('the guard stays at his post through Giles clearing the arch, tracks each approach, sweeps Ruiz once, then returns to the desk alongside Jay exit', () => {
+  const all: Array<Record<string, unknown>> = [];
+  walk(intro.steps, (s) => all.push(s));
+  const guard = all.filter((s) => s['npc'] === 'dock_guard');
   assert.ok(guard.length > 0);
-  assert.ok(guard.every((s) => s['do'] === 'npcAnim'), 'the guard is only animated, never moved');
-  assert.equal(guard[guard.length - 1]!['anim'], 'idle_wand');
+
+  // Through Giles reaching post_giles, the guard only cues gaze and wand animations — no desk move or task yet.
+  const gilesClearedIdx = all.findIndex((s) => s['do'] === 'npcMoveTo' && s['npc'] === 'giles' && s['to'] === 'anchor:post_giles');
+  const returnIdx = all.findIndex((s) => s['do'] === 'npcTask' && s['npc'] === 'dock_guard' && s['task'] === 'return_to_desk');
+  assert.ok(gilesClearedIdx >= 0, 'Giles clears the arch to post_giles');
+  assert.ok(returnIdx > gilesClearedIdx, 'guard desk return triggers only after Giles clears the arch');
+  const beforeClear = all.slice(0, gilesClearedIdx).filter((s) => s['npc'] === 'dock_guard');
+  assert.ok(beforeClear.every((s) => s['do'] === 'npcAnim' || s['do'] === 'npcLookAt'), 'guard stays at his post through the final clearance');
+
+  // The desk return runs inside the same parallel block as Jay's exit to the kitchen.
+  const exitParallel = intro.steps.find((s) => isParallel(s) && JSON.stringify(s).includes('"anchor:kitchen_stand"'));
+  assert.ok(exitParallel && isParallel(exitParallel));
+  assert.ok(
+    exitParallel.parallel.some((b) => !isParallel(b) && b['do'] === 'npcTask' && b['npc'] === 'dock_guard' && b['task'] === 'return_to_desk' && b['wait'] === true),
+    'guard desk return runs alongside Jay exit',
+  );
+
+  const anims = guard.filter((s) => s['do'] === 'npcAnim').map((s) => String(s['anim']));
+  assert.equal(anims.at(-1), 'idle_wand');
+  // Each arrival cues gaze toward the approaching person before the weight shift (`wand_attend`).
+  const looks = guard.filter((s) => s['do'] === 'npcLookAt' && s['target'] !== 'none').map((s) => String(s['target']));
+  assert.deepEqual(looks, ['npc:ruiz', 'npc:sung', 'npc:okafor', 'npc:giles']);
+  for (const who of ['npc:ruiz', 'npc:sung', 'npc:okafor', 'npc:giles']) {
+    const lookIdx = guard.findIndex((s) => s['do'] === 'npcLookAt' && s['target'] === who);
+    assert.ok(lookIdx >= 0 && guard[lookIdx + 1]?.['do'] === 'npcAnim' && guard[lookIdx + 1]?.['anim'] === 'wand_attend', `${who}: look precedes weight shift`);
+  }
+  // Ruiz's scan: one continuous reach (`wand_up`), sweep (`wand_down`) and recovery (`idle_wand`) — no repeated second `wand_up`.
+  const ruizScan = anims.slice(anims.indexOf('wand_up'), anims.indexOf('wand_up') + 3);
+  assert.deepEqual(ruizScan, ['wand_up', 'wand_down', 'idle_wand']);
+  assert.equal(anims.filter((a) => a === 'wand_up').length, 1, 'single reach before the sweep');
+  // The wand beep runs in parallel with the downward sweep pass.
+  const sweepParallel = (() => {
+    let found = false;
+    const find = (steps: Step[]): void => {
+      for (const st of steps) {
+        if (isParallel(st)) {
+          const text = JSON.stringify(st.parallel);
+          if (text.includes('"wand_down"') && text.includes('"wandBeep"')) found = true;
+          find(st.parallel);
+        } else if (Array.isArray(st['steps'])) find(st['steps'] as Step[]);
+      }
+    };
+    find(intro.steps);
+    return found;
+  })();
+  assert.ok(sweepParallel, 'wandBeep lands during the downward sweep pass');
   // Everyone the guard scans lowers their arms again.
   const arms = new Map<string, string>();
   walk(intro.steps, (s) => {
     if (s['do'] === 'npcAnim' && s['npc'] !== 'dock_guard' && (s['anim'] === 'arms_out' || s['anim'] === 'idle')) arms.set(String(s['npc']), String(s['anim']));
   });
   for (const [who, a] of arms) assert.equal(a, 'idle', `${who} lowers their arms`);
+});
+
+test('R01 Ruiz scan: wand stays in the guard hand through every frame of the sweep and the beep lands mid-pass', async () => {
+  const { Humanoid } = await import('../actors/humanoid.ts');
+  const { castSpec } = await import('../actors/castLooks.ts');
+  const { NpcActor } = await import('../ai/npcActor.ts');
+  const { ctx } = await import('../ai/enemyTestKit.ts');
+  const THREE = await import('three');
+
+  const guardBody = new Humanoid({ ...castSpec('security', 'dock_guard'), role: 'npc', pose: 'idle_wand' }, ctx());
+  const guard = new NpcActor('dock_guard', guardBody);
+  const env = { nav: null, colliders: null, playerHead: new THREE.Vector3(6.95, 1.62, 4.3), playerFeet: new THREE.Vector3(6.95, 0, 4.3), camera: null };
+  const ruizHead = new THREE.Vector3(8.6, 1.6, 1.25);
+
+  const stepFrames = (frames: number): void => {
+    for (let i = 0; i < frames; i++) {
+      guard.update(1 / 60, env);
+      assert.equal(guardBody.holding, 'wand', `wand stays in hand during ${guardBody.poseName}`);
+    }
+  };
+  guard.update(1 / 60, env);
+  assert.equal(guardBody.poseName, 'dock_guard_idle_wand');
+  assert.equal(guardBody.holding, 'wand');
+
+  // Approach: gaze leads, then weight shifts to attend.
+  guard.lookAt(() => ruizHead);
+  stepFrames(18);
+  void guard.playAnim('wand_attend');
+  stepFrames(24);
+  assert.equal(guardBody.poseName, 'wand_attend');
+
+  // Continuous reach, sweep with mid-pass beep, and recovery.
+  const upDone = guard.playAnim('wand_up');
+  let upSettled = false;
+  void upDone.then(() => {
+    upSettled = true;
+  });
+  stepFrames(40);
+  await Promise.resolve();
+  assert.ok(upSettled, 'wand_up completes cleanly');
+
+  let downSettled = false;
+  let beepDuringSweep = false;
+  const downDone = guard.playAnim('wand_down');
+  void downDone.then(() => {
+    downSettled = true;
+  });
+  for (let i = 0; i < 55; i++) {
+    guard.update(1 / 60, env);
+    assert.equal(guardBody.holding, 'wand', 'wand stays in hand during downward sweep');
+    if (i === 21) {
+      // 0.35 s into the sweep (same timing as intro_shift_change.json)
+      beepDuringSweep = !downSettled && guardBody.poseName === 'dock_guard_wand_down';
+    }
+  }
+  await Promise.resolve();
+  assert.ok(beepDuringSweep, 'wandBeep lands during the downward sweep pass');
+  assert.ok(downSettled, 'wand_down completes cleanly');
+
+  void guard.playAnim('idle_wand');
+  stepFrames(35);
+  assert.equal(guardBody.poseName, 'dock_guard_idle_wand');
+  assert.equal(guardBody.holding, 'wand');
 });
 
 test('the walk to the kitchen is one banter walk, no window stop', () => {
@@ -317,6 +423,11 @@ async function runIntro(skipWhen: ((log: string[]) => boolean) | null, opts: { w
       if (!['wand_up', 'wand_down', 'rub_forearm', 'drink', 'glance', 'cough', 'gesture', 'flex_hand'].includes(a)) pose[who] = a;
       log.push(`anim ${who} ${a}`);
     }
+    if (action === 'npcTask' && who === 'dock_guard' && step['task'] === 'return_to_desk') {
+      spot[who] = 'anchor:guard_seat';
+      pose[who] = 'sit_typing';
+      log.push(`task ${who} ${String(step['task'])}${step['instant'] ? ' instant' : ''}`);
+    }
   };
   let walking = false;
   host.walkTo = () => {
@@ -345,7 +456,8 @@ async function runIntro(skipWhen: ((log: string[]) => boolean) | null, opts: { w
 
 test('skipping mid-scan or mid-walk ends exactly like watching the intro through', async () => {
   const watched = await runIntro(null);
-  assert.equal(watched.pose['dock_guard'], 'idle_wand');
+  assert.equal(watched.spot['dock_guard'], 'anchor:guard_seat');
+  assert.equal(watched.pose['dock_guard'], 'sit_typing');
   assert.equal(watched.pose['ruiz'], 'idle');
   const points: Array<[string, ((log: string[]) => boolean), { walkHangs?: boolean }]> = [
     ['at the first second', (log) => log.includes('fade 0 2.5'), {}],
@@ -357,10 +469,159 @@ test('skipping mid-scan or mid-walk ends exactly like watching the intro through
     const skipped = await runIntro(when, opts);
     assert.deepEqual(skipped.flags, watched.flags, `${label}: flags`);
     assert.deepEqual(skipped.spot, watched.spot, `${label}: everyone ends on the same spot`);
-    assert.deepEqual(skipped.pose, watched.pose, `${label}: everyone ends in the same pose (guard holding the wand at rest)`);
+    assert.deepEqual(skipped.pose, watched.pose, `${label}: everyone ends in the same pose (guard seated at desk)`);
     assert.deepEqual(skipped.lines, watched.lines, `${label}: every line counts as played`);
     assert.deepEqual(skipped.checkpoints, watched.checkpoints, `${label}: cp_intro once`);
   }
+});
+
+test('R01 intro watch, skips during scan/walk/pull/sit and post-intro restore all converge on one seated desk arrangement', async () => {
+  const THREE = await import('three');
+  const { loadSlice01 } = await import('../world/headlessSlice.ts');
+  const { NpcDirector } = await import('../ai/npcs.ts');
+  const { ctx } = await import('../ai/enemyTestKit.ts');
+  const restoreDefs = validateSequences({ 'quiet_restore.json': json('../data/sequences/quiet_restore.json') });
+
+  interface DeskState {
+    pos: [number, number, number];
+    yaw: number;
+    pose: string;
+    handWand: boolean;
+    deskWand: boolean;
+    chairPos: [number, number, number];
+    chairYaw: number;
+  }
+
+  const runRealIntro = async (skipAt: 'none' | 'scan' | 'walk_desk' | 'pull_chair' | 'sit_down'): Promise<DeskState> => {
+    const { level, events } = loadSlice01();
+    const nav = level.navGraph();
+    const playerFeet = new THREE.Vector3(6.95, 0, 4.3);
+    const playerHead = new THREE.Vector3(6.95, 1.62, 4.3);
+    const npcs = new NpcDirector({
+      ctx: { ...ctx(), colliders: level.collision },
+      nav,
+      colliders: level.collision,
+      player: () => ({ feet: playerFeet, head: playerHead }),
+      emit: (name, payload) => events.emit(name as never, payload as never),
+      walk: (id) => level.walk(id) ?? null,
+      setPropTransform: (id, pos, yaw) => level.setPropTransform(id, pos, yaw),
+      setPropVisible: (id, visible) => level.setPropVisible(id, visible),
+      propState: (id) => level.propState(id),
+    });
+    npcs.setResolver((ref) => {
+      if (typeof ref === 'string' && ref.startsWith('anchor:')) {
+        const a = level.anchor(ref.slice(7));
+        return a ? { pos: { x: a.pos.x, y: a.pos.y, z: a.pos.z }, yaw: a.yaw } : null;
+      }
+      return null;
+    });
+    npcs.spawnFromLevel(level.npcSpawns().filter((n) => n.id === 'dock_guard'));
+    const guard = npcs.actor('dock_guard')!;
+
+    const { host } = makeHost();
+    host.npc = (action, step) => {
+      if (step['npc'] !== 'dock_guard') return;
+      return npcs.command(action, step);
+    };
+    host.walkTo = () => {
+      // Simulate Jay stepping clear of the booth toward the Commons.
+      playerFeet.set(11.5, 0, 2.0);
+      playerHead.set(11.5, 1.62, 2.0);
+      return Promise.resolve();
+    };
+    const m = new SequenceManager(host, [intro, ...restoreDefs]);
+    m.start('intro_shift_change');
+    const cam = new THREE.Vector3(6.95, 1.62, 4.3);
+    let skipped = false;
+    for (let i = 0; i < 60 * 120 && m.running().length > 0; i++) {
+      m.update(1 / 60);
+      npcs.update(1 / 60, cam);
+      if (!skipped && skipAt !== 'none') {
+        const hit = skipAt === 'scan' ? guard.body.poseName === 'dock_guard_wand_up' : npcs.dockGuard.phase === skipAt;
+        if (hit) {
+          assert.equal(m.skip(), true);
+          skipped = true;
+          break;
+        }
+      }
+      if (i % 4 === 0) await Promise.resolve();
+    }
+    assert.deepEqual(m.running(), [], `intro ended (${skipAt})`);
+    if (skipAt !== 'none') assert.ok(skipped, `reached skip point ${skipAt}`);
+    for (let i = 0; i < 60; i++) npcs.update(1 / 60, cam);
+
+    const chair = level.propState('dock_chair')!;
+    const wand = level.propState('dock_wand')!;
+    const r = (n: number): number => Math.round(n * 1000) / 1000;
+    return {
+      pos: [r(guard.position.x), r(guard.position.y), r(guard.position.z)],
+      yaw: r(Math.atan2(Math.sin(guard.body.heading), Math.cos(guard.body.heading))),
+      pose: guard.body.poseName,
+      handWand: guard.body.holding === 'wand',
+      deskWand: wand.visible,
+      chairPos: [r(chair.pos.x), r(chair.pos.y), r(chair.pos.z)],
+      chairYaw: r(Math.atan2(Math.sin(chair.yaw), Math.cos(chair.yaw))),
+    };
+  };
+
+  const watched = await runRealIntro('none');
+  assert.equal(watched.pose, 'sit_typing_cctv');
+  assert.equal(watched.handWand, false);
+  assert.equal(watched.deskWand, true);
+
+  for (const phase of ['scan', 'walk_desk', 'pull_chair', 'sit_down'] as const) {
+    assert.deepEqual(await runRealIntro(phase), watched, `skip during ${phase} matches full watch`);
+  }
+
+  // Load an existing post-intro checkpoint via quiet_restore with introSeen=true.
+  const { level, events } = loadSlice01();
+  const npcs = new NpcDirector({
+    ctx: { ...ctx(), colliders: level.collision },
+    nav: level.navGraph(),
+    colliders: level.collision,
+    player: () => ({ feet: new THREE.Vector3(16, 0, 4), head: new THREE.Vector3(16, 1.62, 4) }),
+    emit: (name, payload) => events.emit(name as never, payload as never),
+    walk: (id) => level.walk(id) ?? null,
+    setPropTransform: (id, pos, yaw) => level.setPropTransform(id, pos, yaw),
+    setPropVisible: (id, visible) => level.setPropVisible(id, visible),
+    propState: (id) => level.propState(id),
+  });
+  npcs.setResolver((ref) => {
+    if (typeof ref === 'string' && ref.startsWith('anchor:')) {
+      const a = level.anchor(ref.slice(7));
+      return a ? { pos: { x: a.pos.x, y: a.pos.y, z: a.pos.z }, yaw: a.yaw } : null;
+    }
+    return null;
+  });
+  npcs.spawnFromLevel(level.npcSpawns().filter((n) => n.id === 'dock_guard'));
+  const { host } = makeHost();
+  host.flags['introSeen'] = true;
+  host.npc = (action, step) => {
+    if (step['npc'] !== 'dock_guard') return;
+    return npcs.command(action, step);
+  };
+  const rm = new SequenceManager(host, restoreDefs);
+  host.events.emit('game:mode', { mode: 'playing' });
+  rm.update(1 / 60);
+  const cam = new THREE.Vector3(6.95, 1.62, 4.3);
+  for (let i = 0; i < 60; i++) npcs.update(1 / 60, cam);
+  const guard = npcs.actor('dock_guard')!;
+  const chair = level.propState('dock_chair')!;
+  const wand = level.propState('dock_wand')!;
+  const r = (n: number): number => Math.round(n * 1000) / 1000;
+  assert.deepEqual(
+    {
+      pos: [r(guard.position.x), r(guard.position.y), r(guard.position.z)],
+      yaw: r(Math.atan2(Math.sin(guard.body.heading), Math.cos(guard.body.heading))),
+      pose: guard.body.poseName,
+      handWand: guard.body.holding === 'wand',
+      deskWand: wand.visible,
+      chairPos: [r(chair.pos.x), r(chair.pos.y), r(chair.pos.z)],
+      chairYaw: r(Math.atan2(Math.sin(chair.yaw), Math.cos(chair.yaw))),
+    },
+    watched,
+    'post-intro checkpoint load via quiet_restore matches watched endpoint',
+  );
 });
 
 test('walking into the Commons: the view turns to whoever speaks first, and Bram starts as Jay walks in', () => {

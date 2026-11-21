@@ -107,11 +107,23 @@ function door(id, a, b, x, z, side, o = {}) {
   return { center: edgeCenter(x, z, side, 1.2) };
 }
 
-/** Glass partition on `side` of a cell, owned by room `owner`; the room behind gets no wall there. */
+/**
+ * Glass partition on `side` of a cell, owned by room `owner`; the room behind gets no wall there.
+ * Both rooms draw each other (room-visibility spec): `build()` pairs the owner with whichever room owns
+ * the cell behind, since that room may be declared later.
+ */
 function glass(owner, x, z, side) {
   byId.get(owner).wallOverride[edgeKey(x, z, side)] = 'wall_glass_partition';
   const [nx, nz] = neighbour(x, z, side);
   glassEdges.set(edgeKey(nx, nz, OPP[side]), owner);
+}
+
+/** Rooms `a` and `b` draw each other: each lists the other in `visibleFrom`. */
+function seeEachOther(a, b) {
+  for (const [r, o] of [[a, b], [b, a]]) {
+    const room = byId.get(r);
+    room.visibleFrom = [...new Set([...(room.visibleFrom ?? []), o])];
+  }
 }
 
 /** An open seam between two rooms (no wall, no door); both rooms render from each other. */
@@ -120,10 +132,7 @@ function opening(a, b, x, z, side) {
   const [nx, nz] = neighbour(x, z, side);
   openEdges.add(edgeKey(x, z, side));
   openEdges.add(edgeKey(nx, nz, OPP[side]));
-  for (const [r, o] of [[a, b], [b, a]]) {
-    const room = byId.get(r);
-    room.visibleFrom = [...new Set([...(room.visibleFrom ?? []), o])];
-  }
+  seeEachOther(a, b);
 }
 
 const wallKit = (r, x, z, s, kit, params) => {
@@ -272,9 +281,16 @@ prop(R01, 'half_wall', [5.9, 0, 1.8], 0, { width: 3.0, height: 1.08, material: '
 prop(R01, 'half_wall', [4.5, 0, 3.775], 90, { width: 4.15, height: 1.08, material: 'cleanTeal' });
 prop(R01, 'mug', [6.75, 1.08, 1.86], 0, { color: 'teal' });
 // The CCTV bank sits between the south wall's pilasters at x 6.0 and 7.9 (wall-mounted props stay clear of wall structure).
-prop(R01, 'office_desk', [6.95, 0, 5.1], 0, { width: 1.8, monitor: false, keyboards: 2, papers: 2, top: 'panel' });
+const R01_DESK = [6.95, 0, 5.1];
+const R01_CHAIR_START = [5.45, 0, 4.55];
+const R01_CHAIR_START_ROT = 150;
+const R01_WAND_SPOT = [7.02, 0.775, 5.14];
+const R01_WAND_ROT = 108;
+const R01_GUARD_SEAT = [6.45, 0, 4.38]; // aligned with the left keyboard (x = 6.45, chairDist = 0.72), facing the CCTV wall
+prop(R01, 'office_desk', R01_DESK, 0, { width: 1.8, monitor: false, keyboards: 2, papers: 2, top: 'panel' });
 prop(R01, 'cctv_wall', [6.95, 0, 5.69], 0, { id: 'dock_post', camera: 'CAM 02  DOCK AIRLOCK', width: 1.84 });
-prop(R01, 'chair', [5.45, 0, 4.55], 150); // pushed aside: Jay leans on the desk instead of sitting
+prop(R01, 'chair', R01_CHAIR_START, R01_CHAIR_START_ROT, { id: 'dock_chair', fixed: true }); // pushed aside: Jay leans on the desk; guard pulls it up after arrivals
+prop(R01, 'desk_wand', R01_WAND_SPOT, R01_WAND_ROT, { id: 'dock_wand', hidden: true });
 // Detector line at x = 7.675: arch (1.2 m clear, z 0.57..1.77; the navmesh needs more than 1.1 m) against the counter,
 // then rail, the fixed staff gate, rail to the window.
 const ARCH = [7.675, 0, 1.17];
@@ -313,6 +329,13 @@ anchor(R01, 'arch_exit', [10.6, 0, -0.3], 270);
 walk(R01, 'checkpoint_exit', ['arch_scan', [9.0, 0, 0.35], 'arch_exit']);
 // The dock guard (dock-checkpoint spec): on his post past the arch, facing it, wand in hand. The only guard1 body in the slice.
 npc(R01, 'dock_guard', 'security', 'guard_post', 'idle_wand', { model: 'guard1' });
+// Guard's return to the security desk (dock-guard-routine): approach clearing the counter, Jay and squad,
+// wand placement on the desk, grip position beside the loose chair, and final seated spot facing the keyboard.
+anchor(R01, 'guard_desk_approach', [7.02, 0, 4.32], 180);
+anchor(R01, 'guard_wand_spot', R01_WAND_SPOT, R01_WAND_ROT);
+anchor(R01, 'guard_chair_grip', [5.8, 0, 3.88], face([5.8, 0, 3.88], R01_CHAIR_START));
+anchor(R01, 'guard_seat', R01_GUARD_SEAT, 180);
+walk(R01, 'guard_return_desk', ['guard_post', [8.6, 0, 1.85], [7.75, 0, 2.25], [6.95, 0, 2.75], [6.75, 0, 3.5], 'guard_desk_approach']);
 anchor(R01, 'post_okafor', [8.2, 0, 2.9], face([8.2, 0, 2.9], POST));
 anchor(R01, 'post_giles', [9.6, 0, 3.4], face([9.6, 0, 3.4], POST));
 anchor(R01, 'walk_mid', [14, 0, 0.6], 270);
@@ -501,7 +524,6 @@ const R04 = room('R04', 'Lab B', rect(1, 3, 6, 7), {
   atmosphere: { fog: '#05080a', fogDensity: 0.02, reverb: 'small_office', ambience: 'lab_hum' },
   floor: 'floor_tiles',
   walls: ['wall_tiles', 'wall_panel'],
-  visibleFrom: ['R03'],
   lights: [L(0, 'steady', '#e8f4ff', 9), L(2, 'steady', '#e8f4ff', 9), L(4, 'flicker', '#e8f4ff', 7)],
 });
 for (const x of [1, 2, 3]) glass('R03', x, 5, 's');
@@ -638,7 +660,7 @@ prop(R06, 'power_box', [-2.6, 1.1, 37.5]); // imported (import-lab-props): Giles
 anchor(R06, 'r06_panel', [-2.6, 0, 37.0], 180);
 anchor(R06, 'r06_hold', [-0.5, 0, 29.2], 180);
 // The creature that burst out of Voss (infection-kills spec): it spawns where it stands pounding the Lab B glass and breaks out at contact.
-spawn(R05, 'r05_door', [8, 0, 22.51], 'door', 'r05_contact', { yaw: 180, outfit: 'lab', model: 'necromorph', infection: 1 });
+spawn(R05, 'r05_door', [8, 0, 22.51], 'door', 'r05_contact', { yaw: 180, look: 'lab_creature' });
 // The first one breaks through the sealed Lab B door (group r05_contact); two to three more trickle in
 // after it dies (group r05_trickle, ADR-0014 beat 3): two from the west vent, one up out of the floor drain.
 spawn(R05, 'r05_vent', [-5.2, 2.7, 22], 'vent', 'r05_trickle', { count: 2, interval: 6 });
@@ -683,57 +705,93 @@ const R08 = room('R08', 'Medical Bay', rect(-1, 1, 12, 13), {
   atmosphere: { fog: '#05090a', fogDensity: 0.04, reverb: 'small_office', ambience: 'med_beeps' },
   floor: 'floor_tiles',
   walls: ['wall_tiles'],
-  visibleFrom: ['R07'],
-  lights: [L(0, 'steady', '#eaf6ff', 9), L(2, 'flicker', '#eaf6ff', 8), L(4, 'steady', '#eaf6ff', 8)],
+  // medbay-attack staging: a steady key over the cart (cell 0,12), a flicker over the door and the lane, low over the beds.
+  lights: [L(0, 'steady', '#eaf6ff', 5), L(1, 'steady', '#eaf6ff', 9), L(2, 'flicker', '#eaf6ff', 7)],
 });
 const R08b = room('R08b', 'Surgery', [[2, 13]], { area: 'medbay', hidden: true, floor: 'floor_tiles', walls: ['wall_tiles'], atmosphere: { fog: '#05090a', fogDensity: 0.05, reverb: 'small_office' }, lights: [L(0, 'dying', '#eaf6ff', 6)] });
-for (const x of [-1, 0, 1]) glass('R07', x, 11, 's');
-// Priya's attack (ADR-0014 beat 5): the medical bay glass cracks and takes blood (events glass:set / glass:blood, id medbay).
-for (const [i, x] of [-1, 0, 1].entries()) {
-  wallProp(R07, 'glass_cracks', x, 11, 's', 0, { id: 'medbay', seed: i + 11 }, 0.02);
-  wallProp(R07, 'glass_blood', x, 11, 's', 0, { id: 'medbay', seed: i + 21 }, 0.03);
+// Two panes and the medical bay door (medbay-attack spec): the east edge is the sealed glass door Okafor tries.
+for (const x of [-1, 0]) glass('R07', x, 11, 's');
+// Each pane its own id (medbay-attack spec "Only the struck pane"): the kill's marks land where Priya touches the centre
+// pane (gore glass marks, not whole-pane overlays); the whole-pane crack overlays stay, unused by the R08 scene.
+for (const [i, [x, id]] of [[-1, 'medbay_w'], [0, 'medbay_c']].entries()) {
+  wallProp(R07, 'glass_cracks', x, 11, 's', 0, { id, seed: i + 11 }, 0.02);
 }
 door('D_R07_R07a', 'R07', 'R07a', 1, 10, 'e', { state: 'locked', unlockBy: 'engineer', task: 'bypass_short' });
 door('D_R07_R09', 'R07', 'R09', 1, 11, 'e', { state: 'locked', unlockBy: 'medic', task: 'biometric' });
 door('D_R08_R08b', 'R08', 'R08b', 1, 13, 'e', { state: 'closed', access: { sealed: true, text: 'lockdown' } });
-prop(R07, 'console_bank', [-3.6, 0, 37.6], 180, { width: 3, mode: 'security' });
-prop(R07, 'chair', [-3.6, 0, 39.2]);
-prop(R07, 'desk', [-4.4, 0, 42.2], 90, { width: 1.6 });
-prop(R07, 'locker', [5.4, 0, 39.4], 270, { count: 2, label: 'SEC-07' });
-prop(R07, 'crate', [-5, 0, 38.4], 10, { size: 0.7 });
+door('D_R07_R08', 'R07', 'R08', 1, 11, 's', { kit: 'glass_slide', state: 'closed', access: { sealed: true, text: 'lockdown' } });
+// Staging (medbay-attack spec, design decision 12): R07 is three clusters with the spine (x -1.5..1.5) and the
+// viewing strip along the glass (z 44.6-45.7) kept clear; rot is the way a kit's front faces (0 N, 90 W, 180 S, 270 E).
+// Watch desk on the north wall, west of the entry: the bank, the camera wall above it, the post left in a hurry.
+prop(R07, 'console_bank', [-3.6, 0, 38.7], 180, { width: 3, mode: 'security' });
+prop(R07, 'cctv_wall', [-3.6, 0, 38.27], 180, { id: 'sec_cctv', width: 1.6, y: 1.69, live: 1, camera: 'CAM 04  MEDBAY', labels: 'CAM 01  SECURITY|CAM 04  MEDBAY|CAM 05  LAB B CORRIDOR|CAM 07  PRESSURE HALL|CAM 08  TUNNEL|CAM 03  RING WALK' });
+prop(R07, 'chair', [-3.6, 0, 39.75]);
+prop(R07, 'chair', [-2.3, 0, 40.9], 150); // shoved back from the bank
+// Lockers on the north wall east of the entry, off the armory door.
+prop(R07, 'locker', [3.4, 0, 38.55], 180, { count: 2, label: 'SEC-07' });
+// Last stand on the west wall: the desk with the medkit, a chair knocked aside, the second body.
+prop(R07, 'desk', [-5.3, 0, 42.6], 90, { width: 1.6 });
+prop(R07, 'chair', [-4.4, 0, 43.9], 200);
 prop(R07, 'emergency_beacon', [-5.7, 2.6, 41], 90, { wall: true });
-prop(R07a, 'armory_rack', [8, 0, 38.6], 180, { width: 2.4, empty: 1 });
-prop(R07a, 'crate_stack', [8.8, 0, 41.4], 0);
-prop(R08, 'med_bed', [-3.4, 0, 51], 0);
-prop(R08, 'med_bed', [0.6, 0, 51], 0);
-prop(R08, 'gurney', [4.4, 0, 49.6], 90);
-prop(R08, 'lab_bench', [0, 0, 54.7], 180, { width: 3.2 });
-prop(R08, 'console', [-5, 0, 48.2], 90, { screen: 'status' });
+// R07a: the rack faces the door so the Breacher is framed as it opens; a looted rack and a shelf for the ammo.
+prop(R07a, 'armory_rack', [9.45, 0, 40], 90, { width: 2.4, empty: 2 });
+prop(R07a, 'armory_rack', [8.2, 0, 38.55], 180, { width: 1.6, empty: 3 });
+prop(R07a, 'storage_shelf', [7.9, 0, 41.45], 0, { width: 1.6 });
+// R08 medical bay: only the cart in front of the centre pane (the stage); beds and vitals on the west wall; bench,
+// shelf and the parked gurney on the south wall; the lane x 2.5..5.75 from the door to the surgery stays empty.
+prop(R08, 'instrument_cart', [0, 0, 47.4], 0);
+prop(R08, 'med_bed', [-4.7, 0, 48.6], 90);
+prop(R08, 'console', [-5.3, 0, 50.1], 270, { screen: 'status' });
+prop(R08, 'med_bed', [-4.7, 0, 51.6], 90);
+prop(R08, 'lab_bench', [-1.4, 0, 53.35], 0, { width: 3.2 });
+prop(R08, 'storage_shelf', [-4.6, 0, 53.45], 0, { width: 1.6 });
+prop(R08, 'gurney', [2.0, 0, 53.3], 90);
+// R08b surgery: the bed, and a shelf on the north wall behind the stinger camera (no specimen tank).
 prop(R08b, 'med_bed', [8, 0, 52], 0);
-prop(R08b, 'specimen_tank', [9.4, 0, 54]);
-anchor(R07a, 'shotgun_pickup', [8, 1.25, 38.6]);
-anchor(R07a, 'r07_panel', [8.6, 0, 40.4], 90);
-anchor(R07a, 'ammo_r07a', [8.8, 0.9, 41.4]);
+prop(R08b, 'storage_shelf', [7.3, 0, 50.55], 180, { width: 1.6 });
+anchor(R07a, 'shotgun_pickup', [9.4, 1.25, 40.0]);
+anchor(R07a, 'r07_panel', [6.9, 0, 38.9], 0);
+anchor(R07a, 'ammo_r07a', [7.9, 0.78, 41.4]);
 anchor(R07, 'r07_glass', [0, 1.5, 45.8]);
-anchor(R07, 'health_r07', [-4.4, 0.8, 42.2]);
+anchor(R07, 'health_r07', [-5.3, 0.8, 42.6]);
 anchor(R07, 'okafor_biometric', [4.4, 0, 44], 270);
 // Action half set pieces (ADR-0014 beat 5): Giles at the armory door, the squad at the glass, Priya's run,
 // the thing waiting in R08b, and the stinger's camera in the surgery (ADR-0014 amendment).
 anchor(R07, 'r07_armory_panel', [5.15, 0, 41.4], 270);
-anchor(R07, 'r07_glass_okafor', [-1.1, 0, 45.0], 180);
-anchor(R07, 'r07_glass_giles', [2.1, 0, 44.4], 200);
-anchor(R07, 'r07_glass_jay', [0.4, 0, 44.2], 180);
+// At the glass (design decision 10): Jay against the centre pane, Giles west of him, Okafor east by the door, both off
+// Jay's line to the cart. Jay stands 0.15 m clear of the partition's collider (face z 45.75, capsule 0.35).
+anchor(R07, 'r07_glass_okafor', [3.1, 0, 45.1], 180);
+anchor(R07, 'r07_glass_giles', [-1.8, 0, 45.0], 170);
+anchor(R07, 'r07_glass_jay', [0.3, 0, 45.25], 180);
+anchor(R07, 'r07_medbay_door', [4.0, 0, 45.35], 180);
 anchor(R07, 'r07_regroup', [3.4, 0, 42.4], 200);
 // The admin security-booth glimpse (ADR-0023): CAM 04 high in the north-east corner, a figure facing the west wall.
 anchor(R08, 'cam04_pos', [5.4, 2.9, 47.0]);
-anchor(R08, 'cam04_look', [-2.5, 1.0, 51.5]);
-anchor(R08, 'cam04_figure', [-5.1, 0, 51.6], 90);
-anchor(R08, 'priya_r08', [0, 0, 49.2], 0);
+anchor(R08, 'cam04_look', [-3.6, 1.0, 50.2]);
+anchor(R08, 'cam04_figure', [-4.3, 0, 50.1], 90); // at the vitals console between the beds, facing the west wall
+anchor(R08, 'priya_r08', [2.2, 0, 49.4], 0); // her work spot, with a clear walk to the glass around the cart
 anchor(R08, 'r08_drag_exit', [5.6, 0, 52], 270);
-anchor(R08, 'priya_glass', [0.3, 0, 46.62], 0);
-anchor(R08, 'r08_drag_mid', [2.8, 0, 48.4]);
-anchor(R08, 'r08_drag_turn', [3.0, 0, 51.6]);
-anchor(R08b, 'r08_lurk', [7.8, 0, 52], 90);
+anchor(R08, 'priya_glass', [1.0, 0, 46.35], 0); // the plead spot, 0.35 m off the partition (R08 face z 46.0), east of the cart
+anchor(R08, 'r08_drag_mid', [3.8, 0, 46.7]); // along the glass, right behind the door Okafor is pressed against
+anchor(R08, 'r08_drag_turn', [4.4, 0, 48.6]);
+// The kill's stage (design decision 10): plead/grab at the glass, slams on the cart top, thrown back into the centre
+// pane at head height, the reach in the gap between the pane and the cart.
+anchor(R08, 'r08_grab', [1.0, 0, 46.35], 0);
+anchor(R08, 'r08_cart_top', [0, 0.925, 47.4]);
+anchor(R08, 'r08_throw_point', [0.9, 1.55, 45.75]);
+anchor(R08, 'r08_reach', [1.0, 0, 46.33], 0);
+// The centre pane's face (z 45.72): the kill's glass, its marks and its gore clip.
+anchor(R08, 'medbay_c_glass', [1.0, 1.5, 45.72]);
+// The attacker's marks (kills.json "mauled"): behind her at the glass; round the cart's east end to its far side; the
+// slam spot (its right hand reaches 0.61 m ahead and 0.32 m right, so it stands there to land her head on the cart),
+// facing the glass; at her feet for the drag; and the end of the drag in the surgery.
+anchor(R08, 'r08_approach', [1.1, 0, 46.8], 0);
+anchor(R08, 'r08_around', [1.1, 0, 48.15]);
+anchor(R08, 'r08_slam_spot', [-0.32, 0, 48.01], 0);
+anchor(R08, 'r08_slam_face', [-0.32, 0, 46.5]);
+anchor(R08, 'r08_feet', [1.25, 0, 47.95], 0); // 1.6 m out from her at the pane: she lies at full length when dragged
+anchor(R08b, 'r08_lurk', [7.0, 0, 51.35], 90); // just inside the surgery door, clear of the bed
+anchor(R08b, 'r08_drag_end', [7.1, 0, 53.0], 90); // where the drag leaves her, between the bed and the door
 anchor(R08b, 'stinger_cam', [9.65, 2.85, 50.35]);
 anchor(R08b, 'stinger_look', [8.1, 0.55, 52.9]);
 anchor(R08b, 'priya_hide', [8.7, 0, 53.35], 300);
@@ -741,11 +799,13 @@ anchor(R08b, 'stinger_enter', [6.7, 0, 52], 270);
 anchor(R08b, 'stinger_kill', [8.0, 0, 52.6], 225);
 // One play-dead in R07 (gets up as the player passes, ADR-0014 beat 5); the other bodies are dressing.
 spawn(R07, 'r07_playdead', [2.6, 0, 42.6], 'corpse', 'r07_playdead', { variant: 'playDead', outfit: 'security', yaw: 120, on: 'trigger:r07_enter' });
-anchor(R07, 'body_r07_1', [-3.2, 0, 40], 30);
-anchor(R07, 'body_r07_2', [-1.2, 0, 43.4], 200);
+anchor(R07, 'body_r07_1', [-2.4, 0, 39.9], 30); // slumped at the post
+anchor(R07, 'body_r07_2', [-4.2, 0, 42.3], 250); // the last stand, out of the viewing strip
 trigger(R07, 'trig_r07_enter', cellBox(-1, 1, 10, 10), 'trigger:r07_enter');
 trigger(R07, 'trig_r07_playdead', [[1, 0, 40.6], [4, 2.2, 44.4]], 'trigger:r07_playdead');
 trigger(R07, 'trig_r08_glass', [[-5.6, 0, 43.4], [5.6, 2.4, 45.6]], 'trigger:r08_glass');
+// Jay bangs on the centre pane while Priya pleads (medbay-attack spec): only offered while the scene allows interact.
+trigger(R07, 'medbay_bang', [[-1.2, 0, 44.7], [1.8, 2.2, 45.75]], 'interact:medbay_bang', { on: 'use', prompt: 'Bang on the glass', once: false });
 trigger(R07a, 'trig_r07_armory', cellBox(2, 2, 10, 10), 'trigger:r07_armory');
 checkpoints.push({ id: 'cp_security', room: 'R07', pos: [0, 0, 40.2], yaw: 180 });
 
@@ -872,7 +932,6 @@ const R12c = room('R12c', 'Seed Lab', [[13, 4], [13, 5]], {
   ceilingMaterial: 'officeCeiling',
   walls: ['wall_tiles'],
   noDeadFixtures: true,
-  visibleFrom: ['R12b'],
   lights: [
     L(0, 'steady', '#f4faf6', 11, 10, { shaft: 0.02 }),
     L(1, 'steady', '#f4faf6', 10, 10, { shaft: 0.02 }),
@@ -1149,8 +1208,6 @@ door('D_R14a_R14b', 'R14a', 'R14b', 9, 2, 'e', { kit: 'glass_slide' });
 door('D_R14b_R14c', 'R14b', 'R14c', 12, 1, 'e', { kit: 'glass_slide' });
 door('D_R14b_R14d', 'R14b', 'R14d', 11, 1, 'n', { kit: 'glass_slide' });
 door('D_R14a_R14e', 'R14a', 'R14e', 9, 2, 'n');
-R14c.visibleFrom = ['R14b'];
-R14d.visibleFrom = ['R14b'];
 station(R14a, 'admin_map', 'admin', 9, 3, 's');
 // Reception desk on the east side of [9,3]: monitor faces east toward the seated assistant, who faces west toward arriving visitors.
 workstation(R14a, [36.5, 0, 10.7], 270, {
@@ -1266,7 +1323,7 @@ async function detectSpawnFields() {
   const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/data/types/level.ts'), 'utf8');
   const m = src.match(/spawnShape\s*=\s*\{([\s\S]*?)\n\};/) ?? src.match(/spawns:\s*optional\(arr\(obj\(\{([^}]*)\}/);
   const body = m ? m[1] : '';
-  return new Set(['group', 'active', 'variant', 'count', 'interval', 'yaw', 'outfit', 'infection', 'model', 'on'].filter((f) => new RegExp(`\\b${f}\\b`).test(body)));
+  return new Set(['group', 'active', 'variant', 'count', 'interval', 'yaw', 'outfit', 'infection', 'model', 'look', 'on'].filter((f) => new RegExp(`\\b${f}\\b`).test(body)));
 }
 
 function build() {
@@ -1278,6 +1335,13 @@ function build() {
       if (seen.has(k)) throw new Error(`cell ${k} is in both ${seen.get(k)} and ${r.id}`);
       seen.set(k, r.id);
     }
+  }
+  // Glass is see-through from both sides: pair each glass owner with the room behind its pane.
+  for (const [ek, ownerId] of glassEdges) {
+    const [nx, nz] = ek.split(',');
+    const behind = seen.get(`${nx},${nz}`);
+    if (!behind) throw new Error(`glass owned by ${ownerId} at edge ${ek} has no room behind it`);
+    seeEachOther(ownerId, behind);
   }
   const out = [];
   for (const r of rooms) {

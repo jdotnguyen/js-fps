@@ -3,6 +3,12 @@ import type { Emote } from '../data/types/dialogue.ts';
 import type { HandContact } from './limbContact.ts';
 import type { JointName, Side, Vec3T } from './skeleton.ts';
 import { Spring1D, Spring3D } from './springs.ts';
+import { detailPass } from './detailPass.ts';
+import { EASE_GUARD, HELD_THUMB_REACH, type HeldGrip } from './heldGrip.ts';
+
+/** Scratch for the held grip (zero per-frame allocation). */
+const HELD_TARGETS = [0, 0, 0];
+const HELD_ANGLES = [0, 0, 0];
 
 /**
  * Biomechanical wrist and individual-finger physics for humanoids.
@@ -63,19 +69,9 @@ export interface HandPersonality {
   fidget: number;
   /** 0..1 resting curl tightness multiplier. */
   restCurl: number;
+  /** 0..1 involuntary finger twitch, scaled by `HandPhysicsSolver.twitchStage` (Giles's infection). */
+  twitch?: number;
 }
-
-/** Authored personalities for the Phase 1 main cast, keyed by HumanoidSpec.seed. */
-export const CAST_HAND_PERSONALITIES: Readonly<Record<string, HandPersonality>> = {
-  // August Giles: heavy mechanic hands, moderate-high tension and subtle restlessness.
-  'august-giles': { tension: 0.58, stiffness: 1.08, fidget: 0.48, restCurl: 0.56 },
-  // Dr. Tomas Okafor: steady, composed surgeon/medic hands, low fidget, calm damping.
-  'tomas-okafor': { tension: 0.24, stiffness: 0.92, fidget: 0.18, restCurl: 0.42 },
-  // Priya Anand: expressive, open, agile conversational hands.
-  'priya-anand': { tension: 0.32, stiffness: 1.12, fidget: 0.36, restCurl: 0.38 },
-  // Director Hale: high-strung, tense executive with nervous micro-fidgets.
-  'director-hale': { tension: 0.72, stiffness: 1.18, fidget: 0.68, restCurl: 0.52 },
-};
 
 function hashSeed(s: string): number {
   let h = 2166136261;
@@ -83,9 +79,8 @@ function hashSeed(s: string): number {
   return (h >>> 0) / 4294967296;
 }
 
+/** Seeded hands for characters without their own (named characters' hands live in their motion profile). */
 export function handPersonalityFor(seed: string): HandPersonality {
-  const named = CAST_HAND_PERSONALITIES[seed];
-  if (named) return named;
   const h1 = hashSeed(`${seed}:t`);
   const h2 = hashSeed(`${seed}:s`);
   const h3 = hashSeed(`${seed}:f`);
@@ -151,6 +146,13 @@ const SHAPES: Readonly<Record<HandShapeId, HandShape>> = {
   slack: { curl: [0.18, 0.22, 0.28, 0.34, 0.40], splay: [0.06, 0.02, 0, -0.02, -0.04], sympathy: 1.0 },
 };
 
+/** The target finger curls of each hand shape (0 = straight, 1 = the joint's full curl), thumb first. */
+export const HAND_SHAPE_CURLS: Readonly<Record<HandShapeId, readonly number[]>> = (() => {
+  const out = {} as Record<HandShapeId, readonly number[]>;
+  for (const id of Object.keys(SHAPES) as HandShapeId[]) out[id] = SHAPES[id].curl;
+  return out;
+})();
+
 /** Distance (metres) beyond which individual finger springs pause to save CPU. */
 export const FINGER_LOD_DISTANCE = 10;
 
@@ -158,12 +160,20 @@ export const FINGER_LOD_DISTANCE = 10;
 const FINGER_BASE_HZ: readonly [number, number, number, number, number] = [6.4, 6.0, 5.4, 4.9, 4.5];
 
 /** Max anatomical curl (radians) per phalanx [phalanx1, phalanx2, phalanx3] for non-thumb fingers. */
-const FINGER_MAX_CURL: readonly [number, number, number] = [1.22, 1.52, 1.02];
+export const FINGER_MAX_CURL: readonly [number, number, number] = [1.22, 1.52, 1.02];
 /** Max anatomical curl (radians) per phalanx for the thumb. */
-const THUMB_MAX_CURL: readonly [number, number, number] = [0.60, 0.72, 0.82];
+export const THUMB_MAX_CURL: readonly [number, number, number] = [0.60, 0.72, 0.82];
+/**
+ * A phalanx's bend (radians, about its curl axis) for a curl of 0..1, as the hand solver writes it (HandPhysicsSolver's finger loop):
+ * a share of the joint's full curl, less part of the curl already baked into the model's rest pose.
+ */
+export function phalanxCurlAngle(def: FingerBoneDef, curl: number): number {
+  const max = (def.finger === 'thumb' ? THUMB_MAX_CURL : FINGER_MAX_CURL)[def.phalanx - 1]!;
+  return THREE.MathUtils.clamp(curl * max - def.restCurl * 0.65, -0.25, max);
+}
 /** Max splay (radians) on the proximal phalanx (MCP). */
-const MAX_SPLAY = 0.28;
-const THUMB_MAX_SPLAY = 0.42;
+export const MAX_SPLAY = 0.28;
+export const THUMB_MAX_SPLAY = 0.42;
 
 /** Anatomical wrist spring clamps (radians). */
 const MAX_WRIST_PITCH = 0.42;
@@ -203,6 +213,33 @@ export interface HandPhysicsInput {
   contactR?: Readonly<HandContact> | null;
   /** Distance to active camera (metres), or null in headless tests (always full detail). */
   cameraDist: number | null;
+  /** Finger motion of the playing clip: offsets from its average curl (12: left then right, thumb..pinky in radians, thumb spread). */
+  clipFingers?: Float32Array | null;
+  /** 0..1 how much the clip's fingers drive relaxed and open hands. */
+  clipFingerWeight?: number;
+  /** Radius of what the right hand holds (HELD_GRIP_RADIUS), or null when empty. */
+  heldRadiusR?: number | null;
+  /** The solved wrap of a mug in the right hand (heldGrip.ts, upright-mug-grip D5), or null: each phalanx bends to it and never past. */
+  heldGripR?: Readonly<HeldGrip> | null;
+}
+
+/** Splay targets [thumb..pinky] of a hand shape (the held-grip solve uses the cup's). */
+export function shapeSplay(id: HandShapeId): readonly number[] {
+  return SHAPES[id].splay;
+}
+
+/** Summed phalanx flexion at full curl (radians), fingers and thumb (FINGER_MAX_CURL, THUMB_MAX_CURL phalanges 2..3). */
+const FULL_CURL_RAD = 1.22 + 1.52 + 1.02;
+const THUMB_FULL_RAD = 0.72 + 0.82;
+/** Finger lengths (m, base to tip) for wrapping a held cylinder: thumb, index, middle, ring, pinky. */
+const FINGER_LEN = [0.06, 0.08, 0.088, 0.082, 0.065] as const;
+/** Half a finger's thickness: the finger's centre line wraps a cylinder this much wider. */
+const FINGER_HALF = 0.009;
+
+/** Curl (solver units) that wraps a finger around a cylinder of radius `r` without entering it. */
+export function wrapCurl(fi: number, r: number): number {
+  const arc = (FINGER_LEN[fi] ?? 0.08) / (r + FINGER_HALF);
+  return THREE.MathUtils.clamp(arc / (fi === 0 ? THUMB_FULL_RAD * 1.6 : FULL_CURL_RAD), 0, 1.05);
 }
 
 interface FingerSpringState {
@@ -326,7 +363,7 @@ export function chooseHandShape(
     if (poseName === 'slamWindup' || poseName === 'slamImpact' || poseName === 'hulk') return 'fist';
     return 'claw';
   }
-  if (poseName === 'typing' || poseName === 'sit_typing') return 'typing';
+  if (poseName === 'typing' || poseName === 'sit_typing' || poseName.startsWith('sit_typing_')) return 'typing';
   if (ikActive) return 'surface';
   if (poseName === 'flex_hand') return side === 'R' ? 'flex' : 'relaxed';
   if (poseName === 'aim_pistol') return side === 'R' ? 'grip' : 'cup';
@@ -363,7 +400,9 @@ export function chooseHandShape(
 }
 
 export class HandPhysicsSolver {
-  readonly personality: HandPersonality;
+  personality: HandPersonality;
+  /** Infection stage 0..4 driving `personality.twitch` (more often and sharper each stage). */
+  twitchStage = 0;
   readonly hasFingerRig: boolean;
   readonly hasForeArmTwists: boolean;
   private readonly sides: Record<Side, SideState>;
@@ -374,8 +413,9 @@ export class HandPhysicsSolver {
     seed: string,
     detailBones: readonly HandDetailBone[],
     extraLookup: ReadonlyMap<string, THREE.Bone>,
+    personality?: HandPersonality | null,
   ) {
-    this.personality = handPersonalityFor(seed);
+    this.personality = personality ?? handPersonalityFor(seed);
     this.seedPhase = hashSeed(`${seed}:handPhase`) * Math.PI * 2;
     const stiff = this.personality.stiffness;
 
@@ -510,10 +550,71 @@ export class HandPhysicsSolver {
     return this.sides[side].foreArmTwist;
   }
 
+  /**
+   * Fingers on a held mug: each phalanx spring eases toward its own contact target (not the MCP -> PIP -> DIP chain), fidget and
+   * the infection twitch open the grip by at most ~0.06 rad, and the written angle is clamped at the contact angle, so a spring's
+   * overshoot can never push a finger into the mug.
+   */
+  private stepHeldGrip(st: SideState, held: Readonly<HeldGrip>, h: number, sideSeed: number): void {
+    const p = this.personality;
+    const tw = (p.twitch ?? 0) * Math.min(1, this.twitchStage / 3);
+    for (let fi = 0; fi < 5; fi++) {
+      const fs = st.fingers[fi]!;
+      const name = FINGER_NAMES[fi]!;
+      const contact = held.contact[name];
+      const maxArr = fi === 0 ? THUMB_MAX_CURL : FINGER_MAX_CURL;
+      // Opening only: a slow fidget breath, and the infection twitch as a brief release.
+      const fRate = 0.75 + fi * 0.23;
+      let open = (0.5 + 0.5 * Math.sin(this.time * fRate + sideSeed + fi * 1.7)) * (0.006 + 0.02 * p.fidget);
+      if (tw > 0) {
+        const rate = (0.9 + fi * 0.37) * (1 + this.twitchStage * 0.6);
+        open += Math.pow(Math.max(0, Math.sin(this.time * rate + sideSeed * 2.3 + fi * 2.9)), 10 + this.twitchStage * 6) * 0.05 * tw;
+      }
+      const springs = [fs.mcp, fs.pip, fs.dip] as const;
+      const targets = HELD_TARGETS;
+      const spMax = fi === 0 ? THUMB_MAX_SPLAY : MAX_SPLAY;
+      let sp = fs.splay.step(held.splay[name] / spMax, h);
+      // The thumb swings out before it curls in: while its opposition is still well short of the grip's, its bends hold open, so a
+      // thumb that starts across the palm comes round the mug instead of through it.
+      const swinging = fi === 0 && Math.abs(sp - held.splay[name] / spMax) > 0.3;
+      for (let pi = 0; pi < 3; pi++) {
+        const rest = (fs.defs[pi]?.restCurl ?? 0) * 0.65;
+        const want = swinging ? Math.min(contact[pi]!, -0.1) : contact[pi]! - Math.min(0.06, open);
+        targets[pi] = (want + rest) / maxArr[pi]!;
+        springs[pi]!.step(targets[pi]!, h);
+      }
+      // Easing in from an open hand: a finger whose pose on the way would pass into the mug goes straight to its contact pose.
+      for (let pi = 0; pi < 3; pi++) {
+        const raw = springs[pi]!.value * maxArr[pi]! - (fs.defs[pi]?.restCurl ?? 0) * 0.65;
+        HELD_ANGLES[pi] = Math.min(THREE.MathUtils.clamp(raw, -0.25, maxArr[pi]! * (fi === 0 ? HELD_THUMB_REACH : 1)), contact[pi]!);
+      }
+      if (held.clearanceAt(name, HELD_ANGLES, sp * spMax) < EASE_GUARD) {
+        for (let pi = 0; pi < 3; pi++) springs[pi]!.reset(targets[pi]!);
+        fs.splay.reset(held.splay[name] / spMax);
+        sp = fs.splay.value;
+      }
+      for (let pi = 0; pi < 3; pi++) {
+        const bone = fs.bones[pi];
+        const def = fs.defs[pi];
+        if (!bone || !def) continue;
+        const raw = springs[pi]!.value * maxArr[pi]! - def.restCurl * 0.65;
+        // A held thumb may reach past its usual limit (HELD_THUMB_REACH); the contact angle still caps it.
+        const angle = Math.min(THREE.MathUtils.clamp(raw, -0.25, maxArr[pi]! * (fi === 0 ? HELD_THUMB_REACH : 1)), contact[pi]!);
+        qCurl.setFromAxisAngle(fs.curlAxes[pi]!, angle);
+        if (pi === 0 && Math.abs(sp) > 1e-4) {
+          qSplay.setFromAxisAngle(fs.splayAxes[0], sp * spMax);
+          bone.quaternion.copy(qSplay).multiply(qCurl);
+        } else {
+          bone.quaternion.copy(qCurl);
+        }
+      }
+    }
+  }
+
   /** Advance wrist springs, forearm twist sharing, IK palm alignment, and finger biomechanics. */
   update(input: HandPhysicsInput): boolean {
     const dt = input.dt;
-    if (dt <= 0) return false;
+    if (dt <= 0 || !detailPass.enabled) return false;
     const h = Math.min(dt, 0.05);
     this.time += h;
 
@@ -679,6 +780,15 @@ export class HandPhysicsSolver {
       // 5. Individual finger biomechanics (LOD-gated).
       if (!fingerDetailOn) continue;
 
+      // A held mug (upright-mug-grip D5): each phalanx eases to its solved contact angle and never past it; fidget and twitch may
+      // only open the grip a little.
+      const held = side === 'R' && input.heldGripR && input.alive && !limp ? input.heldGripR : null;
+      if (held) {
+        this.stepHeldGrip(st, held, h, side === 'L' ? this.seedPhase : this.seedPhase + 3.7);
+        dirty = true;
+        continue;
+      }
+
       const surfaceResting = st.ikAlignW > 0.25 || contactW > 0.35;
       const shapeId = chooseHandShape(
         side,
@@ -709,6 +819,16 @@ export class HandPhysicsSolver {
           c += p.tension * 0.12;
         }
 
+        // The playing clip's captured finger motion moves relaxed and open hands (per-character-motion: finger tracks), on top of
+        // the character's own resting shape, so captured gestures come through without flattening their hands into the performer's.
+        const cw = input.clipFingerWeight ?? 0;
+        if (cw > 0 && input.clipFingers && (shapeId === 'relaxed' || shapeId === 'open')) {
+          const d = input.clipFingers[(side === 'L' ? 0 : 6) + fi] ?? 0;
+          c += (d / (fi === 0 ? THUMB_FULL_RAD : FULL_CURL_RAD)) * cw;
+        }
+        // A held item: wrap it, no tighter than its surface.
+        if (side === 'R' && input.heldRadiusR && (shapeId === 'cup' || shapeId === 'grip' || shapeId === 'relaxed')) c = wrapCurl(fi, input.heldRadiusR);
+
         // Tenodesis coupling (stronger on the 4 fingers, gentler on the thumb).
         c += fi === 0 ? teno * 0.45 : teno;
 
@@ -733,6 +853,13 @@ export class HandPhysicsSolver {
               Math.sin(this.time * (fRate * 1.9) + sideSeed * 1.3 + fi) * 0.35) *
             (0.025 + 0.055 * p.fidget);
           c += drift;
+          // Involuntary twitches (Giles: "fingers twitch while he works", rising with each infection stage).
+          const tw = (p.twitch ?? 0) * Math.min(1, this.twitchStage / 3);
+          if (tw > 0) {
+            const rate = (0.9 + fi * 0.37) * (1 + this.twitchStage * 0.6);
+            const jerk = Math.pow(Math.max(0, Math.sin(this.time * rate + sideSeed * 2.3 + fi * 2.9)), 10 + this.twitchStage * 6);
+            c += jerk * 0.32 * tw;
+          }
           // Speech beat opening/emphasis accent on the gesturing hand.
           if (input.speechWeight > 0.05 && side === input.speechPrimarySide) {
             const beatAccent =
@@ -746,7 +873,7 @@ export class HandPhysicsSolver {
           }
         }
 
-        st.targetCurl[fi] = THREE.MathUtils.clamp(c, -0.14, 1.1);
+        st.targetCurl[fi] = THREE.MathUtils.clamp(c, -0.14, side === 'R' && input.heldRadiusR ? Math.min(1.1, wrapCurl(fi, input.heldRadiusR)) : 1.1);
         st.targetSplay[fi] = THREE.MathUtils.clamp(sp, -0.8, 0.8);
       }
 

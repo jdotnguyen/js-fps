@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { makeHeldWand } from '../../actors/heldProps.ts';
 import type { Rng } from '../../core/rng.ts';
 import { fixtureMaterial, type Materials } from '../../render/materials.ts';
 import { CanvasScreen, SCREEN_FONT } from '../../render/screens.ts';
@@ -100,16 +102,62 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
   },
 
   chair(p, rng, m, pb) {
-    const ry = boolParam(p, 'fixed', false) ? 0 : rng.range(-0.5, 0.5);
+    const id = strParam(p, 'id', '');
+    const ry = boolParam(p, 'fixed', false) || id !== '' ? 0 : rng.range(-0.5, 0.5);
     const f = at(0, 0, 0, 0, ry, 0);
-    pb.add(rounded(0.48, 0.08, 0.46, 0.03), m.rubber, inFrame(f, 0, 0.5, 0));
-    pb.add(rounded(0.46, 0.5, 0.06, 0.03), m.rubber, inFrame(f, 0, 0.82, 0.22, -0.12, 0, 0));
-    pb.add(cylinderBetween(V(0, 0.08, 0), V(0, 0.48, 0), 0.03), m.steel);
-    for (let k = 0; k < 5; k++) {
-      const a = (k * 2 * PI) / 5 + ry;
-      pb.add(cylinderBetween(V(0, 0.08, 0), V(Math.cos(a) * 0.3, 0.04, Math.sin(a) * 0.3), 0.018), m.steel);
+    if (id) {
+      // Controllable chair (dock-checkpoint): stays dynamic as one group (2 draw calls) so mesh and collider move together.
+      const grp = new THREE.Group();
+      grp.name = `prop:${id}`;
+      grp.userData['propId'] = id;
+      const toFlat = (g: THREE.BufferGeometry, mat4?: THREE.Matrix4): THREE.BufferGeometry => {
+        if (mat4) g.applyMatrix4(mat4);
+        const flat = g.index ? g.toNonIndexed() : g;
+        if (flat !== g) g.dispose();
+        if (!flat.getAttribute('normal')) flat.computeVertexNormals();
+        flat.deleteAttribute('uv');
+        return flat;
+      };
+      const rubberParts = [
+        toFlat(rounded(0.48, 0.08, 0.46, 0.03), inFrame(f, 0, 0.5, 0)),
+        toFlat(rounded(0.46, 0.5, 0.06, 0.03), inFrame(f, 0, 0.82, 0.22, -0.12, 0, 0)),
+      ];
+      const steelParts: THREE.BufferGeometry[] = [toFlat(cylinderBetween(V(0, 0.08, 0), V(0, 0.48, 0), 0.03))];
+      for (let k = 0; k < 5; k++) {
+        const a = (k * 2 * PI) / 5 + ry;
+        steelParts.push(toFlat(cylinderBetween(V(0, 0.08, 0), V(Math.cos(a) * 0.3, 0.04, Math.sin(a) * 0.3), 0.018)));
+      }
+      const rubberGeo = mergeGeometries(rubberParts, false);
+      const steelGeo = mergeGeometries(steelParts, false);
+      for (const g of [...rubberParts, ...steelParts]) g.dispose();
+      if (rubberGeo) grp.add(new THREE.Mesh(rubberGeo, m.rubber));
+      if (steelGeo) grp.add(new THREE.Mesh(steelGeo, m.steel));
+      pb.dynamic(grp);
+    } else {
+      pb.add(rounded(0.48, 0.08, 0.46, 0.03), m.rubber, inFrame(f, 0, 0.5, 0));
+      pb.add(rounded(0.46, 0.5, 0.06, 0.03), m.rubber, inFrame(f, 0, 0.82, 0.22, -0.12, 0, 0));
+      pb.add(cylinderBetween(V(0, 0.08, 0), V(0, 0.48, 0), 0.03), m.steel);
+      for (let k = 0; k < 5; k++) {
+        const a = (k * 2 * PI) / 5 + ry;
+        pb.add(cylinderBetween(V(0, 0.08, 0), V(Math.cos(a) * 0.3, 0.04, Math.sin(a) * 0.3), 0.018), m.steel);
+      }
     }
     pb.solid(-0.28, 0, -0.28, 0.28, 1.07, 0.28, 'rubber');
+  },
+
+  /** Resting scanning wand on the security desk (dock-checkpoint); shares geometry/material with the held wand. */
+  desk_wand(p, _rng, _m, pb) {
+    const id = strParam(p, 'id', 'dock_wand');
+    const grp = new THREE.Group();
+    grp.name = `prop:${id}`;
+    grp.userData['propId'] = id;
+    const wand = makeHeldWand();
+    // Local y = 0 is the desktop surface; lay the wand flat (grip toward +Z, paddle toward -Z).
+    wand.position.set(0, 0.014, 0.08);
+    wand.rotation.set(PI / 2, 0, 0);
+    grp.add(wand);
+    grp.visible = !boolParam(p, 'hidden', false);
+    pb.dynamic(grp);
   },
 
   desk(p, _rng, m, pb) {

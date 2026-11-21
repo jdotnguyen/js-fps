@@ -63,8 +63,11 @@ test('every shipped sequence names only things that exist: lines, sounds, anchor
     walk(def.steps, (s) => {
       const where = `${def.id}: ${String(s['do'])}`;
       if (s['do'] === 'say') {
-        assert.ok(library.hasLine(s['line'] as string), `${where} line ${String(s['line'])}`);
-        assert.equal(library.line(s['line'] as string).priority, 'story', `${where} ${String(s['line'])} must be story priority`);
+        // A say may be a pool of lines said in turn (medbay-attack: Jay's shouts at the glass).
+        for (const line of Array.isArray(s['line']) ? (s['line'] as string[]) : [s['line'] as string]) {
+          assert.ok(library.hasLine(line), `${where} line ${line}`);
+          assert.equal(library.line(line).priority, 'story', `${where} ${line} must be story priority`);
+        }
       }
       if (s['do'] === 'sfx') assert.ok((s['id'] as string) in SOUND_SPECS || (s['id'] as string) in SAMPLE_URLS, `${where} sound ${String(s['id'])}`);
       if (s['do'] === 'setObjective' || s['do'] === 'completeObjective') assert.ok(String(s['id']) in objectives, `${where} objective ${String(s['id'])}`);
@@ -138,6 +141,7 @@ function makeGame(only?: string[]) {
     fade: () => undefined,
     cameraShake: () => void log.push('shake'),
     sfx: (id) => void log.push(`sfx ${id}`),
+    score: (id, o) => void log.push(`score ${id} ${o.cue ?? (o.stinger ? `stinger ${o.stinger}` : 'load')}`),
     radio: (track, at) => void log.push(track ? `radio ${track}${at ? '' : ' nowhere'}` : 'radio stop'),
     say: (line, opts) => {
       log.push(`say ${line}${opts?.overlap ? ' overlap' : ''}`);
@@ -155,7 +159,15 @@ function makeGame(only?: string[]) {
     inRoom: () => true,
     squadPlaceIn: () => [],
     npc: (action, step) => {
-      log.push(`npc ${action} ${String(step['npc'])}${step['anim'] ? ` ${String(step['anim'])}` : ''}${step['instant'] ? ' instant' : ''}${step['stay'] ? ' stay' : ''}`);
+      const extra =
+        step['anim']
+          ? ` ${String(step['anim'])}`
+          : step['task']
+            ? ` ${String(step['task'])}`
+            : action === 'npcLookAt' && step['target']
+              ? ` ${String(step['target'])}`
+              : '';
+      log.push(`npc ${action} ${String(step['npc'])}${extra}${step['instant'] ? ' instant' : ''}${step['stay'] ? ' stay' : ''}`);
     },
   };
   const m = new SequenceManager(host, only ? defs.filter((d) => only.includes(d.id)) : defs);
@@ -515,11 +527,12 @@ test('quiet_restore on a load: radio, commons changes and the drop aftermath com
   fresh.host.events.emit('game:mode', { mode: 'playing' });
   assert.equal(fresh.log.filter((e) => e.startsWith('radio') || e.startsWith('npc') || e.startsWith('light') || e.startsWith('glass')).length, 0);
   const g = makeGame(['quiet_restore']);
-  Object.assign(g.host.flags, { radio_place: 'dive', commons_changed_1: true, commons_changed_2: true, drop_started: true, drop_done: true });
+  Object.assign(g.host.flags, { introSeen: true, radio_place: 'dive', commons_changed_1: true, commons_changed_2: true, drop_started: true, drop_done: true });
   g.host.events.emit('game:mode', { mode: 'title' });
   assert.equal(g.log.filter((e) => e.startsWith('radio')).length, 0, 'only on playing');
   g.host.events.emit('game:mode', { mode: 'playing' });
   assert.equal(count(g, 'radio tag_fm_01'), 1);
+  assert.ok(g.log.includes('npc npcTask dock_guard return_to_desk instant'), 'post-intro restore seats the dock guard at his desk');
   assert.equal(count(g, 'event screen:set'), 1);
   assert.ok(g.log.includes('npc npcMoveTo cook instant') && g.log.includes('npc npcMoveTo crew_1 instant') && g.log.includes('npc npcAnim crew_1 idle_mug instant'));
   assert.ok(g.log.includes('event blinds:set'));
@@ -603,13 +616,19 @@ function dockGame(armed: boolean): Game {
 const scans = (g: Game): number => count(g, 'event detector:scan');
 const guardLines = (g: Game): number => g.log.filter((e) => /^say guard_arch_0\d$/.test(e)).length;
 
-test('dock arch, free play: Jay walks through armed, the arch alarms and the guard reacts', async () => {
+test('dock arch, free play: Jay walks through armed, the arch alarms and the seated guard looks at Jay and reacts', async () => {
   const g = dockGame(true);
   fire(g, 'trigger:dock_arch');
   await advance(g, 2);
   assert.equal(scans(g), 1);
   assert.equal(count(g, 'sfx archAlarm'), 1);
   assert.equal(said(g, 'guard_arch_01'), 1);
+  const lookAtPlayer = g.log.indexOf('npc npcLookAt dock_guard player');
+  const speakIdx = g.log.indexOf('say guard_arch_01');
+  const lookClear = g.log.indexOf('npc npcLookAt dock_guard none');
+  assert.ok(lookAtPlayer >= 0 && lookAtPlayer < speakIdx, 'guard looks toward Jay before speaking');
+  assert.ok(lookClear > speakIdx, 'guard returns gaze to desk after speaking');
+  assert.ok(!g.log.some((e) => e.startsWith('npc npcMoveTo dock_guard') || e.startsWith('npc npcAnim dock_guard')), 'guard stays seated at his desk');
   noWarnings(g);
 });
 
@@ -620,6 +639,7 @@ test('dock arch, free play: Jay walks through unarmed, the arch passes and the g
   assert.equal(count(g, 'sfx archPass'), 1);
   assert.equal(count(g, 'sfx archAlarm'), 0);
   assert.equal(guardLines(g), 0);
+  assert.ok(!g.log.some((e) => e.includes('dock_guard')), 'guard stays on his desk routine without reacting');
 });
 
 test('dock arch, free play: back and forth within 20 s alarms twice, the guard speaks once, then again after the cooldown', async () => {
@@ -630,11 +650,80 @@ test('dock arch, free play: back and forth within 20 s alarms twice, the guard s
   await advance(g, 3);
   assert.equal(count(g, 'sfx archAlarm'), 2, 'the arch alarms on every pass');
   assert.equal(guardLines(g), 1, 'the guard speaks only the first time');
+  assert.equal(count(g, 'npc npcLookAt dock_guard player'), 1, 'guard looks only when reacting');
   await advance(g, 20);
   fire(g, 'trigger:dock_arch');
   await advance(g, 3);
   assert.equal(count(g, 'sfx archAlarm'), 3);
   assert.deepEqual(g.log.filter((e) => /^say guard_arch_0\d$/.test(e)), ['say guard_arch_01', 'say guard_arch_02'], 'a different line the next time');
+  assert.equal(count(g, 'npc npcLookAt dock_guard player'), 2);
+  assert.equal(count(g, 'npc npcLookAt dock_guard none'), 2);
+  assert.ok(!g.log.some((e) => e.startsWith('npc npcMoveTo dock_guard') || e.startsWith('npc npcAnim dock_guard')), 'guard remains seated across repeated alarms');
+});
+
+test('dock arch, free play: seated guard actor keeps sit_typing_cctv and turns gaze toward Jay during his spoken response', async () => {
+  const THREE = await import('three');
+  const { loadSlice01 } = await import('../world/headlessSlice.ts');
+  const { NpcDirector } = await import('../ai/npcs.ts');
+  const { ctx } = await import('../ai/enemyTestKit.ts');
+
+  const { level, events } = loadSlice01();
+  const jayFeet = new THREE.Vector3(8.6, 0, 1.25);
+  const jayHead = new THREE.Vector3(8.6, 1.62, 1.25);
+  const npcs = new NpcDirector({
+    ctx: { ...ctx(), colliders: level.collision },
+    nav: level.navGraph(),
+    colliders: level.collision,
+    player: () => ({ feet: jayFeet, head: jayHead }),
+    emit: (name, payload) => events.emit(name as never, payload as never),
+    walk: (id) => level.walk(id) ?? null,
+    setPropTransform: (id, pos, yaw) => level.setPropTransform(id, pos, yaw),
+    setPropVisible: (id, visible) => level.setPropVisible(id, visible),
+    propState: (id) => level.propState(id),
+  });
+  npcs.setResolver((ref) => {
+    if (typeof ref === 'string' && ref.startsWith('anchor:')) {
+      const a = level.anchor(ref.slice(7));
+      return a ? { pos: { x: a.pos.x, y: a.pos.y, z: a.pos.z }, yaw: a.yaw } : null;
+    }
+    if (ref === 'player') return { pos: { x: jayHead.x, y: jayHead.y, z: jayHead.z } };
+    return null;
+  });
+  npcs.spawnFromLevel(level.npcSpawns().filter((n) => n.id === 'dock_guard'));
+  void npcs.command('npcTask', { npc: 'dock_guard', task: 'return_to_desk', instant: true });
+  const guard = npcs.actor('dock_guard')!;
+  const seatPos = guard.position.clone();
+  const cam = new THREE.Vector3(8.6, 1.62, 1.25);
+
+  const g = dockGame(true);
+  let speaking = false;
+  let resolveLine: () => void = () => undefined;
+  g.host.say = (line) => {
+    g.log.push(`say ${line}`);
+    speaking = true;
+    return { done: new Promise<void>((r) => { resolveLine = r; }) };
+  };
+  g.host.npc = (action, step) => npcs.command(action, step);
+
+  fire(g, 'trigger:dock_arch');
+  for (let i = 0; i < 30; i++) {
+    g.m.update(1 / 60);
+    npcs.update(1 / 60, cam);
+  }
+  assert.equal(speaking, true, 'guard is speaking his alarm response');
+  assert.equal(guard.body.poseName, 'sit_typing_cctv', 'guard remains seated while responding');
+  assert.ok(guard.position.distanceTo(seatPos) < 1e-4, 'guard does not stand or leave his chair');
+  assert.ok(guard.body.lookTarget !== null && guard.body.lookTarget.distanceTo(jayHead) < 0.05, 'guard looks toward Jay during his spoken response');
+
+  resolveLine();
+  await Promise.resolve();
+  for (let i = 0; i < 120; i++) {
+    g.m.update(1 / 60);
+    npcs.update(1 / 60, cam);
+    if (i % 4 === 0) await Promise.resolve();
+  }
+  assert.equal(guard.body.poseName, 'sit_typing_cctv', 'guard stays seated after his response');
+  assert.equal(guard.body.lookTarget, null, 'gaze clears back to desk once the reaction settles');
 });
 
 test('dock arch, free play: nothing before the intro is over or once the drop has started', async () => {
@@ -708,4 +797,23 @@ test('dive bay: the R13d leak hisses at most once per 20 s', async () => {
   fire(g, 'trigger:dive_leak');
   await advance(g, 1);
   assert.equal(count(g, 'sfx leakHiss'), 2);
+});
+
+// adaptive-music: the Lab B score is rendered before the drop needs it, and the Lab B klaxon lands on its beat.
+test('the Lab B score loads at the gallery call and again as the drop starts; the drop klaxons wait for the beat', () => {
+  const loads = (id: string): number => {
+    let n = 0;
+    walk(byId.get(id)!.steps, (s) => {
+      if (s['do'] === 'score' && s['id'] === 'labB' && s['load'] === true) n++;
+    });
+    return n;
+  };
+  assert.equal(loads('rounds_return'), 1);
+  assert.equal(loads('drop'), 1);
+  const klaxons: Array<Record<string, unknown>> = [];
+  walk(byId.get('drop')!.steps, (s) => {
+    if (s['do'] === 'sfx' && s['id'] === 'klaxon') klaxons.push(s);
+  });
+  assert.ok(klaxons.length > 0);
+  assert.ok(klaxons.every((k) => k['beat'] === true));
 });
