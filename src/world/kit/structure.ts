@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import type { Rng } from '../../core/rng.ts';
 import type { Materials } from '../../render/materials.ts';
-import { createAbyss } from '../../render/fx/abyss.ts';
 import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { slab } from './shapes.ts';
 import { bolts, ceilingHousing, inFrame, panelWall, pipeRun, plainWall, wallFrame, windowWall } from './detail.ts';
@@ -103,7 +102,7 @@ function corridor(o: CorridorOptions, rng: Rng, m: Materials, p: PieceParams = {
       else if (side === 'n') f = wallFrame(c, -HW, 0);
       else f = wallFrame(c, HW, PI);
       if (side === 'e' && o.window) {
-        windowWall(pb, m, f, { length: L, height: H, depth: 0.2, pal }, createAbyss(34, 16));
+        windowWall(pb, m, f, { length: L, height: H, depth: 0.2, pal });
       } else if (L >= 1) {
         const cables = !trayDone && L >= 3 && (side === (o.window ? 'w' : 'e') || side === 'n' || side === 's');
         if (cables) trayDone = true;
@@ -329,7 +328,7 @@ function ceilingTile(p: PieceParams, rng: Rng, m: Materials, withPipes: boolean)
   return pb.build();
 }
 
-type WallStyle = 'plain' | 'panel' | 'window' | 'glass' | 'vent';
+type WallStyle = 'plain' | 'panel' | 'window' | 'screen' | 'glass' | 'vent';
 
 function wallTile(p: PieceParams, rng: Rng, m: Materials, style: WallStyle): PieceOutput {
   const pb = new PieceBuilder();
@@ -340,7 +339,9 @@ function wallTile(p: PieceParams, rng: Rng, m: Materials, style: WallStyle): Pie
   if (style === 'plain' || style === 'vent') plainWall(pb, m, rng, f, o);
   else if (style === 'panel') panelWall(pb, m, rng, f, { ...o, cables: boolParam(p, 'cables', false) });
   else if (style === 'window') {
-    windowWall(pb, m, f, { ...o, backdropDepth: numParam(p, 'backdropDepth', 9) }, createAbyss(34, 16));
+    windowWall(pb, m, f, { ...o, flicker: boolParam(p, 'flicker', false) });
+  } else if (style === 'screen') {
+    windowWall(pb, m, f, o, 'screen');
   } else {
     glassPartition(pb, m, f, h, pal);
   }
@@ -606,6 +607,7 @@ export const STRUCTURE_PIECES: PieceDef[] = [
   tile('wall_plain', (p, rng, m) => wallTile(p, rng, m, 'plain')),
   tile('wall_panel', (p, rng, m) => wallTile(p, rng, m, 'panel')),
   tile('wall_window', (p, rng, m) => wallTile(p, rng, m, 'window')),
+  tile('wall_sanity_screen', (p, rng, m) => wallTile(p, rng, m, 'screen')),
   tile('wall_glass_partition', (p, rng, m) => wallTile(p, rng, m, 'glass')),
   tile('wall_vent', (p, rng, m) => wallTile(p, rng, m, 'vent')),
   tile('door_frame', (p, _rng, m) => {

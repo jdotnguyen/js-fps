@@ -1,53 +1,34 @@
 import * as THREE from 'three';
 import { dequantizeForTransform } from '../gltf.ts';
+import { applyExterior } from './exteriorLight.ts';
 
 /**
- * The sea floor outside the station windows: the "Ocean floor scene" GLB (public/assets/models/seabed/,
- * CC BY 4.0, see CREDITS.md) repeated along the window wall.
- *
- * The source is one ~12 m square of ground with two rock clusters. Each tile reuses that geometry
- * (three InstancedMeshes in total, however long the wall is), rotated 0 or 180 degrees on alternate
- * tiles, with a different width, vertical stretch and slight overlap so the repeat is hard to spot.
- * It is low-res by design: it sits behind glass, in fog, under marine snow.
- *
- * Frame: local +X runs along the wall, local -Z is outwards (into the water), local Y is up with
- * the floor of the station at 0. Callers place the group with `applyMatrix4(frame)`.
+ * The sea floor under and around the station (openspec change overhaul-exterior-ocean): one
+ * procedural heightfield for the whole level, so neighbouring windows look onto the same ground,
+ * plus the rock clusters of the "Ocean floor scene" GLB (public/assets/models/seabed/, CC BY 4.0,
+ * see CREDITS.md) scattered as instances. It is not self-lit and has no caustics: it shows only
+ * where exterior lamps reach, and fades into the water with distance (exteriorLight.ts).
  */
 
 const MODEL_URL = 'assets/models/seabed/ocean_floor_scene.glb';
+/** Seabed level under the station, relative to deck 0 (m). */
+export const SEABED_BASE_Y = -4.5;
+/** How much deeper the ground gets far from the station (m). */
+const FALLOFF_DEPTH = 4;
+const TEXTURE_TILE = 6;
 
 interface SeabedSource {
-  /** Ground first, then rocks. Centred on x/z, with the ground's lowest point at y = 0. */
-  geometries: THREE.BufferGeometry[];
-  materials: THREE.Material[];
-  /** Footprint of the source ground along X and Z. */
-  size: number;
+  /** Each rock mesh, re-centred on its own footprint with its lowest point at y = 0. */
+  rocks: THREE.BufferGeometry[];
+  rockMaterials: THREE.Material[];
+  groundMap: THREE.Texture | null;
 }
 
 let source: SeabedSource | null = null;
 let loading: Promise<void> | null = null;
 const waiting: Array<() => void> = [];
-/** Shared clock driving animated underwater caustics across every seabed instance (0 extra draw calls). */
-const seabedTime = { value: 0 };
 
-export function tickSeabed(t: number): void {
-  seabedTime.value = t;
-}
-
-export interface SeabedOptions {
-  /** Wall length the seabed must cover (m). */
-  length: number;
-  /** Distance from the glass to the abyss backdrop (m); the seabed ends just in front of it. */
-  depth: number;
-  /** Height of the seabed's lowest point relative to the station floor (m). */
-  floorY?: number;
-  /** Extra coverage past each end of the wall (m). */
-  pad?: number;
-  /** Seeds the stretch and rotation, so the same wall always looks the same. */
-  seed?: number;
-}
-
-/** Load and prepare the model. Safe to call repeatedly; call before building rooms so tiles appear at once. */
+/** Load and prepare the model. Safe to call repeatedly; rocks and texture appear once it is ready. */
 export function preloadSeabed(baseUrl = '/'): Promise<void> {
   if (source) return Promise.resolve();
   loading ??= (async () => {
@@ -56,7 +37,7 @@ export function preloadSeabed(baseUrl = '/'): Promise<void> {
     source = prepare(gltf.scene);
     for (const fn of waiting.splice(0)) fn();
   })().catch((err: unknown) => {
-    console.warn('[seabed] model failed to load; windows keep the plain abyss backdrop', err);
+    console.warn('[seabed] model failed to load; the seabed stays untextured and without rocks', err);
     loading = null;
   });
   return loading;
@@ -64,136 +45,203 @@ export function preloadSeabed(baseUrl = '/'): Promise<void> {
 
 function prepare(scene: THREE.Object3D): SeabedSource {
   scene.updateMatrixWorld(true);
-  const baked: Array<{ name: string; geometry: THREE.BufferGeometry; material: THREE.Material }> = [];
+  const baked: Array<{ geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial; area: number }> = [];
   scene.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
     const geometry = dequantizeForTransform((o.geometry as THREE.BufferGeometry).clone()).applyMatrix4(o.matrixWorld);
-    // Only what the shader reads; the export carries five UV sets and tangents.
     for (const name of ['tangent', 'uv2', 'uv3', 'uv4']) geometry.deleteAttribute(name);
-    baked.push({ name: `${o.parent?.parent?.name ?? ''}${o.name}`, geometry, material: o.material as THREE.Material });
+    geometry.computeBoundingBox();
+    const s = geometry.boundingBox!.getSize(new THREE.Vector3());
+    baked.push({ geometry, material: o.material as THREE.MeshStandardMaterial, area: s.x * s.z });
   });
-  // The ground is by far the widest mesh.
-  const widths = baked.map((b) => {
-    b.geometry.computeBoundingBox();
-    const s = b.geometry.boundingBox!.getSize(new THREE.Vector3());
-    return s.x * s.z;
-  });
-  const groundIdx = widths.indexOf(Math.max(...widths));
-  const ground = baked[groundIdx]!;
-  const box = ground.geometry.boundingBox!;
-  const centre = box.getCenter(new THREE.Vector3());
-  const shift = new THREE.Matrix4().makeTranslation(-centre.x, -box.min.y, -centre.z);
-  const ordered = [ground, ...baked.filter((_, i) => i !== groundIdx)];
-  for (const b of ordered) b.geometry.applyMatrix4(shift);
-
-  const materials = new Map<THREE.Material, THREE.Material>();
-  const out = ordered.map((b) => {
-    let m = materials.get(b.material);
-    if (!m) {
-      m = tint(b.material as THREE.MeshStandardMaterial);
-      materials.set(b.material, m);
-    }
-    return m;
-  });
-  return { geometries: ordered.map((b) => b.geometry), materials: out, size: Math.max(box.max.x - box.min.x, box.max.z - box.min.z) };
+  // The ground is by far the widest mesh; only its colour map is kept.
+  const groundIdx = baked.reduce((best, b, i) => (b.area > baked[best]!.area ? i : best), 0);
+  const ground = baked[groundIdx];
+  const rocks = baked.filter((_, i) => i !== groundIdx);
+  for (const r of rocks) {
+    const box = r.geometry.boundingBox!;
+    const c = box.getCenter(new THREE.Vector3());
+    r.geometry.translate(-c.x, -box.min.y, -c.z);
+  }
+  const groundMap = ground?.material.map ?? null;
+  if (groundMap) {
+    groundMap.wrapS = groundMap.wrapT = THREE.RepeatWrapping;
+    groundMap.needsUpdate = true;
+  }
+  return {
+    rocks: rocks.map((r) => r.geometry),
+    rockMaterials: rocks.map((r) => applyExterior(rockFinish(r.material))),
+    groundMap,
+  };
 }
 
-/** Deep water: the lights of the station don't reach out here, so the floor carries a faint glow plus animated caustics. */
-function tint(src: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+function rockFinish(src: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
   const m = src.clone();
-  m.color.set(0x8fa9ad);
   m.metalness = 0;
   m.metalnessMap = null;
   m.roughness = 0.95;
-  m.roughnessMap = null;
-  m.emissive.set(0x1b5a66);
-  m.emissiveMap = src.map;
-  m.emissiveIntensity = 0.55;
-  m.side = THREE.FrontSide;
-  m.onBeforeCompile = (shader) => {
-    shader.uniforms['uCausticTime'] = seabedTime;
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vSeabedWorld;\nvarying vec3 vSeabedUp;')
-      .replace(
-        '#include <worldpos_vertex>',
-        '#include <worldpos_vertex>\nvec4 sbPos = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\nsbPos = instanceMatrix * sbPos;\n#endif\nvSeabedWorld = (modelMatrix * sbPos).xyz;\nvec3 sbN = objectNormal;\n#ifdef USE_INSTANCING\nsbN = mat3(instanceMatrix) * sbN;\n#endif\nvSeabedUp = normalize(mat3(modelMatrix) * sbN);',
-      );
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uCausticTime;\nvarying vec3 vSeabedWorld;\nvarying vec3 vSeabedUp;')
-      .replace(
-        '#include <emissivemap_fragment>',
-        `#include <emissivemap_fragment>
-        vec2 cp = vSeabedWorld.xz * 0.55;
-        float w1 = sin(cp.x * 2.1 + uCausticTime * 0.85 + cos(cp.y * 1.7 - uCausticTime * 0.6));
-        float w2 = sin(cp.y * 2.4 - uCausticTime * 0.72 + cos(cp.x * 1.9 + uCausticTime * 0.55));
-        float caustic = pow(max(0.0, 0.5 + 0.5 * (w1 * w2)), 3.0);
-        float upMask = smoothstep(0.05, 0.85, vSeabedUp.y);
-        totalEmissiveRadiance += vec3(0.07, 0.24, 0.28) * caustic * upMask;`,
-      );
-  };
-  m.customProgramCacheKey = () => 'seabed-caustics';
+  m.emissive.set(0x000000);
+  m.emissiveMap = null;
+  m.emissiveIntensity = 0;
   return m;
 }
 
-/** Small deterministic generator (mulberry32), so a wall looks the same every build. */
-function rand(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+/** Deterministic value noise in [0, 1] (JS twin of the GLSL vnoise). */
+function hash2(x: number, z: number, seed: number): number {
+  let h = Math.imul(x | 0, 374761393) ^ Math.imul(z | 0, 668265263) ^ Math.imul(seed | 0, 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-/**
- * Returns a group right away; the tiles are added when the model is ready (immediately if
- * `preloadSeabed` already finished).
- */
-export function createSeabed(o: SeabedOptions): THREE.Group {
+function vnoise(x: number, z: number, seed: number): number {
+  const ix = Math.floor(x);
+  const iz = Math.floor(z);
+  let fx = x - ix;
+  let fz = z - iz;
+  fx = fx * fx * (3 - 2 * fx);
+  fz = fz * fz * (3 - 2 * fz);
+  const a = hash2(ix, iz, seed);
+  const b = hash2(ix + 1, iz, seed);
+  const c = hash2(ix, iz + 1, seed);
+  const d = hash2(ix + 1, iz + 1, seed);
+  return a + (b - a) * fx + (c - a) * fz + (a - b - c + d) * fx * fz;
+}
+
+const smooth = (e0: number, e1: number, x: number): number => {
+  const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+};
+
+/** Ground height at (x, z), given the distance from the station footprint there. */
+export function seabedHeight(x: number, z: number, footprintDistance: number, seed = 1): number {
+  const broad = vnoise(x * 0.07, z * 0.07, seed) * 0.65 + vnoise(x * 0.15, z * 0.15, seed + 7) * 0.35;
+  const fine = vnoise(x * 0.4, z * 0.4, seed + 13);
+  return SEABED_BASE_Y + (broad - 0.5) * 1.2 + (fine - 0.5) * 0.08 - FALLOFF_DEPTH * smooth(10, 60, footprintDistance);
+}
+
+export interface SeabedOptions {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  /** Distance (m) from (x, z) to the station footprint; 0 under the station. */
+  distance: (x: number, z: number) => number;
+  /** Grid spacing (m). */
+  step?: number;
+  seed?: number;
+}
+
+export interface Seabed {
+  group: THREE.Group;
+  /** Ground height at a world (x, z) inside the covered area. */
+  heightAt(x: number, z: number): number;
+  /** Rock placements (x, z, yaw, scale); added as instances once the model is loaded. */
+  addRocks(placements: ReadonlyArray<{ x: number; z: number; yaw: number; scale: number }>): void;
+}
+
+/** One heightfield over the given area. Builds at once, with or without the GLB. */
+export function createSeabed(o: SeabedOptions): Seabed {
   const group = new THREE.Group();
   group.name = 'seabed';
-  const build = (): void => {
-    if (!source) return;
-    const src = source;
-    const rng = rand(o.seed ?? 1);
-    const pad = o.pad ?? 1;
-    const floorY = o.floorY ?? -4.5;
-    // One row of tiles filling the space between the glass and the backdrop.
-    const tileDepth = Math.max(2, o.depth - 0.4);
-    const zCentre = -(0.3 + tileDepth / 2);
-    const sz = tileDepth / src.size;
-
-    const placements: THREE.Matrix4[] = [];
-    const overlap = 0.9;
-    let x = -o.length / 2 - pad;
-    const end = o.length / 2 + pad;
-    let i = 0;
-    while (x < end) {
-      const widthScale = 0.8 + rng() * 0.45; // stretch along the wall
-      const tileW = tileDepth * widthScale;
-      const sy = 0.9 + rng() * 0.9; // vertical stretch
-      const rot = i % 2 === 0 ? 0 : Math.PI;
-      const m = new THREE.Matrix4().compose(
-        new THREE.Vector3(x + tileW / 2, floorY + (rng() - 0.5) * 0.5, zCentre),
-        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rot),
-        new THREE.Vector3(tileW / src.size, sy, sz),
-      );
-      placements.push(m);
-      x += tileW * overlap;
-      i++;
+  const step = o.step ?? 1;
+  const seed = o.seed ?? 1;
+  const nx = Math.max(1, Math.ceil((o.maxX - o.minX) / step));
+  const nz = Math.max(1, Math.ceil((o.maxZ - o.minZ) / step));
+  const pos = new Float32Array((nx + 1) * (nz + 1) * 3);
+  const uv = new Float32Array((nx + 1) * (nz + 1) * 2);
+  const heights = new Float32Array((nx + 1) * (nz + 1));
+  for (let j = 0; j <= nz; j++) {
+    for (let i = 0; i <= nx; i++) {
+      const k = j * (nx + 1) + i;
+      const x = o.minX + i * step;
+      const z = o.minZ + j * step;
+      const y = seabedHeight(x, z, o.distance(x, z), seed);
+      heights[k] = y;
+      pos.set([x, y, z], k * 3);
+      uv.set([x / TEXTURE_TILE, z / TEXTURE_TILE], k * 2);
     }
-    src.geometries.forEach((geometry, k) => {
-      const mesh = new THREE.InstancedMesh(geometry, src.materials[k]!, placements.length);
-      placements.forEach((m, n) => mesh.setMatrixAt(n, m));
+  }
+  const index: number[] = [];
+  for (let j = 0; j < nz; j++) {
+    for (let i = 0; i < nx; i++) {
+      const a = j * (nx + 1) + i;
+      const b = a + 1;
+      const c = a + nx + 1;
+      const d = c + 1;
+      index.push(a, c, b, b, c, d);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geometry.setIndex(index);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x8a8a7c, roughness: 1, metalness: 0 });
+  groundMat.name = 'seabed-ground';
+  const ground = new THREE.Mesh(geometry, applyExterior(groundMat));
+  ground.name = 'seabed-ground';
+  ground.castShadow = false;
+  ground.receiveShadow = false;
+  ground.userData['skipGtao'] = true;
+  group.add(ground);
+
+  const heightAt = (x: number, z: number): number => {
+    const fi = Math.min(nx, Math.max(0, (x - o.minX) / step));
+    const fj = Math.min(nz, Math.max(0, (z - o.minZ) / step));
+    const i = Math.min(nx - 1, Math.floor(fi));
+    const j = Math.min(nz - 1, Math.floor(fj));
+    const u = fi - i;
+    const v = fj - j;
+    const h = (ii: number, jj: number): number => heights[jj * (nx + 1) + ii]!;
+    return h(i, j) * (1 - u) * (1 - v) + h(i + 1, j) * u * (1 - v) + h(i, j + 1) * (1 - u) * v + h(i + 1, j + 1) * u * v;
+  };
+
+  const rockPlacements: Array<{ x: number; z: number; yaw: number; scale: number }> = [];
+  const buildRocks = (): void => {
+    if (!source || !rockPlacements.length) return;
+    const src = source;
+    if (src.groundMap) {
+      const mat = (ground.material as THREE.MeshStandardMaterial);
+      mat.map = src.groundMap;
+      mat.color.set(0x9a9c92);
+      mat.needsUpdate = true;
+    }
+    if (!src.rocks.length) return;
+    const buckets = src.rocks.map(() => [] as THREE.Matrix4[]);
+    rockPlacements.forEach((p, n) => {
+      const k = n % src.rocks.length;
+      buckets[k]!.push(
+        new THREE.Matrix4().compose(
+          new THREE.Vector3(p.x, heightAt(p.x, p.z) - 0.15 * p.scale, p.z),
+          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), p.yaw),
+          new THREE.Vector3(p.scale, p.scale, p.scale),
+        ),
+      );
+    });
+    buckets.forEach((list, k) => {
+      if (!list.length) return;
+      const mesh = new THREE.InstancedMesh(src.rocks[k]!, src.rockMaterials[k]!, list.length);
+      list.forEach((m, n) => mesh.setMatrixAt(n, m));
       mesh.instanceMatrix.needsUpdate = true;
       mesh.frustumCulled = false;
-      mesh.name = k === 0 ? 'seabed-ground' : `seabed-rocks-${k}`;
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      mesh.name = `seabed-rocks-${k}`;
+      mesh.userData['skipGtao'] = true;
       group.add(mesh);
     });
+    rockPlacements.length = 0;
   };
-  if (source) build();
-  else waiting.push(build);
-  return group;
+
+  return {
+    group,
+    heightAt,
+    addRocks(placements) {
+      rockPlacements.push(...placements);
+      if (source) buildRocks();
+      else waiting.push(buildRocks);
+    },
+  };
 }

@@ -213,3 +213,17 @@ test('centralized PBR materials have albedo/normal/roughness/AO maps, world-mete
   assert.equal(pool.lights.length, 4);
   assert.ok(pool.lights.every((l) => !l.castShadow));
 });
+
+test('a sanity screen keeps the glass hole but is not a window for views or culling (overhaul-exterior-ocean)', () => {
+  const builder = new HullBuilder();
+  builder.addPiece('left', [0, 0, 0], 'corridor_window', 0, 3.2, []);
+  builder.addPiece('right', [2, 0, 0], 'wall_sanity_screen', 90, 3.2, []);
+  const { group, windows, windowViews, columns } = builder.build([], fakeMaterials());
+  group.updateMatrixWorld(true);
+  assert.equal(windows.filter((w) => w.room === 'right').length, 0, 'screens are not windows');
+  assert.equal(windowViews.get('left'), undefined, 'nothing is seen through a screen');
+  const hits = new THREE.Raycaster(new THREE.Vector3(4, 1.6, 0), new THREE.Vector3(-1, 0, 0), 0, 3).intersectObject(group).length;
+  assert.equal(hits, 0, 'the hull still has the glass opening behind the screen');
+  assert.deepEqual(columns.map((c) => [c.x, c.z]).sort(), [[0, 0], [8, 0]]);
+  for (const mesh of group.children) assert.equal(((mesh as THREE.Mesh).material as THREE.Material).userData['exterior'], true, 'hull plating uses exterior lighting');
+});

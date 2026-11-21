@@ -7,7 +7,6 @@ import type { Inventory } from '../game/inventory.ts';
 import { accessOpen, checkAccess, type AccessHint, type GateKind } from './access.ts';
 import { createShaft } from '../render/fx/shafts.ts';
 import { createOceanLife, type OceanZone } from '../render/fx/oceanLife.ts';
-import { tickSeabed } from '../render/fx/seabed.ts';
 import { Particulates } from '../render/fx/particulates.ts';
 import { LightController, type ControlledLight, type LightPattern, type ShaftUniforms } from '../render/lights.ts';
 import { createDebugCheckerMaterial, fixtureMaterial, type Materials } from '../render/materials.ts';
@@ -27,6 +26,8 @@ import { PLAYER_TUNING, type PlayerWorld } from '../actors/player.ts';
 import type { World, WorldCheckpoint } from './world.ts';
 import { gridNodes, NavGraph, type Navigator, type P3 } from '../ai/nav.ts';
 import { NavMeshNav, navmeshReady } from '../ai/navmesh.ts';
+import { buildExterior, type Exterior, type ExteriorWindow } from '../render/fx/exterior.ts';
+import type { ExteriorLamp } from '../render/fx/exteriorLight.ts';
 
 const EYE_HEIGHT = PLAYER_TUNING.eyeHeight;
 /** Seconds an auto door stays open after reaching fully open while nobody is nearby. */
@@ -292,6 +293,14 @@ export class Level implements World {
   private readonly roomById = new Map<string, RoomRuntime>();
   private readonly doors: DoorRuntime[] = [];
   private readonly hull: ExteriorHull;
+  /** Everything outside the station, built once (openspec change overhaul-exterior-ocean). */
+  private readonly exterior: Exterior;
+  private readonly exteriorWindows: ExteriorWindow[] = [];
+  /** Rooms with real windows: the exterior draws only while one of them is visible. */
+  private readonly exteriorRooms = new Set<string>();
+  /** Lamps carried by pieces (the supply sub's headlamps), lighting the exterior while shown. */
+  private readonly exteriorLampMarkers: THREE.Object3D[] = [];
+  private readonly movingLamps: ExteriorLamp[] = [];
   private readonly triggers: TriggerRuntime[] = [];
   private readonly vents: VentRuntime[] = [];
   private readonly pickups: PickupRuntime[] = [];
@@ -349,6 +358,11 @@ export class Level implements World {
     for (const [index, r] of data.rooms.entries()) this.buildRoom(r, index, rng, occupancy, hull);
     this.hull = hull.build(data.doors, deps.materials);
     this.group.add(this.hull.group);
+    this.exterior = buildExterior({ columns: this.hull.columns, windows: this.exteriorWindows, steel: deps.materials.paintDark, rng: rng.fork('exterior') });
+    this.group.add(this.exterior.group);
+    this.group.traverse((o) => {
+      if (o.name === 'exterior-lamp') this.exteriorLampMarkers.push(o);
+    });
     for (const d of data.doors) this.buildDoor(d, rng);
     this.initialPatterns = this.lights.items.map((it) => it.pattern);
     // Bake AO and merge once every collider exists, so walls shade across room seams.
@@ -614,9 +628,11 @@ export class Level implements World {
     const oceanZones: OceanZone[] = [];
     room.group.updateMatrixWorld(true);
     for (const child of room.group.children) {
-      const meta = child.userData['oceanZone'] as { width: number; depth: number } | undefined;
+      const meta = child.userData['oceanZone'] as { width: number; depth: number; flicker?: boolean } | undefined;
       if (!meta) continue;
       oceanMarkers.push(child);
+      this.exteriorWindows.push({ room: r.id, matrix: child.matrixWorld.clone(), width: meta.width, flicker: meta.flicker === true });
+      this.exteriorRooms.add(r.id);
       oceanZones.push({ matrix: child.matrixWorld.clone(), width: meta.width, depth: meta.depth });
     }
     for (const mk of oceanMarkers) room.group.remove(mk);
@@ -915,6 +931,33 @@ export class Level implements World {
     }
     if (standIns) room.stats.drawCalls -= 1;
   }
+  /** World-space lamps of shown `exterior-lamp` markers (userData.exteriorLamp: local dir, colour, intensity, range, cone). */
+  private pieceLamps(): ExteriorLamp[] {
+    this.movingLamps.length = 0;
+    for (const o of this.exteriorLampMarkers) {
+      let shown = true;
+      for (let p: THREE.Object3D | null = o; p; p = p.parent) if (!p.visible) shown = false;
+      const d = o.userData['exteriorLamp'] as { dir: [number, number, number]; color: number; intensity: number; range: number; inner: number; outer: number } | undefined;
+      if (!shown || !d) continue;
+      o.updateWorldMatrix(true, false);
+      this.movingLamps.push({
+        position: new THREE.Vector3().setFromMatrixPosition(o.matrixWorld),
+        direction: new THREE.Vector3(...d.dir).transformDirection(o.matrixWorld),
+        color: new THREE.Color(d.color),
+        intensity: d.intensity,
+        range: d.range,
+        inner: d.inner,
+        outer: d.outer,
+      });
+    }
+    return this.movingLamps;
+  }
+
+  /** Exterior floodlights (tests and tools). */
+  floodlights(): ReadonlyArray<{ room: string; flicker: boolean }> {
+    return this.exterior.floodlights;
+  }
+
   roomStats(): RoomStats[] {
     return this.rooms.map((r) => ({ id: r.data.id, name: r.data.name, ...r.stats }));
   }
@@ -922,6 +965,7 @@ export class Level implements World {
   /** Draw calls of visible rooms, doors and the shared exterior, before post. */
   visibleDrawCalls(): number {
     let n = this.hull.group.children.length;
+    if (this.exterior.group.visible) this.exterior.group.traverse((o) => void (o instanceof THREE.Mesh && o.visible && n++));
     for (const r of this.rooms) if (r.visible) n += r.stats.drawCalls;
     for (const d of this.doors) if (d.group.visible) d.group.traverse((o) => void (o instanceof THREE.Mesh && n++));
     return n;
@@ -1455,7 +1499,8 @@ export class Level implements World {
     this.pool.finish();
 
     for (const r of this.rooms) if (r.visible) for (const tick of r.ticks) tick(t, dt);
-    tickSeabed(t);
+    const outside = this.rooms.some((r) => r.visible && this.exteriorRooms.has(r.data.id));
+    this.exterior.update(t, eye, outside, reducedFlashing, outside ? this.pieceLamps() : undefined);
     for (const d of this.doors) if (d.group.visible) d.visual.tick(t);
     // Taken pickups stay gone, also after loading a save that holds the item.
     const inv = this.deps.inventory;

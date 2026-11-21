@@ -153,11 +153,9 @@ export function buildDemoRoom(m: Materials, rng: Rng): DemoRoom {
     tickers.push((t) => {
       abyss.uniforms.uTime.value = t;
     });
-    // Sea floor between the truss and the backdrop. Seabed frame: -Z is outwards, here +X.
-    const seabed = createSeabed({ length: 5, depth: 6, floorY: -4.2, pad: 6, seed: 7 });
-    seabed.position.set(x, 0, 0);
-    seabed.rotation.y = -Math.PI / 2;
-    root.add(seabed);
+    // Sea floor beyond the window (+X).
+    const seabed = createSeabed({ minX: x, maxX: x + 30, minZ: -15, maxZ: 15, distance: (px) => Math.max(0, px - x), seed: 7 });
+    root.add(seabed.group);
   }
 
   // ---------------------------------------------------------------- structural ribs + bolts

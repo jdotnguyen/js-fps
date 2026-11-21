@@ -575,17 +575,47 @@ test('admin hub (R14a-R14e) props stay inside room bounds, do not overlap, and s
   // Chair collider covers the backrest height (F1).
   const chair = registry.create('chair', { fixed: true }, new Rng('chair'), mats);
   assert.ok(chair.colliders[0]!.max[1] >= 1.0, 'chair collider covers backrest');
-  // Every window abyss backdrop clips to its own window portal and opts out of GTAO so it never bleeds into adjacent rooms.
-  let backdrops = 0;
+  // One station-wide exterior (overhaul-exterior-ocean): no per-window backdrop, seabed or truss.
+  const exteriors: THREE.Object3D[] = [];
+  let screens = 0;
+  const screenRooms = new Set<string>();
   level.group.traverse((o) => {
-    if (!(o instanceof THREE.Mesh) || o.name !== 'abyss-backdrop') return;
-    backdrops++;
-    const mat = o.material as THREE.ShaderMaterial;
-    const portal = mat.uniforms['uPortal']?.value as THREE.Vector4 | undefined;
-    assert.ok(portal && portal.x > 0 && portal.z > 0 && portal.w > 0, 'abyss backdrop has active window portal clip');
-    assert.equal(o.userData['skipGtao'], true, 'abyss backdrop opts out of GTAO');
+    assert.notEqual(o.name, 'abyss-backdrop', 'no per-window abyss backdrop');
+    if (o.name === 'exterior') exteriors.push(o);
+    if (o.name.startsWith('seabed')) {
+      let p: THREE.Object3D | null = o;
+      while (p && p.name !== 'exterior') p = p.parent;
+      assert.ok(p, `${o.name} belongs to the shared exterior, not a window tile`);
+    }
+    if (o instanceof THREE.Mesh && (o.material as THREE.Material).name === 'sanity-screen') screens++;
   });
-  assert.ok(backdrops >= 10, `found ${backdrops} portal-clipped abyss backdrops`);
+  assert.equal(exteriors.length, 1, 'one exterior for the whole station');
+  for (const r of data.rooms) if (r.pieces.some((p) => p.kit === 'wall_sanity_screen')) screenRooms.add(r.id);
+  assert.deepEqual([...screenRooms].sort(), ['R02', 'R12c', 'R14c', 'R14d']);
+  const realRooms = new Set(data.rooms.filter((r) => r.pieces.some((p) => p.kit === 'wall_window')).map((r) => r.id));
+  assert.deepEqual([...realRooms].sort(), ['R01', 'R01w', 'R12b']);
+  assert.ok(screens >= 4 && screens <= 8, `screens merge into about one mesh per screened room (found ${screens})`);
+  const lamps = level.floodlights();
+  const perRoom = (id: string): number => lamps.filter((l) => l.room === id).length;
+  assert.deepEqual([perRoom('R01'), perRoom('R01w'), perRoom('R12b'), lamps.length], [2, 2, 1, 5], 'floodlights: R01 2, R01w 2, R12b 1');
+  assert.equal(lamps.filter((l) => l.flicker).length, 1, 'one Docking Ring lamp flickers');
+  assert.ok(lamps.find((l) => l.flicker)!.room === 'R01');
+  let subLamps = 0;
+  level.group.traverse((o) => void (o.name === 'exterior-lamp' && subLamps++));
+  assert.equal(subLamps, 2, "the sub's two headlamps light the exterior");
+  // The exterior draws only while a room with real windows is visible.
+  const centre = (id: string): THREE.Vector3 => {
+    const cells = data.rooms.find((x) => x.id === id)!.pieces.flatMap((p) => p.cells ?? (p.cell ? [p.cell] : []));
+    const c = cells[Math.floor(cells.length / 2)]!;
+    return new THREE.Vector3(c[0] * 4, 1.7, c[2] * 4);
+  };
+  const ext = exteriors[0]!;
+  level.update(1, 1 / 60, centre('R07'), false);
+  level.update(1.1, 1 / 60, centre('R07'), false);
+  assert.equal(ext.visible, false, 'hidden from the Security Office');
+  level.update(1.2, 1 / 60, centre('R12b'), false);
+  level.update(1.3, 1 / 60, centre('R12b'), false);
+  assert.equal(ext.visible, true, 'drawn from the Grow Hall');
 });
 
 test('hydroponics wing (R12a-R12e) props stay inside room bounds, do not overlap, and include all story/functional gear', () => {

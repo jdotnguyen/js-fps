@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Rng } from '../../core/rng.ts';
+import { EXTERIOR_GLSL, exteriorUniforms } from './exteriorLight.ts';
 
 /**
  * 3D ocean life outside a room's exterior windows (Pass B):
@@ -73,6 +74,7 @@ const FISH_VERT = /* glsl */ `
   varying vec3 vTint;
   varying float vDepth;
   varying float vShade;
+  varying vec3 vFishWorld;
 
   void main() {
     float span = aTrack.x;
@@ -98,6 +100,7 @@ const FISH_VERT = /* glsl */ `
     vShade = 0.55 + 0.45 * clamp(wn.y * 0.7 + 0.3, 0.0, 1.0);
     vTint = aTint;
     vDepth = length(cameraPosition - world.xyz);
+    vFishWorld = world.xyz;
     gl_Position = projectionMatrix * viewMatrix * world;
   }
 `;
@@ -106,11 +109,14 @@ const FISH_FRAG = /* glsl */ `
   varying vec3 vTint;
   varying float vDepth;
   varying float vShade;
+  varying vec3 vFishWorld;
+  ${EXTERIOR_GLSL}
 
   void main() {
-    // Deep ocean fog blend so distant fish fade naturally into the abyss.
-    float fog = 1.0 - exp(-vDepth * vDepth * 0.0085);
-    vec3 col = mix(vTint * vShade, vec3(0.015, 0.055, 0.072), clamp(fog, 0.0, 0.92));
+    // The shared water fog (exterior-ocean spec): fish fade at the same rate as the seabed behind them.
+    // Not self-lit: a faint silhouette in the dark, properly visible only in a lamp's light.
+    float lit = clamp(0.08 + dot(extLamps(vFishWorld, vec3(0.0)), vec3(0.333)) * 0.12, 0.0, 1.2);
+    vec3 col = mix(vTint * vShade * lit, uWaterColor, waterFog(vDepth));
     gl_FragColor = vec4(col, 0.88);
   }
 `;
@@ -122,6 +128,7 @@ const BUBBLE_VERT = /* glsl */ `
   attribute float aSize;
   varying float vKind;
   varying float vAlpha;
+  varying vec3 vPWorld;
 
   void main() {
     vec3 p = position;
@@ -145,6 +152,7 @@ const BUBBLE_VERT = /* glsl */ `
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     float dist = max(1.2, -mv.z);
     vKind = kind;
+    vPWorld = (modelMatrix * vec4(p, 1.0)).xyz;
     vAlpha *= smoothstep(16.0, 2.5, dist);
     gl_PointSize = clamp((aSize * 220.0 * uPixelRatio) / dist, 1.5, 16.0);
     gl_Position = projectionMatrix * mv;
@@ -154,22 +162,27 @@ const BUBBLE_VERT = /* glsl */ `
 const BUBBLE_FRAG = /* glsl */ `
   varying float vKind;
   varying float vAlpha;
+  varying vec3 vPWorld;
+  ${EXTERIOR_GLSL}
 
   void main() {
     vec2 c = gl_PointCoord - 0.5;
     float r = length(c);
     if (r > 0.5) discard;
+    float lit = clamp(dot(extLamps(vPWorld, vec3(0.0)), vec3(0.333)) * 0.15, 0.0, 1.0);
     if (vKind > 0.5) {
       // Hollow specular bubble ring with soft rim.
       float rim = smoothstep(0.22, 0.42, r) * smoothstep(0.5, 0.41, r);
       float spec = smoothstep(0.16, 0.0, length(c - vec2(-0.14, -0.14)));
       vec3 col = vec3(0.45, 0.78, 0.86) * (0.55 + rim * 0.7) + vec3(0.7, 0.95, 1.0) * spec;
-      gl_FragColor = vec4(col, (rim * 0.75 + spec * 0.65 + 0.12) * vAlpha);
+      // Bubbles show only where a lamp catches them.
+      gl_FragColor = vec4(col, (rim * 0.75 + spec * 0.65 + 0.12) * vAlpha * lit);
     } else {
       // Soft glowing cyan-aqua bioluminescent speck.
       float glow = smoothstep(0.5, 0.0, r);
       vec3 col = mix(vec3(0.18, 0.62, 0.72), vec3(0.48, 0.95, 0.92), glow);
-      gl_FragColor = vec4(col, glow * glow * vAlpha);
+      // Sparse, dim bioluminescence: a few faint points in the dark, not a starfield.
+      gl_FragColor = vec4(col, glow * glow * vAlpha * (0.22 + 0.6 * lit));
     }
   }
 `;
@@ -187,7 +200,7 @@ export function createOceanLife(zones: readonly OceanZone[], rng: Rng): OceanLif
   const trackArr = new Float32Array(totalFish * 4);
   const tintArr = new Float32Array(totalFish * 3);
   const fishMat = new THREE.ShaderMaterial({
-    uniforms: { uTime },
+    uniforms: { uTime, ...exteriorUniforms },
     vertexShader: FISH_VERT,
     fragmentShader: FISH_FRAG,
     transparent: true,
@@ -296,6 +309,7 @@ export function createOceanLife(zones: readonly OceanZone[], rng: Rng): OceanLif
   const pMat = new THREE.ShaderMaterial({
     uniforms: {
       uTime,
+      ...exteriorUniforms,
       uPixelRatio: { value: typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1 },
     },
     vertexShader: BUBBLE_VERT,

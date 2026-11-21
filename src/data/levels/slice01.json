@@ -188,7 +188,7 @@
       ]
      ],
      "params": {
-      "backdropDepth": 32
+      "flicker": true
      }
     },
     {
@@ -999,10 +999,7 @@
        0,
        0
       ]
-     ],
-     "params": {
-      "backdropDepth": 32
-     }
+     ]
     },
     {
      "kit": "wall_panel",
@@ -1040,9 +1037,6 @@
        1
       ]
      ],
-     "params": {
-      "backdropDepth": 7
-     },
      "rot": 270
     },
     {
@@ -1729,7 +1723,7 @@
      "rot": 270
     },
     {
-     "kit": "wall_window",
+     "kit": "wall_sanity_screen",
      "cells": [
       [
        4,
@@ -7754,9 +7748,6 @@
        6
       ]
      ],
-     "params": {
-      "backdropDepth": 22
-     },
      "rot": 270
     }
    ],
@@ -8102,7 +8093,7 @@
      ]
     },
     {
-     "kit": "wall_window",
+     "kit": "wall_sanity_screen",
      "cells": [
       [
        13,
@@ -8110,9 +8101,6 @@
        4
       ]
      ],
-     "params": {
-      "backdropDepth": 22
-     },
      "rot": 270
     },
     {
@@ -11003,7 +10991,7 @@
      ]
     },
     {
-     "kit": "wall_window",
+     "kit": "wall_sanity_screen",
      "cells": [
       [
        13,
@@ -11013,7 +11001,7 @@
      ]
     },
     {
-     "kit": "wall_window",
+     "kit": "wall_sanity_screen",
      "cells": [
       [
        13,
@@ -11333,7 +11321,7 @@
      ]
     },
     {
-     "kit": "wall_window",
+     "kit": "wall_sanity_screen",
      "cells": [
       [
        10,

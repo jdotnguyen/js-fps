@@ -7,6 +7,7 @@ import { paintedDecal, stencilDecal } from '../../render/decals.ts';
 import { drawTagBanner, drawTagLockup, drawTagMark } from '../../render/logo.ts';
 import { NOISE_GLSL } from '../../render/fx/glsl.ts';
 import { SUB_RADIUS, SUB_SAIL_TOP, SUB_LENGTH, SUB_SCALE, createSubModel } from '../../render/fx/subModel.ts';
+import { exteriorize } from '../../render/fx/exteriorLight.ts';
 import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { lathe, slab } from './shapes.ts';
 import { inFrame, panelWall, wallFrame } from './detail.ts';
@@ -487,7 +488,8 @@ const GEN: Record<string, Gen> = {
       mb.add(slab(0.8, 0.5, 0.02), m.hazardClean, at(-0.6, 0.4, R + 0.01));
       group.add(mb.build('supply_sub:hull', null));
     }
-    // Lights: headlamps, beams, running lights.
+    // Lights: headlamps, beams, running lights. Beams tilt down far enough to reach the seabed.
+    const LAMP_TILT = 0.5;
     const lamp = fixtureMaterial(0xfff1d0, 4);
     const red = fixtureMaterial(0xff2a1a, 3);
     const green = fixtureMaterial(0x2aff7a, 3);
@@ -503,9 +505,15 @@ const GEN: Record<string, Gen> = {
       heads.push(new THREE.SphereGeometry(0.13 * K, 12, 8).translate(lampX, lampY, s * lampZ));
       const b = new THREE.ConeGeometry(1.6 * K, 9 * K, 16, 1, true);
       b.translate(0, -4.5 * K, 0);
-      b.rotateZ(PI / 2 - 0.25);
+      b.rotateZ(PI / 2 - LAMP_TILT);
       b.translate(lampX, lampY, s * lampZ);
       beams.push(b);
+      // The same lamp lights the seabed (exterior-ocean spec, intro-sequence "Headlamps light the seabed").
+      const marker = new THREE.Object3D();
+      marker.name = 'exterior-lamp';
+      marker.position.set(lampX, lampY, s * lampZ);
+      marker.userData['exteriorLamp'] = { dir: [Math.cos(LAMP_TILT), -Math.sin(LAMP_TILT), 0], color: 0xfff1d0, intensity: 40, range: 22, inner: 0.16, outer: 0.3 };
+      group.add(marker);
     }
     group.add(new THREE.Mesh(mergeGeometries(heads, false) ?? heads[0]!, lamp), new THREE.Mesh(mergeGeometries(beams, false) ?? beams[0]!, beamMat));
     const port = new THREE.Mesh(new THREE.SphereGeometry(0.08 * K, 8, 6), red);
@@ -542,6 +550,7 @@ const GEN: Record<string, Gen> = {
     const boomLen = Math.max(0.5, 5.15 - nearZ);
     pb.add(slab(0.5 * K, 0.3 * K, boomLen), m.paintDark, at(-0.1 * K, -2.45 * K, nearZ + boomLen / 2));
     const root = new THREE.Group();
+    exteriorize(group); // the hull is lit by lamps and fogged like the rest of the exterior
     root.add(group, ...arms);
     pb.dynamic(root);
 

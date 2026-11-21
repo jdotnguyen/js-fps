@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Rng } from '../../core/rng.ts';
 import type { Materials } from '../../render/materials.ts';
-import { createSeabed } from '../../render/fx/seabed.ts';
+import { sanityScreen } from './sanityScreen.ts';
 import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { slab } from './shapes.ts';
 import { WINDOW_HEAD, WINDOW_SILL, type PieceBuilder } from './types.ts';
@@ -34,7 +34,8 @@ export function inFrame(frame: THREE.Matrix4, x: number, y: number, z: number, r
 
 export interface WallOptions {
   length: number;
-  backdropDepth?: number;
+  /** Real windows: the first floodlight of this run of glass flickers now and then (exterior-ocean spec). */
+  flicker?: boolean;
   height: number;
   /** Back slab depth behind the face. */
   depth?: number;
@@ -122,17 +123,38 @@ export function panelWall(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Mat
   }
 }
 
+let oceanGlassMat: THREE.MeshPhysicalMaterial | null = null;
 /**
- * Window wall onto the abyss: low wall, glass, header, mullions. The abyss plane and
- * truss sit `outside` metres behind the face, so only use it on edges facing open water.
+ * Thick pressure glass onto black water: barely tinted and only faintly reflective, so the room's
+ * lights don't lay a grey film over the ocean (the shared `glass` is for lit interior partitions).
  */
-export function windowWall(
-  pb: PieceBuilder,
-  m: Materials,
-  f: THREE.Matrix4,
-  o: WallOptions,
-  abyss: { mesh: THREE.Mesh; uniforms: { uTime: { value: number }; uPortal?: { value: THREE.Vector4 } } } | null,
-): void {
+function oceanGlass(): THREE.MeshPhysicalMaterial {
+  oceanGlassMat ??= new THREE.MeshPhysicalMaterial({
+    name: 'ocean-glass',
+    color: 0x0b1418,
+    roughness: 0.03,
+    metalness: 0,
+    transparent: true,
+    opacity: 0.06,
+    clearcoat: 1,
+    clearcoatRoughness: 0.04,
+    envMapIntensity: 0.35,
+    depthWrite: false,
+    side: THREE.FrontSide,
+  });
+  return oceanGlassMat;
+}
+
+/** What a window wall looks onto: the shared ocean, or a sanity screen mounted over the glass. */
+export type WindowView = 'ocean' | 'screen';
+
+/**
+ * Window wall: low wall, glass, header, mullions. Nothing is built outside the glass: the ocean,
+ * seabed and floodlights belong to the station-wide exterior (render/fx/exterior.ts), which reads
+ * the `ocean-zone` marker left here. A `screen` view mounts a sanity screen instead and leaves no
+ * marker, so no ocean life or floodlight is placed behind it (openspec change overhaul-exterior-ocean).
+ */
+export function windowWall(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, o: WallOptions, view: WindowView = 'ocean'): void {
   const L = o.length;
   const h = o.height;
   const sill = WINDOW_SILL;
@@ -149,34 +171,21 @@ export function windowWall(
     const x = -L / 2 + 0.07 + ((L - 0.14) * i) / (mullions - 1);
     pb.add(rounded(0.14, head - sill, 0.24, 0.03), trim, inFrame(f, x, (head + sill) / 2, 0.02));
   }
-  const glass = new THREE.Mesh(new THREE.PlaneGeometry(L, head - sill), m.glass);
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(L, head - sill), view === 'ocean' ? oceanGlass() : m.glass);
   glass.applyMatrix4(inFrame(f, 0, (head + sill) / 2, -0.04));
   glass.renderOrder = 3;
   pb.dynamic(glass);
 
-  // Station truss outside, silhouetted against the water.
-  for (const x of [-L * 0.4, L * 0.35]) pb.add(slab(0.35, 10, 0.35), m.paintDark, inFrame(f, x, 1.2, -2.6));
-  pb.add(slab(L * 3, 0.3, 0.3), m.paintDark, inFrame(f, 0, -0.8, -2.2));
-  if (abyss) {
-    const depth = o.backdropDepth ?? 9;
-    abyss.mesh.scale.set(depth / 9, depth / 9, 1);
-    abyss.mesh.applyMatrix4(inFrame(f, 0, 1.5, -depth));
-    abyss.uniforms.uPortal?.value.set(depth, (head + sill) / 2 - 1.5, L / 2 + 0.04, (head - sill) / 2 + 0.04);
-    pb.dynamic(abyss.mesh);
-    pb.tick((t) => {
-      abyss.uniforms.uTime.value = t;
-    });
-    // Keep the foreground seabed close to the glass.
-    const seabed = createSeabed({ length: L, depth: Math.min(9, depth), floorY: -4.5, pad: 0.8, seed: Math.round(Math.abs(f.elements[12] * 31 + f.elements[14] * 17)) + 1 });
-    seabed.applyMatrix4(f);
-    pb.dynamic(seabed);
-    // Marker consumed by Level.buildRoom to batch 3D ocean life across every window in the room (1 Mesh + 1 Points per room).
-    const zone = new THREE.Object3D();
-    zone.name = 'ocean-zone';
-    zone.userData['oceanZone'] = { width: L, depth: Math.min(9, depth) };
-    zone.applyMatrix4(inFrame(f, 0, (head + sill) / 2, 0));
-    pb.dynamic(zone);
+  if (view === 'screen') {
+    sanityScreen(pb, m, f, { length: L, sill, head, mullions }, inFrame);
+    return;
   }
+  // Marker consumed by Level.buildRoom: ocean life per room, floodlights and rocks station-wide.
+  const zone = new THREE.Object3D();
+  zone.name = 'ocean-zone';
+  zone.userData['oceanZone'] = { width: L, depth: 9, flicker: o.flicker === true };
+  zone.applyMatrix4(inFrame(f, 0, (head + sill) / 2, 0));
+  pb.dynamic(zone);
 }
 
 /** Light housing (the loader adds the glowing diffuser for claimed slots). */

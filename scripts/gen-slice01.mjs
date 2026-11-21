@@ -255,9 +255,9 @@ const R01w = room('R01w', 'Docking Ring Walk', [[4, 0], [5, 0], [6, 0], [6, 1], 
   ],
 });
 opening('R01', 'R01w', 3, 0, 'e');
-for (const x of [1, 2, 3]) wallKit(R01, x, 0, 'n', 'wall_window', { backdropDepth: 32 }); // the big dock window
-for (const x of [5, 6]) wallKit(R01w, x, 0, 'n', 'wall_window', { backdropDepth: 32 }); // abyss window on the walk
-wallKit(R01w, 6, 1, 'e', 'wall_window', { backdropDepth: 7 }); // courtyard window: keep seabed west of Admin
+for (const x of [1, 2, 3]) wallKit(R01, x, 0, 'n', 'wall_window', { flicker: true }); // the big dock window (one floodlight flickers)
+for (const x of [5, 6]) wallKit(R01w, x, 0, 'n', 'wall_window'); // ocean window on the walk
+wallKit(R01w, 6, 1, 'e', 'wall_window'); // courtyard window onto the seabed between the wings
 const R01a = room('R01a', 'Dock Airlock', [[0, -1]], { area: 'dock', atmosphere: { ...QUIET_FOG, reverb: 'small_office' }, ceilingMaterial: 'boltPanel', walls: ['wall_plain'], lights: [L(0, 'steady', '#ffe9c8', 7)] });
 wallKit(R01a, 0, -1, 'w', 'wall_vent');
 // Its outer hull is visible through both runs of dock windows even with D_dock shut.
@@ -373,7 +373,7 @@ const R02 = room('R02', 'Commons', rect(4, 8, 3, 6), {
   ],
 });
 for (const x of [7, 8]) wallKit(R02, x, 3, 'n', 'wall_tiles');
-for (const x of [4, 5, 7, 8]) wallKit(R02, x, 6, 's', 'wall_window'); // the abyss behind the bar and the lounge
+for (const x of [4, 5, 7, 8]) wallKit(R02, x, 6, 's', 'wall_sanity_screen'); // sanity screens behind the bar and the lounge (exterior-ocean)
 door('D_R01_R02', 'R02', 'R01w', 6, 3, 'n');
 const R02_CEIL = 4;
 const R02_N = cx(3) - WALL_FACE; // north wall inner face (z 10.25)
@@ -900,8 +900,8 @@ const R12e = room('R12e', 'Hydroponics Storeroom', [[10, 7]], {
   lights: [L(0, 'steady', '#ffe2b8', 9, 9, { shaft: 0.02 })],
 });
 // Open-abyss ocean viewports on the east seaward hull (Grow Hall south-east bay & Seed Lab east wall).
-wallKit(R12b, 12, 6, 'e', 'wall_window', { backdropDepth: 22 });
-wallKit(R12c, 13, 4, 'e', 'wall_window', { backdropDepth: 22 });
+wallKit(R12b, 12, 6, 'e', 'wall_window');
+wallKit(R12c, 13, 4, 'e', 'wall_sanity_screen');
 // Full-height glass partition between the Grow Hall and Seed Lab beside the glass door.
 glass('R12b', 12, 5, 'e');
 wallKit(R12d, 12, 7, 'e', 'wall_vent');
@@ -1138,9 +1138,9 @@ const R14e = room('R14e', 'Security Booth', [[9, 1]], {
   walls: ['wall_wood'],
   lights: [L(0, 'steady', '#b8d8ff', 10, 9, { shaft: 0.025, emissive: 2.2 })],
 });
-wallKit(R14c, 13, 1, 'n', 'wall_window');
-wallKit(R14c, 13, 1, 'e', 'wall_window');
-for (const x of [10, 11, 12]) wallKit(R14d, x, -1, 'n', 'wall_window');
+wallKit(R14c, 13, 1, 'n', 'wall_sanity_screen');
+wallKit(R14c, 13, 1, 'e', 'wall_sanity_screen');
+for (const x of [10, 11, 12]) wallKit(R14d, x, -1, 'n', 'wall_sanity_screen');
 glass('R14b', 10, 1, 'n'); // full-width glass frontage into the 3x2 boardroom
 glass('R14b', 12, 1, 'n');
 glass('R14b', 12, 2, 'e'); // Hale's office behind glass
