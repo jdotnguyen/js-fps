@@ -122,6 +122,12 @@ export interface SequenceHost {
   spawnGroup?(group: string): boolean;
   despawnGroup?(group: string): boolean;
   groupCleared?(group: string): boolean;
+  /** `squadRegroup` (squad-tasks spec): bring far, unseen squadmates near Jay; returns the ids moved. */
+  squadRegroup?(distance?: number): string[];
+  /** `gatherIn` (scene-gathering spec): is Jay or a squadmate inside the room? Unknown rooms count as inside. */
+  inRoom?(who: 'player' | 'giles' | 'okafor', room: string): boolean;
+  /** `gatherIn` timed out or skipped: put squadmates still outside the room near Jay; returns the ids moved. */
+  squadPlaceIn?(room: string): string[];
 }
 
 export type { Scalar };

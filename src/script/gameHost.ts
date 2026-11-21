@@ -67,6 +67,11 @@ function vec(v: THREE.Vector3): Vec3Like {
 }
 
 export function createGameHost(d: GameHostDeps): SequenceHost {
+  // Room tests for `gatherIn`: feet raised half a metre, as checkpoints test them. No level, or an unknown room: inside.
+  const roomIs = (p: Vec3Like, room: string): boolean => {
+    if (!d.level?.hasRoom(room)) return true;
+    return d.level.roomAt(tmp.set(p.x, p.y + 0.5, p.z))?.data.id === room;
+  };
   const v3 = (p: Vec3Like): THREE.Vector3 => new THREE.Vector3(p.x, p.y, p.z);
   const label = (id: string): string => d.game.location || id;
   const radio = new RadioPlayer(d.audio);
@@ -224,6 +229,16 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
       ? { spawnGroup: (g: string) => d.enemies!.spawnGroup(g), despawnGroup: (g: string) => d.enemies!.despawnGroup(g), groupCleared: (g: string) => d.enemies!.groupCleared(g) }
       : {}),
     ...(d.npcs ? { npc: (action: string, step: Readonly<Record<string, unknown>>) => d.npcs!.command(action, step) } : {}),
+    ...(d.npcs
+      ? {
+          squadRegroup: (distance?: number) => d.npcs!.regroup(distance),
+          squadPlaceIn: (room: string) => d.npcs!.placeSquadIn((p) => roomIs(p, room)),
+          inRoom: (who: 'player' | 'giles' | 'okafor', room: string) => {
+            const p = who === 'player' ? { x: d.player.body.x, y: d.player.body.y, z: d.player.body.z } : d.npcs!.squadFeet(who);
+            return p ? roomIs(p, room) : true;
+          },
+        }
+      : {}),
     ...(d.speech ? { say: (line: string, opts?: { overlap?: boolean }) => d.speech!.say(line, opts), stopSpeech: () => d.speech!.stopAll() } : {}),
   };
   // NPC targets: positions through the same resolver, plus an anchor's facing (Level.anchor yaw).

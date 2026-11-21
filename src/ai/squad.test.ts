@@ -8,7 +8,7 @@ import { PoseLibrary } from '../actors/poses.ts';
 import { loadPoseFile } from '../data/types/poses.ts';
 import { DEMO_COLLIDERS, demoRoomPlayerWorld } from '../world/demoRoomColliders.ts';
 import { gridNodes, NavGraph } from './nav.ts';
-import { Squad, SQUAD_TUNING, type SquadEnemy, type SquadEnemySource, type SquadPlayer } from './squad.ts';
+import { Squad, SQUAD_TUNING, type SquadEnemy, type SquadEnemySource, type SquadMate, type SquadPlayer } from './squad.ts';
 import { TASKS } from './squadBrain.ts';
 
 function setup(extra: { enemies?: SquadEnemySource; gameOver?: () => void; flags?: () => Record<string, number> } = {}) {
@@ -404,4 +404,50 @@ test('task arrival: a spot he cannot get to is worked from where he stands after
   assert.ok(t < 15, `took ${t.toFixed(1)} s to give up`);
   for (let k = 0; k < 60 * 12 && !task.done; k++) squad.update(dt, null);
   assert.equal(task.done, true);
+});
+
+// ---------------------------------------------------------------- unify-checkpoint-restore
+
+/** Jay at z, facing down the corridor toward -z; both squadmates placed at mateZ. */
+function spread(jayZ: number, mateZ: number) {
+  const s = setup();
+  s.player.body.z = jayZ;
+  s.player.yaw = 0;
+  s.squad.update(1 / 60, null);
+  s.squad.mates.forEach((m, i) => m.place({ x: i ? 1 : -1, y: 0, z: mateZ }, 0));
+  return s;
+}
+
+test('requestPlacement: the next update puts unscripted squadmates beside Jay, a scripted one stays', () => {
+  const { squad, player } = spread(-8, 8);
+  const [a, b] = squad.mates as [SquadMate, SquadMate];
+  b.scripted = true;
+  squad.requestPlacement();
+  squad.update(1 / 60, null);
+  const near = (m: SquadMate) => Math.hypot(m.position.x - player.body.x, m.position.z - player.body.z);
+  assert.ok(near(a) < 5, `${a.id} placed beside Jay (${near(a).toFixed(1)} m)`);
+  assert.ok(Math.abs(b.position.z - 8) < 0.01, `${b.id} stays where the scene put him`);
+});
+
+test('regroup moves a far squadmate behind Jay, held or not', () => {
+  const { squad, player } = spread(-8, 8);
+  squad.mates[1]!.scripted = true;
+  const moved = squad.regroup();
+  assert.deepEqual([...moved].sort(), squad.mates.map((m) => m.id).sort());
+  for (const m of squad.mates) assert.ok(Math.hypot(m.position.x - player.body.x, m.position.z - player.body.z) < 5, `${m.id} near Jay`);
+});
+
+test('regroup leaves a far squadmate Jay can see, and one within 12 m', () => {
+  const ahead = spread(8, -8);
+  assert.deepEqual(ahead.squad.regroup(), [], 'in view down the corridor');
+  const close = spread(-8, 2);
+  assert.deepEqual(close.squad.regroup(), [], 'within 12 m');
+});
+
+test('placeIn moves only the squadmates outside the room, to Jay', () => {
+  const { squad } = spread(-5, 5);
+  squad.mates[0]!.place({ x: -1, y: 0, z: -3 }, 0);
+  const moved = squad.placeIn((p) => p.z < 0);
+  assert.deepEqual(moved, [squad.mates[1]!.id]);
+  for (const m of squad.mates) assert.ok(m.position.z < 0, `${m.id} inside`);
 });

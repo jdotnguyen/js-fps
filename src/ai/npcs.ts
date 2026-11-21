@@ -244,6 +244,26 @@ export class NpcDirector {
     for (const id of [...this.held]) this.release(id === 'engineer' ? 'giles' : 'okafor');
   }
 
+  /** Scene step `squadRegroup` (squad-tasks spec). A moved squadmate drops the walk he was on. */
+  regroup(distance?: number): SquadId[] {
+    const moved = this.deps.squad?.regroup(distance) ?? [];
+    for (const id of moved) this.actor(id === 'engineer' ? 'giles' : 'okafor', false)?.stopMove();
+    return moved;
+  }
+
+  /** Scene step `gatherIn` timed out or was skipped (scene-gathering spec). */
+  placeSquadIn(inside: (p: { x: number; y: number; z: number }) => boolean): SquadId[] {
+    const moved = this.deps.squad?.placeIn(inside) ?? [];
+    for (const id of moved) this.actor(id === 'engineer' ? 'giles' : 'okafor', false)?.stopMove();
+    return moved;
+  }
+
+  /** Where a squadmate's feet are, for room tests (`gatherIn`). */
+  squadFeet(id: 'giles' | 'okafor'): { x: number; y: number; z: number } | null {
+    const m = this.mateOf(id);
+    return m ? { x: m.position.x, y: m.position.y, z: m.position.z } : null;
+  }
+
   isHeld(id: SquadId): boolean {
     return this.held.has(id);
   }

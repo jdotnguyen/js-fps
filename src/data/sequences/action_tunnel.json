@@ -17,6 +17,9 @@
   },
   "steps": [
    {
+    "do": "squadRegroup"
+   },
+   {
     "do": "npcMoveTo",
     "npc": "okafor",
     "to": "anchor:okafor_biometric"

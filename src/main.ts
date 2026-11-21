@@ -444,7 +444,11 @@ async function boot(): Promise<void> {
     npcs.group.visible = mode !== 'title';
     if (mode === 'title') npcs.reset();
   });
-  events.on('game:restarted', () => npcs.reset());
+  events.on('game:restarted', () => {
+    npcs.reset();
+    // checkpoint-restore spec: every load and restart puts the squad beside Jay on the next update.
+    squad.requestPlacement();
+  });
   prompt.textContent = 'Loading weapons…';
   await nextFrame();
   const weaponModels = await loadWeaponModels();
@@ -904,10 +908,13 @@ async function boot(): Promise<void> {
           const cp = upto >= 0 ? level.source.checkpoints?.find((c) => c.id === steps[upto]![1]) : undefined;
           if (!cp) return console.warn(`[debug] jump=${jump}: use ${steps.map(([k]) => k).join(', ')}`);
           sequences?.cancelAll();
+          // The intro opens on black and fades in; cancelling it early leaves the screen black (as for jump=drop).
+          hud.setFade(0, 0.4);
           Object.assign(game.flags, base);
           for (const [, , add] of steps.slice(0, upto + 1)) Object.assign(game.flags, add);
           sequences?.start('action_restore');
           player.placeAtEye(new THREE.Vector3(cp.pos[0], cp.pos[1] + PLAYER_TUNING.eyeHeight, cp.pos[2]), ((cp.yaw ?? 0) * Math.PI) / 180);
+          squad.requestPlacement();
         }, 400);
       });
     }

@@ -19,11 +19,6 @@
     "id": "round_return"
    },
    {
-    "do": "doorState",
-    "id": "D_R02_R03",
-    "state": "sealed"
-   },
-   {
     "do": "playerControl",
     "move": "slow",
     "look": "free",
@@ -39,6 +34,15 @@
     "do": "npcMoveTo",
     "npc": "okafor",
     "to": "anchor:brief_okafor"
+   },
+   {
+    "do": "gatherIn",
+    "room": "R03"
+   },
+   {
+    "do": "doorState",
+    "id": "D_R02_R03",
+    "state": "sealed"
    },
    {
     "do": "wait",

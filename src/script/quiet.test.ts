@@ -150,6 +150,10 @@ function makeGame(only?: string[]) {
     setLight: (room, pattern, tint) => (log.push(`light ${room} ${pattern}${tint ? ` ${tint}` : ''}`), true),
     glass: (id, state) => void log.push(`glass ${id} ${state}`),
     cameraFeed: (id, opts) => (feeds.push(opts), void log.push(`feed ${id} ${opts.state}`)),
+    // Squad placement steps (unify-checkpoint-restore): everyone counts as in the room.
+    squadRegroup: () => [],
+    inRoom: () => true,
+    squadPlaceIn: () => [],
     npc: (action, step) => {
       log.push(`npc ${action} ${String(step['npc'])}${step['anim'] ? ` ${String(step['anim'])}` : ''}${step['instant'] ? ' instant' : ''}${step['stay'] ? ' stay' : ''}`);
     },

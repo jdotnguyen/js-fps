@@ -121,7 +121,25 @@ export class Game {
     this.d.cutscene.playIntro();
   }
 
+  /**
+   * Load a save from the title menu (Continue / Load game). Rebuilds the playthrough exactly as a
+   * death restart does (checkpoint-restore spec), after putting the level back as authored.
+   */
   load(save: SaveData, quiet = false): void {
+    this.restore(save, { fromTitle: true, toast: quiet ? null : save.kind === 'auto' ? 'Autosave loaded' : 'Save loaded' });
+  }
+
+  /**
+   * The one restore path (checkpoint-restore spec): title loads and death restarts both end with
+   * `game:restarted`, whose listeners reset the cast, enemies, guidance and sequences and put the
+   * squad beside Jay. `fromTitle` first returns the level's doors, lights and triggers to their
+   * authored state, as a fresh page would have them; a death restart keeps the live level, which
+   * the sequences' checkpoint snapshot restores.
+   */
+  private restore(save: SaveData, opts: { fromTitle: boolean; toast: string | null }): void {
+    this.cancelRestart();
+    this.d.cutscene.cancel();
+    if (opts.fromTitle) this.d.world.resetToData?.();
     this.slot = save.slot;
     this.difficulty = save.difficulty;
     this.playTime = save.playTime;
@@ -135,10 +153,10 @@ export class Game {
     player.reset(save.player.health);
     player.placeAtEye(new THREE.Vector3().fromArray(save.player.position), save.player.yaw, save.player.pitch);
     this.d.flashlight.on = save.player.flashlightOn;
-    this.cancelRestart();
-    this.d.cutscene.cancel();
     this.enterPlaying();
-    if (!quiet) this.d.toasts.show(save.kind === 'auto' ? 'Autosave loaded' : 'Save loaded', save.location);
+    if (opts.toast) this.d.toasts.show(opts.toast, this.location || 'Section 07');
+    this.d.hud.setFade(0, 0.9);
+    this.d.events.emit('game:restarted', { checkpoint: this.checkpoint });
   }
 
   snapshot(kind: SaveKind): SaveData {
@@ -301,10 +319,10 @@ export class Game {
     const auto = this.d.saves.read(this.slot, 'auto').data;
     if (auto) {
       const hp = Math.max(auto.player.health, this.preset.checkpointHeal);
-      this.load({ ...auto, player: { ...auto.player, health: hp } }, true);
-    } else {
-      this.spawnAtStart();
+      this.restore({ ...auto, player: { ...auto.player, health: hp } }, { fromTitle: false, toast: 'Restarted' });
+      return;
     }
+    this.spawnAtStart();
     this.d.toasts.show('Restarted', this.location || 'Section 07');
     this.d.hud.setFade(0, 0.9);
     this.d.events.emit('game:restarted', { checkpoint: this.checkpoint });

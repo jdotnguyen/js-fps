@@ -876,6 +876,11 @@ export class Level implements World {
 
   // ---------------------------------------------------------------- queries
 
+  /** Does the level have a room with this id? */
+  hasRoom(id: string): boolean {
+    return this.roomById.has(id);
+  }
+
   roomAt(p: THREE.Vector3): RoomRuntime | null {
     if (this.current && this.current.cells.some((c) => c.containsPoint(p))) return this.current;
     for (const r of this.rooms) if (r.cells.some((c) => c.containsPoint(p))) return r;

@@ -19,6 +19,9 @@
   },
   "steps": [
    {
+    "do": "squadRegroup"
+   },
+   {
     "do": "setFlag",
     "flag": "climax_started",
     "value": true
@@ -37,6 +40,11 @@
     "do": "doorState",
     "id": "D_R13d_R11",
     "state": "open"
+   },
+   {
+    "do": "doorState",
+    "id": "D_R13b_R13d",
+    "state": "sealed"
    },
    {
     "do": "lightState",
@@ -110,6 +118,10 @@
    {
     "do": "wait",
     "s": 0.8
+   },
+   {
+    "do": "gatherIn",
+    "room": "R11"
    },
    {
     "do": "say",

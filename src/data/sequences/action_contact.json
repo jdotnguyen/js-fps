@@ -196,6 +196,9 @@
   },
   "steps": [
    {
+    "do": "squadRegroup"
+   },
+   {
     "do": "setObjective",
     "id": "obj_hold_door"
    },

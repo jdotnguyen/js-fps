@@ -91,6 +91,17 @@
    },
    {
     "do": "if",
+    "flag": "climax_started",
+    "then": [
+     {
+      "do": "doorState",
+      "id": "D_R13b_R13d",
+      "state": "sealed"
+     }
+    ]
+   },
+   {
+    "do": "if",
     "flag": "climax_done",
     "then": [
      {

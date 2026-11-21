@@ -50,6 +50,15 @@ data checkpoints `cp_first_contact`, `cp_cover_me`, `cp_security`, `cp_flooded`,
 - Title card "THALASSA / SLICE ONE" (placeholder). Then a fullscreen security feed of the surgery: Priya alive and hurt, the thing walks in slowly, she begs, it kills her, static, off, "End of slice" toast, back to the title after 5 s.
 - Try skipping both: the end state must match (lights up, trail, black, then the stinger plays the last frame and ends).
 
+## Load from title, squad gathering (unify-checkpoint-restore)
+- **Continue after a page reload:** play to the Valve Room (`cp_valve` toast), reload the page, Continue. Giles and Okafor should stand a few metres from Jay in R10 and follow him. Walk into R11: Giles says "Thirty seconds..." nearby (not a far whisper), enemies come through both entrances, and the climax ends in the reveal.
+- **Quit to title, then load an earlier save:** doors, lights and room triggers should match that save, not the session you quit (for example, load a save from before R05 and the R05 fight plays again when you walk in).
+- **Death restart still works as before:** die mid-fight in R06 and in R11; the fight replays from its checkpoint with the squad beside you.
+- **Running ahead into the Observation Gallery:** sprint in ahead of the squad. `D_R02_R03` stays open until Giles and Okafor are inside, then seals. Step back out before it seals: it waits for you. If a squadmate is stuck, after 8 s he appears inside near you (watch he does not pop in where you are looking).
+- **Regroup:** leave Giles far behind out of sight (for example, run through the tunnel), then start cover-me, the med-lab door or the climax. He should be near you when the scene starts, never teleporting in view.
+- **Climax arena:** during the R11 fight, step out through the north entrance into the maintenance corridor: the door to the Moon Pool must be sealed. Kill the last enemy from the corridor: "Power! Doors sealing" and the seal wait until you walk back into R11, then the reveal plays with Giles in front of you.
+- **Debug jumps:** `?level=slice01&debug&jump=r11` and the other `jump=` values show the room instead of a black screen, with the squad beside you.
+
 ## [Assumed] choices to confirm or change
 Giles opens the armory himself; Jay is locked (no moving, no weapons) during Priya's scene; the first-contact door is locked until the fight ends; the play-dead is removed after 20 s if it has not risen; the title text; the whole time budget (about 0.5 min R05, 1.5 min R06, 2.5 min R07, 2 min tunnel, 2.5 min climax, 2 min reveal and stinger); `endSlice` returns to the title.
 

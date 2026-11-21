@@ -484,6 +484,41 @@ export const ACTIONS: Record<string, ActionDef> = {
     if (!ctx.host.despawnGroup) return ctx.missing('despawnGroup');
     if (!ctx.host.despawnGroup(s.group)) ctx.host.warn(`${ctx.seqId}: despawnGroup: no group "${s.group}"`);
   }),
+  // ---- squad placement (squad-tasks / scene-gathering specs)
+  /**
+   * Bring every squadmate farther than `distance` (default 12 m) from Jay and out of his view to a
+   * spot near him, behind him where possible. Instant; the first step of a squad job beat.
+   */
+  squadRegroup: act({ distance: optional(numRange(1, 200)) }, (s, ctx) => {
+    if (!ctx.host.squadRegroup) return ctx.missing('squadRegroup');
+    ctx.host.squadRegroup(s.distance);
+  }),
+  /**
+   * Wait until Jay and both squadmates are inside `room` (before a scene seals the door behind them).
+   * After `timeout` (default 8 s) squadmates still outside are placed inside near Jay; the step then
+   * waits for Jay alone. Skipped: the squad is placed inside and the step ends.
+   */
+  gatherIn: act({ room: str, timeout: optional(numRange(0, 120)) }, (s, ctx) => {
+    const host = ctx.host;
+    if (!host.inRoom || !host.squadPlaceIn) return ctx.missing('gatherIn');
+    const inRoom = host.inRoom.bind(host);
+    let left = s.timeout ?? GATHER_TIMEOUT;
+    let placed = false;
+    const place = (): void => {
+      if (placed) return;
+      placed = true;
+      host.squadPlaceIn!(s.room);
+    };
+    return {
+      update: (dt) => {
+        left -= dt;
+        const squadIn = inRoom('giles', s.room) && inRoom('okafor', s.room);
+        if (!squadIn && left <= 0) place();
+        return inRoom('player', s.room) && (squadIn || placed);
+      },
+      skip: place,
+    };
+  }),
   /** Wait until every enemy of a group is dead (at once if it already is), with an optional timeout. Skipped: nothing to wait for. */
   waitGroup: act({ group: str, timeout: optional(numRange(0, 3600)) }, (s, ctx) => {
     if (!ctx.host.groupCleared) return ctx.missing('waitGroup');
@@ -681,6 +716,8 @@ export const ACTIONS: Record<string, ActionDef> = {
 // ------------------------------------------------------------------------- skipping
 
 const NOOP: SkipFn = () => undefined;
+/** `gatherIn` default: seconds the squad gets to walk in before stragglers are placed. */
+export const GATHER_TIMEOUT = 8;
 
 /**
  * End states for skipping (intro-sequence spec). Only actions that wait, play or ease need an entry;
@@ -703,6 +740,9 @@ const SKIPS: Record<string, SkipFn> = {
   sfx: NOOP,
   gore: NOOP,
   waitGroup: NOOP,
+  gatherIn: (s, ctx) => {
+    ctx.host.squadPlaceIn?.(String(s['room']));
+  },
   if: (s, ctx) => {
     const st = s as unknown as { flag: string; is?: Scalar; then: Step[]; else?: Step[] };
     const have = st.flag.startsWith('running:') ? ctx.isRunning(st.flag.slice(8)) : (ctx.host.flags[st.flag] ?? false);

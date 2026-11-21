@@ -143,6 +143,9 @@ const MOTOR: MotorConfig = { ...DEFAULT_MOTOR, radius: 0.3 };
 /** Quiet idle poses for the squad (no head yaw: the look-at layer already turns their heads). */
 const SQUAD_FIDGETS: readonly string[] = ['idle_weight', 'idle_shift', 'look_down', 'head_tilt', 'idle_crossed'];
 
+/** `squadRegroup`: squadmates within this distance of Jay are never moved (squad-tasks spec). */
+export const REGROUP_DISTANCE = 12;
+
 export class SquadMate {
   readonly id: SquadId;
   readonly body: Humanoid;
@@ -934,6 +937,48 @@ export class Squad {
       m.place(spot, this.player.yaw);
     }
     this.placed = true;
+  }
+
+  /**
+   * A load or checkpoint restart happened (checkpoint-restore spec): the next update puts every
+   * squadmate no restore scene holds next to Jay, instead of relying on the jump check.
+   */
+  requestPlacement(): void {
+    this.placed = false;
+  }
+
+  /**
+   * Scene step `squadRegroup` (squad-tasks spec): a squadmate more than `distance` from Jay and out
+   * of his view moves to a spot near him, behind him where possible. Held squadmates count too: the
+   * step runs at the start of a beat, often while the previous scene still holds them. Returns the
+   * ids moved.
+   */
+  regroup(distance = REGROUP_DISTANCE): SquadId[] {
+    this.readPlayer();
+    const moved: SquadId[] = [];
+    for (const m of this.mates) {
+      if (m.downed) continue;
+      if (m.position.distanceTo(this.playerFeet) <= distance || this.canSee(m.position)) continue;
+      m.place(this.spawnSpot(m), this.player.yaw);
+      moved.push(m.id);
+    }
+    return moved;
+  }
+
+  /**
+   * Scene step `gatherIn` timed out (scene-gathering spec): each squadmate `inside` says is outside
+   * the room moves to a spot near Jay, who is in it. Held or not, visible or not: the scene waited.
+   */
+  placeIn(inside: (p: P3) => boolean): SquadId[] {
+    this.readPlayer();
+    const moved: SquadId[] = [];
+    for (const m of this.mates) {
+      if (inside(m.position)) continue;
+      const spot = this.spawnSpot(m);
+      m.place(spot, this.player.yaw);
+      moved.push(m.id);
+    }
+    return moved;
   }
 
   private spawnSpot(m: SquadMate): P3 {

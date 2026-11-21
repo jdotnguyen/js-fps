@@ -181,6 +181,10 @@ function makeGame(only?: string[]) {
     },
     despawnGroup: (g) => (log.push(`despawnGroup ${g}`), groups.has(g)),
     groupCleared: (g) => groups.get(g)?.cleared ?? false,
+    // Squad placement steps (unify-checkpoint-restore): everyone counts as in the room.
+    squadRegroup: () => [],
+    inRoom: () => true,
+    squadPlaceIn: () => [],
     npc: (action, step) => {
       log.push(`npc ${action} ${String(step['npc'])}${step['anim'] ? ` ${String(step['anim'])}` : ''}${step['task'] ? ` ${String(step['task'])}` : ''}${step['instant'] ? ' instant' : ''}`);
       if (action === 'npcTask' && step['wait'] !== false) return new Promise<void>((resolve) => tasks.push({ step, resolve }));
