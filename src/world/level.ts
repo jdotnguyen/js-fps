@@ -20,6 +20,8 @@ import { AoMergeBuilder, applyWorldMeterUvs, withVertexColors, type AoFn } from 
 import { snapModelToSocket, type SnapOptions } from './kit/modelSnap.ts';
 import { CELL, CORRIDOR_H, DECK_H, ROOM_H, WALL_MOUNTED_PROPS, transformBox, type BoxSpec, type LightSlotKind, type PieceOutput, type PieceParams, type Socket, type SocketKind } from './kit/types.ts';
 import { LightPool, type PooledSlot } from './lightPool.ts';
+import { ShadowPool } from './shadowPool.ts';
+import type { LightBudget } from './world.ts';
 import { flashingState } from '../render/flashing.ts';
 import type { KitRegistry } from './registry.ts';
 import type { Interactable, Interactions } from '../actors/interaction.ts';
@@ -77,6 +79,8 @@ export interface LevelDeps {
   uiText?: UiText;
   /** Apply a uniform 1 m UV debug checkerboard to all procedural structural room geometry. */
   debugChecker?: boolean;
+  /** Light pool sizes for the active quality tier (render-lighting spec). Default: 8 fill lights, no shadow lights. */
+  lightBudget?: LightBudget;
 }
 
 export const AMBIENT: Record<AmbientPreset, { sky: number; ground: number; intensity: number; keyColor: number; keyIntensity: number }> = {
@@ -290,6 +294,8 @@ export class Level implements World {
   readonly defaultLocation: string;
   readonly debug: LevelDebugData;
   readonly pool: LightPool;
+  /** Shadow-casting room spots for slots with `shadow: true` (render-lighting spec). */
+  readonly shadowPool: ShadowPool;
   private readonly deps: LevelDeps;
   private readonly rooms: RoomRuntime[] = [];
   private readonly paSpeakers: PaSpeaker[] = [];
@@ -332,6 +338,7 @@ export class Level implements World {
   private readonly keyFill: THREE.DirectionalLight;
   private readonly dust: Particulates;
   private readonly visibleSlots: PooledSlot[] = [];
+  private readonly fillSlots: PooledSlot[] = [];
   private current: RoomRuntime | null = null;
   /** Light patterns as authored (resetToData), and the colours a tint replaced (tintRoomLights). */
   private initialPatterns: LightPattern[] = [];
@@ -356,7 +363,9 @@ export class Level implements World {
     this.group.name = `level:${data.id}`;
     const rng = new Rng(`${data.id}:${data.seed}`);
     this.debug = { sockets: [], slots: [], nav: [], rooms: [], triggers: [], bounds: new THREE.Box3(), keepouts: [], wallProps: [] };
-    this.pool = new LightPool(this.group, 8);
+    const budget = deps.lightBudget ?? { fillLights: 8, shadowLights: 0, shadowMapSize: 1024 };
+    this.pool = new LightPool(this.group, budget.fillLights);
+    this.shadowPool = new ShadowPool(this.group, budget.shadowLights, budget.shadowMapSize);
     this.hemi = new THREE.HemisphereLight(AMBIENT.normal.sky, AMBIENT.normal.ground, AMBIENT.normal.intensity);
     this.group.add(this.hemi);
     this.keyFill = new THREE.DirectionalLight(AMBIENT.normal.keyColor, AMBIENT.normal.keyIntensity);
@@ -632,6 +641,7 @@ export class Level implements World {
         priority: 0,
         kind: slot.kind,
         ...(light.pool === false ? { pooled: false } : {}),
+        ...(light.shadow === true ? { shadow: true } : {}),
         score: 0,
       });
     }
@@ -1581,6 +1591,7 @@ export class Level implements World {
     flashingState.reduced = reducedFlashing;
     this.lights.update(t, reducedFlashing);
     this.pool.finish();
+    this.shadowPool.finish();
 
     for (const r of this.rooms) if (r.visible) for (const tick of r.ticks) tick(t, dt);
     const outside = this.rooms.some((r) => r.visible && this.exteriorRooms.has(r.data.id));
@@ -1617,10 +1628,15 @@ export class Level implements World {
     for (const d of this.doors) d.group.visible = d.rooms[0].visible || d.rooms[1].visible;
   }
 
-  /** Give the visible rooms' light slots to the pooled lights, nearest `eye` first, `cur` first of all. */
-  private bindLights(cur: RoomRuntime | null, eye: THREE.Vector3): void {
+  /**
+   * Give the visible rooms' light slots to the pooled lights, nearest `eye` first, `cur` first of all.
+   * Opted-in slots take the shadow spots first (unless `shadows` is false); the rest share the fill pool.
+   */
+  private bindLights(cur: RoomRuntime | null, eye: THREE.Vector3, shadows = true): void {
     const slots = this.visibleSlots;
+    const fill = this.fillSlots;
     slots.length = 0;
+    fill.length = 0;
     for (const r of this.rooms) {
       if (!r.visible) {
         for (const s of r.slots) s.item.light = null;
@@ -1635,7 +1651,15 @@ export class Level implements World {
         slots.push(s);
       }
     }
-    this.pool.assign(slots, eye);
+    this.shadowPool.assign(shadows ? slots : [], eye);
+    for (const s of slots) if (!this.shadowPool.holds(s)) fill.push(s);
+    this.pool.assign(fill, eye);
+  }
+
+  /** Resize the light pools for a quality tier (render-lighting spec). Materials recompile once, on the next frame. */
+  setLightBudget(budget: LightBudget): void {
+    this.pool.resize(budget.fillLights);
+    this.shadowPool.resize(budget.shadowLights, budget.shadowMapSize);
   }
 
   /**
@@ -1647,9 +1671,11 @@ export class Level implements World {
   renderFromEye(eye: THREE.Vector3, draw: () => void): void {
     const room = this.roomAt(eye);
     this.cull(room);
-    this.bindLights(room, eye);
+    // Feeds light their rooms unshadowed: the frame's one shadow pass belongs to the player's view.
+    this.bindLights(room, eye, false);
     this.lights.update(this.lastTime, this.lastFlashing); // sets the bound lights' intensities for these slots
     this.pool.finish();
+    this.shadowPool.finish();
     draw();
   }
 

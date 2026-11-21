@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { ControlledLight } from '../render/lights.ts';
+import type { LightSlotKind } from './kit/types.ts';
 
 /** A claimed light slot that can borrow one of the pooled lights. */
 export interface PooledSlot {
@@ -11,32 +12,57 @@ export interface PooledSlot {
   priority: number;
   /** false: glow-only (render-lighting spec). The slot keeps its fixture glow but is never offered to the pool. */
   pooled?: boolean;
+  /** true: the level data opted this light in to shadows; it takes a shadow spot when one is free (render-lighting spec). */
+  shadow?: boolean;
+  /** Fixture kind, for the shadow spot's cone and bias. */
+  kind?: LightSlotKind;
   /** Scratch: score used while sorting. */
   score: number;
 }
 
+/** Sort key shared by both pools: nearest first, the current room scored 20 m closer. */
+export function slotScore(slot: PooledSlot, camera: THREE.Vector3): number {
+  return slot.position.distanceToSquared(camera) - slot.priority * 400;
+}
+
 /**
- * Fixed pool of fill lights (ADR-0002: 8 point lights, no shadows). The scene's light
- * count never changes, so materials never recompile; lights are moved and recoloured
- * onto the slots nearest the camera in the rooms that are currently visible.
+ * Fixed pool of fill point lights, no shadows (render-lighting spec). Its size is set by the
+ * quality tier and changes only on a tier switch (`resize`), so materials recompile only then;
+ * during play lights are moved and recoloured onto the slots nearest the camera in the visible rooms.
  */
 export class LightPool {
   readonly lights: THREE.PointLight[] = [];
+  private readonly parent: THREE.Object3D;
   private readonly bound = new Map<THREE.PointLight, PooledSlot>();
   private readonly candidates: PooledSlot[] = [];
 
   constructor(parent: THREE.Object3D, size = 8) {
-    for (let i = 0; i < size; i++) {
-      const l = new THREE.PointLight(0xffffff, 0, 10, 2);
-      l.name = `pool-light-${i}`;
-      l.castShadow = false;
-      parent.add(l);
-      this.lights.push(l);
-    }
+    this.parent = parent;
+    this.resize(size);
   }
 
   get size(): number {
     return this.lights.length;
+  }
+
+  /** Grow or shrink to `n` lights (a quality-tier switch). Materials recompile once afterwards. */
+  resize(n: number): void {
+    const size = Math.max(0, Math.floor(n));
+    while (this.lights.length > size) {
+      const l = this.lights.pop()!;
+      const slot = this.bound.get(l);
+      if (slot) slot.item.light = null;
+      this.bound.delete(l);
+      this.parent.remove(l);
+      l.dispose();
+    }
+    while (this.lights.length < size) {
+      const l = new THREE.PointLight(0xffffff, 0, 10, 2);
+      l.name = `pool-light-${this.lights.length}`;
+      l.castShadow = false;
+      this.parent.add(l);
+      this.lights.push(l);
+    }
   }
 
   /** Bind the best slots to pool lights. Call before LightController.update. */
@@ -44,7 +70,7 @@ export class LightPool {
     const c = this.candidates;
     c.length = 0;
     for (const s of slots) {
-      s.score = s.position.distanceToSquared(camera) - s.priority * 400;
+      s.score = slotScore(s, camera);
       s.item.light = null;
       c.push(s);
     }

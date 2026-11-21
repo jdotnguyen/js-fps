@@ -128,6 +128,8 @@ const lightShape = {
   drop: optional(numRange(-0.5, 2.5)),
   /** false: glow-only. The fixture glows and follows patterns and tints but never takes a pooled real light. */
   pool: optional(bool),
+  /** true: casts shadows as a downward cone while the tier's shadow pool has room; otherwise lights the room unshadowed (render-lighting spec). */
+  shadow: optional(bool),
 };
 
 const triggerShape = {

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { trackAnisotropy } from './anisotropy.ts';
 
 /** Create a GLTFLoader configured with MeshoptDecoder for compressed GLB assets. */
 export async function createGltfLoader(): Promise<GLTFLoader> {
@@ -150,4 +151,9 @@ function fixColorSpaces(m: THREE.Material): void {
     }
   }
   if (changed) m.needsUpdate = true;
+  // Imported surfaces follow the tier's anisotropy like the kit's own textures (render-quality spec).
+  for (const k of [...SRGB_SLOTS, ...LINEAR_SLOTS]) {
+    const t = rec[k];
+    if (t) trackAnisotropy(t);
+  }
 }

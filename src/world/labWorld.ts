@@ -80,7 +80,22 @@ function applyLabMaterials(root: THREE.Object3D, materials: Materials): void {
   });
 }
 
-export async function loadLabWorld(baseUrl: string, scene: THREE.Scene, materials: Materials): Promise<World> {
+/**
+ * The lab's ceiling lamps as pooled slots sharing a fill pool of `fillLights` (render-lighting spec;
+ * 12 on Low). No lamp opts in to shadows, so the lab has no shadow pool.
+ */
+export function labLamps(group: THREE.Object3D, lamps: ReadonlyArray<{ x: number; y: number; z: number }>, fillLights: number): { lights: LightController; pool: LightPool; slots: PooledSlot[] } {
+  const lights = new LightController();
+  const pool = new LightPool(group, fillLights);
+  const slots: PooledSlot[] = lamps.map((p, i) => {
+    const item: ControlledLight = { name: `lab-lamp-${i}`, light: null, base: LAMP.intensity, pattern: 'steady', seed: i, emissives: [], emissiveBase: 0, shafts: [], shaftBase: 0, level: 1 };
+    lights.items.push(item);
+    return { item, position: new THREE.Vector3(p.x, p.y, p.z), color: new THREE.Color(LAMP.color), range: LAMP.range, priority: 0, score: 0 };
+  });
+  return { lights, pool, slots };
+}
+
+export async function loadLabWorld(baseUrl: string, scene: THREE.Scene, materials: Materials, fillLights = 12): Promise<World> {
   const base = baseUrl + DIR;
   const [meta, boxes, gltf] = await Promise.all([
     fetch(`${base}underground_lab.json`).then((r) => r.json() as Promise<LabMeta>),
@@ -122,15 +137,9 @@ export async function loadLabWorld(baseUrl: string, scene: THREE.Scene, material
   }
   const playerWorld: PlayerWorld = { colliders, surfaceAt: () => 'metal' };
 
-  // Lighting: bright ambient + hemisphere fill plus the pool's 12 nearest ceiling lamps.
+  // Lighting: bright ambient + hemisphere fill plus the tier's fill pool on the nearest ceiling lamps.
   group.add(new THREE.HemisphereLight(0xaad0de, 0x2a3338, 1.1));
-  const lights = new LightController();
-  const pool = new LightPool(group, 12);
-  const slots: PooledSlot[] = meta.lamps.map((p, i) => {
-    const item: ControlledLight = { name: `lab-lamp-${i}`, light: null, base: LAMP.intensity, pattern: 'steady', seed: i, emissives: [], emissiveBase: 0, shafts: [], shaftBase: 0, level: 1 };
-    lights.items.push(item);
-    return { item, position: new THREE.Vector3(p.x, p.y, p.z), color: new THREE.Color(LAMP.color), range: LAMP.range, priority: 0, score: 0 };
-  });
+  const { lights, pool, slots } = labLamps(group, meta.lamps, fillLights);
   if (scene.fog instanceof THREE.FogExp2) scene.fog.density = 0.014;
 
   const floor = meta.mainFloorY;
@@ -162,6 +171,9 @@ export async function loadLabWorld(baseUrl: string, scene: THREE.Scene, material
       pool.assign(slots, cameraPosition);
       lights.update(t, reducedFlashing);
       pool.finish();
+    },
+    setLightBudget(budget) {
+      pool.resize(budget.fillLights);
     },
   };
 }

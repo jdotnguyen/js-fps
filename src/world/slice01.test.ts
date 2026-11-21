@@ -18,7 +18,7 @@ import type { P3 } from '../ai/nav.ts';
 import { GIVE_WAY } from '../ai/giveWay.ts';
 
 // slice01 (ADR-0014/0023, intro-sequence spec): the level validates, builds headlessly (no WebGL, a stub 2D
-// canvas), provides every anchor the draft sequences use, keeps rooms in the draw-call budget,
+// canvas), provides every anchor the draft sequences use, reports each room's draw calls,
 // and a body can walk the critical path through the real colliders and doors.
 
 // ---- headless stubs: canvas 2D contexts that draw nothing
@@ -173,18 +173,25 @@ test('slice01 Part A: the drop, the glimpse and the rounds have what they need i
   assert.ok(JSON.stringify(data).includes('"sample_case"'), 'the dive sample case is placed');
   const r03 = data.rooms.find((r) => r.id === 'R03')!;
   assert.equal(r03.props?.filter((p) => p.kit === 'glass_cracks').length, 3, 'three crack layers on the Lab B glass');
+  // render-lighting spec (fidelity-first-rendering): every R03 fixture takes a real light, and the two
+  // centre ceilings and the two lamps over the seating ask for shadows.
+  assert.equal(r03.lights?.filter((l) => l.pool !== false).length, 9, 'R03 has 9 pooled lights');
+  assert.deepEqual(r03.lights?.filter((l) => l.shadow === true).map((l) => l.slot).sort(), [1, 4, 6, 7], 'R03 asks for 4 shadow lights');
   const r13d = data.rooms.find((r) => r.id === 'R13d')!;
   assert.ok(r13d.triggers?.some((t) => t.emit === 'area:dark'), 'the dark area trigger is in R13d');
 });
 
-test('slice01 draw calls stay within the ADR-0003 budget per room', () => {
+// render-quality spec: draw calls and triangles are reported, never a pass/fail budget; the gate is
+// the 30 fps floor at High on the target PC.
+test('slice01 reports draw calls and triangles per room', () => {
   const { level } = build();
   const stats = level.roomStats();
+  assert.ok(stats.length >= ROOMS.length, 'every room is counted');
+  for (const s of stats) assert.ok(Number.isFinite(s.drawCalls) && Number.isFinite(s.triangles), `${s.id} has counts`);
   const worst = [...stats].sort((a, b) => b.drawCalls - a.drawCalls).slice(0, 3);
   console.info('[slice01] heaviest rooms', worst.map((s) => `${s.id} ${s.drawCalls} calls ${Math.round(s.triangles / 1000)}k tris`).join(', '));
-  for (const s of stats) assert.ok(s.drawCalls <= 60, `${s.id}: ${s.drawCalls} draw calls`);
-  const tris = stats.reduce((n, s) => n + s.triangles, 0);
-  assert.ok(tris < 1_500_000, `whole level ${tris} triangles`);
+  console.info('[slice01] per room', stats.map((s) => `${s.id} ${s.drawCalls}/${Math.round(s.triangles / 1000)}k`).join(' '));
+  console.info(`[slice01] whole level ${stats.reduce((n, s) => n + s.triangles, 0)} triangles`);
 });
 
 // ---------------------------------------------------------------- the critical path, walked
@@ -293,7 +300,7 @@ test('slice01 critical path: nav-reachable and walkable through the real doors',
   console.info(`[slice01] walked ${entered.length} room entries in ${t.toFixed(0)} s of game time`);
 });
 
-test('slice01 visible draw calls stay under the ADR-0015 frame budget', () => {
+test('slice01 reports the heaviest visible view (render-quality spec: a report, not a budget)', () => {
   const { level } = build();
   const eye = new THREE.Vector3();
   let worst = { id: '', calls: 0 };
@@ -305,7 +312,7 @@ test('slice01 visible draw calls stay under the ADR-0015 frame budget', () => {
     if (calls > worst.calls) worst = { id: r.id, calls };
   }
   console.info(`[slice01] most visible draw calls: ${worst.calls} from ${worst.id}`);
-  assert.ok(worst.calls <= 300, `${worst.id}: ${worst.calls}`);
+  assert.ok(worst.calls > 0, 'some room draws');
 });
 
 test('slice01 props react to their events (sub, briefing screen, Lab B blinds)', () => {

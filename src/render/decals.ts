@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Rng } from '../core/rng.ts';
+import { trackAnisotropy } from './anisotropy.ts';
 
 function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement('canvas');
@@ -13,7 +14,7 @@ function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContex
 function decalMaterial(c: HTMLCanvasElement, roughness: number): THREE.MeshStandardMaterial {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  trackAnisotropy(tex);
   return new THREE.MeshStandardMaterial({
     map: tex,
     transparent: true,

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { loadSlice01 } from './headlessSlice.ts';
 import { AMBIENT } from './level.ts';
+import { RENDER_TIERS } from '../render/tiers.ts';
 
 // openspec refresh-observation-gallery: the observation gallery (R03) as a clean, dim lounge for the
 // briefing and the drop (ADR-0014, ADR-0023).
@@ -61,15 +62,33 @@ test('R03 light slots: six ceilings, then the west lamp and the east pair; every
   assert.equal(level.debug.slots.filter((s) => s.kind === 'pendant').length, 3);
 });
 
-test('R03 lights fit the 8-light pool: 4 real lights in the gallery, and Lab B keeps its 3 through the glass', () => {
-  level.update(0, 1 / 60, new THREE.Vector3(8, 1.62, 17.4), false); // brief_jay
+// render-lighting spec (fidelity-first-rendering): every R03 fixture is a real light, and on every tier
+// R03's 9 and Lab B's 3 through the glass all light; on Medium and High the lamps and centre ceilings cast shadows.
+test('R03 and Lab B stay fully lit on every tier, with shadows where the tier has them', () => {
   const real = (id: string): number => level.roomLights(id).filter((l) => l.light.light !== null).length;
+  const shadowed = (id: string): number[] =>
+    level.roomLights(id).flatMap((l, i) => (l.light.light instanceof THREE.SpotLight ? [i] : []));
+  const at = (q: keyof typeof RENDER_TIERS): void => {
+    const t = RENDER_TIERS[q];
+    level.setLightBudget({ fillLights: t.fillLights, shadowLights: t.shadowLights, shadowMapSize: t.shadowMapSize });
+    level.update(0, 1 / 60, new THREE.Vector3(8, 1.62, 17.4), false); // brief_jay
+  };
   assert.equal(level.roomLights('R03').length, 9, 'nine lit fixtures');
-  assert.equal(real('R03'), 4, 'ceiling over the team and Heins, one bulb per lamp');
-  assert.equal(real('R04'), 3, 'Lab B fully lit behind the glass');
+  at('low');
+  assert.equal(real('R03'), 9, 'Low: every gallery fixture casts real light');
+  assert.equal(real('R04'), 3, 'Low: Lab B fully lit behind the glass');
+  assert.deepEqual(shadowed('R03'), [], 'Low: no room shadows');
+  at('high');
+  assert.equal(real('R03'), 9);
+  assert.equal(real('R04'), 3);
+  // roomLights lists claims in data order: ceilings 0, 2, 3, 5, then 1, 4, the lamps 6, 7, and 8.
+  assert.deepEqual(shadowed('R03'), [4, 5, 6, 7], 'High: both centre ceilings and both lamps over the seating cast shadows');
+  at('medium');
+  assert.equal(shadowed('R03').length, 2, 'Medium: the two nearest opted-in lights');
+  level.setLightBudget({ fillLights: 8, shadowLights: 0, shadowMapSize: 1024 });
 });
 
-test('the drop reaches every R03 fixture, lamps and glow-only included, with drop.json unchanged', () => {
+test('the drop reaches every R03 fixture, lamps and shadow lights included, with drop.json unchanged', () => {
   // drop.json drives R03 with lightState flicker, then alarm + emergency (gameHost.setLight = setRoomLights + tintRoomLights).
   const drop = JSON.stringify(JSON.parse(readFileSync(new URL('../data/sequences/drop.json', import.meta.url), 'utf8')));
   assert.ok(drop.includes('"do":"lightState","room":"R03","pattern":"flicker"'), 'drop flickers R03');

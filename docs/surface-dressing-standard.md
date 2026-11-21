@@ -59,7 +59,9 @@ A 3.2 m wall reads as three bands, never one flat surface:
 - Rotate within ±5°, not randomly; snap the rest to the 0.25 m sub-grid.
 - **Climbable tops in combat spaces.** Jay can jump onto any top 0.35–1.00 m high with 1.75 m of headroom above it (desks, counters, tables, crates; `openspec` player-movement spec), and enemies cannot follow him up (they climb 0.35 m). Keep such tops out of a fight's footprint, put something low over them (a cabinet, a shelf), make them taller than 1.00 m, or accept that Jay can stand there. `src/world/slice01JumpTops.test.ts` lists every one in slice01.
 
-## 6. Draw-call budget (60 per room, ADR-0003)
+## 6. Keeping draw calls down
+
+The level tests report each room's draw calls and triangles but no longer fail on a fixed count (`render-quality` spec). The gate is the 30 fps floor (1% lows) at High in the heaviest scenes. These rules keep rooms cheap anyway.
 
 | Rule | Status |
 | --- | --- |

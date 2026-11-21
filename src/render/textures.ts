@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Bytes, TexSet } from './tex/generators.ts';
 import type { PhotoSlot } from './tex/manifest.ts';
+import { trackAnisotropy } from './anisotropy.ts';
 
 export interface PbrTextures {
   map: THREE.DataTexture;
@@ -15,7 +16,7 @@ function dataTexture(data: Bytes, size: number, srgb: boolean, anisotropy: numbe
   t.magFilter = THREE.LinearFilter;
   t.minFilter = THREE.LinearMipmapLinearFilter;
   t.generateMipmaps = true;
-  t.anisotropy = anisotropy;
+  trackAnisotropy(t, anisotropy);
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   t.needsUpdate = true;
   return t;
@@ -40,7 +41,7 @@ function setupImageTexture(t: THREE.Texture, srgb: boolean, slot: PhotoSlot, ani
   t.magFilter = THREE.LinearFilter;
   t.minFilter = THREE.LinearMipmapLinearFilter;
   t.generateMipmaps = true;
-  t.anisotropy = anisotropy;
+  trackAnisotropy(t, anisotropy);
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   // Repeat contract: kit UVs are metres at tile = 1, so one image covers metersPerTile metres.
   const r = slot.tiling ? 1 / slot.metersPerTile : 1;

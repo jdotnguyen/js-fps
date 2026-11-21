@@ -38,4 +38,13 @@ export interface World {
   /** Title-screen camera move. */
   attract(t: number, camera: THREE.PerspectiveCamera): void;
   update(t: number, dt: number, cameraPosition: THREE.Vector3, reducedFlashing: boolean): void;
+  /** Resize this world's light pools for a quality tier (render-lighting spec). Worlds without pools omit it. */
+  setLightBudget?(budget: LightBudget): void;
+}
+
+/** Light pool sizes a quality tier gives each world (render-lighting spec, RENDER_TIERS). */
+export interface LightBudget {
+  fillLights: number;
+  shadowLights: number;
+  shadowMapSize: number;
 }

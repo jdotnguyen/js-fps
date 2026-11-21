@@ -3344,59 +3344,68 @@
      "slot": 0,
      "pattern": "steady",
      "color": "#eef1f4",
-     "pool": false
+     "intensity": 3,
+     "range": 6
     },
     {
      "slot": 2,
      "pattern": "steady",
      "color": "#eef1f4",
-     "pool": false
+     "intensity": 3,
+     "range": 6
     },
     {
      "slot": 3,
      "pattern": "steady",
      "color": "#eef1f4",
-     "pool": false
+     "intensity": 3,
+     "range": 6
     },
     {
      "slot": 5,
      "pattern": "steady",
      "color": "#eef1f4",
-     "pool": false
+     "intensity": 3,
+     "range": 6
     },
     {
      "slot": 1,
      "pattern": "steady",
      "color": "#eef1f4",
      "intensity": 5,
-     "range": 8
+     "range": 8,
+     "shadow": true
     },
     {
      "slot": 4,
      "pattern": "steady",
      "color": "#eef1f4",
      "intensity": 5,
-     "range": 8
+     "range": 8,
+     "shadow": true
     },
     {
      "slot": 6,
      "pattern": "steady",
      "color": "#ffcf99",
-     "intensity": 4,
-     "range": 4.5
+     "intensity": 20,
+     "range": 6,
+     "shadow": true
     },
     {
      "slot": 7,
      "pattern": "steady",
      "color": "#ffcf99",
-     "intensity": 4,
-     "range": 4.5
+     "intensity": 20,
+     "range": 6,
+     "shadow": true
     },
     {
      "slot": 8,
      "pattern": "steady",
      "color": "#ffcf99",
-     "pool": false
+     "intensity": 20,
+     "range": 6
     }
    ],
    "triggers": [

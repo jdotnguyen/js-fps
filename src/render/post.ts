@@ -5,7 +5,9 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import type { Settings } from '../core/settings.ts';
+import { RENDER_TIERS } from './tiers.ts';
 
 /** Final grade (ADR-0002): chromatic aberration, lift/gain, vignette, film grain, damage tint. */
 export interface GradeUniforms {
@@ -69,6 +71,7 @@ export interface Post {
   composer: EffectComposer;
   gtao: GTAOPass;
   bloom: UnrealBloomPass;
+  smaa: SMAAPass;
   grade: GradeUniforms;
   setSize(width: number, height: number, pixelRatio: number): void;
   setQuality(quality: Settings['quality']): void;
@@ -123,11 +126,15 @@ export function createPost(
     new ShaderPass(new THREE.ShaderMaterial({ uniforms: grade, vertexShader: GRADE_VERT, fragmentShader: GRADE_FRAG })),
   );
   composer.addPass(new OutputPass());
+  // Edge anti-aliasing last, on the display-referred image (render-quality spec); Low skips it.
+  const smaa = new SMAAPass(size.x * renderer.getPixelRatio(), size.y * renderer.getPixelRatio());
+  composer.addPass(smaa);
 
   const post: Post = {
     composer,
     gtao,
     bloom,
+    smaa,
     grade,
     setSize(width, height, pixelRatio) {
       composer.setPixelRatio(pixelRatio);
@@ -135,8 +142,7 @@ export function createPost(
       grade.uResolution.value.set(width * pixelRatio, height * pixelRatio);
     },
     setQuality(q) {
-      gtao.enabled = q === 'high';
-      bloom.enabled = q !== 'low';
+      applyPostTier({ gtao, bloom, smaa }, q);
     },
     render(time) {
       grade.uTime.value = time;
@@ -145,4 +151,12 @@ export function createPost(
   };
   post.setQuality(quality);
   return post;
+}
+
+/** Turn the tier's post passes on or off (render-quality spec). The composer skips disabled passes. */
+export function applyPostTier(passes: { gtao: { enabled: boolean }; bloom: { enabled: boolean }; smaa: { enabled: boolean } }, quality: Settings['quality']): void {
+  const tier = RENDER_TIERS[quality];
+  passes.gtao.enabled = tier.gtao;
+  passes.bloom.enabled = tier.bloom;
+  passes.smaa.enabled = tier.smaa;
 }

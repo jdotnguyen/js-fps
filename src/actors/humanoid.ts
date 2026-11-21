@@ -128,6 +128,14 @@ export interface BodyHit {
 }
 
 const LOD_DISTANCE = 15;
+/** Characters cast shadows within this distance of the camera; the quality tier sets it (render-quality spec). */
+let characterShadowDistance = LOD_DISTANCE;
+
+/** Set how far from the camera characters cast shadows (RENDER_TIERS `characterShadowDistance`). */
+export function setCharacterShadowDistance(metres: number): void {
+  characterShadowDistance = metres;
+}
+
 const TINY = 1e-4;
 const WALK_SPEED: Record<Role, number> = { enemy: 0.8, npc: 1.4, corpse: 0 };
 
@@ -201,6 +209,8 @@ export class Humanoid {
   private stateTimer = 0;
   private pendingPool = -1;
   private near = true;
+  /** Whether the body's meshes cast shadows (within the tier's character shadow distance). */
+  private castsShadow = true;
   private readonly velocity = new THREE.Vector3();
   private time = 0;
   private trail = 0;
@@ -865,10 +875,11 @@ export class Humanoid {
     this.animator.update(dt);
     const cameraDist = cameraPosition ? this.group.position.distanceTo(cameraPosition) : null;
     if (cameraDist !== null) {
-      const near = cameraDist < LOD_DISTANCE;
-      if (near !== this.near) {
-        this.near = near;
-        for (const m of this.meshes) m.castShadow = near;
+      this.near = cameraDist < LOD_DISTANCE;
+      const casts = cameraDist < characterShadowDistance;
+      if (casts !== this.castsShadow) {
+        this.castsShadow = casts;
+        for (const m of this.meshes) m.castShadow = casts;
       }
     }
     this.applyBoneScales();

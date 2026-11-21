@@ -3,6 +3,7 @@ import { TEXTURE_SPECS, type TextureKey, type TexSet } from './tex/generators.ts
 import type { TexWorkerRequest, TexWorkerResponse } from './tex/texWorker.ts';
 import { loadPhotoTextures, toPbrTextures, type PbrTextures, type PhotoTextures } from './textures.ts';
 import { PHOTO_SLOTS, PHOTO_SLOT_KEYS, type PhotoSlotKey } from './tex/manifest.ts';
+import { trackAnisotropy } from './anisotropy.ts';
 
 const TEXTURE_KEYS: TextureKey[] = [
   'paintTeal',
@@ -159,7 +160,7 @@ export function createProceduralBrickMaterial(anisotropy = 4): THREE.MeshStandar
     t.magFilter = THREE.LinearFilter;
     t.minFilter = THREE.LinearMipmapLinearFilter;
     t.generateMipmaps = true;
-    t.anisotropy = anisotropy;
+    trackAnisotropy(t, anisotropy);
     t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
     t.needsUpdate = true;
     return t;
@@ -285,7 +286,7 @@ export function createDebugCheckerMaterial(anisotropy = 4): THREE.MeshStandardMa
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = anisotropy;
+  trackAnisotropy(tex, anisotropy);
   const mat = new THREE.MeshStandardMaterial({
     map: tex,
     roughness: 0.78,

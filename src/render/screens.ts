@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { trackAnisotropy } from './anisotropy.ts';
 
 export type ScreenDraw = (ctx: CanvasRenderingContext2D, t: number, w: number, h: number) => void;
 
@@ -23,7 +24,7 @@ export class CanvasScreen {
     this.interval = 1 / fps;
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
-    this.texture.anisotropy = 4;
+    trackAnisotropy(this.texture);
     this.material = new THREE.MeshStandardMaterial({
       color: 0x000000,
       emissive: 0xffffff,

@@ -7,11 +7,15 @@ Defines how authored room lights become lit fixtures and real lights in the scen
 ## ADDED Requirements
 
 ### Requirement: Fill-light pool sized by quality tier
-The scene SHALL keep a fixed number of real fill lights for the active quality tier: 8 on Low, 16 on Medium, 32 on High. The count SHALL change only when the tier changes.
+Every world (the station level and the lab world) SHALL keep a fixed number of real fill lights for the active quality tier: 12 on Low, 16 on Medium, 32 on High. The count SHALL change only when the tier changes.
 
 #### Scenario: Switching tier
 - **WHEN** the player switches quality from Medium to High
 - **THEN** the scene has 32 fill lights after the switch and the count does not change again until the next tier switch
+
+#### Scenario: Gallery and Lab B on Low
+- **WHEN** quality is Low, the camera is in R03 with its 9 pooled lights, and Lab B's 3 pooled lights are visible through the glass
+- **THEN** all 12 cast real light
 
 ### Requirement: Shadow-light pool sized by quality tier
 The scene SHALL keep a fixed number of shadow-casting room lights for the active tier: 0 on Low, 2 on Medium, 6 on High, never more than the GPU's texture units allow. The player flashlight SHALL cast shadows on every tier in addition to this pool.

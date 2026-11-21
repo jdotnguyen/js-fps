@@ -11,7 +11,7 @@ Each quality tier SHALL set these values, and switching tier SHALL apply them wi
 
 | Setting | Low | Medium | High |
 |---|---|---|---|
-| Fill lights / shadow lights | 8 / 0 | 16 / 2 | 32 / 6 |
+| Fill lights / shadow lights | 12 / 0 | 16 / 2 | 32 / 6 |
 | Shadow map size | 512 | 1024 | 2048 |
 | Pixel ratio cap | 1 | 1.25 | none |
 

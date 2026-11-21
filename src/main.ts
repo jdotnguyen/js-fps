@@ -17,13 +17,16 @@ import { FreeCamera } from './core/freeCamera.ts';
 import { Input } from './core/input.ts';
 import { Loop } from './core/loop.ts';
 import { Rng } from './core/rng.ts';
-import { SettingsStore } from './core/settings.ts';
+import { SettingsStore, type Settings } from './core/settings.ts';
 import { isScratchSession, persistentStore } from './core/storage.ts';
 import { validate } from './core/validate.ts';
 import type { SoundName } from './audio/sounds.ts';
 import { applyQuality, createRenderer } from './render/renderer.ts';
 import { createMaterialsAsync } from './render/materials.ts';
 import { createPost } from './render/post.ts';
+import { anisotropyFor, clampTier, materialTextureUnits, RENDER_TIERS, type GpuLimits, type RenderTier } from './render/tiers.ts';
+import { currentAnisotropy, setAnisotropy } from './render/anisotropy.ts';
+import { setCharacterShadowDistance } from './actors/humanoid.ts';
 import { Flashlight } from './render/flashlight.ts';
 import { LIGHT_PATTERNS } from './render/lights.ts';
 import { CameraFeeds } from './render/cameraFeed.ts';
@@ -32,7 +35,7 @@ import { preloadSeabed } from './render/fx/seabed.ts';
 import { preloadSubModel } from './render/fx/subModel.ts';
 import type { DemoRoom } from './world/demoRoom.ts';
 import type { Level } from './world/level.ts';
-import type { World } from './world/world.ts';
+import type { LightBudget, World } from './world/world.ts';
 import type { DemoRoomAudio } from './world/demoRoomAudio.ts';
 import { AMBIENCE_PRESETS, AmbienceDirector } from './audio/ambience.ts';
 import { DoorAudio } from './audio/doorAudio.ts';
@@ -161,6 +164,24 @@ async function boot(): Promise<void> {
   // `?memprobe` (memory runs, spec runtime-memory): count WebGL objects and uploads from the first context on.
   const memProbe = new URLSearchParams(location.search).has('memprobe') ? (await import('./core/memProbe.ts')).installMemProbe() : null;
   const renderer = createRenderer(canvas, settings.get());
+  // GPU limits and the active tier fitted to them (render-quality spec). Material samplers are
+  // measured from the kit materials once they exist, then from the loaded world.
+  const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+  const gpu: GpuLimits = { maxTextures: renderer.capabilities.maxTextures, maxFragmentUniforms: renderer.capabilities.maxFragmentUniforms, materialUnits: 0 };
+  const tierWarnings = new Set<string>();
+  const activeTier = (quality: Settings['quality']): RenderTier => {
+    const { tier, warnings } = clampTier(RENDER_TIERS[quality], gpu);
+    for (const w of warnings) if (!tierWarnings.has(w)) {
+      tierWarnings.add(w);
+      console.warn(`[render] ${quality}: ${w}`);
+    }
+    return tier;
+  };
+  const lightBudgetOf = (t: RenderTier): LightBudget => ({ fillLights: t.fillLights, shadowLights: t.shadowLights, shadowMapSize: t.shadowMapSize });
+  const measureMaterialUnits = (mats: Iterable<THREE.Material>): void => {
+    for (const m of mats) gpu.materialUnits = Math.max(gpu.materialUnits, materialTextureUnits(m, scene.environment !== null));
+  };
+  setAnisotropy(anisotropyFor(RENDER_TIERS[settings.get().quality], maxAnisotropy));
   if (new URLSearchParams(location.search).has('vmlab')) {
     prompt.hidden = true;
     document.querySelector<HTMLElement>('#ui')?.setAttribute('hidden', '');
@@ -220,10 +241,11 @@ async function boot(): Promise<void> {
   let levelSpawns: SpawnPointData[] = [];
   let world: World;
   const [materials] = await Promise.all([
-    createMaterialsAsync(texSize, Math.min(8, renderer.capabilities.getMaxAnisotropy())),
+    createMaterialsAsync(texSize, currentAnisotropy()),
     preloadSeabed(import.meta.env.BASE_URL),
     preloadSubModel(import.meta.env.BASE_URL),
   ]);
+  measureMaterialUnits(Object.values(materials).filter((m): m is THREE.Material => m instanceof THREE.Material));
   let mapModel: MapModel | null = null;
   let mapState: MapState | null = null;
   if (levelId) {
@@ -250,7 +272,7 @@ async function boot(): Promise<void> {
     const refs = { items: new Set(Object.keys(itemTable)), uiText: new Set(Object.keys(uiText)) };
     const data = validate(levelValidator(registry.ids(), refs), levelJson, `data/levels/${levelId}.json`);
     const debugChecker = new URLSearchParams(location.search).has('checker');
-    level = await loadLevel(data, { materials, registry, events, scene, inventory, uiText, debugChecker });
+    level = await loadLevel(data, { materials, registry, events, scene, inventory, uiText, debugChecker, lightBudget: lightBudgetOf(activeTier(settings.get().quality)) });
     levelSpawns = spawnPointsOf(data);
     world = level;
     mapModel = buildMapModel(level.source);
@@ -260,7 +282,7 @@ async function boot(): Promise<void> {
   } else if (levelParam === 'lab') {
     // Sandbox: the imported underground-laboratory model with baked box collision (src/world/labWorld.ts).
     const { loadLabWorld } = await import('./world/labWorld.ts');
-    world = await loadLabWorld(import.meta.env.BASE_URL, scene, materials);
+    world = await loadLabWorld(import.meta.env.BASE_URL, scene, materials, activeTier(settings.get().quality).fillLights);
     console.info(`[boot] lab map loaded in ${(performance.now() - t0).toFixed(0)} ms`);
   } else if (levelParam === 'corner') {
     // Sandbox: L-shaped corner for checking texture tiling (src/world/cornerTest.ts; ?uv=world|repeat|local).
@@ -277,6 +299,13 @@ async function boot(): Promise<void> {
     console.info(`[boot] textures + room built in ${(performance.now() - t0).toFixed(0)} ms`);
   }
   scene.add(world.group);
+  // Imported models can bind more samplers than the kit; refit the shadow pool if they do.
+  const worldMaterials = new Set<THREE.Material>();
+  world.group.traverse((o) => {
+    if (o instanceof THREE.Mesh) for (const m of Array.isArray(o.material) ? o.material : [o.material]) worldMaterials.add(m);
+  });
+  measureMaterialUnits(worldMaterials);
+  renderer.shadowMap.autoUpdate = false; // the render loop asks for one shadow pass per frame
 
   let roomAudio: DemoRoomAudio | null = null;
   let ambience: AmbienceDirector | null = null;
@@ -858,6 +887,11 @@ async function boot(): Promise<void> {
     applyQuality(renderer, s.quality);
     post.setSize(innerWidth, innerHeight, renderer.getPixelRatio());
     post.setQuality(s.quality);
+    // The rest of the tier's budget (render-quality spec): light pools, anisotropy, character shadows.
+    const tier = activeTier(s.quality);
+    world.setLightBudget?.(lightBudgetOf(tier));
+    setAnisotropy(anisotropyFor(tier, maxAnisotropy));
+    setCharacterShadowDistance(tier.characterShadowDistance);
     post.grade.uGrain.value = s.filmGrain ? GRAIN : 0;
     game.applyVolume();
   };
@@ -1076,6 +1110,8 @@ async function boot(): Promise<void> {
       roomAudio?.update(simTime);
       ambience?.update(simTime, camera.position);
       post.grade.uDamage.value = game.mode === 'title' || game.flying ? 0 : player.damageFx;
+      // One shadow pass per frame, for the player's view (see renderer.shadowMap.autoUpdate below).
+      renderer.shadowMap.needsUpdate = true;
       post.render(simTime);
       feedGl.overlay(game.mode === 'playing' ? cameraFeeds.fullscreen : null);
       debug?.endFrame();

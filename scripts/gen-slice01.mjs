@@ -505,16 +505,19 @@ const R03 = room('R03', 'Observation Gallery', rect(1, 3, 4, 5), {
   floor: 'floor_carpet',
   // 1 m of bare brushed metal along the Lab B glass (1.25 from the cell edge; the partition takes 0.25).
   floorParams: Object.fromEntries([1, 2, 3].map((x) => [`${x},5`, { bareEdge: 's', bareWidth: 1.25 }])),
-  // Every fixture lit, within the 8-light pool: real light from the ceiling over the team (1) and over Heins (4)
-  // and from two low warm lamps (6 west, 7 east); the rest glow only (`pool: false`), so Lab B keeps its 3 lights
-  // through the glass. Slots: ceilings 0-5 in cell order, then the pendant_light bulbs in prop order (6, 7, 8).
+  // Every fixture casts real light (render-lighting spec, fidelity-first-rendering): 9 pooled lights, which with
+  // Lab B's 3 through the glass fit every tier's pool (12 on Low). The ceilings over the team (1) and over Heins (4)
+  // and the two low warm lamps (6 west, 7 east) carry the room and cast shadows; the corner ceilings stay dimmer so
+  // the gallery keeps its mood. The lamp bulbs (20) are bright enough that their pools, and the sofa's and table's
+  // shadows in them, read on the dark carpet. Slots: ceilings 0-5 in cell order, then the pendant_light bulbs
+  // in prop order (6, 7, 8).
   lights: [
-    ...[0, 2, 3, 5].map((i) => L(i, 'steady', '#eef1f4', undefined, undefined, { pool: false })),
-    L(1, 'steady', '#eef1f4', 5, 8),
-    L(4, 'steady', '#eef1f4', 5, 8),
-    L(6, 'steady', '#ffcf99', 4, 4.5),
-    L(7, 'steady', '#ffcf99', 4, 4.5),
-    L(8, 'steady', '#ffcf99', undefined, undefined, { pool: false }),
+    ...[0, 2, 3, 5].map((i) => L(i, 'steady', '#eef1f4', 3, 6)),
+    L(1, 'steady', '#eef1f4', 5, 8, { shadow: true }),
+    L(4, 'steady', '#eef1f4', 5, 8, { shadow: true }),
+    L(6, 'steady', '#ffcf99', 20, 6, { shadow: true }),
+    L(7, 'steady', '#ffcf99', 20, 6, { shadow: true }),
+    L(8, 'steady', '#ffcf99', 20, 6),
   ],
 });
 const R04 = room('R04', 'Lab B', rect(1, 3, 6, 7), {
