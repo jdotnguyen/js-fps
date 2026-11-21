@@ -28,6 +28,8 @@ export type Vec3 = [number, number, number];
 export interface BoxSpec {
   min: Vec3;
   max: Vec3;
+  /** `'glass'` marks a see-through partition, which muffles sound only lightly (in-world-audio: Glass muffles lightly). */
+  acoustic?: 'glass';
 }
 
 export const SURFACE_MATERIALS = ['concrete', 'metal', 'grate', 'rubber', 'water'] as const;
@@ -157,8 +159,8 @@ export class PieceBuilder {
   }
 
   /** Collider from min/max corners. */
-  solid(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, surface?: SurfaceMaterial): void {
-    const box: BoxSpec = { min: [minX, minY, minZ], max: [maxX, maxY, maxZ] };
+  solid(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, surface?: SurfaceMaterial, acoustic?: 'glass'): void {
+    const box: BoxSpec = { min: [minX, minY, minZ], max: [maxX, maxY, maxZ], ...(acoustic ? { acoustic } : {}) };
     this.colliders.push(box);
     if (surface) this.surfaces.push({ box, material: surface });
   }
@@ -220,5 +222,9 @@ export class PieceBuilder {
 export function transformBox(box: BoxSpec, matrix: THREE.Matrix4): BoxSpec {
   const b = new THREE.Box3(new THREE.Vector3(...box.min), new THREE.Vector3(...box.max)).applyMatrix4(matrix);
   const r = (v: number): number => Math.round(v * 1e5) / 1e5;
-  return { min: [r(b.min.x), r(b.min.y), r(b.min.z)], max: [r(b.max.x), r(b.max.y), r(b.max.z)] };
+  return {
+    min: [r(b.min.x), r(b.min.y), r(b.min.z)],
+    max: [r(b.max.x), r(b.max.y), r(b.max.z)],
+    ...(box.acoustic ? { acoustic: box.acoustic } : {}),
+  };
 }

@@ -349,7 +349,8 @@ function wallTile(p: PieceParams, rng: Rng, m: Materials, style: WallStyle): Pie
   if (style === 'plain' || style === 'panel' || style === 'vent') {
     pb.socket('wall_center', [0, 1.4, -HALF + WALL_T], [0, 0, 1], 'wall');
   }
-  pb.solid(-HALF, 0, -HALF, HALF, h, -HALF + WALL_T);
+  // A glass partition muffles sound only lightly (in-world-audio: Glass muffles lightly).
+  pb.solid(-HALF, 0, -HALF, HALF, h, -HALF + WALL_T, undefined, style === 'glass' ? 'glass' : undefined);
   return pb.build();
 }
 

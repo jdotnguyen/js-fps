@@ -41,6 +41,7 @@ export class FakeNode {
   constructor(context: FakeAudioContext, kind: string) {
     this.context = context;
     this.kind = kind;
+    context.nodes.push(this);
   }
   connect<T>(target: T): T {
     if (target instanceof FakeNode) this.outputs.add(target);
@@ -78,6 +79,28 @@ class FakeCompressor extends FakeNode {
   }
 }
 
+class FakeWaveShaper extends FakeNode {
+  constructor(ctx: FakeAudioContext) { super(ctx, 'waveshaper'); }
+}
+
+class FakeSource extends FakeNode {
+  constructor(ctx: FakeAudioContext) { super(ctx, 'source'); }
+  start(): void {}
+  stop(): void {}
+}
+
+export class FakePanner extends FakeNode {
+  readonly positionX: FakeParam;
+  readonly positionY: FakeParam;
+  readonly positionZ: FakeParam;
+  constructor(ctx: FakeAudioContext, opts: PannerOptions) {
+    super(ctx, 'panner');
+    this.positionX = new FakeParam(opts.positionX ?? 0);
+    this.positionY = new FakeParam(opts.positionY ?? 0);
+    this.positionZ = new FakeParam(opts.positionZ ?? 0);
+  }
+}
+
 class FakeConvolver extends FakeNode {
   buffer: unknown;
   constructor(ctx: FakeAudioContext, opts: { buffer?: unknown } = {}) {
@@ -105,6 +128,7 @@ class FakeBuffer {
 }
 
 export class FakeAudioContext {
+  readonly nodes: FakeNode[] = [];
   readonly sampleRate = 8000;
   currentTime = 0;
   state = 'running';
@@ -153,12 +177,15 @@ export function pathGain(from: FakeNode, to: FakeNode): number {
 /** Install the fakes as globals so `new AudioContext()` etc. work in Node. Returns an uninstall function. */
 export function installFakeWebAudio(): () => void {
   const g = globalThis as Record<string, unknown>;
-  const names = ['AudioContext', 'GainNode', 'BiquadFilterNode', 'DynamicsCompressorNode', 'ConvolverNode'] as const;
+  const names = ['AudioContext', 'GainNode', 'BiquadFilterNode', 'DynamicsCompressorNode', 'ConvolverNode', 'WaveShaperNode', 'AudioBufferSourceNode', 'PannerNode'] as const;
   const prev = names.map((n) => g[n]);
   g.AudioContext = FakeAudioContext;
   g.GainNode = FakeGain;
   g.BiquadFilterNode = FakeBiquad;
   g.DynamicsCompressorNode = FakeCompressor;
   g.ConvolverNode = FakeConvolver;
+  g.WaveShaperNode = FakeWaveShaper;
+  g.AudioBufferSourceNode = FakeSource;
+  g.PannerNode = FakePanner;
   return () => names.forEach((n, i) => (g[n] = prev[i]));
 }

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Rng } from '../core/rng.ts';
+import { occludeVoice, type Occluder } from './occlusion.ts';
 import { DEFAULT_REVERB, REVERB_CROSSFADE, REVERB_SPECS, renderReverbIr, resolveReverb, type ReverbPreset } from './reverb.ts';
 import { SAMPLE_URLS, SOUND_SPECS, type SampleName, type SoundName } from './sounds.ts';
 
@@ -33,6 +34,11 @@ export interface VoiceOptions {
   muffled?: boolean;
   /** Optional custom low-pass cutoff in Hz (overrides `muffled`'s 650 Hz when set). */
   cutoff?: number;
+  /**
+   * `false` opts a positional `sfx` one-shot out of wall occlusion (in-world-audio: World sound occlusion).
+   * Use it for sounds that already handle occlusion or must play as authored.
+   */
+  occlude?: boolean;
   rate?: number;
   variant?: number;
   /** Play only a slice of the clip: start `offset` s in, for `duration` s (at rate 1), fading out at the end. */
@@ -91,6 +97,9 @@ export class AudioEngine {
   private readonly rng = new Rng('audio-engine');
   private readonly forward = new THREE.Vector3();
   private readonly up = new THREE.Vector3();
+  /** Last listener position from `updateListener`, for occlusion checks. */
+  private readonly listenerPos = new THREE.Vector3();
+  private occluder: Occluder | null = null;
 
   constructor() {
     this.ctx = createAudioContext();
@@ -307,10 +316,19 @@ export class AudioEngine {
     return this.ducks[bus].gain.value;
   }
 
+  /**
+   * Set the wall test applied to positional `sfx` one-shots (in-world-audio: World sound occlusion),
+   * or `null` to muffle nothing (title screen, between levels, headless tests).
+   */
+  setOccluder(occluder: Occluder | null): void {
+    this.occluder = occluder;
+  }
+
   /** Follow the camera every frame. */
   updateListener(camera: THREE.Camera): void {
     const l = this.ctx.listener;
     const p = camera.position;
+    this.listenerPos.copy(p);
     camera.getWorldDirection(this.forward);
     this.up.set(0, 1, 0).applyQuaternion(camera.quaternion);
     const f = this.forward;
@@ -332,7 +350,9 @@ export class AudioEngine {
     }
   }
 
-  play(name: SoundName, opts: VoiceOptions = {}): LoopHandle {
+  play(name: SoundName, voiceOpts: VoiceOptions = {}): LoopHandle {
+    // Decided once, at start (design D5): a sound already playing keeps its treatment.
+    const opts = occludeVoice(voiceOpts, this.listenerPos, this.occluder);
     const { source, gain, output } = this.voice(name, opts, false);
     let stopped = false;
     let stopTimer: ReturnType<typeof setTimeout> | null = null;

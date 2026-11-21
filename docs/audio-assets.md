@@ -33,6 +33,13 @@ variants, picked per play. If the name matches an existing procedural sound in `
 the file replaces it as soon as it decodes, and the procedural version stays as the fallback.
 Play it by name (`audio.play('<name>', ...)`, or a sequence `{ "do": "sfx", "id": "<name>" }`).
 
+**Occlusion.** A one-shot `audio.play` on the `sfx` bus with a `position` is muffled automatically
+when a wall or closed door is between it and the player (in-world-audio spec, "World sound
+occlusion"); through a glass partition only, it is just slightly quieter and duller ("Glass muffles
+lightly"). Pass `occlude: false` for a sound that must play as authored or that already handles
+occlusion itself. Sequence and kill sounds, footsteps, loops and the other buses are never muffled
+this way.
+
 ## 3. Credit anything you did not generate
 
 A clip from anywhere else (OpenGameArt, Freesound, a purchased pack) must be listed in

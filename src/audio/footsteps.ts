@@ -4,6 +4,16 @@ import type { Surface } from '../actors/player.ts';
 import { Rng } from '../core/rng.ts';
 import type { ColliderSurface } from '../world/collision.ts';
 import type { VoiceOptions } from './engine.ts';
+import {
+  GLASS_CUTOFF_HZ,
+  GLASS_GAIN_SCALE,
+  OCCLUDED_CUTOFF_HZ,
+  OCCLUDED_GAIN_SCALE,
+  OCCLUDED_REVERB,
+  OCCLUSION_MIN_DISTANCE,
+  type Occluder,
+  type Occlusion,
+} from './occlusion.ts';
 import type { SoundName } from './sounds.ts';
 
 /**
@@ -33,10 +43,10 @@ export interface FootstepAudioDeps {
   /** Acoustic surface under a world foot position (x, y, z). */
   surfaceAt: (x: number, y: number, z: number) => ColliderSurface | null;
   /**
-   * True when a solid wall or closed door blocks line-of-sound from `from` to `to`
-   * (used to muffle footsteps behind closed airlocks/bulkheads).
+   * What lies on the line of sound from `from` to `to`: a wall or closed door muffles footsteps fully,
+   * glass only lightly (see `wallOccluder`).
    */
-  isOccluded?: (from: THREE.Vector3, to: THREE.Vector3) => boolean;
+  isOccluded?: Occluder;
 }
 
 /** Max audible distance (m) for normal walking/jogging/shambling steps. */
@@ -45,10 +55,6 @@ export const FOOTSTEP_MAX_DISTANCE = 22;
 export const FOOTSTEP_HEAVY_MAX_DISTANCE = 30;
 /** Distance (m) where smooth fade-out tail begins so steps never pop off at the cull edge. */
 const FADE_START_DISTANCE = 13;
-/** Low-pass cutoff (Hz) when footsteps are heard through a wall or closed door. */
-const OCCLUDED_CUTOFF_HZ = 520;
-/** Gain multiplier when a step is occluded by a wall or closed door. */
-const OCCLUDED_GAIN_SCALE = 0.42;
 
 /** Map a floor's acoustic surface tag to its sound bank entry. */
 export function soundForSurface(surface: ColliderSurface | Surface | null | undefined): SoundName {
@@ -143,6 +149,8 @@ export class FootstepAudio {
       reverb: landing ? 0.24 : 0.18,
       rate,
       variant,
+      // The player's own steps are never behind a wall.
+      occlude: false,
       ...(ev.surface === 'water' ? { cutoff: 950 } : {}),
     };
     this.deps.audio.play(sound, opts);
@@ -173,10 +181,12 @@ export class FootstepAudio {
     // Wall / closed-door occlusion check: aim at torso height (~1.35 m above floor) so waist-high
     // counters, chairs, and crates in an open room never falsely muffle someone standing right in front of you.
     this.probeTo.set(ev.x, ev.y + 1.35, ev.z);
-    const occluded = dist > 0.6 && (this.deps.isOccluded?.(listener, this.probeTo) ?? false);
+    const occlusion: Occlusion = dist > OCCLUSION_MIN_DISTANCE ? (this.deps.isOccluded?.(listener, this.probeTo) ?? 'none') : 'none';
+    const occluded = occlusion === 'wall';
 
     let gain = baseGainForKind(ev.kind, ev.speed) * tailGain;
     if (occluded) gain *= OCCLUDED_GAIN_SCALE;
+    else if (occlusion === 'glass') gain *= GLASS_GAIN_SCALE;
     if (gain <= 0.004) return;
 
     // Distance air absorption (high frequencies soften with distance) + occlusion low-pass.
@@ -190,9 +200,11 @@ export class FootstepAudio {
       // Exponentially sweep from 16 kHz at 4 m down to ~3.2 kHz near max distance.
       cutoff = Math.round(16000 * Math.pow(3200 / 16000, k));
     }
+    // Through glass only: slightly dulled (in-world-audio: Glass muffles lightly).
+    if (occlusion === 'glass') cutoff = Math.min(cutoff ?? Infinity, GLASS_CUTOFF_HZ);
 
     const rate = this.deps.rng.range(0.95, 1.05) * rateScaleForKind(ev.kind) * (1 + actorPitchBias(ev.actor));
-    const reverb = ev.kind === 'heavy' ? 0.42 : occluded ? 0.34 : 0.22 + THREE.MathUtils.clamp((dist - 3) * 0.015, 0, 0.16);
+    const reverb = ev.kind === 'heavy' ? 0.42 : occluded ? OCCLUDED_REVERB : 0.22 + THREE.MathUtils.clamp((dist - 3) * 0.015, 0, 0.16);
     const variant = this.pickVariant(sound);
 
     const opts: VoiceOptions = {
@@ -202,6 +214,8 @@ export class FootstepAudio {
       reverb,
       rate,
       variant,
+      // Occlusion is applied above (torso-height probe); the engine must not apply it a second time.
+      occlude: false,
       ...(cutoff !== undefined ? { cutoff } : {}),
     };
     this.deps.audio.play(sound, opts);

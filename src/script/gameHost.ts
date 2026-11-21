@@ -198,7 +198,8 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
         console.warn(`[seq] sfx: sound "${id}" not ready yet`);
         return;
       }
-      d.audio.play(id as SoundName, at ? { position: v3(at) } : {});
+      // Sequence sounds play as authored, never muffled by walls (in-world-audio: World sound occlusion).
+      d.audio.play(id as SoundName, at ? { position: v3(at), occlude: false } : {});
     },
     ...(d.ambience ? { ambience: (id: string) => d.ambience!.setOverride(id) } : {}),
     ...(d.music

@@ -8,6 +8,7 @@ import { CollisionWorld, type ColliderSurface } from '../world/collision.ts';
 import { floorSurfaceForKey } from '../world/kit/palettes.ts';
 import type { VoiceOptions } from './engine.ts';
 import { FOOTSTEP_MAX_DISTANCE, FootstepAudio, soundForSurface, type FootstepAudioEngine } from './footsteps.ts';
+import { GLASS_CUTOFF_HZ, wallOccluder } from './occlusion.ts';
 import type { SoundName } from './sounds.ts';
 
 interface PlayedVoice {
@@ -57,6 +58,7 @@ test('FootstepAudio plays player steps on concrete without back-to-back variant 
   assert.equal(played.length, 20);
   for (let i = 0; i < played.length; i++) {
     assert.equal(played[i]!.name, 'footConcrete');
+    assert.equal(played[i]!.opts.occlude, false, 'player steps are never occluded');
     if (i > 0) assert.notEqual(played[i]!.opts.variant, played[i - 1]!.opts.variant, `repeat at ${i}`);
   }
   const sprintGain = played[0]!.opts.gain ?? 0;
@@ -78,15 +80,7 @@ test('FootstepAudio attenuates distant character steps, culls past max distance,
     rng: new Rng('char-steps'),
     listener: () => listener,
     surfaceAt: (x, y, z): ColliderSurface | null => world.surfaceAt(x, y, z),
-    isOccluded: (from, to) => {
-      const dx = to.x - from.x;
-      const dy = to.y - from.y;
-      const dz = to.z - from.z;
-      const d = Math.hypot(dx, dy, dz);
-      if (d <= 0.5) return false;
-      const hit = world.raycast(from.x, from.y, from.z, dx, dy, dz, d - 0.35);
-      return hit !== null && hit.collider.maxY >= 2.0;
-    },
+    isOccluded: wallOccluder((...ray) => world.raycast(...ray)),
   });
 
   // 1. Close step across the waist-high counter in Room 1 -> must NOT be falsely muffled.
@@ -110,9 +104,35 @@ test('FootstepAudio attenuates distant character steps, culls past max distance,
   assert.ok((far.opts.gain ?? 0) < (near.opts.gain ?? 0), 'distant step is quieter than near step');
   assert.ok((far.opts.cutoff ?? 20000) < 12000, 'distant step applies air-absorption low-pass');
 
+  for (const p of played) assert.equal(p.opts.occlude, false, 'footsteps opt out of the engine occlusion check');
   assert.ok((blocked.opts.cutoff ?? 20000) <= 600, `blocked step should be muffled (cutoff ${blocked.opts.cutoff})`);
   assert.ok((blocked.opts.gain ?? 0) < (open.opts.gain ?? 0), 'blocked step behind closed door is quieter than open door');
   assert.ok((open.opts.cutoff ?? 20000) > (blocked.opts.cutoff ?? 0), 'opening door removes occlusion muffle');
+});
+
+test('steps behind a glass partition are only lightly muffled (in-world-audio: Glass muffles lightly)', () => {
+  const world = new CollisionWorld();
+  world.add({ min: [-20, -0.2, -20], max: [20, 0, 20] }, 'floor', 'concrete');
+  world.add({ min: [-0.1, 0, -4], max: [0.1, 3, 4], acoustic: 'glass' }, 'room:glass');
+  world.add({ min: [-6.1, 0, -4], max: [-5.9, 3, 4] }, 'room:wall');
+  const listener = new THREE.Vector3(1.5, 1.7, 0);
+  const { engine, played } = makeFakeAudio(7);
+  const steps = new FootstepAudio({
+    audio: engine,
+    rng: new Rng('glass-steps'),
+    listener: () => listener,
+    surfaceAt: () => 'concrete',
+    isOccluded: wallOccluder((...ray) => world.raycast(...ray)),
+  });
+  const step = (x: number): void => steps.playCharacter({ x, y: 0.05, z: 0, side: 'L', speed: 1.3, kind: 'walk', actor: 'okafor' });
+  step(2.5); // same side, 1 m away
+  step(-1); // 1 m behind the glass
+  step(-8); // behind the glass and a wall
+  const [open, glass, wall] = played as [PlayedVoice, PlayedVoice, PlayedVoice];
+  assert.equal(glass.opts.cutoff, GLASS_CUTOFF_HZ, 'slightly dulled');
+  assert.ok((glass.opts.gain ?? 0) < (open.opts.gain ?? 0), 'a little quieter than in the open');
+  assert.ok((glass.opts.gain ?? 0) > (wall.opts.gain ?? 0) * 1.4, 'clearly louder than through a wall');
+  assert.ok((wall.opts.cutoff ?? 20000) <= 600, 'glass then a wall is fully muffled');
 });
 
 test('Humanoid fires alternating left/right footstep events synced to walking mocap foot plants', () => {
