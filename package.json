@@ -24,6 +24,7 @@
     "gore:generate": "node --experimental-strip-types scripts/gore-generate.ts"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0",
     "recast-navigation": "^0.44.0",
     "three": "^0.170.0"
   },

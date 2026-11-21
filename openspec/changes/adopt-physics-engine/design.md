@@ -121,7 +121,14 @@ Fill in at each gate (heaviest slice scene, High, target desktop PC, scratch slo
 
 ## Block 0 result
 
-(to be written by Block 0: chosen engine, scores, reasons)
+(in progress; final scores and the decision come with task 1.6)
+
+Findings so far (2026-11-21, `@dimforge/rapier3d-compat` 0.21.0):
+- Initialises under Node in about 32 ms, so headless physics tests work. The browser check comes with the sandbox panel (1.4).
+- Size: the compat build inlines its WebAssembly, so the lazy chunk is about 4.3 MB raw and 1.66 MB gzipped. The non-compat `@dimforge/rapier3d` loads a separate .wasm file (3.1 MB raw) and would need Vite WebAssembly support; revisit only if the chunk size matters.
+- Limits and motors: Rapier's typed wrapper exposes angle limits only on single-axis joints, and `getImpulseJoint` returns joints without their motor methods. The raw joint set has per-axis `jointSetLimits` and `jointConfigureMotorPosition` for every joint, and the adapter uses those. Ball joints get per-axis angle limits, not a true swing cone like Jolt's SwingTwist constraint. Whether that looks right on shoulders and hips is what the death-ragdoll case in 1.4 judges.
+- Releasing a motor needs a zero force cap. Zero stiffness and damping alone still drag the axis (measured).
+- Adapter tests (`src/physics/rapierAdapter.test.ts`) pass: landing and sleep, zero live objects after destroy, CCD contact on a thin wall with no tunnelling, raycasts with disabled colliders, hinge and ball limits holding, and a ball-joint motor holding a pose and releasing it.
 
 ## Open Questions
 
