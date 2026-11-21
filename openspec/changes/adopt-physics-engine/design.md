@@ -69,7 +69,7 @@ At level load, every `CollisionWorld` collider becomes a fixed cuboid with the s
 `src/physics/ragdoll.ts` maps the `skeleton.ts` joint set to roughly 11 bodies: pelvis, spine, chest, head, upper and lower arms, upper and lower legs. Hands and feet are merged into the forearm and shin. Imported bodies use the same joint names (`bodyModel.ts`), so one mapping covers procedural and imported bodies. Severed subtrees are skipped when the ragdoll is built, and a sever during the ragdoll removes the joint and passes the bodies to `addDebris`. Each frame the ragdoll writes bone world transforms, and the animator is bypassed for those bones. Freezing copies the final pose into the animator as a one-off static pose and destroys the bodies. A touch (a shot, the player pushing, a stomp) rebuilds the ragdoll from the frozen pose.
 
 ### D7. Powered ragdoll as a blend weight, not a new state machine
-Block 4 adds `physicsWeight` (0 = pure animation, 1 = pure ragdoll) per body, plus joint motors that track the animator's local rotations. A hit sets a per-region spike in the weight that decays over 0.6 s. Death ramps motor strength down over 0.3 to 0.8 s. Play-dead freezes like a corpse. `getUp` ramps the weight down while the `getUp` sequence starts from the frozen pose, which is the pose-matching step that stops popping. The existing `LifeState` values stay as they are.
+Block 4 adds `physicsWeight` (0 = pure animation, 1 = pure ragdoll) per body. Bodies are driven toward the animator's world pose by a damped spring on their velocity, with velocity and gravity feed-forward, and a kinematic pelvis while the body stands (Block 0 result: Rapier's joint motors cannot hold the chain under gravity). The weight scales the spring's stiffness and damping down from the Block 0 values (1600 1/s², 70 1/s). A hit sets a per-region spike in the weight that decays over 0.6 s, so the hit region goes slack and staggers before the spring brings it back. Death ramps the drive down over 0.3 to 0.8 s and frees the pelvis. Play-dead freezes like a corpse. `getUp` ramps the weight down while the `getUp` sequence starts from the frozen pose, which is the pose-matching step that stops popping. The existing `LifeState` values stay as they are.
 
 ### D8. Stepping and budgets
 `PhysicsWorld.step()` runs inside the existing fixed-step loop, once per `SIM_STEP`, before gore and animation are read, and is skipped while paused. Step time is measured as a rolling average. The budget is the `physics-world` spec's: 1.5 ms average and 3 ms peak per frame on the target desktop PC. Above budget, the oldest active ragdoll freezes first, then the oldest active debris. Caps: 6 active ragdolls, 24 debris (unchanged), and a dynamic-prop cap set in Block 5.
@@ -91,7 +91,7 @@ Block 4 drives the ragdoll's arm bodies to the animator's pose. `handPhysics.ts`
 
 ## Risks / Trade-offs
 
-- **[Ragdolls look floppy or jitter]** → Block 0 scores stability first. Use tight joint limits, damping, and freeze at rest. Block 4's motors are the real fix for limp-looking deaths.
+- **[Ragdolls look floppy or jitter]** → Block 0 scores stability first. Use tight joint limits, damping, and freeze at rest. Block 4's pose drive, faded out over the death, is the real fix for limp-looking deaths.
 - **[WASM memory leaks across checkpoint restarts]** → All engine objects are owned by `PhysicsWorld`, which is destroyed and rebuilt on every level or checkpoint load. Add a leak test that counts bodies and colliders after restarts, and run the `runtime-memory` churn measurement for each block.
 - **[Two collision worlds drift apart]** → The mirror is built only from `CollisionWorld`, plus a test that compares collider counts and bounds and checks door toggles.
 - **[Tests get heavier on a shared machine]** → Physics tests use small dedicated scenes, not `slice01`, and the existing suite stays on the fallback.
@@ -121,7 +121,7 @@ Fill in at each gate (heaviest slice scene, High, target desktop PC, scratch slo
 
 ## Block 0 result
 
-**Recommendation: keep Rapier, with one design change.** Rapier meets every D2 bar except pose-matching through joint motors, which it cannot do on a ragdoll chain under gravity. Driving each body toward its animated pose in world space meets that bar instead. Block 4 (D7) should use world-space pose driving, not joint motors. Awaiting the author's sign-off (task 1.8); Jolt (task 1.7) is optional, see below.
+**Decision: Rapier, signed off by the author on 2026-11-21.** Rapier meets every D2 bar except pose-matching through joint motors, which it cannot do on a ragdoll chain under gravity. Driving each body toward its animated pose in world space meets that bar instead, so Block 4 (D7) uses world-space pose driving, not joint motors. The Jolt trial (task 1.7) was skipped; see below.
 
 Scores against the D2 table (2026-11-21, `@dimforge/rapier3d-compat` 0.21.0, procedural shambler, 14-body trial ragdoll in `src/physics/trialRagdoll.ts`, tests in `src/physics/trialRagdoll.test.ts`, browser panel `/sandbox/actors.html?physics`):
 
@@ -140,7 +140,7 @@ What the trial changed in the plan:
 - **Hit reactions (Block 4, D7):** the world-space drive is stiff (recovers in a few frames). A visible stagger needs the per-region stiffness drop D7 already plans.
 - **Imported bodies:** untested. The trial uses the procedural rig, whose rest rotations are identity. Imported models need joint frames taken from their rest pose (Block 3).
 
-**Jolt (task 1.7).** By D2's rule, failing the motor bar triggers a Jolt comparison of the pose-driven case. The world-space drive meets the outcome the bar describes, and it is also what Jolt itself offers as "drive to pose using kinematics". A Jolt trial would only test whether its constraint motors make a better-looking powered ragdoll. Recommendation: skip it unless Block 4 playtests show the world-space drive looks wrong.
+**Jolt (task 1.7).** By D2's rule, failing the motor bar triggers a Jolt comparison of the pose-driven case. The world-space drive meets the outcome the bar describes, and it is also what Jolt itself offers as "drive to pose using kinematics". A Jolt trial would only test whether its constraint motors make a better-looking powered ragdoll. Skipped at sign-off; revisit only if Block 4 playtests show the world-space drive looks wrong.
 
 Detailed findings:
 - Initialises under Node in about 32 ms and in the browser (sandbox panel), so headless physics tests work.

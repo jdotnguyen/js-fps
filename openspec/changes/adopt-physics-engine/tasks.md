@@ -10,8 +10,8 @@ Each numbered group is one isolated block (design D1): one commit or PR, its swi
 - [x] 1.4 Add a physics trial panel to `actorsSandbox` with three cases (limb thrown at a wall, death ragdoll on stairs, pose-driven ragdoll taking a shoulder hit), and verify all three run in the browser
 - [x] 1.5 Measure step time (6 ragdolls + 24 debris) on the target desktop PC and the gzipped chunk size, and record them in design.md "Measurements" (B0) (B0 row recorded; pane was hidden, re-measure visibly at the B1 gate)
 - [x] 1.6 Check Rapier against the D2 pass bars and write "Block 0 result" in design.md
-- [ ] 1.7 Only if Rapier fails the motor pose-matching bar: install `jolt-physics`, write `src/physics/joltAdapter.ts` passing the same adapter test, build the pose-driven case in it, compare, then keep one engine and delete the other's adapter and dependency; verify `npm run build` and the adapter test pass. Otherwise mark this task skipped in the Block 0 result
-- [ ] 1.8 Gate: review the Block 0 result with the author and get sign-off on the engine choice before group 2
+- [x] 1.7 Only if Rapier fails the motor pose-matching bar: install `jolt-physics`, write `src/physics/joltAdapter.ts` passing the same adapter test, build the pose-driven case in it, compare, then keep one engine and delete the other's adapter and dependency; verify `npm run build` and the adapter test pass. Otherwise mark this task skipped in the Block 0 result (skipped at sign-off on 2026-11-21: world-space driving meets the bar; see the Block 0 result)
+- [x] 1.8 Gate: review the Block 0 result with the author and get sign-off on the engine choice before group 2 (Rapier signed off by the author on 2026-11-21)
 
 ## 2. Block 1: Physics world (no visible change)
 
@@ -45,11 +45,11 @@ Each numbered group is one isolated block (design D1): one commit or PR, its swi
 
 ## 5. Block 4: Powered ragdolls and play-dead blending (after `per-character-motion`; builds on hand physics, design D13)
 
-- [ ] 5.1 Add per-body `physicsWeight` and joint motors tracking animator local rotations (design D7); verify in the sandbox that weight 0 matches pure animation within 1 cm per bone
+- [ ] 5.1 Add per-body `physicsWeight` scaling a world-space pose drive toward the animator's pose (design D7; start from `TrialRagdoll.driveToBonesWorld`); verify in the sandbox that weight 0 matches pure animation within 1 cm per bone
 - [ ] 5.2 Add hit reactions: per-region weight spike, physical push, return to pose within 0.6 s; verify with a test that a shoulder hit displaces the upper body and every bone is back within 2 cm of the animated pose by 0.6 s
-- [ ] 5.3 Add a death fade (motor strength down over 0.3 to 0.8 s) before full ragdoll; verify with a test of the strength curve and in the sandbox
+- [ ] 5.3 Add a death fade (drive strength down over 0.3 to 0.8 s, then free the pelvis) before full ragdoll; verify with a test of the strength curve and in the sandbox
 - [ ] 5.4 Make play-dead a frozen ragdoll, and blend `getUp` from the frozen pose; verify with a test that no bone moves more than 5 cm between frames during the blend
-- [ ] 5.5 Document weights, motor tuning and blending in `docs/physics.md`
+- [ ] 5.5 Document weights, drive tuning and blending in `docs/physics.md`
 - [ ] 5.6 Gate: playtest play-dead ambushes and hit reactions; record B4 measurements (step-time budget still met with 6 powered bodies); switch the powered default on
 
 ## 6. Block 5: Physical interaction
