@@ -97,6 +97,27 @@ vec3 extLamps(vec3 p, vec3 n) {
   }
   return sum;
 }
+/** Subtle wet specular highlight from the exterior lamps (matte seabed stays matte; painted steel catches a sheen). */
+vec3 extLampsSpec(vec3 p, vec3 n, vec3 v, float rough) {
+  vec3 sum = vec3(0.0);
+  float r = clamp(rough, 0.0, 1.0);
+  float shininess = mix(48.0, 6.0, r);
+  float specScale = mix(0.45, 0.03, r);
+  for (int i = 0; i < ${MAX_EXTERIOR_LAMPS}; i++) {
+    if (i >= uLampCount) break;
+    vec3 L = uLampPos[i].xyz - p;
+    float d = length(L);
+    vec3 l = L / max(d, 1e-4);
+    if (dot(n, l) <= 0.0) continue;
+    float fall = clamp(1.0 - d / uLampPos[i].w, 0.0, 1.0);
+    fall *= fall;
+    float cone = smoothstep(uLampDir[i].w, uLampCol[i].w, dot(-l, uLampDir[i].xyz));
+    vec3 h = normalize(l + v);
+    float spec = pow(max(dot(n, h), 0.0), shininess) * specScale;
+    sum += uLampCol[i].rgb * fall * cone * spec / (1.0 + 0.05 * d * d);
+  }
+  return sum;
+}
 float waterFog(float dist) {
   float k = uWaterDensity * dist;
   return clamp(1.0 - exp(-k * k), 0.0, 1.0);
@@ -138,7 +159,8 @@ export function patchExteriorShader(shader: { vertexShader: string; fragmentShad
     .replace(
       OUTGOING,
       `vec3 extN = inverseTransformDirection(normal, viewMatrix);
-      vec3 outgoingLight = (totalDiffuse + totalSpecular) * uExtAmbient + totalEmissiveRadiance + diffuseColor.rgb * extLamps(vExtWorld, extN);`,
+      vec3 extV = normalize(cameraPosition - vExtWorld);
+      vec3 outgoingLight = (totalDiffuse + totalSpecular) * uExtAmbient + totalEmissiveRadiance + diffuseColor.rgb * extLamps(vExtWorld, extN) + extLampsSpec(vExtWorld, extN, extV, roughnessFactor);`,
     )
     .replace('#include <fog_fragment>', 'gl_FragColor.rgb = mix(gl_FragColor.rgb, uWaterColor, waterFog(length(vExtWorld - cameraPosition)));');
 }

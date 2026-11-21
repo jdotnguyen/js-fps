@@ -25,6 +25,7 @@ test('patched shader adds lamp lighting and water fog and drops scene fog', () =
   const shader = { vertexShader: ShaderLib.physical.vertexShader, fragmentShader: ShaderLib.physical.fragmentShader, uniforms: {} as Record<string, THREE.IUniform> };
   patchExteriorShader(shader);
   assert.ok(shader.fragmentShader.includes('extLamps(vExtWorld, extN)'));
+  assert.ok(shader.fragmentShader.includes('extLampsSpec(vExtWorld, extN, extV, roughnessFactor)'));
   assert.ok(shader.fragmentShader.includes('waterFog('));
   assert.ok(!shader.fragmentShader.includes('#include <fog_fragment>'));
   assert.ok(shader.vertexShader.includes('vExtWorld ='));

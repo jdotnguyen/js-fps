@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { Rng } from '../../core/rng.ts';
-import { buildExterior, lampCount, legColumns, placeFloodlights, windowRuns, type ExteriorColumn, type ExteriorWindow } from './exterior.ts';
+import { buildExterior, createBeamConeGeometry, createExteriorBeamMaterial, lampCount, legColumns, placeFloodlights, windowRuns, type ExteriorColumn, type ExteriorWindow } from './exterior.ts';
 
 /** A window tile on a north wall (outward -Z) centred at x, glass centre height 1.65. */
 const north = (room: string, x: number, flicker = false): ExteriorWindow => ({
@@ -74,4 +74,23 @@ test('the exterior builds headless, flickers only flagged lamps, and hides on re
   ext.update(61, eye, false, false);
   assert.equal(ext.group.visible, false);
   assert.ok(ext.group.getObjectByName('exterior-water-dome')!.position.equals(eye), 'dome follows the eye');
+});
+
+test('shared exterior beam helpers produce water-fogged volumetric shader and aAlong cone', () => {
+  const mat = createExteriorBeamMaterial(1, 0.24);
+  assert.equal(mat.uniforms['uLevel']?.value, 1);
+  assert.equal(mat.uniforms['uBody']?.value, 0.24);
+  assert.equal(mat.uniforms['uTime']?.value, 0);
+  assert.ok(mat.fragmentShader.includes('waterFog('));
+  const cone = createBeamConeGeometry(3, 10);
+  const along = cone.getAttribute('aAlong');
+  assert.ok(along && along.count > 0, 'aAlong attribute present');
+  let min = Infinity;
+  let max = -Infinity;
+  for (let i = 0; i < along.count; i++) {
+    const v = along.getX(i);
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  assert.ok(Math.abs(min) < 1e-4 && Math.abs(max - 1) < 1e-4, `aAlong spans [0, 1], got [${min}, ${max}]`);
 });

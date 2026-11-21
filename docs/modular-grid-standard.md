@@ -81,4 +81,4 @@ Measured from glTF scene-graph transforms and dequantized `POSITION` accessors (
 | `weapons/shotgun.glb` | `2.000 × 2.000 × 0.775` | `-1.000 .. 1.000` | Quantized `[-1, 1]` viewmodel; positioned via `WEAPON_MODELS.shotgun.ref`. |
 | `lab/underground_lab.glb` | `73.843 × 9.325 × 52.537` | `-5.641 .. 3.684` | `223,504` tris, `0` empties; standalone sandbox (`?level=lab`), not `4 m`-snapped. |
 | `seabed/ocean_floor_scene.glb` | `12.172 × 4.287 × 12.762` | `-1.426 .. 2.861` | Re-framed & instanced in [seabed.ts](../src/render/fx/seabed.ts). |
-| `vehicles/kilo_submarine.glb` | `13.512 × 18.931 × 71.228` | `min.x = 78.871` | Off-center pivot (`+85.6 m` X); re-centered & scaled (`SUB_SCALE = 10`) in [subModel.ts](../src/render/fx/subModel.ts). |
+| `vehicles/kilo_submarine.glb` | `13.512 × 18.931 × 71.228` | `min.x = 78.871` | Off-center pivot (`+85.6 m` X); re-centered & scaled (`SUB_SCALE = 1`, `14.5 m` dock fit) in [subModel.ts](../src/render/fx/subModel.ts). |

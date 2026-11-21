@@ -379,6 +379,27 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     prompt:
       'thin irregular hissing steam leak from a pipe joint in a narrow dark metal corridor, two to three seconds, with a faint drip, close and dry, no music, no voice',
   },
+  // Supply sub docking (intro-sequence spec, fix-supply-sub-docking): muffled underwater through the station hull.
+  {
+    id: 'subPass',
+    file: 'oneshot-sub-pass.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 10.5,
+    promptInfluence: 0.55,
+    prompt:
+      'deep heavily muffled underwater submarine gliding slowly into dock outside a thick steel research station hull, low sub-bass propulsion hum and slow propeller water displacement swelling gradually then easing to a stop, heard dimly through deep ocean water and thick pressure glass, dark realistic underwater foley, no bright highs, no sonar ping, no music, no voice',
+  },
+  {
+    id: 'subClamp',
+    file: 'oneshot-sub-clamp.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 6.0,
+    promptInfluence: 0.6,
+    prompt:
+      'heavily muffled underwater hydraulic docking clamps closing and locking onto a submarine hull outside a deep-sea steel station, two seconds of low submerged hydraulic servo groan followed by heavy dull muffled steel thuds and a deep resonant sub-bass settle into underwater silence, heard through thick hull plating, no bright metallic ringing, no music, no voice',
+  },
 ];
 
 function loadApiKey(): string {

@@ -263,8 +263,8 @@ wallKit(R01a, 0, -1, 'w', 'wall_vent');
 // Its outer hull is visible through both runs of dock windows even with D_dock shut.
 R01a.visibleFrom = ['R01', 'R01w'];
 const dockDoor = door('D_dock', 'R01', 'R01a', 0, 0, 'n');
-const berthBow = [5, 0.4, -9];
-prop(R01, 'supply_sub', berthBow, 0, { state: 'away', dockTime: 10, alignBow: true });
+const subBerth = [2.5, 0.4, -9];
+prop(R01, 'supply_sub', subBerth, 0, { state: 'away', dockTime: 10 });
 // Jay's security post (dock-checkpoint spec): a corner counter booth facing the dock window, closed on the arrivals
 // side and open to the east, a desk under a wall of camera feeds, and the detector line from the counter's east end
 // to the window. With the gate shut, the arch is the only way from the dock side to the station side.
@@ -331,7 +331,7 @@ anchor(R01w, 'window_jay', [18.9, 0, -0.9], 0);
 anchor(R01w, 'window_giles', [19.8, 0, -0.9], 0);
 anchor(R01w, 'window_okafor', [20.7, 0, -0.9], 0);
 anchor(R01w, 'abyss_window_walk', [21, 1.7, -2.4]);
-anchor(R01, 'sub_dock', berthBow);
+anchor(R01, 'sub_dock', subBerth);
 anchor(R01a, 'giles_start', [0.65, 0, -4.55], 180);
 anchor(R01a, 'okafor_start', [-0.65, 0, -4.55], 180);
 anchor(R01a, 'ruiz_start', [0.75, 0, -3.25], 180);

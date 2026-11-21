@@ -7,6 +7,7 @@ import { paintedDecal, stencilDecal } from '../../render/decals.ts';
 import { drawTagBanner, drawTagLockup, drawTagMark } from '../../render/logo.ts';
 import { NOISE_GLSL } from '../../render/fx/glsl.ts';
 import { SUB_RADIUS, SUB_SAIL_TOP, SUB_LENGTH, SUB_SCALE, createSubModel } from '../../render/fx/subModel.ts';
+import { createBeamConeGeometry, createExteriorBeamMaterial } from '../../render/fx/exterior.ts';
 import { exteriorize } from '../../render/fx/exteriorLight.ts';
 import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { lathe, slab } from './shapes.ts';
@@ -488,34 +489,42 @@ const GEN: Record<string, Gen> = {
       mb.add(slab(0.8, 0.5, 0.02), m.hazardClean, at(-0.6, 0.4, R + 0.01));
       group.add(mb.build('supply_sub:hull', null));
     }
-    // Lights: headlamps, beams, running lights. Beams tilt down far enough to reach the seabed.
-    const LAMP_TILT = 0.5;
-    const lamp = fixtureMaterial(0xfff1d0, 4);
-    const red = fixtureMaterial(0xff2a1a, 3);
-    const green = fixtureMaterial(0x2aff7a, 3);
-    const beamMat = cached('sub-beam', () => new THREE.MeshBasicMaterial({ color: 0x9fd8e0, transparent: true, opacity: 0.07, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+    // Lights: headlamps, beams, running lights. Beams tilt down far enough to reach the seabed below R01.
+    const LAMP_TILT = 0.36;
+    const LAMP_OUTER = 0.25;
+    const BEAM_LENGTH = 11.5 * K;
+    const lamp = fixtureMaterial(0xfff1d0, 7);
+    const red = fixtureMaterial(0xff2a1a, 3.5);
+    const green = fixtureMaterial(0x2aff7a, 3.5);
+    const beamMat = createExteriorBeamMaterial(1, 0.28);
     // Both headlamps in one mesh and both beams in another (draw calls).
     const heads: THREE.BufferGeometry[] = [];
     const beams: THREE.BufferGeometry[] = [];
-    // Lamps sit on the bow flanks: further back and closer in on the slim GLB hull, which tapers early.
-    const lampX = kilo ? L / 2 - 1.9 * K : L / 2 - 0.9;
-    const lampY = kilo ? -0.2 * K : -0.55;
-    const lampZ = kilo ? 0.55 * K : 0.75;
+    // Lamps sit on the bow flanks: slightly back on the tapered GLB bow, spaced so both twin beams read cleanly.
+    const lampX = kilo ? L / 2 - 2.1 * K : L / 2 - 0.9;
+    const lampY = kilo ? 0.15 * K : -0.35;
+    const lampZ = kilo ? 0.68 * K : 0.75;
     for (const s of [-1, 1]) {
+      const tilt = LAMP_TILT + s * 0.05;
+      const yaw = s * 0.08;
+      const dir = new THREE.Vector3(Math.cos(tilt) * Math.cos(yaw), -Math.sin(tilt), Math.cos(tilt) * Math.sin(yaw)).normalize();
       heads.push(new THREE.SphereGeometry(0.13 * K, 12, 8).translate(lampX, lampY, s * lampZ));
-      const b = new THREE.ConeGeometry(1.6 * K, 9 * K, 16, 1, true);
-      b.translate(0, -4.5 * K, 0);
-      b.rotateZ(PI / 2 - LAMP_TILT);
+      const b = createBeamConeGeometry(Math.tan(LAMP_OUTER * 0.85) * BEAM_LENGTH, BEAM_LENGTH, 20, 4);
+      b.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir));
       b.translate(lampX, lampY, s * lampZ);
       beams.push(b);
       // The same lamp lights the seabed (exterior-ocean spec, intro-sequence "Headlamps light the seabed").
       const marker = new THREE.Object3D();
       marker.name = 'exterior-lamp';
       marker.position.set(lampX, lampY, s * lampZ);
-      marker.userData['exteriorLamp'] = { dir: [Math.cos(LAMP_TILT), -Math.sin(LAMP_TILT), 0], color: 0xfff1d0, intensity: 40, range: 22, inner: 0.16, outer: 0.3 };
+      marker.userData['exteriorLamp'] = { dir: [dir.x, dir.y, dir.z], color: 0xfff1d0, intensity: 48, range: 24, inner: 0.12, outer: LAMP_OUTER };
       group.add(marker);
     }
-    group.add(new THREE.Mesh(mergeGeometries(heads, false) ?? heads[0]!, lamp), new THREE.Mesh(mergeGeometries(beams, false) ?? beams[0]!, beamMat));
+    const beamMesh = new THREE.Mesh(mergeGeometries(beams, false) ?? beams[0]!, beamMat);
+    beamMesh.name = 'supply_sub:beams';
+    beamMesh.renderOrder = 2;
+    beamMesh.userData['skipGtao'] = true;
+    group.add(new THREE.Mesh(mergeGeometries(heads, false) ?? heads[0]!, lamp), beamMesh);
     const port = new THREE.Mesh(new THREE.SphereGeometry(0.08 * K, 8, 6), red);
     port.position.set(0.4, sailTop, -0.4 * K);
     const star = new THREE.Mesh(new THREE.SphereGeometry(0.08 * K, 8, 6), green);
@@ -575,9 +584,10 @@ const GEN: Record<string, Gen> = {
     place(docked ? 1 : 0);
     pb.tick((t) => {
       now = t;
+      beamMat.uniforms['uTime']!.value = t;
       const blink = Math.floor(t * 1.2) % 2 === 0;
-      red.emissiveIntensity = blink ? 3 : 0.2;
-      green.emissiveIntensity = blink ? 0.2 : 3;
+      red.emissiveIntensity = blink ? 3.5 : 0.2;
+      green.emissiveIntensity = blink ? 0.2 : 3.5;
       if (mode === 'docking' || mode === 'leaving') {
         if (start === null) start = t;
         const k = (t - start) / dur;

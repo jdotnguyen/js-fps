@@ -250,14 +250,13 @@
     {
      "kit": "supply_sub",
      "pos": [
-      5,
+      2.5,
       0.4,
       -9
      ],
      "params": {
       "state": "away",
-      "dockTime": 10,
-      "alignBow": true
+      "dockTime": 10
      }
     },
     {
@@ -684,7 +683,7 @@
     {
      "id": "sub_dock",
      "pos": [
-      5,
+      2.5,
       0.4,
       -9
      ]

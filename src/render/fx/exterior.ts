@@ -168,6 +168,7 @@ const BEAM_VERT = /* glsl */ `
 const BEAM_FRAG = /* glsl */ `
   uniform float uTime;
   uniform float uLevel;
+  uniform float uBody;
   varying float vAlong;
   varying vec3 vWorld;
   varying vec3 vNormalW;
@@ -181,14 +182,15 @@ const BEAM_FRAG = /* glsl */ `
     // Marine snow drifting down through the light.
     vec3 sp = vWorld * 9.0 + vec3(sin(uTime * 0.2) * 2.0, uTime * 1.1, 0.0);
     float snow = step(0.992, h3(floor(sp))) * (0.6 + 0.4 * sin(uTime * 3.0 + h3(floor(sp) + 1.0) * 20.0));
-    vec3 col = vec3(1.0, 0.95, 0.82) * (0.035 * face * body + snow * 0.5 * body);
+    vec3 col = vec3(1.0, 0.95, 0.82) * (uBody * face * body + snow * 0.5 * body);
     col *= uLevel * (1.0 - waterFog(length(vWorld - cameraPosition)));
     gl_FragColor = vec4(col, 1.0);
   }`;
 
-function beamMaterial(): THREE.ShaderMaterial {
+/** Soft-edged volumetric underwater light beam with drifting marine snow and water-fog fade. */
+export function createExteriorBeamMaterial(level = 1, body = 0.035): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
-    uniforms: { ...exteriorUniforms, uTime: { value: 0 }, uLevel: { value: 1 } },
+    uniforms: { ...exteriorUniforms, uTime: { value: 0 }, uLevel: { value: level }, uBody: { value: body } },
     vertexShader: BEAM_VERT,
     fragmentShader: BEAM_FRAG,
     transparent: true,
@@ -199,15 +201,21 @@ function beamMaterial(): THREE.ShaderMaterial {
   });
 }
 
-/** Open cone from the lamp (apex) along `direction`; `aAlong` is 0 at the lamp and 1 at the far end. */
-function beamGeometry(lamp: Floodlight): THREE.BufferGeometry {
-  const length = lamp.range * 0.75;
-  const g = new THREE.ConeGeometry(Math.tan(lamp.outer * 0.85) * length, length, 20, 4, true);
+/** Open beam cone along -Y from the apex (y = 0, aAlong = 0) to the far end (y = -length, aAlong = 1). */
+export function createBeamConeGeometry(radius: number, length: number, radialSegments = 20, heightSegments = 4): THREE.BufferGeometry {
+  const g = new THREE.ConeGeometry(radius, length, radialSegments, heightSegments, true);
   g.translate(0, -length / 2, 0);
   const pos = g.getAttribute('position');
   const along = new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i++) along[i] = -pos.getY(i) / length;
   g.setAttribute('aAlong', new THREE.BufferAttribute(along, 1));
+  return g;
+}
+
+/** Open cone from the lamp (apex) along `direction`; `aAlong` is 0 at the lamp and 1 at the far end. */
+function beamGeometry(lamp: Floodlight): THREE.BufferGeometry {
+  const length = lamp.range * 0.75;
+  const g = createBeamConeGeometry(Math.tan(lamp.outer * 0.85) * length, length);
   g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), lamp.direction));
   g.translate(lamp.position.x, lamp.position.y, lamp.position.z);
   return g;
@@ -299,8 +307,8 @@ export function buildExterior(o: ExteriorOptions): Exterior {
   const floodlights = placeFloodlights(windowRuns(o.windows));
   const lensSteady = new THREE.MeshBasicMaterial({ color: new THREE.Color(LAMP_COLOR).multiplyScalar(3), toneMapped: false, fog: false });
   const lensFlicker = lensSteady.clone();
-  const beamSteady = beamMaterial();
-  const beamFlicker = beamMaterial();
+  const beamSteady = createExteriorBeamMaterial(1);
+  const beamFlicker = createExteriorBeamMaterial(1);
   const bodies: THREE.BufferGeometry[] = [];
   const lenses = { steady: [] as THREE.BufferGeometry[], flicker: [] as THREE.BufferGeometry[] };
   const beams = { steady: [] as THREE.BufferGeometry[], flicker: [] as THREE.BufferGeometry[] };

@@ -45,7 +45,7 @@ const DOOR_CLIPS: Record<DoorKit, DoorClipSpec> = {
   bulkhead: {
     open: 'doorBulkheadOpen',
     close: 'doorBulkheadClose',
-    fallback: 'subClamp',
+    fallback: 'metalKnock',
     gain: 0.9,
     reverb: 0.4,
   },

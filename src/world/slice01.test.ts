@@ -323,6 +323,19 @@ test('slice01 props react to their events (sub, briefing screen, Lab B blinds)',
   (events.emit as (n: string, p: unknown) => void)('intro:sub_dock', {});
   run(16);
   assert.ok(sub.visible && Math.abs(sub.position.x) < 1e-3 && Math.abs(sub.position.y) < 1e-3, 'sub docked');
+  // Docked bow spotlights sit in view through the R01 dock window (X in [2, 14]) and aim forward & down onto the seabed.
+  sub.updateWorldMatrix(true, true);
+  const subHeadlamps: THREE.Object3D[] = [];
+  sub.traverse((o) => void (o.name === 'exterior-lamp' && subHeadlamps.push(o)));
+  assert.equal(subHeadlamps.length, 2, 'two bow spotlight markers on docked sub');
+  for (const lamp of subHeadlamps) {
+    const wp = new THREE.Vector3().setFromMatrixPosition(lamp.matrixWorld);
+    const meta = lamp.userData['exteriorLamp'] as { dir: [number, number, number]; range: number };
+    assert.ok(wp.x >= 2 && wp.x <= 14, `headlamp X=${wp.x.toFixed(2)} sits inside R01 dock window [2, 14]`);
+    assert.ok(wp.y > -4.5, `headlamp Y=${wp.y.toFixed(2)} sits above the seabed`);
+    assert.ok(meta.dir[0] > 0.5 && meta.dir[1] < -0.2, 'headlamp aims forward and downward onto the seabed');
+  }
+  assert.ok(sub.getObjectByName('supply_sub:beams'), 'volumetric bow spotlight beams mesh exists');
   eye.set(8, 1.7, 17.4);
   run(0.2);
   const screen = find('screen:brief_screen') as THREE.Mesh;

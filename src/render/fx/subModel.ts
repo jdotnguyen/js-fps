@@ -14,7 +14,7 @@ import { dequantizeForTransform } from '../gltf.ts';
 const MODEL_URL = 'assets/models/vehicles/kilo_submarine.glb';
 
 /** Size multiplier on the base fit (a 14.5 m boat that suited the dock cradle). 1 keeps the original proportions to the dock. */
-export const SUB_SCALE = 10;
+export const SUB_SCALE = 1;
 /** Hull length after scaling (m). The old procedural sub was 9 m. */
 export const SUB_LENGTH = 14.5 * SUB_SCALE;
 
