@@ -52,12 +52,14 @@ interface RawJointSet {
   jointSetLimits(handle: number, axis: RAPIER.JointAxis, min: number, max: number): void;
   jointConfigureMotorPosition(handle: number, axis: RAPIER.JointAxis, targetPos: number, stiffness: number, damping: number): void;
   jointSetMotorMaxForce(handle: number, axis: RAPIER.JointAxis, maxForce: number): void;
+  jointConfigureMotorModel(handle: number, axis: RAPIER.JointAxis, model: RAPIER.MotorModel): void;
 }
 const rawJoints = (j: RAPIER.ImpulseJoint): RawJointSet => (j as unknown as { rawSet: RawJointSet }).rawSet;
 
-export const createRapierEngine: PhysicsEngineFactory = async (gravity = { x: 0, y: -9.81, z: 0 }) => {
+export const createRapierEngine: PhysicsEngineFactory = async (opts = {}) => {
   await initRapier();
-  const world = new RAPIER.World(gravity);
+  const world = new RAPIER.World(opts.gravity ?? { x: 0, y: -9.81, z: 0 });
+  if (opts.solverIterations !== undefined) world.numSolverIterations = opts.solverIterations;
   const events = new RAPIER.EventQueue(true);
   const tags = new Map<number, number>();
   const jointKinds = new Map<number, JointDesc['kind']>();
@@ -149,6 +151,13 @@ export const createRapierEngine: PhysicsEngineFactory = async (gravity = { x: 0,
       if (d.friction !== undefined) desc.setFriction(d.friction);
       if (d.restitution !== undefined) desc.setRestitution(d.restitution);
       if (d.contactEvents) desc.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
+      if (d.noCollideGroup !== undefined) {
+        const g = d.noCollideGroup;
+        if (!Number.isInteger(g) || g < 1 || g > 15) throw new Error(`rapier: noCollideGroup ${g} is outside 1..15`);
+        // Membership: group bit g. Filter: everything except group g. Bit 0 is the default group of everything else.
+        const groups = (((1 << g) & 0xffff) << 16) | (0xffff & ~(1 << g));
+        desc.setCollisionGroups(groups);
+      }
       const c = world.createCollider(desc, parent === null ? undefined : body(parent));
       if (d.tag !== undefined) tags.set(c.handle, d.tag);
       return c.handle as ColliderHandle;
@@ -204,6 +213,7 @@ export const createRapierEngine: PhysicsEngineFactory = async (gravity = { x: 0,
       for (const [key, axis] of axes) {
         const angle = target?.angles[key];
         if (target && angle !== undefined) {
+          raw.jointConfigureMotorModel(j.handle, axis, target.model === 'force' ? RAPIER.MotorModel.ForceBased : RAPIER.MotorModel.AccelerationBased);
           raw.jointConfigureMotorPosition(j.handle, axis, angle, target.stiffness, target.damping);
           raw.jointSetMotorMaxForce(j.handle, axis, target.maxForce ?? UNCAPPED);
         } else {
@@ -231,6 +241,18 @@ export const createRapierEngine: PhysicsEngineFactory = async (gravity = { x: 0,
       const b = body(h);
       if (at) b.applyImpulseAtPoint(impulse, at, true);
       else b.applyImpulse(impulse, true);
+    },
+    setVelocity(h, lin, ang) {
+      const b = body(h);
+      b.setLinvel(lin, true);
+      b.setAngvel(ang, true);
+    },
+    angvel(h, out = { x: 0, y: 0, z: 0 }) {
+      const v = body(h).angvel();
+      out.x = v.x;
+      out.y = v.y;
+      out.z = v.z;
+      return out;
     },
     setBodyKind(h, kind) {
       body(h).setBodyType(KIND[kind], true);

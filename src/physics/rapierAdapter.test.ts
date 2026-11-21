@@ -52,7 +52,7 @@ test('destroying everything leaves zero live bodies, colliders and joints', asyn
 });
 
 test('a fast body with CCD reports its first contact on a thin wall and stays on its side', async () => {
-  const e = await createRapierEngine({ x: 0, y: 0, z: 0 });
+  const e = await createRapierEngine({ gravity: { x: 0, y: 0, z: 0 } });
   e.createCollider({ shape: { kind: 'cuboid', halfExtents: { x: 0.05, y: 2, z: 2 } }, offset: { x: 2, y: 0, z: 0 }, tag: 7 }, null);
   const limb = e.createBody({ kind: 'dynamic', position: { x: 0, y: 0, z: 0 }, linvel: { x: 60, y: 0, z: 0 }, ccd: true });
   e.createCollider({ shape: { kind: 'capsule', halfHeight: 0.2, radius: 0.06 }, contactEvents: true, tag: 9 }, limb);
@@ -131,5 +131,26 @@ test('a ball-joint motor holds a target pose against gravity, and releasing it l
     fallen = Math.min(fallen, e.transform(arm).position.y);
   }
   assert.ok(fallen < held - 0.2, `released arm falls (y ${held.toFixed(2)} -> lowest ${fallen.toFixed(2)})`);
+  e.destroy();
+});
+
+test('colliders in the same no-collide group pass through each other but still land on the floor', async () => {
+  const e = await createRapierEngine();
+  floor(e);
+  const drop = (x: number, y: number, group?: number): BodyHandle => {
+    const b = e.createBody({ kind: 'dynamic', position: { x, y, z: 0 } });
+    e.createCollider({ shape: { kind: 'cuboid', halfExtents: { x: 0.25, y: 0.25, z: 0.25 } }, ...(group === undefined ? {} : { noCollideGroup: group }) }, b);
+    return b;
+  };
+  // Two boxes stacked in the same group fall through each other onto the floor; two ungrouped ones stack.
+  const lowA = drop(0, 0.25, 3);
+  const highA = drop(0, 1.5, 3);
+  const lowB = drop(3, 0.25);
+  const highB = drop(3, 1.5);
+  run(e, 3);
+  assert.ok(e.transform(highA).position.y < 0.4, `grouped box ends on the floor (y = ${e.transform(highA).position.y.toFixed(2)})`);
+  assert.ok(e.transform(lowA).position.y > 0.2, 'and the floor still holds the grouped box');
+  assert.ok(e.transform(highB).position.y > 0.6, 'ungrouped boxes stack');
+  assert.ok(e.transform(lowB).position.y > 0.2);
   e.destroy();
 });

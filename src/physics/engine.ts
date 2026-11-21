@@ -55,6 +55,11 @@ export interface ColliderDesc {
   contactEvents?: boolean;
   /** Free-form tag returned with contacts and ray hits, e.g. the `CollisionWorld` collider id. */
   tag?: number;
+  /**
+   * Colliders sharing a group (1..15) never collide with each other, but still collide with everything else.
+   * One group per ragdoll keeps its overlapping limb and torso shapes from pushing each other apart.
+   */
+  noCollideGroup?: number;
 }
 
 /** Angle limits in radians, per joint-local axis. Omitted axes are free. */
@@ -78,6 +83,11 @@ export interface MotorTarget {
   damping: number;
   /** Cap on the motor's torque; omitted means uncapped. */
   maxForce?: number;
+  /**
+   * 'acceleration' (default): stiffness and damping ignore the bodies' mass, so the same numbers suit any limb.
+   * 'force': stiffness and damping are real torque gains, so heavy chains need larger numbers.
+   */
+  model?: 'acceleration' | 'force';
 }
 
 export interface Contact {
@@ -124,6 +134,9 @@ export interface PhysicsEngine {
   /** Kinematic bodies: the pose reached by the end of the next step. Others: teleport. */
   setTransform(body: BodyHandle, t: Transform): void;
   applyImpulse(body: BodyHandle, impulse: V3, at?: V3): void;
+  /** Set a dynamic body's linear and angular velocity (world space; angular in rad/s). */
+  setVelocity(body: BodyHandle, linvel: V3, angvel: V3): void;
+  angvel(body: BodyHandle, out?: V3): V3;
   setBodyKind(body: BodyHandle, kind: BodyKind): void;
   transform(body: BodyHandle, out?: Transform): Transform;
   linvel(body: BodyHandle, out?: V3): V3;
@@ -137,5 +150,14 @@ export interface PhysicsEngine {
   destroy(): void;
 }
 
-/** Creates an engine with gravity; async because engines load WebAssembly on first use. */
-export type PhysicsEngineFactory = (gravity?: V3) => Promise<PhysicsEngine>;
+export interface EngineOptions {
+  gravity?: V3;
+  /**
+   * Constraint solver iterations per step. More iterations hold long joint chains (a ragdoll's spine under the
+   * weight of its upper body) closer to their targets, at a proportional step-time cost.
+   */
+  solverIterations?: number;
+}
+
+/** Creates an engine; async because engines load WebAssembly on first use. */
+export type PhysicsEngineFactory = (opts?: EngineOptions) => Promise<PhysicsEngine>;

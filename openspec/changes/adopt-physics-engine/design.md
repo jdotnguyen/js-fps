@@ -112,7 +112,7 @@ Fill in at each gate (heaviest slice scene, High, target desktop PC, scratch slo
 
 | Block | Engine chunk (gz) | Physics step avg / peak | JS heap delta | Notes |
 |---|---|---|---|---|
-| B0 | | | | |
+| B0 | 1.66 MB (compat build, wasm inlined; 4.3 MB raw) | 0.48 / 1.50 ms: bench of 6 ragdolls (14 bodies each) + 24 limbs, 108 bodies, 78 joints | not measured | Sandbox `?physics` [B], 2026-11-21, this Windows machine, pane hidden (background tab); re-measure with the pane visible at the B1 gate |
 | B1 | | | | |
 | B2 | | | | |
 | B3 | | | | |
@@ -121,12 +121,31 @@ Fill in at each gate (heaviest slice scene, High, target desktop PC, scratch slo
 
 ## Block 0 result
 
-(in progress; final scores and the decision come with task 1.6)
+**Recommendation: keep Rapier, with one design change.** Rapier meets every D2 bar except pose-matching through joint motors, which it cannot do on a ragdoll chain under gravity. Driving each body toward its animated pose in world space meets that bar instead. Block 4 (D7) should use world-space pose driving, not joint motors. Awaiting the author's sign-off (task 1.8); Jolt (task 1.7) is optional, see below.
 
-Findings so far (2026-11-21, `@dimforge/rapier3d-compat` 0.21.0):
-- Initialises under Node in about 32 ms, so headless physics tests work. The browser check comes with the sandbox panel (1.4).
+Scores against the D2 table (2026-11-21, `@dimforge/rapier3d-compat` 0.21.0, procedural shambler, 14-body trial ragdoll in `src/physics/trialRagdoll.ts`, tests in `src/physics/trialRagdoll.test.ts`, browser panel `/sandbox/actors.html?physics`):
+
+| Criterion | Bar | Result |
+|---|---|---|
+| Ragdoll stability | must | **Pass.** Dropped flat: settles in 2.7 s, no body below the floor, joints stay attached (0 cm gap). Chest shot on stairs: falls back along the shot, rests on the steps, settles in 6 s (under the 8 s freeze window). No jitter at rest. |
+| Pose-matching | returns within 2 cm per bone by 0.6 s | **Joint motors: fail.** Spherical-joint motors cannot hold a standing pose against gravity: the spine and chest sag, leaving 6-34 cm error depending on stiffness and solver iterations (4-32). Rapier's exact multibody joints would fix the chain, but its JS build exposes no motors on them. **World-space drive: pass.** Each body is pulled to its animated pose by a damped spring with velocity and gravity feed-forward (kinematic pelvis): it holds within 1.9 cm, a shotgun-strength shove pushes it 5.3 cm, and it is back within 3 cm in 0.03 s. In the browser it holds within 0.3-0.6 cm. |
+| Step time, 6 ragdolls + 24 debris | within the D8 budget (1.5 ms average, 3 ms peak) | **Pass.** 0.48 ms average, 1.50 ms peak (see Measurements). |
+| Runs under Node | must | **Pass.** Initialises in about 32 ms; all physics tests run headlessly. |
+| Download size | recorded | 1.66 MB gzipped lazy chunk (compat build). |
+
+What the trial changed in the plan:
+- **Bodies:** 14, not 11. The feet need their own bodies: fixed to the shins, they turned with a bent knee and dug into the floor.
+- **Elbows:** tightly limited ball joints, not hinges. The animated elbow also twists and leans, which a hinge cannot follow.
+- **Self-collision:** a ragdoll's own parts must not collide (`noCollideGroup`), or the overlapping limb and torso shapes push each other apart.
+- **Hit reactions (Block 4, D7):** the world-space drive is stiff (recovers in a few frames). A visible stagger needs the per-region stiffness drop D7 already plans.
+- **Imported bodies:** untested. The trial uses the procedural rig, whose rest rotations are identity. Imported models need joint frames taken from their rest pose (Block 3).
+
+**Jolt (task 1.7).** By D2's rule, failing the motor bar triggers a Jolt comparison of the pose-driven case. The world-space drive meets the outcome the bar describes, and it is also what Jolt itself offers as "drive to pose using kinematics". A Jolt trial would only test whether its constraint motors make a better-looking powered ragdoll. Recommendation: skip it unless Block 4 playtests show the world-space drive looks wrong.
+
+Detailed findings:
+- Initialises under Node in about 32 ms and in the browser (sandbox panel), so headless physics tests work.
 - Size: the compat build inlines its WebAssembly, so the lazy chunk is about 4.3 MB raw and 1.66 MB gzipped. The non-compat `@dimforge/rapier3d` loads a separate .wasm file (3.1 MB raw) and would need Vite WebAssembly support; revisit only if the chunk size matters.
-- Limits and motors: Rapier's typed wrapper exposes angle limits only on single-axis joints, and `getImpulseJoint` returns joints without their motor methods. The raw joint set has per-axis `jointSetLimits` and `jointConfigureMotorPosition` for every joint, and the adapter uses those. Ball joints get per-axis angle limits, not a true swing cone like Jolt's SwingTwist constraint. Whether that looks right on shoulders and hips is what the death-ragdoll case in 1.4 judges.
+- Limits and motors: Rapier's typed wrapper exposes angle limits only on single-axis joints, and `getImpulseJoint` returns joints without their motor methods. The raw joint set has per-axis `jointSetLimits` and `jointConfigureMotorPosition` for every joint, and the adapter uses those. Ball joints get per-axis angle limits, not a true swing cone like Jolt's SwingTwist constraint. On the death ragdolls (flat and stairs) these held without visible over-rotation.
 - Releasing a motor needs a zero force cap. Zero stiffness and damping alone still drag the axis (measured).
 - Adapter tests (`src/physics/rapierAdapter.test.ts`) pass: landing and sleep, zero live objects after destroy, CCD contact on a thin wall with no tunnelling, raycasts with disabled colliders, hinge and ball limits holding, and a ball-joint motor holding a pose and releasing it.
 

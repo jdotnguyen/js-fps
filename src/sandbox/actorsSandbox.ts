@@ -143,6 +143,10 @@ async function boot(): Promise<void> {
   const gore = new GoreSystem(new Rng('sandbox-gore'));
   scene.add(gore.group);
   const flashlight = new Flashlight(scene, camera);
+  // adopt-physics-engine Block 0 trial (`?physics`), loaded lazily so the engine is fetched only then.
+  const trial = new URLSearchParams(location.search).has('physics')
+    ? await import('./physicsTrial.ts').then((m) => m.createPhysicsTrial(scene, { poses, gore }, mats))
+    : null;
 
   // ---------------------------------------------------------------- humanoids
   const actors: Actor[] = [];
@@ -325,6 +329,7 @@ async function boot(): Promise<void> {
   });
   addEventListener('keydown', (e) => {
     if (e.repeat) return;
+    if (trial?.key(e.code, camera)) return;
     if (e.code === 'KeyH') {
       hitboxes = !hitboxes;
       for (const a of actors) a.h.showHitboxes(hitboxes);
@@ -529,6 +534,7 @@ async function boot(): Promise<void> {
       }
       shake = Math.max(0, shake - dt * 2.2);
       gore.update(dt);
+      trial?.update(dt);
       input.endStep();
     },
     render: (_alpha, frameDt) => {
@@ -556,6 +562,7 @@ async function boot(): Promise<void> {
         lastSlam,
         `alive ${alive}/${actors.length}   debris ${gore.activeDebris}   pools ${gore.activePools}`,
         `tris/body ${tris}   draw calls ${info.calls}   ${fps.toFixed(0)} fps`,
+        ...(trial?.hud() ?? []),
       ].join('\n');
     },
   });

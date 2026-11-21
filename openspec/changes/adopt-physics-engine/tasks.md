@@ -4,12 +4,12 @@ Each numbered group is one isolated block (design D1): one commit or PR, its swi
 
 ## 1. Block 0: Engine trial (sandbox only)
 
-- [ ] 1.1 Install `@dimforge/rapier3d-compat`, and check that it initialises in the browser and under `node --experimental-strip-types` with a one-line init script (Node done 2026-11-21: rapier 0.21.0 inits in about 32 ms; browser check pending with 1.4)
+- [x] 1.1 Install `@dimforge/rapier3d-compat`, and check that it initialises in the browser and under `node --experimental-strip-types` with a one-line init script (2026-11-21: rapier 0.21.0 inits in about 32 ms under Node, and in the browser via the sandbox panel)
 - [x] 1.2 Define the engine interface in `src/physics/engine.ts` (bodies, colliders, joints, motor targets, step, transforms, contact events, raycast, destroy) and verify it type-checks with `npm run typecheck`
 - [x] 1.3 Write `src/physics/rapierAdapter.ts` against it, and verify it passes an adapter test (a dropped box lands on a fixed box, a destroyed world reports zero live objects)
-- [ ] 1.4 Add a physics trial panel to `actorsSandbox` with three cases (limb thrown at a wall, death ragdoll on stairs, pose-driven ragdoll taking a shoulder hit), and verify all three run in the browser
-- [ ] 1.5 Measure step time (6 ragdolls + 24 debris) on the target desktop PC and the gzipped chunk size, and record them in design.md "Measurements" (B0)
-- [ ] 1.6 Check Rapier against the D2 pass bars and write "Block 0 result" in design.md
+- [x] 1.4 Add a physics trial panel to `actorsSandbox` with three cases (limb thrown at a wall, death ragdoll on stairs, pose-driven ragdoll taking a shoulder hit), and verify all three run in the browser
+- [x] 1.5 Measure step time (6 ragdolls + 24 debris) on the target desktop PC and the gzipped chunk size, and record them in design.md "Measurements" (B0) (B0 row recorded; pane was hidden, re-measure visibly at the B1 gate)
+- [x] 1.6 Check Rapier against the D2 pass bars and write "Block 0 result" in design.md
 - [ ] 1.7 Only if Rapier fails the motor pose-matching bar: install `jolt-physics`, write `src/physics/joltAdapter.ts` passing the same adapter test, build the pose-driven case in it, compare, then keep one engine and delete the other's adapter and dependency; verify `npm run build` and the adapter test pass. Otherwise mark this task skipped in the Block 0 result
 - [ ] 1.8 Gate: review the Block 0 result with the author and get sign-off on the engine choice before group 2
 
