@@ -15,13 +15,13 @@ Each numbered group is one isolated block (design D1): one commit or PR, its swi
 
 ## 2. Block 1: Physics world (no visible change)
 
-- [ ] 2.1 Add `physics` switches to `core/settings.ts` and the `?physics=` URL override (design D9), and verify with settings unit tests (defaults off, URL parsing, persistence)
-- [ ] 2.2 Add `src/physics/load.ts`, which lazy-imports the engine when a level loads and any switch is on, plus `available()`; give the engine its own chunk in `vite.config.ts`. Verify with a build check that the title-screen chunks contain no engine code, and that all switches off never fetches it (`physics-world`: Physics loads on demand)
-- [ ] 2.3 Add `src/physics/world.ts` (`PhysicsWorld`), stepped inside the fixed-step loop and skipped while paused; verify with a Node test that pausing freezes bodies and 30/60 fps runs give the same fall time (`physics-world`: Fixed simulation step)
-- [ ] 2.4 Mirror `CollisionWorld` colliders as fixed cuboids and hook door toggles from `level.ts`; verify with `src/physics/mirror.test.ts` on a small test room (counts and bounds match, a body is blocked by a closed door and passes an open one, a body in a closing door is pushed out)
-- [ ] 2.5 Destroy and rebuild `PhysicsWorld` on level and checkpoint loads; verify with a test that five restarts leave zero leaked bodies, colliders or joints
+- [x] 2.1 Add `physics` switches to `core/settings.ts` and the `?physics=` URL override (design D9), and verify with settings unit tests (defaults off, URL parsing, persistence)
+- [x] 2.2 Add `src/physics/load.ts`, which lazy-imports the engine when a level loads and any switch is on, plus `available()`; give the engine its own chunk in `vite.config.ts`. Verify with a build check that the title-screen chunks contain no engine code, and that all switches off never fetches it (`physics-world`: Physics loads on demand)
+- [x] 2.3 Add `src/physics/world.ts` (`PhysicsWorld`), stepped inside the fixed-step loop and skipped while paused; verify with a Node test that pausing freezes bodies and 30/60 fps runs give the same fall time (`physics-world`: Fixed simulation step)
+- [x] 2.4 Mirror `CollisionWorld` colliders as fixed cuboids and hook door toggles from `level.ts`; verify with `src/physics/mirror.test.ts` on a small test room (counts and bounds match, a body is blocked by a closed door and passes an open one, a body in a closing door is pushed out)
+- [x] 2.5 Destroy and rebuild `PhysicsWorld` on level and checkpoint loads; verify with a test that five restarts leave zero leaked bodies, colliders or joints
 - [ ] 2.6 Add the `?debug` physics collider view with active/asleep/frozen colouring, and verify it visually in the browser on `slice01`
-- [ ] 2.7 Document the physics module, switches and debug view in `docs/physics.md`, and link it from AGENTS.md and README.md "Debug flags"
+- [x] 2.7 Document the physics module, switches and debug view in `docs/physics.md`, and link it from AGENTS.md and README.md "Debug flags"
 - [ ] 2.8 Gate: `npm test` passes with physics off; the slice plays unchanged with every switch on; B1 measurements recorded in design.md
 
 ## 3. Block 2: Severed debris

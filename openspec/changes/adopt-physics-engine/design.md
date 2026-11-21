@@ -56,7 +56,7 @@ If Rapier fails only the motor pose-matching case, Block 0 then builds the pose-
 *Alternative:* trial both engines on all three cases. Rejected: it roughly doubles Block 0 for a difference that matters in one block.
 
 ### D3. Static world mirrored from `CollisionWorld`, not authored twice
-At level load, every `CollisionWorld` collider becomes a fixed cuboid with the same bounds and a back-reference to its id and surface. Colliders tagged `door:*` are flipped with the engine's collider enable call from the same place `level.ts` sets `collider.enabled` (one hook, not a second door system). A box added or removed later goes through the same mirror. `CollisionWorld` stays authoritative, and physics never writes back to it.
+At level load, every `CollisionWorld` collider becomes a fixed cuboid with the same bounds and a back-reference to its id. *As built (Block 1):* rather than a hook in `level.ts`, `PhysicsWorld` re-reads every mirrored collider's `enabled` flag each step (doors toggle theirs) and mirrors colliders added since: one source of truth, no door code touched, a few hundred boolean reads per step. A collider that comes back (a door closing) first moves any body overlapping it out through its thinnest horizontal side, since the solver alone pushed bodies down through the floor. Engine queries (raycasts, overlaps) see colliders as of the last step. `CollisionWorld` stays authoritative, and physics never writes back to it.
 *Alternative:* derive physics colliders from render meshes. Rejected: it creates a second truth that tests don't cover and that differs from what the player collides with.
 
 ### D4. Fallback is the current code, kept on purpose

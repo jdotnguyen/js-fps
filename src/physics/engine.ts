@@ -113,6 +113,19 @@ export interface Transform {
   rotation: Quat;
 }
 
+/** One collider as the debug view draws it (world space). */
+export interface ColliderInfo {
+  collider: ColliderHandle;
+  /** Null for a fixed world collider (the level mirror). */
+  body: BodyHandle | null;
+  bodyKind: BodyKind | null;
+  sleeping: boolean;
+  enabled: boolean;
+  shape: ShapeDesc;
+  position: V3;
+  rotation: Quat;
+}
+
 export interface LiveCounts {
   bodies: number;
   colliders: number;
@@ -144,7 +157,12 @@ export interface PhysicsEngine {
   step(dt: number): void;
   /** Contacts that started since the last call. */
   drainContacts(): Contact[];
+  /** Queries (raycasts, overlaps) see colliders as of the last `step()`: create or move them, then step. */
   raycast(origin: V3, dir: V3, maxDistance: number, exclude?: BodyHandle): RayHit | null;
+  /** Dynamic bodies with a collider overlapping an axis-aligned box (as of the last step). */
+  overlappingBodies(center: V3, halfExtents: V3): BodyHandle[];
+  /** Visit every collider (debug view; allocates, so not for per-frame gameplay). */
+  forEachCollider(visit: (info: ColliderInfo) => void): void;
   liveCounts(): LiveCounts;
   /** Free every engine object; the engine is unusable afterwards. */
   destroy(): void;

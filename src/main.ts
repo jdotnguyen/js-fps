@@ -43,6 +43,9 @@ import { AudioEngine } from './audio/engine.ts';
 import { FootstepAudio } from './audio/footsteps.ts';
 import { MenuMusic } from './audio/menuMusic.ts';
 import { wallOccluder } from './audio/occlusion.ts';
+import { loadPhysics } from './physics/load.ts';
+import { anyPhysics, resolvePhysicsSwitches } from './physics/switches.ts';
+import { PhysicsWorld } from './physics/world.ts';
 import { ScorePlayer, type RenderedScore } from './audio/scorePlayer.ts';
 import { engineScoreAudio } from './audio/scoreAudio.ts';
 import type { ScoreWorkerReply } from './audio/scoreWorker.ts';
@@ -136,6 +139,9 @@ async function boot(): Promise<void> {
 
   const events = new EventBus();
   const settings = new SettingsStore(events);
+  // Physics feature switches for this session (adopt-physics-engine D9): the setting, or a `?physics=` override.
+  const physics = resolvePhysicsSwitches(settings.get().physics, location.search);
+  if (physics.unknown.length) console.warn(`[physics] unknown features in ?physics=: ${physics.unknown.join(', ')}`);
   const flags = readDebugFlags(location.search);
   readDetailFlag(location.search);
   // All data goes through validators so bad JSON fails here with a readable path.
@@ -251,6 +257,8 @@ async function boot(): Promise<void> {
   if (levelId) {
     const file = Object.entries(LEVEL_FILES).find(([path]) => path.endsWith(`/${levelId}.json`));
     if (!file) throw new Error(`No level '${levelId}'. Known: ${Object.keys(LEVEL_FILES).map((f) => f.replace(/^.*\/|\.json$/g, '')).join(', ')}`);
+    // The physics engine downloads alongside the level when any feature is on; nothing waits for it (D10).
+    void loadPhysics(physics.switches);
     const [
       levelJson,
       { loadLevel },
@@ -415,6 +423,20 @@ async function boot(): Promise<void> {
   // Each named character's own clips (per-character-motion) load with the bodies, as their own chunks.
   await Promise.all([bodyModels.load(import.meta.env.BASE_URL), loadMocapPacks(sharedMocapLibrary(), Object.keys(sharedMotionProfiles().profiles))]);
   const collisionWorld = world.playerWorld.colliders instanceof CollisionWorld ? world.playerWorld.colliders : null;
+  // adopt-physics-engine Block 1: one physics world mirroring the level's collision, once the engine has loaded.
+  // Until then (or with every switch off, or if it fails) it stays null and every feature uses its fallback.
+  let physicsWorld: PhysicsWorld | null = null;
+  if (collisionWorld && anyPhysics(physics.switches)) {
+    void loadPhysics(physics.switches).then(async (factory) => {
+      if (!factory) return;
+      physicsWorld = await PhysicsWorld.create(factory, collisionWorld);
+      console.info(`[physics] ${physicsWorld.engine.name}: ${physicsWorld.staticCount} level colliders mirrored`);
+    });
+  }
+  // Restarts (new game, loads, death) rebuild the world empty, so nothing from the last attempt survives.
+  const resetPhysics = (): void => void physicsWorld?.reset();
+  events.on('level:reset', resetPhysics);
+  events.on('game:restarted', resetPhysics);
   // One wall test for footsteps and every other positional sound (in-world-audio: World sound occlusion).
   const occluder = collisionWorld ? wallOccluder((...ray) => collisionWorld.raycast(...ray)) : null;
   const footsteps = new FootstepAudio({
@@ -900,6 +922,9 @@ async function boot(): Promise<void> {
 
   let debug: DebugTools | null = null;
   let levelStats: { drawCalls: number; pool: number } | null = null;
+  // `?debug` physics panel (adopt-physics-engine task 2.6): collider view and step timing.
+  let physicsView: import('./physics/debugView.ts').PhysicsDebugView | null = null;
+  const physicsStats = { engine: 'not loaded', stepAvgMs: 0, stepPeakMs: 0 };
   if (flags.enabled) {
     debug = await createDebugTools();
     const gui = debug.gui;
@@ -1044,6 +1069,16 @@ async function boot(): Promise<void> {
       lf.add(levelStats, 'pool').name('pooled lights bound').listen().disable();
     }
     enemies.addDebug(gui);
+    const { PhysicsDebugView } = await import('./physics/debugView.ts');
+    physicsView = new PhysicsDebugView();
+    physicsView.visible = false;
+    scene.add(physicsView.group);
+    const physicsFolder = gui.addFolder('Physics');
+    physicsFolder.add(physicsView, 'visible').name('show colliders');
+    physicsFolder.add(physicsStats, 'engine').listen().disable();
+    physicsFolder.add(physicsStats, 'stepAvgMs').name('step avg ms').listen().disable();
+    physicsFolder.add(physicsStats, 'stepPeakMs').name('step peak ms').listen().disable();
+    physicsFolder.close();
     gui.close();
   }
 
@@ -1079,6 +1114,8 @@ async function boot(): Promise<void> {
       simTime += dt;
       game.update(dt);
       if (game.mode === 'playing' && !game.flying) {
+        // Physics steps first, so everything after reads this step's bodies; a pause skips it (design D8).
+        physicsWorld?.step(dt);
         sequences?.update(dt);
         enemies.update(dt);
         squad.update(dt, camera.position);
@@ -1107,6 +1144,15 @@ async function boot(): Promise<void> {
         levelStats.pool = level.pool.boundCount();
       }
       audio.updateListener(camera);
+      if (physicsView) {
+        physicsView.update(physicsWorld?.engine ?? null);
+        if (physicsWorld) {
+          const s = physicsWorld.stats();
+          physicsStats.engine = physicsWorld.engine.name;
+          physicsStats.stepAvgMs = Math.round(s.avgMs * 1000) / 1000;
+          physicsStats.stepPeakMs = Math.round(s.peakMs * 1000) / 1000;
+        }
+      }
       roomAudio?.update(simTime);
       ambience?.update(simTime, camera.position);
       post.grade.uDamage.value = game.mode === 'title' || game.flying ? 0 : player.damageFx;

@@ -4,6 +4,12 @@ import type { EventBus } from './events.ts';
 export const TUTORIAL_MODES = ['first', 'always', 'off'] as const;
 export type TutorialMode = (typeof TUTORIAL_MODES)[number];
 
+/** Physics features (adopt-physics-engine, design D9). Each stays off until its block's gate passes. */
+export const PHYSICS_FEATURES = ['debris', 'ragdoll', 'powered', 'interact'] as const;
+export type PhysicsFeature = (typeof PHYSICS_FEATURES)[number];
+export type PhysicsSwitches = Readonly<Record<PhysicsFeature, boolean>>;
+export const PHYSICS_OFF: PhysicsSwitches = Object.freeze({ debris: false, ragdoll: false, powered: false, interact: false });
+
 /** Player settings persisted to localStorage. Grows with ADR-0012. */
 export interface Settings {
   mouseSensitivity: number;
@@ -25,6 +31,8 @@ export interface Settings {
   skipAssist: boolean;
   /** Tutorial pop-ups: first time only (per profile), always, or off (ADR-0025). */
   tutorialPrompts: TutorialMode;
+  /** Physics feature switches; a `?physics=` URL flag overrides them for one session (`physics/switches.ts`). */
+  physics: PhysicsSwitches;
 }
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
@@ -43,6 +51,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   skipHoldSeconds: 3,
   skipAssist: false,
   tutorialPrompts: 'first',
+  physics: PHYSICS_OFF,
 });
 
 const STORAGE_KEY = 'js-fps:settings:v1';
@@ -52,11 +61,12 @@ const STORAGE_KEY = 'js-fps:settings:v1';
  * (and are a known option for string unions), so a bad save can't break boot.
  */
 export function mergeSettings(stored: unknown): Settings {
-  const out: Settings = { ...DEFAULT_SETTINGS };
+  const out: Settings = { ...DEFAULT_SETTINGS, physics: { ...PHYSICS_OFF } };
   if (typeof stored !== 'object' || stored === null) return out;
   const src = stored as Record<string, unknown>;
   const qualities: readonly string[] = ['low', 'medium', 'high'];
   for (const key of Object.keys(DEFAULT_SETTINGS) as Array<keyof Settings>) {
+    if (key === 'physics') continue;
     const v = src[key];
     if (typeof v !== typeof DEFAULT_SETTINGS[key]) continue;
     if (key === 'quality' && !qualities.includes(v as string)) continue;
@@ -66,6 +76,16 @@ export function mergeSettings(stored: unknown): Settings {
     if (key === 'skipHoldSeconds' && ((v as number) < 1.5 || (v as number) > 6)) continue;
     (out as unknown as Record<string, unknown>)[key] = v;
   }
+  out.physics = mergePhysicsSwitches(src['physics']);
+  return out;
+}
+
+/** Field by field: only known features with boolean values survive; the rest keep their default (off). */
+export function mergePhysicsSwitches(stored: unknown): PhysicsSwitches {
+  const out: Record<PhysicsFeature, boolean> = { ...PHYSICS_OFF };
+  if (typeof stored !== 'object' || stored === null) return out;
+  const src = stored as Record<string, unknown>;
+  for (const f of PHYSICS_FEATURES) if (typeof src[f] === 'boolean') out[f] = src[f];
   return out;
 }
 

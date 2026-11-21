@@ -30,3 +30,17 @@ test('bus volumes keep valid values and drop out-of-range ones', () => {
   assert.equal(s.sfxVolume, 1);
   assert.equal(s.voiceVolume, 1);
 });
+
+test('physics switches default off and merge field by field (adopt-physics-engine D9)', () => {
+  assert.deepEqual(DEFAULT_SETTINGS.physics, { debris: false, ragdoll: false, powered: false, interact: false });
+  const s = mergeSettings({ physics: { debris: true, ragdoll: 'yes', cloth: true } });
+  assert.deepEqual(s.physics, { debris: true, ragdoll: false, powered: false, interact: false });
+  assert.ok(!('cloth' in s.physics));
+  assert.deepEqual(mergeSettings({ physics: 'on' }).physics, DEFAULT_SETTINGS.physics);
+  assert.notEqual(mergeSettings(null).physics, DEFAULT_SETTINGS.physics, 'a fresh object, never the frozen default');
+});
+
+test('physics switches survive a save round trip', () => {
+  const saved = JSON.parse(JSON.stringify({ ...DEFAULT_SETTINGS, physics: { debris: true, ragdoll: true, powered: false, interact: false } }));
+  assert.deepEqual(mergeSettings(saved).physics, { debris: true, ragdoll: true, powered: false, interact: false });
+});

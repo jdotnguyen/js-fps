@@ -10,6 +10,8 @@ import type {
   BodyKind,
   ColliderDesc,
   ColliderHandle,
+  ColliderInfo,
+  ShapeDesc,
   Contact,
   JointDesc,
   JointHandle,
@@ -309,6 +311,43 @@ export const createRapierEngine: PhysicsEngineFactory = async (opts = {}) => {
         point: { x: origin.x + d.x * t, y: origin.y + d.y * t, z: origin.z + d.z * t },
         normal: { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z },
       };
+    },
+
+    overlappingBodies(center, half) {
+      const found = new Set<number>();
+      world.intersectionsWithShape(center, IDENTITY, new RAPIER.Cuboid(half.x, half.y, half.z), (c) => {
+        const parent = c.parent();
+        if (parent) found.add(parent.handle);
+        return true;
+      }, RAPIER.QueryFilterFlags.ONLY_DYNAMIC);
+      return [...found] as BodyHandle[];
+    },
+
+    forEachCollider(visit: (info: ColliderInfo) => void) {
+      world.forEachCollider((c) => {
+        let shape: ShapeDesc;
+        const type = c.shapeType();
+        if (type === RAPIER.ShapeType.Ball) shape = { kind: 'ball', radius: c.radius() };
+        else if (type === RAPIER.ShapeType.Capsule) shape = { kind: 'capsule', halfHeight: c.halfHeight(), radius: c.radius() };
+        else if (type === RAPIER.ShapeType.Cuboid) {
+          const h = c.halfExtents()!;
+          shape = { kind: 'cuboid', halfExtents: { x: h.x, y: h.y, z: h.z } };
+        } else return;
+        const parent = c.parent();
+        const kind: BodyKind | null = !parent ? null : parent.isFixed() ? 'fixed' : parent.isKinematic() ? 'kinematic' : 'dynamic';
+        const p = c.translation();
+        const r = c.rotation();
+        visit({
+          collider: c.handle as ColliderHandle,
+          body: parent ? (parent.handle as BodyHandle) : null,
+          bodyKind: kind,
+          sleeping: parent?.isSleeping() ?? false,
+          enabled: c.isEnabled(),
+          shape,
+          position: { x: p.x, y: p.y, z: p.z },
+          rotation: { x: r.x, y: r.y, z: r.z, w: r.w },
+        });
+      });
     },
 
     liveCounts(): LiveCounts {

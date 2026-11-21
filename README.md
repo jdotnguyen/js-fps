@@ -28,6 +28,8 @@ npm run dev
 ## Debug flags
 
 Add to the URL: `?debug` (stats, lil-gui), later `?seq=<sequence id>` and `?cp=<checkpoint id>`.
+`?physics=off`, `?physics` or `?physics=debris,ragdoll` switch physics features for one session; the debug panel's
+Physics folder draws the colliders ([docs/physics.md](docs/physics.md)).
 
 ## Current state
 
