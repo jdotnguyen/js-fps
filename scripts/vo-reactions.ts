@@ -1,101 +1,31 @@
 /**
- * Generates character-matched non-verbal vocal reactions (screams, gasps, grunts, choking)
- * in 3 variants per character/gender using each character's established Gemini TTS voice,
- * then wires the variant arrays into the 10 remaining non-verbal dialogue lines.
+ * Generates character-matched non-verbal vocal reactions (gasps, grunts, cries, choking, panting) in 3 variants
+ * per batch, using each speaker's voice and pinned model from `scripts/lib/voCast.ts`, then wires the variant
+ * arrays into the non-verbal dialogue lines. Batches live in `scripts/lib/voReactionBatches.ts`.
+ *
+ * There is no model fallback and no `--models` flag. Every generated batch is appended to `scripts/vo-takes.json`.
  *
  * Usage:
  *   node --experimental-strip-types scripts/vo-reactions.ts --apply
+ *   node --experimental-strip-types scripts/vo-reactions.ts --only <batch> --apply
+ *   node --experimental-strip-types scripts/vo-reactions.ts --only <batch> --per-take --apply   (one request per take)
  *   node --experimental-strip-types scripts/vo-reactions.ts --resplit --apply
+ *
+ * Screams, cries (including Giles's) and Jay's startled shouts are not TTS: they are credited OpenGameArt recordings (CREDITS.md), have no
+ * batch here, and are only referenced by LINE_POOLS.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-
+import { castFor } from './lib/voCast.ts';
+import { REACTION_BATCHES, reactionVoice, type ReactionBatch } from './lib/voReactionBatches.ts';
+import { recordBatch } from './lib/voTakes.ts';
+import { printReport, requestTts, runBatches } from './lib/voTts.ts';
 const ROOT = resolve(import.meta.dirname, '..');
 const DIALOGUE_DIR = join(ROOT, 'src/data/dialogue');
 const OUT_DIR = join(ROOT, 'public/assets/vo');
 const BATCH_DIR = join(ROOT, 'previews/vo-batches');
 const SAMPLE_RATE = 24000;
-const MODELS = [
-  'gemini-3.8-flash-lite-tts',
-  'gemini-3.8-flash-tts',
-  'gemini-3.1-flash-tts-preview',
-  'gemini-2.5-flash-preview-tts',
-];
-
-interface ReactionTake {
-  id: string;
-  direction: string;
-  vocalization: string;
-}
-
-interface ReactionBatch {
-  name: string;
-  voice: string;
-  character: string;
-  takes: ReactionTake[];
-}
-
-const BATCHES: ReactionBatch[] = [
-  {
-    name: 'react_jay_male',
-    voice: 'Orus',
-    character: 'Jay, 30s male security officer (grounded, steady lower-mid male voice)',
-    takes: [
-      { id: 'react_jay_scare_01', direction: 'sudden startled shout when grabbed from behind, raw sharp reflex', vocalization: 'Ah!' },
-      { id: 'react_jay_scare_02', direction: 'startled flinch gasp at an explosion or jump scare', vocalization: 'Gah!' },
-      { id: 'react_jay_scare_03', direction: 'sharp terrified intake gasp and clipped yelp', vocalization: 'Hh— ah!' },
-      { id: 'react_jay_pain_01', direction: 'tight pained effort grunt while shoving a monster off', vocalization: 'Hngh!' },
-      { id: 'react_jay_pain_02', direction: 'strained struggling grunt of pain', vocalization: 'Nngh— agh!' },
-      { id: 'react_jay_pain_03', direction: 'low winded grunt taking a sudden hit', vocalization: 'Ughh!' },
-    ],
-  },
-  {
-    name: 'react_giles_male',
-    voice: 'Algenib',
-    character: 'August Giles, 42 male engineer (weathered, gravelly male voice)',
-    takes: [
-      { id: 'react_giles_cry_01', direction: 'raw strangled cry of sudden pain and horror, cut short', vocalization: 'Aaaagh!' },
-      { id: 'react_giles_cry_02', direction: 'choked guttural agonized cry in a gravelly voice', vocalization: 'Ghh— aaaagh!' },
-      { id: 'react_giles_cry_03', direction: 'desperate strained yell of sharp pain', vocalization: 'Nngh— aaah!' },
-    ],
-  },
-  {
-    name: 'react_priya_female',
-    voice: 'Sulafat',
-    character: 'Priya Anand, 29 female medical nurse (warm female voice, now utterly terrified in a horror scene)',
-    takes: [
-      { id: 'react_priya_scream_01', direction: 'raw terrified horror scream as she is grabbed in the dark', vocalization: 'Aaaahhh!' },
-      { id: 'react_priya_scream_02', direction: 'panicked desperate two-part shriek of terror', vocalization: 'Aaaah! Aaaaahhh!' },
-      { id: 'react_priya_scream_03', direction: 'agonized prolonged horror scream fading out', vocalization: 'Aaaaaaahhh!' },
-      { id: 'react_priya_choke_01', direction: 'choking and gasping desperately for air', vocalization: 'Kh— khh— agh!' },
-      { id: 'react_priya_choke_02', direction: 'air-starved strangled choking and gagging breaths', vocalization: 'Ghk— hh— khh!' },
-      { id: 'react_priya_choke_03', direction: 'weak ragged choked wheeze struggling to breathe', vocalization: 'Hkh— ghh— hh!' },
-    ],
-  },
-  {
-    name: 'react_voss_female',
-    voice: 'Leda',
-    character: 'Dr. Lena Voss, 34 female microbiologist (sharp female voice, terrified and transforming behind lab glass)',
-    takes: [
-      { id: 'react_voss_scream_01', direction: 'piercing raw horror scream of agony and terror', vocalization: 'Aaaaaahhh!' },
-      { id: 'react_voss_scream_02', direction: 'ragged agonized horror shriek breaking in the throat', vocalization: 'Aaaagh— aaaaahhh!' },
-      { id: 'react_voss_scream_03', direction: 'frantic terrified scream over station comms', vocalization: 'Aaaahhh! Aah!' },
-    ],
-  },
-  {
-    // Her panic as the thing crawls up her arm (infection-kills spec, the scratch beat: sound `voss_panic_breath`). Its own batch so
-    // `--only react_voss_panic` never regenerates her credited OpenGameArt screams above.
-    name: 'react_voss_panic',
-    voice: 'Leda',
-    character: 'Dr. Lena Voss, 34 female microbiologist (sharp female voice, something is moving under the skin of her arm)',
-    takes: [
-      { id: 'react_voss_panic_01', direction: 'fast shallow terrified panting, breath catching, close to the mic', vocalization: 'Hh— hh— hh— hhh—' },
-      { id: 'react_voss_panic_02', direction: 'choked whimpering sobs of disgust and fear, trying not to scream', vocalization: 'Nn— nnh— oh god— nnh—' },
-      { id: 'react_voss_panic_03', direction: 'ragged hyperventilating gasps turning into a whimper', vocalization: 'Hah— hah— hahh— nnnh—' },
-    ],
-  },
-];
 
 /** Maps each non-verbal dialogue line to its 3-variant character-matched reaction pool. */
 const LINE_POOLS: Record<string, string[]> = {
@@ -257,6 +187,7 @@ function buildPrompt(batch: ReactionBatch): string {
   return [
     '# AUDIO PROFILE',
     `- ${batch.character}`,
+    ...(castFor(batch.speaker).accent ? [`- Accent: ${castFor(batch.speaker).accent}.`] : []),
     '',
     '## THE SCENE',
     'Sci-fi survival horror game recording session (Alien: Isolation / Dead Space feel). Performing pure raw human non-verbal vocal reactions (screams, gasps, grunts, choking).',
@@ -266,52 +197,13 @@ function buildPrompt(batch: ReactionBatch): string {
     '- Sound genuinely human, visceral, and cinematic — not cartoonish or robotic.',
     '- Emotional direction for each separate take:',
     guide,
-    '- IMPORTANT: Leave a completely silent 2.5-second pause between each separate reaction take so each one can be cut cleanly.',
+    batch.takes.length > 1
+      ? '- IMPORTANT: Leave a completely silent 2.5-second pause between each separate reaction take so each one can be cut cleanly.'
+      : '- Perform this one reaction once, then stop. No repeats, no extra breaths or words.',
     '',
     '### TRANSCRIPT',
     script,
   ].join('\n');
-}
-
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-
-async function requestBatch(apiKey: string, batch: ReactionBatch): Promise<{ pcm: Buffer; model: string }> {
-  const prompt = buildPrompt(batch);
-  for (const model of MODELS) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseModalities: ['AUDIO'],
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: batch.voice } } },
-          },
-        }),
-      });
-      if (res.ok) {
-        const json = (await res.json()) as {
-          candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { data?: string } }> } }>;
-        };
-        const b64 = json.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData?.data;
-        if (b64) return { pcm: Buffer.from(b64, 'base64'), model };
-        console.warn(`[react] empty audio from ${model}, retrying...`);
-        await sleep(5_000);
-        continue;
-      }
-      const errText = await res.text();
-      if (res.status === 429 && /PerMinute|RPM|TPM/i.test(errText) && !/PerDay|RPD|limit:\s*(0|10)\b/i.test(errText) && attempt < 2) {
-        console.warn(`[react] RPM 429 on ${model}, waiting 24s...`);
-        await sleep(24_000);
-        continue;
-      }
-      console.warn(`[react] ${model} failed (${res.status}), trying next model...`);
-      break;
-    }
-  }
-  throw new Error(`All models failed for ${batch.name}`);
 }
 
 function applyPools(): number {
@@ -341,8 +233,13 @@ function applyPools(): number {
   return updated;
 }
 
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
+  if (args.includes('--models') || args.includes('--model')) {
+    throw new Error('--models was removed: reactions use their speaker\'s pinned model from scripts/lib/voCast.ts.');
+  }
   const resplit = args.includes('--resplit');
   const apply = args.includes('--apply');
   const onlyIdx = args.indexOf('--only');
@@ -350,36 +247,64 @@ async function main(): Promise<void> {
 
   mkdirSync(OUT_DIR, { recursive: true });
   mkdirSync(BATCH_DIR, { recursive: true });
-  const apiKey = resplit ? '' : loadEnvKey();
-  const batches = only ? BATCHES.filter((b) => only.has(b.name)) : BATCHES;
+  // --per-take sends one take per request, so nothing has to be cut apart. 3.1 tends to break a 3-take
+  // reaction batch into many short bursts that the splitter cannot group back into takes (2026-11-21).
+  // With --per-take, --only may also name single take ids, so one bad take can be redone on its own.
+  const perTake = args.includes('--per-take');
+  const isTake = (n: string): boolean => REACTION_BATCHES.some((b) => b.takes.some((t) => t.id === n));
+  if (only) {
+    const unknown = [...only].filter((n) => !REACTION_BATCHES.some((b) => b.name === n) && !(perTake && isTake(n)));
+    if (unknown.length > 0) throw new Error(`Unknown reaction batch(es): ${unknown.join(', ')}${perTake ? '' : ' (take ids need --per-take)'}`);
+  }
+  const units = perTake
+    ? REACTION_BATCHES.flatMap((b) => b.takes.map((t) => ({ ...b, name: t.id, takes: [t] }))).filter((u) => !only || only.has(u.name) || REACTION_BATCHES.some((b) => only.has(b.name) && b.speaker === u.speaker && b.takes.some((t) => t.id === u.name)))
+    : REACTION_BATCHES.filter((b) => !only || only.has(b.name));
+  const batches = units.map((b) => ({ ...b, speakers: [b.speaker], ...reactionVoice(b) }));
+  if (args.includes('--dry-run')) {
+    for (const b of batches) console.log(`  - ${b.name}: speaker=${b.speaker} voice=${b.voice} model=${b.model} takes=${b.takes.map((t) => t.id).join(', ')}`);
+    return;
+  }
 
+  const apiKey = resplit ? '' : loadEnvKey();
   let calls = 0;
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i]!;
+  const report = await runBatches(batches, async (batch, i) => {
     const wavPath = join(BATCH_DIR, `${batch.name}.wav`);
     if (!resplit) {
       if (calls > 0) await sleep(21_000);
-      console.log(`[react] (${i + 1}/${batches.length}) generating ${batch.name} (${batch.takes.length} takes, voice=${batch.voice})...`);
-      const { pcm, model } = await requestBatch(apiKey, batch);
-      writeFileSync(wavPath, pcmToWav(pcm, SAMPLE_RATE));
       calls++;
-      console.log(`[react] saved ${(pcm.length / 2 / SAMPLE_RATE).toFixed(2)}s via ${model}`);
+      console.log(`[react] (${i + 1}/${batches.length}) generating ${batch.name} (${batch.takes.length} takes, voice=${batch.voice}) via ${batch.model}...`);
+      const pcm = await requestTts({
+        apiKey,
+        model: batch.model,
+        prompt: buildPrompt(batch),
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: batch.voice } } },
+        label: batch.name,
+        maxAttempts: 2,
+      });
+      writeFileSync(wavPath, pcmToWav(pcm, SAMPLE_RATE));
+      console.log(`[react] saved ${(pcm.length / 2 / SAMPLE_RATE).toFixed(2)}s via ${batch.model}`);
+    } else if (!existsSync(wavPath)) {
+      throw new Error(`missing batch wav ${wavPath}`);
     }
     const { samples, sampleRate } = readWavPcm(wavPath);
     const segs = findReactionSplits(samples, sampleRate, batch.takes.length);
     for (let k = 0; k < batch.takes.length; k++) {
       const take = batch.takes[k]!;
       const seg = segs[k]!;
-      const outMp3 = join(OUT_DIR, `${take.id}.mp3`);
-      const dur = encodeClip(wavPath, seg.start, seg.end, outMp3);
+      const dur = encodeClip(wavPath, seg.start, seg.end, join(OUT_DIR, `${take.id}.mp3`));
       console.log(`  ✓ ${take.id.padEnd(24)} ${dur.toFixed(2).padStart(5)}s  "${take.vocalization}" (${take.direction})`);
     }
-  }
+    recordBatch(
+      { name: batch.name, speakers: [batch.speaker], voices: [batch.voice], model: batch.model, lines: batch.takes.map((t) => t.id) },
+      { resplit },
+    );
+  });
 
   if (apply) {
     const n = applyPools();
-    console.log(`[react] updated ${n} dialogue lines with 3-variant reaction pools`);
+    console.log(`[react] updated ${n} dialogue lines with reaction pools`);
   }
+  if (!printReport('react', report)) process.exitCode = 1;
 }
 
 main().catch((err) => {

@@ -1,125 +1,37 @@
 /**
- * Batched Gemini 2.5 Flash TTS generator + PCM silence-valley splitter (casting rules: docs/voice-casting-standard.md).
+ * Batched Gemini TTS generator + PCM silence-valley splitter (casting rules: docs/voice-casting-standard.md).
  *
  * Generates acted voice-over clips for dialogue lines in `src/data/dialogue/*.json`,
  * saves raw batch WAVs to `previews/vo-batches/` (gitignored, so re-splitting costs 0 API calls),
  * encodes normalized mono MP3s to `public/assets/vo/<id>.mp3`, and optionally patches
  * `"audio": "assets/vo/<id>.mp3"` into the dialogue chapter JSONs.
  *
- * Usage:
- *   npm run vo:generate -- --mode audition --apply
- *   npm run vo:generate -- --mode all --apply
- *   npm run vo:generate -- --resplit audition --apply   (0 API calls: re-splits saved WAVs)
+ * Each batch is sent only to its speakers' pinned model from `scripts/lib/voCast.ts`. There is no model
+ * fallback and no `--models` flag: when a quota runs out, the run stops that model's batches and lists them.
+ * Every generated batch is appended to `scripts/vo-takes.json`.
+ *
+ * Usage (call node directly; PowerShell 5.1 strips `--` from `npm run`):
+ *   node --experimental-strip-types scripts/vo-generate.ts --ids <id1,id2> --apply
+ *   node --experimental-strip-types scripts/vo-generate.ts --mode all --apply
+ *   node --experimental-strip-types scripts/vo-generate.ts --ids <id1,id2> --resplit --apply   (0 API calls)
+ *   node --experimental-strip-types scripts/vo-generate.ts --mode all --dry-run
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { DialogueChapter, DialogueLine, Emote } from '../src/data/types/dialogue.ts';
+import { allBatches, idsBatches, maxBatchSeconds, type BatchSpec } from './lib/voBatches.ts';
+import { batchModel, castFor, promptProfile } from './lib/voCast.ts';
+import { recordBatch } from './lib/voTakes.ts';
+import { printReport, requestTts, runBatches, type SpeechConfig } from './lib/voTts.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const DIALOGUE_DIR = join(ROOT, 'src/data/dialogue');
 const OUT_DIR = join(ROOT, 'public/assets/vo');
 const BATCH_DIR = join(ROOT, 'previews/vo-batches');
-const DEFAULT_MODELS = [
-  'gemini-2.5-pro-preview-tts',
-  'gemini-3.1-flash-tts-preview',
-  'gemini-3.8-flash-tts',
-  'gemini-3.8-flash-lite-tts',
-  'gemini-2.5-flash-preview-tts',
-];
 const SAMPLE_RATE = 24000;
 const DEFAULT_DELAY_MS = 21_000;
 const DEFAULT_BATCH_SIZE = 14;
-
-interface CastMember {
-  label: string;
-  voice: string;
-  profile: string;
-}
-
-/** Casting matched to docs/characters.md and src/data/dialogue/speakers.json. */
-const CAST: Record<string, CastMember> = {
-  engineer: {
-    label: 'Giles',
-    voice: 'Algenib',
-    profile: 'August Giles, 42, weathered deep-sea systems engineer, blue-collar, gravelly warmth, wry dry humour hiding exhaustion and nerves.',
-  },
-  medic: {
-    label: 'Okafor',
-    voice: 'Charon',
-    profile: 'Dr. Tomas Okafor, 50s, deep warm calm trauma surgeon; disciplined, measured authority; voice drops quiet when genuinely afraid.',
-  },
-  player: {
-    label: 'Jay',
-    voice: 'Orus',
-    profile: 'Jay, 30s, steady grounded station security officer; kind, attentive, conversational lower-mid male voice.',
-  },
-  nurse: {
-    label: 'Priya',
-    voice: 'Sulafat',
-    profile: 'Priya Anand, 29, warm cheerful sharp medical nurse; friendly, competent, affectionate teasing with coworkers.',
-  },
-  chief: {
-    label: 'Heins',
-    voice: 'Kore',
-    profile: 'Katie Heins, 38, no-nonsense security chief; crisp, brisk, firm, slightly annoyed by corporate secrecy.',
-  },
-  director: {
-    label: 'Hale',
-    voice: 'Rasalgethi',
-    profile: 'Director Hale, 48, smooth polished corporate station administrator; calm and rehearsed on intercom, clipped and nervous under stress.',
-  },
-  pa: {
-    label: 'StationPA',
-    voice: 'Gacrux',
-    profile: 'TAG Industries automated station PA voice; smooth, mature, calm, overly polite, detached retro-corporate announcement.',
-  },
-  crew_ruiz: {
-    label: 'Ruiz',
-    voice: 'Aoede',
-    profile: 'Ines Ruiz, 30s, relaxed breezy comms technician; friendly morning banter.',
-  },
-  crew_cook: {
-    label: 'Bram',
-    voice: 'Enceladus',
-    profile: 'Bram, 45, dry deadpan station cook; raspy, tired, wry humour.',
-  },
-  crew_sung: {
-    label: 'Sung',
-    voice: 'Achird',
-    profile: 'Sung, 30, friendly station diver just returning from shore leave; warm, easygoing.',
-  },
-  crew_lab: {
-    label: 'Voss',
-    voice: 'Leda',
-    profile: 'Dr. Lena Voss, 34, sharp anxious microbiologist; terrified and pleading when infected.',
-  },
-  crew_botanist: {
-    label: 'Botanist',
-    voice: 'Puck',
-    profile: 'Station hydroponics botanist; conversational, dryly amused, slightly exasperated.',
-  },
-  crew_assistant: {
-    label: 'Assistant',
-    voice: 'Despina',
-    profile: 'Director Hale administrative assistant; quiet, tense, anxious around corporate secrets.',
-  },
-  crew_mess: {
-    label: 'Crew',
-    voice: 'Fenrir',
-    profile: 'Casual off-shift station crew member in the mess hall; wry morning greeting.',
-  },
-  crew_maint: {
-    label: 'Maint',
-    voice: 'Iapetus',
-    profile: 'Tired maintenance tech in the dive bay; practical, low-key warning.',
-  },
-  crew_dock_guard: {
-    label: 'Guard',
-    voice: 'Alnilam',
-    profile: '40s, dock security guard who has scanned the same crew every morning for years; patient, dry, warm under the routine.',
-  },
-};
 
 const EMOTE_HINT: Record<Emote, string> = {
   neutral: 'natural, grounded, conversational',
@@ -133,14 +45,6 @@ const EMOTE_HINT: Record<Emote, string> = {
   dread: 'quiet, heavy, shaken, haunted gravity',
   scream: 'terrified, strained cry',
 };
-
-/** Pure non-verbal reactions work better as real/procedural SFX than TTS. */
-function isNonVerbalOnly(line: DialogueLine): boolean {
-  const t = line.text.trim();
-  if (/^\[.*\]$/.test(t)) return true;
-  if (/^(ah|agh|hngh|hh|ugh|oof|hm+)[!.\-?]*$/i.test(t)) return true;
-  return false;
-}
 
 function loadEnvKey(): string {
   if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY.trim();
@@ -388,25 +292,17 @@ function encodeClip(wavPath: string, start: number, end: number, outMp3: string)
 
 // ------------------------------------------------------------------ Gemini TTS API
 
-interface BatchSpec {
-  name: string;
-  speakers: string[];
-  lines: DialogueLine[];
-  sceneNote: string;
-}
-
 function buildPrompt(batch: BatchSpec): string {
   const isMulti = batch.speakers.length > 1;
   const profiles = batch.speakers
     .map((sp) => {
-      const c = CAST[sp] ?? { label: sp, voice: 'Charon', profile: 'Deep-sea station crew member.' };
-      return `- ${c.label}: ${c.profile}`;
+      return `- ${castFor(sp).label}: ${promptProfile(sp)}`;
     })
     .join('\n');
 
   const lineGuide = batch.lines
     .map((l, i) => {
-      const c = CAST[l.speaker] ?? { label: l.speaker, voice: 'Charon', profile: '' };
+      const c = castFor(l.speaker);
       const mood = EMOTE_HINT[l.emote ?? 'neutral'];
       return `${i + 1}. ${c.label} (${mood})`;
     })
@@ -416,7 +312,7 @@ function buildPrompt(batch: BatchSpec): string {
 
   const transcript = batch.lines
     .map((l) => {
-      const c = CAST[l.speaker] ?? { label: l.speaker, voice: 'Charon', profile: '' };
+      const c = castFor(l.speaker);
       const text = cleanForTts(l.text);
       return isMulti ? `${c.label}: ${text}` : text;
     })
@@ -441,91 +337,18 @@ function buildPrompt(batch: BatchSpec): string {
   ].join('\n');
 }
 
-class QuotaExhaustedError extends Error {
-  readonly model: string;
-  constructor(model: string, detail: string) {
-    super(`Daily/model quota exhausted on ${model}: ${detail}`);
-    this.model = model;
-  }
-}
-
-async function synthesizeBatch(apiKey: string, model: string, batch: BatchSpec): Promise<Buffer> {
-  const prompt = buildPrompt(batch);
-  const speechConfig =
-    batch.speakers.length > 1
-      ? {
-          multiSpeakerVoiceConfig: {
-            speakerVoiceConfigs: batch.speakers.map((sp) => {
-              const c = CAST[sp]!;
-              return { speaker: c.label, voiceConfig: { prebuiltVoiceConfig: { voiceName: c.voice } } };
-            }),
-          },
-        }
-      : {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: (CAST[batch.speakers[0]!] ?? CAST.medic)!.voice },
-          },
-        };
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-  const maxAttempts = 3;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
+function speechConfigFor(batch: BatchSpec): SpeechConfig {
+  if (batch.speakers.length > 1) {
+    return {
+      multiSpeakerVoiceConfig: {
+        speakerVoiceConfigs: batch.speakers.map((sp) => {
+          const c = castFor(sp);
+          return { speaker: c.label, voiceConfig: { prebuiltVoiceConfig: { voiceName: c.voice } } };
+        }),
       },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseModalities: ['AUDIO'],
-          speechConfig,
-        },
-      }),
-    });
-
-    if (res.ok) {
-      const json = (await res.json()) as {
-        candidates?: Array<{
-          content?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }> };
-          finishReason?: string;
-        }>;
-      };
-      const part = json.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
-      if (part?.inlineData?.data) return Buffer.from(part.inlineData.data, 'base64');
-      if (attempt < maxAttempts) {
-        console.warn(`[vo] empty audio on ${model} (finishReason=${json.candidates?.[0]?.finishReason ?? 'unknown'}), retrying (${attempt}/${maxAttempts})...`);
-        await sleep(5_000 * attempt);
-        continue;
-      }
-      throw new Error(`${model} returned no audio (finishReason=${json.candidates?.[0]?.finishReason ?? 'unknown'})`);
-    }
-
-    const errText = await res.text();
-    if (res.status === 429) {
-      const isPerMinute = /PerMinute|RPM|TPM/i.test(errText) && !/PerDay|RPD|limit:\s*0\b/i.test(errText);
-      const isDaily = /PerDay|RPD|limit:\s*(0|10)\b/i.test(errText);
-      if (isDaily && !isPerMinute) {
-        throw new QuotaExhaustedError(model, errText.slice(0, 260));
-      }
-      if (attempt < maxAttempts) {
-        const waitMs = 24_000 * attempt;
-        console.warn(`[vo] RPM 429 on ${model} (${batch.name}), waiting ${(waitMs / 1000).toFixed(0)}s (attempt ${attempt}/${maxAttempts})...`);
-        await sleep(waitMs);
-        continue;
-      }
-      throw new QuotaExhaustedError(model, errText.slice(0, 260));
-    }
-    if (res.status >= 500 && attempt < maxAttempts) {
-      const waitMs = 6_000 * attempt;
-      console.warn(`[vo] HTTP ${res.status} on ${model} (${batch.name}), retrying in ${(waitMs / 1000).toFixed(0)}s...`);
-      await sleep(waitMs);
-      continue;
-    }
-    throw new Error(`${model} HTTP ${res.status}: ${errText.slice(0, 400)}`);
+    };
   }
-  throw new Error(`Failed on ${model} after ${maxAttempts} attempts`);
+  return { voiceConfig: { prebuiltVoiceConfig: { voiceName: castFor(batch.speakers[0]!).voice } } };
 }
 
 // ------------------------------------------------------------------ Batch planning
@@ -566,94 +389,6 @@ function auditionBatches(byId: Map<string, DialogueLine>): BatchSpec[] {
   ];
 }
 
-function allBatches(allLines: DialogueLine[], force: boolean, batchSize: number, pairSmall: boolean): BatchSpec[] {
-  const pending = allLines.filter((l) => {
-    if (isNonVerbalOnly(l)) return false;
-    const outFile = join(OUT_DIR, `${l.id}.mp3`);
-    return force || !existsSync(outFile);
-  });
-
-  const bySpeaker = new Map<string, DialogueLine[]>();
-  for (const l of pending) {
-    const list = bySpeaker.get(l.speaker) ?? [];
-    list.push(l);
-    bySpeaker.set(l.speaker, list);
-  }
-
-  const batches: BatchSpec[] = [];
-  const small: Array<[string, DialogueLine[]]> = [];
-
-  for (const [sp, list] of bySpeaker) {
-    if (pairSmall && list.length <= Math.floor(batchSize / 2)) {
-      small.push([sp, list]);
-      continue;
-    }
-    const numChunks = Math.max(1, Math.ceil(list.length / batchSize), Math.ceil(list.reduce((s, l) => s + l.text.length, 0) / 800));
-    const perChunk = Math.ceil(list.length / numChunks);
-    for (let idx = 0; idx < numChunks; idx++) {
-      const chunk = list.slice(idx * perChunk, (idx + 1) * perChunk);
-      if (chunk.length === 0) continue;
-      batches.push({
-        name: `vo_${sp}_${String(idx + 1).padStart(2, '0')}`,
-        speakers: [sp],
-        lines: chunk,
-        sceneNote: `Thalassa Deep Research Station, 3000m underwater. Isolated character takes for ${CAST[sp]?.label ?? sp}.`,
-      });
-    }
-  }
-
-  // Pair small speakers into 2-speaker batches so we conserve daily model quota.
-  small.sort((a, b) => b[1].length - a[1].length);
-  for (let i = 0; i < small.length; i += 2) {
-    const a = small[i]!;
-    const b = small[i + 1];
-    if (b) {
-      batches.push({
-        name: `vo_${a[0]}_${b[0]}`,
-        speakers: [a[0], b[0]],
-        lines: [...a[1], ...b[1]],
-        sceneNote: 'Thalassa Deep Research Station, 3000m underwater. Isolated character takes for two crew members.',
-      });
-    } else {
-      batches.push({
-        name: `vo_${a[0]}_01`,
-        speakers: [a[0]],
-        lines: a[1],
-        sceneNote: `Thalassa Deep Research Station, 3000m underwater. Isolated character takes for ${CAST[a[0]]?.label ?? a[0]}.`,
-      });
-    }
-  }
-
-  return batches;
-}
-
-function idsBatches(byId: Map<string, DialogueLine>, ids: string[], batchSize: number): BatchSpec[] {
-  const bySpeaker = new Map<string, DialogueLine[]>();
-  for (const id of ids) {
-    const l = byId.get(id);
-    if (!l) throw new Error(`Unknown line id "${id}"`);
-    const list = bySpeaker.get(l.speaker) ?? [];
-    list.push(l);
-    bySpeaker.set(l.speaker, list);
-  }
-  const batches: BatchSpec[] = [];
-  for (const [sp, list] of bySpeaker) {
-    const numChunks = Math.max(1, Math.ceil(list.length / batchSize));
-    const perChunk = Math.ceil(list.length / numChunks);
-    for (let idx = 0; idx < numChunks; idx++) {
-      const chunk = list.slice(idx * perChunk, (idx + 1) * perChunk);
-      if (chunk.length === 0) continue;
-      batches.push({
-        name: `retake_${sp}_${String(idx + 1).padStart(2, '0')}`,
-        speakers: [sp],
-        lines: chunk,
-        sceneNote: `Thalassa Deep Research Station, 3000m underwater. Isolated retake lines for ${CAST[sp]?.label ?? sp}. Leave a VERY LONG, completely silent 3-second pause between each line and do not sigh or breathe during the pause.`,
-      });
-    }
-  }
-  return batches;
-}
-
 function applyAudioManifest(chapters: ChapterFile[]): number {
   let updated = 0;
   for (const ch of chapters) {
@@ -687,12 +422,11 @@ async function main(): Promise<void> {
     const i = args.indexOf(name);
     return i >= 0 ? args[i + 1] : undefined;
   };
+  if (args.includes('--models') || args.includes('--model')) {
+    throw new Error('--models was removed: each speaker is pinned to one model in scripts/lib/voCast.ts. To recast a speaker, change their entry there and re-record all their lines.');
+  }
   const mode = flagVal('--mode') ?? 'audition';
   const idsArg = flagVal('--ids');
-  const modelsArg = flagVal('--models') ?? flagVal('--model');
-  const models = modelsArg
-    ? modelsArg.split(',').map((s) => s.trim()).filter(Boolean)
-    : DEFAULT_MODELS;
   const resplit = args.includes('--resplit');
   const apply = args.includes('--apply');
   const force = args.includes('--force');
@@ -709,92 +443,68 @@ async function main(): Promise<void> {
   const allLines = chapters.flatMap((c) => c.data.lines);
   const byId = new Map(allLines.map((l) => [l.id, l]));
 
-  let batches = idsArg
+  let specs = idsArg
     ? idsBatches(byId, idsArg.split(',').map((s) => s.trim()).filter(Boolean), batchSize)
     : mode === 'all'
-      ? allBatches(allLines, force, batchSize, pairSmall)
+      ? allBatches(allLines, { force, batchSize, pairSmall, hasClip: (id) => existsSync(join(OUT_DIR, `${id}.mp3`)) })
       : auditionBatches(byId);
-  if (Number.isFinite(limit)) batches = batches.slice(0, limit);
+  if (Number.isFinite(limit)) specs = specs.slice(0, limit);
+  const batches = specs.map((b) => ({ ...b, model: batchModel(b.speakers) }));
 
-  console.log(`[vo] mode=${idsArg ? 'ids' : mode} batches=${batches.length} totalLines=${batches.reduce((s, b) => s + b.lines.length, 0)} batchSize=${batchSize} delay=${(delayMs / 1000).toFixed(1)}s models=[${models.join(' -> ')}] resplit=${resplit}`);
+  console.log(`[vo] mode=${idsArg ? 'ids' : mode} batches=${batches.length} totalLines=${batches.reduce((s, b) => s + b.lines.length, 0)} batchSize=${batchSize} delay=${(delayMs / 1000).toFixed(1)}s resplit=${resplit}`);
   if (dryRun) {
     for (const b of batches) {
-      console.log(`  - ${b.name}: speakers=[${b.speakers.join(', ')}] lines=${b.lines.length}`);
+      const voices = b.speakers.map((s) => castFor(s).voice).join(', ');
+      console.log(`  - ${b.name}: speakers=[${b.speakers.join(', ')}] voices=[${voices}] model=${b.model} lines=${b.lines.length}`);
     }
     return;
   }
 
   const apiKey = resplit ? '' : loadEnvKey();
-  let modelIdx = 0;
-  let lastCallModel = '';
+  const lastCallAt = new Map<string, number>();
   const flagged: Array<{ id: string; dur: number; expected: number; text: string }> = [];
-  const failedBatches: Array<{ name: string; error: string }> = [];
 
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i]!;
+  const report = await runBatches(batches, async (batch, i) => {
     const wavPath = join(BATCH_DIR, `${batch.name}.wav`);
-
-    try {
-      if (!resplit) {
-        let pcm: Buffer | null = null;
-        while (modelIdx < models.length && !pcm) {
-          const model = models[modelIdx]!;
-          if (lastCallModel === model && delayMs > 0) {
-            await sleep(delayMs);
-          }
-          console.log(`[vo] (${i + 1}/${batches.length}) requesting ${batch.name} (${batch.lines.length} lines) via ${model}...`);
-          try {
-            pcm = await synthesizeBatch(apiKey, model, batch);
-            lastCallModel = model;
-          } catch (err) {
-            if (err instanceof QuotaExhaustedError) {
-              console.warn(`[vo] ${model} quota exhausted; switching to next model...`);
-              modelIdx++;
-              lastCallModel = '';
-              continue;
-            }
-            // If a newer preview model rejects a request format, fall through cleanly too.
-            const msg = err instanceof Error ? err.message : String(err);
-            if (/HTTP (400|403|404)/.test(msg) && modelIdx + 1 < models.length) {
-              console.warn(`[vo] ${model} rejected request (${msg.slice(0, 140)}); switching to next model...`);
-              modelIdx++;
-              lastCallModel = '';
-              continue;
-            }
-            throw err;
-          }
-        }
-        if (!pcm) throw new Error('All configured TTS models exhausted their quotas');
-        writeFileSync(wavPath, pcmToWav(pcm, SAMPLE_RATE));
-        console.log(`[vo] saved raw batch ${(pcm.length / 2 / SAMPLE_RATE).toFixed(2)}s -> previews/vo-batches/${batch.name}.wav`);
-      } else if (!existsSync(wavPath)) {
-        console.warn(`[vo] skipping missing batch wav: ${wavPath}`);
-        continue;
+    if (!resplit) {
+      const since = Date.now() - (lastCallAt.get(batch.model) ?? -Infinity);
+      if (since < delayMs) await sleep(delayMs - since);
+      console.log(`[vo] (${i + 1}/${batches.length}) requesting ${batch.name} (${batch.lines.length} lines) via ${batch.model}...`);
+      lastCallAt.set(batch.model, Date.now());
+      const pcm = await requestTts({ apiKey, model: batch.model, prompt: buildPrompt(batch), speechConfig: speechConfigFor(batch), label: batch.name });
+      const seconds = pcm.length / 2 / SAMPLE_RATE;
+      if (seconds > maxBatchSeconds(batch.lines.length)) {
+        // Runaway output (minutes of silence, or the model trailing off). Keep it for inspection, write no clips.
+        writeFileSync(`${wavPath}.rejected`, pcmToWav(pcm, SAMPLE_RATE));
+        throw new Error(`runaway output: ${seconds.toFixed(0)}s for ${batch.lines.length} lines (max ${maxBatchSeconds(batch.lines.length)}s); no clips written, raw audio in ${batch.name}.wav.rejected`);
       }
-
-      const { samples, sampleRate } = readWavPcm(wavPath);
-      const segments = findSplits(samples, sampleRate, batch.lines);
-      for (let k = 0; k < batch.lines.length; k++) {
-        const line = batch.lines[k]!;
-        const seg = segments[k]!;
-        const outMp3 = join(OUT_DIR, `${line.id}.mp3`);
-        const dur = encodeClip(wavPath, seg.start, seg.end, outMp3);
-        const words = line.text.trim().split(/\s+/).length;
-        const expected = Math.max(0.6, words * 0.34);
-        const suspect = dur < expected * 0.45 || dur > expected * 3.0;
-        if (suspect) flagged.push({ id: line.id, dur, expected, text: line.text });
-        console.log(`  ✓ ${line.id.padEnd(28)} ${dur.toFixed(2).padStart(5)}s  (${line.speaker}/${line.emote ?? 'none'})  "${line.text}"${suspect ? '  <-- CHECK' : ''}`);
-      }
-      if (apply) {
-        const updated = applyAudioManifest(loadChapters());
-        if (updated > 0) console.log(`[vo] applied +${updated} manifest entries`);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[vo] batch ${batch.name} failed: ${msg}`);
-      failedBatches.push({ name: batch.name, error: msg });
+      writeFileSync(wavPath, pcmToWav(pcm, SAMPLE_RATE));
+      console.log(`[vo] saved raw batch ${(pcm.length / 2 / SAMPLE_RATE).toFixed(2)}s -> previews/vo-batches/${batch.name}.wav`);
+    } else if (!existsSync(wavPath)) {
+      throw new Error(`missing batch wav ${wavPath}`);
     }
-  }
+
+    const { samples, sampleRate } = readWavPcm(wavPath);
+    const segments = findSplits(samples, sampleRate, batch.lines);
+    for (let k = 0; k < batch.lines.length; k++) {
+      const line = batch.lines[k]!;
+      const seg = segments[k]!;
+      const dur = encodeClip(wavPath, seg.start, seg.end, join(OUT_DIR, `${line.id}.mp3`));
+      const words = line.text.trim().split(/\s+/).length;
+      const expected = Math.max(0.6, words * 0.34);
+      const suspect = dur < expected * 0.45 || dur > expected * 3.0;
+      if (suspect) flagged.push({ id: line.id, dur, expected, text: line.text });
+      console.log(`  ✓ ${line.id.padEnd(28)} ${dur.toFixed(2).padStart(5)}s  (${line.speaker}/${line.emote ?? 'none'})  "${line.text}"${suspect ? '  <-- CHECK' : ''}`);
+    }
+    recordBatch(
+      { name: batch.name, speakers: batch.speakers, voices: batch.speakers.map((s) => castFor(s).voice), model: batch.model, lines: batch.lines.map((l) => l.id) },
+      { resplit },
+    );
+    if (apply) {
+      const updated = applyAudioManifest(loadChapters());
+      if (updated > 0) console.log(`[vo] applied +${updated} manifest entries`);
+    }
+  });
 
   if (apply) {
     const count = applyAudioManifest(loadChapters());
@@ -804,11 +514,7 @@ async function main(): Promise<void> {
     console.log(`\n[vo] FLAGGED FOR CHECK (${flagged.length}):`);
     for (const f of flagged) console.log(`  - ${f.id} (${f.dur.toFixed(2)}s vs ~${f.expected.toFixed(2)}s): "${f.text}"`);
   }
-  if (failedBatches.length > 0) {
-    console.log(`\n[vo] FAILED BATCHES (${failedBatches.length}):`);
-    for (const f of failedBatches) console.log(`  - ${f.name}: ${f.error}`);
-    process.exitCode = 1;
-  }
+  if (!printReport('vo', report)) process.exitCode = 1;
 }
 
 main().catch((err) => {
