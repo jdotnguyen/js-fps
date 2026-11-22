@@ -9905,6 +9905,20 @@
      "rot": 90
     },
     {
+     "kit": "platform_trolley",
+     "pos": [
+      16.4,
+      0,
+      34.9
+     ],
+     "params": {
+      "id": "rov_trolley"
+     },
+     "dynamic": {
+      "mass": 45
+     }
+    },
+    {
      "kit": "pa_speaker",
      "pos": [
       17,
