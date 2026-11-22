@@ -189,3 +189,23 @@ test('a group enemy with a route to Jay is never removed, however long it chases
   assert.deepEqual(culled, []);
   assert.equal(dir.list.filter((e) => e.alive).length, 1);
 });
+
+// infection-kills "The fight is the creature": a group released from somewhere else starts there, with its look's body.
+test('spawnGroup from a place: the enemy starts there, faces that way, and wears the cast look', () => {
+  const { dir } = director();
+  dir.addTarget(stubTarget('player', [6, 0, 6], { grabbable: false }));
+  dir.setSpawns([{ id: 'r05_door', pos: [5, 0, 5], kind: 'door', group: 'contact', active: false, look: 'lab_creature' }]);
+  assert.ok(dir.spawnGroup('contact', { pos: { x: -3, y: 0, z: 1 }, yaw: 1.2 }));
+  run(dir, 1 / 60);
+  const e = dir.list[0]!;
+  assert.ok(e, 'it spawned');
+  assert.ok(Math.hypot(e.motor.x + 3, e.motor.z - 1) < 0.05, `at the given place (${e.motor.x.toFixed(2)}, ${e.motor.z.toFixed(2)})`);
+  assert.equal(e.body.spec.seed, 'lab-b-creature', "the creature's own body");
+  assert.equal(e.body.spec.height, 1.85);
+  assert.equal(e.group, 'contact');
+  // A reset forgets where the group was released from.
+  dir.reset();
+  dir.spawnGroup('contact');
+  run(dir, 1 / 60);
+  assert.ok(Math.hypot(dir.list[0]!.motor.x - 5, dir.list[0]!.motor.z - 5) < 0.05, 'from its own point again');
+});
