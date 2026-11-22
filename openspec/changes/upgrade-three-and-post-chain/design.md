@@ -199,6 +199,31 @@ Results after the fixes:
   - The two pool spots and the flashlight that had never rendered now hold a 1024² map each.
 - 1% lows: not comparable. Another agent held the CPU at 65%, so both pins averaged 57-60 fps with hitches down to single digits. Re-time at 2.4, and by hand in 4.2.
 
+**0.187.0 (2.4).** No code changes were needed.
+- **GTAO:** no retune. Between r181 and r186, `GTAOPass`'s shader diff only adds reversed-depth and orthographic paths, and the pins show the same AO as r183.
+- **Shadows:** radius 2 and the 2.3 biases still hold. The sofa shadow on the carpet and the flashlight's sofa-on-wall shadow are soft and attached, with no acne or peter-panning. r187's own `initShadowTexture` fix for the empty shadow-sampler placeholder makes `pauseShadow`'s first pass redundant but harmless, so it stays.
+- **R03 table glint varies per load.** In the R03 sofa pin, some loads show the bright environment reflection on the coffee table (as r170 does) and others don't. When it's missing, the lower-right blinds reflect more brightly.
+  - Both are environment-map reflections: they vanish at `environmentIntensity` 0.
+  - Ruled out: the light and shadow-pool state (identical on both kinds of load), stale shadow maps, GTAO, an occluder between the pendant and the table, regenerating the PMREM, and shader-program sharing.
+  - Not checked: whether r170 varies the same way. The shared r170 dev server was unusable at the time.
+  - Accepted as within mood (agreed with the user). The flashlight pin shows the glint on r187. Revisit if it is still visible after section 3.
+- **Capture note:** resizing the browser window while the game loads leaves the camera framing about 5% too tight. Load the page at the final window size before shooting pins.
+- **R03-pane timing pin:** `at` 8, 1.6, 18 and `look` 8, 1.2, 28, the same camera as the R04 screenshot pin. 1.1 did not record it.
+
+Results:
+- typecheck: 0 errors
+- `npm test`: the same 7 failures as r170
+- console: no three.js, shader or deprecation warnings
+- the four pins match r170 by eye, apart from the R03 glint above
+- 1% lows: 59.5 at the commons pin and 59.2 / 59.3 at the R03-pane pin. Later runs dropped frames while an unrelated process held the CPU at 50-68%.
+- GPU memory: 1014 MiB (textures 951, renderbuffers 44, buffers 19), 134 programs. That is 6 MiB under r170 and 70 under r183.
+
+**r187 `EffectComposer` reference (2.5).** Section 3 is compared against these, shot from the Baseline pins on the same window:
+- `baseline/r187-r02-commons.jpg`
+- `baseline/r187-r03-sofa.jpg` (a no-glint load)
+- `baseline/r187-r04-through-glass.jpg`
+- `baseline/r187-flashlight-sofa-wall.jpg`
+
 Unrelated to the upgrade: three ambience one-shots referenced in `sounds.ts` (`archPass`, `archAlarm`, `wandBeep`) are missing from `public/assets` on `foundation`. Each page load logs a decode warning for them.
 
 ## Open Questions
