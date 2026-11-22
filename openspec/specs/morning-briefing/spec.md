@@ -48,12 +48,16 @@ When `briefing_gallery` starts, Giles and Okafor SHALL walk briskly to their bri
 - **WHEN** `briefing_gallery` starts
 - **THEN** neither squadmate pops visibly in front of Jay; they walk briskly toward R03 and only catch up once out of Jay's view or behind the closing door
 
-### Requirement: Sung is present in the gallery for her briefing line
-Sung SHALL be present in R03 for the morning briefing so her spoken line (`brief_sung_01`) originates from her visible body in the room rather than from the Commons.
+### Requirement: Sung is present in the gallery for his briefing line
+Sung SHALL be present in R03 for the morning briefing so his spoken line (`brief_sung_01`) originates from his visible body in the room rather than from the Commons. After the intro he SHALL stay at his Commons spot beside Ruiz, and he SHALL only set off for R03 once Jay heads for the gallery door (`trigger:commons_to_gallery`), or when `briefing_gallery` starts if Jay never crossed it.
+
+#### Scenario: Free time in the Commons
+- **WHEN** the intro ends and Jay is still in the Commons
+- **THEN** Sung stays in the Commons and does not walk into the gallery ahead of Jay
 
 #### Scenario: Heins clears the divers' sample run
 - **WHEN** Heins says `brief_heins_02` and Sung replies with `brief_sung_01`
-- **THEN** Sung is visibly standing in R03 and her voice plays from her position in the room
+- **THEN** Sung is visibly standing in R03 and his voice plays from his position in the room
 
 ### Requirement: Gallery door locks during the briefing with a spoken cue
 Once Jay, Giles, and Okafor are inside R03 after Heins's opening beat, Heins SHALL speak a voiced line instructing them to lock the door behind them (`brief_heins_door`, recorded on her pinned voice and model), and `D_R02_R03` SHALL close and lock for the remainder of the briefing. If Jay stepped back out into the Commons before the door locks, `D_R02_R03` SHALL NOT lock him outside. When the briefing ends or is skipped, `D_R02_R03` SHALL return to unlocked (`closed`).
