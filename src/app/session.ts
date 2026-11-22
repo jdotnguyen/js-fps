@@ -3,6 +3,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { Keymap } from '../data/types/keymap.ts';
 import type { DifficultyId, DifficultyTable } from '../data/types/difficulty.ts';
 import type { ItemTable } from '../data/types/items.ts';
+import { levelValidator } from '../data/types/level.ts';
 import type { UiText } from '../data/types/uiText.ts';
 import type { ScoreTable } from '../data/types/scores.ts';
 import killsJson from '../data/kills.json';
@@ -77,7 +78,7 @@ import { loadSequences } from '../script/load.ts';
 import { SequenceManager } from '../script/runtime.ts';
 import { PlayerHud, keyLabel } from '../ui/hud/playerHud.ts';
 import type { SaveData, SaveStore } from '../game/save.ts';
-import { clearSharedMocapLibrary, sharedMocapLibrary } from '../actors/mocap.ts';
+import { clearSharedMocapLibrary, loadSharedMocapLibrary } from '../actors/mocap.ts';
 import { loadMocapPacks } from '../actors/mocapPacks.ts';
 import { sharedMotionProfiles } from '../actors/motionProfiles.ts';
 import { motionScene } from '../actors/motionScene.ts';
@@ -98,7 +99,7 @@ import type { SpawnPointData } from '../ai/spawner.ts';
 import { GoreSystem } from '../actors/gore.ts';
 import { PoseLibrary } from '../actors/poses.ts';
 import { Inventory } from '../game/inventory.ts';
-import type { MapModel, MapState } from '../ui/mapModel.ts';
+import { buildMapModel, MapState, type MapModel } from '../ui/mapModel.ts';
 import { Guidance } from '../game/guidance.ts';
 import { loadDialogueLibrary } from '../dialogue/load.ts';
 import { SpeechManager, type Hearing, type SayOptions } from '../dialogue/speech.ts';
@@ -358,6 +359,9 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
 
   try {
     const t0 = performance.now();
+    // The shared clip library is its own chunk (startup-bundle spec); fetch it alongside every other stage.
+    const mocapPromise = loadSharedMocapLibrary();
+    mocapPromise.catch(() => undefined); // awaited with the cast assets below; avoids an unhandled rejection if an earlier stage throws
     loading.setProgress(0.02, 'Initializing renderer…');
     await yieldFrame();
 
@@ -437,7 +441,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     const physicsPromise = levelId && anyPhysics(physics.switches) ? loadPhysics(physics.switches) : Promise.resolve(null);
     const castAssetsPromise = Promise.all([
       bodyModels.load(import.meta.env.BASE_URL),
-      loadMocapPacks(sharedMocapLibrary(), Object.keys(sharedMotionProfiles().profiles)),
+      mocapPromise.then((lib) => loadMocapPacks(lib, Object.keys(sharedMotionProfiles().profiles))),
       loadWeaponModels(),
     ]);
 
@@ -450,15 +454,12 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     if (levelId) {
       const file = Object.entries(LEVEL_FILES).find(([path]) => path.endsWith(`/${levelId}.json`));
       if (!file) throw new Error(`No level '${levelId}'. Known: ${Object.keys(LEVEL_FILES).map((f) => f.replace(/^.*\/|\.json$/g, '')).join(', ')}`);
-      const [levelJson, { loadLevel }, { KitRegistry: KitReg, validateKitManifest }, { levelValidator }, { default: kitManifestJson }, { buildMapModel, MapState: MapStateCtor }] =
-        await Promise.all([
-          file[1](),
-          import('../world/level.ts'),
-          import('../world/registry.ts'),
-          import('../data/types/level.ts'),
-          import('../data/kit-manifest.json'),
-          import('../ui/mapModel.ts'),
-        ]);
+      const [levelJson, { loadLevel }, { KitRegistry: KitReg, validateKitManifest }, { default: kitManifestJson }] = await Promise.all([
+        file[1](),
+        import('../world/level.ts'),
+        import('../world/registry.ts'),
+        import('../data/kit-manifest.json'),
+      ]);
       registry = new KitReg(validate(validateKitManifest, kitManifestJson, 'data/kit-manifest.json'), undefined);
       const refs = { items: new Set(Object.keys(itemTable)), uiText: new Set(Object.keys(uiText)) };
       const data = validate(levelValidator(registry.ids(), refs), levelJson, `data/levels/${levelId}.json`);
@@ -474,7 +475,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       levelSpawns = spawnPointsOf(data);
       world = level;
       mapModel = buildMapModel(level.source);
-      mapState = new MapStateCtor(mapModel);
+      mapState = new MapState(mapModel);
       console.info(`[session] level '${levelId}' built in ${(performance.now() - t0).toFixed(0)} ms`);
     } else if (levelParam === 'lab') {
       loading.setProgress(0.4, 'Loading laboratory sandbox…');

@@ -23,7 +23,8 @@ const { validateUiText } = await import('../data/types/uiText.ts');
 const { KitRegistry } = await import('./registry.ts');
 const { Level } = await import('./level.ts');
 const { initNavmesh } = await import('../ai/navmesh.ts');
-// Tests and tools path on the navmesh like the game (ADR-0028).
+// Tests and tools path on the navmesh like the game (ADR-0028), on the same Recast build, fed from disk in Node.
+await import('../ai/navmeshNode.ts');
 await initNavmesh();
 
 const json = (p: string): unknown => JSON.parse(readFileSync(new URL(`../data/${p}`, import.meta.url), 'utf8'));

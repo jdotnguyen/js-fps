@@ -104,14 +104,36 @@ export function sampleNavMeshNodes(bytes: Uint8Array): Float32Array {
   return new Float32Array(coords);
 }
 
+/** The Recast module factory `init()` calls (the default export of `@recast-navigation/wasm/wasm`). */
+export type RecastFactory = typeof import('@recast-navigation/wasm/wasm').default;
+/** Supplies the factory: the browser streams the package's `.wasm` file; Node hands it the bytes (navmeshNode.ts). */
+export type RecastLoader = () => Promise<RecastFactory>;
+
+const browserLoader: RecastLoader = () => import('@recast-navigation/wasm/wasm').then((m) => m.default);
+let recastLoader: RecastLoader = browserLoader;
+
 let ready = false;
 let loading: Promise<void> | null = null;
 
-/** Load the Recast/Detour WASM once (about 50 ms). Call before building a navmesh. */
+/**
+ * Use another way to create the Recast module (Node: src/ai/navmeshNode.ts). Must run before the first initNavmesh().
+ * The default is the package's separate-`.wasm` build (startup-bundle spec, trim-startup-bundle D2).
+ */
+export function setRecastLoader(loader: RecastLoader): void {
+  if (loading) throw new Error('navmesh: setRecastLoader() must run before initNavmesh()');
+  recastLoader = loader;
+}
+
+/**
+ * Load the Recast/Detour WASM once (about 50 ms). Call before building a navmesh. In Node, import
+ * src/ai/navmeshNode.ts first: the browser build fetches its `.wasm` by URL, which Node cannot.
+ */
 export function initNavmesh(): Promise<void> {
-  loading ??= init().then(() => {
-    ready = true;
-  });
+  loading ??= recastLoader()
+    .then((factory) => init(factory))
+    .then(() => {
+      ready = true;
+    });
   return loading;
 }
 

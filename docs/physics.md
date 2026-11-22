@@ -11,6 +11,13 @@ ship behind their own switch. The behaviour is specified in its `physics-world`,
 `design.md` for the trial, its scores, and why powered ragdolls use world-space pose driving rather than joint
 motors.
 
+The `-compat` package embeds Rapier's WebAssembly as base64 text, which makes the lazy `physics` chunk about 4.3 MB.
+Rapier's bundler package (`@dimforge/rapier3d`) would ship a real `.wasm` file, but Node cannot load it (it lacks
+`"type": "module"` and uses extensionless imports), and the tests must run the build the game ships. So the game
+stays on `-compat`, and the build allows the `physics` chunk up to 4,500 kB instead of the general 1,500 kB
+(`vite.config.ts`, `trim-startup-bundle` design D3). Switch when Rapier publishes a package that both Node and Vite
+can load as is.
+
 Gameplay code never imports Rapier. It talks to `src/physics/engine.ts`, a small engine-agnostic interface;
 `src/physics/rapierAdapter.ts` is its only implementation and the only file that imports the engine. A few Rapier
 details the adapter handles:

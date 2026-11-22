@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_TEST_CONCURRENCY, testArgs, testConcurrency } from './run-tests.ts';
+import { DEFAULT_TEST_CONCURRENCY, TEST_SETUP, testArgs, testConcurrency } from './run-tests.ts';
 
 test('defaults to 4 files at once on a many-core machine', () => {
   assert.equal(DEFAULT_TEST_CONCURRENCY, 4);
@@ -19,6 +19,11 @@ test('a bad TEST_CONCURRENCY falls back to the default', () => {
 });
 
 test('runs the whole suite unless files are given', () => {
-  assert.deepEqual(testArgs([], 4), ['--experimental-strip-types', '--test', '--test-concurrency=4', 'src/**/*.test.ts', 'scripts/**/*.test.ts']);
+  assert.deepEqual(testArgs([], 4), ['--experimental-strip-types', `--import=${TEST_SETUP}`, '--test', '--test-concurrency=4', 'src/**/*.test.ts', 'scripts/**/*.test.ts']);
   assert.deepEqual(testArgs(['src/a.test.ts'], 2).slice(-2), ['--test-concurrency=2', 'src/a.test.ts']);
+});
+
+test('every test file runs after the test preload', () => {
+  assert.match(TEST_SETUP, /^file:.*\/scripts\/test-setup\.ts$/);
+  assert.ok(testArgs([], 4).indexOf(`--import=${TEST_SETUP}`) < testArgs([], 4).indexOf('--test'));
 });

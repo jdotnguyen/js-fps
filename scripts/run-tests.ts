@@ -23,9 +23,12 @@ export function testConcurrency(env: Readonly<Record<string, string | undefined>
   return Math.max(1, Math.min(asked, Math.max(1, cpus)));
 }
 
-/** Arguments for `node`: run the given files (or the whole suite) with the concurrency cap. */
+/** Loaded into every test file before it runs (shared clip library, Node engine loaders). */
+export const TEST_SETUP = new URL('./test-setup.ts', import.meta.url).href;
+
+/** Arguments for `node`: run the given files (or the whole suite) with the concurrency cap, after the test preload. */
 export function testArgs(files: readonly string[], concurrency: number): string[] {
-  return ['--experimental-strip-types', '--test', `--test-concurrency=${concurrency}`, ...(files.length > 0 ? files : DEFAULT_TEST_GLOBS)];
+  return ['--experimental-strip-types', `--import=${TEST_SETUP}`, '--test', `--test-concurrency=${concurrency}`, ...(files.length > 0 ? files : DEFAULT_TEST_GLOBS)];
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {

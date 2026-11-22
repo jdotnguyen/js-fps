@@ -19,7 +19,7 @@ import { Humanoid, type HumanoidSpec } from '../actors/humanoid.ts';
 import { PoseLibrary } from '../actors/poses.ts';
 import { CAST, castSpec } from '../actors/castLooks.ts';
 import { GILES, OKAFOR } from '../actors/squadLooks.ts';
-import { sharedMocapLibrary } from '../actors/mocap.ts';
+import { loadSharedMocapLibrary } from '../actors/mocap.ts';
 import { loadMocapPacks } from '../actors/mocapPacks.ts';
 import { sharedMotionProfiles } from '../actors/motionProfiles.ts';
 import { needFor, ownCovers } from '../actors/castMotionCoverage.ts';
@@ -136,7 +136,10 @@ async function boot(): Promise<void> {
 
   const bodyModels = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/body-models.json'));
   const profiles = sharedMotionProfiles();
-  await Promise.all([bodyModels.load(import.meta.env.BASE_URL), loadMocapPacks(sharedMocapLibrary(), Object.keys(profiles.profiles))]);
+  await Promise.all([
+    bodyModels.load(import.meta.env.BASE_URL),
+    loadSharedMocapLibrary().then((lib) => loadMocapPacks(lib, Object.keys(profiles.profiles))),
+  ]);
   const gore = new GoreSystem(new Rng('sandbox-gore'));
   scene.add(gore.group);
 

@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import mocapJson from '../data/mocap-core.json' with { type: 'json' };
 import { blendPose, emptyPose, type CompiledPose } from './poses.ts';
 import { JOINT_INDEX, JOINTS, type JointName } from './skeleton.ts';
 
@@ -178,16 +177,34 @@ export class MocapLibrary {
 }
 
 let sharedLib: MocapLibrary | null = null;
+let sharedLoad: Promise<MocapLibrary> | null = null;
 
-/** Shared compiled mocap library (compiled once from src/data/mocap-core.json). */
+/**
+ * Fetch and compile the shared clip library (src/data/mocap-core.json). It is its own bundle chunk, loaded when a
+ * session starts (startup-bundle spec: Shared clip data is its own chunk). Later calls share the first load.
+ */
+export function loadSharedMocapLibrary(): Promise<MocapLibrary> {
+  if (sharedLoad) return sharedLoad;
+  const load: Promise<MocapLibrary> = import('../data/mocapCore.ts').then((m) => {
+    const lib = new MocapLibrary(m.default as unknown as RawMocapFile);
+    // A clear while this was in flight wins: the next load compiles a fresh library.
+    if (sharedLoad === load) sharedLib = lib;
+    return lib;
+  });
+  sharedLoad = load;
+  return load;
+}
+
+/** The shared compiled clip library. Throws until loadSharedMocapLibrary() has finished, so a late caller fails loudly. */
 export function sharedMocapLibrary(): MocapLibrary {
-  if (!sharedLib) sharedLib = new MocapLibrary(mocapJson as unknown as RawMocapFile);
+  if (!sharedLib) throw new Error('mocap: the shared clip library is not loaded; await loadSharedMocapLibrary() before building bodies');
   return sharedLib;
 }
 
-/** Release the compiled shared mocap library (session teardown). */
+/** Release the compiled shared mocap library (session teardown). The next loadSharedMocapLibrary() compiles it again. */
 export function clearSharedMocapLibrary(): void {
   sharedLib = null;
+  sharedLoad = null;
 }
 
 /**

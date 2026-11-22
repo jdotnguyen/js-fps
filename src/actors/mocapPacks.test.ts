@@ -7,7 +7,7 @@ import { MocapLibrary, type RawMocapFile } from './mocap.ts';
 
 const core = coreJson as unknown as RawMocapFile;
 
-test('mocap library: the clips loaded at start stay within 2 MB', () => {
+test('mocap library: the shared clips loaded at session start stay within 2 MB (their own chunk, startup-bundle spec)', () => {
   const bytes = fs.statSync(path.resolve(import.meta.dirname, '../data/mocap-core.json')).size;
   assert.ok(bytes <= 2 * 1024 * 1024, `core library is ${(bytes / 1024).toFixed(0)} KB`);
 });

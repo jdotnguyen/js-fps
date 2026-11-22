@@ -49,11 +49,11 @@ When a source records finger joints, the bake SHALL keep a finger track for each
 - **THEN** the baked clip carries finger tracks for both hands
 
 ### Requirement: The library stays within its size limit
-The clip data loaded at game start SHALL be no larger than 2 MB uncompressed. A character's own clips SHALL be loaded with that character's body when they are not needed at start, and released with it.
+The shared clip data loaded when a play session starts SHALL be no larger than 2 MB uncompressed, and SHALL be fetched as its own chunk (startup-bundle: Shared clip data is its own chunk). A character's own clips SHALL be loaded with that character's body when they are not needed at start, and released with it.
 
 #### Scenario: Size check
 - **WHEN** the library is built
-- **THEN** the data loaded at start is 2 MB or less
+- **THEN** the shared clip data loaded at session start is 2 MB or less
 - **AND** the size of each character's clip set is recorded
 
 #### Scenario: Leaving a level
