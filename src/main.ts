@@ -632,11 +632,19 @@ async function boot(): Promise<void> {
     const id = npcIdForSpeaker(speaker);
     return id && npcs.has(id) ? (npcs.actor(id, false)?.body ?? null) : null;
   });
-  // ADR-0029 listen-look: people near a speaker turn their heads to them; the speaker looks at whoever they answer.
+  // ADR-0029 listen-look: people near a speaker turn their heads to them; the speaker looks at their explicit addressee or whoever they answer.
   const talkerId = (speaker: string): string | null => (speaker === 'player' ? 'player' : npcIdForSpeaker(speaker));
+  const addresseeId = (to: string | undefined): string | null => {
+    if (!to) return null;
+    if (to === 'player') return 'player';
+    const stripped = to.startsWith('npc:') ? to.slice(4) : to;
+    if (npcs.has(stripped)) return stripped;
+    const mapped = npcIdForSpeaker(stripped);
+    return mapped && npcs.has(mapped) ? mapped : null;
+  };
   events.on('speech:started', (info) => {
     const id = talkerId(info.speaker);
-    if (id && (id === 'player' || npcs.has(id))) npcs.lineStarted(id);
+    if (id && (id === 'player' || npcs.has(id))) npcs.lineStarted(id, addresseeId(info.to));
   });
   events.on('speech:ended', (e) => {
     const id = talkerId(e.speaker);

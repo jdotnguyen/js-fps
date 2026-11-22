@@ -146,11 +146,15 @@ In the kitchen, Bram greets the squad, Priya comes in, sends Okafor to sit and t
 - **THEN** the TAG FM radio starts playing in the Commons
 
 ### Requirement: Bram serves the squad
-Bram SHALL already be making coffee when Giles and Okafor come in. They SHALL walk round him and settle back against the counter, turned toward each other. Bram SHALL hand Okafor a mug beside him, then go round to Giles's far side, so Jay sees the hand-off side-on, before going back to his station.
+Bram SHALL already be making coffee when Giles and Okafor come in. They SHALL walk round him and settle back against the counter, turned toward each other. Bram SHALL hand Okafor a mug beside him, then take a tight route round to Giles's far side, so Jay sees the hand-off side-on, before going back to his station. Bram's pour, walk to Giles, and mug hand-offs SHALL overlap with the surrounding kitchen banter so dialogue does not stall in silence while he walks.
 
 #### Scenario: Coffee for the squad
 - **WHEN** the squad are at the counter and Bram's greeting is done
-- **THEN** Bram hands Okafor a mug, then Giles from Giles's far side, and both hold their mugs, leaning back against the counter
+- **THEN** Bram hands Okafor a mug, then moves cleanly around to Giles's far side while Okafor and Giles exchange lines, handing Giles his mug side-on so both hold their mugs leaning back against the counter
+
+#### Scenario: No long silent stall before Giles receives coffee
+- **WHEN** Okafor thanks Bram for his mug
+- **THEN** Bram is already moving around to Giles's far side and delivers Giles's mug without an extended silent detour or an abrupt torso lean
 
 ### Requirement: Coffee hand-off
 The intro's last beat SHALL be a framed shot of Priya holding out a mug, with a "Take coffee" interact prompt. Taking the mug, or waiting 6 s, SHALL end the hand-off with the mug in Jay's hand. Priya then leaves for the medical bay after a closing exchange. She SHALL walk away from Jay toward the Observation Gallery door, and SHALL be taken off-stage the moment she is out of the player's view, without stopping anywhere first.
@@ -266,3 +270,18 @@ After the intro, no NPC in the Commons SHALL stand or rest within 1.2 m in front
 - **WHEN** a save taken after the intro is loaded
 - **THEN** Priya is not in the Commons, the Wet Vestibule or any doorway
 - **AND** Bram is at his station
+
+### Requirement: Paced intro beats with addressee-accurate gaze
+The intro SHALL keep all existing voiced lines while avoiding multi-second dead-air stalls between docking, checkpoint, walk, and kitchen beats. In multi-person intro exchanges (dock checkpoint, corridor walk, and kitchen banter), each speaking NPC SHALL look toward the person they are addressing in the script rather than staring at whoever happened to speak last on a different thread.
+
+#### Scenario: Sung greets Jay after Ruiz's guard scan
+- **WHEN** Sung steps up to the counter and greets Jay (`intro_sung_01`) right after the dock guard clears Ruiz
+- **THEN** Sung looks toward Jay rather than toward the dock guard
+
+#### Scenario: Kitchen banter crosses between three or more speakers
+- **WHEN** Giles remarks to Okafor about Priya (`intro_giles_10`), Priya offers coffee to Jay (`intro_priya_05`), or Okafor and Giles wrap up with Jay (`intro_okafor_09`, `intro_giles_14`)
+- **THEN** each speaker looks at their intended addressee (Okafor or Jay) rather than at the previous speaker
+
+#### Scenario: Skipped intro keeps exact end state
+- **WHEN** the intro is skipped at any point after the pacing and gaze updates
+- **THEN** the end state (positions, flags, checkpoint, played lines, and mug in Jay's hand) matches watching to the end

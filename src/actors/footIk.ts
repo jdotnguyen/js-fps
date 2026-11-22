@@ -12,11 +12,15 @@ import type { JointName, Side } from './skeleton.ts';
  */
 
 const ANKLE_CLEARANCE = 0.065;
-const MAX_PIN_DRIFT = 0.42;
+/** Max horizontal distance a pinned foot may trail its FK ankle (tight enough to prevent whole-body leaning over glued feet). */
+const MAX_PIN_DRIFT = 0.14;
+/** Idle deadzone (m) below which a planted foot stays rock-solid; excess drift smoothly relaxes back under the hip. */
+const RELAX_DEADZONE = 0.045;
+const RELAX_RATE = 6.5;
 const TELEPORT_DIST = 0.75;
 const PLANT_RATE = 20;
 const RELEASE_RATE = 14;
-const MAX_PELVIS_DROP = 0.085;
+const MAX_PELVIS_DROP = 0.045;
 
 interface FootState {
   pinned: boolean;
@@ -145,18 +149,28 @@ export class FootIkSolver {
           f.pinPos.set(f.fkPos.x, ankleY, f.fkPos.z);
           f.pinned = true;
         }
-        // Track floor height changes (stairs/ramps) and limit maximum horizontal drift.
+      } else if (c < 0.42) {
+        f.pinned = false;
+      }
+
+      if (f.pinned) {
+        // Track floor height changes (stairs/ramps), clamp extreme lag, and smoothly settle excess drift
+        // beyond the idle deadzone so feet never stay glued behind a stopping, turning, or nudged body.
         f.pinPos.y = ankleY;
         const dx = f.fkPos.x - f.pinPos.x;
         const dz = f.fkPos.z - f.pinPos.z;
         const d = Math.hypot(dx, dz);
+        const deadzone = RELAX_DEADZONE * p.scaleY;
         if (d > maxDrift) {
           const pull = (d - maxDrift) / d;
           f.pinPos.x += dx * pull;
           f.pinPos.z += dz * pull;
+        } else if (d > deadzone) {
+          const excess = d - deadzone;
+          const relax = (excess * (1 - Math.exp(-RELAX_RATE * h))) / d;
+          f.pinPos.x += dx * relax;
+          f.pinPos.z += dz * relax;
         }
-      } else if (c < 0.42) {
-        f.pinned = false;
       }
 
       const targetW = f.pinned ? Math.min(1, c * 1.15) : 0;

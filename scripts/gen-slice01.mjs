@@ -462,7 +462,7 @@ anchor(R02, 'counter_giles', [28.65, 0, 11.27], 160);
 anchor(R02, 'cook_coffee', [26.75, 0, 11.32], 0);
 anchor(R02, 'cook_turn_okafor', [26.75, 0, 11.32], 270);
 anchor(R02, 'cook_serve_giles', [29.3, 0, 11.85], face([29.3, 0, 11.85], [28.65, 0, 11.27]));
-walk(R02, 'cook_to_giles', ['cook_turn_okafor', [27.35, 0, 12.3], [28.6, 0, 12.35], 'cook_serve_giles']);
+walk(R02, 'cook_to_giles', ['cook_turn_okafor', [27.45, 0, 11.98], [28.65, 0, 12.02], 'cook_serve_giles']);
 anchor(R02, 'kitchen_stand', [25.6, 0, 13.4], face([25.6, 0, 13.4], [28, 0, 11.5]));
 anchor(R02, 'priya_enter', [24, 0, 24.6], 0);
 anchor(R02, 'priya_stand', [27.4, 0, 13.6], face([27.4, 0, 13.6], [25.6, 0, 13.4]));

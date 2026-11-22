@@ -90,6 +90,44 @@ const UPPER_BODY: ReadonlySet<JointName> = new Set([
 /** Authoring poses that can be driven or enriched by mocap clips for living human NPCs. */
 const MOCAP_LOCO_POSES = new Set<string>(['idle', 'walk']);
 
+type StandingOverlayKind = 'arms' | 'head' | 'idle';
+
+const STANDING_ARMS_OVERLAY: ReadonlySet<string> = new Set([
+  'offer_mug',
+  'drink',
+  'idle_crossed',
+  'idle_hips',
+  'idle_mug',
+  'idle_wand',
+  'talk_gesture',
+  'wave',
+  'point',
+  'rub_forearm',
+  'flex_hand',
+  'cough',
+]);
+const STANDING_HEAD_OVERLAY: ReadonlySet<string> = new Set(['glance', 'glance_other', 'look_down', 'look_up', 'head_tilt']);
+const STANDING_IDLE_OVERLAY: ReadonlySet<string> = new Set(['idle_weight', 'idle_shift']);
+
+const OVERLAY_ARMS_JOINTS: readonly JointName[] = [
+  'shoulder_L', 'upperArm_L', 'foreArm_L', 'hand_L',
+  'shoulder_R', 'upperArm_R', 'foreArm_R', 'hand_R',
+  'neck', 'head',
+];
+const OVERLAY_HEAD_JOINTS: readonly JointName[] = ['neck', 'head'];
+
+/**
+ * Standing upper-body actions and ambient fidgets keep the mocap trunk/legs active instead of dropping
+ * `mocapW` to 0 (standing-posture-stability spec). Seated/leaning poses never match.
+ */
+function standingOverlayKind(poseName: string): StandingOverlayKind | null {
+  if (/^(sit_|lean_)/.test(poseName)) return null;
+  if (STANDING_ARMS_OVERLAY.has(poseName) || poseName.endsWith('_offer_mug')) return 'arms';
+  if (STANDING_HEAD_OVERLAY.has(poseName) || poseName.endsWith('_glance') || poseName.endsWith('_glance_other')) return 'head';
+  if (STANDING_IDLE_OVERLAY.has(poseName)) return 'idle';
+  return null;
+}
+
 interface SequenceState {
   steps: readonly { pose: string; blend: number; hold: number }[];
   index: number;
@@ -156,6 +194,11 @@ export class Animator {
   private readonly from = emptyPose('from');
   private readonly mocapPose = emptyPose('mocap');
   private readonly finalPose = emptyPose('final');
+  private readonly overlayEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+  private readonly overlayYawQ = new THREE.Quaternion();
+  private static readonly Y_AXIS = new THREE.Vector3(0, 1, 0);
+  private overlayW = 0;
+  private overlayKind: Exclude<StandingOverlayKind, 'idle'> | null = null;
   private readonly locoInfo: LocomotionSample = { stride: 1.25, moveWeight: 0, jogWeight: 0, contactL: 1, contactR: 1 };
   private to: CompiledPose;
   private blendT = 1;
@@ -416,6 +459,7 @@ export class Animator {
   private updateMocapBase(dt: number): boolean {
     this.capturedSpeechArms = 0;
     const poseName = this.to.name;
+    const overlay = !this.twitchy ? standingOverlayKind(poseName) : null;
     let targetW = 0;
     let mode: 'loco' | 'shamble' | 'heavy' | 'pistol' | 'kneel' | 'crouch' | 'none' = 'none';
 
@@ -428,7 +472,7 @@ export class Animator {
           mode = 'heavy';
           targetW = 0.4;
         }
-      } else if (MOCAP_LOCO_POSES.has(poseName) || this.speed > 0.08) {
+      } else if (MOCAP_LOCO_POSES.has(poseName) || overlay !== null || this.speed > 0.08) {
         mode = 'loco';
         targetW = 1;
       } else if (poseName === 'aim_pistol') {
@@ -564,7 +608,37 @@ export class Animator {
       blendPose(this.current, this.mocapPose, this.mocapW, this.finalPose);
     }
 
+    // Layer standing upper-body actions/fidgets over the mocap trunk & legs so `mocapW` never drops to 0.
+    const wantOverlay = mode === 'loco' && overlay !== null && overlay !== 'idle';
+    if (wantOverlay) this.overlayKind = overlay;
+    const overlayRate = Math.max(5.5, 3.2 / Math.max(0.12, this.blendDur));
+    this.overlayW += ((wantOverlay ? 1 : 0) - this.overlayW) * (1 - Math.exp(-overlayRate * dt));
+    if (this.overlayW < 0.005) {
+      this.overlayW = 0;
+      if (!wantOverlay) this.overlayKind = null;
+    } else if (mode === 'loco' && this.overlayKind) {
+      const joints = this.overlayKind === 'arms' ? OVERLAY_ARMS_JOINTS : OVERLAY_HEAD_JOINTS;
+      for (const jName of joints) {
+        const idx = J[jName];
+        const dst = this.finalPose.joints[idx];
+        const src = this.current.joints[idx];
+        if (dst && src) dst.slerp(src, this.overlayW);
+      }
+      if (this.overlayKind === 'head') {
+        const curChest = this.current.joints[J.chest];
+        const dstChest = this.finalPose.joints[J.chest];
+        if (curChest && dstChest) {
+          this.overlayEuler.setFromQuaternion(curChest, 'YXZ');
+          if (Math.abs(this.overlayEuler.y) > 1e-4) {
+            this.overlayYawQ.setFromAxisAngle(Animator.Y_AXIS, this.overlayEuler.y * this.overlayW);
+            dstChest.multiply(this.overlayYawQ).normalize();
+          }
+        }
+      }
+    }
+
     this.updateClipFingers(mode);
+    if (this.overlayKind === 'arms' && this.overlayW > 0.25) this.clipFingerW = 0;
     return mode === 'loco' && this.mocapW > 0.4;
   }
 
@@ -835,18 +909,18 @@ export class Animator {
       return;
     }
 
-    // Target forward pitch (degrees): lean slightly into speed + react to forward/braking acceleration.
-    const speedLean = this.useMocap ? THREE.MathUtils.clamp(this.speed * 1.4, 0, 5.5) : 0;
-    const accelLean = THREE.MathUtils.clamp(this.accelFwd * 1.6, -7, 7);
+    // Scale locomotion lean gently on slow indoor walks so counter stops and tight serve turns stay upright.
+    const locoScale = THREE.MathUtils.clamp(0.35 + (this.speed / 3.2) * 0.65, 0.35, 1);
+    const speedLean = this.useMocap ? THREE.MathUtils.clamp(this.speed * 0.9 * locoScale, 0, 4.5) : 0;
+    const accelLean = THREE.MathUtils.clamp(this.accelFwd * 0.85 * locoScale, -3.5, 3.5);
     const fwd = this.leanFwdSpring.step(speedLean + accelLean, dt);
 
-    // Cornering centripetal bank: speed * turnRate (+turnRate = left -> bank left = -Z roll).
-    const bankTarget = THREE.MathUtils.clamp(-this.speed * this.turnRate * 2.8, -9, 9);
+    // Cornering centripetal bank: subtle on slow indoor turns, stronger at jog speeds.
+    const bankTarget = THREE.MathUtils.clamp(-this.speed * this.turnRate * 1.15 * locoScale, -4.5, 4.5);
     const bank = this.bankSpring.step(bankTarget, dt);
 
-    // Lateral acceleration / nudge recoil: push right (+accelLat) tilts upper body slightly left (-Z).
-    const latTarget = THREE.MathUtils.clamp(-this.accelLat * 1.4, -7, 7);
-    const lat = this.leanLatSpring.step(latTarget, dt);
+    // Lateral nudge recoil is driven directly by `nudgeImpulse()` so turning centripetal accel never leans outward.
+    const lat = this.leanLatSpring.step(0, dt);
 
     const roll = bank + lat;
     if (Math.abs(fwd) > 0.02) {
@@ -926,7 +1000,7 @@ export class Animator {
     this.add('spine', 0, dir * 3 * w * Math.cos(p), -2.2 * shift);
 
     // Drive alternating foot contacts for FootIkSolver so the planted foot locks to the deck!
-    if (this.speed < 0.15) {
+    if (this.speed < 0.25) {
       this.footContacts[0] = THREE.MathUtils.clamp(1 - swingL * 1.25 * w, 0, 1);
       this.footContacts[1] = THREE.MathUtils.clamp(1 - swingR * 1.25 * w, 0, 1);
     }

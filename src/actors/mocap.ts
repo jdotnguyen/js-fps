@@ -259,6 +259,8 @@ export function sampleLocomotion(
   const jogClip = lib.get(set.jog);
 
   const moveW = smoothstep(0.04, 0.85, speed);
+  // Release swing-foot contacts promptly at low walking speeds so FootIk never glues both feet down while gliding to a stop.
+  const contactW = smoothstep(0.04, 0.28, speed);
   const jogW = smoothstep(1.55, 2.75, speed);
   const stride = walkClip.stride + (jogClip.stride - walkClip.stride) * jogW;
 
@@ -293,8 +295,8 @@ export function sampleLocomotion(
 
   sampleClip(idleClip, idlePhase, tmpIdle);
   blendPose(tmpIdle, tmpWalk, moveW, outPose);
-  outInfo.contactL = 1 + (cWalk[0] - 1) * moveW;
-  outInfo.contactR = 1 + (cWalk[1] - 1) * moveW;
+  outInfo.contactL = 1 + (cWalk[0] - 1) * contactW;
+  outInfo.contactR = 1 + (cWalk[1] - 1) * contactW;
 }
 
 /**

@@ -709,11 +709,12 @@ export const ACTIONS: Record<string, ActionDef> = {
     ctx.host.hush(s.off ? null : (s.speakers ?? []), s.s ?? 0.5);
   }),
   /** `overlap`: play beside the current line instead of queuing (a PA the squad talks over). */
-  say: act({ line: str, wait, overlap: optional(bool), fixture: optional(str) }, (s, ctx) => {
+  say: act({ line: str, wait, overlap: optional(bool), fixture: optional(str), to: optional(str) }, (s, ctx) => {
     if (!ctx.host.say) return ctx.missing('say');
     const h = ctx.host.say(s.line, {
       ...(s.overlap ? { overlap: true } : {}),
       ...(s.fixture !== undefined ? { fixture: s.fixture } : {}),
+      ...(s.to !== undefined ? { to: s.to } : {}),
     });
     if (h && s.wait !== false) return { ...pending(h.done), skip: () => ctx.host.markLinePlayed?.(s.line) };
   }),

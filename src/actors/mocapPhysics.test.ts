@@ -233,3 +233,107 @@ test('upright enemies use hybrid mocap and foot locking, while severed crawlers 
   hero.dispose();
   corpse.dispose();
 });
+
+test('standing upper-body actions (offer_mug) and ambient fidgets keep mocapW active without trunk lean snaps', () => {
+  const dt = 1 / 60;
+  for (const pose of ['offer_mug', 'idle_weight', 'idle_shift', 'head_tilt', 'idle_crossed'] as const) {
+    const h = new Humanoid({ seed: `stable-${pose}`, outfit: 'crew', role: 'npc' }, ctx());
+    const a = h['animator'] as Animator;
+    for (let i = 0; i < 60; i++) h.update(dt);
+    const chestBefore = h.bones.chest.quaternion.clone();
+    const pelvisBefore = h.bones.pelvis.quaternion.clone();
+    const armBefore = h.bones.upperArm_R.quaternion.clone();
+
+    h.setPose(pose, 0.45);
+    let minMocapW = 1;
+    let maxChestSwing = 0;
+    let maxPelvisSwing = 0;
+    let maxArmMove = 0;
+    for (let i = 0; i < 90; i++) {
+      h.update(dt);
+      minMocapW = Math.min(minMocapW, a['mocapW'] as number);
+      maxChestSwing = Math.max(maxChestSwing, h.bones.chest.quaternion.angleTo(chestBefore));
+      maxPelvisSwing = Math.max(maxPelvisSwing, h.bones.pelvis.quaternion.angleTo(pelvisBefore));
+      maxArmMove = Math.max(maxArmMove, h.bones.upperArm_R.quaternion.angleTo(armBefore));
+    }
+    assert.ok(minMocapW > 0.95, `${pose}: mocapW stays active (${minMocapW.toFixed(3)})`);
+    assert.ok(maxChestSwing < 0.14, `${pose}: chest avoids 18 deg mocap-drop lean (${((maxChestSwing * 180) / Math.PI).toFixed(1)} deg)`);
+    assert.ok(maxPelvisSwing < 0.14, `${pose}: pelvis avoids twist snap (${((maxPelvisSwing * 180) / Math.PI).toFixed(1)} deg)`);
+    if (pose === 'offer_mug') {
+      assert.ok(maxArmMove > 0.35, `offer_mug still extends the right arm (${((maxArmMove * 180) / Math.PI).toFixed(1)} deg)`);
+    }
+    h.dispose();
+  }
+});
+
+test('slow indoor curved stops keep inertial braking pitch and cornering roll subtle', () => {
+  const h = new Humanoid({ seed: 'bram-stop', outfit: 'crew', role: 'npc' }, ctx());
+  const a = h['animator'] as Animator;
+  const dt = 1 / 60;
+  for (let i = 0; i < 30; i++) h.update(dt);
+  const chestIdle = h.bones.chest.quaternion.clone();
+
+  // Simulate a curved 1.45 m/s indoor walk followed by a quick stop into offer_mug.
+  a.speed = 1.45;
+  a.turnRate = 1.6;
+  for (let i = 0; i < 35; i++) h.update(dt);
+  a.speed = 0;
+  a.turnRate = 0;
+  a.accelFwd = -4.5;
+  h.setPose('offer_mug', 0.45);
+  let maxChestSwing = 0;
+  for (let i = 0; i < 60; i++) {
+    if (i > 6) a.accelFwd = 0;
+    h.update(dt);
+    maxChestSwing = Math.max(maxChestSwing, h.bones.chest.quaternion.angleTo(chestIdle));
+  }
+  assert.ok(maxChestSwing < 0.18, `indoor stop + offer_mug stays upright (${((maxChestSwing * 180) / Math.PI).toFixed(1)} deg)`);
+  h.dispose();
+});
+
+test('curved indoor walks at 60 and 120 fps do not amplify acceleration into outward lateral torso leans', () => {
+  for (const fps of [60, 120]) {
+    const dt = 1 / fps;
+    const h = new Humanoid({ seed: `curve-${fps}`, outfit: 'crew', role: 'npc' }, ctx());
+    const a = h['animator'] as Animator;
+    let maxLat = 0;
+    let maxFwd = 0;
+    for (let i = 0; i < fps * 2; i++) {
+      const ang = (i / fps) * 1.1;
+      const dir = new THREE.Vector3(-Math.sin(ang), 0, -Math.cos(ang));
+      const vel = h.steer(dir, dt, { maxSpeed: 1.4, turnRate: 2.5, accel: 4 });
+      h.group.position.addScaledVector(vel, dt);
+      h.update(dt);
+      maxLat = Math.max(maxLat, Math.abs(a['leanLatSpring'].value));
+      maxFwd = Math.max(maxFwd, Math.abs(a['leanFwdSpring'].value));
+    }
+    assert.ok(maxLat < 0.5, `${fps} fps: curved walk produces no outward leanLatSpring tilt (${maxLat.toFixed(2)} deg)`);
+    assert.ok(maxFwd < 3.0, `${fps} fps: curved walk forward lean stays subtle (${maxFwd.toFixed(2)} deg)`);
+    h.dispose();
+  }
+});
+
+test('FootIk never leaves feet glued far behind a slow-moving or stopping body', () => {
+  const h = new Humanoid({ ...OKAFOR, role: 'npc' }, ctx());
+  const dt = 1 / 60;
+  for (let i = 0; i < 20; i++) h.update(dt);
+  const fwd = new THREE.Vector3(0, 0, -1);
+  const ik = h['footIk'] as unknown as { feet: Record<'L' | 'R', { fkPos: THREE.Vector3; pinPos: THREE.Vector3; lockWeight: number }> };
+  let maxPinnedDrift = 0;
+  for (let i = 0; i < 150; i++) {
+    const vel = h.steer(i < 90 ? fwd : null, dt, { maxSpeed: i < 90 ? 0.35 : 0, accel: 4 });
+    h.group.position.addScaledVector(vel, dt);
+    h.update(dt);
+    for (const s of ['L', 'R'] as const) {
+      const f = ik.feet[s];
+      if (f.lockWeight > 0.5) {
+        maxPinnedDrift = Math.max(maxPinnedDrift, Math.hypot(f.fkPos.x - f.pinPos.x, f.fkPos.z - f.pinPos.z));
+      }
+    }
+  }
+  const finalDriftL = Math.hypot(ik.feet.L.fkPos.x - ik.feet.L.pinPos.x, ik.feet.L.fkPos.z - ik.feet.L.pinPos.z);
+  const finalDriftR = Math.hypot(ik.feet.R.fkPos.x - ik.feet.R.pinPos.x, ik.feet.R.fkPos.z - ik.feet.R.pinPos.z);
+  assert.ok(maxPinnedDrift < 0.16, `pinned foot never drags body into whole-body lean (max ${maxPinnedDrift.toFixed(3)} m)`);
+  assert.ok(Math.max(finalDriftL, finalDriftR) < 0.06, `settled under hips after stop (${finalDriftL.toFixed(3)}, ${finalDriftR.toFixed(3)} m)`);
+  h.dispose();
+});

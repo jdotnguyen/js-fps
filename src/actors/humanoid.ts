@@ -612,6 +612,8 @@ export class Humanoid {
     this.uprightTurn.error = 0;
     this.prevWorldPos.copy(this.group.position);
     this.prevWorldVel.set(0, 0, 0);
+    this.smoothAccelX = 0;
+    this.smoothAccelZ = 0;
     this.footIk.reset();
     this.limbContact.reset();
     this.handPhysics.reset();
@@ -1038,6 +1040,8 @@ export class Humanoid {
   private readonly prevWorldPos = new THREE.Vector3();
   private readonly prevWorldVel = new THREE.Vector3();
   private readonly curWorldVel = new THREE.Vector3();
+  private smoothAccelX = 0;
+  private smoothAccelZ = 0;
   private readonly footIk = new FootIkSolver();
   /** ADR-0029: a mug in the right hand while the pose is a mug or drink pose (made on first use). */
   private readonly heldItems = new Map<HeldItem, THREE.Mesh>();
@@ -1171,6 +1175,8 @@ export class Humanoid {
     if (dist > 2.5) {
       // Teleport: reset velocity & foot pins cleanly without a lean spike.
       this.prevWorldVel.set(0, 0, 0);
+      this.smoothAccelX = 0;
+      this.smoothAccelZ = 0;
       this.animator.accelFwd = 0;
       this.animator.accelLat = 0;
       this.footIk.reset();
@@ -1181,13 +1187,17 @@ export class Humanoid {
     const vx = dist > 1e-5 ? dx / dt : this.velocity.x;
     const vz = dist > 1e-5 ? dz / dt : this.velocity.z;
     this.curWorldVel.set(vx, 0, vz);
-    const ax = THREE.MathUtils.clamp((vx - this.prevWorldVel.x) / dt, -14, 14);
-    const az = THREE.MathUtils.clamp((vz - this.prevWorldVel.z) / dt, -14, 14);
-    this.prevWorldVel.lerp(this.curWorldVel, 1 - Math.exp(-12 * dt));
+    // Compute true per-frame acceleration, then smooth the acceleration (not velocity) so high-FPS frames don't amplify lean.
+    const rawAx = THREE.MathUtils.clamp((vx - this.prevWorldVel.x) / dt, -10, 10);
+    const rawAz = THREE.MathUtils.clamp((vz - this.prevWorldVel.z) / dt, -10, 10);
+    this.prevWorldVel.copy(this.curWorldVel);
+    const alpha = 1 - Math.exp(-12 * dt);
+    this.smoothAccelX += (rawAx - this.smoothAccelX) * alpha;
+    this.smoothAccelZ += (rawAz - this.smoothAccelZ) * alpha;
     const s = Math.sin(this.heading);
     const c = Math.cos(this.heading);
-    this.animator.accelFwd = -ax * s - az * c;
-    this.animator.accelLat = ax * c - az * s;
+    this.animator.accelFwd = -this.smoothAccelX * s - this.smoothAccelZ * c;
+    this.animator.accelLat = this.smoothAccelX * c - this.smoothAccelZ * s;
   }
 
   private readonly swayQ = new THREE.Quaternion();
@@ -1546,7 +1556,7 @@ export class Humanoid {
     if (loc.mode === 'crawl') pose = 'crawl';
     else if (loc.mode === 'drag') pose = 'dragging';
     else if (loc.blind) pose = 'blindFlail';
-    else if (this.spec.role === 'npc' && this.speed > 0.05) pose = 'walk';
+    else if (this.spec.role === 'npc' && this.speed > (this.idlePose === 'idle' ? 0.05 : 0.35)) pose = 'walk';
     else if (this.spec.role === 'enemy') pose = this.spec.pose ?? 'shamble';
     if (this.carried) pose = this.carried;
     if (this.kill) pose = this.idlePose; // a kill stagger keeps its authored upper body; the legs still step

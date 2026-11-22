@@ -369,19 +369,28 @@ export class NpcDirector {
   }
 
   /**
-   * A story line started (`speech:started`; ADR-0029). Everyone within LISTEN_RANGE of the speaker looks at them; the
-   * speaker looks at whoever spoke last if they are close, else at Jay if he is close. `speaker` is an NPC id or
-   * 'player'; anything else (the PA, the radio) is ignored. Looks hold until LISTEN_LINGER s after the line ends.
+   * A story line started (`speech:started`; ADR-0029 / npc-conversation-gaze). Everyone within LISTEN_RANGE of the speaker
+   * looks at them; the speaker looks at `addressee` when explicitly named and in range, else whoever spoke last if close,
+   * else at Jay if he is close. `speaker` is an NPC id or 'player'; anything else (the PA, the radio) is ignored.
    */
-  lineStarted(speaker: string): void {
+  lineStarted(speaker: string, addressee?: string | null): void {
     const at = speaker === 'player' ? this.env.playerFeet : this.actor(speaker, false)?.position;
     if (!at) return;
     this.talkGen++;
     if (this.talker && this.talker !== speaker) this.lastTalker = this.talker;
     this.talker = speaker;
     const near = (p: { x: number; z: number } | null | undefined): boolean => !!p && Math.hypot(p.x - at.x, p.z - at.z) <= LISTEN_RANGE;
+    const posOf = (id: string | null | undefined): { x: number; z: number } | null | undefined =>
+      !id ? null : id === 'player' ? this.env.playerFeet : this.actor(id, false)?.position;
     const toSpeaker = (): THREE.Vector3 | null => this.talkerHead(speaker);
-    const answer = this.lastTalker && this.lastTalker !== speaker && near(this.lastTalker === 'player' ? this.env.playerFeet : this.actor(this.lastTalker, false)?.position) ? this.lastTalker : near(this.env.playerFeet) && speaker !== 'player' ? 'player' : null;
+    const explicit = addressee && addressee !== speaker && near(posOf(addressee)) ? addressee : null;
+    const answer =
+      explicit ??
+      (this.lastTalker && this.lastTalker !== speaker && near(posOf(this.lastTalker))
+        ? this.lastTalker
+        : near(this.env.playerFeet) && speaker !== 'player'
+          ? 'player'
+          : null);
     const seen = new Set<NpcActor>();
     for (const [id, a] of this.actors) {
       if (seen.has(a)) continue;

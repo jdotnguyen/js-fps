@@ -139,6 +139,59 @@ test('a long real-audio file extends the line', () => {
   assert.equal(sm.speaking()?.duration, 4);
 });
 
+test('a fast recorded VO clip ends on audio duration instead of inflating to the word-count estimate', async () => {
+  const bus = new EventBus();
+  const longLine = new DialogueLibrary(speakers, {
+    't.json': {
+      chapter: 't',
+      lines: [L('fast_vo', 'story', 'One two three four five six seven eight.')], // subtitleDuration = 3.6 s
+    },
+  });
+  const sm = new SpeechManager(bus, longLine, { play: () => ({ duration: 1.4, stop: () => {} }) });
+  const h = sm.say('fast_vo');
+  assert.equal(sm.speaking()?.duration, 1.4);
+  run(sm, 1.35);
+  assert.ok(sm.speaking(), 'still speaking before clip ends');
+  run(sm, 0.1);
+  assert.equal(sm.speaking(), null, 'ended promptly on recorded audio duration');
+  assert.equal(await h.done, 'finished');
+});
+
+test('a very short recorded VO clip honors the 0.85 s readability floor and queued lines keep a ~0.15 s breath', () => {
+  const bus = new EventBus();
+  const started: Array<[string, number]> = [];
+  let t = 0;
+  bus.on('speech:started', (e) => started.push([e.id, Number(t.toFixed(2))]));
+  const sm = new SpeechManager(bus, library, { play: () => ({ duration: 0.4, stop: () => {} }) });
+  sm.say('story_a');
+  sm.say('story_b');
+  assert.equal(sm.speaking()?.duration, 0.85);
+  for (let i = 0; i < 25; i++) {
+    t += 0.05;
+    sm.update(0.05);
+  }
+  assert.deepEqual(started, [['story_a', 0], ['story_b', 1]], '0.85 s floor + 0.15 s breath = 1.00 s');
+});
+
+test('addressee flows from line or say option into SpeechInfo with option winning', () => {
+  const bus = new EventBus();
+  const seen: Array<string | undefined> = [];
+  bus.on('speech:started', (e) => seen.push(e.to));
+  const withTo = new DialogueLibrary(speakers, {
+    't.json': {
+      chapter: 't',
+      lines: [{ ...L('dir_a', 'story'), to: 'okafor' }, L('dir_b', 'story')],
+    },
+  });
+  const sm = new SpeechManager(bus, withTo, { play: () => ({ stop: () => {} }) });
+  sm.say('dir_a');
+  sm.say('dir_b', { to: 'player' });
+  run(sm, 3);
+  sm.say('dir_a', { to: 'player' });
+  run(sm, 3);
+  assert.deepEqual(seen, ['okafor', 'player', 'player']);
+});
+
 test('an overlap line plays beside a story line without queuing (PA under the squad, intro-sequence spec)', async () => {
   const { sm, log } = setup();
   sm.say('story_a');

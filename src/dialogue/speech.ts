@@ -25,6 +25,8 @@ export type EndReason = 'finished' | 'interrupted' | 'dropped' | 'stopped';
 export interface SpeechInfo {
   id: string;
   speaker: string;
+  /** Optional explicit addressee ('player', an NPC id, or a speaker id) for speaker gaze. */
+  to?: string;
   /** Display name for the subtitle. */
   name: string;
   text: string;
@@ -52,6 +54,8 @@ export interface SayOptions {
   at?: () => Vec3Like;
   /** Play now on the overlap lane, beside whatever is speaking, without queuing (intro-sequence spec). */
   overlap?: boolean;
+  /** Override the line's addressee for speaker gaze ('player', an NPC id, or a speaker id). */
+  to?: string;
 }
 
 export interface PlayRequest {
@@ -104,6 +108,9 @@ export interface SpeechOptions {
   maxWait?: number;
 }
 
+/** Minimum subtitle hold for recorded VO clips so one-word barks stay readable (voice-playback spec). */
+export const MIN_VO_DURATION = 0.85;
+
 const DROPPABLE: ReadonlySet<Priority> = new Set(['combat', 'idle']);
 
 export class SpeechManager {
@@ -128,7 +135,7 @@ export class SpeechManager {
     this.bus = bus;
     this.library = library;
     this.player = player;
-    this.gap = opts.gap ?? 0.2;
+    this.gap = opts.gap ?? 0.15;
     this.maxWait = opts.maxWait ?? 2;
   }
 
@@ -286,7 +293,7 @@ export class SpeechManager {
       rasp: this.rasp.get(e.line.speaker) ?? null,
       babble: e.line.babble ?? this.babble,
     });
-    const duration = Math.max(e.duration, playback.duration ?? 0);
+    const duration = playback.duration !== undefined ? Math.max(MIN_VO_DURATION, playback.duration) : e.duration;
     const active: Active = { ...e, duration, playback, endsAt: this.now + duration };
     const info = this.info(active);
     this.bus.emit('speech:started', info);
@@ -327,9 +334,11 @@ export class SpeechManager {
   }
 
   private info(e: Entry): SpeechInfo {
+    const to = e.opts.to ?? e.line.to;
     return {
       id: e.line.id,
       speaker: e.line.speaker,
+      ...(to !== undefined ? { to } : {}),
       name: e.profile.name,
       text: e.line.text,
       emote: e.line.emote,

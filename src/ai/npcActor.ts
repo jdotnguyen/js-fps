@@ -177,6 +177,8 @@ export class NpcActor {
   /** The current move set `body.carried` (cleared when it ends). */
   private moveCarried = false;
   private anim: { pose: string; left: number; resolve: () => void } | null = null;
+  /** Placed pose (lean_ or sit_) waiting for arrival facing (`faceYaw`) to line up before leaning/sitting. */
+  private pendingPlaced: { pose: string; blend: number } | null = null;
   private faceYaw: number | null = null;
   private lookGet: (() => THREE.Vector3 | null) | null = null;
   private follow: { get: () => THREE.Vector3 | null; distance: number } | null = null;
@@ -266,6 +268,7 @@ export class NpcActor {
 
   place(at: P3, yaw?: number): void {
     this.cancelWay();
+    this.pendingPlaced = null;
     this.motor.x = at.x;
     this.motor.y = at.y;
     this.motor.z = at.z;
@@ -280,6 +283,7 @@ export class NpcActor {
   /** Walk to a point (pathing when a nav graph is present). `instant` teleports there. */
   moveTo(at: P3, opts: { speed?: number; yaw?: number; instant?: boolean; track?: P3[]; curve?: P3[]; pose?: string } = {}): Promise<void> {
     this.stopMove();
+    this.pendingPlaced = null;
     this.follow = null;
     if (PLACED_POSE.test(this.basePose)) {
       // Sitting or leaning (ADR-0029): stand up before walking off.
@@ -372,11 +376,20 @@ export class NpcActor {
     const def = variant && opts.has?.(variant) ? { ...base, pose: variant } : base;
     this.cancelWay();
     this.endAnim();
+    this.pendingPlaced = null;
     this.gesture = null;
     if (def.hold === Infinity || def.hold === 0) {
       // A persistent pose becomes the base pose (typing at a console, holding out a mug).
       this.basePose = def.pose;
-      this.body.setPose(def.pose, opts.instant ? 0.01 : (def.blend ?? 0.4));
+      const blend = opts.instant ? 0.01 : (def.blend ?? 0.4);
+      if (!opts.instant && PLACED_POSE.test(def.pose) && this.faceYaw !== null) {
+        const diff = Math.abs(Math.atan2(Math.sin(this.faceYaw - this.body.heading), Math.cos(this.faceYaw - this.body.heading)));
+        if (diff > 0.35) {
+          this.pendingPlaced = { pose: def.pose, blend };
+          return Promise.resolve();
+        }
+      }
+      this.body.setPose(def.pose, blend);
       return Promise.resolve();
     }
     if (opts.instant) {
@@ -400,6 +413,7 @@ export class NpcActor {
   resetPose(pose = 'idle'): void {
     this.cancelWay();
     this.endAnim();
+    this.pendingPlaced = null;
     this.basePose = pose;
     this.body.setPose(pose, 0.4);
   }
@@ -408,6 +422,7 @@ export class NpcActor {
   settleAt(at: P3, yaw: number, pose: string, blend = 0.75): void {
     this.cancelWay();
     this.endAnim();
+    this.pendingPlaced = null;
     this.gesture = null;
     this.motor.x = at.x;
     this.motor.y = at.y;
@@ -546,14 +561,24 @@ export class NpcActor {
       }
       this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
     } else {
-      // Settle: decelerate in place, then turn to the scripted facing.
+      // Settle: decelerate crisply in place, then turn to the scripted facing.
       const face = this.faceYaw !== null ? dirOf(this.faceYaw, tmpA) : null;
-      const vel = this.body.steer(face, dt, { maxSpeed: 0, turnRate: 2.2, accel: 3 });
+      const vel = this.body.steer(face, dt, { maxSpeed: 0, turnRate: 3.4, accel: 7 });
       if (vel.lengthSq() > 1e-6 && env.colliders) {
         moveBody(this.motor, vel.x * dt, vel.z * dt, dt, MOTOR, env.colliders);
         this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
       }
-      if (this.faceYaw !== null && Math.abs(Math.atan2(Math.sin(this.faceYaw - this.body.heading), Math.cos(this.faceYaw - this.body.heading))) < 0.03) this.faceYaw = null;
+      if (this.faceYaw !== null) {
+        const diff = Math.abs(Math.atan2(Math.sin(this.faceYaw - this.body.heading), Math.cos(this.faceYaw - this.body.heading)));
+        if (this.pendingPlaced && diff <= 0.35) {
+          this.body.setPose(this.pendingPlaced.pose, this.pendingPlaced.blend);
+          this.pendingPlaced = null;
+        }
+        if (diff < 0.03) this.faceYaw = null;
+      } else if (this.pendingPlaced) {
+        this.body.setPose(this.pendingPlaced.pose, this.pendingPlaced.blend);
+        this.pendingPlaced = null;
+      }
     }
 
     // Timed gesture.
@@ -602,13 +627,15 @@ export class NpcActor {
     let bx = 0;
     let bz = 0;
     let bestGap = Infinity;
+    const range = m.curve ? 0.35 : PASS_RANGE;
+    const minAhead = m.curve ? 0.55 : 0.3;
     env.bodies(this, (x, z, br) => {
       const dx = x - me.x;
       const dz = z - me.z;
       const d = Math.hypot(dx, dz);
       const gap = d - (r + br);
       const ahead = d > 1e-4 ? (desired.x * dx + desired.z * dz) / d : 0;
-      if (gap > PASS_RANGE || ahead < 0.3) return;
+      if (gap > range || ahead < minAhead) return;
       if (Math.hypot(x - m.target.x, z - m.target.z) < br + 0.25) return;
       if (gap < bestGap) {
         bestGap = gap;
@@ -622,7 +649,7 @@ export class NpcActor {
     }
     const cross = desired.x * bz - desired.z * bx;
     if (m.passSide === 0) m.passSide = Math.abs(cross) > 0.15 ? Math.sign(cross) : 1;
-    const t = Math.max(0, Math.min(1, bestGap / PASS_RANGE));
+    const t = Math.max(0, Math.min(1, bestGap / range));
     // Gentle from afar, firm up close: people start drifting aside well before they'd meet.
     const bend = 1.4 * (1 - t * t);
     const dx = desired.x;

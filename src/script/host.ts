@@ -111,7 +111,7 @@ export interface SequenceHost {
   ambience?(id: string): void;
 
   /** Speak a dialogue line. */
-  say?(line: string, opts?: { overlap?: boolean }): SpeechLike | null;
+  say?(line: string, opts?: { overlap?: boolean; fixture?: string; to?: string }): SpeechLike | null;
   /** A skipped line must not be repeated by ambient barks. */
   markLinePlayed?(line: string): void;
   /** Cut off every line still playing (a scene was skipped). */

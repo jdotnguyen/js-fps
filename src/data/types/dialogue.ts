@@ -37,6 +37,8 @@ export function audioUrls(audio: DialogueLine['audio']): readonly string[] {
 const lineShape = {
   id: str,
   speaker: str,
+  /** Optional explicit addressee ('player', an NPC id, or a speaker id) for listen-look gaze. */
+  to: optional(str),
   text: str,
   /** Required unless `audio` is set. */
   emote: nullable(oneOf(EMOTES)),

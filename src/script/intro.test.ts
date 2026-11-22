@@ -278,7 +278,7 @@ test('Jay walks to the kitchen in one continuous walk at the NPCs speed, no walk
   });
   assert.ok(!walks.some((w) => w['to'] === 'anchor:walk_mid'));
   assert.equal(walks.length, 1);
-  assert.equal(walks[0]!['speed'], 1.3);
+  assert.equal(walks[0]!['speed'], 1.45);
   assert.equal(walks[0]!['wait'], true);
 });
 
@@ -659,4 +659,48 @@ test('walking into the Commons: the view turns to whoever speaks first, and Bram
   assert.ok(g.includes('"intro_jay_in_kitchen"') && c.includes('"intro_jay_in_kitchen"'));
   assert.ok(!g.includes('"playerFrame"'), "the greeting itself does not move the view");
   assert.ok(branches[jay]!.includes('"radio"'), 'the radio starts when Jay reaches the kitchen');
+});
+
+test('Bram serves Okafor then walks to Giles far side in parallel with kitchen banter, and multi-person intro lines declare addressees', () => {
+  const cookMoves: string[] = [];
+  walk(intro.steps, (s) => {
+    if (s['do'] === 'npcMoveTo' && s['npc'] === 'cook') cookMoves.push(String(s['to']));
+  });
+  const toOkafor = cookMoves.indexOf('anchor:cook_turn_okafor');
+  const toGiles = cookMoves.indexOf('anchor:cook_serve_giles');
+  const toStand = cookMoves.indexOf('anchor:cook_stand');
+  assert.ok(toOkafor >= 0 && toGiles > toOkafor && toStand > toGiles, `serve order: ${cookMoves.join(' -> ')}`);
+
+  // Bram walks to Giles in parallel with Okafor thanking him so dialogue does not stall in silence.
+  const serveParallel = intro.steps.find(
+    (s) => isParallel(s) && JSON.stringify(s).includes('"intro_okafor_10"') && JSON.stringify(s).includes('"anchor:cook_serve_giles"'),
+  );
+  assert.ok(serveParallel, 'cook_to_giles runs in parallel with intro_okafor_10');
+
+  // Key multi-person intro lines declare explicit addressees so speakers look at who they address.
+  const expectedTo: Record<string, string> = {
+    intro_sung_01: 'player',
+    intro_okafor_01: 'player',
+    intro_guard_04: 'okafor',
+    intro_giles_01: 'okafor',
+    intro_okafor_03: 'player',
+    intro_giles_04: 'player',
+    intro_cook_01: 'player',
+    intro_giles_09: 'cook',
+    intro_okafor_06: 'cook',
+    intro_cook_03: 'okafor',
+    intro_okafor_10: 'cook',
+    intro_giles_15: 'cook',
+    intro_giles_10: 'okafor',
+    intro_priya_04: 'giles',
+    intro_giles_11: 'priya',
+    intro_giles_12: 'player',
+    intro_giles_13: 'player',
+    intro_priya_05: 'player',
+    intro_okafor_09: 'player',
+    intro_giles_14: 'player',
+  };
+  for (const [id, who] of Object.entries(expectedTo)) {
+    assert.equal(library.line(id).to, who, `${id} addresses ${who}`);
+  }
 });
