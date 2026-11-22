@@ -340,7 +340,7 @@ test('every Jay line in the intro names who he is talking to, so the speaker sho
 });
 
 test('Sung talks with Jay under a tracking shot on Sung; the guard scanning Ruiz cannot steal it', () => {
-  // Sung's counter branch, in order: the shot on Sung, her step-up, the exchange, then speaker shots again.
+  // Sung's counter branch, in order: the shot on Sung, his step-up, the exchange, then speaker shots again.
   let branch: Step[] | null = null;
   walk(intro.steps, (s) => {
     const inner = s['steps'];
