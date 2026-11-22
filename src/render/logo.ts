@@ -15,11 +15,40 @@ export interface TagColors {
 
 export const TAG_COLORS: TagColors = { ink: '#cfe8f0', accent: '#4fd6d0' };
 
+/** Heavy chamfered capitals, 100 units tall. TAG uses T/A/G; the THALASSA title wordmark adds H/L/S. */
 const LETTERS: Record<string, string> = {
   T: 'M0,0H100V22H61V100H39V22H0Z',
   A: 'M0,100L38,0H62L100,100H76L68,78H32L24,100ZM40,58H60L50,30Z',
   G: 'M20,0H100V24H28L22,30V70L28,76H76V62H54V42H100V100H20L0,80V20Z',
+  H: 'M0,0H22V39H78V0H100V100H78V61H22V100H0Z',
+  L: 'M0,0H22V78H80V100H0Z',
+  S: 'M100,0V24H28L22,30V34L28,39H80L100,59V80L80,100H0V76H72L78,70V66L72,61H20L0,41V20L20,0Z',
 };
+
+/** Letter advance width in design units; letters not listed are 100 wide. */
+const LETTER_WIDTH: Record<string, number> = { L: 80 };
+
+export interface WordLetter {
+  ch: string;
+  /** SVG path data, 100 units tall, origin at the letter's top-left. */
+  d: string;
+  x: number;
+  width: number;
+}
+
+/** Lays out `text` in the heavy capitals with `gap` units between letters. Throws on a letter with no glyph. */
+export function layoutWord(text: string, gap = 24): { letters: WordLetter[]; width: number; height: 100 } {
+  const letters: WordLetter[] = [];
+  let x = 0;
+  for (const ch of text) {
+    const d = LETTERS[ch];
+    if (!d) throw new Error(`logo: no glyph for '${ch}'`);
+    const width = LETTER_WIDTH[ch] ?? 100;
+    letters.push({ ch, d, x, width });
+    x += width + gap;
+  }
+  return { letters, width: Math.max(0, x - gap), height: 100 };
+}
 
 const SMALL: Record<string, string> = {
   I: 'M1,0H7M4,0V14M1,14H7',

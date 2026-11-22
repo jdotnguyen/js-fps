@@ -5,6 +5,7 @@ import type { Game } from '../../game/game.ts';
 import { formatPlayTime, type SaveData, type SaveEntry, type SaveStore, type SlotSummary } from '../../game/save.ts';
 import { button, h } from '../dom.ts';
 import { Menu, type Screen } from './menu.ts';
+import { createTitleWordmark } from './titleWordmark.ts';
 
 export interface MenuDeps {
   game: Game;
@@ -218,6 +219,11 @@ export function createMenus(root: HTMLElement, deps: MenuDeps): Menu {
     return {
       title: 'THALASSA',
       variant: 'title-screen',
+      titleArt: () =>
+        createTitleWordmark({
+          reducedFlashing: () => settings.get().reducedFlashing,
+          reducedMotion: () => settings.get().reducedMotion,
+        }),
       build: (m) => [
         latest ? button('Continue', () => game.load(latest), { autofocus: true }, h('small', { text: describe(latest) })) : null,
         button('New game', () => m.push(newGameScreen()), { autofocus: !latest }),

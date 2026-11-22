@@ -5,6 +5,8 @@ export interface Screen {
   subtitle?: string;
   /** Extra class on the panel, e.g. 'title-screen'. */
   variant?: string;
+  /** Decorative art shown in place of the heading text; the text stays in the heading for screen readers. */
+  titleArt?: () => Node;
   build(menu: Menu): Array<Node | null | false>;
   /** Esc / Back on the root screen. Omit to make Esc do nothing there. */
   onBack?: () => void;
@@ -71,7 +73,9 @@ export class Menu {
     const panel = h(
       'section',
       { class: `menu-panel ${screen.variant ?? ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'menu-title' },
-      h('h1', { id: 'menu-title', text: screen.title }),
+      screen.titleArt
+        ? h('h1', { id: 'menu-title' }, h('span', { class: 'sr-only', text: screen.title }), screen.titleArt())
+        : h('h1', { id: 'menu-title', text: screen.title }),
       screen.subtitle ? h('p', { class: 'menu-sub', text: screen.subtitle }) : null,
       ...screen.build(this),
     );
