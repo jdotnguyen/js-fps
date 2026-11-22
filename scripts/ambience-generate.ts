@@ -581,6 +581,37 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     prompt:
       'industrial climate control console button press followed by a solid mechanical relay clunk and a calm resolving descending-to-neutral electronic acknowledgment chime as a humidity fault alarm clears, realistic utility room foley, no music, no voice',
   },
+  // Station blackout (station-power spec): the drop's lockdown alarm, the mains failing, and the backup lamps.
+  {
+    id: 'lockdownAlarm',
+    file: 'oneshot-lockdown-alarm.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2.6,
+    promptInfluence: 0.6,
+    prompt:
+      'one cycle of a heavy industrial emergency evacuation alarm in a deep-sea steel research station, loud deep two-tone klaxon horn with a hard attack, metallic resonant tail ringing through steel corridors, serious real emergency, no music, no voice, no synth beeps',
+  },
+  {
+    id: 'powerDown',
+    file: 'oneshot-power-down.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 5,
+    promptInfluence: 0.55,
+    prompt:
+      'main power failing across a large underwater steel facility, heavy electrical relays clunking off one after another, big generators spooling down with a falling whine, fluorescent hum dying out into silence, a distant metallic thud, no music, no voice',
+  },
+  {
+    id: 'backupHum',
+    file: 'emitter-backup-hum.mp3',
+    category: 'emitter',
+    loop: true,
+    duration: 8,
+    promptInfluence: 0.5,
+    prompt:
+      'seamless close-up loop of a low electrical mains ballast hum from an emergency backup lamp, steady 50 hertz buzz with a faint transformer whine, quiet, constant, no music, no voice, no clicks',
+  },
 ];
 
 function loadApiKey(): string {

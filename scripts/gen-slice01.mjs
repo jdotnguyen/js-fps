@@ -638,9 +638,6 @@ prop(R05, 'emergency_beacon', [-5.7, 2.6, 20], 0, { wall: true });
 prop(R05, 'cable_bundle', [-2, 0, 18], 90, { length: 10, height: 2.9 });
 anchor(R05, 'r05_entry', [-1.6, 0, 16.2], 180);
 anchor(R05, 'ammo_r05', [-5.3, 0.84, 18.0]);
-// TAG FM is still playing in the ruined junction after the first fight (ADR-0023); the radio sits on the console.
-prop(R05, 'radio', [1.5, 0.95, 19.1], 250);
-anchor(R05, 'r05_radio', [1.5, 1.08, 19.1]);
 
 // R06 (rebuild-lab-wing D6): a compartment boundary, built around the cover-me fight. Giles works the bypass panel on the
 // coolant line beside the south bulkhead, back to the hall; four sources: the ruptured duct (bloom), the service trench,
@@ -1059,13 +1056,12 @@ prop(R12d, 'hvac_dehumidifier', [42.78, 0, 27.15], 270);
 prop(R12d, 'pipe_run', [44.8, 0, 26.52], 0, { length: 3.0, height: 0.55, paint: 'teal' });
 prop(R12d, 'valve', [46.5, 0, 26.75]);
 prop(R12d, 'console', [48.6, 0, 29.28], 0, { screen: 'hydro' });
-// R12e Hydroponics Storeroom: fertiliser pallet + shelf near entry, hidden camp cot + desk + warm radio + kettle & framed dog photo.
+// R12e Hydroponics Storeroom: fertiliser pallet + shelf near entry, hidden camp cot + desk + kettle & framed dog photo (no radio: station-blackout keeps TAG FM in the kitchen).
 prop(R12e, 'fertiliser_pallet', [38.8, 0, 27.1], 270);
 prop(R12e, 'storage_shelf', [38.6, 0, 28.85], 270, { width: 1.5 });
 prop(R12e, 'camp_cot', [41.25, 0, 27.4], 90);
 prop(R12e, 'desk', [40.65, 0, 29.3], 0, { width: 1.3 });
 prop(R12e, 'chair', [40.45, 0, 28.58]);
-prop(R12e, 'radio', [41.05, 0.78, 29.35], 160);
 prop(R12e, 'kettle_set', [40.42, 0.78, 29.3], 0);
 anchor(R12a, 'hydro_entry', [36.0, 0, 20.0], 270);
 anchor(R12b, 'hydro_log', [44.0, 1.2, 14.8]);
@@ -1074,7 +1070,6 @@ anchor(R12b, 'botanist_1_spot', [43.8, 0, 17.8], 90);
 anchor(R12b, 'botanist_2_spot', [44.2, 0, 22.4], 270);
 anchor(R12d, 'hydro_alarm', [48.6, 1.2, 29.28]);
 anchor(R12e, 'hydro_store_moment', [39.9, 0, 27.5], 180);
-anchor(R12e, 'hydro_radio', [41.05, 0.9, 29.35]);
 npc(R12b, 'botanist_1', 'botanist', 'botanist_1_spot', 'crouchWork', { roam: ['R12b', 'R12d'] });
 npc(R12b, 'botanist_2', 'botanist', 'botanist_2_spot', 'clipboard', { roam: ['R12b'] });
 npc(R12c, 'botanist_3', 'botanist', [52.35, 0, 19.5], 'typing', { yaw: 270, roam: ['R12c'] });
@@ -1114,7 +1109,8 @@ const R13e = room('R13e', 'Sample Store', [[4, 10]], { area: 'dive_bay', atmosph
 door('D_R02_R13a', 'R02', 'R13a', 6, 6, 's');
 door('D_R13a_R13b', 'R13a', 'R13b', 6, 7, 's');
 door('D_R13b_R13c', 'R13b', 'R13c', 5, 8, 'w');
-door('D_R13b_R13d', 'R13b', 'R13d', 7, 8, 'e');
+// The unfinished maintenance corridor is shut from the dive bay all game (dive-bay spec); the climax opens it from R11.
+door('D_R13b_R13d', 'R13b', 'R13d', 7, 8, 'e', { access: { sealed: true, text: 'out_of_service' } });
 door('D_R13b_R13e', 'R13b', 'R13e', 5, 10, 'w');
 door('D_R13d_R11', 'R13d', 'R11', 9, 8, 's', { kit: 'bulkhead', access: { sealed: true, text: 'lockdown' } });
 station(R13a, 'dive_map', 'dive_bay', 6, 7, 'w');
@@ -1197,9 +1193,6 @@ trigger(R13a, 'trig_dive_enter', cellBox(6, 6, 7, 7), 'trigger:dive_enter', { on
 trigger(R13d, 'trig_dive_dark', cellBox(8, 8, 8, 8), 'area:dark');
 trigger(R13d, 'trig_dive_leak', around([38.5, 0, 32.9], 1.4, 2.2), 'trigger:dive_leak', { once: false });
 trigger(R13e, 'trig_dive_case', around([15.6, 0, 40], 0.8, 2), 'round:dive_case', { on: 'use', prompt: 'Stow sample case', once: false });
-// TAG FM follows Jay between rooms (ADR-0023): a second radio in the dive lockers.
-prop(R13e, 'radio', [17.2, 0.62, 41.4], 200);
-anchor(R13e, 'dive_radio', [17.2, 0.75, 41.4]);
 trigger(R13e, 'trig_dive_lockers', cellBox(4, 4, 10, 10), 'trigger:dive_lockers_enter', { once: false });
 
 // ---------------------------------------------------------------- R14 TAG admin office hub
@@ -1359,6 +1352,8 @@ wallProp(R01, 'pa_speaker', 0, 0, 'w', 1, { id: 'pa_dock', serves: 'R01a' }, 0.0
 wallProp(R01w, 'pa_speaker', 5, 0, 's', -0.9, { id: 'pa_walk' }, 0.012);
 wallProp(R02, 'pa_speaker', 7, 3, 'n', 1, { id: 'pa_commons' }, 0.012);
 wallProp(R03, 'pa_speaker', 1, 4, 'n', 1, { id: 'pa_gallery' }, 0.012);
+// The lab wing's PA (station-power spec: the power-failure notice is heard in the Lab Junction and Lab B).
+wallProp(R05, 'pa_speaker', 0, 4, 'n', 1.4, { id: 'pa_lab_junction', serves: 'R04' }, 0.012);
 wallProp(R12b, 'pa_speaker', 10, 4, 'w', -1, { id: 'pa_grow', serves: 'R12a' }, 0.012);
 wallProp(R12c, 'pa_speaker', 13, 5, 's', 1, { id: 'pa_seed' }, 0.012);
 wallProp(R12d, 'pa_speaker', 11, 7, 's', 1, { id: 'pa_nutrients' }, 0.012);
@@ -1482,6 +1477,14 @@ function build() {
     checkpoints,
   };
 }
+
+// Station blackout (render-lighting spec "Backup lights"): the wall beacons on the post-lab path are claimed as
+// standby lights, dark on main power and lit under backup power. R10's beacon is already the scripted r10_beacon.
+// The Commons and the Medical Bay get one each: on the Commons' west wall above the vending machine, and on the
+// Medical Bay's west wall above the console (west-wall beacons face rot 90, as in R06 and R07).
+prop(R02, 'emergency_beacon', [14.3, 3.0, 20], 90, { wall: true });
+prop(R08, 'emergency_beacon', [-5.7, 2.6, 50], 90, { wall: true });
+for (const [r, n] of [[R02, 1], [R05, 1], [R06, 2], [R07, 1], [R08, 1], [R09, 1], [R11, 2]]) for (let i = 0; i < n; i++) r.lights.push(L('emergency', 'off'));
 
 SPAWN_FIELDS = await detectSpawnFields();
 const level = build();

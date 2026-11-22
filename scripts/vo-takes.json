@@ -1294,5 +1294,96 @@
     ],
     "at": "2026-11-22T14:06:57.789Z",
     "source": "generated"
+  },
+  {
+    "batch": "retake_radio_ops_01",
+    "speakers": [
+      "radio_ops"
+    ],
+    "voices": [
+      "Zephyr"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "blackout_radio_ops_01",
+      "blackout_radio_ops_02"
+    ],
+    "at": "2026-11-22T17:45:02.716Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_radio_dock_01",
+    "speakers": [
+      "radio_dock"
+    ],
+    "voices": [
+      "Algieba"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "blackout_radio_dock_01"
+    ],
+    "at": "2026-11-22T17:45:22.765Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_radio_hydro_01",
+    "speakers": [
+      "radio_hydro"
+    ],
+    "voices": [
+      "Erinome"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "blackout_radio_hydro_01"
+    ],
+    "at": "2026-11-22T17:45:43.765Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_radio_launch_01",
+    "speakers": [
+      "radio_launch"
+    ],
+    "voices": [
+      "Sadaltager"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "blackout_radio_launch_01"
+    ],
+    "at": "2026-11-22T17:46:04.984Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_medic_01",
+    "speakers": [
+      "medic"
+    ],
+    "voices": [
+      "Charon"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "blackout_okafor_01"
+    ],
+    "at": "2026-11-22T17:46:08.194Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_pa_01",
+    "speakers": [
+      "pa"
+    ],
+    "voices": [
+      "Gacrux"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "blackout_pa_power_01"
+    ],
+    "at": "2026-11-22T17:46:13.508Z",
+    "source": "generated"
   }
 ]

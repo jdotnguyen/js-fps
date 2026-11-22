@@ -89,6 +89,7 @@ export const MODEL_CREDITS: readonly ModelCredit[] = [
   { asset: 'source scientist', author: 'ค Ⓡℝ𝐎𝐠𝓐ⓝ𝐓𝐚Ŝ Ｐ３𝐃➆', licence: 'CC BY 4.0', usedAs: 'Botanist Crew 2' },
   { asset: 'Scientist', author: 'Scientist Broken', licence: 'CC BY 4.0', usedAs: 'Botanist Crew 3' },
   { asset: 'Lady in a trenchcoat', author: 'ustoopia', licence: 'CC BY 4.0', usedAs: "Admin Assistant's Body" },
+  { asset: 'Flashlight', author: 'MAR.COS.', licence: 'CC BY 4.0', usedAs: "Jay's Flashlight" },
   { asset: 'Ocean floor scene', author: 'teacherap123', licence: 'CC BY 4.0', usedAs: 'Sea Floor' },
   { asset: 'Kilo-class Submarine', author: 'spacelynxcanfly', licence: 'CC BY 4.0', usedAs: 'Supply Submarine' },
   { asset: 'Location underground laboratory', author: 'bazz4r', licence: 'CC BY 4.0', usedAs: 'Underground Lab' },

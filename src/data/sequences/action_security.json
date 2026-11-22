@@ -9,6 +9,7 @@
   "resumeFromCheckpoint": true,
   "debugSetup": {
    "flags": {
+    "station_power": "backup",
     "drop_done": true,
     "contact_done": true,
     "cover_done": true
@@ -153,6 +154,7 @@
   "resumeFromCheckpoint": true,
   "debugSetup": {
    "flags": {
+    "station_power": "backup",
     "drop_done": true,
     "contact_done": true,
     "cover_done": true,

@@ -9,6 +9,7 @@
   "resumeFromCheckpoint": true,
   "debugSetup": {
    "flags": {
+    "station_power": "backup",
     "sec_done": true,
     "medlab_open": true,
     "tunnel_started": true,
@@ -290,6 +291,7 @@
   "exclusive": "rails",
   "debugSetup": {
    "flags": {
+    "station_power": "backup",
     "climax_done": true,
     "giles.infectionStage": 3,
     "giles.bandaged": true

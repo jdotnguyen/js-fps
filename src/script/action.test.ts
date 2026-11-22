@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { ControlStack } from '../actors/control.ts';
-import { SOUND_SPECS } from '../audio/sounds.ts';
+import { SAMPLE_URLS, SOUND_SPECS } from '../audio/sounds.ts';
 import { DialogueLibrary } from '../dialogue/library.ts';
 import { isParallel } from './actions.ts';
 import type { CameraFeedOptions, SequenceHost } from './host.ts';
@@ -55,7 +55,7 @@ function walk(steps: Step[], visit: (s: Record<string, unknown>) => void): void 
 // ------------------------------------------------------------------------------- data checks
 
 test('the action sequences name only things that exist: lines, sounds, anchors, NPCs, doors, rooms, objectives, groups', () => {
-  assert.equal(actionDefs.length, 17);
+  assert.equal(actionDefs.length, 16);
   // `researcher_b_creature`: what grows out of Voss in the drop's kill (infection-kills spec), gone through the door at contact.
   const npcSet = new Set([...npcIds, 'giles', 'okafor', 'r08_thing', 'researcher_b_creature']);
   for (const def of actionDefs) {
@@ -68,7 +68,7 @@ test('the action sequences name only things that exist: lines, sounds, anchors, 
           assert.equal(library.line(line).priority, 'story', `${where} ${line} must be story priority`);
         }
       }
-      if (s['do'] === 'sfx') assert.ok((s['id'] as string) in SOUND_SPECS, `${where} sound ${String(s['id'])}`);
+      if (s['do'] === 'sfx') assert.ok((s['id'] as string) in SOUND_SPECS || (s['id'] as string) in SAMPLE_URLS, `${where} sound ${String(s['id'])}`);
       if (s['do'] === 'setObjective' || s['do'] === 'completeObjective') assert.ok(String(s['id']) in objectives, `${where} objective ${String(s['id'])}`);
       if (s['do'] === 'doorState') assert.ok(doorIds.has(s['id'] as string), `${where} door ${String(s['id'])}`);
       if (s['do'] === 'lightState') assert.ok(roomIds.has(s['room'] as string), `${where} room ${String(s['room'])}`);
@@ -173,6 +173,7 @@ function makeGame(only?: string[], opts: { holdMauled?: boolean } = {}) {
     setDoor: (id, state) => (log.push(`door ${id} ${state}`), true),
     setLight: (room, pattern, tint) => (log.push(`light ${room} ${pattern}${tint ? ` ${tint}` : ''}`), true),
     glass: (id, state) => void log.push(`glass ${id} ${state}`),
+    setPower: (state) => void log.push(`power ${state}`),
     cameraFeed: (id, opts) => (feeds.push(opts), void log.push(`feed ${id} ${opts.state}${opts.fullscreen ? ' fullscreen' : ''}`)),
     radio: (track) => void log.push(track ? `radio ${track}` : 'radio stop'),
     gore: (kind) => void log.push(`gore ${kind}`),
@@ -338,8 +339,11 @@ test('R05 first contact: knocks, the door gives, legs, the revive rule, the tric
   assert.equal(g.host.flags['contact_done'], true);
   assert.ok(at(g, 'door D_R05_R06 closed') > at(g, 'group r05_trickle'));
   assert.equal(count(g, 'checkpoint cp_contact_clear'), 1);
-  assert.equal(g.host.flags['radio_place'], 'ruined', 'TAG FM plays in the ruined junction, set before the checkpoint');
-  assert.ok(at(g, 'radio tag_fm_01') >= 0 && at(g, 'radio tag_fm_01') < at(g, 'checkpoint cp_contact_clear'));
+  // station-power spec: the blackout follows the trickle, then the door closes and the checkpoint saves on backup power.
+  inOrder(g, ['group r05_trickle', ...['blackout_radio_ops_01', 'blackout_radio_dock_01', 'blackout_radio_hydro_01', 'blackout_radio_launch_01', 'blackout_radio_ops_02'].map((l) => `say ${l} overlap`), 'say blackout_okafor_01', 'say blackout_pa_power_01 overlap', 'sfx powerDown', 'power backup', 'door D_R05_R06 closed', 'checkpoint cp_contact_clear']);
+  assert.equal(g.host.flags['station_power'], 'backup');
+  assert.equal(at(g, 'radio tag_fm_01'), -1, 'no radio in the Lab Junction any more');
+  assert.equal(g.host.flags['radio_place'], undefined);
   assert.equal(g.control.state.move, 'free');
   noWarnings(g);
   fire(g, 'trigger:r05_enter');
@@ -1179,4 +1183,56 @@ test('first contact releases the creature from the glass as the enemy, and the s
   assert.equal(spawn.look, 'lab_creature', "the enemy wears the creature's body");
   const order = steps.filter((s) => s['do'] === 'score' || (s['do'] === 'waitGroup' && s['group'] === 'r05_contact')).map((s) => String(s['cue'] ?? s['stinger'] ?? s['do']));
   assert.deepEqual(order, ['contact', 'rise', 'door', 'waitGroup', 'end']);
+});
+
+test('power: switches station power, records it for saves, and validates its state', () => {
+  const d = validateSequences({ 'x.json': { id: 'blackout', skippable: true, steps: [{ do: 'wait', s: 5 }, { do: 'power', state: 'backup' }] } });
+  const g = makeGame();
+  const m = new SequenceManager(g.host, d);
+  m.start('blackout');
+  assert.equal(g.log.includes('power backup'), false);
+  assert.equal(m.skip(), true);
+  assert.ok(g.log.includes('power backup'), 'a skipped scene still lands on backup power');
+  assert.equal(g.host.flags['station_power'], 'backup');
+  assert.throws(() => validateSequences({ 'x.json': { id: 'bad', steps: [{ do: 'power', state: 'half' }] } }));
+});
+
+test('station-power "Panicked radio chatter": the calls come one after another, each letting the next start about 1 s before it ends', () => {
+  const steps = byId.get('contact')!.steps as Array<Record<string, unknown>>;
+  const calls = ['blackout_radio_ops_01', 'blackout_radio_dock_01', 'blackout_radio_hydro_01', 'blackout_radio_launch_01'];
+  for (const line of calls) {
+    const i = steps.findIndex((s) => s['line'] === line);
+    assert.ok(i >= 0 && steps[i]!['overlap'] === true && steps[i]!['wait'] === false, line);
+    const next = steps[i + 1]!;
+    // The wait is the clip's length minus about 1 s; the shortest clip runs 3.7 s.
+    assert.ok(next['do'] === 'wait' && (next['s'] as number) >= 2.5, `${line} is followed by a wait of at least 2.5 s`);
+  }
+});
+
+test('station-power: every sequence after the contact fight debug-starts under backup power', () => {
+  for (const id of ['cover_me', 'armory_auto', 'sec_glass', 'medlab_door', 'tunnel_enter', 'valve_turn', 'climax', 'cliffhanger']) {
+    const g = makeGame([id]);
+    g.m.start(id, { debug: true });
+    assert.ok(at(g, 'power backup') >= 0, `${id} starts on backup power`);
+  }
+  const g = makeGame(['contact']);
+  g.m.start('contact', { debug: true });
+  assert.equal(at(g, 'power backup'), -1, 'the contact fight itself starts on main power');
+});
+
+test('station-power "Power state survives checkpoints": a load after the blackout is on backup power, one before it is not', () => {
+  const before = makeGame(['action_restore']);
+  setFlags(before, { drop_started: true, drop_done: true });
+  before.host.events.emit('game:mode', { mode: 'playing' });
+  assert.equal(at(before, 'power backup'), -1, 'cp_drop loads on main power');
+  const after = makeGame(['action_restore']);
+  setFlags(after, { drop_started: true, drop_done: true, contact_done: true, station_power: 'backup' });
+  after.host.events.emit('game:mode', { mode: 'playing' });
+  assert.ok(at(after, 'power backup') >= 0);
+  // A save made after the contact fight but before this change has no station_power flag.
+  const old = makeGame(['action_restore']);
+  setFlags(old, { drop_started: true, drop_done: true, contact_done: true });
+  old.host.events.emit('game:mode', { mode: 'playing' });
+  assert.ok(at(old, 'power backup') >= 0, 'an older save loads dark too');
+  noWarnings(after);
 });

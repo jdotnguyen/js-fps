@@ -25,6 +25,16 @@ data checkpoints `cp_first_contact`, `cp_cover_me`, `cp_security`, `cp_flooded`,
 - Die mid-fight: you should restart in R05 and the fight replays from the knocks.
 - Look back through the glass (openspec two-way-glass-visibility): once the Lab B bulkhead is open, step into Lab B and look north. The Observation Gallery (walls, sofa, console, lit fixtures) and the glass panes are drawn, with the cracks and Voss's blood on the glass; no black void and no commons crew floating beyond it. If the gallery's door to the commons stands open, the doorway shows black (known, accepted).
 
+- **Blackout** (openspec station-blackout): kill the last trickle monster. Within 2 s the radio chatter starts: four voices (Station Ops, Docking Ring, Hydroponics, Launch Hall) one after another, each starting about 1 s before the last ends, two cut off mid-word, all with subtitles. Okafor: "That's the whole station." The PA announces the power failure from the Lab Junction speaker (also heard in Lab B), then the power-down sound and every room drops to dim, warm backup lights (darker than the drop's red), beacons on the walls, tubes silent, beacons humming. With the flashlight off, the "Flashlight" prompt shows. The door to R06 closes and `cp_contact_clear` saves. Reload it: still dark, and the chatter does not replay.
+- No radio music in the Lab Junction any more; the kitchen radio in the Commons is the only one.
+
+**Flashlight** (openspec station-blackout, player-flashlight spec)
+- Press F with the pistol out: the flashlight rises into the lower left within a quarter second, lens forward, its back end running off the screen edge (no floating end, no hand). The lens glows and the beam comes from it. F again lowers it.
+- Switch to the shotgun with the light on: the flashlight lowers away, the beam stays (from the chest). Back to the pistol: it rises again.
+- Aim, sprint, jump and reload with the light on: it sways with the view and its back end never shows. Try a 21:9 window and the lowest and highest field of view.
+
+**Dive bay corridor** (dive-bay spec): the Launch Hall door to the maintenance corridor (R13d) says "This door won't open. Out of service." during the rounds. In the R11 climax the corridor still opens from the Control Room.
+
 **R06 cover me** (`jump=r06`)
 - Walk to the bulkhead: Giles runs to the panel, "Cover me", 6 enemies from two vents, the ceiling and the corridor. The 20 s job pauses while enemies are on him. Door opens when the job ends; the stage-1 tell (flexes hand, numb-hand line, Okafor "August?") only after all 6 are dead.
 - Check the enemies really come at Giles and Jay, not only at one of you; the bulkhead stays shut until the job is done.

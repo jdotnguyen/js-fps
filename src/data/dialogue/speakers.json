@@ -35,6 +35,22 @@
     "name": "Guard", "kind": "voice", "f0": 108, "formants": 0.93, "tempo": 0.95, "attack": 1.2,
     "breath": 0.16, "rasp": 0.08, "drive": 0.2, "detune": 0, "brightness": 4600, "channel": "local"
   },
+  "radio_ops": {
+    "name": "Station Ops", "kind": "voice", "f0": 205, "formants": 1.15, "tempo": 1.05, "attack": 1,
+    "breath": 0.15, "rasp": 0.04, "drive": 0.25, "detune": 0, "brightness": 5200, "channel": "radio"
+  },
+  "radio_dock": {
+    "name": "Docking Ring", "kind": "voice", "f0": 118, "formants": 0.95, "tempo": 1.2, "attack": 1,
+    "breath": 0.3, "rasp": 0.04, "drive": 0.25, "detune": 0, "brightness": 5200, "channel": "radio"
+  },
+  "radio_hydro": {
+    "name": "Hydroponics", "kind": "voice", "f0": 225, "formants": 1.2, "tempo": 0.9, "attack": 1,
+    "breath": 0.3, "rasp": 0.04, "drive": 0.25, "detune": 0, "brightness": 5200, "channel": "radio"
+  },
+  "radio_launch": {
+    "name": "Launch Hall", "kind": "voice", "f0": 130, "formants": 0.97, "tempo": 1.2, "attack": 1,
+    "breath": 0.25, "rasp": 0.04, "drive": 0.25, "detune": 0, "brightness": 5200, "channel": "radio"
+  },
   "crew": {
     "name": "Crew", "kind": "voice", "f0": 150, "formants": 1.03, "tempo": 1, "attack": 1,
     "breath": 0.15, "rasp": 0.05, "drive": 0.2, "detune": 0, "brightness": 6000, "channel": "local",

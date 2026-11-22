@@ -14,7 +14,9 @@ import {
   type PromptId,
   type TutorialMode,
   type TutorialStepInput,
+  wireFlashlightPrompt,
 } from './tutorials.ts';
+import { EventBus } from '../core/events.ts';
 
 const bindings = (a: Action): readonly string[] => (keymap as Record<string, string[]>)[a] ?? [];
 const idle: TutorialStepInput = { onRails: false, pressed: () => false, looked: false };
@@ -164,4 +166,21 @@ test('a damaged profile shows tutorials again instead of failing', () => {
   const { q } = setup('first', store);
   q.trigger('move');
   assert.equal(q.step(0.016, idle).opened?.id, 'move');
+});
+
+// station-power spec "The blackout teaches the flashlight".
+test('the flashlight prompt comes with the blackout, not the dark corridor, and not when the light is already on', () => {
+  const events = new EventBus();
+  let on = false;
+  let shown = 0;
+  wireFlashlightPrompt(events, () => on, () => shown++);
+  events.emit('area:dark', {});
+  assert.equal(shown, 0, 'Dark corridor before the drop: no prompt');
+  events.emit('power:changed', { state: 'backup' });
+  assert.equal(shown, 1, 'Flashlight off: the prompt shows');
+  events.emit('power:changed', { state: 'mains' });
+  assert.equal(shown, 1);
+  on = true;
+  events.emit('power:changed', { state: 'backup' });
+  assert.equal(shown, 1, 'Flashlight already on: no prompt');
 });

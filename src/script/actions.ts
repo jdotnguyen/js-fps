@@ -27,7 +27,7 @@ import scoresJson from '../data/scores.json' with { type: 'json' };
 const SCORE_IDS = Object.keys(scoresJson) as [string, ...string[]];
 import { DOOR_STATES } from '../data/types/level.ts';
 import { LIGHT_PATTERNS } from '../render/lights.ts';
-import type { ControlOverride, FrameOptions, SequenceHost } from './host.ts';
+import { POWER_FLAG, type ControlOverride, type FrameOptions, type SequenceHost } from './host.ts';
 import type { ActionStep, Flags, Running, Scalar, Step, TargetRef, Vec3Like } from './types.ts';
 
 /** One-off logic that does not warrant a new action type (ADR-0009 `runHook`). */
@@ -706,6 +706,16 @@ export const ACTIONS: Record<string, ActionDef> = {
   glass: act({ id: str, state: oneOf(['intact', 'cracked', 'shattered'] as const) }, (s, ctx) => {
     if (!ctx.host.glass) return ctx.missing('glass');
     ctx.host.glass(s.id, s.state);
+  }),
+
+  /**
+   * Station power (station-power spec): `backup` puts every room on its backup lights, `mains` restores them. Saved in
+   * the `station_power` flag, which `action_restore` reapplies on load. Instant, so a skipped scene just applies it.
+   */
+  power: act({ state: oneOf(['mains', 'backup'] as const) }, (s, ctx) => {
+    ctx.host.flags[POWER_FLAG] = s.state;
+    if (!ctx.host.setPower) return ctx.missing('power');
+    ctx.host.setPower(s.state);
   }),
 
   water: act({ level: num, s: optional(numRange(0, 600)), wait }, (s, ctx) => {

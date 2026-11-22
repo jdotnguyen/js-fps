@@ -176,6 +176,7 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
 
     setDoor: (id, state) => d.level?.setDoor(id, state as DoorState) ?? false,
     doorStates: () => d.level?.doorStates() ?? {},
+    setPower: (state) => d.level?.setPower(state),
     setLight: (room, pattern, tint) => {
       const ok = d.level?.setRoomLights(room, pattern as LightPattern) ?? false;
       if (tint !== undefined) d.level?.tintRoomLights(room, tint);

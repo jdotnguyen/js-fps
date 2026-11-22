@@ -12,6 +12,7 @@
   "resumeFromCheckpoint": true,
   "debugSetup": {
    "flags": {
+    "station_power": "backup",
     "sec_done": true
    }
   },
@@ -83,6 +84,7 @@
   "resumeFromCheckpoint": true,
   "debugSetup": {
    "flags": {
+    "station_power": "backup",
     "sec_done": true,
     "medlab_open": true
    }
@@ -138,6 +140,7 @@
   "resumeFromCheckpoint": true,
   "debugSetup": {
    "flags": {
+    "station_power": "backup",
     "sec_done": true,
     "medlab_open": true,
     "tunnel_started": true

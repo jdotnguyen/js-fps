@@ -136,6 +136,8 @@ const lightShape = {
   pool: optional(bool),
   /** true: casts shadows as a downward cone while the tier's shadow pool has room; otherwise lights the room unshadowed (render-lighting spec). */
   shadow: optional(bool),
+  /** true: stays lit, dimmed, under backup power (render-lighting spec "Backup lights"). `emergency` slots always do. */
+  backup: optional(bool),
 };
 
 const triggerShape = {

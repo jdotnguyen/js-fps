@@ -846,6 +846,10 @@ export const SAMPLE_URLS = {
   // Supply sub docking (intro-sequence spec, fix-supply-sub-docking): muffled underwater ElevenLabs SFX.
   subPass: 'assets/audio/ambience/oneshot-sub-pass.mp3',
   subClamp: 'assets/audio/ambience/oneshot-sub-clamp.mp3',
+  // The station blackout (station-power spec; ElevenLabs, scripts/ambience-generate.ts). Recorded only, no procedural fallback.
+  lockdownAlarm: 'assets/audio/ambience/oneshot-lockdown-alarm.mp3',
+  powerDown: 'assets/audio/ambience/oneshot-power-down.mp3',
+  backupHum: 'assets/audio/ambience/emitter-backup-hum.mp3',
 
   // Door motion and access feedback (ElevenLabs, scripts/doors-generate.ts).
   doorPressureOpen: 'assets/audio/doors/door-pressure-open.mp3',

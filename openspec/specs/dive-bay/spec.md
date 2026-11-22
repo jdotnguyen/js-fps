@@ -84,8 +84,9 @@ R13a, R13b, R13c and R13e SHALL use clean painted steel walls, clean treadplate 
 - **THEN** no wall, floor or ceiling surface in those rooms uses a rust texture
 
 #### Scenario: The corridor stays decayed
-- **WHEN** Jay enters R13d
-- **THEN** its walls and floor show rust, its single dying light still runs, and the `area:dark` flashlight prompt still fires
+- **WHEN** Jay enters R13d from R11 during the climax
+- **THEN** its walls and floor show rust and its single dying light still runs
+- **AND** no flashlight prompt shows there: the station blackout teaches the flashlight instead
 
 #### Scenario: Wet floor where water is
 - **WHEN** Jay looks at the deck around the trunk and under the ROV
@@ -110,11 +111,15 @@ Each room in R13a–e SHALL have a room plate by its entry door. R13a, R13b, R13
 - **THEN** a plate reading "R13B · LAUNCH TRUNK 1" is beside the door
 
 ### Requirement: Script hooks are preserved
-The rebuilt bay SHALL keep the anchors `dive_entry`, `priya_start`, `moon_pool`, `cp_round_dive`, `diver_1_spot`, `dive_case_pickup`, `dive_case_locker`, `dive_radio` and `dark_corridor` where they still serve their scenes. It SHALL keep the triggers `trigger:dive_enter`, `area:dark`, `round:dive_case` and `trigger:dive_lockers_enter`, the NPCs `priya`, `diver_1`, `maint_1` and `diver_2`, the `dive_map` station, every door id, and `D_R13d_R11` sealed for lockdown.
+The rebuilt bay SHALL keep the anchors `dive_entry`, `priya_start`, `moon_pool`, `cp_round_dive`, `diver_1_spot`, `dive_case_pickup`, `dive_case_locker` and `dark_corridor` where they still serve their scenes. It SHALL keep the triggers `trigger:dive_enter`, `area:dark`, `round:dive_case` and `trigger:dive_lockers_enter`, the NPCs `priya`, `diver_1`, `maint_1` and `diver_2`, the `dive_map` station, every door id, and `D_R13d_R11` sealed for lockdown. The bay SHALL have no radio and no `dive_radio` anchor.
 
 #### Scenario: Whole critical path still walks
 - **WHEN** the headless critical-path walk runs
 - **THEN** it reaches `cp_round_dive` and `dive_case_locker` through the real colliders and doors, as before
+
+#### Scenario: No radio in the Sample Store
+- **WHEN** slice01 is built
+- **THEN** the dive bay has no `dive_radio` anchor and no sequence plays radio music there
 
 ### Requirement: Nothing outside the dive bay changes
 Generating slice01 SHALL change nothing outside R13a–e.
@@ -133,3 +138,18 @@ Each room in R13a–e SHALL stay within 60 draw calls, and no room in slice01 SH
 #### Scenario: Squad-width paths
 - **WHEN** two 0.35 m capsules walk side by side from the R13a door to the R13e door
 - **THEN** they pass the trunk rail, the bench and the console without stalling
+
+### Requirement: The maintenance corridor is closed from the dive bay
+The door from the Launch Hall to the Maintenance Corridor (`D_R13b_R13d`) SHALL be sealed for the whole game and show "Out of service" when used. R13d SHALL be reachable only from the Control Room (R11), when the climax opens `D_R13d_R11`. Restoring any save SHALL leave `D_R13b_R13d` sealed.
+
+#### Scenario: Trying the door during the rounds
+- **WHEN** Jay uses the R13b–R13d door during the morning rounds
+- **THEN** the door stays shut and shows "Out of service"
+
+#### Scenario: Climax still reaches the corridor
+- **WHEN** the climax opens `D_R13d_R11`
+- **THEN** Jay can step from R11 into R13d, and `D_R13b_R13d` stays sealed
+
+#### Scenario: Restore before the climax
+- **WHEN** the player loads `cp_round_dive` or any checkpoint before the climax
+- **THEN** `D_R13b_R13d` is sealed

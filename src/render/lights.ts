@@ -53,8 +53,10 @@ export interface ControlledLight {
   emissiveBase: number;
   shafts: ShaftUniforms[];
   shaftBase: number;
-  /** Current pattern value in [0, 1], updated every frame (audio follows it). */
+  /** Current pattern value in [0, 1] times `power`, updated every frame (audio follows it). */
   level: number;
+  /** Station power scale (render-lighting spec "Backup lights"): 1 on main power, dim for a backup light, 0 when out. */
+  power: number;
 }
 
 /**
@@ -64,15 +66,15 @@ export interface ControlledLight {
 export class LightController {
   readonly items: ControlledLight[] = [];
 
-  add(item: Omit<ControlledLight, 'level'>): ControlledLight {
-    const full: ControlledLight = { ...item, level: 1 };
+  add(item: Omit<ControlledLight, 'level' | 'power'>): ControlledLight {
+    const full: ControlledLight = { ...item, level: 1, power: 1 };
     this.items.push(full);
     return full;
   }
 
   update(t: number, reducedFlashing: boolean): void {
     for (const it of this.items) {
-      const v = patternValue(it.pattern, t, it.seed, reducedFlashing);
+      const v = patternValue(it.pattern, t, it.seed, reducedFlashing) * it.power;
       it.level = v;
       if (it.light) it.light.intensity = it.base * v;
       for (const m of it.emissives) m.emissiveIntensity = it.emissiveBase * v;

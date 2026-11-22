@@ -58,7 +58,7 @@ A sequence SHALL be able to override the room ambience with a named preset, incl
 - **THEN** the room ambience fades to nothing until the override is cleared
 
 ### Requirement: TAG FM radio
-The in-world radio SHALL play a named track from a position in the world with a small, old speaker sound (wow and flutter, hiss and crackle, band-limited speaker tone, soft saturation). At most one radio track SHALL play at a time. Starting a track SHALL replace the current one; an unknown track SHALL log a warning and play nothing.
+The in-world radio SHALL play a named track from a position in the world with a small, old speaker sound (wow and flutter, hiss and crackle, band-limited speaker tone, soft saturation). At most one radio track SHALL play at a time. Starting a track SHALL replace the current one; an unknown track SHALL log a warning and play nothing. The only radio on the station SHALL be the one in the Commons kitchen; no sequence SHALL start a radio track anywhere else.
 
 #### Scenario: Radio in the kitchen
 - **WHEN** the intro reaches the kitchen and starts `tag_fm_01` at the radio prop
@@ -67,6 +67,14 @@ The in-world radio SHALL play a named track from a position in the world with a 
 #### Scenario: Radio moves rooms
 - **WHEN** a sequence starts `tag_fm_01` at a second position while it is already playing
 - **THEN** it plays only from the new position
+
+#### Scenario: No radio outside the kitchen
+- **WHEN** the content is validated
+- **THEN** every radio step that starts a track plays it at the Commons kitchen radio, and the Lab Junction, Hydroponics Storeroom and Sample Store have no radio
+
+#### Scenario: Quiet half after the lab
+- **WHEN** the player clears the contact fight and later enters Hydroponics or the dive bay
+- **THEN** no radio music plays there
 
 ### Requirement: Door sounds
 Doors SHALL play open and close sounds matched to their kit (pressure slide, glass slide or bulkhead) from the door's position. A door that reverses mid-travel SHALL crossfade into the opposite sound at the matching point. Denied and unlocked feedback SHALL play from the door, and repeated denied attempts within about 0.35 s SHALL play only once.
@@ -182,3 +190,21 @@ Level props SHALL be able to declare positional looping emitters and fire synchr
 #### Scenario: Prop burst occluded by wall or glass
 - **WHEN** a prop fires a synchronized positional one-shot in `R12b` while the player is behind a glass partition in `R12c` or behind a solid wall in `R12e`
 - **THEN** the one-shot is lightly muffled through glass and fully muffled through a solid wall or closed door
+
+### Requirement: The lockdown alarm is a real station alarm
+The drop's alarm SHALL be its own recorded ElevenLabs sound, `lockdownAlarm`: a heavy, industrial, two-tone alarm with a hard attack and a metallic tail that reads as a real emergency, not a synth tone. It is separate from the pump room's looping `klaxon`.
+
+#### Scenario: The drop's alarm
+- **WHEN** the drop sequence plays its alarm steps at the gallery glass
+- **THEN** the recorded alarm plays from there, on the score's beat as before
+
+### Requirement: Power sounds
+A recorded power-down sound SHALL play when the station goes to backup power, and each lit backup lamp SHALL play a low electrical hum from its position while the station is under backup power. Both SHALL be recorded files with no procedural fallback.
+
+#### Scenario: Power fails
+- **WHEN** the station switches to backup power
+- **THEN** a power-down sound (relays dropping, generators winding down) plays at the player, and the room's light buzz stops
+
+#### Scenario: Walking past a lamp
+- **WHEN** the player walks past a lit backup lamp under backup power
+- **THEN** its hum gets louder as they approach and fades as they leave

@@ -10,6 +10,42 @@
   "steps": [
    {
     "do": "if",
+    "flag": "radio_place",
+    "is": "hydro",
+    "then": [
+     {
+      "do": "setFlag",
+      "flag": "radio_place",
+      "value": "none"
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "radio_place",
+    "is": "dive",
+    "then": [
+     {
+      "do": "setFlag",
+      "flag": "radio_place",
+      "value": "none"
+     }
+    ]
+   },
+   {
+    "do": "if",
+    "flag": "radio_place",
+    "is": "ruined",
+    "then": [
+     {
+      "do": "setFlag",
+      "flag": "radio_place",
+      "value": "none"
+     }
+    ]
+   },
+   {
+    "do": "if",
     "flag": "radio_muted",
     "then": [],
     "else": [
@@ -22,42 +58,6 @@
         "do": "radio",
         "track": "tag_fm_01",
         "at": "anchor:radio"
-       }
-      ]
-     },
-     {
-      "do": "if",
-      "flag": "radio_place",
-      "is": "hydro",
-      "then": [
-       {
-        "do": "radio",
-        "track": "tag_fm_01",
-        "at": "anchor:hydro_radio"
-       }
-      ]
-     },
-     {
-      "do": "if",
-      "flag": "radio_place",
-      "is": "dive",
-      "then": [
-       {
-        "do": "radio",
-        "track": "tag_fm_01",
-        "at": "anchor:dive_radio"
-       }
-      ]
-     },
-     {
-      "do": "if",
-      "flag": "radio_place",
-      "is": "ruined",
-      "then": [
-       {
-        "do": "radio",
-        "track": "tag_fm_01",
-        "at": "anchor:r05_radio"
        }
       ]
      }

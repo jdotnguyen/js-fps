@@ -3,6 +3,7 @@ import { PLAYER_TUNING, type Player } from '../../actors/player.ts';
 import type { EventBus } from '../../core/events.ts';
 import type { Input } from '../../core/input.ts';
 import type { ClipName, GlbWeapon, PlayOptions } from './glbWeapons.ts';
+import { FlashlightProp } from './flashlightProp.ts';
 import type { WeaponId } from './rig.ts';
 
 declare module '../../core/events.ts' {
@@ -153,6 +154,10 @@ export interface ViewmodelDeps {
   reducedMotion: () => boolean;
   /** Weapons Jay carries (ADR-0005: the shotgun comes from the R07a armory). Default: all. */
   owns?: (id: WeaponId) => boolean;
+  /** The flashlight is switched on (player-flashlight spec: its model shows with the pistol). */
+  flashlightOn?: () => boolean;
+  /** The beam's current brightness, 0..1, for the lens glow. */
+  flashlightLevel?: () => number;
 }
 
 const ease = (t: number): number => t * t * (3 - 2 * t);
@@ -250,6 +255,8 @@ export class Viewmodel {
   private readonly tmp = new THREE.Vector3();
   private readonly recoilVec = new THREE.Vector3();
   private recoilW = 0;
+  /** The held flashlight (player-flashlight spec), shown with the pistol while the light is on. */
+  readonly flashlight = new FlashlightProp();
 
   constructor(deps: ViewmodelDeps) {
     this.d = deps;
@@ -300,6 +307,8 @@ export class Viewmodel {
     this.fill = new THREE.PointLight(0xffe2cc, 0.55, 1.6, 2);
     this.fill.position.set(0.05, 0.12, -0.05);
     this.group.add(this.fill);
+
+    this.group.add(this.flashlight.group);
 
     this.limitSpotNearField();
     deps.scene.add(this.group);
@@ -420,7 +429,36 @@ export class Viewmodel {
     this.updateTimeline();
     this.rigs[this.current].update(dt);
     this.updatePose(dt);
+    this.updateFlashlight(dt);
     this.updateFlash(dt);
+  }
+
+  /** Attach the flashlight GLB once it has loaded; its materials get the same near-field spot clamp as the guns. */
+  setFlashlightModel(scene: THREE.Object3D): void {
+    this.flashlight.setModel(scene);
+    this.limitSpotNearField();
+  }
+
+  /** player-flashlight spec: up while the light is on with the pistol (or no weapon) out, put away for the shotgun. */
+  private updateFlashlight(dt: number): void {
+    const next = this.pending ?? this.current;
+    const wanted = (this.d.flashlightOn?.() ?? false) && next !== 'shotgun' && this.current !== 'shotgun';
+    const reduced = this.d.reducedMotion() ? 0 : 1;
+    // A share of the weapon's sway and bob, so the light moves with the view like something held.
+    const sway = {
+      x: (this.swayX.x * 0.04 + this.wX.x * 0.05 + Math.sin(this.bobPhase) * 0.003 * this.bobAmp) * reduced,
+      y: (this.swayY.x * 0.035 + this.wY.x * 0.05 + Math.abs(Math.cos(this.bobPhase)) * -0.003 * this.bobAmp) * reduced,
+      rx: (this.swayY.x * 0.3 + this.wY.x * 0.4) * reduced,
+      ry: (this.swayX.x * 0.3 - this.wX.x * 0.4) * reduced,
+    };
+    this.flashlight.update(dt, wanted, this.d.camera, sway, this.d.flashlightLevel?.() ?? 0);
+  }
+
+  /** World position of the lens while the flashlight model is up, else null (the beam then comes from the chest). */
+  flashlightLens(out: THREE.Vector3): THREE.Vector3 | null {
+    if (!this.group.visible || !this.flashlight.shown) return null;
+    this.flashlight.lens.updateWorldMatrix(true, false);
+    return this.flashlight.lens.getWorldPosition(out);
   }
 
   // ---- clip timeline (cues, pump, return to rest) ----------------------------------------

@@ -88,7 +88,7 @@ export function labLamps(group: THREE.Object3D, lamps: ReadonlyArray<{ x: number
   const lights = new LightController();
   const pool = new LightPool(group, fillLights);
   const slots: PooledSlot[] = lamps.map((p, i) => {
-    const item: ControlledLight = { name: `lab-lamp-${i}`, light: null, base: LAMP.intensity, pattern: 'steady', seed: i, emissives: [], emissiveBase: 0, shafts: [], shaftBase: 0, level: 1 };
+    const item: ControlledLight = { name: `lab-lamp-${i}`, light: null, base: LAMP.intensity, pattern: 'steady', seed: i, emissives: [], emissiveBase: 0, shafts: [], shaftBase: 0, level: 1, power: 1 };
     lights.items.push(item);
     return { item, position: new THREE.Vector3(p.x, p.y, p.z), color: new THREE.Color(LAMP.color), range: LAMP.range, priority: 0, score: 0 };
   });

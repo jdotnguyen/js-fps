@@ -7,7 +7,7 @@
  * interrupted sequence can never leave the player stuck.
  */
 import { ACTIONS, isParallel, type ActionContext, type Hook } from './actions.ts';
-import type { ControlOverride, SequenceHost } from './host.ts';
+import { POWER_FLAG, type ControlOverride, type SequenceHost } from './host.ts';
 import type { Running, SequenceDef, Step } from './types.ts';
 
 export interface RunInfo {
@@ -202,7 +202,12 @@ export class SequenceManager {
       this.host.warn(`unknown sequence "${id}". Known: ${this.ids().join(', ')}`);
       return false;
     }
-    if (opts.debug) Object.assign(this.host.flags, def.debugSetup?.flags ?? {});
+    if (opts.debug) {
+      Object.assign(this.host.flags, def.debugSetup?.flags ?? {});
+      // A debug start after the blackout begins under backup power (station-power spec).
+      const power = this.host.flags[POWER_FLAG];
+      if (power === 'backup' || power === 'mains') this.host.setPower?.(power);
+    }
     return this.begin(def, true);
   }
 

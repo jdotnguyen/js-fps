@@ -2422,6 +2422,18 @@
      "params": {
       "id": "pa_commons"
      }
+    },
+    {
+     "kit": "emergency_beacon",
+     "pos": [
+      14.3,
+      3,
+      20
+     ],
+     "rot": 90,
+     "params": {
+      "wall": true
+     }
     }
    ],
    "lights": [
@@ -2504,6 +2516,10 @@
      "drop": 1.1,
      "shaft": 0.01,
      "emissive": 2.2
+    },
+    {
+     "slot": "emergency",
+     "pattern": "off"
     }
    ],
    "triggers": [
@@ -4320,15 +4336,6 @@
      }
     },
     {
-     "kit": "radio",
-     "pos": [
-      1.5,
-      0.95,
-      19.1
-     ],
-     "rot": 250
-    },
-    {
      "kit": "coolant_line",
      "pos": [
       0,
@@ -4366,6 +4373,19 @@
       "h": 0.7,
       "y": 2.45,
       "seed": 2
+     }
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      1.4,
+      0,
+      14.26
+     ],
+     "rot": 180,
+     "params": {
+      "id": "pa_lab_junction",
+      "serves": "R04"
      }
     }
    ],
@@ -4405,6 +4425,10 @@
      "pattern": "alarm",
      "color": "#ff2a1c",
      "pool": false
+    },
+    {
+     "slot": "emergency",
+     "pattern": "off"
     }
    ],
    "triggers": [
@@ -4484,14 +4508,6 @@
       -5.3,
       0.84,
       18
-     ]
-    },
-    {
-     "id": "r05_radio",
-     "pos": [
-      1.5,
-      1.08,
-      19.1
      ]
     }
    ]
@@ -4928,6 +4944,14 @@
      "pattern": "alarm",
      "color": "#ff2a1c",
      "pool": false
+    },
+    {
+     "slot": "emergency",
+     "pattern": "off"
+    },
+    {
+     "slot": "emergency",
+     "pattern": "off"
     }
    ],
    "triggers": [
@@ -5398,6 +5422,10 @@
      "pool": false,
      "emissive": 1.6,
      "shaft": 0
+    },
+    {
+     "slot": "emergency",
+     "pattern": "off"
     }
    ],
    "triggers": [
@@ -6020,6 +6048,18 @@
      "params": {
       "y": 2.75
      }
+    },
+    {
+     "kit": "emergency_beacon",
+     "pos": [
+      -5.7,
+      2.6,
+      50
+     ],
+     "rot": 90,
+     "params": {
+      "wall": true
+     }
     }
    ],
    "lights": [
@@ -6069,6 +6109,10 @@
      "pool": false,
      "emissive": 1.4,
      "shaft": 0
+    },
+    {
+     "slot": "emergency",
+     "pattern": "off"
     }
    ],
    "anchors": [
@@ -6796,6 +6840,10 @@
      "pattern": "flicker",
      "color": "#9fe8ff",
      "intensity": 5
+    },
+    {
+     "slot": "emergency",
+     "pattern": "off"
     }
    ],
    "triggers": [
@@ -7585,6 +7633,14 @@
      "pattern": "dying",
      "color": "#cfe0ff",
      "intensity": 6
+    },
+    {
+     "slot": "emergency",
+     "pattern": "off"
+    },
+    {
+     "slot": "emergency",
+     "pattern": "off"
     }
    ],
    "triggers": [
@@ -8998,15 +9054,6 @@
      ]
     },
     {
-     "kit": "radio",
-     "pos": [
-      41.05,
-      0.78,
-      29.35
-     ],
-     "rot": 160
-    },
-    {
      "kit": "kettle_set",
      "pos": [
       40.42,
@@ -9065,14 +9112,6 @@
       27.5
      ],
      "yaw": 180
-    },
-    {
-     "id": "hydro_radio",
-     "pos": [
-      41.05,
-      0.9,
-      29.35
-     ]
     }
    ]
   },
@@ -10602,15 +10641,6 @@
      }
     },
     {
-     "kit": "radio",
-     "pos": [
-      17.2,
-      0.62,
-      41.4
-     ],
-     "rot": 200
-    },
-    {
      "kit": "pa_speaker",
      "pos": [
       15,
@@ -10676,14 +10706,6 @@
       15,
       1,
       40
-     ]
-    },
-    {
-     "id": "dive_radio",
-     "pos": [
-      17.2,
-      0.75,
-      41.4
      ]
     }
    ],
@@ -12535,7 +12557,11 @@
     8
    ],
    "rot": 270,
-   "state": "closed"
+   "state": "closed",
+   "access": {
+    "sealed": true,
+    "text": "out_of_service"
+   }
   },
   {
    "id": "D_R13b_R13e",

@@ -115,23 +115,6 @@
   "once": true,
   "steps": [
    {
-    "do": "if",
-    "flag": "radio_muted",
-    "then": [],
-    "else": [
-     {
-      "do": "radio",
-      "track": "tag_fm_01",
-      "at": "anchor:hydro_radio"
-     },
-     {
-      "do": "setFlag",
-      "flag": "radio_place",
-      "value": "hydro"
-     }
-    ]
-   },
-   {
     "do": "wait",
     "s": 1.0
    },
@@ -377,44 +360,6 @@
    {
     "do": "wait",
     "s": 1.0
-   }
-  ]
- },
- {
-  "id": "dive_radio",
-  "trigger": {
-   "event": "trigger:dive_lockers_enter",
-   "unless": "drop_started"
-  },
-  "steps": [
-   {
-    "do": "if",
-    "flag": "radio_muted",
-    "then": [],
-    "else": [
-     {
-      "do": "if",
-      "flag": "radio_place",
-      "then": [],
-      "else": [
-       {
-        "do": "radio",
-        "track": "tag_fm_01",
-        "at": "anchor:dive_radio"
-       },
-       {
-        "do": "setFlag",
-        "flag": "radio_place",
-        "value": "dive"
-       }
-      ],
-      "is": "dive"
-     }
-    ]
-   },
-   {
-    "do": "wait",
-    "s": 0.3
    }
   ]
  },

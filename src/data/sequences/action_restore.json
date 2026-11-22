@@ -10,6 +10,29 @@
   "steps": [
    {
     "do": "if",
+    "flag": "station_power",
+    "is": "backup",
+    "then": [
+     {
+      "do": "power",
+      "state": "backup"
+     }
+    ],
+    "else": [
+     {
+      "do": "if",
+      "flag": "contact_done",
+      "then": [
+       {
+        "do": "power",
+        "state": "backup"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "do": "if",
     "flag": "drop_started",
     "then": [
      {

@@ -183,7 +183,7 @@
         "steps": [
          {
           "do": "sfx",
-          "id": "klaxon",
+          "id": "lockdownAlarm",
           "at": "anchor:labb_glass",
           "beat": true
          },

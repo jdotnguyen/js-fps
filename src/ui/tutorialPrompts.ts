@@ -3,7 +3,7 @@ import type { Input } from '../core/input.ts';
 import type { SettingsStore } from '../core/settings.ts';
 import { INTRO_SEQUENCE } from '../game/cutscene.ts';
 import { h } from './dom.ts';
-import { describeHint, describePrompt, TutorialQueue, type Bindings, type HintDef, type PromptDef, type SeenStore } from './tutorials.ts';
+import { describeHint, describePrompt, TutorialQueue, type Bindings, type HintDef, type PromptDef, type SeenStore, wireFlashlightPrompt } from './tutorials.ts';
 
 /** Mouse pixels that count as "looked" for the Look pop-up. */
 const LOOK_THRESHOLD = 8;
@@ -59,7 +59,7 @@ export interface TutorialPromptsDeps {
  * underneath and is back on Resume. Sprint and crouch get a small non-blocking hint.
  *
  * Triggers: `intro:ended` -> Move (then Look), `look:usable` -> Interact,
- * `area:dark` -> Flashlight, `combat:first` -> Fire / Reload, `tutorial:hint` -> hint.
+ * station power failing (`power:changed` to backup) -> Flashlight, `combat:first` -> Fire / Reload, `tutorial:hint` -> hint.
  * Sequences and level triggers fire them with the `emit` action (ADR-0009).
  */
 export class TutorialPrompts {
@@ -107,9 +107,7 @@ export class TutorialPrompts {
     });
     events.on('intro:ended', () => this.queue.trigger('move'));
     events.on('look:usable', () => this.queue.trigger('interact'));
-    events.on('area:dark', () => {
-      if (!deps.flashlightOn()) this.queue.trigger('flashlight');
-    });
+    wireFlashlightPrompt(events, deps.flashlightOn, () => this.queue.trigger('flashlight'));
     events.on('combat:first', () => this.queue.trigger('combat'));
     events.on('tutorial:hint', ({ action }) => this.queue.triggerHint(String(action)));
     events.on('game:mode', ({ mode }) => this.onMode(mode));

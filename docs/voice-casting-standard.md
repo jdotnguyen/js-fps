@@ -43,6 +43,10 @@ Every speaker ID in `src/data/dialogue/*.json` maps to one locked Gemini prebuil
 | `crew_assistant` | **Hale's Assistant** | `Crew` *(unauthored)* | **`Despina`** | `gemini-3.8-flash-tts` | 0 | Director Hale's administrative assistant; quiet, tense, anxious around corporate secrets. |
 | `crew_mess` | **Mess Crew** | `Crew` | **`Fenrir`** | `gemini-3.8-flash-tts` | 0 | Casual off-shift station crew member in the mess hall; wry morning greeting. |
 | `crew_maint` | **Maintenance Tech** | `Crew` | **`Iapetus`** | `gemini-3.8-flash-tts` | 0 | Tired maintenance tech in the dive bay; practical, low-key warning. |
+| `radio_ops` | **Station Ops** | `Station Ops` | **`Zephyr`** | `gemini-3.8-flash-tts` | 0 | 30s station comms operator on the open channel during the blackout (station-power spec); clipped, professional, fraying. Radio only. |
+| `radio_dock` | **Docking Ring** | `Docking Ring` | **`Algieba`** | `gemini-3.8-flash-tts` | 0 | Dock security guard calling in from the Docking Ring; out of breath, running, terrified. Radio only. |
+| `radio_hydro` | **Hydroponics** | `Hydroponics` | **`Erinome`** | `gemini-3.8-flash-tts` | 0 | Young hydroponics tech hiding in the Grow Hall; crying, whispering. Radio only. |
+| `radio_launch` | **Launch Hall** | `Launch Hall` | **`Sadaltager`** | `gemini-3.8-flash-tts` | 0 | Station diver in the Launch Hall shouting over rushing water; panicked, urgent. Radio only. |
 
 Free-tier quota note: `gemini-2.5-flash-preview-tts` and `gemini-3.1-flash-tts-preview` each allow **10 requests a day** on this project's key (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`, `limit: 10`, measured 2026-11-21); `gemini-2.5-pro-preview-tts` allows none. Empty and safety-blocked responses still count. One request covers a batch of up to 13 lines.
 

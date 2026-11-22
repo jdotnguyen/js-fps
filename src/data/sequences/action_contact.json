@@ -150,19 +150,80 @@
     "s": 1.2
    },
    {
+    "do": "say",
+    "line": "blackout_radio_ops_01",
+    "wait": false,
+    "overlap": true
+   },
+   {
+    "do": "wait",
+    "s": 2.7
+   },
+   {
+    "do": "say",
+    "line": "blackout_radio_dock_01",
+    "wait": false,
+    "overlap": true
+   },
+   {
+    "do": "wait",
+    "s": 5.0
+   },
+   {
+    "do": "say",
+    "line": "blackout_radio_hydro_01",
+    "wait": false,
+    "overlap": true
+   },
+   {
+    "do": "wait",
+    "s": 7.8
+   },
+   {
+    "do": "say",
+    "line": "blackout_radio_launch_01",
+    "wait": false,
+    "overlap": true
+   },
+   {
+    "do": "wait",
+    "s": 4.0
+   },
+   {
+    "do": "say",
+    "line": "blackout_radio_ops_02",
+    "overlap": true
+   },
+   {
+    "do": "say",
+    "line": "blackout_okafor_01"
+   },
+   {
+    "do": "say",
+    "line": "blackout_pa_power_01",
+    "overlap": true
+   },
+   {
+    "do": "sfx",
+    "id": "powerDown"
+   },
+   {
+    "do": "power",
+    "state": "backup"
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.12,
+    "s": 0.6
+   },
+   {
+    "do": "wait",
+    "s": 1.2
+   },
+   {
     "do": "doorState",
     "id": "D_R05_R06",
     "state": "closed"
-   },
-   {
-    "do": "radio",
-    "track": "tag_fm_01",
-    "at": "anchor:r05_radio"
-   },
-   {
-    "do": "setFlag",
-    "flag": "radio_place",
-    "value": "ruined"
    },
    {
     "do": "setFlag",
@@ -177,31 +238,6 @@
   ]
  },
  {
-  "id": "ruined_radio_off",
-  "trigger": {
-   "event": "trigger:r06_enter",
-   "requires": "contact_done"
-  },
-  "steps": [
-   {
-    "do": "if",
-    "flag": "radio_place",
-    "is": "ruined",
-    "then": [
-     {
-      "do": "radio",
-      "stop": true
-     },
-     {
-      "do": "setFlag",
-      "flag": "radio_place",
-      "value": "none"
-     }
-    ]
-   }
-  ]
- },
- {
   "id": "cover_me",
   "trigger": {
    "event": "trigger:r06_door",
@@ -211,6 +247,7 @@
   "resumeFromCheckpoint": true,
   "debugSetup": {
    "flags": {
+    "station_power": "backup",
     "drop_done": true,
     "contact_done": true
    }

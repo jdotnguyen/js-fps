@@ -1,3 +1,4 @@
+import type { EventBus } from '../core/events.ts';
 import type { TutorialMode } from '../core/settings.ts';
 import type { KeyValueStore } from '../core/storage.ts';
 import { ACTIONS, type Action } from '../data/types/keymap.ts';
@@ -367,4 +368,14 @@ export class TutorialQueue {
     }
     return out;
   }
+}
+
+/**
+ * The flashlight prompt's trigger (station-power spec "The blackout teaches the flashlight"): the station going to
+ * backup power, unless the flashlight is already on. The dive bay's dark corridor (`area:dark`) no longer raises it.
+ */
+export function wireFlashlightPrompt(events: EventBus, flashlightOn: () => boolean, show: () => void): void {
+  events.on('power:changed', ({ state }) => {
+    if (state === 'backup' && !flashlightOn()) show();
+  });
 }

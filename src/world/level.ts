@@ -52,6 +52,8 @@ const AUTO_CLOSE_ACTOR_DIST = 2.8;
 
 declare module '../core/events.ts' {
   interface EventMap {
+    /** Station power switched (station-power spec). */
+    'power:changed': { state: StationPower };
     'room:entered': { id: string; name: string; reverb?: string | undefined; ambience?: string | undefined };
     'door:state': { id: string; state: DoorState };
     'door:opened': { id: string };
@@ -108,6 +110,11 @@ export const AMBIENT: Record<AmbientPreset, { sky: number; ground: number; inten
   // Observation gallery (R03): dim and neutral, so its lamps and two ceiling pools carry the room and Lab B glows through the glass.
   gallery: { sky: 0x9ea6ab, ground: 0x0d0f11, intensity: 0.12, keyColor: 0xa4adb3, keyIntensity: 0.16 },
 };
+/** Ambient under backup power (station-power spec): darker than `emergency`, with no red. */
+export const BACKUP_AMBIENT = { sky: 0x3a3630, ground: 0x040404, intensity: 0.06, keyColor: 0x4a443c, keyIntensity: 0.08 };
+/** The backup look (render-lighting spec "Backup lights"): dim warm white, shorter reach. */
+export const BACKUP_LIGHT = { color: '#ffd9a8', scale: 0.25, range: 0.7 };
+export type StationPower = 'mains' | 'backup';
 const DEFAULT_FOG = '#04080a';
 const DEFAULT_FOG_DENSITY = 0.05;
 
@@ -159,7 +166,7 @@ interface RoomRuntime {
   height: number;
   group: THREE.Group;
   cells: THREE.Box3[];
-  slots: Array<PooledSlot & { kind: LightSlotKind }>;
+  slots: Array<PooledSlot & { kind: LightSlotKind; backup?: boolean }>;
   ticks: Array<(t: number, dt: number) => void>;
   staticMeshes: THREE.Mesh[];
   merger: AoMergeBuilder;
@@ -366,6 +373,16 @@ export class Level implements World {
   private lastFlashing = false;
   private readonly tinted = new Map<string, { slots: THREE.Color[]; glows: THREE.Color[]; sky: THREE.Color; ground: THREE.Color; intensity: number }>();
   private atmosphereReady = false;
+  /** Station power (station-power spec), and what the backup look replaced on each backup light. */
+  private powerState: StationPower = 'mains';
+  private readonly backupSaved = new Map<PooledSlot, { color: THREE.Color; glows: THREE.Color[]; range: number; pattern: LightPattern }>();
+  private readonly backupAmbient = {
+    sky: new THREE.Color(BACKUP_AMBIENT.sky),
+    ground: new THREE.Color(BACKUP_AMBIENT.ground),
+    intensity: BACKUP_AMBIENT.intensity,
+    keyColor: new THREE.Color(BACKUP_AMBIENT.keyColor),
+    keyIntensity: BACKUP_AMBIENT.keyIntensity,
+  };
   private readonly scratch2 = new THREE.Vector3();
   private feetY = 0;
   /** Merged Lab B floor meshes (labTile) that swap to tileBroken after the outbreak. */
@@ -836,6 +853,7 @@ export class Level implements World {
         kind: slot.kind,
         ...(light.pool === false ? { pooled: false } : {}),
         ...(light.shadow === true ? { shadow: true } : {}),
+        ...(light.backup === true ? { backup: true } : {}),
         score: 0,
       });
     }
@@ -1639,6 +1657,7 @@ export class Level implements World {
       d.collider.enabled = d.open < 0.6;
     }
     for (const t of this.triggers) t.fired = false;
+    this.setPower('mains');
     this.lights.items.forEach((it, i) => {
       it.pattern = this.initialPatterns[i] ?? it.pattern;
     });
@@ -1698,6 +1717,50 @@ export class Level implements World {
   }
 
   /** Set the pattern of every light in a room. False if the room has none. */
+  /** Current station power (station-power spec). */
+  get power(): StationPower {
+    return this.powerState;
+  }
+
+  /**
+   * Station power (station-power spec, render-lighting "Backup lights"). Under `backup` every room's main lights go
+   * out and only its backup lights glow: `emergency` slots and lights marked `backup`, or the room's first claimed
+   * light when it has neither. Patterns and tints stay stored per light, so `mains` puts every light back as it was.
+   */
+  setPower(state: StationPower): void {
+    if (state === this.powerState) return;
+    this.powerState = state;
+    for (const room of this.rooms) {
+      const marked = room.slots.filter((s) => s.kind === 'emergency' || s.backup === true);
+      const backups = new Set(marked.length > 0 ? marked : room.slots.slice(0, 1));
+      for (const s of room.slots) {
+        const isBackup = backups.has(s);
+        if (state === 'mains') {
+          s.item.power = 1;
+          const saved = this.backupSaved.get(s);
+          if (saved) {
+            s.color.copy(saved.color);
+            s.item.emissives.forEach((m, i) => m.emissive.copy(saved.glows[i] ?? m.emissive));
+            s.range = saved.range;
+            // A standby beacon goes dark again, unless a script has switched it meanwhile.
+            if (s.kind === 'emergency' && saved.pattern === 'off' && s.item.pattern === 'steady') s.item.pattern = 'off';
+            this.backupSaved.delete(s);
+          }
+          continue;
+        }
+        s.item.power = isBackup ? BACKUP_LIGHT.scale : 0;
+        if (!isBackup) continue;
+        this.backupSaved.set(s, { color: s.color.clone(), glows: s.item.emissives.map((m) => m.emissive.clone()), range: s.range, pattern: s.item.pattern });
+        // An emergency beacon on standby (`off` on main power) comes on when the mains fail.
+        if (s.kind === 'emergency' && s.item.pattern === 'off') s.item.pattern = 'steady';
+        s.color.set(BACKUP_LIGHT.color);
+        for (const m of s.item.emissives) m.emissive.set(BACKUP_LIGHT.color);
+        s.range *= BACKUP_LIGHT.range;
+      }
+    }
+    this.deps.events.emit('power:changed', { state });
+  }
+
   setRoomLights(room: string, pattern: LightPattern): boolean {
     let any = false;
     for (const it of this.lights.items) {
@@ -1901,11 +1964,12 @@ export class Level implements World {
         fog.density += (cur.fogDensity - fog.density) * k;
         if (scene.background instanceof THREE.Color) scene.background.copy(fog.color);
       }
-      this.hemi.color.lerp(cur.ambient.sky, k);
-      this.hemi.groundColor.lerp(cur.ambient.ground, k);
-      this.hemi.intensity += (cur.ambient.intensity - this.hemi.intensity) * k;
-      this.keyFill.color.lerp(cur.ambient.keyColor, k);
-      this.keyFill.intensity += (cur.ambient.keyIntensity - this.keyFill.intensity) * k;
+      const amb = this.powerState === 'backup' ? this.backupAmbient : cur.ambient;
+      this.hemi.color.lerp(amb.sky, k);
+      this.hemi.groundColor.lerp(amb.ground, k);
+      this.hemi.intensity += (amb.intensity - this.hemi.intensity) * k;
+      this.keyFill.color.lerp(amb.keyColor, k);
+      this.keyFill.intensity += (amb.keyIntensity - this.keyFill.intensity) * k;
     }
 
     // Light pool: slots of visible rooms, current room first.
@@ -1970,8 +2034,9 @@ export class Level implements World {
         continue;
       }
       for (const s of r.slots) {
-        if (s.pooled === false) {
-          s.item.light = null; // glow-only: patterns and tints still drive its fixture
+        if (s.pooled === false || s.item.power === 0 || s.item.pattern === 'off') {
+          // Glow-only, switched off, or out under backup power: patterns and tints still drive its fixture.
+          s.item.light = null;
           continue;
         }
         s.priority = r === cur ? 1 : 0;

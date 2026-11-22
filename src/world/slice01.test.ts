@@ -271,8 +271,8 @@ test('slice01 critical path: nav-reachable and walkable through the real doors',
   walkTo('hydro_alarm', at(48.6, 28.4));
   walkTo('cp_round_dive');
   walkTo('dive_case_locker', at(15.8, 40));
-  walkTo('dark_corridor');
-  assert.ok(fired.includes('area:dark'), 'dark corridor trigger');
+  // dive-bay spec: the maintenance corridor (R13d) is sealed from the Launch Hall all game.
+  assert.equal(level.doorStates()['D_R13b_R13d'] !== 'open', true);
   walkTo('drop_jay');
   // The drop: lockdown behind, the way to R05 opens (sequences do this with setDoor/unlock).
   level.setDoor('D_R02_R03', 'sealed');
@@ -292,7 +292,8 @@ test('slice01 critical path: nav-reachable and walkable through the real doors',
   level.setDoor('D_R10_R11', 'open');
   walkTo('r11_hold');
 
-  const required = ['R01', 'R01w', 'R02', 'R03', 'R14a', 'R14b', 'R14c', 'R14e', 'R12a', 'R12b', 'R12e', 'R12d', 'R13a', 'R13b', 'R13e', 'R13d', 'R05', 'R06', 'R07', 'R07a', 'R09', 'R10', 'R11'];
+  const required = ['R01', 'R01w', 'R02', 'R03', 'R14a', 'R14b', 'R14c', 'R14e', 'R12a', 'R12b', 'R12e', 'R12d', 'R13a', 'R13b', 'R13e', 'R05', 'R06', 'R07', 'R07a', 'R09', 'R10', 'R11'];
+  assert.equal(entered.includes('R13d'), false, 'the sealed maintenance corridor is never on the way (dive-bay spec)');
   for (const r of required) assert.ok(entered.includes(r), `entered ${r}`);
   for (const e of ['trigger:commons_enter', 'trigger:gallery_enter', 'trigger:gallery_brief_spot', 'trigger:admin_enter', 'trigger:hale_office', 'trigger:security_booth', 'trigger:hydro_enter', 'trigger:hydro_store_enter', 'trigger:dive_enter', 'trigger:r05_enter', 'trigger:r06_enter', 'trigger:r07_enter', 'trigger:r09_enter', 'trigger:r10_enter', 'trigger:r11_enter', 'valve:r10_main']) {
     assert.ok(fired.includes(e), `fired ${e}`);
@@ -696,7 +697,7 @@ test('hydroponics wing (R12a-R12e) props stay inside room bounds, do not overlap
   assert.ok(pieceKitsIn('R12b').has('wall_window') && pieceKitsIn('R12b').has('wall_glass_partition') && !pieceKitsIn('R12b').has('wall_greenhouse'), 'R12b uses real ocean windows & glass partition instead of fake wall_greenhouse');
   assert.ok(kitsIn('R12c').has('germination_cabinet') && kitsIn('R12c').has('seed_vault') && kitsIn('R12c').has('lab_bench'), 'R12c seed & harvest prep lab gear');
   assert.ok(kitsIn('R12d').has('fertigation_tank') && kitsIn('R12d').has('hvac_dehumidifier') && !kitsIn('R12d').has('specimen_tank'), 'R12d uses fertigation tanks & dehumidifier instead of alien specimen tanks');
-  assert.ok(kitsIn('R12e').has('camp_cot') && kitsIn('R12e').has('kettle_set') && kitsIn('R12e').has('fertiliser_pallet') && kitsIn('R12e').has('radio'), 'R12e includes cot, kettle+dog photo, radio, and fertiliser pallet');
+  assert.ok(kitsIn('R12e').has('camp_cot') && kitsIn('R12e').has('kettle_set') && kitsIn('R12e').has('fertiliser_pallet') && !kitsIn('R12e').has('radio'), 'R12e includes cot, kettle+dog photo and fertiliser pallet, and no radio (hydroponics-wing spec)');
 
   // Distinct room ambience presets across all five Hydroponics rooms + staggered R12b misters with a sputter rail.
   const ambOf = (id: string): string | undefined => data.rooms.find((r) => r.id === id)!.atmosphere?.ambience;
@@ -1072,17 +1073,62 @@ test('security and medbay overhaul: low fog, cleanWall armory walls, 8-light sha
   const r07aWalls = room('R07a').pieces.filter((p) => p.kit.startsWith('wall_'));
   assert.ok(r07aWalls.length > 0, 'R07a has wall pieces');
   for (const w of r07aWalls) assert.equal(w.params?.material, 'cleanWall', 'R07a walls override to cleanWall');
-  const pooled = (id: string) => (room(id).lights ?? []).filter((l) => l.pool !== false).length;
+  // A standby emergency beacon (`off` until backup power) takes no pooled light on main power.
+  const pooled = (id: string) => (room(id).lights ?? []).filter((l) => l.pool !== false && !(l.slot === 'emergency' && l.pattern === 'off')).length;
   const totalPooled = pooled('R07') + pooled('R07a') + pooled('R08');
   assert.ok(totalPooled <= 8, `R07 (${pooled('R07')}) + R07a (${pooled('R07a')}) + R08 (${pooled('R08')}) = ${totalPooled} <= 8`);
   assert.equal(pooled('R07a'), 2, 'R07a has overhead + dedicated rack light');
   assert.ok((room('R07a').props ?? []).some((p) => p.kit === 'pendant_light' && p.params?.slots === true), 'R07a rack pendant_light');
-  assert.equal((room('R07').lights ?? []).length, 6, 'all R07 ceiling slots claimed (no dead diffusers)');
-  assert.equal((room('R08').lights ?? []).length, 6, 'all R08 ceiling slots claimed (no dead diffusers)');
+  assert.equal((room('R07').lights ?? []).filter((l) => l.slot !== 'emergency').length, 6, 'all R07 ceiling slots claimed (no dead diffusers)');
+  assert.equal((room('R08').lights ?? []).filter((l) => l.slot !== 'emergency').length, 6, 'all R08 ceiling slots claimed (no dead diffusers)');
   for (const kit of ['notice_board', 'wall_clock', 'mug', 'desk_wand']) {
     assert.ok((room('R07').props ?? []).some((p) => p.kit === kit), `R07 has ${kit}`);
   }
   for (const kit of ['bio_wash_station', 'lab_cabinet', 'wall_clock']) {
     assert.ok((room('R08').props ?? []).some((p) => p.kit === kit), `R08 has ${kit}`);
+  }
+});
+
+// station-power spec "Every room keeps some light": under backup power each room has a backup light.
+test('under backup power every room keeps at least one light, and the post-lab path uses its beacons', () => {
+  const { level } = build();
+  level.setPower('backup');
+  const fallback: string[] = [];
+  for (const r of data.rooms) {
+    const lights = level.roomLights(r.id);
+    if (lights.length === 0) continue;
+    const lit = lights.filter((l) => l.light.power > 0);
+    assert.ok(lit.length >= 1, `${r.id} keeps a light`);
+    if (!lit.some((l) => l.kind === 'emergency') && !(r.lights ?? []).some((l) => l.backup)) fallback.push(r.id);
+  }
+  for (const id of ['R02', 'R05', 'R06', 'R07', 'R08', 'R09', 'R11']) assert.ok(!fallback.includes(id), `${id} is lit by its beacons`);
+  console.log(`[station-power] rooms still on the first-light fallback: ${fallback.join(', ')}`);
+});
+
+// dive-bay spec "The maintenance corridor is closed from the dive bay".
+test('the Launch Hall door to the maintenance corridor is out of service all game; the corridor still opens onto R11 for the climax', () => {
+  const { level, events } = build();
+  const uses = new Map<string, Interactable>();
+  level.registerInteractions({ add: (i: Interactable) => (uses.set(i.id, i), () => undefined) } as unknown as Interactions);
+  const denied: Array<{ id: string; key: string }> = [];
+  events.on('access:denied', (e) => void denied.push({ id: e.id, key: e.hint.key }));
+  uses.get('door:D_R13b_R13d')!.use();
+  assert.deepEqual(denied, [{ id: 'D_R13b_R13d', key: 'access_sealed_out_of_service' }]);
+  assert.notEqual(level.doorStates()['D_R13b_R13d'], 'open');
+  assert.equal(ui['access_sealed_out_of_service'], "This door won't open. Out of service.");
+  level.resetToData();
+  uses.get('door:D_R13b_R13d')!.use();
+  assert.equal(denied.length, 2, 'still shut after a reload');
+  // The climax opens the R11 side, which the climax spec owns.
+  level.setDoor('D_R13d_R11', 'open');
+  assert.equal(level.doorStates()['D_R13d_R11'], 'open');
+});
+
+// station-power spec "A squad reaction and the PA notice": the notice is heard where the blackout finds the player.
+test('the power-failure notice has a PA speaker in the Lab Junction and in Lab B', () => {
+  const { level } = build();
+  for (const [room, at] of [['R05', [-2, 1.6, 20]], ['R04', [8, 1.6, 26]]] as const) {
+    const spot = new THREE.Vector3(...at);
+    assert.ok(level.paSpeakerAt(spot), `${room} has a PA speaker`);
   }
 });

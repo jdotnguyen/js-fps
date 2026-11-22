@@ -171,6 +171,34 @@ test('lamps never buzz: only the fluorescent fixtures in a room with ceiling lig
   dir.dispose();
 });
 
+test('in-world-audio "Power sounds": on backup power the tubes fall silent and the lit backup lamp hums from its position', () => {
+  const audio = new MockAmbienceAudio();
+  const dir = new AmbienceDirector(audio, new Rng('backup-hum'));
+  dir.setMode('playing');
+  const tube = { level: 1, pattern: 'steady', power: 1 };
+  const beacon = { level: 0, pattern: 'steady', power: 1 };
+  const lamp = new THREE.Vector3(3, 2.7, 1);
+  const lights = [
+    { position: new THREE.Vector3(1, 3, 1), light: tube, kind: 'ceiling' },
+    { position: lamp, light: beacon, kind: 'emergency' },
+  ];
+  dir.enterRoom('hull_hum', lights);
+  assert.equal(audio.loops.filter((l) => l.name === 'backupHum').length, 0, 'no hum on main power');
+  // The mains fail: the tube goes out, the beacon comes on dim.
+  Object.assign(tube, { level: 0, power: 0 });
+  Object.assign(beacon, { level: 0.25, power: 0.25 });
+  dir.rebindLights(lights);
+  assert.equal(audio.loops.filter((l) => l.name === 'backupHum').length, 0, 'the hum waits for its recording');
+  audio.emitSampleLoaded('backupHum');
+  const hum = audio.loops.filter((l) => l.name === 'backupHum' && l.stoppedWith === null);
+  assert.equal(hum.length, 1);
+  assert.equal(hum[0]!.opts.position, lamp, 'the hum comes from the lamp');
+  assert.equal(audio.loops.filter((l) => l.name === 'fluorescentBuzz' && l.stoppedWith === null).length, 0, 'the tubes are silent');
+  dir.update(2, new THREE.Vector3(0, 1.6, 0));
+  assert.ok(hum[0]!.gains.at(-1)! > 0.05, 'the hum plays at the lamp\'s full pattern level, not its dimmed light');
+  dir.dispose();
+});
+
 test('flickering room lights drive buzz gain and fire zap arcs on re-ignition', () => {
   const audio = new MockAmbienceAudio();
   const dir = new AmbienceDirector(audio, new Rng('light-test'));

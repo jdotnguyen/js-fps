@@ -82,6 +82,7 @@ import { TutorialPrompts } from './ui/tutorialPrompts.ts';
 import { TutorialProfile } from './ui/tutorials.ts';
 import { loadWeaponModels } from './render/viewmodel/glbWeapons.ts';
 import { Viewmodel } from './render/viewmodel/viewmodel.ts';
+import { FLASHLIGHT_URL } from './render/viewmodel/flashlightProp.ts';
 import { Squad } from './ai/squad.ts';
 import { REVIVE_TASK } from './ai/squadBrain.ts';
 import { NpcDirector } from './ai/npcs.ts';
@@ -608,7 +609,21 @@ async function boot(): Promise<void> {
     reducedMotion: () => settings.get().reducedMotion,
     // ADR-0005: on a level with a shotgun pickup Jay starts with the pistol only (flag `weapon:shotgun`).
     owns: (id) => id === 'pistol' || !(level?.source.pickups ?? []).some((p) => p.kind === 'weapon_shotgun') || game.flags['weapon:shotgun'] === true,
+    flashlightOn: () => flashlight.on,
+    flashlightLevel: () => flashlight.brightness,
   });
+  // player-flashlight spec: the held flashlight model loads in the background; until it does the beam stays at the chest.
+  void (async () => {
+    try {
+      const { createGltfLoader } = await import('./render/gltf.ts');
+      const gltf = await (await createGltfLoader()).loadAsync(FLASHLIGHT_URL);
+      viewmodel.setFlashlightModel(gltf.scene);
+    } catch (err) {
+      console.warn('[flashlight] model failed to load; the beam stays at the chest', err);
+    }
+  })();
+  const flashlightLens = new THREE.Vector3();
+  const flashlightAhead = new THREE.Vector3();
   hud.setAmmoSource(() => {
     const id = viewmodel.weapon;
     return { name: id, ...viewmodel.ammoOf(id), mag: viewmodel.magSize(id) };
@@ -955,9 +970,15 @@ async function boot(): Promise<void> {
     if (weapon === 'pistol') audio.play('pistolShot', { bus: 'sfx', gain: 0.6, reverb: 0.35, rate });
     else audio.play('shotgunShot', { bus: 'sfx', gain: 0.9, reverb: 0.4, rate });
   });
+  let ambienceRoom: string | null = null;
   events.on('room:entered', (r) => {
+    ambienceRoom = r.id;
     audio.setRoomReverb(r.reverb);
     ambience?.enterRoom(r.ambience, level?.roomLights(r.id) ?? []);
+  });
+  // Station power (station-power spec): the room's tubes fall silent and its backup lamps hum.
+  events.on('power:changed', () => {
+    if (ambienceRoom) ambience?.rebindLights(level?.roomLights(ambienceRoom) ?? []);
   });
 
   events.on('item:given', (it) => toasts.show('Picked up', it.name));
@@ -1276,6 +1297,9 @@ async function boot(): Promise<void> {
       game.render(frameDt);
       guidance.render(frameDt);
       viewmodel.update(frameDt);
+      // The beam leaves the held flashlight's lens while it is up, a little ahead of the glass.
+      const lens = viewmodel.flashlightLens(flashlightLens);
+      flashlight.origin = lens ? lens.addScaledVector(camera.getWorldDirection(flashlightAhead), 0.03) : null;
       flashlight.update(frameDt);
       world.update(simTime, frameDt, camera.position, settings.get().reducedFlashing, camera);
       if (level && levelStats) {

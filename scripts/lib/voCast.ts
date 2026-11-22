@@ -121,6 +121,31 @@ export const CAST: Readonly<Record<string, CastMember>> = {
     model: 'gemini-3.1-flash-tts-preview',
     profile: '40s, dock security guard who has scanned the same crew every morning for years; patient, dry, warm under the routine.',
   },
+  // Station blackout radio chatter (station-power spec): voices only heard over the radio, each at a station post.
+  radio_ops: {
+    label: 'Ops',
+    voice: 'Zephyr',
+    model: 'gemini-3.8-flash-tts',
+    profile: '30s, station comms operator on the open channel, trying to keep order as reports pour in; clipped, professional, fraying.',
+  },
+  radio_dock: {
+    label: 'Dock',
+    voice: 'Algieba',
+    model: 'gemini-3.8-flash-tts',
+    profile: 'Dock security guard calling in from the Docking Ring, out of breath, running and terrified.',
+  },
+  radio_hydro: {
+    label: 'Hydro',
+    voice: 'Erinome',
+    model: 'gemini-3.8-flash-tts',
+    profile: 'Young hydroponics technician hiding in the Grow Hall; crying, whispering into the radio so nothing hears her.',
+  },
+  radio_launch: {
+    label: 'Launch',
+    voice: 'Sadaltager',
+    model: 'gemini-3.8-flash-tts',
+    profile: 'Station diver in the Launch Hall, shouting over rushing water and alarms; panicked, urgent.',
+  },
 };
 
 /** The cast entry for `speaker`. Throws before any request is made when the speaker has none. */

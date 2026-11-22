@@ -286,7 +286,7 @@ test('the briefing starts on the gallery spot once the intro is seen, stays free
   assert.equal(g.m.isRunning('briefing_gallery'), false, 'once');
 });
 
-test('TAG FM: Listen toggles the kitchen radio once per use; entering the commons brings it back; rooms move it', async () => {
+test('TAG FM: Listen toggles the kitchen radio once per use; entering the commons brings it back; it never leaves the kitchen', async () => {
   const g = makeGame();
   g.host.flags['radio_place'] = 'commons';
   fire(g, 'commons:radio');
@@ -301,17 +301,13 @@ test('TAG FM: Listen toggles the kitchen radio once per use; entering the common
   assert.equal(g.host.flags['radio_muted'], false);
   assert.equal(g.host.flags['radio_place'], 'commons');
   assert.equal(count(g, 'radio tag_fm_01'), 1);
-  // Dive lockers take the radio along; coming back to the commons returns it; staying put does not restart it.
+  // in-world-audio spec: the kitchen radio is the only one. The dive lockers no longer take it along.
   fire(g, 'trigger:dive_lockers_enter');
-  await advance(g, 1);
-  assert.equal(g.host.flags['radio_place'], 'dive');
-  fire(g, 'trigger:dive_lockers_enter');
-  await advance(g, 1);
-  assert.equal(count(g, 'radio tag_fm_01'), 2, 'already there: no restart');
-  fire(g, 'trigger:commons_enter');
   await advance(g, 1);
   assert.equal(g.host.flags['radio_place'], 'commons');
-  assert.equal(count(g, 'radio tag_fm_01'), 3);
+  fire(g, 'trigger:commons_enter');
+  await advance(g, 1);
+  assert.equal(count(g, 'radio tag_fm_01'), 1, 'already playing in the kitchen: no restart');
 });
 
 // ------------------------------------------------------------------------------- rounds
@@ -363,7 +359,7 @@ test('the commons changes as rounds complete: TV and the cook after the first, c
   assert.equal(g.log.filter((e) => e === 'npc npcMoveTo crew_1 instant').length, 1);
 });
 
-test('the hydro storeroom backtrack: denied says the line once; the store moment plays Jay and keeps radio muted if muted', async () => {
+test('the hydro storeroom backtrack: denied says the line once; the store moment plays Jay, and no radio plays there', async () => {
   const g = makeGame();
   g.host.events.emit('access:denied', { id: 'hydro_store' });
   g.host.events.emit('access:denied', { id: 'hydro_store' });
@@ -375,7 +371,8 @@ test('the hydro storeroom backtrack: denied says the line once; the store moment
   assert.equal(said(g, 'hydro_store_jay_01'), 1);
   assert.equal(said(g, 'hydro_store_jay_02'), 1);
   assert.equal(g.host.flags['hydro_store_seen'], true);
-  assert.equal(g.host.flags['radio_place'], 'hydro');
+  assert.equal(count(g, 'radio tag_fm_01'), 0, 'hydroponics-wing spec: the Storeroom has no radio');
+  assert.equal(g.host.flags['radio_place'], undefined);
   const m = makeGame();
   m.host.flags['radio_muted'] = true;
   fire(m, 'trigger:hydro_store_enter');
@@ -518,7 +515,7 @@ test('quiet_restore on a load: radio, commons changes and the drop aftermath com
   fresh.host.events.emit('game:mode', { mode: 'playing' });
   assert.equal(fresh.log.filter((e) => e.startsWith('radio') || e.startsWith('npc') || e.startsWith('light') || e.startsWith('glass')).length, 0);
   const g = makeGame(['quiet_restore']);
-  Object.assign(g.host.flags, { introSeen: true, radio_place: 'dive', commons_changed_1: true, commons_changed_2: true, drop_started: true, drop_done: true });
+  Object.assign(g.host.flags, { introSeen: true, radio_place: 'commons', commons_changed_1: true, commons_changed_2: true, drop_started: true, drop_done: true });
   g.host.events.emit('game:mode', { mode: 'title' });
   assert.equal(g.log.filter((e) => e.startsWith('radio')).length, 0, 'only on playing');
   g.host.events.emit('game:mode', { mode: 'playing' });
@@ -551,11 +548,14 @@ test('quiet_restore on a load: radio, commons changes and the drop aftermath com
   assert.equal(count(muted, 'radio tag_fm_01'), 0);
   assert.equal(count(muted, 'event screen:set'), 1);
   assert.ok(!muted.log.some((e) => e.startsWith('light') || e.startsWith('glass')));
+  // Only the kitchen radio comes back; a save from when the radio could move to other rooms loads with it off.
   for (const place of ['commons', 'hydro', 'dive', 'ruined']) {
     const r = makeGame(['quiet_restore']);
     r.host.flags['radio_place'] = place;
     r.host.events.emit('game:mode', { mode: 'playing' });
-    assert.equal(count(r, 'radio tag_fm_01'), 1, place);
+    assert.equal(count(r, 'radio tag_fm_01'), place === 'commons' ? 1 : 0, place);
+    if (place !== 'commons') assert.equal(r.host.flags['radio_place'], 'none', place);
+    assert.ok(!r.log.some((e) => e.includes('hydro_radio') || e.includes('dive_radio') || e.includes('r05_radio')), place);
   }
 });
 
@@ -595,24 +595,16 @@ test('the silent researcher walks through the commons after the first round, onc
   assert.equal(late.log.some((e) => e.startsWith('npc spawn researcher_a')), false);
 });
 
-test('TAG FM plays in the ruined junction once the first fight is over and stops when Jay enters the next hall', async () => {
-  const g = makeGame(['ruined_radio_off']);
-  fire(g, 'trigger:r06_enter');
-  assert.equal(count(g, 'radio stop'), 0, 'nothing plays: nothing to stop');
-  g.host.flags['contact_done'] = true;
-  g.host.flags['radio_place'] = 'commons';
-  fire(g, 'trigger:r06_enter');
-  assert.equal(count(g, 'radio stop'), 0, 'a radio elsewhere is left alone');
-  g.host.flags['radio_place'] = 'ruined';
-  fire(g, 'trigger:r06_enter');
-  assert.equal(count(g, 'radio stop'), 1);
-  assert.equal(g.host.flags['radio_place'], 'none');
-  // The data: the contact beat ends by starting it at the R05 radio before its checkpoint.
-  const contact = byId.get('contact')!;
-  const names: string[] = [];
-  walk(contact.steps, (s) => void names.push(`${String(s['do'])}${s['do'] === 'radio' ? `:${String(s['at'])}` : ''}${s['do'] === 'checkpoint' ? `:${String(s['id'])}` : ''}`));
-  assert.ok(names.indexOf('radio:anchor:r05_radio') >= 0 && names.indexOf('radio:anchor:r05_radio') < names.indexOf('checkpoint:cp_contact_clear'));
-  assert.ok(anchors.has('r05_radio'));
+test('in-world-audio "No radio outside the kitchen": every radio step plays at the kitchen radio, and the old radio spots are gone', () => {
+  for (const d of byId.values()) {
+    if (d.id.startsWith('test_') || d.id.endsWith('_test')) continue; // debug-only scenes
+    walk(d.steps, (st) => {
+      if (st['do'] === 'radio' && st['track']) assert.equal(st['at'], 'anchor:radio', `${d.id} starts the radio away from the kitchen`);
+    });
+  }
+  for (const a of ['r05_radio', 'hydro_radio', 'dive_radio']) assert.equal(anchors.has(a), false, a);
+  assert.equal(byId.has('ruined_radio_off'), false);
+  assert.equal(byId.has('dive_radio'), false);
 });
 
 // ------------------------------------------------------------------------------- dock checkpoint (free play)
@@ -825,7 +817,7 @@ test('the Lab B score loads at the gallery call and again as the drop starts; th
   assert.equal(loads('drop'), 1);
   const klaxons: Array<Record<string, unknown>> = [];
   walk(byId.get('drop')!.steps, (s) => {
-    if (s['do'] === 'sfx' && s['id'] === 'klaxon') klaxons.push(s);
+    if (s['do'] === 'sfx' && s['id'] === 'lockdownAlarm') klaxons.push(s);
   });
   assert.ok(klaxons.length > 0);
   assert.ok(klaxons.every((k) => k['beat'] === true));

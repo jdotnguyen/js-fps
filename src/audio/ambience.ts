@@ -19,7 +19,7 @@ export interface AmbienceAudio {
 
 export interface AmbienceLightSource {
   readonly position: THREE.Vector3;
-  readonly light: { readonly level: number; readonly pattern?: string };
+  readonly light: { readonly level: number; readonly pattern?: string; readonly power?: number };
   /** Light-slot kind; `pendant` lamps are not fluorescent and never buzz (in-world-audio spec). */
   readonly kind?: string;
 }
@@ -70,6 +70,8 @@ const MODE_SCALE: Record<GameMode, { scale: number; tc: number }> = {
 const MAX_ROOM_BUZZERS = 4;
 const STEADY_BUZZ_GAIN = 0.045;
 const FLICKER_BUZZ_GAIN = 0.16;
+/** A backup lamp's ballast hum under backup power (station-power spec), at the lamp's full pattern brightness. */
+const BACKUP_HUM_GAIN = 0.09;
 
 /**
  * Environmental soundscape presets matching `atmosphere.ambience` in level JSONs
@@ -286,6 +288,8 @@ interface ActiveBuzz {
   usingSample: boolean;
   prevLevel: number;
   lastZap: number;
+  /** A backup lamp's `backupHum`, whose gain follows the pattern, not the dimmed level. */
+  hum?: boolean;
 }
 
 /**
@@ -308,6 +312,8 @@ export class AmbienceDirector {
   private beds: ActiveBed[] = [];
   private scheduler: Scheduler | null = null;
   private buzzers: ActiveBuzz[] = [];
+  /** The current room's fixtures, kept so a late-decoding hum or a power change can rebind them. */
+  private roomLightSources: readonly AmbienceLightSource[] = [];
   private listenerPos = new THREE.Vector3();
   private lastTime = 0;
 
@@ -338,6 +344,11 @@ export class AmbienceDirector {
     if (this.overridePreset === null) {
       this.transitionTo(this.roomPreset, fadeSeconds);
     }
+  }
+
+  /** Station power changed (station-power spec): rebind the current room's fixture emitters, beds untouched. */
+  rebindLights(lights: readonly AmbienceLightSource[]): void {
+    this.bindRoomLights(lights);
   }
 
   /** Scripted `ambience(id)` action: overrides room ambience until cleared with `null`. */
@@ -372,6 +383,11 @@ export class AmbienceDirector {
 
     const modeScale = MODE_SCALE[this.mode].scale;
     for (const b of this.buzzers) {
+      if (b.hum) {
+        // A backup lamp's hum follows its pattern, not its dimmed brightness, and never zaps.
+        b.handle.setGain(b.baseGain * (b.source.light.level / Math.max(1e-3, b.source.light.power ?? 1)) * modeScale, 0.02);
+        continue;
+      }
       const level = b.source.light.level;
       b.handle.setGain(b.baseGain * level * modeScale, 0.02);
       if (this.mode === 'playing' && b.prevLevel < 0.4 && level > 0.75 && t - b.lastZap > 0.3) {
@@ -459,6 +475,9 @@ export class AmbienceDirector {
       }
     }
 
+    // The backup-lamp hum is recorded only: once it decodes, bind it to the room's lit backup lamps.
+    if (name === 'backupHum' && this.roomLightSources.some((l) => (l.light.power ?? 1) < 1)) this.bindRoomLights(this.roomLightSources);
+
     // Hot-swap active fluorescent buzzers when the ElevenLabs buzz clip finishes decoding.
     if (name === 'fluorescentBuzz' && this.audio.hasSound('fluorescentBuzz')) {
       for (const b of this.buzzers) {
@@ -531,8 +550,11 @@ export class AmbienceDirector {
   }
 
   private bindRoomLights(all: readonly AmbienceLightSource[]): void {
+    this.roomLightSources = all;
     this.clearBuzzers(0.35);
-    const lights = all.filter((l) => l.kind !== 'pendant'); // lamps are not fluorescent tubes
+    this.bindBackupHums(all);
+    // Lamps are not fluorescent tubes; lights out or on backup power do not buzz (station-power spec).
+    const lights = all.filter((l) => l.kind !== 'pendant' && (l.light.power ?? 1) === 1);
     if (lights.length === 0 || !this.audio.hasSound('fluorescentBuzz')) return;
 
     // Prioritize flickering/failing tubes so faulty fixtures are always audible, then steady fixtures.
@@ -568,6 +590,21 @@ export class AmbienceDirector {
     }
   }
 
+  /** Under backup power each lit backup lamp hums from its position (in-world-audio spec "Power sounds"). */
+  private bindBackupHums(all: readonly AmbienceLightSource[]): void {
+    if (!this.audio.hasSound('backupHum')) return;
+    const modeScale = MODE_SCALE[this.mode].scale;
+    for (const src of all) {
+      const power = src.light.power ?? 1;
+      if (power <= 0 || power >= 1 || src.light.pattern === 'off') continue;
+      if (this.buzzers.length >= MAX_ROOM_BUZZERS) break;
+      const rate = this.rng.range(0.98, 1.02);
+      const handle = this.audio.loop('backupHum', { bus: 'ambience', gain: 0, position: src.position, rate });
+      handle.setGain(BACKUP_HUM_GAIN * (src.light.level / power) * modeScale, 0.4);
+      this.buzzers.push({ source: src, handle, baseGain: BACKUP_HUM_GAIN, rate, usingSample: true, prevLevel: src.light.level, lastZap: -1, hum: true });
+    }
+  }
+
   private clearBuzzers(fadeSeconds: number): void {
     for (const b of this.buzzers) b.handle.stop(fadeSeconds);
     this.buzzers = [];
@@ -592,7 +629,8 @@ export class AmbienceDirector {
   private applyBuzzGains(tc: number): void {
     const modeScale = MODE_SCALE[this.mode].scale;
     for (const b of this.buzzers) {
-      b.handle.setGain(b.baseGain * b.source.light.level * modeScale, tc);
+      const level = b.hum ? b.source.light.level / Math.max(1e-3, b.source.light.power ?? 1) : b.source.light.level;
+      b.handle.setGain(b.baseGain * level * modeScale, tc);
     }
   }
 }

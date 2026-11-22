@@ -6,6 +6,9 @@
  */
 import type { Scalar, Flags, TargetRef, Vec3Like } from './types.ts';
 
+/** Flag that records station power for checkpoint saves (station-power spec): `mains` or `backup`. */
+export const POWER_FLAG = 'station_power';
+
 /** The event bus with string names: sequences use names that come from JSON. */
 export interface LooseBus {
   on(name: string, fn: (payload: unknown) => void): () => void;
@@ -105,6 +108,8 @@ export interface SequenceHost {
   doorStates?(): Record<string, string>;
   /** `tint`: "emergency", "none" (level colours) or "#rrggbb"; omitted keeps the current colour. */
   setLight?(room: string, pattern: string, tint?: string): boolean;
+  /** Station power (station-power spec): every room on main or backup lights. */
+  setPower?(state: 'mains' | 'backup'): void;
   lightStates?(): Record<string, string>;
   glass?(id: string, state: string): void;
   /** Security camera feed (render-to-texture, `render/cameraFeed.ts`). */
