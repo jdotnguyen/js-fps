@@ -95,6 +95,46 @@ Each is tuned by screenshot in R02, R03 and R04 against the last r187 `EffectCom
 - Each upgrade step and the post-chain swap is its own commit, so any step can be reverted alone.
 - The old `EffectComposer` chain stays in git history only, not in the code behind a flag: two chains would double the post-code surface and both would need maintaining.
 
+## Baseline
+
+Captured 2026-11-22 on three 0.170.0 at `foundation` 577b5e1 (task 1.1). Quality High, on the developer desktop:
+- Chrome window of 1849×971 CSS px at a device pixel ratio of 1.8, giving a 3328×1749 drawing buffer.
+- Display at 60 Hz with vsync.
+- URL `?slot=scratch&memprobe&debug`, with the HTML overlays hidden so only the canvas shows.
+
+**Camera pins.** Every later step re-shoots these same pins. They are `window.__view = { at, look, flashlight? }` on the title screen. This change adds the `flashlight` option to `src/game/game.ts`.
+
+| Shot | `at` | `look` | File |
+| --- | --- | --- | --- |
+| R02 commons | 17, 1.7, 13 | 30, 1, 23 | `baseline/r170-r02-commons.jpg` |
+| R03 sofa under the east lamp | 9.2, 1.9, 17 | 12.2, 0.2, 19 | `baseline/r170-r03-sofa.jpg` |
+| R04 through the glass | 8, 1.6, 18 | 8, 1.2, 28 | `baseline/r170-r04-through-glass.jpg` |
+| Flashlight shadow (sofa onto the wall) | 9, 1.6, 18.2 (`flashlight: true`) | 13.5, 0.9, 18.7 | `baseline/r170-flashlight-sofa-wall.jpg` |
+
+What to look for:
+- **R03:** the sofa's shadow on the carpet has a soft edge.
+- **R04:** the Lab B blinds are down at title time, so Lab B shows only between the slats.
+- **Flashlight shot:** the sofa's back throws a soft-edged shadow onto the wall.
+
+**Frame time.** Measured with `requestAnimationFrame` deltas over 10 s, after 3 s to settle. The 1% low is the average of the slowest 1% of frames.
+
+| Where | Frames | Avg fps | Median ms | p99 ms | Max ms | 1% low fps |
+| --- | --- | --- | --- | --- | --- | --- |
+| Commons pin | 600 | 60.0 | 16.7 | 16.8 | 16.9 | 59.5 |
+| R03 pin facing the pane | 600 | 60.0 | 16.7 | 16.8 | 16.9 | 59.4 |
+| First 25 s of play with `&seq=drop`, player at the dock | 1499 | 60.0 | 16.7 | 16.8 | 33.5 | 55.7 |
+
+- **Vsync caps every row at 60.** The numbers show no dropped frames, not how much headroom is left. A step counts as a regression if a pin stops holding 60 or its 1% low falls below 54 (10%).
+- **The play-start row** has a single 33.5 ms frame about 2.4 s in, as play and the sequences start.
+- **Not measured:** the drop itself, with the pane in view. A scripted session can't take pointer lock to walk the player into R03, and the opening intro sequence holds the view. Task 4.2 times the drop by hand, on the target PC, against the commons and R03 pin numbers above.
+
+**GPU memory.** From `window.__memprobe.sample()` on the title at High, after the pins above:
+- textures: 125 objects, 821 MiB
+- renderbuffers: 21 objects, 180 MiB
+- buffers: 1550 objects, 19 MiB
+- **total: 1020 MiB**
+- 131 programs and 24 framebuffers
+
 ## Open Questions
 
 - Final tuned values (shadow radius per light kind, `n8ao` and bloom parameters) are found by screenshot during implementation and recorded here before archiving.

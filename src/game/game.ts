@@ -267,11 +267,13 @@ export class Game {
     if (this.mode === 'title') {
       // Attract camera: a slow drift down the corridor behind the title menu.
       this.titleTime += frameDt;
-      // Debug: `window.__view = { at: [x, y, z], look: [x, y, z] }` pins the title camera for screenshots.
-      const view = (globalThis as { __view?: { at: [number, number, number]; look: [number, number, number] } }).__view;
+      // Debug: `window.__view = { at: [x, y, z], look: [x, y, z], flashlight?: true }` pins the title camera
+      // for screenshots, optionally with the flashlight on (its shadow is a render-lighting check).
+      const view = (globalThis as { __view?: { at: [number, number, number]; look: [number, number, number]; flashlight?: boolean } }).__view;
       if (view) {
         this.d.camera.position.set(...view.at);
         this.d.camera.lookAt(...view.look);
+        this.d.flashlight.on = view.flashlight === true;
       } else this.d.world.attract(this.titleTime, this.d.camera);
       this.d.input.consumeLook();
       hud.hide();
