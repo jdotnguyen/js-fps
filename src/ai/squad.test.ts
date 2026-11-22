@@ -465,3 +465,28 @@ test('catchUpIn moves unseen squadmates outside the room inside without popping 
   assert.deepEqual(movedVis, [], 'visible squadmates are never popped');
   for (const m of visible.squad.mates) assert.ok(m.position.z < 0, `${m.id} stayed where it was`);
 });
+
+test('a revive is published as the medic\'s `revive` task for as long as it lasts, finished or cut off', () => {
+  const { squad, player, events } = setup();
+  const dt = 1 / 60;
+  const reviveEvents = (): string[] =>
+    events.filter((e) => (e.name === 'squad:taskStarted' || e.name === 'squad:taskDone') && (e.payload as { task: string }).task === 'revive').map((e) => e.name);
+  for (let t = 0; t < 3; t += dt) squad.update(dt, null);
+  assert.deepEqual(reviveEvents(), [], 'no revive, no task');
+  player.downed = true;
+  for (let t = 0; t < 15 && player.downed; t += dt) squad.update(dt, null);
+  assert.equal(player.revived, 1);
+  squad.update(dt, null);
+  assert.deepEqual(reviveEvents(), ['squad:taskStarted', 'squad:taskDone'], 'started once, ended once');
+  const started = events.find((e) => e.name === 'squad:taskStarted' && (e.payload as { task: string }).task === 'revive')!;
+  assert.equal((started.payload as { id: string }).id, 'medic');
+
+  // Cut off: the medic is knocked down mid-revive; the task still ends.
+  player.downed = true;
+  let t = 0;
+  for (; t < 15 && !squad.mate('medic').revive; t += dt) squad.update(dt, null);
+  for (let i = 0; i < 30; i++) squad.update(dt, null);
+  squad.mate('medic').hurt(1e6, squad);
+  squad.update(dt, null);
+  assert.deepEqual(reviveEvents().slice(2), ['squad:taskStarted', 'squad:taskDone'], 'a revive cut short still ends its task');
+});

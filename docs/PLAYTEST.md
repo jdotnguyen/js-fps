@@ -23,6 +23,7 @@ data checkpoints `cp_first_contact`, `cp_cover_me`, `cp_security`, `cp_flooded`,
 - 3 more arrive (vent x2, floor). The door to R06 stays locked until all are dead ("Sealed from the other side."), then opens; `cp_contact_clear` toast.
 - Lab wing look (openspec rebuild-lab-wing): clean slate walls under red lockdown lights with one white work light; the three sources are the gallery door, the west vent and the floor drain grate by the south wall (`r05_drain`), so check the floor shambler climbs out of the grate. The coolant line runs along the ceiling from Lab B into R06; after the drop, one bloom mass and a wall patch sit where it leaves the room.
 - Die mid-fight: you should restart in R05 and the fight replays from the knocks.
+- Look back through the glass (openspec two-way-glass-visibility): once the Lab B bulkhead is open, step into Lab B and look north. The Observation Gallery (walls, sofa, console, lit fixtures) and the glass panes are drawn, with the cracks and Voss's blood on the glass; no black void and no commons crew floating beyond it. If the gallery's door to the commons stands open, the doorway shows black (known, accepted).
 
 **R06 cover me** (`jump=r06`)
 - Walk to the bulkhead: Giles runs to the panel, "Cover me", 6 enemies from two vents, the ceiling and the corridor. The 20 s job pauses while enemies are on him. Door opens when the job ends; the stage-1 tell (flexes hand, numb-hand line, Okafor "August?") only after all 6 are dead.
