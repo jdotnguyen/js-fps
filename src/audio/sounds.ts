@@ -746,6 +746,11 @@ export const SOUND_SPECS = {
   shotgunPump: { make: shotgunPump, loop: false, variants: 2 },
 } as const satisfies Record<string, SoundSpec>;
 
+/** `casing-<bank>-1.mp3` .. `-<count>.mp3` under assets/audio/weapons/casings/ (scripts/casings-generate.ts names them). */
+function casingFiles(bank: string, count: number): string[] {
+  return Array.from({ length: count }, (_, i) => `assets/audio/weapons/casings/casing-${bank}-${i + 1}.mp3`);
+}
+
 /**
  * Recorded one-shots loaded from public/assets/audio/. A sample with the same name as a procedural
  * sound replaces it once loaded (the procedural version stays as the fallback until then). An array
@@ -761,6 +766,18 @@ export const SAMPLE_URLS = {
   shotgunPump: 'assets/audio/weapons/shotgun-pump-fit.mp3', // stretched x1.1 to match the PostFire clip (scripts/fit-weapon-audio.mjs)
   shotgunShell: 'assets/audio/weapons/shotgun-shell.mp3',
   dryFire: 'assets/audio/weapons/dry-fire.mp3',
+  // Spent casings landing (in-world-audio spec: Spent casings; src/audio/casings.ts). Built by scripts/casings-generate.ts:
+  // CC0 cuts (GrayJoy, GryffDavid, BlondPanda, MrGungus, lumikon, magnuswaker, Metrolynn; see CREDITS.md) for brass on
+  // concrete and soft floors and hulls on concrete, ElevenLabs for the rest. Every clip peaks at -6 dB; play gain sets the surface.
+  casingBrassConcrete: casingFiles('brass-concrete', 10),
+  casingBrassMetal: casingFiles('brass-metal', 5),
+  casingBrassGrate: casingFiles('brass-grate', 4),
+  casingBrassSoft: casingFiles('brass-soft', 7),
+  casingHullConcrete: casingFiles('hull-concrete', 4),
+  casingHullMetal: casingFiles('hull-metal', 4),
+  casingHullGrate: casingFiles('hull-grate', 4),
+  casingHullSoft: casingFiles('hull-soft', 4),
+  casingWater: casingFiles('water', 5),
   // Menu UI one-shots (trimmed from Universfield "interface click" and Dragon Studio "menu open").
   // uiHover / uiSelect replace the procedural versions once loaded; uiMenuOpen has no procedural fallback.
   uiHover: 'assets/audio/ui/ui-hover.mp3',

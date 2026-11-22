@@ -21,7 +21,8 @@
     "ambience:generate": "node --experimental-strip-types scripts/ambience-generate.ts",
     "doors:generate": "node --experimental-strip-types scripts/doors-generate.ts",
     "footsteps:generate": "node --experimental-strip-types scripts/footsteps-generate.ts",
-    "gore:generate": "node --experimental-strip-types scripts/gore-generate.ts"
+    "gore:generate": "node --experimental-strip-types scripts/gore-generate.ts",
+    "casings:generate": "node --experimental-strip-types scripts/casings-generate.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

@@ -27,6 +27,7 @@ add an entry there, then generate it:
 | Door motion and access feedback | `npm run doors:generate -- --id <id>` | `public/assets/audio/doors/` |
 | Footsteps | `npm run footsteps:generate -- --id <id>` | `public/assets/audio/footsteps/` |
 | Infected-kill body sounds (bone crunches, tearing, the burst, blood on glass, drips, the creature) | `npm run gore:generate -- --id <id>` | `public/assets/audio/gore/` |
+| Spent-casing landings (brass and shotgun hulls, per floor surface). Its manifest mixes CC0 cuts, whose raw downloads live in `../audio-src/casings/`, with ElevenLabs prompts | `npm run casings:generate -- --id <id>` | `public/assets/audio/weapons/casings/` |
 
 `--list` shows the manifest, `--all` generates everything missing, and `--force` regenerates.
 Do not add a new procedural synth for a new sound: procedural audio is fallback-only.

@@ -52,6 +52,7 @@ import type { DemoRoomAudio } from '../world/demoRoomAudio.ts';
 import { AMBIENCE_PRESETS, AmbienceDirector } from '../audio/ambience.ts';
 import { DoorAudio } from '../audio/doorAudio.ts';
 import type { AudioEngine } from '../audio/engine.ts';
+import { CasingAudio, ejectOnWeaponEvents } from '../audio/casings.ts';
 import { FootstepAudio } from '../audio/footsteps.ts';
 import type { MenuMusic } from '../audio/menuMusic.ts';
 import { PropAudioController } from '../audio/propAudio.ts';
@@ -226,6 +227,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
   let propAudio: PropAudioController | null = null;
   let doorAudio: DoorAudio | null = null;
   let footsteps: FootstepAudio | null = null;
+  let casings: CasingAudio | null = null;
   let voicePlayer: WebAudioVoicePlayer | null = null;
   let storyDucker: StoryDucker | null = null;
   let score: ScorePlayer | null = null;
@@ -283,6 +285,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     doorAudio = null;
     footsteps?.stopSloshes();
     footsteps = null;
+    casings?.stopAll();
+    casings = null;
     voicePlayer?.dispose();
     voicePlayer = null;
     audio.releaseGameplayBuffers();
@@ -1086,6 +1090,34 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       if (weapon === 'pistol') audio.play('pistolShot', { bus: 'sfx', gain: 0.6, reverb: 0.35, rate });
       else audio.play('shotgunShot', { bus: 'sfx', gain: 0.9, reverb: 0.4, rate });
     });
+
+    // Spent brass and hulls land on whatever is to Jay's right (in-world-audio: Spent casings; src/audio/casings.ts).
+    if (collisionWorld) {
+      const cw = collisionWorld;
+      const caseAudio = new CasingAudio({
+        audio,
+        listener: () => camera.position,
+        world: {
+          raycast: (...ray) => cw.raycast(...ray),
+          surfaceAt: (x, y, z) => (world!.surfaceAt ? world!.surfaceAt(x, y, z) : cw.surfaceAt(x, y, z)),
+          ...(level && level.water.all().length ? { waterDepth: (x: number, y: number, z: number) => level!.water.depthAt(x, y, z) } : {}),
+        },
+      });
+      casings = caseAudio;
+      const eye = new THREE.Vector3();
+      const look = new THREE.Vector3();
+      ejectOnWeaponEvents(events, (kind) => {
+        if (game.mode !== 'playing' || game.flying) return;
+        camera.getWorldPosition(eye);
+        camera.getWorldDirection(look);
+        const len = Math.hypot(look.x, look.z) || 1;
+        const fx = look.x / len;
+        const fz = look.z / len;
+        // The port is just right of and below the sights, inside Jay's own collision radius so it is never in a wall.
+        caseAudio.eject({ kind, x: eye.x - fz * 0.1 + fx * 0.15, y: eye.y - 0.2, z: eye.z + fx * 0.1 + fz * 0.15, rightX: -fz, rightZ: fx, forwardX: fx, forwardZ: fz });
+      });
+      events.on('game:restarted', () => caseAudio.stopAll());
+    }
 
     let ambienceRoom: string | null = null;
     events.on('room:entered', (r) => {
