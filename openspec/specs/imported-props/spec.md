@@ -76,7 +76,7 @@ Rooms SHALL draw an imported prop with the UVs it was authored with. The world-s
 - **THEN** the cabinet's labels and panel details sit where they are in the source model, and do not tile or shift with the cabinet's position
 
 ### Requirement: Imported props count against room budgets
-Each imported prop SHALL have a recorded cost: triangles, materials, transparent materials and texture pixels. The per-room draw-call and triangle budgets SHALL include the recorded cost of every imported prop a room places, whether or not models are loaded. Each prop type SHALL add its material count to a room once, and its triangles once per placed copy.
+Each imported prop SHALL have a recorded cost: triangles, materials, transparent materials and texture pixels. The per-room draw-call and triangle counts that the level tests report SHALL include the recorded cost of every imported prop a room places, whether or not models are loaded. Each prop type SHALL add its material count to a room once, and its triangles once per placed copy.
 
 #### Scenario: Headless budget check
 - **WHEN** a room places three copies of a prop recorded at 2 materials and 1,500 triangles, and the level tests build it without models
