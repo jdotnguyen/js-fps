@@ -954,7 +954,7 @@ checkpoints.push({ id: 'cp_climax', room: 'R11', pos: [32, 0, 43], yaw: 0 });
 const HYDRO = { fog: '#141e1b', fogDensity: 0.016, ambient: 'hydro', reverb: 'small_office', ambience: 'hydro_misters' };
 const R12a = room('R12a', 'Hydroponics Vestibule', [[9, 5]], {
   area: 'hydroponics',
-  atmosphere: HYDRO,
+  atmosphere: { ...HYDRO, ambience: 'hydro_vestibule' },
   floor: 'floor_tiles',
   ceilingMaterial: 'officeCeiling',
   walls: ['wall_panel', 'wall_plain'],
@@ -964,7 +964,7 @@ const R12a = room('R12a', 'Hydroponics Vestibule', [[9, 5]], {
 const R12b = room('R12b', 'Grow Hall', rect(10, 12, 4, 6), {
   area: 'hydroponics',
   height: 4.5,
-  atmosphere: { ...HYDRO, fogDensity: 0.018, reverb: 'metal_hall' },
+  atmosphere: { ...HYDRO, fogDensity: 0.018, reverb: 'metal_hall', ambience: 'hydro_misters' },
   floor: 'floor_grate',
   floorOverride: { '11,4': 'floor_tiles', '11,5': 'floor_tiles', '11,6': 'floor_tiles' },
   ceiling: 'ceiling_pipes',
@@ -979,7 +979,7 @@ const R12b = room('R12b', 'Grow Hall', rect(10, 12, 4, 6), {
 });
 const R12c = room('R12c', 'Seed Lab', [[13, 4], [13, 5]], {
   area: 'hydroponics',
-  atmosphere: HYDRO,
+  atmosphere: { ...HYDRO, ambience: 'hydro_seed_lab' },
   floor: 'floor_tiles',
   ceilingMaterial: 'officeCeiling',
   walls: ['wall_tiles'],
@@ -991,7 +991,7 @@ const R12c = room('R12c', 'Seed Lab', [[13, 4], [13, 5]], {
 });
 const R12d = room('R12d', 'Nutrient Room', [[11, 7], [12, 7]], {
   area: 'hydroponics',
-  atmosphere: { ...HYDRO, reverb: 'metal_corridor' },
+  atmosphere: { ...HYDRO, reverb: 'metal_corridor', ambience: 'hydro_plant_room' },
   floor: 'floor_tiles',
   ceiling: 'ceiling_pipes',
   walls: ['wall_plain', 'wall_panel'],
@@ -1004,7 +1004,7 @@ const R12d = room('R12d', 'Nutrient Room', [[11, 7], [12, 7]], {
 });
 const R12e = room('R12e', 'Hydroponics Storeroom', [[10, 7]], {
   area: 'hydroponics',
-  atmosphere: { ...HYDRO, reverb: 'small_office' },
+  atmosphere: { ...HYDRO, reverb: 'small_office', ambience: 'hydro_storeroom' },
   floor: 'floor_tiles',
   walls: ['wall_plain'],
   noDeadFixtures: true,
@@ -1039,7 +1039,12 @@ prop(R12b, 'hydro_trough', [40.6, 0, 14.95], 0, { length: 2.6 });
 prop(R12b, 'hydro_trough', [47.4, 0, 14.95], 0, { length: 2.6 });
 prop(R12b, 'hydro_workstation', [44.0, 0, 14.8], 180);
 prop(R12b, 'harvest_cart', [48.9, 0, 20.6], 90);
-for (const z of [16.4, 18.8, 21.2, 23.6]) prop(R12b, 'mister', [44.0, 0, z], 0, { length: 8, period: 7 + (Math.round(z) % 3) });
+for (const [z, period, offset, sputter] of [
+  [16.4, 9.6, 0.4, false],
+  [18.8, 11.4, 3.8, true],
+  [21.2, 12.8, 7.1, false],
+  [23.6, 10.5, 5.2, false],
+]) prop(R12b, 'mister', [44.0, 0, z], 0, { length: 8, period, offset, ...(sputter ? { sputter: true } : {}) });
 // R12c Propagation & Harvest Prep Lab: germination incubator, lab bench, cold-storage seed vault, harvest cart (all strictly within bounds).
 prop(R12c, 'germination_cabinet', [52.0, 0, 14.68], 180, { width: 1.8 });
 prop(R12c, 'lab_bench', [53.32, 0, 19.5], 270, { width: 2.6 });
@@ -1068,9 +1073,9 @@ anchor(R12b, 'botanist_2_spot', [44.2, 0, 22.4], 270);
 anchor(R12d, 'hydro_alarm', [48.6, 1.2, 29.28]);
 anchor(R12e, 'hydro_store_moment', [39.9, 0, 27.5], 180);
 anchor(R12e, 'hydro_radio', [41.05, 0.9, 29.35]);
-npc(R12b, 'botanist_1', 'botanist', 'botanist_1_spot', 'crouchWork');
-npc(R12b, 'botanist_2', 'botanist', 'botanist_2_spot', 'clipboard');
-npc(R12c, 'botanist_3', 'botanist', [52.35, 0, 19.5], 'typing', { yaw: 270 });
+npc(R12b, 'botanist_1', 'botanist', 'botanist_1_spot', 'crouchWork', { roam: ['R12b', 'R12d'] });
+npc(R12b, 'botanist_2', 'botanist', 'botanist_2_spot', 'clipboard', { roam: ['R12b'] });
+npc(R12c, 'botanist_3', 'botanist', [52.35, 0, 19.5], 'typing', { yaw: 270, roam: ['R12c'] });
 trigger(R12a, 'trig_hydro_enter', cellBox(9, 9, 5, 5), 'trigger:hydro_enter', { once: false });
 trigger(R12b, 'trig_hydro_log', around([44.0, 0, 15.7], 0.85, 2), 'round:hydro_log', { on: 'use', prompt: 'Sign irrigation log' });
 trigger(R12d, 'trig_hydro_alarm', around([48.6, 0, 28.4], 0.85, 2), 'round:hydro_alarm', { on: 'use', prompt: 'Reset humidity alarm' });

@@ -42,7 +42,7 @@
   "steps": [
    {
     "do": "sfx",
-    "id": "consoleBeep",
+    "id": "hydroLogSign",
     "at": "anchor:hydro_log"
    },
    {
@@ -77,7 +77,7 @@
   "steps": [
    {
     "do": "sfx",
-    "id": "consoleBeep",
+    "id": "hydroAlarmReset",
     "at": "anchor:hydro_alarm"
    },
    {

@@ -37,7 +37,7 @@ export type AmbientPreset = (typeof AMBIENT_PRESETS)[number];
  * Activity spots (ADR-0029): where a body can sit or lean, each with a default base pose of the same name.
  * Kit props emit the `sit_*` kinds per seat; lean spots are authored for now.
  */
-export const SPOT_KINDS = ['sit_chair', 'sit_stool', 'sit_sofa', 'lean_wall', 'lean_counter'] as const;
+export const SPOT_KINDS = ['sit_chair', 'sit_stool', 'sit_sofa', 'lean_wall', 'lean_counter', 'work_crouch', 'work_clipboard', 'work_bench'] as const;
 export type SpotKind = (typeof SPOT_KINDS)[number];
 export const TRIGGER_KINDS = ['enter', 'exit', 'use'] as const;
 export const SPAWN_KINDS = ['vent', 'floor', 'ceiling', 'door', 'corpse'] as const;
@@ -187,6 +187,8 @@ const npcShape = {
   chat: optional(id),
   /** Imported body (a `data/body-models.json` id) instead of the look's pick by NPC id, to spread faces across a room. */
   model: optional(id),
+  /** Explicit list of room ids this NPC may roam between for ambient work spots (overrides single-room/pose locks). */
+  roam: optional(arr(id)),
 };
 
 /**

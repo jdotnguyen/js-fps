@@ -7777,7 +7777,7 @@
     "fogDensity": 0.016,
     "ambient": "hydro",
     "reverb": "small_office",
-    "ambience": "hydro_misters"
+    "ambience": "hydro_vestibule"
    },
    "pieces": [
     {
@@ -8277,7 +8277,9 @@
      ],
      "params": {
       "length": 8,
-      "period": 8
+      "period": 11.4,
+      "offset": 3.8,
+      "sputter": true
      }
     },
     {
@@ -8289,7 +8291,8 @@
      ],
      "params": {
       "length": 8,
-      "period": 8
+      "period": 9.6,
+      "offset": 0.4
      }
     },
     {
@@ -8301,7 +8304,8 @@
      ],
      "params": {
       "length": 8,
-      "period": 7
+      "period": 10.5,
+      "offset": 5.2
      }
     },
     {
@@ -8313,7 +8317,8 @@
      ],
      "params": {
       "length": 8,
-      "period": 7
+      "period": 12.8,
+      "offset": 7.1
      }
     },
     {
@@ -8426,12 +8431,19 @@
      "id": "botanist_1",
      "look": "botanist",
      "at": "botanist_1_spot",
+     "roam": [
+      "R12b",
+      "R12d"
+     ],
      "pose": "crouchWork"
     },
     {
      "id": "botanist_2",
      "look": "botanist",
      "at": "botanist_2_spot",
+     "roam": [
+      "R12b"
+     ],
      "pose": "clipboard"
     }
    ]
@@ -8445,7 +8457,7 @@
     "fogDensity": 0.016,
     "ambient": "hydro",
     "reverb": "small_office",
-    "ambience": "hydro_misters"
+    "ambience": "hydro_seed_lab"
    },
    "visibleFrom": [
     "R12b"
@@ -8616,6 +8628,9 @@
       19.5
      ],
      "yaw": 270,
+     "roam": [
+      "R12c"
+     ],
      "pose": "typing"
     }
    ]
@@ -8629,7 +8644,7 @@
     "fogDensity": 0.016,
     "ambient": "hydro",
     "reverb": "metal_corridor",
-    "ambience": "hydro_misters"
+    "ambience": "hydro_plant_room"
    },
    "pieces": [
     {
@@ -8869,7 +8884,7 @@
     "fogDensity": 0.016,
     "ambient": "hydro",
     "reverb": "small_office",
-    "ambience": "hydro_misters"
+    "ambience": "hydro_storeroom"
    },
    "pieces": [
     {

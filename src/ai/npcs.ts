@@ -45,6 +45,8 @@ export interface NpcSpawn {
   spot?: string | undefined;
   /** Room id the NPC belongs to (ADR-0029 phase 2). */
   room?: string | undefined;
+  /** Optional explicit room list this NPC may roam between for work spots. */
+  roam?: readonly string[] | undefined;
 }
 
 export interface ResolvedTarget {
@@ -434,11 +436,12 @@ export class NpcDirector {
   enableAmbientLife(spots: readonly AmbientSpot[]): void {
     const agents: AmbientAgent[] = [];
     for (const s of this.levelSpawns.values()) {
-      if (!s.room || !isAmbientEligible(s.id, s.pose)) continue;
+      if (!s.room || !isAmbientEligible(s.id, s.pose, s.roam)) continue;
       const id = s.id;
       agents.push({
         id,
         room: s.room,
+        ...(s.roam?.length ? { roam: s.roam } : {}),
         initialSpot: s.spot ?? null,
         available: () => {
           const a = this.actors.get(id);

@@ -33,6 +33,7 @@ import { NavMeshNav, navmeshReady } from '../ai/navmesh.ts';
 import { buildExterior, type Exterior, type ExteriorWindow } from '../render/fx/exterior.ts';
 import type { ExteriorLamp } from '../render/fx/exteriorLight.ts';
 import { VoiceGraph, type VoicePath, type VoicePortal } from '../audio/voicePath.ts';
+import type { WorldSfxEvent, WorldSoundLoop } from '../audio/propAudio.ts';
 
 const EYE_HEIGHT = PLAYER_TUNING.eyeHeight;
 /** Seconds an auto door stays open after reaching fully open while nobody is nearby. */
@@ -63,6 +64,8 @@ declare module '../core/events.ts' {
     'vent:opened': { id: string };
     /** New game: the level went back to its authored state (blinds, screens, glass and camera feeds reset). */
     'level:reset': Record<string, never>;
+    /** Synchronized positional one-shot emitted by a level kit prop (misters, reactive equipment alarms). */
+    'world:sfx': WorldSfxEvent;
   }
 }
 
@@ -260,6 +263,8 @@ export interface LevelNpc {
   chat?: string;
   /** Imported body id, overriding the look's pick. */
   model?: string;
+  /** Optional explicit list of room ids this NPC may roam between for work spots. */
+  roam?: readonly string[];
   room: string;
 }
 
@@ -313,6 +318,7 @@ export class Level implements World {
   private readonly movingLamps: ExteriorLamp[] = [];
   private readonly triggers: TriggerRuntime[] = [];
   private readonly vents: VentRuntime[] = [];
+  private readonly soundLoopList: WorldSoundLoop[] = [];
   private readonly pickups: PickupRuntime[] = [];
   /** Activity spots (ADR-0029) from kit props, in world space. `group` is the prop (a table's seats share it). */
   private readonly spotList: WorldSpot[] = [];
@@ -392,6 +398,7 @@ export class Level implements World {
       if (o.name === 'exterior-lamp') this.exteriorLampMarkers.push(o);
     });
     for (const d of data.doors) this.buildDoor(d, rng);
+    this.filterWorkSpots();
     this.initialPatterns = this.lights.items.map((it) => it.pattern);
     // Bake AO and merge once every collider exists, so walls shade across room seams.
     const ao = colliderAo(this.collision);
@@ -463,6 +470,7 @@ export class Level implements World {
           ...(spot ? { spot: spot.id, ...(spot.seat !== undefined ? { seat: spot.seat } : {}) } : {}),
           ...(n.chat ? { chat: n.chat } : {}),
           ...(n.model ? { model: n.model } : {}),
+          ...(n.roam?.length ? { roam: n.roam } : {}),
           room: r.id,
         });
       }
@@ -700,6 +708,43 @@ export class Level implements World {
     return roomId ? this.spotList.filter((s) => s.room === roomId) : this.spotList;
   }
 
+  /** Discard work_* spots that fall outside their room cells or clip walls/props (minimum 0.28 m clearance). */
+  private filterWorkSpots(): void {
+    const clearR = 0.28;
+    const hits: Collider[] = [];
+    let write = 0;
+    for (let i = 0; i < this.spotList.length; i++) {
+      const s = this.spotList[i]!;
+      if (!s.kind.startsWith('work_')) {
+        this.spotList[write++] = s;
+        continue;
+      }
+      const room = this.roomById.get(s.room);
+      if (!room) continue;
+      const probe = new THREE.Vector3(s.pos.x, s.pos.y + 0.5, s.pos.z);
+      if (!room.cells.some((c) => c.containsPoint(probe))) continue;
+      hits.length = 0;
+      this.collision.find(s.pos.x - clearR, s.pos.z - clearR, s.pos.x + clearR, s.pos.z + clearR, hits);
+      let blocked = false;
+      for (const c of hits) {
+        if (c.maxY <= s.pos.y + 0.12 || c.minY >= s.pos.y + 1.75) continue;
+        const cx = Math.max(c.minX, Math.min(s.pos.x, c.maxX));
+        const cz = Math.max(c.minZ, Math.min(s.pos.z, c.maxZ));
+        if (Math.hypot(s.pos.x - cx, s.pos.z - cz) < clearR) {
+          blocked = true;
+          break;
+        }
+      }
+      if (!blocked) this.spotList[write++] = s;
+    }
+    this.spotList.length = write;
+  }
+
+  /** Positional looping sound emitters declared by level props, in world space. */
+  soundLoops(): readonly WorldSoundLoop[] {
+    return this.soundLoopList;
+  }
+
   /** The nearest free spot of `kind` in the room within SPOT_REACH of `near` (XZ), marked as taken by `by`. */
   private claimSpot(room: string, kind: SpotKind, near: THREE.Vector3, by: string): WorldSpot | null {
     let best: WorldSpot | null = null;
@@ -854,6 +899,32 @@ export class Level implements World {
       this.deps.events.on(l.event as EventName, l.fn as never);
       this.onNamed(l.event, () => l.fn(undefined));
     }
+    for (const sl of out.soundLoops ?? []) {
+      this.soundLoopList.push({
+        room: room.data.id,
+        sound: sl.sound,
+        position: new THREE.Vector3(...sl.pos).applyMatrix4(matrix),
+        gain: sl.gain,
+        maxDist: sl.maxDist ?? 16,
+        bus: sl.bus ?? 'ambience',
+        ...(sl.rate !== undefined ? { rate: sl.rate } : {}),
+        ...(sl.cutoff !== undefined ? { cutoff: sl.cutoff } : {}),
+        ...(sl.reverb !== undefined ? { reverb: sl.reverb } : {}),
+        ...(sl.active ? { active: sl.active } : {}),
+      });
+    }
+    out.onSound?.((ev) => {
+      const position = new THREE.Vector3(...ev.pos).applyMatrix4(matrix);
+      this.deps.events.emit('world:sfx', {
+        sound: ev.sound,
+        position,
+        ...(ev.gain !== undefined ? { gain: ev.gain } : {}),
+        ...(ev.rate !== undefined ? { rate: ev.rate } : {}),
+        ...(ev.reverb !== undefined ? { reverb: ev.reverb } : {}),
+        ...(ev.bus !== undefined ? { bus: ev.bus } : {}),
+        ...(ev.maxDist !== undefined ? { maxDist: ev.maxDist } : {}),
+      });
+    });
   }
 
   /** Move a controllable named prop (e.g. dock_chair) and keep its collision boxes aligned. */

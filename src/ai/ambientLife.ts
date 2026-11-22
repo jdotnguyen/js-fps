@@ -18,6 +18,12 @@ export const AMBIENT_TUNING = {
   initialDwell: [10, 55] as const,
   /** Subsequent dwell time (s) at each spot. */
   dwell: [30, 90] as const,
+  /** Initial staggered dwell (s) for active work-spot crew (hydroponics botanists). */
+  workInitialDwell: [4, 16] as const,
+  /** Subsequent dwell time (s) at each work spot so crew stay visibly active during a visit. */
+  workDwell: [12, 35] as const,
+  /** Preference multiplier for an agent's home room when roaming across multiple rooms (~75% / ~25%). */
+  homeRoomWeight: 3.0,
   /** Retry delay (s) when no spot was free or a walk was aborted. */
   retryDwell: [10, 22] as const,
   /** At most this fraction of a room's ambient crew walks at once (min 1 for rooms with >= 2). */
@@ -57,8 +63,9 @@ export const STORY_NPCS: ReadonlySet<string> = new Set([
 const DESK_WORK_POSES: ReadonlySet<string> = new Set(['sit_typing', 'typing', 'crouchWork', 'kneel_revive']);
 
 /** True when a level NPC is eligible for ambient wandering. */
-export function isAmbientEligible(id: string, initialPose?: string): boolean {
+export function isAmbientEligible(id: string, initialPose?: string, roam?: readonly string[]): boolean {
   if (STORY_NPCS.has(id)) return false;
+  if (roam && roam.length > 0) return true;
   if (initialPose && DESK_WORK_POSES.has(initialPose)) return false;
   return true;
 }
@@ -77,6 +84,8 @@ export interface AmbientSpot {
 export interface AmbientAgent {
   readonly id: string;
   readonly room: string;
+  /** Optional explicit room ids this agent may roam between (work-spot crew). */
+  readonly roam?: readonly string[] | undefined;
   /** Initial spot id claimed at level build (restored on reset). */
   readonly initialSpot: string | null;
   /** True when the NPC is alive, human, ambient, not busy with a sequence or offering. */
@@ -98,6 +107,8 @@ export interface AmbientView {
 
 interface AgentState {
   readonly agent: AmbientAgent;
+  readonly workMode: boolean;
+  readonly allowedRooms: readonly string[];
   rng: Rng;
   spot: AmbientSpot | null;
   lastGroup: string | null;
@@ -109,6 +120,9 @@ interface AgentState {
 }
 
 export function poseForSpotKind(kind: SpotKind): string {
+  if (kind === 'work_crouch') return 'crouchWork';
+  if (kind === 'work_clipboard') return 'clipboard';
+  if (kind === 'work_bench') return 'typing';
   return kind;
 }
 
@@ -130,14 +144,19 @@ export class AmbientDirector {
       const rng = new Rng(`ambient:${agent.id}`);
       const spot = agent.initialSpot ? (this.spotById.get(agent.initialSpot) ?? null) : null;
       if (spot) spot.taken = agent.id;
+      const workMode = (agent.roam?.length ?? 0) > 0;
+      const allowedRooms = workMode ? agent.roam! : [agent.room];
+      const initRange = workMode ? AMBIENT_TUNING.workInitialDwell : AMBIENT_TUNING.initialDwell;
       const st: AgentState = {
         agent,
+        workMode,
+        allowedRooms,
         rng,
         spot,
         lastGroup: spot?.group ?? null,
         movingTo: null,
         trip: 0,
-        dwell: rng.range(...AMBIENT_TUNING.initialDwell),
+        dwell: rng.range(initRange[0], initRange[1]),
         defers: 0,
       };
       this.states.set(agent.id, st);
@@ -166,7 +185,8 @@ export class AmbientDirector {
     st.movingTo = null;
     st.spot = null;
     st.defers = 0;
-    st.dwell = st.rng.range(...AMBIENT_TUNING.dwell);
+    const dwellRange = st.workMode ? AMBIENT_TUNING.workDwell : AMBIENT_TUNING.dwell;
+    st.dwell = st.rng.range(dwellRange[0], dwellRange[1]);
   }
 
   /** Restore initial spot ownership and deterministic seeded timers (new game / reset). */
@@ -180,13 +200,15 @@ export class AmbientDirector {
       st.lastGroup = st.spot?.group ?? null;
       st.movingTo = null;
       st.defers = 0;
-      st.dwell = st.rng.range(...AMBIENT_TUNING.initialDwell);
+      const initRange = st.workMode ? AMBIENT_TUNING.workInitialDwell : AMBIENT_TUNING.initialDwell;
+      st.dwell = st.rng.range(initRange[0], initRange[1]);
     }
   }
 
   update(dt: number, view: AmbientView = { eye: null }): void {
-    for (const [room, list] of this.byRoom) {
-      if (list.length < 2) continue;
+    for (const [, list] of this.byRoom) {
+      const hasWorkRoam = list.some((s) => s.workMode);
+      if (list.length < 2 && !hasWorkRoam) continue;
       const cap = Math.max(1, Math.floor(list.length * AMBIENT_TUNING.maxMovingRatio));
       let moving = 0;
       for (const st of list) {
@@ -213,7 +235,7 @@ export class AmbientDirector {
           st.dwell = st.rng.range(...AMBIENT_TUNING.deferTime);
           continue;
         }
-        const next = this.pickSpot(room, st, feet);
+        const next = this.pickSpot(st, feet);
         if (!next) {
           st.dwell = st.rng.range(...AMBIENT_TUNING.retryDwell);
           continue;
@@ -242,18 +264,28 @@ export class AmbientDirector {
     return (dx * forward.x + dz * forward.z) / d > AMBIENT_TUNING.viewDeferCos;
   }
 
-  private pickSpot(room: string, st: AgentState, feet: { x: number; z: number }): AmbientSpot | null {
+  private pickSpot(st: AgentState, feet: { x: number; z: number }): AmbientSpot | null {
     const candidates: Array<{ spot: AmbientSpot; weight: number }> = [];
+    const allowed = st.allowedRooms;
+    const multiRoom = allowed.length > 1;
     // Count current occupancy per prop group to encourage natural small table groups.
     const occ = new Map<string, number>();
     for (const s of this.spots) {
-      if (s.room === room && s.taken) occ.set(s.group, (occ.get(s.group) ?? 0) + 1);
+      if (allowed.includes(s.room) && s.taken) occ.set(s.group, (occ.get(s.group) ?? 0) + 1);
     }
     let total = 0;
     for (const s of this.spots) {
-      if (s.room !== room || s.taken !== null) continue;
+      if (!allowed.includes(s.room) || s.taken !== null) continue;
+      if (st.workMode) {
+        if (!s.kind.startsWith('work_') && s.kind !== 'lean_counter') continue;
+      } else if (s.kind.startsWith('work_')) {
+        continue;
+      }
       if (Math.hypot(s.pos.x - feet.x, s.pos.z - feet.z) < AMBIENT_TUNING.minMoveDist) continue;
       let w = s.kind === 'lean_counter' || s.kind === 'lean_wall' ? 1.4 : 1.0;
+      if (st.workMode && multiRoom) {
+        w *= s.room === st.agent.room ? AMBIENT_TUNING.homeRoomWeight : 1.0;
+      }
       if (s.kind.startsWith('sit_')) {
         const n = occ.get(s.group) ?? 0;
         if (n >= 1 && n <= 2) w *= 1.8;
@@ -289,7 +321,8 @@ export class AmbientDirector {
       if (st.agent.available() && close) {
         st.spot = dest;
         st.agent.settle(dest.pos, dest.yaw, poseForSpotKind(dest.kind));
-        st.dwell = st.rng.range(...AMBIENT_TUNING.dwell);
+        const dwellRange = st.workMode ? AMBIENT_TUNING.workDwell : AMBIENT_TUNING.dwell;
+        st.dwell = st.rng.range(dwellRange[0], dwellRange[1]);
       } else {
         if (dest.taken === id) dest.taken = null;
         st.dwell = st.rng.range(...AMBIENT_TUNING.retryDwell);

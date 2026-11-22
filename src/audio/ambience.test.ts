@@ -189,3 +189,31 @@ test('flickering room lights drive buzz gain and fire zap arcs on re-ignition', 
   dir.dispose();
   assert.equal(buzz.stoppedWith, 0);
 });
+
+test('all five Hydroponics room presets resolve, crossfade, and hot-swap ElevenLabs beds', () => {
+  const hydroPresets = [
+    ['hydro_vestibule', 'ambHydroVestibule'],
+    ['hydro_misters', 'ambHydroMisters'],
+    ['hydro_seed_lab', 'ambHydroSeedLab'],
+    ['hydro_plant_room', 'ambHydroPlantRoom'],
+    ['hydro_storeroom', 'ambHydroStoreroom'],
+  ] as const;
+
+  const audio = new MockAmbienceAudio();
+  const dir = new AmbienceDirector(audio, new Rng('hydro-amb'));
+  dir.setMode('playing');
+
+  for (const [preset, sample] of hydroPresets) {
+    assert.ok(isAmbiencePreset(preset), `${preset} exists`);
+    dir.enterRoom(preset, [], 1.5);
+    assert.equal(dir.currentPreset, preset);
+    const before = audio.loops.filter((l) => l.stoppedWith === null);
+    assert.ok(before.length >= 1, `${preset} starts fallback bed before decode`);
+    assert.ok(!before.some((l) => l.name === sample), `${preset} starts on fallback before ${sample} decodes`);
+    audio.emitSampleLoaded(sample);
+    const after = audio.loops.filter((l) => l.stoppedWith === null);
+    assert.ok(after.some((l) => l.name === sample), `${preset} hot-swaps to ${sample}`);
+  }
+
+  dir.dispose();
+});

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AMBIENT_TUNING, AmbientDirector, isAmbientEligible, type AmbientAgent, type AmbientSpot } from './ambientLife.ts';
+import { AMBIENT_TUNING, AmbientDirector, isAmbientEligible, poseForSpotKind, type AmbientAgent, type AmbientSpot } from './ambientLife.ts';
 
 interface FakeAgent extends AmbientAgent {
   pos: { x: number; y: number; z: number };
@@ -16,10 +16,11 @@ function makeSpot(id: string, room: string, group: string, kind: AmbientSpot['ki
   return { id, room, group, kind, pos: { x, y: 0, z }, yaw: 0, taken: null };
 }
 
-function makeAgent(id: string, room: string, spot: AmbientSpot | null, x: number, z: number): FakeAgent {
+function makeAgent(id: string, room: string, spot: AmbientSpot | null, x: number, z: number, roam?: readonly string[]): FakeAgent {
   const a: FakeAgent = {
     id,
     room,
+    ...(roam ? { roam } : {}),
     initialSpot: spot?.id ?? null,
     pos: { x, y: 0, z },
     yaw: 0,
@@ -132,5 +133,49 @@ test('isAmbientEligible protects story NPCs and desk workers', () => {
   assert.equal(isAmbientEligible('exec_2', 'sit_typing'), false);
   assert.equal(isAmbientEligible('diner_1', 'sit_chair'), true);
   assert.equal(isAmbientEligible('board_1', 'sit_chair'), true);
+  assert.equal(isAmbientEligible('botanist_1', 'crouchWork', ['R12b', 'R12d']), true, 'explicit roam opts work-pose botanist in');
+  assert.equal(isAmbientEligible('botanist_3', 'typing', ['R12c']), true, 'explicit roam opts Seed Lab botanist in');
+  assert.equal(isAmbientEligible('exec_2', 'sit_typing'), false, 'seated office desk typists stay locked');
+  assert.equal(poseForSpotKind('work_crouch'), 'crouchWork');
+  assert.equal(poseForSpotKind('work_clipboard'), 'clipboard');
+  assert.equal(poseForSpotKind('work_bench'), 'typing');
   assert.ok(AMBIENT_TUNING.maxMovingRatio <= 0.25);
+});
+
+test('AmbientDirector supports single-NPC work rooms (R12c) and multi-room roaming (R12b+R12d) without double-booking', () => {
+  const spots: AmbientSpot[] = [
+    makeSpot('b1', 'R12b', 'rack1', 'work_crouch', 41, 16.7),
+    makeSpot('b2', 'R12b', 'rack2', 'work_clipboard', 46.8, 18.5),
+    makeSpot('b3', 'R12b', 'ws', 'work_bench', 44.5, 15.7),
+    makeSpot('d1', 'R12d', 'tank1', 'work_clipboard', 43.8, 27.6),
+    makeSpot('d2', 'R12d', 'dehum', 'work_clipboard', 43.8, 27.1),
+    makeSpot('c1', 'R12c', 'bench', 'work_bench', 52.4, 19.5),
+    makeSpot('c2', 'R12c', 'germ', 'work_clipboard', 52.0, 15.6),
+    makeSpot('c3', 'R12c', 'vault', 'work_clipboard', 52.2, 20.5),
+  ];
+  const bot1 = makeAgent('botanist_1', 'R12b', null, 43.8, 17.8, ['R12b', 'R12d']);
+  const bot2 = makeAgent('botanist_2', 'R12b', null, 44.2, 22.4, ['R12b']);
+  const bot3 = makeAgent('botanist_3', 'R12c', null, 52.35, 19.5, ['R12c']);
+  const agents = [bot1, bot2, bot3];
+  const dir = new AmbientDirector(spots, agents);
+
+  const bot1Rooms = new Set<string>();
+  const bot2Rooms = new Set<string>();
+  const bot3Rooms = new Set<string>();
+  step(dir, agents, 220, { x: 44, y: 1.6, z: 20 }, null, () => {
+    const held = agents.map((a) => dir.spotOf(a.id)?.id).filter(Boolean);
+    assert.equal(new Set(held).size, held.length, 'no duplicate work-spot bookings');
+    const s1 = dir.spotOf('botanist_1');
+    const s2 = dir.spotOf('botanist_2');
+    const s3 = dir.spotOf('botanist_3');
+    if (s1) bot1Rooms.add(s1.room);
+    if (s2) bot2Rooms.add(s2.room);
+    if (s3) bot3Rooms.add(s3.room);
+  });
+
+  assert.ok(bot1.walksStarted >= 2 && bot2.walksStarted >= 2 && bot3.walksStarted >= 2, 'all three botanists move actively');
+  assert.ok(bot1Rooms.has('R12b') && bot1Rooms.has('R12d'), `botanist_1 visits both R12b and R12d (saw ${[...bot1Rooms].join(',')})`);
+  assert.deepEqual([...bot2Rooms], ['R12b'], 'botanist_2 (Wen) stays in R12b');
+  assert.deepEqual([...bot3Rooms], ['R12c'], 'botanist_3 stays in R12c');
+  assert.ok(['crouchWork', 'clipboard', 'typing'].includes(bot1.pose), `botanist_1 settles in work pose (${bot1.pose})`);
 });

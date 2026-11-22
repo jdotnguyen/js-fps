@@ -175,13 +175,53 @@ export const AMBIENCE_PRESETS = {
   },
   hydro_misters: {
     beds: [
-      { sample: 'ambHydroMisters', fallback: 'ventFan', gain: 0.55 },
+      { sample: 'ambHydroMisters', fallback: 'ventFan', gain: 0.52 },
       { sample: 'ambHullHum', fallback: 'roomTone', gain: 0.14, rate: 0.96, cutoff: 320 },
     ],
     breathing: { depth: 0.08, periodA: 18, periodB: 31 },
     oneshots: [
-      { sound: 'drip', every: [3.2, 8.5], gain: 0.24, placement: 'perimeter', reverb: 0.35, rateRange: [0.9, 1.18] },
-      { sound: 'creak', every: [22, 48], gain: 0.18, placement: 'ceiling', reverb: 0.35, rateRange: [0.92, 1.08] },
+      { sound: 'hydroDrip', fallback: 'drip', every: [2.8, 7.2], gain: 0.24, placement: 'perimeter', reverb: 0.35, rateRange: [0.9, 1.16] },
+      { sound: 'creak', every: [22, 48], gain: 0.16, placement: 'ceiling', reverb: 0.35, rateRange: [0.92, 1.08] },
+    ],
+  },
+  hydro_vestibule: {
+    beds: [
+      { sample: 'ambHydroVestibule', fallback: 'ventFan', gain: 0.48 },
+      { sample: 'ambHullHum', fallback: 'roomTone', gain: 0.12, rate: 0.97, cutoff: 300 },
+    ],
+    breathing: { depth: 0.06, periodA: 21, periodB: 35 },
+    oneshots: [
+      { sound: 'creak', every: [24, 52], gain: 0.14, placement: 'ceiling', reverb: 0.25, rateRange: [0.92, 1.08] },
+    ],
+  },
+  hydro_seed_lab: {
+    beds: [
+      { sample: 'ambHydroSeedLab', fallback: 'roomTone', gain: 0.46 },
+      { sample: 'consoleHum', fallback: 'consoleHum', gain: 0.09, rate: 0.98, cutoff: 1200 },
+    ],
+    breathing: { depth: 0.06, periodA: 20, periodB: 34 },
+    oneshots: [
+      { sound: 'creak', every: [26, 56], gain: 0.14, placement: 'ceiling', reverb: 0.2, rateRange: [0.92, 1.08] },
+    ],
+  },
+  hydro_plant_room: {
+    beds: [
+      { sample: 'ambHydroPlantRoom', fallback: 'ventFan', gain: 0.54 },
+      { sample: 'ambHullHum', fallback: 'roomTone', gain: 0.16, rate: 0.94, cutoff: 340 },
+    ],
+    breathing: { depth: 0.09, periodA: 16, periodB: 27 },
+    oneshots: [
+      { sound: 'hydroDrip', fallback: 'drip', every: [4.5, 11.0], gain: 0.2, placement: 'perimeter', reverb: 0.35, rateRange: [0.9, 1.15] },
+      { sound: 'metalKnock', every: [18, 42], gain: 0.26, placement: 'perimeter', reverb: 0.45, rateRange: [0.85, 1.08] },
+    ],
+  },
+  hydro_storeroom: {
+    beds: [
+      { sample: 'ambHydroStoreroom', fallback: 'roomTone', gain: 0.4 },
+    ],
+    breathing: { depth: 0.05, periodA: 24, periodB: 39 },
+    oneshots: [
+      { sound: 'creak', every: [28, 60], gain: 0.12, placement: 'ceiling', reverb: 0.2, rateRange: [0.92, 1.08] },
     ],
   },
   dive_drip: {

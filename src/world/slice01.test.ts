@@ -695,7 +695,50 @@ test('hydroponics wing (R12a-R12e) props stay inside room bounds, do not overlap
   assert.ok(kitsIn('R12c').has('germination_cabinet') && kitsIn('R12c').has('seed_vault') && kitsIn('R12c').has('lab_bench'), 'R12c seed & harvest prep lab gear');
   assert.ok(kitsIn('R12d').has('fertigation_tank') && kitsIn('R12d').has('hvac_dehumidifier') && !kitsIn('R12d').has('specimen_tank'), 'R12d uses fertigation tanks & dehumidifier instead of alien specimen tanks');
   assert.ok(kitsIn('R12e').has('camp_cot') && kitsIn('R12e').has('kettle_set') && kitsIn('R12e').has('fertiliser_pallet') && kitsIn('R12e').has('radio'), 'R12e includes cot, kettle+dog photo, radio, and fertiliser pallet');
+
+  // Distinct room ambience presets across all five Hydroponics rooms + staggered R12b misters with a sputter rail.
+  const ambOf = (id: string): string | undefined => data.rooms.find((r) => r.id === id)!.atmosphere?.ambience;
+  assert.equal(ambOf('R12a'), 'hydro_vestibule');
+  assert.equal(ambOf('R12b'), 'hydro_misters');
+  assert.equal(ambOf('R12c'), 'hydro_seed_lab');
+  assert.equal(ambOf('R12d'), 'hydro_plant_room');
+  assert.equal(ambOf('R12e'), 'hydro_storeroom');
+  const misters = (data.rooms.find((r) => r.id === 'R12b')!.props ?? []).filter((p) => p.kit === 'mister');
+  assert.equal(misters.length, 4, 'four overhead mister rails in R12b');
+  assert.equal(new Set(misters.map((m) => `${m.params?.['period']}:${m.params?.['offset']}`)).size, 4, 'staggered mister cycles');
+  assert.ok(misters.some((m) => m.params?.['sputter'] === true), 'at least one opinionated sputtering rail');
 });
+
+test('hydroponics work spots stay clear of colliders, navmesh-reachable across R12b/R12c/R12d, and botanists have roam zones', async () => {
+  const { initNavmesh } = await import('../ai/navmesh.ts');
+  await initNavmesh();
+  const { level } = build();
+  const nav = level.navGraph();
+  const workIn = (roomId: string) => level.spots(roomId).filter((s) => s.kind.startsWith('work_'));
+  const r12b = workIn('R12b');
+  const r12c = workIn('R12c');
+  const r12d = workIn('R12d');
+  assert.ok(r12b.length >= 6, `R12b has work spots (${r12b.length})`);
+  assert.ok(r12c.length >= 3, `R12c has work spots (${r12c.length})`);
+  assert.ok(r12d.length >= 2, `R12d has work spots (${r12d.length})`);
+
+  const fromR12b = level.anchor('cp_round_hydro')!.pos;
+  for (const s of [...r12b, ...r12d]) {
+    const path = nav.findPath({ x: fromR12b.x, y: 0, z: fromR12b.z }, { x: s.pos.x, y: 0, z: s.pos.z });
+    assert.ok(path && path.length >= 1, `R12b -> ${s.room} spot ${s.id} (${s.kind}) reachable on navmesh`);
+  }
+  const fromR12c = r12c[0]!.pos;
+  for (const s of r12c) {
+    const path = nav.findPath({ x: fromR12c.x, y: 0, z: fromR12c.z }, { x: s.pos.x, y: 0, z: s.pos.z });
+    assert.ok(path && path.length >= 1, `R12c spot ${s.id} (${s.kind}) reachable on navmesh`);
+  }
+
+  const spawns = new Map(level.npcSpawns().map((n) => [n.id, n]));
+  assert.deepEqual(spawns.get('botanist_1')?.roam, ['R12b', 'R12d']);
+  assert.deepEqual(spawns.get('botanist_2')?.roam, ['R12b']);
+  assert.deepEqual(spawns.get('botanist_3')?.roam, ['R12c']);
+});
+
 
 test('dive bay lanes fit two capsules side by side between the R13b doors (dive-bay spec, budgets and clearance)', () => {
   const { level } = build();

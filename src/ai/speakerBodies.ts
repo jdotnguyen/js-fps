@@ -13,7 +13,7 @@ import { CREW_PREFIX } from '../data/types/dialogue.ts';
  * radio, which is never positioned), and the dive-bay maintenance tech is the level's `maint_1`.
  */
 const SPEAKER_NPC: Readonly<Record<string, string>> = {
-  engineer: 'giles', medic: 'okafor', nurse: 'priya', chief: 'heins', crew_lab: 'researcher_b', director: 'hale', crew_maint: 'maint_1',
+  engineer: 'giles', medic: 'okafor', nurse: 'priya', chief: 'heins', crew_lab: 'researcher_b', director: 'hale', crew_maint: 'maint_1', crew_botanist: 'botanist_2',
 };
 
 /** Speakers voiced by whichever of several NPCs is nearest when the line starts (the hydroponics botanists). */

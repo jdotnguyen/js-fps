@@ -14,6 +14,7 @@ import { lathe, slab } from './shapes.ts';
 import { inFrame, panelWall, wallFrame } from './detail.ts';
 import { AoMergeBuilder } from './merge.ts';
 import { TILE_FLOOR_KEYS, paletteFor, resolvePalette } from './palettes.ts';
+import { evaluateMisterCycle } from './misterCycle.ts';
 import { PieceBuilder, WALL_T, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams } from './types.ts';
 
 /**
@@ -116,6 +117,19 @@ const MAT = {
   rugStripe: () => plain('rugStripe', 0xb89a5a, 0.95),
   tealGloss: () => plain('tealGloss', 0x2a6466, 0.45),
   shade: () => plain('shade', 0x1f2a2c, 0.5, 0, { side: THREE.DoubleSide }),
+  shadeBrass: () => plain('shadeBrass', 0x8f7144, 0.35, 0.5, { side: THREE.DoubleSide }),
+  tomato: () => plain('tomato', 0xc92a22, 0.3),
+  tomatoWarm: () => plain('tomatoWarm', 0xd96228, 0.35),
+  trayWhite: () => plain('trayWhite', 0xe2e6e0, 0.38),
+  tankPoly: () => plain('tankPoly', 0xcfdad6, 0.32),
+  tankBlue: () => plain('tankBlue', 0x266c80, 0.25),
+  tankAmber: () => plain('tankAmber', 0xb88022, 0.25),
+  cotOlive: () => plain('cotOlive', 0x4b5748, 0.92),
+  blanketNavy: () => plain('blanketNavy', 0x2a3b4e, 0.95),
+  sackBurlap: () => plain('sackBurlap', 0xa68d68, 0.94),
+  labCoat: () => plain('labCoat', 0xe9ece8, 0.88),
+  bootYellow: () => plain('bootYellow', 0xc99c1a, 0.42),
+  ductLight: () => plain('ductLight', 0x9aa4a8, 0.42, 0.55),
   deskPanel: () => plain('deskPanel', 0xd6d2c8, 0.55),
   deskDark: () => plain('deskDark', 0x202429, 0.45, 0.1),
   wallPlaster: () => plain('wallPlaster', 0xd8d3c8, 0.88),
@@ -155,6 +169,166 @@ function waterMaterial(): THREE.ShaderMaterial {
       }),
   );
 }
+
+/** Lightweight GPU-driven rising steam wisps (Points, 0 CPU vertex uploads per frame). */
+const STEAM_VERT = /* glsl */ `
+  uniform float uTime;
+  uniform float uHeight;
+  uniform float uPixelRatio;
+  attribute vec3 aSeed; // x: phase, y: speed, z: size
+  varying float vAlpha;
+
+  void main() {
+    float life = fract(aSeed.x + uTime * aSeed.y);
+    vec3 p = position;
+    p.y += life * uHeight;
+    p.x += sin(uTime * 1.4 + aSeed.x * 29.0 + life * 5.0) * (0.02 + life * 0.06);
+    p.z += cos(uTime * 1.1 + aSeed.x * 21.0 + life * 4.0) * (0.02 + life * 0.05);
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    float dist = max(0.8, -mv.z);
+    vAlpha = smoothstep(0.0, 0.2, life) * smoothstep(1.0, 0.25, life) * smoothstep(16.0, 2.5, dist);
+    gl_PointSize = clamp((aSeed.z * (0.65 + life * 1.1) * 260.0 * uPixelRatio) / dist, 3.0, 42.0);
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+const STEAM_FRAG = /* glsl */ `
+  uniform float uOpacity;
+  varying float vAlpha;
+
+  void main() {
+    float r = length(gl_PointCoord - 0.5);
+    if (r > 0.5) discard;
+    float puff = smoothstep(0.5, 0.0, r);
+    gl_FragColor = vec4(vec3(0.95, 0.93, 0.89), puff * puff * vAlpha * uOpacity);
+  }
+`;
+
+function steamPlume(
+  pb: PieceBuilder,
+  rng: Rng,
+  o: { x?: number; y: number; z?: number; width: number; depth: number; height: number; count: number; opacity?: number; size?: number },
+): void {
+  const pos = new Float32Array(o.count * 3);
+  const seed = new Float32Array(o.count * 3);
+  const ox = o.x ?? 0;
+  const oz = o.z ?? 0;
+  const baseSize = o.size ?? 0.14;
+  for (let i = 0; i < o.count; i++) {
+    pos[i * 3] = ox + rng.range(-o.width / 2, o.width / 2);
+    pos[i * 3 + 1] = o.y;
+    pos[i * 3 + 2] = oz + rng.range(-o.depth / 2, o.depth / 2);
+    seed[i * 3] = rng.range(0, 1);
+    seed[i * 3 + 1] = rng.range(0.22, 0.42);
+    seed[i * 3 + 2] = baseSize * rng.range(0.75, 1.3);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 3));
+  const uTime = { value: 0 };
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime,
+      uHeight: { value: o.height },
+      uOpacity: { value: o.opacity ?? 0.18 },
+      uPixelRatio: { value: typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1 },
+    },
+    vertexShader: STEAM_VERT,
+    fragmentShader: STEAM_FRAG,
+    transparent: true,
+    depthWrite: false,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.name = 'steam-plume';
+  pts.userData['skipGtao'] = true;
+  pts.frustumCulled = false;
+  pts.renderOrder = 2;
+  pb.dynamic(pts);
+  pb.tick((t) => {
+    uTime.value = t;
+  });
+}
+
+/** GPU-driven pressurized downward mist spray cones beneath overhead hydroponics nozzles (0 CPU uploads/frame). */
+const MISTER_CONE_VERT = /* glsl */ `
+  uniform float uTime;
+  uniform float uSpray;
+  uniform float uDrop;
+  uniform float uPixelRatio;
+  attribute vec4 aSeed; // x: phase, y: speed, z: angle, w: spreadFactor
+  varying float vAlpha;
+  varying float vLife;
+
+  void main() {
+    float life = fract(aSeed.x + uTime * aSeed.y);
+    float spread = 0.015 + pow(life, 0.85) * 0.36 * aSeed.w;
+    vec3 p = position;
+    p.x += cos(aSeed.z) * spread + sin(uTime * 1.9 + aSeed.x * 23.0 + life * 4.0) * life * 0.04;
+    p.z += sin(aSeed.z) * spread + cos(uTime * 1.6 + aSeed.x * 19.0 + life * 4.0) * life * 0.04;
+    p.y -= life * uDrop;
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    float dist = max(0.7, -mv.z);
+    vLife = life;
+    vAlpha = uSpray * smoothstep(0.0, 0.14, life) * smoothstep(1.0, 0.32, life) * smoothstep(20.0, 2.0, dist);
+    float size = mix(0.06, 0.30, life);
+    gl_PointSize = clamp((size * 280.0 * uPixelRatio) / dist, 3.0, 60.0);
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+const MISTER_CONE_FRAG = /* glsl */ `
+  uniform float uOpacity;
+  varying float vAlpha;
+  varying float vLife;
+
+  void main() {
+    if (vAlpha <= 0.002) discard;
+    float r = length(gl_PointCoord - 0.5);
+    if (r > 0.5) discard;
+    float puff = smoothstep(0.5, 0.0, r);
+    vec3 col = mix(vec3(0.95, 0.99, 1.0), vec3(0.86, 0.95, 0.98), vLife);
+    gl_FragColor = vec4(col, pow(puff, 1.4) * vAlpha * uOpacity);
+  }
+`;
+
+/** GPU-driven slow billowing vapor cloud that lingers and fades softly after the mister valve shuts. */
+const MISTER_CLOUD_VERT = /* glsl */ `
+  uniform float uTime;
+  uniform float uCloud;
+  uniform float uDrop;
+  uniform float uPixelRatio;
+  attribute vec4 aSeed; // x: phase, y: speed, z: angle, w: sizeScale
+  varying float vAlpha;
+
+  void main() {
+    float life = fract(aSeed.x + uTime * aSeed.y);
+    float radial = 0.14 + life * 0.65;
+    vec3 p = position;
+    p.x += cos(aSeed.z + life * 1.1) * radial + sin(uTime * 0.75 + aSeed.x * 31.0) * (0.08 + life * 0.18);
+    p.z += sin(aSeed.z + life * 0.9) * radial + cos(uTime * 0.65 + aSeed.x * 27.0) * (0.08 + life * 0.18);
+    p.y -= 0.42 + life * uDrop;
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    float dist = max(0.8, -mv.z);
+    vAlpha = uCloud * smoothstep(0.0, 0.2, life) * smoothstep(1.0, 0.22, life) * smoothstep(22.0, 2.2, dist);
+    float size = (0.36 + life * 0.54) * aSeed.w;
+    gl_PointSize = clamp((size * 280.0 * uPixelRatio) / dist, 5.0, 108.0);
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+const MISTER_CLOUD_FRAG = /* glsl */ `
+  uniform float uOpacity;
+  varying float vAlpha;
+
+  void main() {
+    if (vAlpha <= 0.002) discard;
+    float r = length(gl_PointCoord - 0.5);
+    if (r > 0.5) discard;
+    float puff = smoothstep(0.5, 0.0, r);
+    gl_FragColor = vec4(vec3(0.88, 0.96, 0.99), puff * puff * vAlpha * uOpacity);
+  }
+`;
+
 
 // ------------------------------------------------------------------ small helpers
 
@@ -791,30 +965,453 @@ const GEN: Record<string, Gen> = {
     const L = numParam(p, 'length', 2.4);
     const tiers = Math.round(numParam(p, 'tiers', 3));
     const light = strParam(p, 'light', 'magenta');
-    const glowMat = light === 'white' ? glow('grow-white', 0xf2fff0, 2.2) : glow('grow-magenta', 0xff4fd8, 2.0);
-    const d = 0.6;
-    const gap = 0.62;
-    for (const x of [-L / 2 + 0.03, L / 2 - 0.03]) for (const z of [-d / 2 + 0.03, d / 2 - 0.03]) pb.add(slab(0.05, tiers * gap + 0.35, 0.05), m.steel, at(x, (tiers * gap + 0.35) / 2, z));
-    const greens = [MAT.leaf(), MAT.leafLight(), MAT.leafDark()];
+    const crop = strParam(p, 'crop', 'mixed');
+    const pal = resolvePalette(p, m);
+    const glowMat = light === 'white' ? glow('grow-white', 0xf6fff6, 2.2) : glow('grow-magenta', 0xff52dc, 2.0);
+    const d = 0.64;
+    const gap = 0.64;
+    const totalH = tiers * gap + 0.36;
+    const pipeMat = pal.pipeAccent;
+    // Stainless uprights, foot pads, and end cross-braces.
+    for (const x of [-L / 2 + 0.03, L / 2 - 0.03]) {
+      for (const z of [-d / 2 + 0.03, d / 2 - 0.03]) {
+        pb.add(slab(0.045, totalH, 0.045), m.steelBrushed, at(x, totalH / 2, z));
+        pb.add(slab(0.09, 0.02, 0.09), m.steelDark, at(x, 0.01, z));
+      }
+      pb.add(slab(0.03, 0.04, d - 0.06), m.steelBrushed, at(x, 0.14, 0));
+      pb.add(slab(0.03, 0.04, d - 0.06), m.steelBrushed, at(x, totalH - 0.04, 0));
+    }
+    const tomatoes = [MAT.tomato(), MAT.tomatoWarm()];
     for (let t = 0; t < tiers; t++) {
-      const y = 0.3 + t * gap;
-      pb.add(rounded(L, 0.14, d - 0.06, 0.02), MAT.plasticGreen(), at(0, y, 0));
-      pb.add(slab(L - 0.06, 0.02, d - 0.12), MAT.soil(), at(0, y + 0.065, 0));
-      const per = Math.max(2, Math.floor(L / 0.26));
+      const y = 0.32 + t * gap;
+      // Food-grade white NFT grow trough + twin dark-substrate channels.
+      pb.add(rounded(L - 0.02, 0.12, d - 0.06, 0.015), MAT.trayWhite(), at(0, y, 0));
+      pb.add(slab(L - 0.08, 0.015, d - 0.14), MAT.soil(), at(0, y + 0.058, 0));
+      const per = Math.max(3, Math.floor(L / 0.28));
       for (let i = 0; i < per; i++) {
-        const x = -L / 2 + (L / per) * (i + 0.5);
-        for (const z of [-0.12, 0.12]) {
-          if (rng.chance(0.12)) continue;
-          if (rng.chance(0.55)) clump(pb, rng, greens, x, y + 0.07, z, rng.range(0.07, 0.11), 2);
-          else rosette(pb, rng, greens, x, y + 0.07, z, 5, rng.range(0.14, 0.24), 0.05, 0.7);
+        const x = -L / 2 + 0.12 + ((L - 0.24) / per) * (i + 0.5);
+        for (const z of [-0.14, 0.14]) {
+          if (rng.chance(0.08)) continue;
+          // Net-cup collar seated in the NFT channel.
+          pb.add(new THREE.CylinderGeometry(0.045, 0.04, 0.02, 8), MAT.potDark(), at(x, y + 0.068, z));
+          const kind = crop === 'mixed' ? (t === 0 ? 'tomatoes' : t === 1 ? 'greens' : 'herbs') : crop;
+          if (kind === 'tomatoes') {
+            const vineH = rng.range(0.32, 0.44);
+            pb.add(cylinderBetween(V(x, y + 0.07, z), V(x + rng.range(-0.02, 0.02), y + 0.07 + vineH, z), 0.006, 5), MAT.woodLight());
+            rosette(pb, rng, [MAT.leafDark(), MAT.leaf()], x, y + 0.08, z, 5, rng.range(0.14, 0.2), 0.045, 0.85);
+            clump(pb, rng, [MAT.leafDark(), MAT.leaf()], x, y + 0.24, z, rng.range(0.06, 0.09), 2);
+            // Hanging clusters of ripe cherry tomatoes.
+            const fruits = 2 + Math.floor(rng.range(0, 3));
+            for (let f = 0; f < fruits; f++) {
+              pb.add(
+                new THREE.SphereGeometry(rng.range(0.018, 0.026), 7, 5),
+                rng.pick(tomatoes),
+                at(x + rng.range(-0.07, 0.07), y + rng.range(0.14, 0.34), z + rng.range(-0.06, 0.06)),
+              );
+            }
+          } else if (kind === 'greens') {
+            rosette(pb, rng, [MAT.leafLight(), MAT.leaf()], x, y + 0.075, z, 7, rng.range(0.13, 0.19), 0.065, 0.95);
+            clump(pb, rng, [MAT.leafLight()], x, y + 0.085, z, rng.range(0.045, 0.065), 2);
+          } else {
+            const mats = rng.chance(0.28) ? [MAT.leafRed(), MAT.leaf()] : [MAT.leafLight(), MAT.leaf(), MAT.leafDark()];
+            clump(pb, rng, mats, x, y + 0.08, z, rng.range(0.065, 0.1), 3);
+            rosette(pb, rng, mats, x, y + 0.08, z, 4, rng.range(0.11, 0.16), 0.045, 0.65);
+          }
         }
       }
-      // Grow light under the shelf above (or a top bar).
-      pb.add(slab(L - 0.1, 0.02, 0.08), glowMat, at(0, y + gap - 0.1, 0));
-      pb.add(slab(L - 0.08, 0.03, 0.12), m.steel, at(0, y + gap - 0.08, 0));
+      // Aluminum LED fixture hood + glowing grow bar under the shelf above.
+      pb.add(slab(L - 0.1, 0.018, 0.085), glowMat, at(0, y + gap - 0.11, 0));
+      pb.add(rounded(L - 0.06, 0.032, 0.13, 0.008), m.steelBrushed, at(0, y + gap - 0.085, 0));
+      // Branch irrigation feed line into each tier.
+      pb.add(cylinderBetween(V(-L / 2 - 0.04, y, 0), V(-L / 2 + 0.02, y, 0), 0.014, 6), pipeMat);
     }
-    pb.add(pipe([V(-L / 2, 0.22, d / 2 - 0.02), V(L / 2, 0.22, d / 2 - 0.02)], 0.02, 1, 8), m.paintTeal);
-    pb.solid(-L / 2, 0, -d / 2, L / 2, tiers * gap + 0.35, d / 2, 'metal');
+    // Vertical irrigation supply riser & bottom return drain manifold along the rack.
+    pb.add(pipe([V(-L / 2 - 0.04, 0.16, 0), V(-L / 2 - 0.04, totalH - 0.1, 0)], 0.022, 1, 8), pipeMat);
+    pb.add(pipe([V(-L / 2 - 0.04, 0.16, d / 2 - 0.02), V(L / 2, 0.16, d / 2 - 0.02)], 0.02, 1, 8), pipeMat);
+    // Clip-on digital RH / temp telemetry puck on the +X front upright.
+    pb.add(rounded(0.09, 0.14, 0.04, 0.008), m.steelDark, at(L / 2 + 0.01, 1.45, -d / 2 + 0.03));
+    pb.add(slab(0.06, 0.04, 0.006), glow('rack-sensor', 0x56f0b8, 1.4), at(L / 2 + 0.01, 1.47, -d / 2 + 0.008));
+    pb.soundLoop({ sound: 'hydroTrickle', pos: [0, 0.55, 0], gain: 0.12, maxDist: 6.5, reverb: 0.25 });
+    pb.spot('work_crouch', -L * 0.25, 0, -d / 2 - 0.56, PI);
+    pb.spot('work_clipboard', L * 0.25, 0, d / 2 + 0.56, 0);
+    pb.solid(-L / 2 - 0.04, 0, -d / 2, L / 2 + 0.04, totalH, d / 2, 'metal');
+  },
+
+  /** Recessed stainless boot-wash grate + sanitizing mat for the Hydroponics biosecurity vestibule (flush walkable). */
+  boot_wash_mat(p, _rng, m, pb) {
+    const w = numParam(p, 'width', 1.6);
+    const d = numParam(p, 'depth', 1.2);
+    pb.add(rounded(w + 0.12, 0.014, d + 0.12, 0.004), m.steelBrushed, at(0, 0.007, 0));
+    pb.add(slab(w - 0.08, 0.018, d * 0.45), m.rubber, at(0, 0.009, -d * 0.24));
+    pb.add(slab(w - 0.08, 0.018, d * 0.45, 0.5), m.grating, at(0, 0.009, d * 0.24));
+    pb.add(slab(w - 0.1, 0.006, d * 0.43), MAT.tankBlue(), at(0, 0.003, d * 0.24));
+    pb.surfaces.push({ box: { min: [-w / 2, -0.05, -d / 2], max: [w / 2, 0.02, d / 2] }, material: 'grate' });
+  },
+
+  /** Stainless wall-mounted hand-wash sink, soap/towel dispensers & biosecurity protocol sign (back on +Z, front faces -Z). */
+  bio_wash_station(_p, _rng, m, pb) {
+    const w = 0.85;
+    const d = 0.46;
+    const h = 0.88;
+    // Pedestal & stainless basin.
+    pb.add(rounded(w, 0.22, d, 0.015), m.steelBrushed, at(0, h - 0.11, 0));
+    pb.add(slab(w - 0.16, 0.02, d - 0.14), m.steelDark, at(0, h + 0.002, -0.02));
+    pb.add(cylinderBetween(V(0, 0, 0.08), V(0, h - 0.22, 0.08), 0.045, 10), m.steelBrushed);
+    pb.add(slab(w, 0.45, 0.025), m.steelBrushed, at(0, h + 0.225, d / 2 - 0.015));
+    // Gooseneck sensor faucet.
+    pb.add(pipe([V(0, h, 0.15), V(0, h + 0.26, 0.15), V(0, h + 0.3, 0.04), V(0, h + 0.22, -0.02)], 0.014, 1, 8), m.steelBrushed);
+    // Soap & paper towel dispensers.
+    pb.add(rounded(0.11, 0.2, 0.09, 0.012), MAT.plastic(), at(-0.28, h + 0.34, d / 2 - 0.07));
+    pb.add(rounded(0.28, 0.34, 0.13, 0.015), m.steelBrushed, at(0.24, h + 0.52, d / 2 - 0.08));
+    pb.add(slab(0.2, 0.04, 0.02), MAT.paper(), at(0.24, h + 0.34, d / 2 - 0.08));
+    // Biosecurity protocol sign above the sink.
+    const sign = screenPlane(bioSignMat(), 0.72, 0.42, 0, 1.72, d / 2 - 0.02);
+    pb.dynamic(sign);
+    pb.solid(-w / 2, 0, -d / 2, w / 2, h + 0.02, d / 2, 'metal');
+  },
+
+  /** Wall-mounted garment rail with hanging botanical lab coats and waterproof boots underneath (back on +Z). */
+  coat_rack(p, _rng, m, pb) {
+    const w = numParam(p, 'width', 1.6);
+    const d = 0.42;
+    pb.add(slab(w, 0.04, 0.34), m.steelBrushed, at(0, 1.82, 0.04));
+    pb.add(cylinderBetween(V(-w / 2 + 0.08, 1.74, -0.04), V(w / 2 - 0.08, 1.74, -0.04), 0.016, 8), m.steelBrushed);
+    for (const x of [-w / 2 + 0.05, w / 2 - 0.05]) {
+      pb.add(slab(0.04, 1.82, 0.04), m.steelBrushed, at(x, 0.91, 0.16));
+      pb.add(slab(0.04, 0.04, 0.34), m.steelBrushed, at(x, 1.78, 0.02));
+    }
+    // Hanging white botanical lab coats.
+    const coats = Math.max(2, Math.round(w / 0.48));
+    for (let i = 0; i < coats; i++) {
+      const x = -w / 2 + 0.28 + ((w - 0.56) * i) / Math.max(1, coats - 1);
+      pb.add(rounded(0.34, 0.92, 0.12, 0.04), MAT.labCoat(), at(x, 1.2, -0.02));
+      pb.add(slab(0.06, 0.78, 0.13), MAT.plastic(), at(x, 1.18, -0.025));
+    }
+    // Boot bench & pairs of waterproof yellow/dark rubber boots.
+    pb.add(slab(w - 0.08, 0.035, 0.34), m.steelBrushed, at(0, 0.08, 0.02));
+    for (let i = 0; i < 2; i++) {
+      const bx = -0.35 + i * 0.7;
+      for (const s of [-0.09, 0.09]) {
+        const bm = i === 0 ? MAT.bootYellow() : MAT.neoprene();
+        pb.add(new THREE.CylinderGeometry(0.055, 0.06, 0.3, 10), bm, at(bx + s, 0.25, 0.05));
+        pb.add(rounded(0.11, 0.08, 0.24, 0.025), bm, at(bx + s, 0.135, -0.02));
+      }
+    }
+    pb.solid(-w / 2, 0, -d / 2, w / 2, 1.85, d / 2, 'metal');
+  },
+
+  /** Waist-high NFT hydroponic grow bench (0.9 m tall, fits cleanly beneath ocean windows without blocking sightlines). */
+  hydro_trough(p, rng, m, pb) {
+    const L = numParam(p, 'length', 2.8);
+    const d = 0.76;
+    const h = 0.84;
+    const pal = resolvePalette(p, m);
+    for (const x of [-L / 2 + 0.08, 0, L / 2 - 0.08]) {
+      for (const z of [-d / 2 + 0.08, d / 2 - 0.08]) pb.add(slab(0.045, h, 0.045), m.steelBrushed, at(x, h / 2, z));
+    }
+    pb.add(rounded(L, 0.05, d, 0.01), m.steelBrushed, at(0, h, 0));
+    // Three parallel white NFT gullies with crisp leafy greens.
+    const greens = [MAT.leafLight(), MAT.leaf()];
+    for (const z of [-0.22, 0, 0.22]) {
+      pb.add(rounded(L - 0.1, 0.09, 0.17, 0.015), MAT.trayWhite(), at(0, h + 0.065, z));
+      const per = Math.max(4, Math.floor(L / 0.26));
+      for (let i = 0; i < per; i++) {
+        const x = -L / 2 + 0.18 + ((L - 0.36) * i) / Math.max(1, per - 1);
+        pb.add(new THREE.CylinderGeometry(0.04, 0.035, 0.02, 8), MAT.potDark(), at(x, h + 0.115, z));
+        rosette(pb, rng, greens, x, h + 0.12, z, 6, rng.range(0.11, 0.16), 0.055, 0.9);
+      }
+    }
+    // Under-bench recirculating supply & return manifold.
+    pb.add(pipe([V(-L / 2 + 0.06, 0.32, 0), V(L / 2 - 0.06, 0.32, 0)], 0.026, 1, 8), pal.pipeAccent);
+    pb.add(rounded(0.45, 0.28, 0.36, 0.02), MAT.tankPoly(), at(0, 0.16, 0));
+    pb.soundLoop({ sound: 'hydroTrickle', pos: [0, 0.72, 0], gain: 0.22, maxDist: 8.5, reverb: 0.25 });
+    pb.spot('work_clipboard', 0, 0, d / 2 + 0.56, 0);
+    pb.solid(-L / 2, 0, -d / 2, L / 2, h + 0.24, d / 2, 'metal');
+  },
+
+  /** Botanist irrigation-log & harvest workstation (back on +Z, front faces -Z). */
+  hydro_workstation(_p, rng, m, pb) {
+    const w = 2.2;
+    const d = 0.76;
+    const h = 0.9;
+    // Stainless bench frame + lower shelf.
+    pb.add(rounded(w, 0.045, d, 0.01), m.steelBrushed, at(0, h - 0.02, 0));
+    pb.add(slab(w - 0.12, 0.03, d - 0.12), m.steelBrushed, at(0, 0.24, 0));
+    for (const x of [-w / 2 + 0.05, w / 2 - 0.05]) {
+      for (const z of [-d / 2 + 0.05, d / 2 - 0.05]) pb.add(slab(0.05, h - 0.04, 0.05), m.steelBrushed, at(x, (h - 0.04) / 2, z));
+    }
+    // Angled irrigation log telemetry screen on the left.
+    const screen = new CanvasScreen(512, 288, drawHydroLog, 1.35, 6);
+    const mon = new THREE.Group();
+    mon.position.set(-0.48, h + 0.36, 0.14);
+    mon.rotation.x = -0.22;
+    mon.add(new THREE.Mesh(rounded(0.86, 0.52, 0.07, 0.015), m.steelDark));
+    const disp = screenPlane(screen.material, 0.78, 0.44, 0, 0, -0.038);
+    mon.add(disp);
+    pb.dynamic(mon);
+    pb.tick((t) => screen.update(t));
+    pb.add(cylinderBetween(V(-0.48, h, 0.16), V(-0.48, h + 0.16, 0.16), 0.025, 8), m.steelBrushed);
+    pb.add(rounded(0.46, 0.02, 0.16, 0.005), m.rubber, at(-0.48, h + 0.01, -0.14));
+    // Clipboard + pen in the middle.
+    pb.add(slab(0.24, 0.012, 0.32), MAT.woodLight(), at(0.14, h + 0.006, -0.1, 0, 0.12, 0));
+    pb.add(slab(0.2, 0.015, 0.27), MAT.paper(), at(0.14, h + 0.01, -0.1, 0, 0.12, 0));
+    // Harvest crate with freshly picked red tomatoes + pruning shears on the right.
+    pb.add(rounded(0.54, 0.22, 0.38, 0.015), MAT.plasticGreen(), at(0.68, h + 0.11, 0.04));
+    for (let i = 0; i < 10; i++) {
+      pb.add(
+        new THREE.SphereGeometry(rng.range(0.032, 0.044), 8, 6),
+        i % 3 === 0 ? MAT.tomatoWarm() : MAT.tomato(),
+        at(0.68 + rng.range(-0.18, 0.18), h + 0.22 + rng.range(0, 0.04), 0.04 + rng.range(-0.1, 0.1)),
+      );
+    }
+    // Pair of pruning shears resting beside the clipboard.
+    for (const ang of [-0.22, 0.22]) pb.add(slab(0.02, 0.01, 0.18), m.steelBrushed, at(0.32, h + 0.006, -0.18, 0, ang, 0));
+    // Spare harvest crates on the lower shelf.
+    pb.add(rounded(0.56, 0.22, 0.4, 0.015), MAT.trayWhite(), at(-0.55, 0.37, 0));
+    pb.add(rounded(0.56, 0.22, 0.4, 0.015), MAT.plasticGreen(), at(0.2, 0.37, 0));
+    pb.spot('work_bench', -0.48, 0, -d / 2 - 0.58, PI);
+    pb.solid(-w / 2, 0, -d / 2, w / 2, h + 0.62, d / 2, 'metal');
+  },
+
+  /** Rolling stainless utility cart loaded with fresh tomato & greens harvest crates. */
+  harvest_cart(_p, rng, m, pb) {
+    const w = 1.05;
+    const d = 0.58;
+    const h = 0.88;
+    for (const x of [-w / 2 + 0.04, w / 2 - 0.04]) {
+      for (const z of [-d / 2 + 0.04, d / 2 - 0.04]) {
+        pb.add(cylinderBetween(V(x, 0.08, z), V(x, h + (x < 0 ? 0.14 : 0), z), 0.018, 8), m.steelBrushed);
+        pb.add(new THREE.CylinderGeometry(0.045, 0.045, 0.03, 10), m.rubber, at(x, 0.045, z, 0, 0, PI / 2));
+      }
+    }
+    pb.add(cylinderBetween(V(-w / 2 + 0.04, h + 0.14, -d / 2 + 0.04), V(-w / 2 + 0.04, h + 0.14, d / 2 - 0.04), 0.016, 8), m.steelBrushed);
+    for (const y of [0.22, h]) pb.add(rounded(w, 0.035, d, 0.008), m.steelBrushed, at(0, y, 0));
+    // Top crates: tomatoes on left, leafy greens on right.
+    pb.add(rounded(0.44, 0.2, 0.44, 0.012), MAT.plasticGreen(), at(-0.24, h + 0.12, 0));
+    for (let i = 0; i < 9; i++) {
+      pb.add(new THREE.SphereGeometry(0.038, 7, 5), i % 3 === 0 ? MAT.tomatoWarm() : MAT.tomato(), at(-0.24 + rng.range(-0.14, 0.14), h + 0.22 + rng.range(0, 0.03), rng.range(-0.14, 0.14)));
+    }
+    pb.add(rounded(0.44, 0.2, 0.44, 0.012), MAT.trayWhite(), at(0.24, h + 0.12, 0));
+    clump(pb, rng, [MAT.leafLight(), MAT.leaf()], 0.24, h + 0.2, 0, 0.14, 5);
+    // Lower crate.
+    pb.add(rounded(0.56, 0.22, 0.44, 0.012), MAT.trayWhite(), at(0, 0.35, 0));
+    pb.spot('work_clipboard', 0, 0, -d / 2 - 0.54, PI);
+    pb.solid(-w / 2, 0, -d / 2, w / 2, h + 0.26, d / 2, 'metal');
+  },
+
+  /** Illuminated glass-front seedling propagation incubator (back on +Z, front faces -Z). */
+  germination_cabinet(p, rng, m, pb) {
+    const w = numParam(p, 'width', 1.6);
+    const d = 0.68;
+    const h = 2.05;
+    pb.add(slab(w, h, 0.05), m.steelBrushed, at(0, h / 2, d / 2 - 0.025));
+    for (const s of [-1, 1]) pb.add(slab(0.05, h, d), m.steelBrushed, at(s * (w / 2 - 0.025), h / 2, 0));
+    pb.add(rounded(w, 0.24, d, 0.015), m.steelDark, at(0, h - 0.12, 0));
+    pb.add(slab(w, 0.14, d), m.steelDark, at(0, 0.07, 0));
+    // Digital temp/RH controller on the top header.
+    pb.add(slab(0.36, 0.1, 0.01), glow('germ-led', 0x62f4c8, 1.5), at(0, h - 0.12, -d / 2 - 0.004));
+    // Four illuminated propagation shelves with plug trays & sprouts.
+    const grow = glow('germ-strip', 0xf4fff2, 1.8);
+    for (let t = 0; t < 4; t++) {
+      const y = 0.28 + t * 0.38;
+      pb.add(slab(w - 0.1, 0.02, d - 0.12), m.steelBrushed, at(0, y, 0));
+      pb.add(rounded(w - 0.18, 0.045, d - 0.2, 0.008), MAT.trayWhite(), at(0, y + 0.035, 0));
+      pb.add(slab(w - 0.22, 0.012, d - 0.24), MAT.soil(), at(0, y + 0.058, 0));
+      for (let i = 0; i < 6; i++) {
+        const sx = -w / 2 + 0.22 + ((w - 0.44) * i) / 5;
+        for (const sz of [-0.1, 0.1]) rosette(pb, rng, [MAT.leafLight(), MAT.leaf()], sx, y + 0.065, sz, 4, 0.08, 0.035, 0.8);
+      }
+      pb.add(slab(w - 0.16, 0.015, 0.06), grow, at(0, y + 0.33, 0));
+    }
+    const doorPane = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.14, h - 0.42), m.glass);
+    doorPane.position.set(0, h / 2 - 0.04, -d / 2 + 0.01);
+    doorPane.rotation.y = PI;
+    doorPane.renderOrder = 3;
+    pb.dynamic(doorPane);
+    pb.spot('work_clipboard', 0, 0, -d / 2 - 0.58, PI);
+    pb.solid(-w / 2, 0, -d / 2, w / 2, h, d / 2, 'metal');
+  },
+
+  /** Cold-storage stainless seed archive cabinet with labelled specimen drawers (back on +Z). */
+  seed_vault(p, _rng, m, pb) {
+    const w = numParam(p, 'width', 1.4);
+    const d = 0.62;
+    const h = 1.9;
+    pb.add(rounded(w, h, d, 0.02), m.steelBrushed, at(0, h / 2, 0));
+    pb.add(rounded(w - 0.08, 0.2, 0.04, 0.008), m.steelDark, at(0, h - 0.14, -d / 2 - 0.01));
+    pb.add(slab(0.32, 0.08, 0.01), glow('vault-temp', 0x5cd6ff, 1.7), at(w / 2 - 0.28, h - 0.14, -d / 2 - 0.032));
+    // Six stainless specimen drawers.
+    const rows = 5;
+    for (let r = 0; r < rows; r++) {
+      const y = 0.24 + r * 0.29;
+      for (const s of [-1, 1]) {
+        const x = s * (w / 4 - 0.02);
+        pb.add(rounded(w / 2 - 0.1, 0.24, 0.025, 0.006), m.cleanWall, at(x, y, -d / 2 - 0.01));
+        pb.add(rounded(0.18, 0.02, 0.025, 0.005), m.steelBrushed, at(x, y + 0.04, -d / 2 - 0.03));
+        pb.add(slab(0.22, 0.045, 0.006), MAT.paper(), at(x, y - 0.04, -d / 2 - 0.025));
+      }
+    }
+    pb.spot('work_clipboard', 0, 0, -d / 2 - 0.56, PI);
+    pb.solid(-w / 2, 0, -d / 2, w / 2, h, d / 2, 'metal');
+  },
+
+  /** Industrial HDPE/stainless hydroponic nutrient mixing tank on steel skid with sight-glass gauge & piping. */
+  fertigation_tank(p, _rng, m, pb) {
+    const labelText = strParam(p, 'label', 'TANK A · NITROGEN');
+    const fluid = strParam(p, 'fluid', 'blue') === 'amber' ? MAT.tankAmber() : MAT.tankBlue();
+    const ceil = numParam(p, 'ceiling', 3.2);
+    const r = 0.62;
+    // Steel skid base & support legs.
+    pb.add(rounded(1.4, 0.1, 1.4, 0.015), m.steelDark, at(0, 0.05, 0));
+    for (let k = 0; k < 4; k++) {
+      const a = (k * PI) / 2 + PI / 4;
+      pb.add(cylinderBetween(V(Math.cos(a) * 0.46, 0.1, Math.sin(a) * 0.46), V(Math.cos(a) * 0.46, 0.42, Math.sin(a) * 0.46), 0.04, 8), m.steelBrushed);
+    }
+    // Main vertical cylindrical HDPE tank body + domed lid + retention bands.
+    pb.add(lathe([[0, 0.36], [r * 0.9, 0.38], [r, 0.48], [r, 2.15], [r * 0.85, 2.34], [0.22, 2.38], [0, 2.38]], 28), MAT.tankPoly());
+    for (const y of [0.75, 1.35, 1.95]) pb.add(new THREE.TorusGeometry(r + 0.012, 0.018, 6, 28), m.steelBrushed, at(0, y, 0, PI / 2, 0, 0));
+    // Top electric agitator motor + overhead supply riser to ceiling.
+    pb.add(new THREE.CylinderGeometry(0.14, 0.16, 0.32, 14), m.steelDark, at(0, 2.54, 0));
+    pb.add(pipe([V(0.28, 2.34, 0), V(0.28, ceil, 0)], 0.045, 1, 10), m.cleanTeal);
+    pb.add(pipe([V(-0.28, 2.34, 0), V(-0.28, ceil, 0)], 0.032, 1, 8), m.steelBrushed);
+    // Front clear sight-glass level gauge showing nutrient fluid level.
+    pb.add(rounded(0.14, 1.35, 0.05, 0.008), m.steelDark, at(0, 1.32, -r - 0.02));
+    pb.add(new THREE.CylinderGeometry(0.032, 0.032, 0.96, 10), fluid, at(0, 1.14, -r - 0.045));
+    pb.add(new THREE.CylinderGeometry(0.032, 0.032, 0.28, 10), MAT.paper(), at(0, 1.76, -r - 0.045));
+    // Lower dosing pump & discharge valve manifold.
+    pb.add(rounded(0.32, 0.2, 0.26, 0.02), m.steelDark, at(0.45, 0.2, -0.45));
+    pb.add(pipe([V(0, 0.42, -r + 0.08), V(0, 0.24, -r - 0.05), V(0.45, 0.24, -0.45)], 0.028, 1, 8), m.cleanTeal);
+    pb.add(new THREE.TorusGeometry(0.08, 0.014, 6, 16), MAT.tomato(), at(0.18, 0.24, -0.58, 0, 0, 0));
+    // Label placard on tank front.
+    const placard = screenPlane(stencilMat(labelText), 0.72, 0.16, 0, 2.08, -r - 0.018);
+    pb.dynamic(placard);
+    pb.soundLoop({ sound: 'fertigationPump', pos: [0.3, 0.55, -0.35], gain: 0.28, maxDist: 10, reverb: 0.3 });
+    pb.spot('work_clipboard', 0, 0, -0.72 - 0.56, PI);
+    pb.solid(-0.72, 0, -0.72, 0.72, 2.7, 0.72, 'metal');
+  },
+
+  /** Industrial HVAC air-handler & dehumidifier cabinet with blinking humidity-fault beacon (clears on `round:hydro_alarm`). */
+  hvac_dehumidifier(p, _rng, m, pb) {
+    const ceil = numParam(p, 'ceiling', 3.2);
+    const w = 1.65;
+    const d = 0.85;
+    const h = 2.05;
+    pb.add(rounded(w, h, d, 0.025), m.steelBrushed, at(0, h / 2, 0));
+    pb.add(slab(w - 0.06, 0.12, d - 0.06), m.steelDark, at(0, 0.06, 0));
+    // Upper intake louver grille & lower access service door.
+    pb.add(slab(w - 0.28, 0.72, 0.03), m.black, at(0, 1.48, -d / 2 - 0.005));
+    for (let k = 0; k < 8; k++) pb.add(slab(w - 0.3, 0.03, 0.05), MAT.ductLight(), at(0, 1.18 + k * 0.085, -d / 2 - 0.015, 0.45, 0, 0));
+    pb.add(rounded(w - 0.32, 0.72, 0.025, 0.01), m.cleanSlate, at(0, 0.56, -d / 2 - 0.01));
+    // Overhead galvanized HVAC exhaust duct rising cleanly to the ceiling.
+    pb.add(slab(0.76, Math.max(0.3, ceil - h), 0.46), MAT.ductLight(), at(-0.22, h + Math.max(0.3, ceil - h) / 2, 0.08));
+    pb.add(slab(0.84, 0.06, 0.54), m.steelDark, at(-0.22, h + 0.03, 0.08));
+    // Condensate drain pipe dropping to floor.
+    pb.add(pipe([V(w / 2 + 0.02, 0.38, 0), V(w / 2 + 0.14, 0.38, 0), V(w / 2 + 0.14, 0.02, 0)], 0.024, 1, 8), m.cleanTeal);
+    // Pressure dial & live fault beacon that responds to `round:hydro_alarm`.
+    pb.add(new THREE.CylinderGeometry(0.085, 0.085, 0.035, 16), m.steelDark, at(0.5, 0.72, -d / 2 - 0.025, PI / 2, 0, 0));
+    pb.add(new THREE.CircleGeometry(0.07, 16), MAT.paper(), at(0.5, 0.72, -d / 2 - 0.044, 0, PI, 0));
+    const lampMat = fixtureMaterial(0xff9a1a, 2.8);
+    const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.11, 14), lampMat);
+    beacon.position.set(0.56, h + 0.055, -0.2);
+    pb.dynamic(beacon);
+    pb.soundLoop({ sound: 'dehumidifierHum', pos: [0, 1.25, -0.38], gain: 0.34, maxDist: 12, reverb: 0.3 });
+    let cleared = false;
+    let nextChirp = -1;
+    const CHIRP_INTERVAL = 3.8;
+    pb.tick((t) => {
+      if (cleared) {
+        lampMat.emissive.setHex(0x39ff9e);
+        lampMat.emissiveIntensity = 1.6;
+      } else {
+        lampMat.emissive.setHex(0xff7a1a);
+        lampMat.emissiveIntensity = Math.floor(t * 2.4) % 2 === 0 ? 3.2 : 0.35;
+        if (nextChirp < 0) nextChirp = t + 0.8;
+        if (t >= nextChirp) {
+          pb.soundAt('humidityAlarm', [0.56, h + 0.055, -0.2], { gain: 0.44, reverb: 0.32, maxDist: 16 });
+          nextChirp = t + CHIRP_INTERVAL;
+        }
+      }
+    });
+    pb.on('round:hydro_alarm', () => {
+      cleared = true;
+    });
+    pb.on('level:reset', () => {
+      cleared = false;
+      nextChirp = -1;
+    });
+    pb.spot('work_clipboard', 0, 0, -d / 2 - 0.56, PI);
+    pb.solid(-w / 2, 0, -d / 2, w / 2 + 0.16, h, d / 2, 'metal');
+  },
+
+  /** Folding camp cot with sleeping pad, rumpled blanket & pillow (R12e hidden living space). */
+  camp_cot(_p, _rng, m, pb) {
+    const L = 1.95;
+    const w = 0.78;
+    const h = 0.42;
+    // Crossed aluminum folding legs & side rails.
+    for (const x of [-L / 2 + 0.22, 0, L / 2 - 0.22]) {
+      pb.add(cylinderBetween(V(x, 0, -w / 2 + 0.06), V(x, h, w / 2 - 0.06), 0.016, 6), m.steelBrushed);
+      pb.add(cylinderBetween(V(x, 0, w / 2 - 0.06), V(x, h, -w / 2 + 0.06), 0.016, 6), m.steelBrushed);
+    }
+    for (const z of [-w / 2 + 0.04, w / 2 - 0.04]) pb.add(cylinderBetween(V(-L / 2, h, z), V(L / 2, h, z), 0.018, 8), m.steelBrushed);
+    // Canvas cot deck & foam sleeping pad.
+    pb.add(rounded(L - 0.04, 0.06, w - 0.06, 0.02), MAT.cotOlive(), at(0, h + 0.02, 0));
+    // Slightly rumpled navy blanket draped over the lower two-thirds.
+    pb.add(rounded(L * 0.64, 0.08, w - 0.04, 0.03), MAT.blanketNavy(), at(L * 0.14, h + 0.07, 0.01, 0, 0.03, 0));
+    pb.add(rounded(0.55, 0.07, w - 0.1, 0.03), MAT.blanketNavy(), at(-0.18, h + 0.09, -0.02, 0.04, -0.08, 0.05));
+    // Pillow at the -X head end.
+    pb.add(rounded(0.36, 0.13, 0.56, 0.055), MAT.paper(), at(-L / 2 + 0.26, h + 0.1, 0, 0, 0.06, 0.08));
+    pb.solid(-L / 2, 0, -w / 2, L / 2, h + 0.18, w / 2, 'rubber');
+  },
+
+  /** Pallet stacked with burlap fertiliser sacks and chemical concentrate jugs (R12e). */
+  fertiliser_pallet(_p, rng, m, pb) {
+    const w = 1.18;
+    const d = 0.92;
+    // Wooden slat pallet base.
+    for (const z of [-d / 2 + 0.08, 0, d / 2 - 0.08]) pb.add(slab(w, 0.1, 0.1), MAT.wood(), at(0, 0.05, z));
+    for (let i = 0; i < 5; i++) pb.add(slab(w, 0.025, 0.14), MAT.woodLight(), at(0, 0.112, -d / 2 + 0.08 + i * ((d - 0.16) / 4)));
+    // Stacked heavy fertiliser sacks on the left side.
+    for (let row = 0; row < 3; row++) {
+      for (const z of [-0.18, 0.18]) {
+        pb.add(
+          rounded(0.56, 0.18, 0.34, 0.055),
+          row % 2 === 0 ? MAT.sackBurlap() : MAT.paper(),
+          at(-0.24 + rng.range(-0.02, 0.02), 0.21 + row * 0.17, z + rng.range(-0.015, 0.015), 0, rng.range(-0.06, 0.06), 0),
+        );
+      }
+    }
+    // Sealed 20 L nutrient concentrate jugs on the right side.
+    for (const [x, z, mat] of [
+      [0.24, -0.22, MAT.plastic()],
+      [0.44, -0.22, MAT.plastic()],
+      [0.24, 0.16, MAT.tankBlue()],
+      [0.44, 0.16, MAT.suitYellow()],
+    ] as const) {
+      pb.add(rounded(0.18, 0.34, 0.24, 0.03), mat, at(x, 0.3, z));
+      pb.add(new THREE.CylinderGeometry(0.03, 0.03, 0.04, 8), m.black, at(x, 0.49, z - 0.05));
+    }
+    pb.solid(-w / 2, 0, -d / 2, w / 2, 0.72, d / 2, 'metal');
+  },
+
+  /** Countertop electric kettle (with warm LED & gentle steam), ceramic mug, and a framed dog photo (R12e). */
+  kettle_set(_p, rng, m, pb) {
+    // Stainless electric kettle on power base.
+    pb.add(new THREE.CylinderGeometry(0.09, 0.095, 0.022, 16), m.black, at(-0.18, 0.011, 0));
+    pb.add(lathe([[0, 0.022], [0.085, 0.022], [0.088, 0.06], [0.072, 0.22], [0.076, 0.235], [0, 0.235]], 16), m.steelBrushed, at(-0.18, 0, 0));
+    pb.add(new THREE.TorusGeometry(0.055, 0.012, 6, 12, PI), m.black, at(-0.1, 0.12, 0, 0, 0, -PI / 2));
+    pb.add(slab(0.014, 0.014, 0.01), glow('kettle-led', 0xff7a2a, 2.2), at(-0.18, 0.04, -0.088));
+    steamPlume(pb, rng, { x: -0.23, y: 0.24, z: 0, width: 0.06, depth: 0.06, height: 0.24, count: 10, opacity: 0.14, size: 0.07 });
+    pb.soundLoop({ sound: 'kettleSimmer', pos: [-0.18, 0.24, 0], gain: 0.24, maxDist: 7.5, reverb: 0.15 });
+    // Ceramic mug beside the kettle.
+    mugAt(pb, MAT.ceramicTeal(), 0.02, 0, -0.04, 0.9);
+    // Framed photo of somebody's dog, angled slightly toward the doorway.
+    const f = at(0.24, 0, 0.02, -0.18, 0.24, 0);
+    pb.add(rounded(0.18, 0.22, 0.018, 0.004), MAT.woodDark(), inFrame(f, 0, 0.11, 0));
+    pb.add(slab(0.02, 0.14, 0.008), MAT.woodDark(), inFrame(f, 0, 0.08, 0.04, 0.45, 0, 0));
+    const photo = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.18), dogPhotoMat());
+    photo.applyMatrix4(inFrame(f, 0, 0.11, -0.011, 0, PI, 0));
+    pb.dynamic(photo);
   },
 
   potted_plant(p, rng, _m, pb) {
@@ -874,36 +1471,154 @@ const GEN: Record<string, Gen> = {
   mister(p, rng, m, pb) {
     const L = numParam(p, 'length', 3.6);
     const ceil = numParam(p, 'ceiling', 3.2);
-    const y = ceil - 0.35;
-    pb.add(pipe([V(-L / 2, y, 0), V(L / 2, y, 0)], 0.025, 1, 8), m.steel);
-    for (const x of [-L / 2 + 0.2, L / 2 - 0.2]) pb.add(cylinderBetween(V(x, y, 0), V(x, ceil, 0), 0.01, 6), m.steel);
-    const n = Math.max(2, Math.floor(L / 0.6));
-    const count = 90;
-    const pos = new Float32Array(count * 3);
-    const seeds: number[] = [];
-    for (let i = 0; i < count; i++) seeds.push(rng.range(0, 1));
-    for (let i = 0; i < n; i++) pb.add(new THREE.ConeGeometry(0.02, 0.05, 8), m.steel, at(-L / 2 + (L / n) * (i + 0.5), y - 0.04, 0, PI, 0, 0));
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const mat = cached('mist', () => new THREE.PointsMaterial({ color: 0xd8f0ff, size: 0.12, transparent: true, opacity: 0.12, depthWrite: false }));
-    const mist = new THREE.Points(geo, mat);
-    mist.frustumCulled = false;
-    pb.dynamic(mist);
-    const period = numParam(p, 'period', 9);
+    const period = numParam(p, 'period', 10.5);
+    const offset = numParam(p, 'offset', 0);
+    const sputter = boolParam(p, 'sputter', false);
+    const pal = resolvePalette(p, m);
+    // Drop slightly lower in high-ceiling bays (4.5 m Grow Hall) so plumes settle into the rack canopy.
+    const y = ceil - (ceil > 3.8 ? 0.72 : 0.35);
+
+    // Brushed stainless header rail + end caps.
+    pb.add(pipe([V(-L / 2, y, 0), V(L / 2, y, 0)], 0.024, 1, 10), m.steelBrushed);
+    for (const sx of [-L / 2, L / 2]) pb.add(new THREE.CylinderGeometry(0.03, 0.03, 0.03, 10), m.steelDark, at(sx, y, 0, 0, 0, PI / 2));
+
+    // Ceiling drop hangers with upper flange plates & pipe clamps.
+    const hangers = L > 4.5 ? [-L / 2 + 0.4, 0, L / 2 - 0.4] : [-L / 2 + 0.25, L / 2 - 0.25];
+    for (const hx of hangers) {
+      pb.add(cylinderBetween(V(hx, y + 0.02, 0), V(hx, ceil - 0.01, 0), 0.01, 6), m.steel);
+      pb.add(new THREE.CylinderGeometry(0.05, 0.05, 0.022, 10), m.steelDark, at(hx, ceil - 0.011, 0));
+      pb.add(new THREE.TorusGeometry(0.03, 0.008, 6, 12), m.steelDark, at(hx, y, 0, 0, PI / 2, 0));
+    }
+
+    // Pressurized feeder riser + brass solenoid valve box with active/sputter status LED.
+    const valveX = -L / 2 + 0.18;
+    pb.add(pipe([V(valveX, y + 0.02, 0), V(valveX, ceil, 0)], 0.018, 1, 8), pal.pipeAccent);
+    pb.add(new THREE.CylinderGeometry(0.036, 0.036, 0.09, 10), MAT.shadeBrass(), at(valveX, y + 0.06, 0));
+    pb.add(rounded(0.11, 0.085, 0.09, 0.01), m.steelDark, at(valveX + 0.06, y + 0.08, 0.03));
+    const ledMat = fixtureMaterial(0x1c6660, 0.6);
+    const led = new THREE.Mesh(slab(0.024, 0.024, 0.012), ledMat);
+    led.position.set(valveX + 0.06, y + 0.075, -0.02);
+    pb.dynamic(led);
+
+    // Machined brass/stainless mist nozzle heads spaced cleanly along the rail.
+    const n = Math.max(2, Math.floor(L / 0.65));
+    const nozzleXs: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const nx = -L / 2 + (L / n) * (i + 0.5);
+      nozzleXs.push(nx);
+      pb.add(new THREE.CylinderGeometry(0.028, 0.028, 0.026, 8), m.steelDark, at(nx, y, 0));
+      pb.add(new THREE.CylinderGeometry(0.012, 0.014, 0.042, 8), MAT.shadeBrass(), at(nx, y - 0.032, 0));
+      pb.add(new THREE.ConeGeometry(0.015, 0.028, 8), m.steelBrushed, at(nx, y - 0.06, 0, PI, 0, 0));
+    }
+
+    const pxRatio = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+    const uTime = { value: 0 };
+    const uSpray = { value: 0 };
+    const uCloud = { value: 0 };
+
+    // Layer A: fast pressurized downward spray cones directly under each nozzle.
+    const conePerNozzle = 26;
+    const coneCount = n * conePerNozzle;
+    const conePos = new Float32Array(coneCount * 3);
+    const coneSeed = new Float32Array(coneCount * 4);
+    for (let i = 0; i < coneCount; i++) {
+      const nx = nozzleXs[i % n]!;
+      conePos[i * 3] = nx;
+      conePos[i * 3 + 1] = y - 0.07;
+      conePos[i * 3 + 2] = 0;
+      coneSeed[i * 4] = rng.range(0, 1);
+      coneSeed[i * 4 + 1] = rng.range(0.95, 1.55);
+      coneSeed[i * 4 + 2] = rng.range(0, PI * 2);
+      coneSeed[i * 4 + 3] = rng.range(0.55, 1.15);
+    }
+    const coneGeo = new THREE.BufferGeometry();
+    coneGeo.setAttribute('position', new THREE.BufferAttribute(conePos, 3));
+    coneGeo.setAttribute('aSeed', new THREE.BufferAttribute(coneSeed, 4));
+    const coneMat = new THREE.ShaderMaterial({
+      uniforms: { uTime, uSpray, uDrop: { value: 0.96 }, uOpacity: { value: 0.58 }, uPixelRatio: { value: pxRatio } },
+      vertexShader: MISTER_CONE_VERT,
+      fragmentShader: MISTER_CONE_FRAG,
+      transparent: true,
+      depthWrite: false,
+    });
+    const conePts = new THREE.Points(coneGeo, coneMat);
+    conePts.name = 'mister-spray-cones';
+    conePts.userData['skipGtao'] = true;
+    conePts.frustumCulled = false;
+    conePts.renderOrder = 2;
+    pb.dynamic(conePts);
+
+    // Layer B: broader slow vapor cloud that drifts down into the canopy and lingers after valve shutoff.
+    const cloudPerNozzle = 20;
+    const cloudCount = n * cloudPerNozzle;
+    const cloudPos = new Float32Array(cloudCount * 3);
+    const cloudSeed = new Float32Array(cloudCount * 4);
+    for (let i = 0; i < cloudCount; i++) {
+      const nx = nozzleXs[i % n]!;
+      cloudPos[i * 3] = nx;
+      cloudPos[i * 3 + 1] = y - 0.08;
+      cloudPos[i * 3 + 2] = 0;
+      cloudSeed[i * 4] = rng.range(0, 1);
+      cloudSeed[i * 4 + 1] = rng.range(0.24, 0.44);
+      cloudSeed[i * 4 + 2] = rng.range(0, PI * 2);
+      cloudSeed[i * 4 + 3] = rng.range(0.75, 1.35);
+    }
+    const cloudGeo = new THREE.BufferGeometry();
+    cloudGeo.setAttribute('position', new THREE.BufferAttribute(cloudPos, 3));
+    cloudGeo.setAttribute('aSeed', new THREE.BufferAttribute(cloudSeed, 4));
+    const cloudMat = new THREE.ShaderMaterial({
+      uniforms: { uTime, uCloud, uDrop: { value: 1.45 }, uOpacity: { value: 0.36 }, uPixelRatio: { value: pxRatio } },
+      vertexShader: MISTER_CLOUD_VERT,
+      fragmentShader: MISTER_CLOUD_FRAG,
+      transparent: true,
+      depthWrite: false,
+    });
+    const cloudPts = new THREE.Points(cloudGeo, cloudMat);
+    cloudPts.name = 'mister-vapor-cloud';
+    cloudPts.userData['skipGtao'] = true;
+    cloudPts.frustumCulled = false;
+    cloudPts.renderOrder = 2;
+    pb.dynamic(cloudPts);
+
+    let prevCycle = -1;
     pb.tick((t) => {
-      // Bursts of a few seconds every `period` s; drifting down and outward.
-      const phase = (t % period) / period;
-      const on = phase < 0.35;
-      for (let i = 0; i < count; i++) {
-        const s = seeds[i]!;
-        const nozzle = -L / 2 + (L / n) * ((i % n) + 0.5);
-        const age = (phase * 3 + s) % 1;
-        const spread = age * 0.5;
-        pos[i * 3] = nozzle + Math.sin(s * 40) * spread;
-        pos[i * 3 + 1] = on ? y - 0.05 - age * 1.4 : -100;
-        pos[i * 3 + 2] = Math.cos(s * 37) * spread;
+      const st = evaluateMisterCycle(t, period, offset, sputter);
+      uTime.value = t;
+      uSpray.value = st.spray;
+      uCloud.value = st.cloud;
+      if (st.active) {
+        if (st.kind === 'sputter') {
+          ledMat.emissive.setHex(0xff9a22);
+          ledMat.emissiveIntensity = 2.8;
+        } else {
+          ledMat.emissive.setHex(0x44f4ff);
+          ledMat.emissiveIntensity = 2.4;
+        }
+      } else {
+        ledMat.emissive.setHex(0x1c6660);
+        ledMat.emissiveIntensity = 0.55;
       }
-      geo.attributes['position']!.needsUpdate = true;
+      if (st.cycle !== prevCycle) {
+        if (st.localT < 0.5) {
+          const isSputter = st.kind === 'sputter';
+          pb.soundAt('misterValve', [valveX, y, 0], {
+            gain: isSputter ? 0.46 : 0.42,
+            reverb: 0.25,
+            rate: isSputter ? 1.07 : rng.range(0.95, 1.05),
+            maxDist: 22,
+          });
+          pb.soundAt(isSputter ? 'misterSputter' : 'misterSpray', [0, y - 0.3, 0], {
+            gain: isSputter ? 0.52 : 0.48,
+            reverb: 0.32,
+            rate: rng.range(0.96, 1.04),
+            maxDist: 22,
+          });
+        }
+        prevCycle = st.cycle;
+      }
+    });
+    pb.on('level:reset', () => {
+      prevCycle = -1;
     });
   },
 
@@ -1269,6 +1984,8 @@ const GEN: Record<string, Gen> = {
     pb.add(cylinderBetween(V(-w / 4, 1.25, 0.0), V(-w / 4, 1.18, -0.12), 0.03, 10), m.black);
     pb.add(rounded(0.4, 0.08, 0.14, 0.01), m.steel, at(w / 4, 0.965, 0.1));
     for (let i = 0; i < 6; i++) pb.add(new THREE.CylinderGeometry(0.012, 0.012, 0.12, 8), rng.pick([MAT.ceramicRed(), MAT.leafLight(), MAT.ceramicTeal()]), at(w / 4 - 0.15 + i * 0.06, 1.02, 0.1));
+    pb.spot('work_bench', 0, 0, -0.38 - 0.56, PI);
+    pb.spot('work_bench', 0, 0, 0.38 + 0.56, 0);
     pb.solid(-w / 2, 0, -0.38, w / 2, 0.93, 0.38, 'metal');
   },
 
@@ -1523,6 +2240,135 @@ function stencilMat(text: string): THREE.MeshStandardMaterial {
   }
   return mat;
 }
+
+let bioSignMatCache: THREE.MeshStandardMaterial | null = null;
+function bioSignMat(): THREE.MeshStandardMaterial {
+  if (!bioSignMatCache) {
+    bioSignMatCache = paintedDecal(
+      (ctx, w, h) => {
+        ctx.fillStyle = '#eff3ef';
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#1f6f58';
+        ctx.fillRect(0, 0, w, h * 0.28);
+        ctx.fillStyle = '#f5faf6';
+        ctx.font = `700 ${Math.round(h * 0.15)}px "Arial Narrow", Arial, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('HYDROPONICS BIOSECURITY', w / 2, h * 0.2);
+        ctx.fillStyle = '#1d2926';
+        ctx.font = `700 ${Math.round(h * 0.11)}px Arial, sans-serif`;
+        ctx.fillText('1. SANITIZE BOOTS ON MAT', w / 2, h * 0.48);
+        ctx.fillText('2. WASH HANDS BEFORE ENTRY', w / 2, h * 0.66);
+        ctx.fillStyle = '#3a6b5c';
+        ctx.font = `${Math.round(h * 0.085)}px Arial, sans-serif`;
+        ctx.fillText('TAG AGRICULTURAL BAY  ·  DECK 1', w / 2, h * 0.87);
+      },
+      512,
+      300,
+      'hydro-biosign',
+      false,
+    );
+    bioSignMatCache.transparent = false;
+    bioSignMatCache.depthWrite = true;
+  }
+  return bioSignMatCache;
+}
+
+let dogPhotoCache: THREE.MeshStandardMaterial | null = null;
+/** Warm framed snapshot of somebody's golden retriever on a sunlit lawn (R12e hidden living space). */
+function dogPhotoMat(): THREE.MeshStandardMaterial {
+  if (!dogPhotoCache) {
+    dogPhotoCache = paintedDecal(
+      (ctx, w, h) => {
+        // Soft sunlit park background (sky + grass).
+        const sky = ctx.createLinearGradient(0, 0, 0, h * 0.6);
+        sky.addColorStop(0, '#8cc2dc');
+        sky.addColorStop(1, '#d8e8ec');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, w, h * 0.62);
+        ctx.fillStyle = '#6c9a4e';
+        ctx.fillRect(0, h * 0.58, w, h * 0.42);
+        // Golden dog silhouette (warm fur, floppy ears, red collar, bright eyes & nose).
+        ctx.fillStyle = '#c88d42';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.72, w * 0.26, h * 0.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#d9a456';
+        ctx.beginPath();
+        ctx.arc(w * 0.5, h * 0.44, w * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        // Floppy ears.
+        ctx.fillStyle = '#a86f2c';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.3, h * 0.48, w * 0.07, h * 0.12, 0.25, 0, Math.PI * 2);
+        ctx.ellipse(w * 0.7, h * 0.48, w * 0.07, h * 0.12, -0.25, 0, Math.PI * 2);
+        ctx.fill();
+        // Snout, nose, eyes, tongue & red collar.
+        ctx.fillStyle = '#e8c488';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.5, w * 0.09, h * 0.07, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#241812';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.47, w * 0.035, h * 0.024, 0, 0, Math.PI * 2);
+        ctx.arc(w * 0.42, h * 0.4, w * 0.022, 0, Math.PI * 2);
+        ctx.arc(w * 0.58, h * 0.4, w * 0.022, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#d86670';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.555, w * 0.032, h * 0.038, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#b82824';
+        ctx.fillRect(w * 0.36, h * 0.6, w * 0.28, h * 0.045);
+        // Thin photo mat border.
+        ctx.strokeStyle = '#f2ede2';
+        ctx.lineWidth = 10;
+        ctx.strokeRect(5, 5, w - 10, h - 10);
+      },
+      256,
+      320,
+      'hydro-dog-photo',
+      false,
+    );
+    dogPhotoCache.transparent = false;
+    dogPhotoCache.depthWrite = true;
+  }
+  return dogPhotoCache;
+}
+
+function drawHydroLog(ctx: CanvasRenderingContext2D, t: number, w: number, h: number): void {
+  ctx.fillStyle = '#071411';
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#112a24';
+  ctx.fillRect(0, 0, w, h * 0.19);
+  ctx.fillStyle = '#4fd6a8';
+  ctx.fillRect(0, h * 0.19, w, 3);
+  drawTagMark(ctx, w * 0.06, h * 0.095, h * 0.06, { ink: '#e8f6f0', accent: '#4fd6a8' });
+  ctx.textAlign = 'left';
+  ctx.font = `700 ${Math.round(h * 0.072)}px ${SCREEN_FONT}`;
+  ctx.fillStyle = '#eef8f4';
+  ctx.fillText('IRRIGATION LOG  //  GROW HALL 12B', w * 0.13, h * 0.13);
+  const rows: Array<[string, string, string]> = [
+    ['BAY A · TOMATOES', 'EC 2.1  ·  DRIP NOMINAL', '#7fe3a8'],
+    ['BAY B · HYDRO GREENS', 'EC 1.6  ·  NFT FLOW OK', '#7fe3a8'],
+    ['BAY C · HERBS / BASIL', 'EC 1.5  ·  LIGHT 16h', '#7fe3a8'],
+    ['MISTING & HUMIDITY', `${(85.8 + Math.sin(t * 0.8) * 0.5).toFixed(1)} % RH  (CHECK 12D)`, '#ffb020'],
+  ];
+  ctx.font = `${Math.round(h * 0.058)}px ${SCREEN_FONT}`;
+  rows.forEach(([k, v, c], i) => {
+    const y = h * 0.34 + i * h * 0.135;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#9ec4b8';
+    ctx.fillText(k, w * 0.05, y);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = c;
+    ctx.fillText(v, w * 0.95, y);
+  });
+  ctx.textAlign = 'left';
+  ctx.fillStyle = Math.floor(t * 1.8) % 2 === 0 ? '#f2c14e' : '#7a6328';
+  ctx.font = `700 ${Math.round(h * 0.06)}px ${SCREEN_FONT}`;
+  ctx.fillText('[E] SIGN DAILY IRRIGATION LOG  ·  WEN', w * 0.05, h * 0.92);
+}
+
 
 const menuCache = new Map<string, THREE.MeshStandardMaterial>();
 /** The galley menu: three service columns on dark slate, backlit (emissive from its own map). */

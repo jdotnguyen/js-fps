@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { SampleName } from '../../audio/sounds.ts';
 import type { Rng } from '../../core/rng.ts';
 import type { Materials } from '../../render/materials.ts';
 import type { SpotKind } from '../../data/types/level.ts';
@@ -64,6 +65,32 @@ export interface LightSlot {
   ry: number;
 }
 
+/** Positional looping sound declared by a kit prop (in piece space). */
+export interface SoundLoopSlot {
+  sound: SampleName;
+  pos: Vec3;
+  gain: number;
+  /** Audible distance (m) beyond which the positional loop fades out and stops. Default 16. */
+  maxDist?: number;
+  rate?: number;
+  cutoff?: number;
+  reverb?: number;
+  bus?: 'ambience' | 'sfx';
+  /** Optional live gate (e.g. an active equipment fault); false fades the loop out. */
+  active?: () => boolean;
+}
+
+/** Synchronized positional one-shot emitted by a kit prop (in piece space). */
+export interface PropSoundEvent {
+  sound: SampleName;
+  pos: Vec3;
+  gain?: number;
+  rate?: number;
+  reverb?: number;
+  bus?: 'sfx' | 'ambience';
+  maxDist?: number;
+}
+
 export interface PieceOutput {
   /** Origin at floor centre, facing -Z. Meshes with userData.dynamic stay unmerged. */
   object: THREE.Group;
@@ -84,10 +111,14 @@ export interface PieceOutput {
   spots?: SpotSlot[];
   /** Protruding wall structure (pilasters, trim rails, cable trays) that wall-mounted props must stay clear of, in piece space. */
   keepouts?: BoxSpec[];
+  /** Positional looping sounds owned by this prop (transformed into world space by Level). */
+  soundLoops?: SoundLoopSlot[];
+  /** Subscribe to synchronized positional one-shot sounds triggered by this prop. */
+  onSound?: (fn: (ev: PropSoundEvent) => void) => void;
 }
 
 /** Props hung on a wall (back on their local z = 0): they must not overlap any wall piece's `keepouts`. */
-export const WALL_MOUNTED_PROPS: readonly string[] = ['wall_screen', 'tag_poster', 'notice_board', 'wall_clock', 'menu_board', 'cctv_wall', 'pressure_gauge', 'service_panel', 'directory_sign', 'bulkhead_wheel', 'pressure_manifold', 'status_board'];
+export const WALL_MOUNTED_PROPS: readonly string[] = ['pa_speaker', 'wall_screen', 'tag_poster', 'notice_board', 'wall_clock', 'menu_board', 'cctv_wall', 'whiteboard', 'shadow_board', 'eyewash_station', 'room_sign', 'pressure_gauge', 'service_panel', 'directory_sign', 'bulkhead_wheel', 'pressure_manifold', 'status_board'];
 
 export type PieceParams = Record<string, string | number | boolean>;
 
@@ -137,12 +168,25 @@ export class PieceBuilder {
   readonly surfaces: Array<{ box: BoxSpec; material: SurfaceMaterial }> = [];
   readonly spots: SpotSlot[] = [];
   readonly keepouts: BoxSpec[] = [];
+  readonly soundLoops: SoundLoopSlot[] = [];
+  private readonly soundListeners: Array<(ev: PropSoundEvent) => void> = [];
   private readonly ticks: Array<(t: number, dt: number) => void> = [];
   private readonly listeners: Array<{ event: string; fn: (payload: unknown) => void }> = [];
 
   /** React to a named event (bus event or level trigger emit). Payload is unknown: check it. */
   on(event: string, fn: (payload: unknown) => void): void {
     this.listeners.push({ event, fn });
+  }
+
+  /** Declare a positional looping sound owned by this piece (in piece space). */
+  soundLoop(slot: SoundLoopSlot): void {
+    this.soundLoops.push(slot);
+  }
+
+  /** Trigger a synchronized positional one-shot sound from this piece (in piece space). */
+  soundAt(sound: SampleName, pos: Vec3, opts: Omit<PropSoundEvent, 'sound' | 'pos'> = {}): void {
+    const ev: PropSoundEvent = { sound, pos, ...opts };
+    for (const fn of this.soundListeners) fn(ev);
   }
 
   add(geometry: THREE.BufferGeometry, material: THREE.Material, matrix?: THREE.Matrix4): THREE.Mesh {
@@ -214,6 +258,11 @@ export class PieceBuilder {
     if (this.listeners.length) out.listeners = this.listeners;
     if (this.spots.length) out.spots = this.spots;
     if (this.keepouts.length) out.keepouts = this.keepouts;
+    if (this.soundLoops.length) out.soundLoops = this.soundLoops;
+    const soundListeners = this.soundListeners;
+    out.onSound = (fn) => {
+      soundListeners.push(fn);
+    };
     return out;
   }
 }

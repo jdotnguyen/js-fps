@@ -121,7 +121,7 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     duration: 18,
     promptInfluence: 0.45,
     prompt:
-      'seamless ambient soundscape of a humid enclosed sci-fi hydroponics greenhouse bay, soft continuous fine water mist sprayers, gentle circulating grow-room ventilation fans, subtle recirculating hydroponic water trickle in troughs, warm enclosed air, no music, no voice, no birds, constant steady loop',
+      'seamless ambient room tone of a humid enclosed sci-fi hydroponics greenhouse bay, gentle warm circulating grow-room HVAC ventilation airflow, subtle low grow-light fixture hum, damp enclosed greenhouse air without loud spraying water, calm working atmosphere, no music, no voice, no birds, constant steady loop',
   },
   {
     id: 'dive_drip',
@@ -399,6 +399,187 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     promptInfluence: 0.6,
     prompt:
       'heavily muffled underwater hydraulic docking clamps closing and locking onto a submarine hull outside a deep-sea steel station, two seconds of low submerged hydraulic servo groan followed by heavy dull muffled steel thuds and a deep resonant sub-bass settle into underwater silence, heard through thick hull plating, no bright metallic ringing, no music, no voice',
+  },
+  // Hydroponics wing (hydroponics-misters-audio-and-crew): room beds, mister bursts, positional equipment loops, reactive alarm, interactions.
+  {
+    id: 'ambHydroVestibule',
+    file: 'bed-hydro-vestibule.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of a clean industrial biosecurity airlock vestibule in an underwater research station, steady filtered cleanroom air curtain and gentle overhead HEPA ventilation airflow, faint stainless steel room acoustics, calm sterile atmosphere, no music, no voice, no alarms, constant steady loop',
+  },
+  {
+    id: 'ambHydroSeedLab',
+    file: 'bed-hydro-seed-lab.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of a quiet sterile botanical seed propagation laboratory inside an underwater station, soft steady cooling hum of germination incubators and cold-storage seed vault, gentle cleanroom air circulation, crisp quiet glass-walled lab acoustics, no music, no voice, no beeps, constant steady loop',
+  },
+  {
+    id: 'ambHydroPlantRoom',
+    file: 'bed-hydro-plant-room.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 18,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of an industrial hydroponics nutrient mixing and climate control plant room inside an underwater facility, steady warm low mechanical compressor hum, gentle fluid circulation through pressurized plastic and steel pipes, subtle exhaust fan airflow, enclosed tiled utility room acoustics, no music, no voice, no loud bangs, constant steady loop',
+  },
+  {
+    id: 'ambHydroStoreroom',
+    file: 'bed-hydro-storeroom.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 14,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless quiet ambient room tone of a small enclosed utility storeroom inside a deep-sea station, very soft distant muffled station ventilation hum behind thick walls, still intimate enclosed air, calm quiet atmosphere, no music, no voice, no water spray, constant steady loop',
+  },
+  {
+    id: 'misterValve_1',
+    file: 'oneshot-mister-valve-1.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 0.9,
+    promptInfluence: 0.65,
+    prompt:
+      'crisp realistic mechanical brass solenoid irrigation valve clicking open with a brief pressurized water line thump and initial micro-hiss, greenhouse overhead misting rail foley, light hall reverb, no music, no voice',
+  },
+  {
+    id: 'misterValve_2',
+    file: 'oneshot-mister-valve-2.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 0.9,
+    promptInfluence: 0.65,
+    prompt:
+      'short realistic industrial pneumatic water solenoid valve snapping open with a subtle metallic clack and sudden pressure release into a pipe, hydroponic mister rail foley, light room reverb, no music, no voice',
+  },
+  {
+    id: 'misterSpray_1',
+    file: 'oneshot-mister-spray-1.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 3.5,
+    promptInfluence: 0.6,
+    prompt:
+      'realistic fine high-pressure greenhouse misting nozzles spraying a soft steady cloud of atomized water mist for three seconds then tapering off cleanly as the valve closes, crisp airy water aerosol hiss in a large metal-and-glass grow hall, no loud splash, no music, no voice',
+  },
+  {
+    id: 'misterSpray_2',
+    file: 'oneshot-mister-spray-2.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 3.5,
+    promptInfluence: 0.6,
+    prompt:
+      'realistic overhead hydroponic fine-mist sprayers hissing steadily with delicate pressurized water vapor for three seconds before smoothly shutting off with a faint valve click, humid indoor greenhouse acoustics, no rainstorm, no music, no voice',
+  },
+  {
+    id: 'misterSputter',
+    file: 'oneshot-mister-sputter.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2.2,
+    promptInfluence: 0.65,
+    prompt:
+      'faulty greenhouse overhead water misting nozzle sputtering with two quick pressurized coughs and a brief uneven aerosol mist hiss before cutting off with a dry solenoid click, realistic hydroponics foley, light hall reverb, no music, no voice',
+  },
+  {
+    id: 'hydroTrickle',
+    file: 'emitter-hydro-trickle.mp3',
+    category: 'emitter',
+    loop: true,
+    duration: 12,
+    promptInfluence: 0.5,
+    prompt:
+      'close-up seamless loop of gentle recirculating water trickling and softly gurgling through shallow indoor hydroponic grow troughs and plastic drain pipes, calm continuous indoor water flow, quiet and steady, no loud waterfall, no music, no voice',
+  },
+  {
+    id: 'dehumidifierHum',
+    file: 'emitter-dehumidifier-hum.mp3',
+    category: 'emitter',
+    loop: true,
+    duration: 10,
+    promptInfluence: 0.5,
+    prompt:
+      'close-up seamless loop of an industrial commercial dehumidifier and HVAC air handler running steadily, low rhythmic compressor hum and steady blower fan airflow through metal louver vents, realistic utility room machinery, no alarm, no music, no voice',
+  },
+  {
+    id: 'fertigationPump',
+    file: 'emitter-fertigation-pump.mp3',
+    category: 'emitter',
+    loop: true,
+    duration: 10,
+    promptInfluence: 0.5,
+    prompt:
+      'close-up seamless loop of a quiet industrial hydroponic liquid dosing pump and slow vertical tank agitator motor churning nutrient solution inside a large polyethylene tank, gentle rhythmic low motor pulse and muffled fluid circulation, no loud splash, no music, no voice',
+  },
+  {
+    id: 'kettleSimmer',
+    file: 'emitter-kettle-simmer.mp3',
+    category: 'emitter',
+    loop: true,
+    duration: 10,
+    promptInfluence: 0.55,
+    prompt:
+      'close-up seamless loop of a small countertop stainless electric kettle gently simmering on keep-warm, very soft delicate bubbling water murmur and faint warm steam whisper, cozy quiet room foley, no whistle, no music, no voice',
+  },
+  {
+    id: 'humidityAlarm',
+    file: 'oneshot-humidity-alarm.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.2,
+    promptInfluence: 0.7,
+    prompt:
+      'soft industrial climate control panel humidity fault warning chirp, two short muted amber-alert electronic beeps from a wall-mounted dehumidifier cabinet in a tiled utility room, realistic subtle telemetry alert, not harsh, not a loud siren, no music, no voice',
+  },
+  {
+    id: 'hydroDrip_1',
+    file: 'oneshot-hydro-drip-1.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 0.9,
+    promptInfluence: 0.65,
+    prompt:
+      'two soft realistic condensation water droplets falling off broad wet plant leaves onto damp steel floor grating in an indoor greenhouse bay, gentle crisp foliage drip foley, light hall reverb, no music, no voice',
+  },
+  {
+    id: 'hydroDrip_2',
+    file: 'oneshot-hydro-drip-2.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 0.9,
+    promptInfluence: 0.65,
+    prompt:
+      'single realistic water drop dripping from an overhead hydroponic misting pipe onto a wet plastic plant tray and leaf, delicate indoor greenhouse foley with light natural tail, no music, no voice',
+  },
+  {
+    id: 'hydroLogSign',
+    file: 'oneshot-hydro-log-sign.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.1,
+    promptInfluence: 0.7,
+    prompt:
+      'crisp 1980s industrial hydroponics workstation terminal confirmation chime, soft tactile key click followed by a warm clean ascending two-note electronic log-saved tone, close realistic office equipment foley, no music, no voice',
+  },
+  {
+    id: 'hydroAlarmReset',
+    file: 'oneshot-hydro-alarm-reset.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.4,
+    promptInfluence: 0.7,
+    prompt:
+      'industrial climate control console button press followed by a solid mechanical relay clunk and a calm resolving descending-to-neutral electronic acknowledgment chime as a humidity fault alarm clears, realistic utility room foley, no music, no voice',
   },
 ];
 

@@ -42,6 +42,7 @@ import { DoorAudio } from './audio/doorAudio.ts';
 import { AudioEngine } from './audio/engine.ts';
 import { FootstepAudio } from './audio/footsteps.ts';
 import { MenuMusic } from './audio/menuMusic.ts';
+import { PropAudioController } from './audio/propAudio.ts';
 import { EARSHOT_LEVEL, voiceAudibility, wallOccluder } from './audio/occlusion.ts';
 import { loadPhysics } from './physics/load.ts';
 import { anyPhysics, resolvePhysicsSwitches } from './physics/switches.ts';
@@ -322,6 +323,7 @@ async function boot(): Promise<void> {
 
   let roomAudio: DemoRoomAudio | null = null;
   let ambience: AmbienceDirector | null = null;
+  let propAudio: PropAudioController | null = null;
   if (room) {
     const { DemoRoomAudio } = await import('./world/demoRoomAudio.ts');
     roomAudio = new DemoRoomAudio(audio, room, new Rng('room-audio'));
@@ -329,6 +331,7 @@ async function boot(): Promise<void> {
   } else {
     ambience = new AmbienceDirector(audio, new Rng('level-ambience'));
     if (!level) ambience.enterRoom('hull_hum');
+    if (level) propAudio = new PropAudioController(audio, level.soundLoops());
   }
 
   camera.position.copy(world.spawn.position);
@@ -865,11 +868,17 @@ async function boot(): Promise<void> {
   });
   menuMusic.setMode(game.mode);
   ambience?.setMode(game.mode);
+  propAudio?.setMode(game.mode);
   events.on('game:mode', ({ mode }) => {
     menuMusic.setMode(mode);
     ambience?.setMode(mode);
+    propAudio?.setMode(mode);
   });
-  events.on('level:reset', () => ambience?.reset());
+  events.on('level:reset', () => {
+    ambience?.reset();
+    propAudio?.reset();
+  });
+  events.on('world:sfx', (ev) => propAudio?.onWorldSfx(ev, camera.position));
   events.on('game:restarted', () => menuMusic.cue(null));
   // A score never survives a restart or the title; a restore into a scored stretch starts it again (adaptive-music).
   events.on('game:restarted', () => {
@@ -1117,7 +1126,22 @@ async function boot(): Promise<void> {
         }, 400);
       });
     }
-    if (jump && jump !== 'drop' && level) {
+    // ?debug&jump=hydro: jump straight to Hydroponics (R12a entry facing R12b Grow Hall) with morning briefing already seen.
+    if (jump === 'hydro' && level) {
+      const off = events.on('game:mode', ({ mode }) => {
+        if (mode !== 'playing') return;
+        off();
+        setTimeout(() => {
+          sequences?.cancelAll();
+          Object.assign(game.flags, { introSeen: true, briefingSeen: true });
+          hud.setFade(0, 0.4);
+          const at = level.anchor('cp_round_hydro') ?? level.anchor('hydro_entry');
+          if (!at) return console.warn('[debug] jump=hydro: no hydro anchor');
+          player.placeAtEye(new THREE.Vector3(at.pos.x, at.pos.y + PLAYER_TUNING.eyeHeight, at.pos.z), at.yaw);
+        }, 400);
+      });
+    }
+    if (jump && jump !== 'drop' && jump !== 'hydro' && level) {
       const base: Record<string, boolean | number> = { introSeen: true, briefingSeen: true, rounds_done: true, drop_started: true, drop_done: true };
       const steps: Array<[string, string, Record<string, boolean | number>]> = [
         ['r05', 'cp_first_contact', {}],
@@ -1251,6 +1275,7 @@ async function boot(): Promise<void> {
       }
       roomAudio?.update(simTime);
       ambience?.update(simTime, camera.position);
+      propAudio?.update(camera.position);
       post.grade.uDamage.value = game.mode === 'title' || game.flying ? 0 : player.damageFx;
       // One shadow pass per frame, for the player's view (see renderer.shadowMap.autoUpdate below).
       renderer.shadowMap.needsUpdate = true;
