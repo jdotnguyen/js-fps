@@ -25,6 +25,17 @@ npm run dev
 | `npm test` | Unit tests with Node's built-in runner (Node 22.6+) |
 | `npm run build` | Typecheck, then production build |
 
+### Playing while agents work
+
+The dev server reloads whenever an agent saves a file. To play a frozen copy instead, build it into its own folder and serve it on port 4300:
+
+```sh
+npx vite build --outDir dist-play --emptyOutDir
+npx vite preview --outDir dist-play --port 4300 --strictPort
+```
+
+Then open http://localhost:4300/. Run the first command again to pick up newer changes.
+
 ## Debug flags
 
 Add to the URL: `?debug` (stats, lil-gui), later `?seq=<sequence id>` and `?cp=<checkpoint id>`.
