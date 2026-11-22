@@ -9,7 +9,7 @@
  * - `reset()` destroys the engine and rebuilds it from the mirror (level and checkpoint restarts), so nothing
  *   leaks across restarts.
  */
-import type { ColliderHandle, PhysicsEngine, PhysicsEngineFactory } from './engine.ts';
+import type { ColliderHandle, Contact, PhysicsEngine, PhysicsEngineFactory } from './engine.ts';
 
 /** The part of `CollisionWorld` the mirror reads. */
 export interface MirrorSource {
@@ -18,6 +18,10 @@ export interface MirrorSource {
     readonly min: readonly [number, number, number];
     readonly max: readonly [number, number, number];
     readonly enabled: boolean;
+    /** Footstep surface (`ColliderSurface`); picks the friction pieces slide with. */
+    readonly surface?: string | null;
+    /** 'glass' for panes. */
+    readonly acoustic?: string;
   }>;
 }
 
@@ -37,6 +41,20 @@ export interface StepStats {
   steps: number;
 }
 const STAT_WINDOW = 120;
+
+/**
+ * Level friction by surface (Block 2 task 3.5, recorded in docs/physics.md). Rapier averages the two colliders'
+ * values, so with debris at 0.7 a limb grips concrete and rubber, skids a little on bare metal, catches on grating,
+ * slides on wet floors and glass.
+ */
+export const SURFACE_FRICTION: Readonly<Record<string, number>> = { concrete: 0.8, metal: 0.45, grate: 0.95, rubber: 1, water: 0.2 };
+export const GLASS_FRICTION = 0.25;
+const DEFAULT_FRICTION = 0.8;
+
+export function frictionOf(c: { surface?: string | null; acoustic?: string }): number {
+  if (c.acoustic === 'glass') return GLASS_FRICTION;
+  return (c.surface ? SURFACE_FRICTION[c.surface] : undefined) ?? DEFAULT_FRICTION;
+}
 const EPS = 1e-4;
 
 export class PhysicsWorld {
@@ -47,6 +65,8 @@ export class PhysicsWorld {
   private readonly times: number[] = [];
   private stepCount = 0;
   private destroyed = false;
+  private gen = 0;
+  private lastContacts: Contact[] = [];
 
   private constructor(factory: PhysicsEngineFactory, source: MirrorSource, engine: PhysicsEngine) {
     this.factory = factory;
@@ -63,6 +83,22 @@ export class PhysicsWorld {
     return this.current;
   }
 
+  /**
+   * Bumped by every `reset()`. Handles from an earlier generation belong to a destroyed engine: owners compare this
+   * before touching their bodies and drop them when it changed.
+   */
+  get generation(): number {
+    return this.gen;
+  }
+
+  /**
+   * Contacts that started during the last step. The world drains the engine once per step so several systems
+   * (debris, later ragdolls) can each read them.
+   */
+  contacts(): readonly Contact[] {
+    return this.lastContacts;
+  }
+
   /** Static colliders currently mirrored (enabled or not). */
   get staticCount(): number {
     return this.mirrored.length;
@@ -74,6 +110,7 @@ export class PhysicsWorld {
     this.syncMirror();
     const t0 = performance.now();
     this.current.step(dt);
+    this.lastContacts = this.current.drainContacts();
     this.times.push(performance.now() - t0);
     if (this.times.length > STAT_WINDOW) this.times.shift();
     this.stepCount++;
@@ -100,6 +137,8 @@ export class PhysicsWorld {
     }
     this.current.destroy();
     this.current = next;
+    this.gen++;
+    this.lastContacts = [];
     this.mirrored = [];
     this.times.length = 0;
     this.mirrorNew();
@@ -154,7 +193,7 @@ export class PhysicsWorld {
         {
           shape: { kind: 'cuboid', halfExtents: { x: hx, y: hy, z: hz } },
           offset: { x: (c.min[0] + c.max[0]) / 2, y: (c.min[1] + c.max[1]) / 2, z: (c.min[2] + c.max[2]) / 2 },
-          friction: 0.8,
+          friction: frictionOf(c),
           tag: c.id,
         },
         null,

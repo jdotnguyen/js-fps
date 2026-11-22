@@ -26,11 +26,16 @@ Each numbered group is one isolated block (design D1): one commit or PR, its swi
 
 ## 3. Block 2: Severed debris
 
-- [ ] 3.1 Move today's debris code unchanged behind a debris backend interface in `GoreSystem` (`floorDebris`), and verify that existing gore tests and a sandbox sever look identical
-- [ ] 3.2 Add `physicsDebris`: capsule from the probes and radius, CCD, mass from length, 6 s static cutoff (design D5); verify with Node tests in a test room (shotgun-speed limb stays on the room's side of the wall, a leg dropped on a bench rests on top, a leg on a ramp slides down, every piece asleep within 6 s)
+- [x] 3.1 Move today's debris code unchanged behind a debris backend interface in `GoreSystem` (`floorDebris`), and verify that existing gore tests and a sandbox sever look identical
+  - Done: `src/actors/debrisBackend.ts` holds the floor model, moved line for line; `GoreSystem` keeps the budget and fade. Gore tests pass. Not compared by eye in the sandbox, which has no physics world, so it still uses this same code.
+- [x] 3.2 Add `physicsDebris`: capsule from the probes and radius, CCD, mass from length, 6 s static cutoff (design D5); verify with Node tests in a test room (shotgun-speed limb stays on the room's side of the wall, a leg dropped on a bench rests on top, a leg on a ramp slides down, every piece asleep within 6 s)
+  - Done: `src/physics/debris.ts`, tests in `src/physics/debris.test.ts`.
 - [ ] 3.3 Send first-contact point and normal to pools and splats with `GoreClip` checks; verify with a test that a head hitting a wall makes a wall splat, and in the browser on the Lab B glass
-- [ ] 3.4 Keep the 24-piece cap and oldest-fades behaviour, and keep reduced mode creating no bodies; verify with unit tests for both (`severed-debris`: Debris budget, Reduced gore)
+  - Test done (wall splat, pool on a prop top, clip plane). Splats use their own 12-mark ring so they never push out authored glass marks. Smoke-checked in slice01: a severed arm landed on a counter top with a splat where it struck. Left: the Lab B glass check.
+- [x] 3.4 Keep the 24-piece cap and oldest-fades behaviour, and keep reduced mode creating no bodies; verify with unit tests for both (`severed-debris`: Debris budget, Reduced gore)
+  - Done: covered in `debris.test.ts`, including bodies freed on fade and on clear, and a restart dropping stale bodies.
 - [ ] 3.5 Tune density and friction per collider surface in the sandbox, and record the values in `docs/physics.md`
+  - Values set and recorded (level friction by surface, debris friction, restitution, mass per metre). Left: tuning by eye during the 3.6 playtest.
 - [ ] 3.6 Gate: playtest a shotgun fight in `slice01` with debris on (`docs/PLAYTEST.md`); run the `runtime-memory` enemy-churn probe; record B2 measurements; switch the debris default on
 
 ## 4. Block 3: Death ragdolls (start after `per-character-motion` is archived, design D1)

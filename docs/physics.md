@@ -46,6 +46,38 @@ the engine has loaded, and for good if the engine fails to load (one `[physics]`
 - **Restarts.** New game, loads and death restarts rebuild the world empty, so nothing survives from the last
   attempt and nothing leaks.
 
+## Severed debris (`debris`)
+
+`GoreSystem` owns severed pieces, the 24-piece cap and the fade-out. How a live piece moves is up to a **debris
+backend** (`src/actors/debrisBackend.ts`):
+
+- `floorDebris` is the original ballistic model: gravity, spin, a bounce off the floor height, no walls. It runs
+  with the switch off, before the engine has loaded, and in reduced gore.
+- `physicsDebris` (`src/physics/debris.ts`) makes each piece a rigid body. Once the physics world exists, `main.ts`
+  hands it to the gore system with `setDebrisBackend`. Pieces already in the air keep the model they started with.
+
+A physics piece is a capsule from its first probe to its last, using the piece's radius (a ball for one probe, such
+as a head). CCD is on, so a shotgun-speed limb can't pass through a wall. Its first contact with anything other
+than another piece leaves a mark where it actually struck, placed by a raycast along its path:
+
+- a pool on a floor or prop top;
+- a splat on a wall. Splats have their own 12-mark ring, separate from the glass marks, so a fight never erases
+  the blood from a scripted kill.
+
+Marks respect the gore clip planes. Pieces sleep when the engine says they're at rest, and at 6 s they're made
+static whatever their state: they cost nothing after that, and new pieces still land on them. A restart drops
+the bodies and leaves the pieces lying where they were.
+
+| Value | Setting | Where |
+| --- | --- | --- |
+| Mass | 7 kg per metre of length, at least 1 kg | `LINEAR_DENSITY` |
+| Debris friction / restitution | 0.7 / 0.15 | `DEBRIS_FRICTION`, `DEBRIS_RESTITUTION` |
+| Damping (linear / angular) | 0.05 / 0.6 | `debris.ts` |
+| Level friction | concrete 0.8, metal 0.45, grate 0.95, rubber 1, water 0.2, glass 0.25 | `SURFACE_FRICTION` in `world.ts` |
+| Smallest impact that leaves a mark | 1.5 m/s | `IMPACT_MARK_SPEED` in `gore.ts` |
+
+Rapier averages the two colliders' friction, so a limb grips concrete, skids on bare metal and slides on glass.
+
 ## Debug view
 
 With `?debug`, the lil-gui panel has a **Physics** folder: tick **show colliders** to draw them over the scene.

@@ -98,6 +98,11 @@ export interface Contact {
   /** First contact point and normal (from a toward b), world space. */
   point: V3;
   normal: V3;
+  /**
+   * False when the engine had no solved contact point yet and `point`/`normal` are a rough guess (the colliders'
+   * midpoint, straight up): place marks from a raycast instead.
+   */
+  exact: boolean;
 }
 
 export interface RayHit {

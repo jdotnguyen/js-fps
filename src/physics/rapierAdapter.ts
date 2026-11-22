@@ -119,6 +119,7 @@ export const createRapierEngine: PhysicsEngineFactory = async (opts = {}) => {
         tagB: tags.get(h2),
         point: point ?? { x: (ta.x + tb.x) / 2, y: (ta.y + tb.y) / 2, z: (ta.z + tb.z) / 2 },
         normal: normal ?? { x: 0, y: 1, z: 0 },
+        exact: point !== null,
       });
     });
   }

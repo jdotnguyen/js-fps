@@ -46,6 +46,7 @@ import { wallOccluder } from './audio/occlusion.ts';
 import { loadPhysics } from './physics/load.ts';
 import { anyPhysics, resolvePhysicsSwitches } from './physics/switches.ts';
 import { PhysicsWorld } from './physics/world.ts';
+import { physicsDebris } from './physics/debris.ts';
 import { ScorePlayer, type RenderedScore } from './audio/scorePlayer.ts';
 import { engineScoreAudio } from './audio/scoreAudio.ts';
 import type { ScoreWorkerReply } from './audio/scoreWorker.ts';
@@ -431,6 +432,8 @@ async function boot(): Promise<void> {
       if (!factory) return;
       physicsWorld = await PhysicsWorld.create(factory, collisionWorld);
       console.info(`[physics] ${physicsWorld.engine.name}: ${physicsWorld.staticCount} level colliders mirrored`);
+      // Block 2: severed pieces become rigid bodies from now on (pieces already flying keep the floor model).
+      if (physics.switches.debris) gore.setDebrisBackend(physicsDebris(physicsWorld));
     });
   }
   // Restarts (new game, loads, death) rebuild the world empty, so nothing from the last attempt survives.

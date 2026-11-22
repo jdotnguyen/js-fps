@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Rng } from '../core/rng.ts';
 import { clearOfBand, clipCoord, sameClip, type ClearBand, type GoreClip } from './goreClip.ts';
+import { floorDebris, type DebrisBackend, type DebrisImpact, type DebrisPiece } from './debrisBackend.ts';
 
 /**
  * Severing effects (ADR-0006): rigid debris, fluid spurts and floor pools. One instance per
@@ -17,24 +18,13 @@ export const MAX_CHUNKS = 64;
 export const MAX_GLASS_MARKS = 20;
 const MAX_PARTICLES = 1400;
 const GRAVITY = 9.8;
-const DEBRIS_SLEEP_AFTER = 3;
 const FADE_TIME = 0.6;
 const MAX_CLIPS = 16;
 const AXIS_INDEX = { x: 0, y: 1, z: 2 } as const;
-const UP = new THREE.Vector3(0, 1, 0);
-
-interface Debris {
-  object: THREE.Object3D;
-  velocity: THREE.Vector3;
-  spin: THREE.Vector3;
-  /** Points (object-local) tested against the floor, with their radius. */
-  probes: THREE.Vector3[];
-  radius: number;
-  age: number;
-  asleep: boolean;
-  fading: number;
-  dispose: () => void;
-}
+/** A piece must strike a surface at least this fast (m/s) to leave a mark where it lands. */
+const IMPACT_MARK_SPEED = 1.5;
+/** Splats from pieces striking walls, ring-buffered apart from the glass marks. */
+export const MAX_IMPACT_MARKS = 12;
 
 export interface Emitter {
   /** Object the spurt is attached to (a stump bone or a debris piece). */
@@ -139,7 +129,10 @@ export class GoreSystem {
   readonly group = new THREE.Group();
   private readonly rng: Rng;
   private readonly floorY: (x: number, z: number) => number;
-  private readonly debris: Debris[] = [];
+  private readonly debris: DebrisPiece[] = [];
+  /** The ballistic floor model: physics off, and the fallback until (or unless) the physics world exists. */
+  private readonly floorBackend: DebrisBackend;
+  private debrisBackend: DebrisBackend;
   private readonly emitters: Emitter[] = [];
   private readonly pools: Pool[] = [];
   private poolCursor = 0;
@@ -170,6 +163,8 @@ export class GoreSystem {
   constructor(rng: Rng, floorY: (x: number, z: number) => number = () => 0) {
     this.rng = rng;
     this.floorY = floorY;
+    this.floorBackend = floorDebris(floorY);
+    this.debrisBackend = this.floorBackend;
     this.group.name = 'gore';
 
     this.pPos = new Float32Array(MAX_PARTICLES * 3).fill(-999);
@@ -232,6 +227,57 @@ export class GoreSystem {
 
   get activeDebris(): number {
     return this.debris.length;
+  }
+
+  /** Name of the backend new pieces go to ('floor' or 'physics'). */
+  get debrisBackendName(): string {
+    return this.debrisBackend.name;
+  }
+
+  /**
+   * Send new severed pieces to `backend` (the physics world's, once it exists), or back to the floor model with
+   * null. Pieces already live keep the backend they started with (adopt-physics-engine D5).
+   */
+  setDebrisBackend(backend: DebrisBackend | null): void {
+    this.debrisBackend = backend ?? this.floorBackend;
+  }
+
+  /** Splats left where pieces struck walls and props: their own ring, so they never push out authored glass marks. */
+  private readonly impactMarks: THREE.Mesh[] = [];
+  private impactCursor = 0;
+
+  /** Where a piece first strikes something: a pool on a floor or prop top, a splat on a wall (severed-debris spec). */
+  private markImpact(hit: DebrisImpact): void {
+    if (hit.speed < IMPACT_MARK_SPEED) return;
+    const at = this.tmp.copy(hit.point);
+    // The same clip planes as spray and chunks: a mark never lands on the far side of a gore clip's glass.
+    for (const clip of this.clips) at[clip.axis] = clipCoord(clip, at[clip.axis], 0)[0];
+    const size = Math.min(0.6, 0.18 + hit.piece.radius * 2 + hit.speed * 0.02);
+    if (hit.normal.y > 0.6) {
+      this.pool(at, size * 0.8, this.mode === 'reduced', at.y);
+      return;
+    }
+    if (hit.normal.y < -0.6) return; // A ceiling: drips would come from the spray, not a mark.
+    let m = this.impactMarks.length < MAX_IMPACT_MARKS ? undefined : this.impactMarks[this.impactCursor];
+    if (!m) {
+      m = new THREE.Mesh(this.glassPlane, this.glassMaterials().splat);
+      m.renderOrder = 2;
+      this.group.add(m);
+      this.impactMarks.push(m);
+    } else {
+      this.impactCursor = (this.impactCursor + 1) % MAX_IMPACT_MARKS;
+    }
+    const mats = this.glassMaterials();
+    m.material = this.mode === 'reduced' ? mats.reduced : mats.splat;
+    m.position.copy(at).addScaledVector(hit.normal, 0.004);
+    m.lookAt(m.position.x + hit.normal.x, m.position.y + hit.normal.y, m.position.z + hit.normal.z);
+    m.rotateZ(this.rng.range(0, Math.PI * 2));
+    m.scale.set(size, size, 1);
+  }
+
+  /** Impact splats currently placed (tests). */
+  get impactMarkCount(): number {
+    return this.impactMarks.length;
   }
 
   get activePools(): number {
@@ -326,7 +372,9 @@ export class GoreSystem {
    */
   addDebris(object: THREE.Object3D, velocity: THREE.Vector3, probes: THREE.Vector3[], radius: number, dispose: () => void): void {
     this.group.attach(object);
-    this.debris.push({
+    // Reduced gore never detaches anything (the humanoid keeps the limb), and never makes a physical piece either.
+    const backend = this.mode === 'reduced' ? this.floorBackend : this.debrisBackend;
+    const piece: DebrisPiece = {
       object,
       velocity: velocity.clone(),
       spin: new THREE.Vector3(this.rng.range(-7, 7), this.rng.range(-4, 4), this.rng.range(-7, 7)),
@@ -336,12 +384,18 @@ export class GoreSystem {
       asleep: false,
       fading: -1,
       dispose,
-    });
+      backend,
+    };
+    this.debris.push(piece);
+    backend.add(piece);
     // Over budget: the oldest piece that isn't already fading sinks away.
     const live = this.debris.filter((d) => d.fading < 0);
     if (live.length > MAX_DEBRIS) {
       const oldest = live[0];
-      if (oldest) oldest.fading = 0;
+      if (oldest) {
+        oldest.fading = 0;
+        oldest.backend.release(oldest);
+      }
     }
   }
 
@@ -397,8 +451,8 @@ export class GoreSystem {
     }
   }
 
-  /** Grow a floor pool under a world point. */
-  pool(at: THREE.Vector3, size: number, dark = this.mode === 'reduced'): void {
+  /** Grow a floor pool under a world point (on the floor height there, or at `y`: a prop top a piece landed on). */
+  pool(at: THREE.Vector3, size: number, dark = this.mode === 'reduced', y?: number): void {
     let p = this.pools.length < MAX_POOLS ? undefined : this.pools[this.poolCursor];
     if (!p) {
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.poolMats.full);
@@ -411,7 +465,7 @@ export class GoreSystem {
       this.poolCursor = (this.poolCursor + 1) % MAX_POOLS;
     }
     p.mesh.material = dark ? this.poolMats.reduced : this.poolMats.full;
-    p.mesh.position.set(at.x, this.floorY(at.x, at.z) + 0.004, at.z);
+    p.mesh.position.set(at.x, (y ?? this.floorY(at.x, at.z)) + 0.004, at.z);
     p.mesh.rotation.z = this.rng.range(0, Math.PI * 2);
     p.mesh.scale.setScalar(0.001);
     p.target = size * this.rng.range(0.8, 1.2);
@@ -440,10 +494,14 @@ export class GoreSystem {
 
   clear(): void {
     for (const d of this.debris) {
+      if (d.fading < 0) d.backend.release(d);
       d.object.removeFromParent();
       d.dispose();
     }
     this.debris.length = 0;
+    for (const m of this.impactMarks) m.removeFromParent();
+    this.impactMarks.length = 0;
+    this.impactCursor = 0;
     this.emitters.length = 0;
     for (const p of this.pools) p.mesh.removeFromParent();
     this.pools.length = 0;
@@ -501,10 +559,12 @@ export class GoreSystem {
   // ---------------------------------------------------------------- internals
 
   private readonly tmp = new THREE.Vector3();
-  private readonly tmpAxis = new THREE.Vector3();
-  private readonly tmpQ = new THREE.Quaternion();
+  private readonly onImpact = (hit: DebrisImpact): void => this.markImpact(hit);
+  private readonly backendPieces = new Map<DebrisBackend, DebrisPiece[]>();
 
+  /** Age and fade every piece here; each backend moves its own live pieces (adopt-physics-engine D5). */
   private updateDebris(dt: number): void {
+    for (const list of this.backendPieces.values()) list.length = 0;
     for (let i = this.debris.length - 1; i >= 0; i--) {
       const d = this.debris[i];
       if (!d) continue;
@@ -521,56 +581,11 @@ export class GoreSystem {
         }
         continue;
       }
-      if (d.asleep) continue;
-      if (d.age > DEBRIS_SLEEP_AFTER + 2) {
-        d.asleep = true;
-        continue;
-      }
-      d.velocity.y -= GRAVITY * dt;
-      o.position.addScaledVector(d.velocity, dt);
-      const angle = d.spin.length() * dt;
-      if (angle > 1e-6) {
-        this.tmpQ.setFromAxisAngle(this.tmp.copy(d.spin).normalize(), angle);
-        o.quaternion.premultiply(this.tmpQ);
-      }
-      // Floor contact against the lowest probe.
-      o.updateMatrixWorld(true);
-      let lowest = Infinity;
-      let lx = 0;
-      let lz = 0;
-      for (const p of d.probes) {
-        this.tmp.copy(p).applyMatrix4(o.matrixWorld);
-        if (this.tmp.y < lowest) {
-          lowest = this.tmp.y;
-          lx = this.tmp.x;
-          lz = this.tmp.z;
-        }
-      }
-      const floor = this.floorY(lx, lz) + d.radius;
-      if (lowest < floor) {
-        o.position.y += floor - lowest;
-        if (d.velocity.y < 0) d.velocity.y *= -0.22;
-        d.velocity.x *= 0.72;
-        d.velocity.z *= 0.72;
-        d.spin.multiplyScalar(0.55);
-        // No contact torque in this simple model, so tip long pieces over until they lie flat.
-        const first = d.probes[0];
-        const last = d.probes[d.probes.length - 1];
-        let upright = 0;
-        if (first && last && first !== last) {
-          const a = this.tmp.copy(last).sub(first).transformDirection(o.matrixWorld);
-          upright = Math.abs(a.y);
-          if (upright > 0.3) {
-            // Rotate the long axis toward horizontal whichever way it points.
-            const k = this.tmpAxis.crossVectors(UP, a).multiplyScalar(Math.sign(a.y));
-            if (k.lengthSq() < 1e-6) k.set(1, 0, 0);
-            d.spin.addScaledVector(k.normalize(), 70 * upright * dt);
-          }
-        }
-        if (upright <= 0.3 && d.age > 0.4 && d.velocity.lengthSq() < 0.02 && d.spin.lengthSq() < 0.2) d.asleep = true;
-        if (d.age > DEBRIS_SLEEP_AFTER && upright <= 0.3) d.asleep = true;
-      }
+      let list = this.backendPieces.get(d.backend);
+      if (!list) this.backendPieces.set(d.backend, (list = []));
+      list.push(d);
     }
+    for (const [backend, list] of this.backendPieces) if (list.length) backend.update(list, dt, this.onImpact);
   }
 
   private readonly ePos = new THREE.Vector3();
