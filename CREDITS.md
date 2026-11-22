@@ -41,7 +41,10 @@ CC BY-NC: credit required, no commercial use. While this model ships, the game m
 
 | Asset | Author | Source | Licence | Used as |
 |---|---|---|---|---|
-| Universal Animation Library (Standard) | Quaternius | [Itch.io](https://quaternius.itch.io/universal-animation-library) ([glTF mirror](https://github.com/J-Ponzo/gltf-universal-animation-library)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Retargeted locomotion, idle, talk, pistol aim, crouch, and kneeling clips for living humanoid characters (`src/data/mocap-clips.json`, baked onto the 21-joint skeleton by `scripts/bake-mocap.mjs`) |
+| Universal Animation Library (Standard) | Quaternius | [Itch.io](https://quaternius.itch.io/universal-animation-library) ([glTF mirror](https://github.com/J-Ponzo/gltf-universal-animation-library)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Retargeted locomotion, idle, talk, pistol aim, crouch, and kneeling clips for living humanoid characters (`src/data/mocap-core.json`, baked onto the 21-joint skeleton by `scripts/bake-mocap.mjs`) |
+| CMU Graphics Lab Motion Capture Database (BVH conversion by Bruce Hahne) | Carnegie Mellon University Graphics Lab | [mocap.cs.cmu.edu](http://mocap.cs.cmu.edu/) ([GitHub copy](https://github.com/una-dinosauria/cmu-mocap)) | No restrictions on use | Everyday motion for named characters: idles, talk, sitting, drinking, kneeling, actions, and Priya's get-up from the floor in the ending stinger (`scripts/mocap.sources.json`, `docs/mocap-sources.md`). The database was created with funding from NSF EIA-0196217 |
+| Bandai-Namco-Research-Motiondataset-1 and Bandai-Namco-Research-Motiondataset-2 | Bandai Namco Research Inc. | [GitHub](https://github.com/BandaiNamcoResearchInc/Bandai-Namco-Research-Motiondataset) | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) | Styled walks, turns, runs and hand gestures; gendered crew defaults |
+| 100STYLE | Ian Mason, Sebastian Starke, Taku Komura | [ianxmason.github.io/100style](https://ianxmason.github.io/100style/) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Selected walk styles (favouring, asymmetric gaits) |
 
 ## Textures
 

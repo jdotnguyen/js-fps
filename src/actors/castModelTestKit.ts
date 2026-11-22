@@ -52,7 +52,7 @@ export async function loadWithoutTextures(url: URL): Promise<THREE.Group> {
 export type MainCastModel = 'mechanic' | 'doctor' | 'priya' | 'hale' | 'office_3' | 'bram' | 'heins' | 'ruiz' | 'sung';
 
 /** Models prepared without the detail hand rig (no finger bones in body-models.json). */
-const NO_HAND_RIG: ReadonlySet<MainCastModel> = new Set([]);
+const NO_HAND_RIG: ReadonlySet<MainCastModel> = new Set(['ruiz', 'sung']);
 
 const modelCache = new Map<string, PreparedBodyModel>();
 

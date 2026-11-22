@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { rigHands, splitHands } from './hand-rig.mjs';
 import { MeshoptSimplifier } from 'meshoptimizer/meshopt_simplifier.module.js';
 import { MeshoptEncoder } from 'meshoptimizer/meshopt_encoder.module.js';
 
@@ -121,9 +122,26 @@ export function bakeScan({ j, read }) {
 }
 
 // ------------------------------------------------------------------ textures
+let imagemagickCmd = null;
+/**
+ * Runs ImageMagick: `magick` (version 7, the only command its Windows installer adds by default, where `convert` is the system's
+ * disk tool) when it is on the path, otherwise the legacy `convert`.
+ */
+function imagemagick(args, input) {
+  if (!imagemagickCmd) {
+    try {
+      execFileSync('magick', ['-version'], { stdio: 'ignore' });
+      imagemagickCmd = 'magick';
+    } catch {
+      imagemagickCmd = 'convert';
+    }
+  }
+  return execFileSync(imagemagickCmd, args, { input, maxBuffer: 1 << 28 });
+}
+
 /** Decodes any image ImageMagick reads into 8-bit RGB. */
 export function decodeImage(bytes) {
-  const ppm = execFileSync('convert', ['-', '-depth', '8', 'ppm:-'], { input: bytes, maxBuffer: 1 << 28 });
+  const ppm = imagemagick(['-', '-depth', '8', 'ppm:-'], bytes);
   // P6\n<w> <h>\n<max>\n<data>
   let off = 0;
   const tok = () => {
@@ -155,7 +173,7 @@ export function vertexColors(img, UV) {
 
 /** Re-encodes an image as WebP no larger than `maxDim` px. */
 export function encodeWebp(bytes, maxDim, quality) {
-  return execFileSync('convert', ['-', '-resize', `${maxDim}x${maxDim}>`, '-quality', String(quality), '-strip', 'webp:-'], { input: bytes, maxBuffer: 1 << 28 });
+  return imagemagick(['-', '-resize', `${maxDim}x${maxDim}>`, '-quality', String(quality), '-strip', 'webp:-'], bytes);
 }
 
 // ------------------------------------------------------------------ mesh edits (all operate on { P, N, UV, tris } in place)
@@ -1016,11 +1034,13 @@ const distToSegment = (x, y, z, [a, b]) => {
  *     colour): head only (the jaw mask then moves the mouth and chin onto the jaw).
  * Both blend in over ~1-2 cm so the boundary does not crease.
  */
-export function skinScan({ pos, indices, J, BONES, extra = {}, color, adjust = () => 0, post, neck, arms, jaw, sharp = 8, iterations = 4 }) {
+export function skinScan({ pos, nor, uv, indices, J, BONES, extra = {}, color, adjust = () => 0, post, neck, arms, jaw, sharp = 8, iterations = 4, elbowBand = ELBOW_BAND, hands = false }) {
+  // `hands`: true, or { thumbToward } for rigHands (per side, the rough world direction each thumb points in the scan). The hands
+  // are cut apart first (splitHands), which appends vertices and triangles to pos, nor, uv and indices (all three are then needed).
   const skinned = Object.keys(BONES).filter((n) => !n.endsWith('End'));
-  const names = [...skinned, ...Object.keys(extra)];
+  let names = [...skinned, ...Object.keys(extra)];
   const boneIndex = new Map(names.map((n, i) => [n, i]));
-  const NB = skinned.length;
+  let NB = skinned.length;
   const segs = skinned.map((n) => {
     const [, end] = BONES[n];
     const a = J[n];
@@ -1032,8 +1052,8 @@ export function skinScan({ pos, indices, J, BONES, extra = {}, color, adjust = (
   });
   const rad = skinned.map((n) => BONES[n][2]);
 
-  const count = pos.length / 3;
-  const weldOf = new Int32Array(count);
+  let count = pos.length / 3;
+  let weldOf = new Int32Array(count);
   const weldKey = new Map();
   for (let v = 0; v < count; v++) {
     const key = `${pos[v * 3].toFixed(5)},${pos[v * 3 + 1].toFixed(5)},${pos[v * 3 + 2].toFixed(5)}${arms ? `|${arms.pieceOf[v]}` : ''}`;
@@ -1042,7 +1062,7 @@ export function skinScan({ pos, indices, J, BONES, extra = {}, color, adjust = (
     weldOf[v] = w;
   }
   const nW = weldKey.size;
-  const wPos = new Float32Array(nW * 3);
+  let wPos = new Float32Array(nW * 3);
   const wCol = new Float32Array(nW * 3);
   for (let v = 0; v < count; v++) {
     wPos.set(pos.slice(v * 3, v * 3 + 3), weldOf[v] * 3);
@@ -1061,11 +1081,11 @@ export function skinScan({ pos, indices, J, BONES, extra = {}, color, adjust = (
   }
   const armMask = arms ? makeArmMask({ arms, weldOf, count, nW, wPos, skinned, segs, rad }) : null;
   armMask?.(W, false);
-  const nbrs = Array.from({ length: nW }, () => new Set());
+  let nbrs = Array.from({ length: nW }, () => new Set());
   // Smoothing follows the surface: the scan's own triangles and the body's caps (membranes that continue the torso). The arm caps
   // (capLabel 1/2) are left out: they would tie the armpit corner to points on the bone axis and drag the shoulder blend toward
   // the arm; their axis points keep their capsule weights.
-  const armCapTri = (t) => arms?.capStart != null && t / 3 >= arms.capStart && arms.capLabel[t / 3 - arms.capStart] !== 0;
+  const armCapTri = (t) => arms?.capStart != null && t / 3 >= arms.capStart && t / 3 < arms.capStart + arms.capLabel.length && arms.capLabel[t / 3 - arms.capStart] !== 0;
   for (let t = 0; t < indices.length; t += 3) {
     if (armCapTri(t)) continue;
     const a = weldOf[indices[t]], b = weldOf[indices[t + 1]], c = weldOf[indices[t + 2]];
@@ -1086,6 +1106,7 @@ export function skinScan({ pos, indices, J, BONES, extra = {}, color, adjust = (
   }
   post?.({ W, wPos, wCol, nW, NB, boneIndex, segment: (n) => segs[boneIndex.get(n)], distToSegment });
   armMask?.(W);
+  if (elbowBand > 0) applyElbowRule({ W, wPos, nW, NB, boneIndex, J, band: elbowBand });
   if (neck) applyNeckRule({ W, wPos, wCol, nW, NB, boneIndex, color, neck });
   if (jaw) {
     const hw = jaw.halfWidth ?? 0.085;
@@ -1103,6 +1124,25 @@ export function skinScan({ pos, indices, J, BONES, extra = {}, color, adjust = (
     }
     console.log(`jaw: ${n} welded vertices mostly on the jaw`);
   }
+  // Finger chains and forearm twist bones (hand-rig.mjs, per-character-motion D7): new skinned bones after the body's own, `J`
+  // gains their positions (the caller's object, which packBody reads).
+  const handParents = {};
+  if (hands) {
+    if (!nor || !uv) throw new Error('skinScan: hands need nor and uv (the hand split adds vertices)');
+    const opts = typeof hands === 'object' ? hands : {};
+    const part = { pos, nor, uv, indices, weldOf };
+    const cut = splitHands({ parts: [part], W, wPos, names: skinned, J, nbrs, skip: (_, t) => armCapTri(t * 3), ...opts });
+    ({ W, wPos, nbrs } = cut);
+    weldOf = part.weldOf;
+    count = pos.length / 3;
+    if (count > 65535) throw new Error('too many vertices for u16 indices: ' + count);
+    const r = rigHands({ W, wPos, names: skinned, J, nbrs, plans: cut.plans, parentOf: Object.fromEntries(skinned.map((n) => [n, BONES[n][0]])), ...opts });
+    W = r.W;
+    NB = r.names.length;
+    names = [...r.names, ...Object.keys(extra)];
+    Object.assign(J, r.J);
+    for (const n of r.added) handParents[n] = r.parentOf[n];
+  }
   const joints = new Uint8Array(count * 4);
   const weights = new Uint16Array(count * 4);
   for (let v = 0; v < count; v++) {
@@ -1113,7 +1153,7 @@ export function skinScan({ pos, indices, J, BONES, extra = {}, color, adjust = (
     q[0] += 65535 - q.reduce((acc, x) => acc + x, 0);
     top.forEach((t, k) => { joints[v * 4 + k] = t[0]; weights[v * 4 + k] = q[k]; });
   }
-  const parentOf = (n) => (n in BONES ? BONES[n][0] : extra[n]);
+  const parentOf = (n) => (n in BONES ? BONES[n][0] : n in handParents ? handParents[n] : extra[n]);
   return { names, parentOf, joints, weights };
 }
 
@@ -1163,6 +1203,43 @@ function makeArmMask({ arms, weldOf, count, nW, wPos, skinned, segs, rad }) {
       if (k > 0) for (let b = 0; b < NB; b++) W[g * NB + b] += (keep[b] - W[g * NB + b]) * k;
     }
   };
+}
+
+/** Half-width of the elbow's upper-arm/forearm blend along the arm (metres). */
+export const ELBOW_BAND = 0.035;
+
+/**
+ * Elbow rule: the upper arm and forearm meet at the elbow joint over a short band, so a bent elbow bends there. Capsule distances
+ * and the surface smoothing alone spread the hand-over across most of the arm (on Ruiz, forearm weight rose from 30% to 70% of the
+ * arm's length and was 18% at the joint), so any elbow bend curved the whole sleeve like a noodle. For every welded vertex on an
+ * arm, the weight it gives that arm's upper arm and forearm together is re-split by its signed distance from the elbow along the
+ * arm (up the upper arm negative, down the forearm positive), eased over +-band. Hand, shoulder and body weights are untouched.
+ */
+function applyElbowRule({ W, wPos, nW, NB, boneIndex, J, band }) {
+  let n = 0;
+  for (const side of ARM_SIDES) {
+    const u = boneIndex.get(`${side}Arm`), f = boneIndex.get(`${side}ForeArm`);
+    const S = J[`${side}Arm`], E = J[`${side}ForeArm`], H = J[`${side}Hand`];
+    if (u === undefined || f === undefined || !S || !E || !H) continue;
+    const seg = (a, b) => { const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]; return { a, d, len: Math.hypot(...d) }; };
+    const up = seg(S, E), lo = seg(E, H);
+    const at = (s, x, y, z) => {
+      const t = Math.max(0, Math.min(1, ((x - s.a[0]) * s.d[0] + (y - s.a[1]) * s.d[1] + (z - s.a[2]) * s.d[2]) / (s.len * s.len || 1)));
+      return { t, dist: Math.hypot(x - (s.a[0] + s.d[0] * t), y - (s.a[1] + s.d[1] * t), z - (s.a[2] + s.d[2] * t)) };
+    };
+    for (let w = 0; w < nW; w++) {
+      const arm = W[w * NB + u] + W[w * NB + f];
+      if (arm < 1e-4) continue;
+      const x = wPos[w * 3], y = wPos[w * 3 + 1], z = wPos[w * 3 + 2];
+      const a = at(up, x, y, z), b = at(lo, x, y, z);
+      const s = a.dist < b.dist ? -(1 - a.t) * up.len : b.t * lo.len;
+      const fore = smooth(-band, band, s);
+      W[w * NB + u] = arm * (1 - fore);
+      W[w * NB + f] = arm * fore;
+      if (Math.abs(s) < band) n++;
+    }
+  }
+  console.log(`elbow: ${n} welded vertices in the elbow blends`);
 }
 
 function applyNeckRule({ W, wPos, wCol, nW, NB, boneIndex, color, neck }) {

@@ -79,13 +79,16 @@ const J = {
   Jaw: [0.05, 1.695, 0.0],
   JawEnd: [0.05, 1.637, 0.085],
   LeftShoulder: [0.06, 1.49, -0.01],
-  LeftArm: [0.17, 1.46, -0.01],
+  // The shoulder joints sit on each upper-arm sleeve's axis, at the top of the arm (the sleeves hang straight, about 21 cm either
+  // side of her centre line at x 0.03). At x 0.17 / y 1.46 the left one pivoted 7 cm inside her torso and too low, so every swing
+  // of the upper arm curved the sleeve like a noodle.
+  LeftArm: [0.24, 1.49, 0.0],
   LeftForeArm: [0.255, 1.17, -0.01],
   LeftHand: [0.29, 0.905, -0.045],
   LeftHandMiddle1: [0.285, 0.835, -0.065],
   RightShoulder: [-0.04, 1.49, -0.01],
-  RightArm: [-0.165, 1.46, -0.02],
-  RightForeArm: [-0.255, 1.17, -0.03],
+  RightArm: [-0.18, 1.49, -0.03],
+  RightForeArm: [-0.215, 1.17, -0.06],
   RightHand: [-0.285, 0.905, -0.08],
   RightHandMiddle1: [-0.29, 0.835, -0.1],
   // Mid-stride: the left leg leads (heel down, toes up), the right trails (heel up, toes on the floor).
@@ -174,10 +177,14 @@ const pickTexel = (rim, c) => {
   const from = navy.length >= rim.length * 0.3 ? navy : skin.length ? skin : rim;
   return from.reduce((best, v) => (near(v) < near(best) ? v : best), from[0]);
 };
-const arms = splitArms(body, armLabels, { armpitY: { Left: 1.35, Right: 1.35 }, torsoAxis: [J.Spine1[0], J.Spine1[2]], J, pick: pickTexel, blend: 0.06 });
+// The armpit line follows the shoulder joints (12 cm under them): lower, arm and torso blend under it; higher, the shoulder blend
+// stretches when the arms rise (bodyModel.test.ts scan-body checks).
+const arms = splitArms(body, armLabels, { armpitY: { Left: 1.37, Right: 1.37 }, torsoAxis: [J.Spine1[0], J.Spine1[2]], J, pick: pickTexel, blend: 0.06 });
 
 const skin = skinScan({
   pos: body.pos,
+  nor: body.nor,
+  uv: body.uv,
   indices: body.indices,
   J,
   BONES,
@@ -188,6 +195,9 @@ const skin = skinScan({
   // hair next to it turn with the head, the coverall collar (navy) stays on the chest.
   neck: { collarY: 1.52, jawLineY: 1.635, axis: [0.045, -0.005], radius: 0.065, margin: 0.015, faceRadius: 0.17, include: (c) => !isNavy(c) },
   jaw: { mouthY: 1.68, chinY: 1.635, hingeZ: J.Jaw[2], cx: J.Jaw[0] },
+  // No hand rig (hands: true adds one): the scan fuses both her hands into fists, her right round the toolbox handle, and the rig
+  // shreds them even in her idle (per-character-motion design, task 5.5).
+  hands: false,
 });
 
 await packBody({

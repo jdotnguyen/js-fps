@@ -223,7 +223,16 @@ async function boot(): Promise<void> {
     }
     for (; scrubAt < t; scrubAt += 1 / 30) stepCells(1 / 30);
   };
-  $<HTMLSelectElement>('soloRow').onchange = (e) => (state.soloRow = (e.target as HTMLSelectElement).value);
+  // Picking a row flies the camera to it (rows only load near the camera, so a row far back would otherwise never appear).
+  $<HTMLSelectElement>('soloRow').onchange = (e) => {
+    state.soloRow = (e.target as HTMLSelectElement).value;
+    const i = ROWS.findIndex((r) => r.id === state.soloRow);
+    if (i < 0) return;
+    camera.position.set((COLUMNS.length * SPACING_X) / 2, 2.0, rowZ(i) + 5.5);
+    freeCam.yaw = 0;
+    freeCam.pitch = -0.12;
+    camera.rotation.set(freeCam.pitch, freeCam.yaw, 0);
+  };
   $<HTMLSelectElement>('soloCol').onchange = (e) => (state.soloCol = (e.target as HTMLSelectElement).value);
   $<HTMLInputElement>('detail').onchange = (e) => (detailPass.enabled = (e.target as HTMLInputElement).checked);
   $<HTMLInputElement>('stage').oninput = (e) => {

@@ -104,6 +104,14 @@ export const TEXTURE_CREDITS: readonly CreditEntry[] = [
   { role: 'Industrial Metal Surfaces', name: 'TextureCan (CC0)' },
 ];
 
+/** Motion-capture sources the character animation is baked from (scripts/mocap.sources.json, docs/mocap-sources.md). */
+export const ANIMATION_CREDITS: readonly CreditEntry[] = [
+  { role: 'Universal Animation Library', name: 'Quaternius (CC0)' },
+  { role: 'Motion Capture Database', name: 'Carnegie Mellon University Graphics Lab' },
+  { role: 'Research Motion Dataset 1 & 2', name: 'Bandai Namco Research Inc. (CC BY-NC 4.0)' },
+  { role: '100STYLE Locomotion Dataset', name: 'Ian Mason, Sebastian Starke, Taku Komura (CC BY 4.0)' },
+];
+
 export const AUDIO_CREDITS: readonly CreditEntry[] = [
   { role: 'Infected Vocalizations', name: 'Dragon Studio' },
 ];
@@ -386,6 +394,7 @@ export class EndCredits {
       section('Development', DEVELOPMENT_CREDITS),
       section('Likeness', LIKENESS_CREDITS),
       modelsSection,
+      section('Motion Capture', ANIMATION_CREDITS),
       section('Textures & Surface Materials', TEXTURE_CREDITS),
       section('Additional Audio', AUDIO_CREDITS),
       closing,

@@ -20,6 +20,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { MeshoptSimplifier } from 'meshoptimizer/meshopt_simplifier.module.js';
+import { rigHands, splitHands } from './lib/hand-rig.mjs';
 
 const [src, dst = 'public/assets/models/squad/heins.glb'] = process.argv.slice(2);
 if (!src) throw new Error('usage: node scripts/fix-heins-glb.mjs <source.glb> [out.glb]');
@@ -198,8 +199,8 @@ for (const s of ['Left', 'Right']) {
     [`${s}ToeEnd`]: [`${s}ToeBase`, null, 0.04],
   });
 }
-const names = Object.keys(BONES).filter((n) => !n.endsWith('ToeEnd') && n !== 'JawEnd');
-const boneIndex = new Map(names.map((n, i) => [n, i]));
+let names = Object.keys(BONES).filter((n) => !n.endsWith('ToeEnd') && n !== 'JawEnd');
+let boneIndex = new Map(names.map((n, i) => [n, i]));
 const segment = (n) => {
   const [, end] = BONES[n];
   const a = J[n];
@@ -218,7 +219,7 @@ const distToSegment = (x, y, z, [a, b]) => {
 };
 
 // ------------------------------------------------------------------ skin weights (welded across all groups so seams stay closed)
-const NB = names.length;
+let NB = names.length;
 const weldKey = new Map();
 const weldOf = groups.map((g) => {
   const a = new Int32Array(g.count);
@@ -231,7 +232,7 @@ const weldOf = groups.map((g) => {
   return a;
 });
 const nW = weldKey.size;
-const wPos = new Float32Array(nW * 3);
+let wPos = new Float32Array(nW * 3);
 groups.forEach((g, gi) => { for (let v = 0; v < g.count; v++) wPos.set(g.pos.slice(v * 3, v * 3 + 3), weldOf[gi][v] * 3); });
 let W = new Float32Array(nW * NB);
 const SHARP = Number(process.env.SHARP ?? 8);
@@ -254,7 +255,7 @@ for (let w = 0; w < nW; w++) {
   for (let b = 0; b < NB; b++) W[w * NB + b] /= sum;
 }
 // Laplacian smoothing over mesh edges
-const nbrs = Array.from({ length: nW }, () => new Set());
+let nbrs = Array.from({ length: nW }, () => new Set());
 groups.forEach((g, gi) => {
   for (let t = 0; t < g.idx.length; t += 3) {
     const a = weldOf[gi][g.idx[t]], b = weldOf[gi][g.idx[t + 1]], c = weldOf[gi][g.idx[t + 2]];
@@ -272,6 +273,25 @@ for (let it = 0; it < 4; it++) {
     }
   }
   W = next;
+}
+// Finger chains and forearm twist bones (per-character-motion D7): added after the body's own weights, from the hand mesh, once
+// the fingers that touch in the scan (her right thumb rests on her index finger) are cut apart.
+{
+  const parts = groups.map((g, gi) => ({ pos: g.pos, nor: g.nor, uv: g.uv, indices: g.idx, weldOf: weldOf[gi] }));
+  const cut = splitHands({ parts, W, wPos, names, J, nbrs });
+  ({ W, wPos, nbrs } = cut);
+  parts.forEach((p, gi) => {
+    weldOf[gi] = p.weldOf;
+    groups[gi].count = p.pos.length / 3;
+    if (groups[gi].count > 65535) throw new Error(`${groups[gi].name}: too many vertices for u16 indices (${groups[gi].count})`);
+  });
+  const hands = rigHands({ W, wPos, names, J, nbrs, plans: cut.plans, parentOf: Object.fromEntries(names.map((n) => [n, BONES[n][0]])) });
+  W = hands.W;
+  names = hands.names;
+  NB = names.length;
+  boneIndex = new Map(names.map((n, i) => [n, i]));
+  Object.assign(J, hands.J);
+  for (const n of hands.added) BONES[n] = [hands.parentOf[n], null, 0.02];
 }
 // Jaw mask, applied after smoothing and only to face skin and teeth (the collar at the same height must not follow the jaw).
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };

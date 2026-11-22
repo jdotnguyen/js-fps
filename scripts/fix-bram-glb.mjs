@@ -15,6 +15,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { MeshoptSimplifier } from 'meshoptimizer/meshopt_simplifier.module.js';
+import { rigHands, splitHands } from './lib/hand-rig.mjs';
 
 const [src, dst = 'public/assets/models/squad/bram.glb'] = process.argv.slice(2);
 if (!src) throw new Error('usage: node scripts/fix-bram-glb.mjs <source.glb> [out.glb]');
@@ -137,7 +138,7 @@ for (let i = 0; i < simp.length; i++) {
   }
   indices.push(used[v]);
 }
-const count = pos.length / 3;
+let count = pos.length / 3;
 console.log(`rebuilt: ${count} vertices`);
 if (count > 65535) throw new Error('too many vertices for u16 indices: ' + count);
 
@@ -204,8 +205,8 @@ const BONES = {
   RightToeBase: ['RightFoot', 'RightToeEnd', 0.06],
   RightToeEnd: ['RightToeBase', null, 0.04],
 };
-const names = Object.keys(BONES).filter((n) => !n.endsWith('ToeEnd') && n !== 'JawEnd');
-const boneIndex = new Map(names.map((n, i) => [n, i]));
+let names = Object.keys(BONES).filter((n) => !n.endsWith('ToeEnd') && n !== 'JawEnd');
+let boneIndex = new Map(names.map((n, i) => [n, i]));
 const segment = (n) => {
   const [, end] = BONES[n];
   const a = J[n];
@@ -224,9 +225,9 @@ const distToSegment = (x, y, z, [a, b]) => {
 };
 
 // ------------------------------------------------------------------ skin weights
-const NB = names.length;
+let NB = names.length;
 const weldKey = new Map();
-const weldOf = new Int32Array(count);
+let weldOf = new Int32Array(count);
 for (let v = 0; v < count; v++) {
   const key = `${pos[v * 3].toFixed(5)},${pos[v * 3 + 1].toFixed(5)},${pos[v * 3 + 2].toFixed(5)}`;
   let w = weldKey.get(key);
@@ -234,7 +235,7 @@ for (let v = 0; v < count; v++) {
   weldOf[v] = w;
 }
 const nW = weldKey.size;
-const wPos = new Float32Array(nW * 3);
+let wPos = new Float32Array(nW * 3);
 for (let v = 0; v < count; v++) wPos.set(pos.slice(v * 3, v * 3 + 3), weldOf[v] * 3);
 let W = new Float32Array(nW * NB);
 const SHARP = Number(process.env.SHARP ?? 8);
@@ -256,7 +257,7 @@ for (let w = 0; w < nW; w++) {
   for (let b = 0; b < NB; b++) W[w * NB + b] /= sum;
 }
 // Laplacian smoothing over mesh edges
-const nbrs = Array.from({ length: nW }, () => new Set());
+let nbrs = Array.from({ length: nW }, () => new Set());
 for (let t = 0; t < indices.length; t += 3) {
   const a = weldOf[indices[t]], b = weldOf[indices[t + 1]], c = weldOf[indices[t + 2]];
   nbrs[a].add(b).add(c); nbrs[b].add(a).add(c); nbrs[c].add(a).add(b);
@@ -285,6 +286,23 @@ for (let w = 0; w < nW; w++) {
   if (m <= 0) continue;
   for (let b = 0; b < NB; b++) W[w * NB + b] *= 1 - m;
   W[w * NB + jawB] += m;
+}
+// Finger chains and forearm twist bones (per-character-motion D7): added after the body's own weights, from the hand mesh, once
+// the fingers that touch or lie fused together in the scan are cut apart.
+{
+  const part = { pos, nor, uv, indices, weldOf };
+  const cut = splitHands({ parts: [part], W, wPos, names, J, nbrs });
+  ({ W, wPos, nbrs } = cut);
+  weldOf = part.weldOf;
+  count = pos.length / 3;
+  if (count > 65535) throw new Error('too many vertices for u16 indices: ' + count);
+  const hands = rigHands({ W, wPos, names, J, nbrs, plans: cut.plans, parentOf: Object.fromEntries(names.map((n) => [n, BONES[n][0]])) });
+  W = hands.W;
+  names = hands.names;
+  NB = names.length;
+  boneIndex = new Map(names.map((n, i) => [n, i]));
+  Object.assign(J, hands.J);
+  for (const n of hands.added) BONES[n] = [hands.parentOf[n], null, 0.02];
 }
 // Keep top 4 bones per vertex, renormalised to u16
 const joints = new Uint8Array(count * 4);

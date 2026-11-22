@@ -70,7 +70,8 @@ test('hand shape selector maps poses, speech emotes, IK, and infection to distin
 const SCAN_HANDS: ReadonlySet<string> = new Set(['bram', 'heins', 'ruiz', 'sung']);
 
 test("every named character's body carries 30 calibrated finger bones and valid skinning", async () => {
-  for (const id of ['mechanic', 'doctor', 'priya', 'hale', 'office_3', 'bram', 'heins', 'ruiz', 'sung'] as const) {
+  // Ruiz and Sung keep their scans' own hands: fused fists and gloves the finger rig shreds (per-character-motion design, task 5.5).
+  for (const id of ['mechanic', 'doctor', 'priya', 'hale', 'office_3', 'bram', 'heins'] as const) {
     const m = await loadMainCast(id);
     const fingers = m.handBones.filter((b): b is FingerBoneDef => b.kind === 'finger');
     const twists = m.handBones.filter((b) => b.kind === 'twist');

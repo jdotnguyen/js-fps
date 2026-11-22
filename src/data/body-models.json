@@ -75,7 +75,6 @@
   },
   "sung": {
     "url": "assets/models/squad/sung.glb",
-    "handRig": true,
     "variants": [],
     "share": 0,
     "gender": "m",
@@ -89,7 +88,6 @@
   },
   "ruiz": {
     "url": "assets/models/squad/ruiz.glb",
-    "handRig": true,
     "variants": [],
     "share": 0,
     "gender": "f",

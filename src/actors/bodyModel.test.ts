@@ -702,3 +702,74 @@ test('August Giles mechanic model is never reused on generic crew/maintenance/en
     }
   }
 });
+
+// Scan-body hands (per-character-motion task 5.5, scripts/lib/hand-rig.mjs): every finger curls into a fist without tearing the
+// hand. Each phalanx turns about its own curl axis up to a fist (70, 90 and 60 degrees; the thumb 40, 40 and 30), less the bend it
+// already has at rest, the mesh is skinned in the rest frame (linear blend), and no edge of 3 mm or more stretches past 2.5x its
+// rest length. Ruiz and Sung keep their scans' own hands (fused fists and gloves the finger rig shreds).
+for (const name of ['bram', 'heins'] as const) {
+  test(`scan body ${name}: the fingers curl into a fist without stretching the hand`, async () => {
+    const m = prepareBodyModel(await loadWithoutTextures(new URL(`../../public/assets/models/squad/${name}.glb`, import.meta.url)), { detailHands: true });
+    const w = worldJoints(m);
+    // Rest world position and curled world transform of every detail bone (rest frames are world-aligned).
+    const restAt = new Map<string, THREE.Vector3>();
+    const posed = new Map<string, THREE.Matrix4>();
+    const CURL = { thumb: [40, 40, 30], other: [70, 90, 60] };
+    const fingers = m.handBones.filter((b) => b.kind === 'finger');
+    assert.equal(fingers.length, 30, `${name}: 30 finger bones`);
+    for (const b of fingers) {
+      const parentAt = b.parent in w ? w[b.parent as JointName] : restAt.get(b.parent)!;
+      const at = parentAt.clone().add(new THREE.Vector3(...b.offset));
+      restAt.set(b.name, at);
+      // Up to the fist, less the bend the phalanx already has at rest (as the hand solver curls: a scan's fist is already bent).
+      const deg = Math.max(0, (b.finger === 'thumb' ? CURL.thumb : CURL.other)[b.phalanx - 1]! - THREE.MathUtils.radToDeg(b.restCurl));
+      const turn = new THREE.Matrix4().makeTranslation(at.x, at.y, at.z)
+        .multiply(new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(...b.curlAxis), THREE.MathUtils.degToRad(deg)))
+        .multiply(new THREE.Matrix4().makeTranslation(-at.x, -at.y, -at.z));
+      posed.set(b.name, b.parent in w ? turn : posed.get(b.parent)!.clone().multiply(turn));
+    }
+    const slotMatrix = new Map<number, THREE.Matrix4>();
+    m.handBones.forEach((b, k) => { if (b.kind === 'finger') slotMatrix.set(JOINTS.length + k, posed.get(b.name)!); });
+    let worst = 0;
+    let worstAt = '';
+    let fingerVerts = 0;
+    for (const part of m.parts) {
+      const pos = part.geometry.getAttribute('position');
+      const si = part.geometry.getAttribute('skinIndex');
+      const sw = part.geometry.getAttribute('skinWeight');
+      const index = part.geometry.getIndex();
+      if (!index) continue;
+      const rest: THREE.Vector3[] = [];
+      const out: THREE.Vector3[] = [];
+      const onFinger: boolean[] = [];
+      for (let i = 0; i < pos.count; i++) {
+        const v = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).add(w[part.joint]);
+        const o = new THREE.Vector3();
+        let f = 0;
+        for (let k = 0; k < 4; k++) {
+          const wt = sw.getComponent(i, k);
+          const mtx = slotMatrix.get(si.getComponent(i, k));
+          if (mtx) f += wt;
+          o.addScaledVector(mtx ? v.clone().applyMatrix4(mtx) : v, wt);
+        }
+        if (f > 0.05) fingerVerts++;
+        rest.push(v);
+        out.push(o);
+        onFinger.push(f > 0.001);
+      }
+      for (let t = 0; t < index.count; t += 3) for (let k = 0; k < 3; k++) {
+        const a = index.getX(t + k), b = index.getX(t + ((k + 1) % 3));
+        if (!onFinger[a] && !onFinger[b]) continue;
+        const r = rest[a]!.distanceTo(rest[b]!);
+        if (r < 0.003) continue;
+        const ratio = out[a]!.distanceTo(out[b]!) / r;
+        if (ratio > worst) {
+          worst = ratio;
+          worstAt = rest[a]!.toArray().map((x) => x.toFixed(3)).join(' ');
+        }
+      }
+    }
+    assert.ok(fingerVerts > 100, `${name}: ${fingerVerts} vertices follow the fingers`);
+    assert.ok(worst <= 2.5, `${name}: an edge stretches ${worst.toFixed(2)}x in a fist (at ${worstAt})`);
+  });
+}

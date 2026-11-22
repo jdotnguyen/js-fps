@@ -69,3 +69,5 @@ ADR-0016: autosave at checkpoints, manual saves at the green save terminal, thre
 `npm run textures:preview` writes PNG contact sheets of every texture to `previews/`.
 `npm run sounds:preview` writes every sound as a WAV (plus a spectrogram sheet) to `previews/sounds/`.
 Audio starts on your first click (browser rule).
+
+- `/sandbox/cast-motion.html`: every named character's motion side by side, with fallbacks marked (see `docs/cast-motion-sandbox.md`).
