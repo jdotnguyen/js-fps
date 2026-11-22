@@ -1020,6 +1020,25 @@ test('speaker shot: starts on the initial aim, turns to each NPC speaker (tracke
   assert.deepEqual(g.lastAt(), g.spots['npc:giles']);
 });
 
+test('speaker shot: Jay talking to someone turns to the addressee; NPC lines still show the speaker', () => {
+  const g = shotHost();
+  const m = new SequenceManager(g.host, [g.def([{ do: 'playerFrame', target: 'speaker', initial: 'npc:start', duration: 0.5 }, { do: 'wait', s: 100 }])]);
+  m.start('shot');
+  const say = (speaker: string, to?: string): void => g.host.events.emit('speech:started', { id: 'x', speaker, ...(to ? { to } : {}) });
+  say('player', 'giles');
+  assert.deepEqual(g.lastAt(), g.spots['npc:giles'], 'an NPC id addressee');
+  assert.equal(g.frames.at(-1)!.follow, true);
+  say('player', 'medic');
+  assert.deepEqual(g.lastAt(), g.spots['npc:okafor'], 'a speaker id addressee');
+  const n = g.frames.length;
+  say('player');
+  say('player', 'player');
+  say('player', 'nobody_here');
+  assert.equal(g.frames.length, n, 'unaddressed, self-addressed or unknown addressees keep the shot');
+  say('engineer', 'okafor');
+  assert.deepEqual(g.lastAt(), g.spots['npc:giles'], 'an NPC speaking to someone is still shown speaking');
+});
+
 test('speaker shot: a later explicit playerFrame ends it', () => {
   const g = shotHost();
   const m = new SequenceManager(g.host, [g.def([{ do: 'playerFrame', target: 'speaker' }, { do: 'wait', s: 1 }, { do: 'playerFrame', target: 'npc:giles', duration: 0 }, { do: 'wait', s: 100 }])]);

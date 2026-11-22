@@ -296,6 +296,67 @@ test('speaker shots at the post, the heading shot on the walk, speaker shots aga
   assert.equal(shots[h + 1], 'speaker', 'the next shot after the walk starts is the kitchen speaker shot');
 });
 
+test('the squad walks in to a tracking shot on Okafor, greeting Jay on the way; speaker shots resume at the counter', () => {
+  // The parallel that walks Okafor in from the airlock (intro-sequence spec "Greeting on the walk in").
+  let walkIn: Step[] | null = null;
+  const findWalkIn = (steps: Step[]): void => {
+    for (const step of steps) {
+      if (isParallel(step)) {
+        if (step.parallel.some((b) => !isParallel(b) && b['npc'] === 'okafor' && b['via'] === 'intro_okafor_arrive')) walkIn = step.parallel;
+        findWalkIn(step.parallel);
+      } else if (Array.isArray(step['steps'])) findWalkIn(step['steps'] as Step[]);
+    }
+  };
+  findWalkIn(intro.steps);
+  assert.ok(walkIn, 'Okafor walks in on intro_okafor_arrive');
+  const walkLines: string[] = [];
+  walk(walkIn!, (s) => {
+    if (s['do'] === 'say') walkLines.push(s['line'] as string);
+  });
+  assert.deepEqual(walkLines, ['intro_okafor_01', 'intro_jay_03', 'intro_giles_01'], 'greeting and Giles jab play during the walk in');
+
+  // Shots in script order: the door, then a tracking shot on Okafor (no speaker shot a line could steal), then speaker shots again.
+  const order: string[] = [];
+  walk(intro.steps, (s) => {
+    if (s['do'] === 'playerFrame') order.push(`frame:${String(s['target'])}`);
+    if (s['do'] === 'npcMoveTo' && s['npc'] === 'okafor' && s['via'] === 'intro_okafor_arrive') order.push('walk');
+    if (s['do'] === 'say' && s['line'] === 'intro_guard_04') order.push('guard_04');
+  });
+  const w = order.indexOf('walk');
+  const door = order.lastIndexOf('frame:anchor:dock_door', w);
+  assert.ok(door >= 0 && door < w, 'the view is on the dock door before the squad walks in');
+  assert.deepEqual(order.slice(door + 1, w + 1), ['frame:npc:okafor', 'walk'], 'the walk-in is a tracking shot on Okafor, not a speaker shot');
+  const next = order.slice(w + 1);
+  assert.equal(next[0], 'frame:speaker', 'speaker shots resume once the squad is at the counter');
+  assert.ok(next.indexOf('guard_04') > 0, "the guard's \"Morning, Doctor.\" plays under the resumed speaker shot");
+});
+
+test('every Jay line in the intro names who he is talking to, so the speaker shot turns to them', () => {
+  walk(intro.steps, (s) => {
+    if (s['do'] !== 'say') return;
+    const line = library.line(s['line'] as string);
+    if (line.speaker === 'player') assert.ok(line.to && line.to !== 'player', `${String(s['line'])} has an addressee`);
+  });
+});
+
+test('Sung talks with Jay under a tracking shot on Sung; the guard scanning Ruiz cannot steal it', () => {
+  // Sung's counter branch, in order: the shot on Sung, her step-up, the exchange, then speaker shots again.
+  let branch: Step[] | null = null;
+  walk(intro.steps, (s) => {
+    const inner = s['steps'];
+    if (Array.isArray(inner) && inner.some((x) => (x as Record<string, unknown>)['line'] === 'intro_sung_01')) branch = inner as Step[];
+  });
+  assert.ok(branch, "Sung's counter branch");
+  const seq = (branch as Step[]).map((x) => {
+    const r = x as Record<string, unknown>;
+    if (r['do'] === 'playerFrame') return `frame:${String(r['target'])}`;
+    if (r['do'] === 'say') return String(r['line']);
+    if (r['do'] === 'npcMoveTo') return `move:${String(r['to'])}`;
+    return null;
+  }).filter((x) => x !== null);
+  assert.deepEqual(seq, ['frame:npc:sung', 'move:anchor:walkby_stop', 'intro_sung_01', 'intro_jay_02', 'intro_sung_02', 'frame:speaker']);
+});
+
 test('the kitchen follows whoever talks, Priya included; only the mug offer is a tight framed shot', () => {
   const frames: Array<Record<string, unknown>> = [];
   walk(intro.steps, (s) => {

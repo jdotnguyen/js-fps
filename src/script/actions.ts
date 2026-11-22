@@ -169,13 +169,24 @@ function endConversation(ctx: ActionContext): void {
   off();
 }
 
+/** A line's `to` addressee as a shot target: a speaker id, or an NPC id the host can find. Null for Jay and nobody. */
+function addresseeTarget(ctx: ActionContext, to: unknown): TargetRef | null {
+  if (typeof to !== 'string' || !to || to === 'player') return null;
+  const bySpeaker = ctx.host.speakerTarget?.(to);
+  if (bySpeaker) return bySpeaker;
+  const id = to.startsWith('npc:') ? to.slice(4) : to;
+  const ref: TargetRef = `npc:${id}`;
+  return ctx.host.resolve(ref) ? ref : null;
+}
+
 function beginConversation(ctx: ActionContext, duration: number, give: number): void {
   let last: TargetRef | null = null;
   const off = ctx.listen('speech:started', (payload) => {
-    const speaker = (payload as { speaker?: unknown } | null)?.speaker;
+    const { speaker, to } = (payload ?? {}) as { speaker?: unknown; to?: unknown };
     if (typeof speaker !== 'string') return;
-    const who = ctx.host.speakerTarget?.(speaker);
-    if (!who || who === last) return; // Jay's lines and unknown speakers keep the current shot
+    // A bodiless speaker (Jay) talking to someone turns the view to that addressee (intro-sequence spec).
+    const who = ctx.host.speakerTarget?.(speaker) ?? addresseeTarget(ctx, to);
+    if (!who || who === last) return; // Jay's unaddressed lines and unknown speakers keep the current shot
     if (aim(ctx, who, duration, give)) last = who;
   });
   let map = CONVERSATIONS.get(ctx.host);

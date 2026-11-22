@@ -286,6 +286,11 @@
               "s": 0.8
             },
             {
+              "do": "playerFrame",
+              "target": "npc:sung",
+              "duration": 0.8
+            },
+            {
               "do": "npcMoveTo",
               "npc": "sung",
               "to": "anchor:walkby_stop",
@@ -306,6 +311,12 @@
             {
               "do": "say",
               "line": "intro_sung_02"
+            },
+            {
+              "do": "playerFrame",
+              "target": "speaker",
+              "initial": "npc:sung",
+              "duration": 0.6
             }
           ]
         }
@@ -419,8 +430,7 @@
             },
             {
               "do": "playerFrame",
-              "target": "speaker",
-              "initial": "npc:okafor",
+              "target": "npc:okafor",
               "duration": 1.0
             },
             {
@@ -450,8 +460,36 @@
                       "speed": 1.5
                     }
                   ]
+                },
+                {
+                  "do": "loop",
+                  "count": 1,
+                  "steps": [
+                    {
+                      "do": "wait",
+                      "s": 1.5
+                    },
+                    {
+                      "do": "say",
+                      "line": "intro_okafor_01"
+                    },
+                    {
+                      "do": "say",
+                      "line": "intro_jay_03"
+                    },
+                    {
+                      "do": "say",
+                      "line": "intro_giles_01"
+                    }
+                  ]
                 }
               ]
+            },
+            {
+              "do": "playerFrame",
+              "target": "speaker",
+              "initial": "npc:okafor",
+              "duration": 0.6
             }
           ]
         }
@@ -461,14 +499,6 @@
       "do": "doorState",
       "id": "D_dock",
       "state": "closed"
-    },
-    {
-      "do": "say",
-      "line": "intro_okafor_01"
-    },
-    {
-      "do": "say",
-      "line": "intro_jay_03"
     },
     {
       "parallel": [
@@ -565,10 +595,6 @@
           "do": "loop",
           "count": 1,
           "steps": [
-            {
-              "do": "say",
-              "line": "intro_giles_01"
-            },
             {
               "do": "say",
               "line": "intro_jay_04"
