@@ -136,5 +136,8 @@ Lightmaps for static architecture, baked in Blender on GLB pieces as ADR-0003 al
 
 ## Open Questions
 
-- The exact Three.js release to target in Phase 2 is chosen when the upgrade starts.
-- Whether `PCFSoftShadowMap` is actually removed in a release Phase 2 targets (see Phase 2, step 1).
+- The exact Three.js release to target in Phase 2 is chosen when the upgrade starts. **Answered by `upgrade-three-and-post-chain`:** r187, the newest release pmndrs `postprocessing` 6.x supports.
+- Whether `PCFSoftShadowMap` is actually removed in a release Phase 2 targets (see Phase 2, step 1). **Answered by `upgrade-three-and-post-chain`:** yes, before r187.
+  - r183 already deprecates it: it logs a warning and falls back to `PCFShadowMap`.
+  - From r183, `PCFShadowMap` is itself soft: 5 hardware-compared taps on a Vogel disk, `shadow.radius` texels wide.
+  - The renderer now uses `PCFShadowMap`, with `shadow.radius = 2` on the flashlight and every shadow-pool kind.

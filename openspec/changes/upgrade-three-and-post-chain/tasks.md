@@ -12,7 +12,7 @@
 - [x] 2.2 Upgrade to 0.180.0 and fix what breaks. Verify as in 2.1.
 - [x] 2.3 Upgrade to 0.183.0. r183 deprecates `PCFSoftShadowMap` (it warns and falls back to the new soft PCF, whose width is `shadow.radius`), so switch `renderer.shadowMap.type` to `PCFShadowMap` here, give the flashlight and each `SHADOW_CONES` kind a `shadow.radius` tuned to the baseline's soft edge, and retune their bias and normal bias. Verify as in 2.1, plus a test that each cone kind sets its bias and a radius above 1 and that the renderer does not use `PCFSoftShadowMap`. The console must show no `PCFSoftShadowMap` deprecation warning, the sofa and flashlight shadows must have soft edges (render-lighting: Shadows have soft edges), and the flashlight shadow screenshot must have no acne or peter-panning.
 - [x] 2.4 Upgrade to 0.187.0 and retune `GTAOPass` for its r181 to r186 output changes. Recheck the 2.3 shadow radius and bias. Verify as in 2.1, and that the sofa and flashlight shadows still match the 2.3 screenshots.
-- [ ] 2.5 Record the r187 `EffectComposer` screenshots as the reference for section 3. Note the shadow-map finding in `fidelity-first-rendering`'s design.md Open Questions (removed before r187, replaced by soft PCF). Verify both are written.
+- [x] 2.5 Record the r187 `EffectComposer` screenshots as the reference for section 3. Note the shadow-map finding in `fidelity-first-rendering`'s design.md Open Questions (removed before r187, replaced by soft PCF). Verify both are written.
 
 ## 3. postprocessing chain
 
