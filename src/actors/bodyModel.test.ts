@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import { bodyGeometryFromModel, normaliseBoneName, prepareBodyModel, type PreparedBodyModel } from './bodyModel.ts';
+import { bodyGeometryFromModel, mapRig, normaliseBoneName, prepareBodyModel, type PreparedBodyModel } from './bodyModel.ts';
 import { JOINT_INDEX, JOINT_NAMES, JOINTS, type JointName } from './skeleton.ts';
 import { Humanoid } from './humanoid.ts';
 import type { BodyModelLibrary } from './bodyModelLibrary.ts';
@@ -615,6 +615,64 @@ test('hero tier on the necromorph body: model used, hero gait and slam state kep
   assert.ok(h.slam, 'slam state kept');
   const box = new THREE.Box3().setFromObject(h.group);
   assert.ok(box.max.y - box.min.y > 1.9 && box.max.y - box.min.y < 2.6, `height ${box.max.y - box.min.y}`);
+});
+
+// A blade hand piece is long and thin (0.19 x 0.63 x 0.10 m); with a belly arm fused in it was 0.61 x 0.91 x 1.03 m.
+const HAND_PIECE_MID_MAX = 0.3; // m, the piece's middle dimension
+
+// The necromorph's small belly arms (Left_Minihandbase .. L_MiniH_*) carry "hand" in their names but hang from Upper_Body, not a
+// forearm. They used to bind to hand_L/R and drag the blade's wrist pivot down to the belly (openspec pin-hero-creature-minihands).
+test('necromorph belly arms ride the spine, and the blade hands pivot at the blade wrists', async () => {
+  const scene = await loadWithoutTextures(new URL('../../public/assets/models/infected/necromorph_slasher.glb', import.meta.url));
+  const meshes: THREE.SkinnedMesh[] = [];
+  scene.traverse((o) => {
+    if ((o as THREE.SkinnedMesh).isSkinnedMesh) meshes.push(o as THREE.SkinnedMesh);
+  });
+  const bones = meshes[0]!.skeleton.bones;
+  const rig = mapRig(bones, meshes);
+  for (const s of ['L', 'R'] as const) {
+    const wrist = s === 'L' ? 'Left_Hand_09' : 'Right_Hand_017';
+    assert.equal(bones[rig.pivot[`hand_${s}`]!]!.name, wrist, `hand_${s} pivots at the blade wrist`);
+  }
+  const mini = bones.map((b, i) => ({ b, i })).filter(({ b }) => /mini/i.test(b.name));
+  assert.ok(mini.length >= 30, `${mini.length} belly-arm bones`);
+  for (const { b, i } of mini) {
+    assert.equal(rig.jointOf[i], 'spine', `${b.name} rides the spine`);
+    assert.ok(rig.unmapped.includes(b.name), `${b.name} is a detail bone`);
+  }
+
+  const m = prepareBodyModel(scene);
+  const j = worldJoints(m);
+  for (const s of ['L', 'R'] as const) {
+    const upper = j[`foreArm_${s}`].distanceTo(j[`upperArm_${s}`]);
+    const fore = j[`hand_${s}`].distanceTo(j[`foreArm_${s}`]);
+    assert.ok(fore > 0.8 * upper, `blade forearm_${s} ${fore.toFixed(2)} m vs upper arm ${upper.toFixed(2)} m (was 0.19 vs 0.27)`);
+  }
+  for (const p of m.parts.filter((p) => p.joint.startsWith('hand_'))) {
+    const size = new THREE.Box3().setFromBufferAttribute(p.geometry.getAttribute('position') as THREE.BufferAttribute).getSize(new THREE.Vector3());
+    const mid = [size.x, size.y, size.z].sort((a, b) => a - b)[1]!;
+    assert.ok(mid < HAND_PIECE_MID_MAX, `${p.joint} piece is ${size.toArray().map((x) => x.toFixed(2)).join(' x ')} m (belly arm fused in?)`);
+  }
+});
+
+/** Bones from a GLB's node tree only (names and parents, no mesh decode): enough for mapRig. */
+function rigBones(url: URL): THREE.Bone[] {
+  const buf = readFileSync(url);
+  const json = JSON.parse(buf.subarray(20, 20 + buf.readUInt32LE(12)).toString('utf8')) as { nodes: Array<{ name?: string; children?: number[] }>; skins: Array<{ joints: number[] }> };
+  const node = json.nodes.map((n, i) => Object.assign(new THREE.Bone(), { name: n.name ?? `node${i}` }));
+  json.nodes.forEach((n, i) => n.children?.forEach((c) => node[i]!.add(node[c]!)));
+  return json.skins[0]!.joints.map((i) => node[i]!);
+}
+
+test('the secondary-limb rule changes no rig except the necromorph', () => {
+  const models = JSON.parse(readFileSync(new URL('../data/body-models.json', import.meta.url), 'utf8')) as Record<string, { url: string }>;
+  for (const [id, { url }] of Object.entries(models)) {
+    const bones = rigBones(new URL(`../../public/${url}`, import.meta.url));
+    const now = mapRig(bones);
+    const before = mapRig(bones, [], { secondaryLimbs: false });
+    if (id === 'necromorph') assert.notDeepEqual(now.jointOf, before.jointOf, 'necromorph: the rule fires');
+    else assert.deepEqual(now, before, `${id}: mapping unchanged`);
+  }
 });
 
 // The admin assistant's body (data/body-models.json "assistant"): the "Lady in a trenchcoat" Mixamo rig, duplicate copy dropped and

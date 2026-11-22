@@ -100,7 +100,7 @@ function classify(raw: string, hasCollar: Record<Side, boolean>): Classified {
   return none;
 }
 
-interface RigMap {
+export interface RigMap {
   /** Game joint per model bone index. */
   jointOf: JointName[];
   /** Model bone index that marks each joint's pivot. */
@@ -116,14 +116,88 @@ function depthOf(b: THREE.Object3D): number {
   return d;
 }
 
-function mapRig(bones: readonly THREE.Bone[]): RigMap {
+/**
+ * Re-bind each secondary limb (a topmost secondary bone plus everything below it that has no joint of its own) to the joint
+ * carrying most of the outside skin weight on its boundary vertices: the ones it shares with the body.
+ */
+function rideSecondaryLimbs(
+  bones: readonly THREE.Bone[],
+  meshes: readonly THREE.SkinnedMesh[],
+  secondary: ReadonlySet<number>,
+  parentOf: ReadonlyArray<number | undefined>,
+  cls: readonly Classified[],
+  order: ReadonlyArray<{ i: number }>,
+  jointOf: JointName[],
+): void {
+  const limbOf = new Map<number, number>(); // bone -> its limb's root bone
+  for (const { i } of order) {
+    const p = parentOf[i];
+    const up = p !== undefined ? limbOf.get(p) : undefined;
+    if (up !== undefined && (secondary.has(i) || !cls[i]!.joint)) limbOf.set(i, up);
+    else if (secondary.has(i)) limbOf.set(i, i);
+  }
+  const outside = new Map<number, Map<number, number>>(); // limb root -> body bone -> boundary weight
+  for (const mesh of meshes) {
+    const si = mesh.geometry.getAttribute('skinIndex');
+    const sw = mesh.geometry.getAttribute('skinWeight');
+    if (!si || !sw) continue;
+    const boneIdx = mesh.skeleton.bones.map((b) => bones.indexOf(b));
+    for (let v = 0; v < si.count; v++) {
+      const onLimb = new Map<number, number>();
+      const body: Array<[number, number]> = [];
+      let total = 0;
+      for (let k = 0; k < 4; k++) {
+        const w = sw.getComponent(v, k);
+        const b = boneIdx[si.getComponent(v, k)] ?? -1;
+        if (w <= 0 || b < 0) continue;
+        total += w;
+        const limb = limbOf.get(b);
+        if (limb !== undefined) onLimb.set(limb, (onLimb.get(limb) ?? 0) + w);
+        else body.push([b, w]);
+      }
+      for (const [limb, w] of onLimb) {
+        if (w >= 0.98 * total) continue; // inside the limb, not where it meets the body
+        const tally = outside.get(limb) ?? new Map<number, number>();
+        for (const [b, bw] of body) tally.set(b, (tally.get(b) ?? 0) + bw);
+        outside.set(limb, tally);
+      }
+    }
+  }
+  const rideOf = new Map<number, JointName>();
+  for (const root of new Set(limbOf.values())) {
+    const tally = [...(outside.get(root) ?? [])].sort((a, b) => b[1] - a[1]);
+    const host = tally[0]?.[0] ?? parentOf[root];
+    rideOf.set(root, host !== undefined ? jointOf[host]! : 'pelvis');
+  }
+  for (const [b, root] of limbOf) jointOf[b] = rideOf.get(root)!;
+}
+
+/**
+ * Map a rig's bones to game joints. `meshes` (the skinned meshes using these bones) only matter for rigs with secondary limbs:
+ * hand-named bones that do not hang below the same side's forearm, such as the necromorph's belly arms. Those are detail bones
+ * that ride, with their whole subtree, the joint carrying most of the skin weight where the limb meets the body. Without
+ * boundary skin they ride their parent's joint. `secondaryLimbs: false` restores the name-only mapping (for tests).
+ */
+export function mapRig(bones: readonly THREE.Bone[], meshes: readonly THREE.SkinnedMesh[] = [], opts: { secondaryLimbs?: boolean } = {}): RigMap {
   const hasCollar: Record<Side, boolean> = { L: false, R: false };
   for (const b of bones) {
     const { side, rest } = sideOf(normaliseBoneName(b.name));
     if (side && /collar|clavicle/.test(rest)) hasCollar[side] = true;
   }
   const index = new Map(bones.map((b, i) => [b, i]));
+  const parentOf = bones.map((b) => (b.parent instanceof THREE.Bone ? index.get(b.parent) : undefined));
   const cls = bones.map((b) => classify(b.name, hasCollar));
+  // Secondary limbs: a hand-class bone with no same-side forearm above it is not that side's hand.
+  const secondary = new Set<number>();
+  if (opts.secondaryLimbs !== false) {
+    cls.forEach((c, i) => {
+      if (!c.joint?.startsWith('hand_')) return;
+      const fore = `foreArm_${c.joint.slice(-1)}`;
+      for (let a = parentOf[i]; a !== undefined; a = parentOf[a]) if (cls[a]!.joint === fore) return;
+      secondary.add(i);
+    });
+    for (const i of secondary) cls[i] = { joint: null, spine: false, end: null };
+  }
   // Spine chain: lower half drives the spine joint, upper half the chest.
   const spineBones = bones.map((b, i) => ({ i, d: depthOf(b) })).filter(({ i }) => cls[i]!.spine).sort((a, b) => a.d - b.d);
   spineBones.forEach(({ i }, k) => {
@@ -144,6 +218,7 @@ function mapRig(bones: readonly THREE.Bone[]): RigMap {
     jointOf[i] = pi !== undefined && jointOf[pi] ? jointOf[pi]! : 'pelvis';
     unmapped.push(bones[i]!.name);
   }
+  if (secondary.size) rideSecondaryLimbs(bones, meshes, secondary, parentOf, cls, order, jointOf);
   const pivot: Partial<Record<JointName, number>> = {};
   const handEnd: Partial<Record<Side, number>> = {};
   const toe: Partial<Record<Side, number>> = {};
@@ -238,7 +313,7 @@ export function prepareBodyModel(root: THREE.Object3D, opts: PrepareOptions = {}
   const first = meshes[0];
   if (!first) throw new Error('body model: no skinned mesh (is it rigged?)');
   const bones = first.skeleton.bones;
-  const rig = mapRig(bones);
+  const rig = mapRig(bones, meshes);
   const need: JointName[] = ['pelvis', 'spine', 'neck', 'head', 'upperArm_L', 'foreArm_L', 'hand_L', 'upperArm_R', 'foreArm_R', 'hand_R', 'thigh_L', 'shin_L', 'foot_L', 'thigh_R', 'shin_R', 'foot_R'];
   const missing = need.filter((j) => rig.pivot[j] === undefined);
   if (missing.length) throw new Error(`body model: no bones for ${missing.join(', ')}`);
