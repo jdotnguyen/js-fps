@@ -41,12 +41,12 @@
 
 ### 1. Upgrade in four steps: 0.175, 0.180, 0.183, 0.187
 Each step bumps `three` and `@types/three` together. It ends with `npm run typecheck`, the affected tests, a full `npm test`, and High screenshots of R02, R03 and R04 compared with the previous step.
-- The steps fall on the releases the earlier research flagged: GTAO output changes from r181, shadow bias from r183, and the `PCFSoftShadowMap` removal before r187.
+- The steps fall on the releases the earlier research flagged: GTAO output changes from r181, and the `PCFSoftShadowMap` deprecation with soft PCF in r183 (the earlier research dated this to r187; the r183 source already warns and falls back).
 - The post chain stays on three's `EffectComposer` throughout, so a visual change can be blamed on the upgrade, not the new chain.
 - Rejected: one jump from 0.170 to 0.187. A dark room or a broken shader would then have 17 releases of suspects.
 
 ### 2. `PCFShadowMap` with a tuned radius
-- `renderer.shadowMap.type = PCFShadowMap` at the step where the soft type is gone or deprecated.
+- `renderer.shadowMap.type = PCFShadowMap` at r183 (task 2.3), the step that deprecates the soft type.
 - The flashlight and each `SHADOW_CONES` kind get a `shadow.radius`, starting at 2, tuned by screenshot against the r170 soft edge. Bias and normal bias are retuned there too.
 - Rejected:
   - `VSMShadowMap`: light bleeding, and its own blur passes.
