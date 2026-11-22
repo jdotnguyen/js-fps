@@ -330,6 +330,8 @@ export class Level implements World {
       colliders: Collider[];
     }
   >();
+  /** Props marked `dynamic` in the level data (a subset of `movableProps`), with their mass. */
+  private readonly dynamicProps = new Map<string, { mass: number; room: string }>();
   private readonly npcList: LevelNpc[] = [];
   private readonly named = new Map<string, Set<() => void>>();
   /** Authored walks by id (ADR-0028). */
@@ -582,6 +584,18 @@ export class Level implements World {
           taken: null,
         });
       });
+      if (prop.dynamic) {
+        // A physics prop (adopt-physics-engine D11): keep the whole piece as one movable group, out of the room merge,
+        // so its meshes and collision boxes follow its rigid body.
+        const id = typeof prop.params?.['id'] === 'string' ? prop.params['id'] : `${r.id}:${prop.kit}:${pi}`;
+        const grp = new THREE.Group();
+        grp.name = `prop:${id}`;
+        grp.userData['propId'] = id;
+        grp.userData.dynamic = true;
+        for (const child of [...out.object.children]) grp.add(child);
+        out.object.add(grp);
+        this.dynamicProps.set(id, { mass: prop.dynamic.mass, room: r.id });
+      }
       this.integrate(room, out, matrix, ry, rawSlots);
     }
 
@@ -850,6 +864,40 @@ export class Level implements World {
     mp.object.rotation.set(0, yaw, 0);
     mp.object.updateMatrixWorld(true);
     const mat = at(pos.x, pos.y, pos.z, 0, yaw, 0);
+    for (let i = 0; i < mp.colliders.length; i++) {
+      const col = mp.colliders[i];
+      const local = mp.localColliders[i];
+      if (col && local) this.collision.move(col, transformBox(local, mat));
+    }
+    return true;
+  }
+
+  /**
+   * Props the level data marks `dynamic` (adopt-physics-engine D11): their group, mass, collision boxes in the prop's
+   * own frame, and the live `CollisionWorld` colliders that follow it. Empty for a level with none.
+   */
+  physicsProps(): Array<{ id: string; mass: number; object: THREE.Object3D; localColliders: readonly BoxSpec[]; colliders: readonly Collider[] }> {
+    const out = [];
+    for (const [id, d] of this.dynamicProps) {
+      const mp = this.movableProps.get(id);
+      if (mp) out.push({ id, mass: d.mass, object: mp.object, localColliders: mp.localColliders, colliders: mp.colliders });
+    }
+    return out;
+  }
+
+  /**
+   * Put a movable prop at a full pose (a physics prop that slid or tipped over). Its collision boxes become the
+   * axis-aligned bounds of the turned boxes, so the player and enemies still collide with it where it lies.
+   */
+  setPropPose(id: string, pos: { x: number; y: number; z: number }, rotation: { x: number; y: number; z: number; w: number }): boolean {
+    const mp = this.movableProps.get(id);
+    if (!mp) return false;
+    mp.object.position.set(pos.x, pos.y, pos.z);
+    mp.object.quaternion.set(rotation.x, rotation.y, rotation.z, rotation.w);
+    mp.object.updateMatrixWorld(true);
+    const e = new THREE.Euler().setFromQuaternion(mp.object.quaternion, 'YXZ');
+    mp.yaw = e.y;
+    const mat = new THREE.Matrix4().compose(mp.object.position, mp.object.quaternion, new THREE.Vector3(1, 1, 1));
     for (let i = 0; i < mp.colliders.length; i++) {
       const col = mp.colliders[i];
       const local = mp.localColliders[i];

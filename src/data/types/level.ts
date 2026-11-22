@@ -112,6 +112,12 @@ const propShape = {
   /** Degrees around Y, any value. */
   rot: optional(num),
   params: optional(params),
+  /**
+   * Opt in to physics (adopt-physics-engine D11, spec physical-interaction "Only named props move"): the prop's
+   * collision boxes become one rigid body of this mass (kg) that the player, blasts and kills can push. Unmarked props
+   * never move.
+   */
+  dynamic: optional(obj({ mass: numRange(0.5, 500) })),
 };
 
 const lightShape = {

@@ -710,6 +710,18 @@ export class Humanoid {
     return best;
   }
 
+  /**
+   * A player stomp (physical-interaction "Corpses can be stomped"). A living body takes an ordinary hit; a corpse's
+   * limb loses HP and comes off as debris once it reaches its sever threshold. `dir` is the way the part is thrown.
+   */
+  stompHit(hit: BodyHit, amount: number, dir: THREE.Vector3): HitResult {
+    if (this.alive) return this.applyHit(hit, amount, dir);
+    const result = this.damage.applyToCorpse(hit.region, amount);
+    this.ctx.gore.burst(hit.point, dir.clone().multiplyScalar(0.4).add(new THREE.Vector3(0, 0.6, 0)), 18);
+    if (result.severed) this.sever(result.severed, dir);
+    return result;
+  }
+
   /** Apply weapon damage at a hit (ADR-0005 calls this). `dir` is the shot direction. */
   applyHit(hit: BodyHit, amount: number, dir: THREE.Vector3): HitResult {
     const wasWalking = this.locomotion.mode === 'walk';

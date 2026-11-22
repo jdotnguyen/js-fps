@@ -199,6 +199,31 @@ export class BodyDamage {
     return result;
   }
 
+  /**
+   * Stomp damage on a corpse (physical-interaction "Corpses can be stomped"). Limb parts keep their remaining HP
+   * and sever at zero like a living body's, with everything below them; the torso pool is ignored and nothing dies
+   * twice. A living body takes `apply` instead.
+   */
+  applyToCorpse(region: Region, amount: number): HitResult {
+    const result: HitResult = { region, applied: 0, severed: null, lost: [], newLimb: null, killed: false, killedBy: null, weakSpot: false };
+    if (!this.dead || !isSeverable(region) || amount <= 0 || this.isSevered(region)) return result;
+    const applied = Math.min(this.hp[region], amount * (this.profile.taken?.[region] ?? DAMAGE_TAKEN[region]));
+    this.hp[region] -= applied;
+    result.applied = applied;
+    if (this.hp[region] > 1e-6) return result;
+    const limbsBefore = this.limbsLost();
+    result.severed = region;
+    for (const r of [region, ...REGION_CHILDREN[region]]) {
+      if (this.severed.has(r)) continue;
+      this.severed.add(r);
+      this.hp[r] = 0;
+      result.lost.push(r);
+    }
+    const limb = limbOf(region);
+    if (!limbsBefore.has(limb)) result.newLimb = limb;
+    return result;
+  }
+
   /** How hurt a leg is: the larger share lost by its thigh or shin, 0..1 (1 for a severed leg). */
   legWound(side: Side): number {
     const lost = (r: 'thigh' | 'shin'): number => {

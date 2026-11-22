@@ -46,7 +46,10 @@ import { wallOccluder } from './audio/occlusion.ts';
 import { loadPhysics } from './physics/load.ts';
 import { anyPhysics, resolvePhysicsSwitches } from './physics/switches.ts';
 import { PhysicsWorld } from './physics/world.ts';
-import { physicsDebris } from './physics/debris.ts';
+import { physicsDebris, type PhysicsDebrisBackend } from './physics/debris.ts';
+import { PhysicsProps, PlayerPusher } from './physics/interaction.ts';
+import { DEFAULT_MOTOR } from './actors/motor.ts';
+import { stomp, stompPoint } from './actors/stomp.ts';
 import { ScorePlayer, type RenderedScore } from './audio/scorePlayer.ts';
 import { engineScoreAudio } from './audio/scoreAudio.ts';
 import type { ScoreWorkerReply } from './audio/scoreWorker.ts';
@@ -433,9 +436,29 @@ async function boot(): Promise<void> {
       physicsWorld = await PhysicsWorld.create(factory, collisionWorld);
       console.info(`[physics] ${physicsWorld.engine.name}: ${physicsWorld.staticCount} level colliders mirrored`);
       // Block 2: severed pieces become rigid bodies from now on (pieces already flying keep the floor model).
-      if (physics.switches.debris) gore.setDebrisBackend(physicsDebris(physicsWorld));
+      const debris = physics.switches.debris ? physicsDebris(physicsWorld) : null;
+      if (debris) gore.setDebrisBackend(debris);
+      // Block 5: the player shoves loose bodies, and props the level marks dynamic move.
+      if (physics.switches.interact) {
+        pusher = new PlayerPusher(physicsWorld, DEFAULT_MOTOR.radius);
+        if (level) physicsProps = new PhysicsProps(physicsWorld, level);
+        wakeDebris = debris;
+      }
     });
   }
+  let pusher: PlayerPusher | null = null;
+  let physicsProps: PhysicsProps | null = null;
+  let wakeDebris: PhysicsDebrisBackend | null = null;
+  /** One physics step: the pusher follows the player first, props take their new poses after (design D8, D11). */
+  const stepPhysics = (dt: number): void => {
+    if (!physicsWorld) return;
+    if (pusher) {
+      wakeDebris?.wakeNear(player.body, DEFAULT_MOTOR.radius + 0.8);
+      pusher.update(player.body);
+    }
+    physicsWorld.step(dt);
+    physicsProps?.sync();
+  };
   // Restarts (new game, loads, death) rebuild the world empty, so nothing from the last attempt survives.
   const resetPhysics = (): void => void physicsWorld?.reset();
   events.on('level:reset', resetPhysics);
@@ -488,6 +511,23 @@ async function boot(): Promise<void> {
   });
   // Enemies (ADR-0007): level spawns, player hits, noise; `?enemies=shambler:2,hero` for a quick fight.
   const enemies = setupEnemies({ events, ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels, colliders: world.playerWorld.colliders, onFootstep: onCharacterFootstep }, world, player, camera, flashlightOn: () => flashlight.on, game, audio, spawns: levelSpawns, squad, search: location.search });
+  // Player stomp (adopt-physics-engine Block 5): damages the part under the boot and shoves loose bodies there.
+  player.stompEnabled = physics.switches.interact;
+  const stompAt = new THREE.Vector3();
+  const stompDir = new THREE.Vector3();
+  events.on('player:stomp', (e) => {
+    stompAt.set(...e.at);
+    stompPoint(stompAt, { x: e.dir[0], z: e.dir[2] }, stompAt);
+    stomp(stompAt, stompDir.set(...e.dir), {
+      bodies: () => enemies.director.list.map((en) => en.body),
+      sound: (name, at, gain, rate) => void audio.play(name, { bus: 'sfx', gain, rate, position: at.clone(), reverb: 0.25 }),
+      shove: (at, half, impulse) => {
+        const w = physicsWorld;
+        if (!w || !physics.switches.interact) return;
+        for (const b of w.engine.overlappingBodies({ x: at.x, y: at.y + half, z: at.z }, { x: half, y: half, z: half })) w.engine.applyImpulse(b, impulse);
+      },
+    });
+  });
   scene.add(enemies.director.group);
   wireSquadToEnemies(squad, enemies.director, events);
   // Enemies and squadmates open unlocked auto doors as they walk up (level.setActors).
@@ -1118,7 +1158,7 @@ async function boot(): Promise<void> {
       game.update(dt);
       if (game.mode === 'playing' && !game.flying) {
         // Physics steps first, so everything after reads this step's bodies; a pause skips it (design D8).
-        physicsWorld?.step(dt);
+        stepPhysics(dt);
         sequences?.update(dt);
         enemies.update(dt);
         squad.update(dt, camera.position);

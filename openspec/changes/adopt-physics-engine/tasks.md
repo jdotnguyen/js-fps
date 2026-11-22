@@ -59,12 +59,16 @@ Each numbered group is one isolated block (design D1): one commit or PR, its swi
 
 ## 6. Block 5: Physical interaction
 
-- [ ] 6.1 Add a kinematic player capsule that pushes dynamic bodies with no feedback into the motor; verify with a test that walking over a severed arm moves the arm and leaves player speed and height unchanged
+- [x] 6.1 Add a kinematic player capsule that pushes dynamic bodies with no feedback into the motor; verify with a test that walking over a severed arm moves the arm and leaves player speed and height unchanged
+  - Done: `PlayerPusher` in `src/physics/interaction.ts`. The test walks the real player motor over an arm; the walk is identical to one with no arm. Pieces locked after 6 s wake when the player comes near.
 - [ ] 6.2 Add the player stomp action (input binding, view and leg animation, `damage.ts` stomp damage, sever threshold, sound through the `audio-assets` pipeline with a `CREDITS.md` row if needed); verify with a test that enough stomps sever a corpse arm, and in the browser
-- [ ] 6.3 Add opt-in `dynamic: { mass }` prop data; make the stand-in box the dynamic collider and remove its static mirror; verify with a test that an unmarked cabinet never moves
+  - Done except the browser check: `src/actors/stomp.ts`, C, 9 damage (two stomps per shambler part), `BodyDamage.applyToCorpse`, `Humanoid.stompHit`, existing `footConcrete`/`kill_crunch` sounds (no new asset or credits row). The view dips with the boot; there are no first-person legs to animate. Off unless `interact` is on. Corpses get pushed once Block 3 makes them ragdolls.
+- [x] 6.3 Add opt-in `dynamic: { mass }` prop data; make the stand-in box the dynamic collider and remove its static mirror; verify with a test that an unmarked cabinet never moves
+  - Done: `dynamic: { mass }` on level props, `Level.physicsProps`/`setPropPose`, `PhysicsProps`, `PhysicsWorld.exclude`. Tests: a pushed crate carries its collision along, an unmarked locker never moves, a reset puts the crate back.
 - [ ] 6.4 Opt in the placed trolley and gas cylinder (imported props), and verify the walk tests pass with each pushed into its worst doorway
+  - Blocked on a level decision: slice01 places no trolley, and its gas cylinders sit inside `cylinder_cage` with `solid: false` (no collision, nothing to push).
 - [ ] 6.5 Opt in the Lab B bench props (`lab_bench` and what sits on it) and have Voss knock them over as she staggers to the glass in the `panic` beat of the `grownInside` kill (a `kill` beat event that applies an impulse to dynamic props within reach); verify with a test that a played kill moves the bench props and a restored (`instant`) kill does not, and by screenshot from the gallery
-- [ ] 6.6 Document interaction, stomp and dynamic props in `docs/physics.md` and the README input table
+- [x] 6.6 Document interaction, stomp and dynamic props in `docs/physics.md` and the README input table
 - [ ] 6.7 Gate: full slice playthrough with every switch on; record B5 measurements; switch the interact default on
 
 ## 7. Integration check

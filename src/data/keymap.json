@@ -9,6 +9,7 @@
   "reload": ["KeyR"],
   "interact": ["KeyE"],
   "shove": ["KeyV"],
+  "stomp": ["KeyC"],
   "flashlight": ["KeyF"],
   "jump": ["Space"],
   "weapon1": ["Digit1"],

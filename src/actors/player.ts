@@ -31,6 +31,8 @@ declare module '../core/events.ts' {
     'player:died': Record<string, never>;
     /** Shove released: enemies in the cone are pushed and staggered (ADR-0007). */
     'player:shove': { origin: [number, number, number]; dir: [number, number, number]; range: number; coneDeg: number; damage: number; push: number };
+    /** The boot lands (physical-interaction "Corpses can be stomped"): `at` is the floor point under it, `dir` the view. */
+    'player:stomp': { at: [number, number, number]; dir: [number, number, number] };
     'player:grabbed': Record<string, never>;
     'player:grabEscaped': Record<string, never>;
     'interact:used': { id: string };
@@ -72,6 +74,9 @@ export const PLAYER_TUNING = {
   shoveConeDeg: 70,
   shoveDamage: 5,
   shovePush: 1.5,
+  /** Seconds from the key to the boot landing (raise, then stomp). */
+  stompWindup: 0.3,
+  stompCooldown: 0.75,
 };
 
 const PITCH_LIMIT = THREE.MathUtils.degToRad(85);
@@ -191,6 +196,12 @@ export class Player {
   private shoveWindup = -1;
   private shoveCooldown = 0;
   private shoveLunge = 0;
+  /** The stomp is part of physical interaction: off (the key does nothing) unless its switch is on (adopt-physics-engine D9). */
+  stompEnabled = false;
+  private stompWindup = -1;
+  private stompCooldown = 0;
+  /** View dip of a stomp, 0..1: the camera follows the boot down. */
+  private stompDip = 0;
   private assist: LookAssist | null = null;
   private clampCenter: THREE.Vector3 | null = null;
   private clampHalf = THREE.MathUtils.degToRad(20);
@@ -321,6 +332,9 @@ export class Player {
     this.hitSlow = this.hitPulse = this.kick = this.kickVel = 0;
     this.shoveWindup = -1;
     this.shoveCooldown = 0;
+    this.stompWindup = -1;
+    this.stompCooldown = 0;
+    this.stompDip = 0;
     this.eyeHeight = PLAYER_TUNING.eyeHeight;
     this.damageFx = 0;
   }
@@ -482,11 +496,13 @@ export class Player {
 
     this.updateGrab(input.wasPressed('interact'));
     this.updateShove(dt, input.wasPressed('shove') && (c.weapons || this.grabbed !== null) && alive);
+    this.updateStomp(dt, this.stompEnabled && input.wasPressed('stomp') && alive && !this.grabbed && this.body.grounded);
     this.updateMovement(dt, c.move);
 
     // Timers.
     this.hitSlow = Math.max(0, this.hitSlow - dt);
     this.shoveCooldown = Math.max(0, this.shoveCooldown - dt);
+    this.stompCooldown = Math.max(0, this.stompCooldown - dt);
 
     // Interaction ray from the eye.
     this.eyePosition(this.eye);
@@ -732,6 +748,26 @@ export class Player {
     }
   }
 
+  /** Stomp (adopt-physics-engine Block 5): lift the view a touch, then bring it down with the boot and report where it lands. */
+  private updateStomp(dt: number, pressed: boolean): void {
+    const T = PLAYER_TUNING;
+    if (pressed && this.stompWindup < 0 && this.stompCooldown <= 0) {
+      this.stompWindup = 0;
+      this.stompCooldown = T.stompCooldown;
+    }
+    if (this.stompWindup < 0) return;
+    this.stompWindup += dt;
+    const k = Math.min(1, this.stompWindup / T.stompWindup);
+    // Up a little while the knee lifts (first 60%), then down fast onto the boot.
+    this.stompDip = k < 0.6 ? -0.35 * Math.sin((k / 0.6) * Math.PI * 0.5) : -0.35 + 1.35 * ((k - 0.6) / 0.4) ** 2;
+    if (this.stompWindup >= T.stompWindup) {
+      this.stompWindup = -1;
+      const d = this.viewDirection(this.dir);
+      this.d.events.emit('player:stomp', { at: [this.body.x, this.body.y, this.body.z], dir: [d.x, d.y, d.z] });
+      this.kickVel -= 0.8;
+    }
+  }
+
   private updateGrab(mashed: boolean): void {
     const g = this.grabbed;
     if (!g) return;
@@ -883,12 +919,14 @@ export class Player {
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
     const lunge = this.shoveLunge * (reduced ? 0.05 : 0.12);
+    const dip = this.stompDip * (reduced ? 0.03 : 0.09);
     cam.position.set(
       this.body.x + cos * bobX - sin * lunge,
-      this.body.y + this.eyeHeight + this.stepOffset + bobY,
+      this.body.y + this.eyeHeight + this.stepOffset + bobY - dip,
       this.body.z - sin * bobX - cos * lunge,
     );
     if (this.shoveWindup < 0) this.shoveLunge *= Math.exp(-10 * dt);
+    if (this.stompWindup < 0) this.stompDip *= Math.exp(-9 * dt);
     const kickScale = reduced ? 0.3 : 1;
     // Scripted walks get a faint roll sway so they read as walking, not a dolly (intro-sequence spec).
     const sway = this.walkTarget && !reduced ? Math.sin(this.bobPhase) * WALK_SWAY * Math.min(1, this.bobAmp / T.bobWalk) : 0;

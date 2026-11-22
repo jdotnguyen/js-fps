@@ -78,6 +78,36 @@ the bodies and leaves the pieces lying where they were.
 
 Rapier averages the two colliders' friction, so a limb grips concrete, skids on bare metal and slides on glass.
 
+## Physical interaction (`interact`)
+
+**Pushing.** `PlayerPusher` (`src/physics/interaction.ts`) is an invisible kinematic capsule that follows the
+player's feet: 1.7 m tall, 0.12 m wider than the player's own collision. It shoves dynamic bodies aside, and
+nothing comes back from it, so a limb underfoot never slows, blocks or lifts the player. Because it is wider than
+the player's collision, it reaches a physics prop first, and the player pushes the prop rather than stopping at it.
+Pieces locked in place after 6 s wake up for another 2 s when the player comes within about 1 m of them.
+
+**Stomp (C).** The player lifts a boot and brings it down 0.55 m ahead (`src/actors/stomp.ts`). The view rises a
+little, then dips with the boot. A stomp:
+
+- hits the nearest head, arm or leg part on the floor within 0.45 m of where the boot lands;
+- deals 9 damage. A corpse's part still loses HP and comes off as severed debris at zero
+  (`BodyDamage.applyToCorpse`), so a shambler's arm, leg or head takes two stomps. A living body takes an
+  ordinary hit;
+- shoves loose bodies under the boot;
+- plays an existing boot thud (`footConcrete`) and, on flesh, `kill_crunch`. No new audio asset, so no new
+  `CREDITS.md` row.
+
+Corpses themselves are not physics bodies until Block 3 (ragdolls), so for now a stomp doesn't move the corpse.
+With the switch off, C does nothing.
+
+**Physics props.** A level prop marked `"dynamic": { "mass": 40 }` becomes one rigid body built from its own
+collision boxes (`PhysicsProps`). Unmarked props never move. The body's pose is written back every step through
+`Level.setPropPose`, which moves the prop's meshes and its player-collision boxes together, so the player and
+enemies collide with it where it is now. The static physics copy of those boxes is left out
+(`PhysicsWorld.exclude`). A dynamic prop isn't merged into its room's mesh, so it costs its own draw calls; mark
+only a few. Restarts put props back where the level placed them. With the switch off, a marked prop stays
+static like any other.
+
 ## Debug view
 
 With `?debug`, the lil-gui panel has a **Physics** folder: tick **show colliders** to draw them over the scene.

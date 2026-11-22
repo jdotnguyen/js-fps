@@ -30,6 +30,8 @@ const LINEAR_DAMPING = 0.05;
 const ANGULAR_DAMPING = 0.6;
 /** Fraction of the gore system's random spin kept on the body (the floor model needed more to tip pieces over). */
 const SPIN_SCALE = 0.6;
+/** A locked piece the player touches simulates again for this long before it locks once more (s). */
+export const WAKE_TIME = 2;
 
 interface Tracked {
   piece: DebrisPiece;
@@ -38,6 +40,8 @@ interface Tracked {
   generation: number;
   impacted: boolean;
   frozen: boolean;
+  /** Seconds simulated since it was severed or last woken; at `STATIC_AFTER` it is made static. */
+  activeFor: number;
   /** Velocity and position before the last step, for the impact speed and the raycast back along the path. */
   prevVel: V3;
   prevPos: V3;
@@ -77,7 +81,13 @@ export function debrisShape(probes: readonly THREE.Vector3[], radius: number, sc
   return { center, rotation, halfHeight: len / 2, radius: r, mass: Math.max(MIN_MASS, LINEAR_DENSITY * (len + 2 * r)) };
 }
 
-export function physicsDebris(world: PhysicsWorld): DebrisBackend {
+/** The physics backend, plus waking locked pieces near the player (physical-interaction "The player pushes loose bodies"). */
+export interface PhysicsDebrisBackend extends DebrisBackend {
+  /** Make static pieces whose origin is within `radius` of `center` dynamic again for `WAKE_TIME` seconds. */
+  wakeNear(center: V3, radius: number): void;
+}
+
+export function physicsDebris(world: PhysicsWorld): PhysicsDebrisBackend {
   const tracked = new Map<DebrisPiece, Tracked>();
   const byCollider = new Map<number, Tracked>();
   let generation = world.generation;
@@ -176,6 +186,7 @@ export function physicsDebris(world: PhysicsWorld): DebrisBackend {
         generation,
         impacted: false,
         frozen: false,
+        activeFor: 0,
         prevVel: { x: piece.velocity.x, y: piece.velocity.y, z: piece.velocity.z },
         prevPos: { x: _pos.x, y: _pos.y, z: _pos.z },
         scale: _scale.clone(),
@@ -184,7 +195,7 @@ export function physicsDebris(world: PhysicsWorld): DebrisBackend {
       byCollider.set(collider, t);
     },
 
-    update(pieces, _dt, impacts) {
+    update(pieces, dt, impacts) {
       dropStale();
       const e = world.engine;
       // First impacts from the step that just ran (the world steps before gore updates).
@@ -204,7 +215,8 @@ export function physicsDebris(world: PhysicsWorld): DebrisBackend {
         const t = tracked.get(piece);
         if (!t || t.frozen) continue;
         writeBack(t);
-        if (piece.age >= STATIC_AFTER) {
+        t.activeFor += dt;
+        if (t.activeFor >= STATIC_AFTER) {
           e.setBodyKind(t.body, 'fixed');
           t.frozen = true;
           piece.asleep = true;
@@ -221,6 +233,19 @@ export function physicsDebris(world: PhysicsWorld): DebrisBackend {
         t.prevPos.x = _pos.x;
         t.prevPos.y = _pos.y;
         t.prevPos.z = _pos.z;
+      }
+    },
+
+    wakeNear(center, radius) {
+      dropStale();
+      for (const t of tracked.values()) {
+        if (!t.frozen) continue;
+        t.piece.object.getWorldPosition(_pos);
+        if (Math.hypot(_pos.x - center.x, _pos.y - center.y, _pos.z - center.z) > radius) continue;
+        world.engine.setBodyKind(t.body, 'dynamic');
+        t.frozen = false;
+        t.activeFor = STATIC_AFTER - WAKE_TIME;
+        t.piece.asleep = false;
       }
     },
 

@@ -2,7 +2,7 @@ import { arr, obj, str, type Validator } from '../../core/validate.ts';
 
 export const ACTIONS = [
   'moveForward', 'moveBack', 'moveLeft', 'moveRight', 'sprint',
-  'fire', 'aim', 'reload', 'interact', 'shove', 'flashlight',
+  'fire', 'aim', 'reload', 'interact', 'shove', 'stomp', 'flashlight',
   'jump', 'weapon1', 'weapon2', 'objective', 'navPulse', 'map', 'pause', 'skipCutscene',
   'flyUp', 'flyDown',
 ] as const;

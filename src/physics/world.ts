@@ -66,6 +66,9 @@ export class PhysicsWorld {
   private stepCount = 0;
   private destroyed = false;
   private gen = 0;
+  private resetInFlight = false;
+  /** Mirror entries that stay disabled: boxes a dynamic body stands in for (a physics prop's own colliders). */
+  private readonly excluded = new Set<number>();
   private lastContacts: Contact[] = [];
 
   private constructor(factory: PhysicsEngineFactory, source: MirrorSource, engine: PhysicsEngine) {
@@ -91,12 +94,31 @@ export class PhysicsWorld {
     return this.gen;
   }
 
+  /** True from a `reset()` call until its new engine is in place: owners must not read their old bodies meanwhile. */
+  get resetting(): boolean {
+    return this.resetInFlight;
+  }
+
   /**
    * Contacts that started during the last step. The world drains the engine once per step so several systems
    * (debris, later ragdolls) can each read them.
    */
   contacts(): readonly Contact[] {
     return this.lastContacts;
+  }
+
+  /**
+   * Leave these `CollisionWorld` colliders (by id) out of the static mirror for good, across resets: a physics prop's
+   * boxes move with it, so its rigid body replaces them (adopt-physics-engine D11).
+   */
+  exclude(ids: Iterable<number>): void {
+    for (const id of ids) this.excluded.add(id);
+    for (const m of this.mirrored) {
+      if (m.enabled && this.excluded.has(this.source.colliders[m.index]!.id)) {
+        this.current.setColliderEnabled(m.handle, false);
+        m.enabled = false;
+      }
+    }
   }
 
   /** Static colliders currently mirrored (enabled or not). */
@@ -130,7 +152,9 @@ export class PhysicsWorld {
   /** Throw away every body and rebuild the static mirror in a fresh engine (level or checkpoint restart). */
   async reset(): Promise<void> {
     if (this.destroyed) return;
+    this.resetInFlight = true;
     const next = await this.factory();
+    this.resetInFlight = false;
     if (this.destroyed) {
       next.destroy();
       return;
@@ -156,7 +180,7 @@ export class PhysicsWorld {
     this.mirrorNew();
     const src = this.source.colliders;
     for (const m of this.mirrored) {
-      const enabled = src[m.index]!.enabled;
+      const enabled = src[m.index]!.enabled && !this.excluded.has(src[m.index]!.id);
       if (enabled !== m.enabled) {
         if (enabled) this.pushOutOf(src[m.index]!);
         this.current.setColliderEnabled(m.handle, enabled);
@@ -198,8 +222,9 @@ export class PhysicsWorld {
         },
         null,
       );
-      if (!c.enabled) this.current.setColliderEnabled(handle, false);
-      this.mirrored.push({ index: i, handle, enabled: c.enabled });
+      const enabled = c.enabled && !this.excluded.has(c.id);
+      if (!enabled) this.current.setColliderEnabled(handle, false);
+      this.mirrored.push({ index: i, handle, enabled });
     }
   }
 }

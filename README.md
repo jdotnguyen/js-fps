@@ -52,6 +52,7 @@ ADR-0016: autosave at checkpoints, manual saves at the green save terminal, thre
 | Shift | Faster |
 | F | Flashlight |
 | E | Use (save terminal) |
+| C | Stomp (with `?physics=interact`; see [docs/physics.md](docs/physics.md)) |
 | Esc | Pause menu |
 
 `npm run textures:preview` writes PNG contact sheets of every texture to `previews/`.
