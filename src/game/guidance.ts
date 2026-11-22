@@ -43,7 +43,7 @@ declare module '../core/events.ts' {
 /** What the speech manager offers (dialogue/speech.ts); null before it exists. */
 export interface GuidanceSpeech {
   speaking(): { priority: string } | null;
-  say(id: string, opts?: { at?: () => { x: number; y: number; z: number } }): unknown;
+  say(id: string, opts?: { at?: () => { x: number; y: number; z: number }; channel?: string }): unknown;
 }
 
 export interface GuidanceDeps {
@@ -131,7 +131,8 @@ export class Guidance {
     const say = (id: string, speaker?: string): void => {
       if (!speech) return;
       const at = speaker && d.speakerAt ? (): { x: number; y: number; z: number } => d.speakerAt!(speaker) ?? d.player.feet() : undefined;
-      speech.say(id, at ? { at } : {});
+      // Barks and hints share one channel of their own, so they never wait on a scene the player cannot hear (dialogue-channels).
+      speech.say(id, at ? { at, channel: 'ambient' } : { channel: 'ambient' });
     };
     this.barks = new BarkSystem({
       lines: d.barkLines,

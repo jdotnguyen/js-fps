@@ -195,15 +195,23 @@ test('addressee flows from line or say option into SpeechInfo with option winnin
 test('an overlap line plays beside a story line without queuing (PA under the squad, intro-sequence spec)', async () => {
   const { sm, log } = setup();
   sm.say('story_a');
-  const pa = sm.say('story_b', { overlap: true });
+  const pa = sm.say('medic_a', { overlap: true });
   assert.deepEqual(sm.queuedIds(), [], 'nothing waits');
-  assert.deepEqual(log, ['start story_a', 'start story_b']);
+  assert.deepEqual(log, ['start story_a', 'start medic_a']);
   assert.equal(sm.speaking()?.id, 'story_a', 'the main lane is unchanged');
-  sm.say('medic_a');
-  assert.deepEqual(sm.queuedIds(), ['medic_a'], 'the main queue still works normally');
+  sm.say('story_b');
+  assert.deepEqual(sm.queuedIds(), ['story_b'], 'the main queue still works normally');
   run(sm, 1.9);
   assert.equal(await pa.done, 'finished');
-  assert.ok(log.includes('end story_b finished'));
+  assert.ok(log.includes('end medic_a finished'));
+});
+
+test('an overlap line from someone already talking cuts their other line: nobody talks over themself', async () => {
+  const { sm, log } = setup();
+  const first = sm.say('story_a');
+  sm.say('story_b', { overlap: true });
+  assert.deepEqual(log, ['start story_a', 'end story_a interrupted', 'start story_b']);
+  assert.equal(await first.done, 'interrupted');
 });
 
 test('stopAll also stops overlap lines', async () => {

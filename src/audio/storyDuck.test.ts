@@ -58,3 +58,17 @@ test('a line that ends without starting does not affect the duck; reset restores
   ducker.reset();
   assert.equal(engine.duckGain('ambience'), 1);
 });
+
+test('story out of earshot leaves the music alone, and ducks once the player can hear it (dialogue-channels)', () => {
+  const bus = new EventBus();
+  const engine = new AudioEngine();
+  const ducker = new StoryDucker(bus, engine);
+  bus.emit('speech:started', { id: 'hale_1', speaker: 'director', name: 'Hale', text: '', emote: null, channel: 'local', priority: 'story', duration: 2, audible: false });
+  assert.equal(ducker.ducked, false, 'a scene across the station does not duck');
+  bus.emit('speech:audible', { id: 'hale_1', priority: 'story', audible: true });
+  assert.equal(ducker.ducked, true, 'walked within earshot');
+  bus.emit('speech:audible', { id: 'hale_1', priority: 'story', audible: false });
+  assert.equal(ducker.ducked, false, 'walked away again');
+  bus.emit('speech:ended', { id: 'hale_1', speaker: 'director', reason: 'finished' });
+  assert.equal(ducker.ducked, false);
+});

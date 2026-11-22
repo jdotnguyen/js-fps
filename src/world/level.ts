@@ -32,6 +32,7 @@ import { gridNodes, NavGraph, type Navigator, type P3 } from '../ai/nav.ts';
 import { NavMeshNav, navmeshReady } from '../ai/navmesh.ts';
 import { buildExterior, type Exterior, type ExteriorWindow } from '../render/fx/exterior.ts';
 import type { ExteriorLamp } from '../render/fx/exteriorLight.ts';
+import { VoiceGraph, type VoicePath, type VoicePortal } from '../audio/voicePath.ts';
 
 const EYE_HEIGHT = PLAYER_TUNING.eyeHeight;
 /** Seconds an auto door stays open after reaching fully open while nobody is nearby. */
@@ -1042,6 +1043,39 @@ export class Level implements World {
     return this.roomAt(eye)?.data.name ?? null;
   }
 
+  /**
+   * How a voice at `from` reaches a listener at `to` through rooms, doorways and glass (voice-playback: Voices carry
+   * through the station), or null when it is too many rooms away to hear. Door states are read live.
+   */
+  voicePath(from: THREE.Vector3, to: THREE.Vector3): VoicePath | null {
+    return this.voiceGraph().path(from, this.roomAt(from)?.data.id ?? null, to, this.roomAt(to)?.data.id ?? null);
+  }
+
+  private voiceGraphCache: VoiceGraph | null = null;
+
+  private voiceGraph(): VoiceGraph {
+    if (this.voiceGraphCache) return this.voiceGraphCache;
+    const portals: VoicePortal[] = this.doors.map((d) => ({
+      rooms: [d.rooms[0].data.id, d.rooms[1].data.id] as const,
+      at: d.center,
+      // Half open is open enough to talk through; a closed glass door lets a voice through as glass does.
+      state: () => (d.open > 0.3 ? 'open' : d.visual.seeThrough ? 'glass' : 'closed'),
+    }));
+    // Windows and glass partitions: rooms declared visible from each other share a glass portal at their boundary.
+    const seen = new Set<string>();
+    for (const r of this.rooms) {
+      for (const other of r.data.visibleFrom ?? []) {
+        const o = this.roomById.get(other);
+        const key = [r.data.id, other].sort().join('|');
+        if (!o || seen.has(key)) continue;
+        seen.add(key);
+        portals.push({ rooms: [r.data.id, other] as const, at: roomBoundaryPoint(r.cells, o.cells), state: () => 'glass' });
+      }
+    }
+    this.voiceGraphCache = new VoiceGraph(portals);
+    return this.voiceGraphCache;
+  }
+
   paSpeakerAt(listener: THREE.Vector3, fixture?: string): THREE.Vector3 | null {
     const room = this.roomAt(listener)?.data.id ?? this.currentRoomId();
     return selectPaSpeaker(this.paSpeakers, room, listener, fixture);
@@ -1739,4 +1773,27 @@ function glowGeometry(kind: LightSlotKind): THREE.BufferGeometry {
   if (kind === 'emergency') return new THREE.SphereGeometry(0.075, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
   if (kind === 'pendant') return new THREE.SphereGeometry(0.06, 12, 8); // the bulb inside the pendant_light shade
   return new THREE.SphereGeometry(0.07, 12, 8);
+}
+
+/** The point where two rooms' cells come closest: the middle of their shared wall, for a glass portal. */
+function roomBoundaryPoint(a: readonly THREE.Box3[], b: readonly THREE.Box3[]): THREE.Vector3 {
+  let best = new THREE.Vector3();
+  let bestD = Infinity;
+  const ca = new THREE.Vector3();
+  const pa = new THREE.Vector3();
+  const pb = new THREE.Vector3();
+  for (const x of a) {
+    for (const y of b) {
+      y.getCenter(ca);
+      x.clampPoint(ca, pa);
+      y.clampPoint(pa, pb);
+      const d = pa.distanceToSquared(pb);
+      if (d < bestD) {
+        bestD = d;
+        best = pa.clone().add(pb).multiplyScalar(0.5);
+      }
+    }
+  }
+  best.y = Math.min(best.y, (a[0]?.min.y ?? 0) + 1.6);
+  return best;
 }

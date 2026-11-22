@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventBus } from '../core/events.ts';
-import { npcIdForSpeaker, wireSpeechActing } from './speakerBodies.ts';
+import { npcCandidatesForSpeaker, npcIdForSpeaker, wireSpeechActing } from './speakerBodies.ts';
 import type { Humanoid } from '../actors/humanoid.ts';
 import '../dialogue/speech.ts';
 
@@ -12,7 +12,11 @@ test('speakers map to the NPCs that say their lines', () => {
   assert.equal(npcIdForSpeaker('chief'), 'heins');
   assert.equal(npcIdForSpeaker('crew_cook'), 'cook');
   assert.equal(npcIdForSpeaker('crew_lab'), 'researcher_b', 'Voss says her own lines behind the Lab B glass (drop_voss_01)');
-  for (const s of ['player', 'pa', 'director', 'infected', 'crew']) assert.equal(npcIdForSpeaker(s), null, s);
+  assert.equal(npcIdForSpeaker('director'), 'hale', 'Hale says his office lines from his own head');
+  assert.equal(npcIdForSpeaker('crew_maint'), 'maint_1');
+  assert.deepEqual(npcCandidatesForSpeaker('crew_botanist'), ['botanist_1', 'botanist_2', 'botanist_3']);
+  assert.deepEqual(npcCandidatesForSpeaker('crew_sung'), ['sung']);
+  for (const s of ['player', 'pa', 'infected', 'crew']) assert.equal(npcIdForSpeaker(s), null, s);
 });
 
 test('a started line makes its speaker act it, and any ending stops it', () => {
@@ -31,4 +35,21 @@ test('a started line makes its speaker act it, and any ending stops it', () => {
   off();
   bus.emit('speech:started', { id: 'l3', speaker: 'engineer', name: 'Giles', text: 'x', emote: null, channel: 'local', priority: 'story', duration: 1 });
   assert.equal(calls.length, 2, 'unsubscribed');
+});
+
+test('every local line in slice01 has a body to speak from, or a deliberately disembodied speaker (voice-playback)', async () => {
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const { DISEMBODIED } = await import('./speakerBodies.ts');
+  const json = (rel: string): unknown => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
+  const level = json('../data/levels/slice01.json') as { rooms: Array<{ npcs?: Array<{ id: string }> }> };
+  const npcIds = new Set(level.rooms.flatMap((r) => (r.npcs ?? []).map((n) => n.id)));
+  const missing: string[] = [];
+  for (const file of readdirSync(new URL('../data/dialogue/', import.meta.url))) {
+    const data = json(`../data/dialogue/${file}`) as { lines?: Array<{ id: string; speaker: string; channel: string }> };
+    for (const line of data.lines ?? []) {
+      if (line.channel !== 'local' || DISEMBODIED.has(line.speaker)) continue;
+      if (!npcCandidatesForSpeaker(line.speaker).some((id) => npcIds.has(id))) missing.push(`${line.id} (${line.speaker})`);
+    }
+  }
+  assert.deepEqual(missing, [], `local lines whose speaker has no NPC in slice01: ${missing.join(', ')}`);
 });

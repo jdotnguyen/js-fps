@@ -229,15 +229,6 @@
     "at": "anchor:dive_case_locker"
    },
    {
-    "do": "npcLookAt",
-    "npc": "sung",
-    "target": "anchor:dive_case_locker"
-   },
-   {
-    "do": "say",
-    "line": "dive_sung_03"
-   },
-   {
     "do": "completeObjective",
     "id": "round_dive"
    },
@@ -252,6 +243,15 @@
     "payload": {
      "which": "dive"
     }
+   },
+   {
+    "do": "npcLookAt",
+    "npc": "sung",
+    "target": "anchor:dive_case_locker"
+   },
+   {
+    "do": "say",
+    "line": "dive_sung_03"
    }
   ]
  },

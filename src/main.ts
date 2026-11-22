@@ -42,7 +42,7 @@ import { DoorAudio } from './audio/doorAudio.ts';
 import { AudioEngine } from './audio/engine.ts';
 import { FootstepAudio } from './audio/footsteps.ts';
 import { MenuMusic } from './audio/menuMusic.ts';
-import { wallOccluder } from './audio/occlusion.ts';
+import { EARSHOT_LEVEL, voiceAudibility, wallOccluder } from './audio/occlusion.ts';
 import { loadPhysics } from './physics/load.ts';
 import { anyPhysics, resolvePhysicsSwitches } from './physics/switches.ts';
 import { PhysicsWorld } from './physics/world.ts';
@@ -85,7 +85,7 @@ import { Squad } from './ai/squad.ts';
 import { REVIVE_TASK } from './ai/squadBrain.ts';
 import { NpcDirector } from './ai/npcs.ts';
 import { cameraForwardXZ } from './ai/ambientLife.ts';
-import { npcIdForSpeaker, wireSpeechActing } from './ai/speakerBodies.ts';
+import { npcCandidatesForSpeaker, npcIdForSpeaker, wireSpeechActing } from './ai/speakerBodies.ts';
 import { wireSquadToEnemies } from './ai/squadEnemies.ts';
 import { setupEnemies, spawnPointsOf } from './ai/enemyGame.ts';
 import type { SpawnPointData } from './ai/spawner.ts';
@@ -106,7 +106,8 @@ import { objectivesValidator } from './data/types/objectives.ts';
 import type { MapModel, MapState } from './ui/mapModel.ts';
 import { Guidance } from './game/guidance.ts';
 import { loadDialogueLibrary } from './dialogue/load.ts';
-import { SpeechManager, type SayOptions } from './dialogue/speech.ts';
+import { SpeechManager, type Hearing, type SayOptions } from './dialogue/speech.ts';
+import type { DialogueLine } from './data/types/dialogue.ts';
 import type { ScriptSpeechOptions } from './script/host.ts';
 import { WebAudioVoicePlayer } from './dialogue/voicePlayer.ts';
 import { StoryDucker } from './audio/storyDuck.ts';
@@ -608,7 +609,7 @@ async function boot(): Promise<void> {
     return { name: id, ...viewmodel.ammoOf(id), mag: viewmodel.magSize(id) };
   });
   renderer.compile(scene, camera);
-  // Speech: one voice at a time with subtitles; lines unknown to the library are skipped.
+  // Speech: one channel per conversation, with subtitles (dialogue-channels); lines unknown to the library are skipped.
   const dialogue = loadDialogueLibrary();
   // Dialogue plays on the engine's voice bus (audio-mix: Mix buses), keeping the room reverb send.
   const voicePlayer = new WebAudioVoicePlayer({ ctx: audio.ctx, master: audio.buses.voice, reverbIn: audio.voiceReverbIn });
@@ -616,12 +617,46 @@ async function boot(): Promise<void> {
   void voicePlayer.loadLines(dialogue.allLines()).then((n) => {
     if (n > 0) console.info(`[boot] loaded ${n} VO clips`);
   });
-  const speech = new SpeechManager(events, dialogue, voicePlayer);
+  // How each local voice reaches the player through rooms and doors, and whether its subtitle shows (voice-playback).
+  const voiceFrom = new THREE.Vector3();
+  const hearing = (line: DialogueLine, at: SayOptions['at']): Hearing => {
+    if (line.channel !== 'local' || !at || !level) return 'everywhere';
+    const p = at();
+    if (!p) return 'everywhere';
+    voiceFrom.set(p.x, p.y, p.z);
+    const a = voiceAudibility(level.voicePath(voiceFrom, camera.position));
+    return { gain: a.gain, cutoffHz: a.cutoffHz, distance: voiceFrom.distanceTo(camera.position), audible: a.level >= EARSHOT_LEVEL };
+  };
+  const speech = new SpeechManager(events, dialogue, voicePlayer, { hearing });
   const speakerHead = new THREE.Vector3();
+  /**
+   * The NPC saying a speaker's lines. A pooled speaker (the botanists) is voiced by the nearest living member, and that
+   * choice holds until the line ends, so the voice never hops between bodies mid-line.
+   */
+  const pooledVoice = new Map<string, string>();
+  const speakerNpcId = (speaker: string): string | null => {
+    const held = pooledVoice.get(speaker);
+    if (held && npcs.has(held)) return held;
+    const options = npcCandidatesForSpeaker(speaker).filter((id) => npcs.has(id));
+    if (options.length <= 1) return options[0] ?? null;
+    let best: string | null = null;
+    let bestD = Infinity;
+    for (const id of options) {
+      const a = npcs.actor(id, false);
+      if (!a || !a.body.alive) continue;
+      const d = a.position.distanceToSquared(camera.position);
+      if (d < bestD) {
+        bestD = d;
+        best = id;
+      }
+    }
+    if (best) pooledVoice.set(speaker, best);
+    return best;
+  };
   /** A speaker's head, for a speaker with a body on this level (voice-playback: local lines play from the speaker's head). */
   const speakerHeadAt = (speaker: string): { x: number; y: number; z: number } | null => {
-    const id = npcIdForSpeaker(speaker);
-    const body = id && npcs.has(id) ? npcs.actor(id, false)?.body : null;
+    const id = speakerNpcId(speaker);
+    const body = id ? npcs.actor(id, false)?.body : null;
     if (!body) return null;
     const h = body.jointWorld('head', speakerHead);
     return { x: h.x, y: h.y, z: h.z };
@@ -629,11 +664,11 @@ async function boot(): Promise<void> {
   squad.setSpeech(speech);
   // ADR-0027: whoever says a line acts it: mouth on the subtitle's syllables, hands and body on the emote.
   wireSpeechActing(events, (speaker) => {
-    const id = npcIdForSpeaker(speaker);
-    return id && npcs.has(id) ? (npcs.actor(id, false)?.body ?? null) : null;
+    const id = speakerNpcId(speaker);
+    return id ? (npcs.actor(id, false)?.body ?? null) : null;
   });
   // ADR-0029 listen-look: people near a speaker turn their heads to them; the speaker looks at their explicit addressee or whoever they answer.
-  const talkerId = (speaker: string): string | null => (speaker === 'player' ? 'player' : npcIdForSpeaker(speaker));
+  const talkerId = (speaker: string): string | null => (speaker === 'player' ? 'player' : speakerNpcId(speaker));
   const addresseeId = (to: string | undefined): string | null => {
     if (!to) return null;
     if (to === 'player') return 'player';
@@ -650,6 +685,8 @@ async function boot(): Promise<void> {
     const id = talkerId(e.speaker);
     if (id) npcs.lineEnded(id);
   });
+  // After the acting and listen-look handlers, so they release the same pooled body that said the line.
+  events.on('speech:ended', (e) => pooledVoice.delete(e.speaker));
   new Subtitles(el<HTMLElement>('#ui'), events, settings);
   // Music and ambience dip under story lines (spec audio-mix: Story ducking).
   const storyDucker = new StoryDucker(events, audio);

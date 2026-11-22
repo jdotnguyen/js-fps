@@ -830,3 +830,29 @@ test('the Lab B score loads at the gallery call and again as the drop starts; th
   assert.ok(klaxons.length > 0);
   assert.ok(klaxons.every((k) => k['beat'] === true));
 });
+
+// ------------------------------------------------------------------------- dialogue channels (spatial-dialogue-channels)
+
+test('dive stow: the round completes on use while Sung is still talking, and his line rides its own channel', async () => {
+  const g = makeGame(['dive_moment', 'dive_case_taken', 'dive_stow']);
+  const channels = new Map<string, string | undefined>();
+  // Lines never finish in this test: Sung is mid-conversation the whole time.
+  g.host.say = (line, opts) => {
+    g.log.push(`say ${line}`);
+    channels.set(line, opts?.channel);
+    return { done: new Promise(() => undefined) };
+  };
+  g.host.flags['briefingSeen'] = true;
+  fire(g, 'trigger:dive_enter');
+  await advance(g, 2);
+  assert.equal(said(g, 'dive_sung_01'), 1, 'Sung is talking');
+  g.host.events.emit('item:given', { id: 'sample_case' });
+  fire(g, 'round:dive_case');
+  await advance(g, 0.1);
+  assert.equal(g.host.flags['round_dive_done'], true, 'the objective does not wait for any line');
+  assert.equal(g.host.flags['obj:round_dive'], 'done');
+  assert.equal(count(g, 'event round:complete dive'), 1);
+  assert.equal(said(g, 'dive_sung_03'), 1, 'Sung still acknowledges it');
+  assert.ok(channels.get('dive_sung_01') && channels.get('dive_sung_03'));
+  assert.notEqual(channels.get('dive_sung_01'), channels.get('dive_sung_03'), 'the stow is its own conversation');
+});

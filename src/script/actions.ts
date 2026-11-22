@@ -726,6 +726,8 @@ export const ACTIONS: Record<string, ActionDef> = {
       ...(s.overlap ? { overlap: true } : {}),
       ...(s.fixture !== undefined ? { fixture: s.fixture } : {}),
       ...(s.to !== undefined ? { to: s.to } : {}),
+      // A sequence is one conversation (it never runs twice at once): its lines share a channel (dialogue-channels).
+      channel: `seq:${ctx.seqId}`,
     });
     if (h && s.wait !== false) return { ...pending(h.done), skip: () => ctx.host.markLinePlayed?.(s.line) };
   }),

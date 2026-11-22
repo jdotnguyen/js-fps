@@ -26,7 +26,7 @@
     ]
   },
   "round_dive": {
-    "title": "Dive bay: take the sample case to the airlock locker",
+    "title": "Dive bay: stow the sample case in the Sample Store",
     "required": true,
     "area": "dive_bay",
     "target": "anchor:dive_case_pickup",

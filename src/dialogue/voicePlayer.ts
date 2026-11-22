@@ -12,6 +12,11 @@ import { audioUrls, type DialogueLine, type Emote } from '../data/types/dialogue
 import type { PlayRequest, VoicePlayback, VoicePlayer } from './speech.ts';
 import { renderUtterance } from './vocalSynth.ts';
 
+/** Low-pass cutoff for a voice with nothing in the way: effectively open. */
+const OPEN_CUTOFF_HZ = 20000;
+/** Time constant for propagation changes (gain and tone); settles in about 80 ms. */
+const HEAR_RAMP_S = 0.027;
+
 /** The part of AudioEngine dialogue needs. */
 export interface AudioOut {
   readonly ctx: AudioContext;
@@ -206,6 +211,8 @@ export class WebAudioVoicePlayer implements VoicePlayer {
     head.connect(lineGain);
 
     let panner: PannerNode | null = null;
+    let hearGain: GainNode | null = null;
+    let hearLp: BiquadFilterNode | null = null;
     let staticSrc: AudioBufferSourceNode | null = null;
     let bed: GainNode | null = null;
 
@@ -225,13 +232,18 @@ export class WebAudioVoicePlayer implements VoicePlayer {
       let localOut: AudioNode = lineGain;
       if (req.at) {
         const p = req.at();
+        // A local voice keeps falling off with distance (no 40 m floor); propagation fades it to silence (setAudibility).
         panner = new PannerNode(ctx, {
-          panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 1.5, maxDistance: 40, rolloffFactor: 1,
+          panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 1.5, maxDistance: 10000, rolloffFactor: 1,
           positionX: p.x, positionY: p.y, positionZ: p.z,
         });
         lineGain.connect(panner);
         nodes.push(panner);
-        localOut = panner;
+        // Walls, doorways and the way round (voice-playback: Voices carry through the station), ramped per frame.
+        hearLp = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: OPEN_CUTOFF_HZ, Q: 0.7 });
+        hearGain = new GainNode(ctx, { gain: 1 });
+        localOut = panner.connect(hearLp).connect(hearGain);
+        nodes.push(hearLp, hearGain);
       }
       localOut.connect(this.output);
       if (this.reverbIn && this.reverbSend > 0) {
@@ -257,6 +269,13 @@ export class WebAudioVoicePlayer implements VoicePlayer {
         panner.positionX.setTargetAtTime(p.x, t, 0.02);
         panner.positionY.setTargetAtTime(p.y, t, 0.02);
         panner.positionZ.setTargetAtTime(p.z, t, 0.02);
+      },
+      setAudibility: (gain, cutoffHz) => {
+        if (!hearGain || !hearLp || stopped) return;
+        const t = ctx.currentTime;
+        // ~80 ms to settle, so crossing a doorway or a door swinging shut never clicks.
+        hearGain.gain.setTargetAtTime(Math.max(0, Math.min(1, gain)), t, HEAR_RAMP_S);
+        hearLp.frequency.setTargetAtTime(Math.min(OPEN_CUTOFF_HZ, Number.isFinite(cutoffHz) ? cutoffHz : OPEN_CUTOFF_HZ), t, HEAR_RAMP_S);
       },
       stop: (interrupted) => {
         if (stopped) return;
