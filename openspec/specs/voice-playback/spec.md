@@ -25,11 +25,15 @@ If a line's recording is missing or fails to load, the line SHALL still play wit
 - **THEN** its emote sound plays in that speaker's voice profile and the subtitle appears
 
 ### Requirement: Local channel
-Lines on the `local` channel SHALL be positioned at the speaker's head and follow the room reverb. A local line with no speaker position SHALL play centred.
+Lines on the `local` channel SHALL be positioned at the speaker's head and follow the room reverb, and SHALL follow the speaker's head while it moves. They SHALL be heard through the station as the voice propagation requirement describes. A local line SHALL play centred only when its speaker is deliberately disembodied; every other local speaker SHALL have a body in the level.
 
 #### Scenario: Squadmate behind the player
 - **WHEN** Okafor speaks on the local channel while standing behind the player
 - **THEN** his voice comes from behind, at his head height, with the room's reverb
+
+#### Scenario: Director in his office
+- **WHEN** Hale says his office lines while the player stands in the doorway
+- **THEN** his voice comes from Hale's head in the office, not from the centre of the player's head
 
 ### Requirement: Radio channel
 Lines on the `radio` channel SHALL sound like comms: band-limited to about 300-3400 Hz, saturated and compressed, with a squelch click at the start and end and a low static bed under the line. Radio lines SHALL NOT be positioned and SHALL NOT use the room reverb.
@@ -39,11 +43,29 @@ Lines on the `radio` channel SHALL sound like comms: band-limited to about 300-3
 - **THEN** his line is heard centred with comms filtering, a squelch at each end and static underneath
 
 ### Requirement: Station PA
-Station PA lines SHALL use the radio channel treatment so they read as the public address system, not as a person in the room.
+
+Each Station PA line SHALL play its existing recording from one wall speaker, with a slightly boxy loudspeaker tone, directional sound and distance attenuation. The source SHALL stay at the same grille until the line finishes. During scripted overlap, nearby conversation SHALL remain intelligible in the foreground.
+
+#### Scenario: Halcyon docks
+
+- **WHEN** Jay watches Halcyon dock from his post
+- **THEN** the PA chime and announcement sound from the same box to one side of the window
 
 #### Scenario: Quarantine announcement
-- **WHEN** `pa_quarantine_01` plays
-- **THEN** it has the radio filtering, centred, with no room reverb
+
+- **WHEN** the quarantine notice starts during the walk with Giles and Okafor
+- **THEN** it plays immediately from a speaker farther along the route, both subtitles appear during the overlap, and Giles's words are easy to follow with subtitles off
+- **AND** the source is heard beside and then behind Jay as he passes the box
+
+#### Scenario: A call during rounds
+
+- **WHEN** the quarantine repeat or gallery summons starts during free movement
+- **THEN** one speaker serving the player's area carries the line from its first word to its last, even if the player enters another room
+
+#### Scenario: Gallery lockdown
+
+- **WHEN** the lockdown notice plays over the crew in the observation gallery
+- **THEN** the notice comes from the gallery wall speaker and the crew's response is intelligible
 
 ### Requirement: Voice stops with the scene
 All dialogue SHALL stop when the game returns to the title screen or restarts, so no line from a previous run is heard.
@@ -128,3 +150,52 @@ When a speaker's accent has been confirmed by listening to their existing lines,
 #### Scenario: Speaker with no confirmed accent
 - **WHEN** a line is generated for a speaker whose accent has not been confirmed
 - **THEN** the prompt adds no accent instruction
+
+### Requirement: Every local speaker has a body
+Each speaker with a local-channel line SHALL map to an NPC that stands in the level where the line is said, unless the speaker is listed as disembodied. The level tests SHALL fail for a local line whose speaker has no body and is not listed, naming the line and the speaker.
+
+#### Scenario: Unmapped speaker
+- **WHEN** a local line is added for a speaker that maps to no NPC in slice01 and is not listed as disembodied
+- **THEN** the level tests fail and name the line and its speaker
+
+#### Scenario: Maintenance tech in the dive bay
+- **WHEN** the maintenance tech says "Lights are out down the back corridor again"
+- **THEN** the voice comes from the tech standing in the dive bay
+
+### Requirement: Voices carry through the station
+A local voice SHALL travel from its speaker to the player through rooms and doorways. In the same room, or through an open doorway, it SHALL fade with distance as before. Each room boundary on the way SHALL make it duller and quieter, and a closed door much more so. Three or more boundaries away, or more than about 30 m along the way, it SHALL be silent. Glass between adjacent rooms SHALL dull it only slightly.
+
+#### Scenario: Next room, door open
+- **WHEN** Giles talks in the next room with the door between them open
+- **THEN** the player hears him slightly muffled and quieter than in the same room, still clearly from Giles's side
+
+#### Scenario: Behind a closed door
+- **WHEN** a speaker talks in the next room with the door closed
+- **THEN** the voice is strongly muffled and quiet, and becomes clear when the door opens
+
+#### Scenario: Across the station
+- **WHEN** Hale speaks in his office while the player is in the dive bay
+- **THEN** nothing of his voice is heard
+
+#### Scenario: Walking away mid-line
+- **WHEN** the player walks out of a room while a line is playing in it
+- **THEN** the voice dulls and fades as boundaries are crossed, during the line, not only at its next line
+
+### Requirement: Subtitles follow the player's earshot
+A local line's subtitle SHALL show only while its speaker is within 20 m of the player and its voice is audible. This SHALL be re-checked during the line: walking into range shows the subtitle for the rest of the line, and walking out hides it. Radio and PA subtitles SHALL show wherever the player is.
+
+#### Scenario: A conversation far behind
+- **WHEN** a scene plays 25 m from the player in a room they can still faintly hear
+- **THEN** no subtitle for it is shown
+
+#### Scenario: Walking into a conversation
+- **WHEN** the player walks within 20 m of a speaker mid-line and can hear them
+- **THEN** the subtitle appears for the rest of that line
+
+#### Scenario: Close but sealed off
+- **WHEN** a speaker is 12 m away behind several walls and their voice is silent
+- **THEN** no subtitle is shown
+
+#### Scenario: Briefing over the intercom
+- **WHEN** Hale's morning briefing plays on the radio channel
+- **THEN** its subtitles show wherever the player is

@@ -19,6 +19,9 @@ test('voice volume changes only the voice bus', () => {
   const before = levels(engine);
   applyBusVolumes(engine, { musicVolume: 1, sfxVolume: 1, voiceVolume: 0 });
   const after = levels(engine);
+  assert.equal(engine.voiceReverbIn.gain.value, 0, 'muting dialogue also mutes the room send');
+  engine.setBusVolume('voice', 0.45);
+  assert.equal(engine.voiceReverbIn.gain.value, 0.45);
   for (const b of ALL) assert.equal(after[b], b === 'voice' ? 0 : before[b], b);
 });
 

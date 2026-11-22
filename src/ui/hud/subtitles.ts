@@ -26,9 +26,15 @@ export class Subtitles {
         h('span', { class: 'subtitle-name', style: `color:${COLORS[s.speaker] ?? 'var(--visor)'}`, text: `${s.name}${s.channel === 'radio' ? ' [radio]' : ''}: ` }),
         h('span', { text: s.text }),
       );
+      this.lines.delete(s.id);
+      if (this.lines.size >= 2) {
+        const oldest = this.lines.keys().next().value!;
+        this.lines.get(oldest)?.remove();
+        this.lines.delete(oldest);
+      }
       this.lines.set(s.id, row);
-      this.el.append(row);
-      while (this.el.children.length > 2) this.el.firstElementChild?.remove();
+      if (s.channel === 'pa') this.el.prepend(row);
+      else this.el.append(row);
     });
     events.on('subtitle:hide', ({ id }) => {
       this.lines.get(id)?.remove();

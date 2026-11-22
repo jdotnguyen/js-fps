@@ -13,7 +13,8 @@ const L = (id: string, priority: string, text = 'One two three.', speaker = 'eng
 const library = new DialogueLibrary(speakers, {
   't.json': {
     chapter: 't',
-    lines: [L('story_a', 'story'), L('story_b', 'story'), L('hint_a', 'hint'), L('combat_a', 'combat'), L('combat_b', 'combat'), L('idle_a', 'idle'), L('medic_a', 'story', 'Hi.', 'medic')],
+    lines: [L('story_a', 'story'), L('story_b', 'story'), L('hint_a', 'hint'), L('combat_a', 'combat'), L('combat_b', 'combat'), L('idle_a', 'idle'), L('medic_a', 'story', 'Hi.', 'medic'),
+      { ...L('pa_notice', 'story', 'Please stand by.', 'pa'), channel: 'pa' }],
   },
 });
 
@@ -214,11 +215,22 @@ test('an overlap line from someone already talking cuts their other line: nobody
   assert.equal(await first.done, 'interrupted');
 });
 
-test('stopAll also stops overlap lines', async () => {
-  const { sm } = setup();
-  const pa = sm.say('story_b', { overlap: true });
+test('PA and squad subtitles coexist until skipping or quitting stops both voices', async () => {
+  const bus = new EventBus();
+  const visible = new Set<string>();
+  const stops: string[] = [];
+  bus.on('subtitle:show', line => visible.add(line.id));
+  bus.on('subtitle:hide', line => visible.delete(line.id));
+  const sm = new SpeechManager(bus, library, { play: req => ({ stop: () => stops.push(req.line.id) }) });
+  const pa = sm.say('pa_notice', { overlap: true });
+  const giles = sm.say('story_a');
+  assert.deepEqual([...visible], ['pa_notice', 'story_a']);
+  assert.deepEqual(stops, []);
   sm.stopAll();
   assert.equal(await pa.done, 'stopped');
+  assert.equal(await giles.done, 'stopped');
+  assert.deepEqual(new Set(stops), new Set(['pa_notice', 'story_a']));
+  assert.equal(visible.size, 0);
 });
 
 test('onlySpeakers cuts everyone else off and drops their new lines until lifted (a scene hush)', async () => {

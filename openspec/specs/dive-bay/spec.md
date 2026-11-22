@@ -33,7 +33,7 @@ The launch trunk SHALL be a closed vertical lock, not an open moon pool at deck 
 - **THEN** the trunk shows as a closed skirt and hatch under the hull, with no open hole
 
 ### Requirement: Trunk secure event
-The trunk SHALL start the quiet half with its inner hatch open. After Sung's dive-bay lines first finish, the trunk SHALL be secured: an amber beacon turns, a two-tone chirp and a vent hiss play from the trunk, the inner hatch closes, and the status screen reads "TRUNK SECURED". The event SHALL NOT overlap a dialogue line. The closed hatch SHALL keep a viewport showing the blue glow below.
+The trunk SHALL start the quiet half with its inner hatch open. After Sung's dive-bay lines first finish, the trunk SHALL be secured: an amber beacon turns, a two-tone chirp and a vent hiss play from the trunk, the inner hatch closes, and the status screen reads "TRUNK SECURED". The event SHALL NOT overlap a dialogue line spoken in the dive bay. Lines elsewhere on the station SHALL NOT delay it. The closed hatch SHALL keep a viewport showing the blue glow below.
 
 #### Scenario: First visit
 - **WHEN** Jay enters the dive bay after the briefing and Sung's lines play
@@ -42,6 +42,10 @@ The trunk SHALL start the quiet half with its inner hatch open. After Sung's div
 #### Scenario: Before the briefing
 - **WHEN** Jay enters the dive bay before the briefing has been seen
 - **THEN** the trunk stays open and the secure event does not run
+
+#### Scenario: A scene still playing elsewhere
+- **WHEN** Hale's office scene is still playing while Sung's dive-bay lines finish
+- **THEN** the secure event starts right after Sung's lines, without waiting for Hale's
 
 ### Requirement: Secured trunk persists
 Once secured, the trunk SHALL stay secured after a save load or a death restart, and the secure event SHALL NOT replay.
@@ -62,11 +66,15 @@ R13b SHALL contain a gantry crane on rails over the trunk area, a recovered ROV 
 - **THEN** the ROV sits on its cradle with water dripping from it, and the gantry hook hangs above it
 
 ### Requirement: Sample errand route
-The sample case SHALL be picked up in R13b at `dive_case_pickup` and stowed in R13e at a chain-of-custody cold store at `dive_case_locker`, with the existing "Stow sample case" prompt and the existing lines. The store SHALL be marked for Lab B and SHALL include a pressure sample cabinet labelled "HOLD AT 302 BAR".
+The sample case SHALL be picked up in R13b at `dive_case_pickup` and stowed in R13e at a chain-of-custody cold store at `dive_case_locker`, with the existing "Stow sample case" prompt and the existing lines. The store SHALL be marked for Lab B and SHALL include a pressure sample cabinet labelled "HOLD AT 302 BAR". Stowing SHALL take effect on use: the round completes at once, whatever dialogue is playing, and Sung's acknowledgement follows without holding the round back.
 
 #### Scenario: Stowing the case
 - **WHEN** Jay uses the stow point in R13e while carrying the sample case
-- **THEN** the round completes exactly as before, and the stow point is a cold-store unit marked for Lab B
+- **THEN** the round completes, and the stow point is a cold-store unit marked for Lab B
+
+#### Scenario: Stowing during Sung's conversation
+- **WHEN** Jay uses the stow point while Sung's dive-bay lines are still playing
+- **THEN** the click plays and the objective completes at once, and "Locker's signed" plays once Sung finishes his current line
 
 ### Requirement: Clean finish with decay only in the corridor
 R13a, R13b, R13c and R13e SHALL use clean painted steel walls, clean treadplate or grating floors and clean hazard paint, with no rust textures. R13d SHALL keep rusty walls and floors and its dark lighting. Wear in the clean rooms SHALL come from placed decals (wet sheen, puddles, drip and salt stains), within the dressing standard's decal budget.

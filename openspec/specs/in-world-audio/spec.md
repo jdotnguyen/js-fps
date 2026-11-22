@@ -94,7 +94,7 @@ Other actors' footsteps SHALL be audible up to 22 m (30 m for heavy steps), fadi
 - **THEN** its steps are muffled and quieter, and become clear when the door opens
 
 ### Requirement: World sound occlusion
-A one-shot sound effect that comes from a position in the world SHALL be low-passed, quieter and slightly more reverberant when a wall or closed door stands between it and the player, as footsteps are. Low obstacles such as counters and crates SHALL NOT muffle it. Whether it is muffled SHALL be decided when it starts. Looping sounds, ambience, the radio, music, dialogue, the player's own sounds and sounds from scripted sequences and kills SHALL NOT be muffled this way.
+A one-shot sound effect that comes from a position in the world SHALL be low-passed, quieter and slightly more reverberant when a wall or closed door stands between it and the player, as footsteps are. Low obstacles such as counters and crates SHALL NOT muffle it. Whether it is muffled SHALL be decided when it starts. Looping sounds, ambience, the radio, music, the player's own sounds and sounds from scripted sequences and kills SHALL NOT be muffled this way. Local dialogue SHALL NOT use this rule either: it is muffled continuously by the voice propagation in voice-playback.
 
 #### Scenario: Groan behind a closed door
 - **WHEN** an infected groans on the other side of a closed door
@@ -123,6 +123,10 @@ A one-shot sound effect that comes from a position in the world SHALL be low-pas
 #### Scenario: Close source
 - **WHEN** a sound plays within 0.6 m of the player
 - **THEN** it is never muffled
+
+#### Scenario: Dialogue behind a wall
+- **WHEN** a squadmate speaks on the other side of a closed door
+- **THEN** the line is muffled by voice propagation, and opening the door mid-line clears it during the line
 
 ### Requirement: Glass muffles lightly
 A sound heard through a glass partition, with no wall or closed door also in the way, SHALL be only slightly quieter and duller: clearly audible, and much louder and brighter than the same sound behind a wall. This SHALL apply to footsteps and to the world sounds above. A wall or closed door anywhere between the sound and the player SHALL still muffle it fully.
@@ -154,7 +158,7 @@ Weapon handling sounds (magazine out and in, slide, pump) SHALL be triggered by 
 - **THEN** the rack and slam sounds land on the pump motion
 
 ### Requirement: Sequence sound steps
-Sequences SHALL be able to play a named sound (optionally at a world position), set the ambience, and start or stop the radio. A `music` step SHALL either control the music or be rejected when content is validated; it SHALL NOT be skipped silently at runtime.
+Sequences SHALL be able to play a named sound (optionally at a world position), set the ambience, and start or stop the radio. A `music` step SHALL either control the music or be rejected when content is validated; it SHALL NOT be skipped silently at runtime. A sound step MAY ask to land on the score's next beat; it SHALL then play on that beat, or at once when no score is playing.
 
 #### Scenario: Positional sequence sfx
 - **WHEN** a sequence runs `{ "do": "sfx", "id": "klaxon", "at": "R03" }`
@@ -163,6 +167,10 @@ Sequences SHALL be able to play a named sound (optionally at a world position), 
 #### Scenario: Music step
 - **WHEN** a sequence contains a `music` step
 - **THEN** it either changes the music or the content check fails, naming the step
+
+#### Scenario: Klaxon on the beat
+- **WHEN** the Lab B score plays and a sequence runs a klaxon step that asks for the beat
+- **THEN** the klaxon starts on the score's next beat, no more than one beat later
 
 ### Requirement: Positional prop loops and synchronized burst sounds
 Level props SHALL be able to declare positional looping emitters and fire synchronized positional one-shots. Positional prop loops SHALL follow the game mode (silent on title, ducked while paused, full during play), hot-swap to decoded ElevenLabs recordings, and reset cleanly on level reset or dispose. Prop one-shots SHALL respect distance culling and world sound occlusion through walls, closed doors, and glass partitions.

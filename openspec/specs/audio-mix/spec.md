@@ -61,11 +61,23 @@ Each room SHALL apply the reverb preset named in its level data (`metal_corridor
 - **THEN** the corridor preset is used and the game keeps running
 
 ### Requirement: Local sounds sit in the room
-Positional sound effects and local (not radio) dialogue SHALL send part of their signal to the current room reverb. Radio dialogue and UI sounds SHALL NOT.
+
+Positional sound effects, local dialogue and Station PA announcements SHALL send part of their signal to the current room reverb. Radio dialogue and UI sounds SHALL stay dry. The voice volume setting SHALL control both the direct and reverberant sound of a PA announcement.
 
 #### Scenario: Squadmate speaks in a hall
+
 - **WHEN** a squadmate speaks on the local channel inside a `metal_hall` room
 - **THEN** their voice carries that room's reverb
+
+#### Scenario: Announcement in the Docking Ring
+
+- **WHEN** the wall speaker announces Halcyon at the post
+- **THEN** a short audible reflection places the voice in the hall while the grille remains easy to locate by ear
+
+#### Scenario: Player mutes voices
+
+- **WHEN** voice volume is set to zero before a PA announcement
+- **THEN** the announcement and its room reflections are silent
 
 ### Requirement: Positional playback
 Sounds with a world position SHALL be spatialised with HRTF panning and distance attenuation, relative to a listener that follows the camera every frame. Sounds without a position SHALL play centred, as if inside the player's head.

@@ -1,10 +1,9 @@
-# Spec Delta
+# dialogue-channels Specification
 
 ## Purpose
-
 Defines how lines share the voice: separate conversations play at the same time on their own channels, a conversation keeps its own lines in order, a speaker never talks over themself, and barks and hints give way to story the player can hear.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: One channel per conversation
 Each running scripted sequence SHALL speak on its own channel. A line SHALL wait only for lines on its own channel, never for lines in another conversation. When a conversation's next line is due and nothing on its channel or by the same speaker is playing, the line SHALL start at once with its subtitle, whatever else is speaking on the station.

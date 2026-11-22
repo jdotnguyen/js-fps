@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { DialogueLibrary, subtitleDuration } from './library.ts';
 
 const dir = new URL('../data/dialogue/', import.meta.url);
@@ -22,6 +22,13 @@ test('shipped dialogue files are valid', () => {
   const library = new DialogueLibrary(speakers, chapters);
   assert.ok(library.allLines().length > 0);
   for (const l of library.allLines()) assert.ok(library.speaker(l.speaker));
+  const announcements = library.allLines().filter(l => l.speaker === 'pa');
+  assert.equal(announcements.length, 4);
+  for (const l of announcements) {
+    assert.equal(l.channel, 'pa');
+    assert.equal(l.audio, `assets/vo/${l.id}.mp3`);
+    assert.ok(existsSync(new URL(`../../public/${l.audio}`, import.meta.url)));
+  }
 });
 
 test('subtitle duration follows the ADR formula', () => {
