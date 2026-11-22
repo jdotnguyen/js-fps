@@ -153,10 +153,11 @@ function onWall(x, z, s, along = 0, inset = 0.06) {
   return { pos: [r2(cx(x) + dx * d + ax), 0, r2(cx(z) + dz * d + az)], rot: PROP_ROT[s] };
 }
 
-function prop(r, kit, pos, rot = 0, params) {
+function prop(r, kit, pos, rot = 0, params, extra) {
   const p = { kit, pos: pos.map(r2) };
   if (rot) p.rot = r2(rot);
   if (params) p.params = params;
+  if (extra) Object.assign(p, extra);
   r.props.push(p);
 }
 function wallProp(r, kit, x, z, s, along = 0, params, inset) {
@@ -1114,6 +1115,8 @@ wallProp(R13c, 'battery_charger', 4, 8, 'w', 0.5, undefined, 0.01);
 wallProp(R13c, 'parts_bins', 4, 8, 'n', 0, { width: 1.6 }, 0.01);
 wallProp(R13c, 'gas_cylinder_rack', 4, 9, 's', -1.0, undefined, 0.01);
 wallProp(R13c, 'hose_reel', 4, 9, 'e', 0.6, undefined, 0.01);
+// A pushable platform trolley (adopt-physics-engine 6.4): a physics prop with interaction on, static otherwise.
+prop(R13c, 'platform_trolley', [16.4, 0, 34.9], 0, { id: 'rov_trolley' }, { dynamic: { mass: 45 } });
 prop(R13d, 'pipe_run', [36, 0, 33.4], 0, { length: 11, height: 0.5, paint: 'dark' });
 prop(R13d, 'crate', [41, 0, 30.8], 15, { size: 0.7 });
 prop(R13d, 'debris_pile', [37.6, 0, 31.2]);
