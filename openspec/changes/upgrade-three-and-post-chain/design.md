@@ -176,6 +176,29 @@ Results after the fix:
 - 1% lows: 59.5 at the commons pin and 59.3 at the R03-pane pin
 - GPU memory: 1020 MiB, 131 programs, the same as r170
 
+**0.183.0 (2.3).** The shadow switch moved into this step from 2.4, because r183 (not r187) deprecates `PCFSoftShadowMap`. It logs a warning and falls back to the new soft `PCFShadowMap`. That filter takes 5 hardware-compared taps on a Vogel disk, rotated by interleaved gradient noise, and is `shadow.radius` texels wide.
+- **Shadow type:** `renderer.ts` sets `SHADOW_MAP_TYPE = PCFShadowMap`. The flashlight (`FLASHLIGHT_SHADOW`) and every `SHADOW_CONES` kind set `shadow.radius = 2`, which matches the r170 soft edge on the sofa and table shadows. The biases are unchanged: the flashlight pin shows no acne or peter-panning.
+- **Silent break: the whole room was black on every tier.** Only unlit meshes (light shafts, dust) drew. The typecheck, the tests and the console were all clean, and hiding the spot lights brought the room back.
+  - **Cause:** a three r183 bug. For a shadow-sampler array, `WebGLUniforms` binds an empty placeholder `DepthTexture` without setting its `compareFunction`; only the single-sampler path sets it.
+  - A castShadow spot that has never rendered a shadow pass has no map, so it gets that placeholder. WebGL2 then rejects every lit draw call, because the shader samples a shadow sampler whose compare mode is off.
+  - Our unbound pool spots and the flashlight while off are exactly such lights. They keep `castShadow`, which avoids recompiles, and skip their pass.
+  - r187 fixes the placeholder (`initShadowTexture` on both paths).
+  - **Fix:** `pauseShadow` (`src/render/shadowMapKeep.ts`) stops a light's pass, but first asks for one pass if the light has no map. The pool and the flashlight both use it. Tests cover the helper, an unbound pool spot, and the flashlight starting off.
+- **Console:** no three.js warnings on a normal load. On a cold shader cache, the ANGLE/D3D compiler logs warning X4122 for three's new `PMREMGGXConvolution` environment prefilter. It is a harmless double-precision constant-folding notice, and the shader is three's, not ours, so it is left alone.
+- **`meshoptimizer`:** `@types/three` 0.183 depends on `meshoptimizer` ~1.0.1, which displaced the 0.22.0 at the top of `node_modules`. The `scripts/*-glb.mjs` asset tools and `scripts/lib/scan-body.mjs` import `meshoptimizer/meshopt_simplifier.module.js`, a path 1.0 no longer exports. They had only worked through the old `@types/three` dependency. `meshoptimizer@0.22.0` is now an exact devDependency, so the scripts keep the same simplifier, and `scanBody.test.ts` passes again.
+- **Ragdoll stairs test:** the chest shot on the stairs (`trialRagdoll.test.ts`) is a chaotic fall.
+  - On r180 the body stops on the steps at 5.98 s. On r183, a slightly different start pose tumbles it to the floor, where it rests at 8.67 s.
+  - The test allows either outcome, but it only simulated 8 s, so it now simulates 12 s (agreed with the user).
+
+Results after the fixes:
+- typecheck: 0 errors
+- `npm test`: 1180 pass, the same 7 failures as r170 (6 new tests)
+- the four pins match r170 by eye: the sofa and table shadows are soft and attached, the flashlight wall shadow is clean, and the glass reflection is present
+- GPU memory: 1084 MiB (+6%), 134 programs (+3).
+  - Shadow maps are now depth textures instead of colour targets: renderbuffers went from 180 to 112 MiB, textures from 821 to 953 MiB.
+  - The two pool spots and the flashlight that had never rendered now hold a 1024² map each.
+- 1% lows: not comparable. Another agent held the CPU at 65%, so both pins averaged 57-60 fps with hitches down to single digits. Re-time at 2.4, and by hand in 4.2.
+
 Unrelated to the upgrade: three ambience one-shots referenced in `sounds.ts` (`archPass`, `archAlarm`, `wandBeep`) are missing from `public/assets` on `foundation`. Each page load logs a decode warning for them.
 
 ## Open Questions

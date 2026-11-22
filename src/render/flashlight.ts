@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { pauseShadow } from './shadowMapKeep.ts';
+
+/** Flashlight shadow biases and soft-PCF radius in texels (`PCFShadowMap` since r183). */
+export const FLASHLIGHT_SHADOW = { bias: -0.0004, normalBias: 0.02, radius: 2 } as const;
 
 /**
  * Player flashlight (ADR-0004): a shadow-casting spot that trails the view slightly
@@ -24,8 +28,9 @@ export class Flashlight {
     this.light = new THREE.SpotLight(0xfff1dc, this.intensity, 24, THREE.MathUtils.degToRad(26), 0.55, 2);
     this.light.castShadow = true;
     this.light.shadow.mapSize.set(1024, 1024);
-    this.light.shadow.bias = -0.0004;
-    this.light.shadow.normalBias = 0.02;
+    this.light.shadow.bias = FLASHLIGHT_SHADOW.bias;
+    this.light.shadow.normalBias = FLASHLIGHT_SHADOW.normalBias;
+    this.light.shadow.radius = FLASHLIGHT_SHADOW.radius;
     this.light.shadow.camera.near = 0.1;
     scene.add(this.light, this.light.target);
     camera.getWorldDirection(this.dir);
@@ -54,6 +59,7 @@ export class Flashlight {
     this.level += (goal - this.level) * Math.min(1, step * 18);
     this.light.intensity = this.intensity * this.level;
     // Skip shadow-map rendering while off without toggling castShadow (which recompiles materials).
-    this.light.shadow.autoUpdate = this.level > 0.001;
+    if (this.level > 0.001) this.light.shadow.autoUpdate = true;
+    else pauseShadow(this.light.shadow);
   }
 }

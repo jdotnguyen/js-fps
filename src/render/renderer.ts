@@ -6,13 +6,16 @@ import { RENDER_TIERS } from './tiers.ts';
  * Baseline renderer. The post chain, light pools and atmosphere are added by their own modules;
  * every per-tier budget comes from RENDER_TIERS (render-quality spec).
  */
+/** r183 deprecates `PCFSoftShadowMap`; its `PCFShadowMap` is soft, with the width set per light by `shadow.radius`. */
+export const SHADOW_MAP_TYPE: THREE.ShadowMapType = THREE.PCFShadowMap;
+
 export function createRenderer(canvas: HTMLCanvasElement, settings: Readonly<Settings>): THREE.WebGLRenderer {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.95;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = SHADOW_MAP_TYPE;
   applyQuality(renderer, settings.quality);
   renderer.setSize(window.innerWidth, window.innerHeight);
   return renderer;
