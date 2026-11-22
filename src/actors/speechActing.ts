@@ -124,22 +124,36 @@ export interface ActingStyle {
   both: boolean;
   /** Head roll direction is random per line for the tilted emotes. */
   tilt: boolean;
+  /**
+   * A calm line (spec speech-acting): the gesture lives below the elbow. Only the right forearm and hand move, the upper arm
+   * keeps within a few degrees of its idle, the left arm plays its idle, and a talk capture of the body's own drives the trunk only.
+   */
+  forearmOnly: boolean;
 }
 
-const BASE: Omit<ActingStyle, 'jaw' | 'hold' | 'beat' | 'beatHz' | 'beatSharp'> = { kick: {}, tremor: 0, bounce: 0, both: false, tilt: false };
+const BASE: Omit<ActingStyle, 'jaw' | 'hold' | 'beat' | 'beatHz' | 'beatSharp'> = { kick: {}, tremor: 0, bounce: 0, both: false, tilt: false, forearmOnly: false };
+
+/**
+ * The most a forearm-only style may move the upper arm, in degrees (spec speech-acting: within 6° of idle). The styles stay
+ * under it before the fade and settle scale them down further.
+ */
+export const FOREARM_UPPER_ARM_MAX = 6;
 
 export const ACTING: Readonly<Record<Emote, ActingStyle>> = {
-  // A statement: loose, conversational. One hand rises to waist height and beats softly; the head nods on the stresses.
+  // A statement: the right forearm lifts from the elbow and beats softly on the stresses, the wrist turning over against it
+  // (opposite in phase: the hand drops back as the elbow lifts). The elbow only just comes off the ribs. Tuned on Okafor and
+  // Priya in the cast motion sandbox (front and side): elbow hold 48° with a 13° beat, upper arm 3°. The hand solver's
+  // `neutral` wrist accent is a roll (about 6° at the beat), on a different axis from this flexion, so the two don't double.
   neutral: {
-    ...BASE, jaw: 11, beatHz: 0.9, beatSharp: 1.5,
-    hold: { spine: [-1, 0, 0], head: [-1, 0, 0], upperArm_P: [10, 0, 4], foreArm_P: [34, 0, 0], hand_P: [0, 0, -8], upperArm_S: [3, 0, -3], foreArm_S: [14, 0, 0] },
-    beat: { upperArm_P: [10, 0, 2], foreArm_P: [14, 0, 0], hand_P: [-8, 0, 0], head: [-2, 0, 0], chest: [-0.8, 0, 0] },
+    ...BASE, jaw: 11, beatHz: 0.9, beatSharp: 1.3, forearmOnly: true,
+    hold: { upperArm_P: [3, 0, 0], foreArm_P: [48, 0, 0], hand_P: [-4, 0, -6] },
+    beat: { foreArm_P: [13, 0, 0], hand_P: [-12, 0, 3] },
   },
-  // A question: head cocked, one palm turned up and offered, a small lift on the rising end.
+  // A question: the forearm comes up a little higher and the palm turns up and is offered, lifting on each stress.
   question: {
-    ...BASE, jaw: 9, beatHz: 0.7, beatSharp: 1.2, tilt: true,
-    hold: { head: [-1, 0, 6], neck: [0, 0, 3], upperArm_P: [16, 0, 10], foreArm_P: [58, 0, 0], hand_P: [-15, 0, -25], upperArm_S: [4, 0, -3], foreArm_S: [16, 0, 0] },
-    beat: { upperArm_P: [8, 0, 2], foreArm_P: [10, 0, 0], hand_P: [-10, 0, -6], head: [2, 0, 2] },
+    ...BASE, jaw: 9, beatHz: 0.7, beatSharp: 1.2, tilt: true, forearmOnly: true,
+    hold: { head: [-1, 0, 6], neck: [0, 0, 3], upperArm_P: [5, 0, 2], foreArm_P: [58, 0, 0], hand_P: [-15, 0, -25] },
+    beat: { foreArm_P: [11, 0, 0], hand_P: [-10, 0, -6], head: [2, 0, 2] },
     kick: { head: [-3, 0, 3] },
   },
   // A command: leaning in, sharp chops and points, the whole upper body behind each word.
@@ -163,25 +177,26 @@ export const ACTING: Readonly<Record<Emote, ActingStyle>> = {
     beat: { spine: [-2, 0, 0], head: [-1, 0, 0], chest: [-1.5, 0, 0] },
     kick: { spine: [-6, 0, 0], head: [-5, 0, 0] },
   },
-  // Letting go: a sigh, shoulders and head drop, hands loose and a little open.
+  // Letting go: a sigh; the forearm rises only a little and the hand hangs loose, opening slowly on the stresses.
   relieved: {
-    ...BASE, jaw: 10, beatHz: 0.55, beatSharp: 1, both: true,
-    hold: { spine: [2, 0, 0], chest: [3, 0, 0], head: [-3, 0, 0], upperArm_P: [8, 0, 6], foreArm_P: [30, 0, 0], upperArm_S: [6, 0, 6], foreArm_S: [24, 0, 0] },
-    beat: { chest: [-3, 0, 0], upperArm_P: [6, 0, 0], upperArm_S: [6, 0, 0], head: [-2, 0, 0] },
+    ...BASE, jaw: 10, beatHz: 0.55, beatSharp: 1, forearmOnly: true,
+    hold: { spine: [2, 0, 0], chest: [3, 0, 0], head: [-3, 0, 0], upperArm_P: [3, 0, 0], foreArm_P: [36, 0, 0], hand_P: [-4, 0, -4] },
+    beat: { chest: [-3, 0, 0], foreArm_P: [10, 0, 0], hand_P: [-9, 0, 0], head: [-2, 0, 0] },
     kick: { head: [-5, 0, 0], chest: [4, 0, 0] },
   },
-  // Laughing: shoulders and chest bounce, head back, one hand goes to the belly.
+  // Laughing: the right forearm comes up from the elbow toward the belly and the hand bobs a little with the laugh; the shoulder
+  // and the other arm stay put (a conversational line, not a flail: the intro's laughs are banter).
   laugh: {
-    ...BASE, jaw: 14, beatHz: 4.6, beatSharp: 1, bounce: 3.2,
-    hold: { head: [5, 0, 0], chest: [1, 0, 0], upperArm_P: [20, 0, -6], foreArm_P: [92, 0, 0], upperArm_S: [8, 0, -4], foreArm_S: [30, 0, 0] },
-    beat: { chest: [-1, 0, 0] },
+    ...BASE, jaw: 14, beatHz: 4.6, beatSharp: 1, bounce: 3.2, forearmOnly: true,
+    hold: { head: [5, 0, 0], chest: [1, 0, 0], upperArm_P: [3, 0, 0], foreArm_P: [62, 0, 0], hand_P: [-6, 0, 0] },
+    beat: { chest: [-1, 0, 0], foreArm_P: [3, 0, 0], hand_P: [-5, 0, 0] },
     kick: { head: [4, 0, 0] },
   },
-  // Hushed: leaning in close, head bowed toward the listener, a hand up by the mouth.
+  // Hushed: leaning in close, head bowed toward the listener; the forearm comes up high from the elbow, the shoulder stays put.
   whisper: {
-    ...BASE, jaw: 4, beatHz: 0.6, beatSharp: 1,
-    hold: { spine: [-4, 0, 0], chest: [-3, 0, 0], neck: [-3, 0, 0], head: [-5, 0, -4], upperArm_P: [20, 0, 0], foreArm_P: [96, 0, 0], hand_P: [-10, 0, 0], upperArm_S: [2, 0, -3], foreArm_S: [10, 0, 0] },
-    beat: { head: [-1, 0, 0] },
+    ...BASE, jaw: 4, beatHz: 0.6, beatSharp: 1, forearmOnly: true,
+    hold: { spine: [-4, 0, 0], chest: [-3, 0, 0], neck: [-3, 0, 0], head: [-5, 0, -4], upperArm_P: [5, 0, 0], foreArm_P: [72, 0, 0], hand_P: [-10, 0, 0] },
+    beat: { head: [-1, 0, 0], foreArm_P: [9, 0, 0], hand_P: [-7, 0, 0] },
   },
   // Dread: shrunk in on itself, arms drawn to the chest, trembling.
   dread: {
@@ -210,7 +225,7 @@ export interface SpeechPlan {
   cues: MouthCue[];
   /** Seconds the line lasts. */
   duration: number;
-  /** 0 = the right arm gestures, 1 = the left (the speaker's handedness for this line). */
+  /** 0 = the right arm gestures, 1 = the left. Calm (forearm-only) lines are always right-handed; others vary per line. */
   side: 0 | 1;
   /** +1 or -1: which way a tilted head leans. */
   tilt: 1 | -1;
@@ -218,12 +233,14 @@ export interface SpeechPlan {
 }
 
 export function planSpeech(text: string, emote: Emote | null, duration: number, seed: string): SpeechPlan {
+  const style = actingFor(emote);
   return {
     emote,
-    style: actingFor(emote),
+    style,
     cues: mouthCues(text, duration, emote, seed),
     duration,
-    side: hash01(seed, 91) < 0.7 ? 0 : 1,
+    // Nobody has a recorded handedness, so calm talk uses the right hand; heightened lines keep their per-line variety.
+    side: style.forearmOnly || hash01(seed, 91) < 0.7 ? 0 : 1,
     tilt: hash01(seed, 92) < 0.5 ? 1 : -1,
     seed,
   };

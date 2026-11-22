@@ -389,6 +389,9 @@ export class Animator {
     this.updateTurnInPlace(dt);
     this.armScale = arms;
     this.updateIdleLife(dt);
+    // A calm line's forearm gesture is the only speech motion on the arms (its talk capture plays on the trunk), so it is not
+    // damped under the body's own clips the way the whole-arm gestures of heightened lines are.
+    if (this.speech?.style.forearmOnly && !this.twitchy) this.armScale = 1;
     this.updateSpeech(dt);
     this.armScale = 1;
     this.updateLook(dt);
@@ -554,12 +557,14 @@ export class Animator {
         const talkClip = this.mocap.get(this.motions.talk);
         const talkPhase = (this.idlePhase * (idleClip.duration / talkClip.duration)) % 1;
         sampleClip(talkClip, talkPhase, this.talkPose);
-        // A character with a talk capture of its own plays it on the arms too (character-motion: captured motion is not buried
-        // under generated motion); everyone else keeps the shared clip subtle, on the trunk only.
+        // A talk capture never drives the arms (spec speech-acting): the conversation takes they come from flail. A character
+        // with one of its own plays it on the trunk and clavicles; everyone else keeps the shared clip subtle, on the trunk.
+        // Giles's reviewed one-handed accent is the one capture that plays on the arms, below.
         const own = this.motion.ownClips && this.motions.talk !== this.motions.idle;
-        const tw = this.speechW * (1 - this.locoInfo.moveWeight) * (own ? Animator.OWN_TALK_WEIGHT : 0.35);
         const calmGiles = this.motions.talk === 'giles_talk';
-        let joints = own ? Animator.TALK_JOINTS_OWN : Animator.TALK_JOINTS;
+        const ownW = calmGiles ? Animator.OWN_TALK_WEIGHT : Animator.OWN_TRUNK_TALK_WEIGHT;
+        const tw = this.speechW * (1 - this.locoInfo.moveWeight) * (own ? ownW : 0.35);
+        let joints = Animator.TALK_JOINTS;
         if (calmGiles) {
           // His one-handed accent plays over the standing idle, including its relaxed clavicles.
           joints = Animator.TALK_ARMS;
@@ -643,13 +648,17 @@ export class Animator {
   }
 
   private readonly talkPose = emptyPose('mocap_talk');
-  /** How much of its own talk capture a speaking character plays (the rest stays its idle). */
+  /** How much of his talk capture Giles plays on his arms (the rest stays his idle). */
   static readonly OWN_TALK_WEIGHT = 0.85;
+  /**
+   * How much of its own talk capture any other character plays, on the trunk only. Below 0.85 because the idle arms don't lean
+   * with the captured trunk: at 0.85 Priya's lean carries her body into her resting left hand and the contact solver shoves the arm.
+   */
+  static readonly OWN_TRUNK_TALK_WEIGHT = 0.6;
   private static readonly TALK_JOINTS: readonly JointName[] = ['pelvis', 'spine', 'chest', 'shoulder_L', 'shoulder_R'];
   private static readonly TALK_ARMS: readonly JointName[] = [
     'upperArm_L', 'foreArm_L', 'hand_L', 'upperArm_R', 'foreArm_R', 'hand_R',
   ];
-  private static readonly TALK_JOINTS_OWN = [...Animator.TALK_JOINTS, ...Animator.TALK_ARMS];
 
   // ---------------------------------------------------------------- speech
 
@@ -674,9 +683,13 @@ export class Animator {
     return this.speech?.emote ?? null;
   }
 
+  /** How strongly speech drives the hands (wrist accents, hand shapes): it fades out as the body walks or jogs, like the arms. */
   get speechWeight(): number {
-    return this.speechW;
+    return this.speechW * this.speechHandsK;
   }
+
+  /** 1 standing, 0 at full walk or jog weight: the share of speech motion the arms and hands keep while moving. */
+  private speechHandsK = 1;
 
   get speechPulse(): number {
     return this.speechBeat;
@@ -734,7 +747,10 @@ export class Animator {
 
     const busy = Animator.ARMS_BUSY.has(this.to.name) ? 0.25 : 1;
     const moveFactor = this.useMocap ? this.locoInfo.moveWeight : Math.min(1, this.amp * 1.4);
-    const armsK = busy * (1 - moveFactor * 0.85) * (1 - this.capturedSpeechArms);
+    this.speechHandsK = 1 - moveFactor;
+    // Speech adds nothing to the arms while walking or jogging, so the gait's own arm swing plays untouched. (A mug in the right
+    // hand moves the gesture to the free left hand: Humanoid.speak, upright-mug-grip D3b.)
+    const armsK = busy * (1 - moveFactor) * (1 - this.capturedSpeechArms);
     gesture(plan, this.speechT, w, armsK, this.speechSink);
   }
 

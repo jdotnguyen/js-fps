@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { ACTING, actingFor, gesture, mouthCues, mouthOpenAt, planSpeech } from './speechActing.ts';
+import { ACTING, FOREARM_UPPER_ARM_MAX, actingFor, gesture, hash01, mouthCues, mouthOpenAt, planSpeech } from './speechActing.ts';
 import { EMOTES } from '../data/types/dialogue.ts';
 import { Humanoid } from './humanoid.ts';
 import { ctx } from '../ai/enemyTestKit.ts';
@@ -100,6 +100,95 @@ test('arms gesture less when busy and not at all with armsK 0, and the body stay
   assert.equal(sum(0).arm, 0);
   assert.ok(sum(0.25).arm < sum(1).arm);
   assert.equal(sum(1).body, 0);
+});
+
+// ---------------------------------------------------------------- calm lines (spec speech-acting)
+
+const CALM = ['neutral', 'question', 'relieved', 'whisper'] as const;
+const HEIGHTENED = ['urgent', 'alarmed', 'pained', 'dread', 'scream'] as const;
+
+test('calm lines gesture from the elbow down: the upper arm barely moves, the forearm beats and the wrist bends', () => {
+  for (const e of CALM) {
+    assert.equal(ACTING[e].forearmOnly, true, `${e} is forearm-only`);
+    const plan = planSpeech('Right, so the pump feeds the loop, and the loop feeds the bay.', e, 4, `calm-${e}`);
+    let upperPeak = 0;
+    let foreMin = Infinity;
+    let foreMax = -Infinity;
+    let handMin = Infinity;
+    let handMax = -Infinity;
+    for (let t = 0; t <= 4; t += 1 / 60) {
+      let fore = 0;
+      let hand = 0;
+      gesture(plan, t, 1, 1, (j, x, y, z) => {
+        assert.ok(!j.endsWith('_L'), `${e}: nothing on the left arm (${j})`);
+        if (j === 'upperArm_R') upperPeak = Math.max(upperPeak, Math.hypot(x, y, z));
+        if (j === 'foreArm_R') fore += x;
+        if (j === 'hand_R') hand += x;
+      });
+      foreMin = Math.min(foreMin, fore);
+      foreMax = Math.max(foreMax, fore);
+      handMin = Math.min(handMin, hand);
+      handMax = Math.max(handMax, hand);
+    }
+    assert.ok(upperPeak <= FOREARM_UPPER_ARM_MAX, `${e}: upper arm moves ${upperPeak.toFixed(1)}°`);
+    assert.ok(foreMax - foreMin >= 8, `${e}: elbow flex varies ${(foreMax - foreMin).toFixed(1)}°`);
+    assert.ok(handMax - handMin >= 4, `${e}: wrist bends ${(handMax - handMin).toFixed(1)}°`);
+  }
+});
+
+test('a laugh brings the right hand up toward the belly from the elbow, with no shoulder swing and nothing on the left arm', () => {
+  assert.equal(ACTING.laugh.forearmOnly, true);
+  const plan = planSpeech("I know. I've been practising.", 'laugh', 2.5, 'intro_priya_03');
+  let upperPeak = 0;
+  let forePeak = 0;
+  for (let t = 0; t <= 2.5; t += 1 / 60) {
+    gesture(plan, t, 1, 1, (j, x, y, z) => {
+      assert.ok(!j.endsWith('_L'), `laugh: nothing on the left arm (${j})`);
+      if (j === 'upperArm_R') upperPeak = Math.max(upperPeak, Math.hypot(x, y, z));
+      if (j === 'foreArm_R') forePeak = Math.max(forePeak, x);
+    });
+  }
+  assert.ok(upperPeak <= FOREARM_UPPER_ARM_MAX, `laugh: upper arm moves ${upperPeak.toFixed(1)}°`);
+  assert.ok(forePeak > 40, `laugh: the forearm comes up (${forePeak.toFixed(1)}°)`);
+});
+
+test('calm lines are always right-handed; heightened lines still vary, and nothing else about the plan changes', () => {
+  for (let i = 0; i < 20; i++) {
+    for (const e of [...CALM, 'laugh'] as const) assert.equal(planSpeech('Line', e, 2, `calm-seed-${i}`).side, 0, `${e} line ${i}`);
+  }
+  const sides = new Set(Array.from({ length: 20 }, (_, i) => planSpeech('Line', 'urgent', 2, `urgent-seed-${i}`).side));
+  assert.equal(sides.size, 2, 'urgent lines use both hands across seeds');
+  // Tilt and the mouth come from the seed as before: a neutral line matches an urgent one with the same seed and text.
+  const a = planSpeech('Hold the line', 'question', 2, 'same');
+  assert.equal(a.tilt, hash01('same', 92) < 0.5 ? 1 : -1);
+  assert.deepEqual(a.cues, mouthCues('Hold the line', 2, 'question', 'same'));
+});
+
+/** `gesture()` output summed at fixed times, recorded before the calm-line change (rounded to 0.001°). */
+const HEIGHTENED_BEFORE: Record<string, Record<string, readonly number[]>> = {
+  urgent: { spine: [0, 0, 0], chest: [0, 0, 0], head: [0, 0, 0], upperArm_R: [115.003, 0, 27.444], foreArm_R: [148.046, 0, 0], hand_R: [0, 0, -35.185], upperArm_L: [49.259, 0, 21.111], foreArm_L: [105.556, 0, 0] },
+  alarmed: { spine: [0, 0, 0], chest: [0, 0, 0], head: [0, 0, 0], upperArm_R: [91.772, 0, 35.185], foreArm_R: [236.546, 0, 0], hand_R: [-42.222, 0, -35.185], upperArm_L: [91.772, 0, -35.185], foreArm_L: [236.546, 0, 0], hand_L: [-42.222, 0, 35.185] },
+  pained: { spine: [0, 0, 0], chest: [0, 0, 0], neck: [0, 0, 0], head: [0, 0, 0], upperArm_L: [42.222, 0, 14.074], foreArm_L: [309.63, 0, 0], hand_L: [0, 0, -35.185], upperArm_R: [28.148, 0, 21.111], foreArm_R: [84.444, 0, 0] },
+  dread: { spine: [0, 0, 0], chest: [0, 0, 0], neck: [0, 0, 0], head: [0, 0, 0], upperArm_R: [56.296, 0, -7.037], foreArm_R: [254.456, 0, 0], upperArm_L: [56.296, 0, 7.037], foreArm_L: [254.456, 0, 0] },
+  scream: { spine: [0, 0, 0], chest: [0, 0, 0], neck: [0, 0, 0], head: [0, 0, 0], upperArm_R: [105.556, 0, 140.741], foreArm_R: [175.926, 0, 0], hand_R: [0, 0, -70.37], upperArm_L: [105.556, 0, -140.741], foreArm_L: [175.926, 0, 0], hand_L: [0, 0, 70.37] },
+};
+
+test('heightened lines keep their whole-arm gestures exactly as before', () => {
+  for (const e of HEIGHTENED) {
+    assert.equal(ACTING[e].forearmOnly, false, `${e} is not forearm-only`);
+    const plan = planSpeech('We have to go, now. Come on!', e, 3, `line-${e}`);
+    const rec: Record<string, number[]> = {};
+    for (const t of [0.1, 0.7, 1.6, 2.8]) {
+      gesture(plan, t, 1, 1, (j, x, y, z) => {
+        const r = (rec[j] ??= [0, 0, 0]);
+        r[0]! += x;
+        r[1]! += y;
+        r[2]! += z;
+      });
+    }
+    const round = Object.fromEntries(Object.entries(rec).map(([j, v]) => [j, v.map((n) => Math.round(n * 1000) / 1000 + 0)]));
+    assert.deepEqual(round, HEIGHTENED_BEFORE[e], e);
+  }
 });
 
 // ---------------------------------------------------------------- on a real body

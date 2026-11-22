@@ -4,6 +4,7 @@ import type { HandContact } from './limbContact.ts';
 import type { JointName, Side, Vec3T } from './skeleton.ts';
 import { Spring1D, Spring3D } from './springs.ts';
 import { detailPass } from './detailPass.ts';
+import { actingFor } from './speechActing.ts';
 import { EASE_GUARD, HELD_THUMB_REACH, type HeldGrip } from './heldGrip.ts';
 
 /** Scratch for the held grip (zero per-frame allocation). */
@@ -692,7 +693,8 @@ export class HandPhysicsSolver {
           // Subtle expressive wrist supination/extension accents during speech beats.
           if (input.speechWeight > 0.05 && input.speechEmote) {
             const sign = side === 'R' ? 1 : -1;
-            const share = side === input.speechPrimarySide ? 1 : 0.28;
+            // A calm line gestures with one hand only (spec speech-acting): the other wrist keeps still.
+            const share = side === input.speechPrimarySide ? 1 : actingFor(input.speechEmote).forearmOnly ? 0 : 0.28;
             const w = input.speechWeight * share;
             if (input.speechEmote === 'question' || input.speechEmote === 'relieved') {
               // Palm turns gently upward (supination) and extends slightly on open beats.
