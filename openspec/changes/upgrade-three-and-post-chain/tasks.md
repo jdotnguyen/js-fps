@@ -4,7 +4,7 @@
 
 ## 1. Baseline
 
-- [ ] 1.1 On r170, take High screenshots of R02, R03 (sofa under the east lamp), R04 through the glass, and a flashlight shadow on a wall. Use the title-camera `__view` pins from `fidelity-first-rendering`. Then time 1% lows in the commons and the R03 drop with the pane visible, and record `?slot=scratch&memprobe` GPU memory. Verify the images and numbers are recorded in design.md under a "Baseline" heading.
+- [x] 1.1 On r170, take High screenshots of R02, R03 (sofa under the east lamp), R04 through the glass, and a flashlight shadow on a wall, from title-camera `__view` pins (defined here, since `fidelity-first-rendering` recorded none). Then time 1% lows at the commons and R03-pane pins, and record `?slot=scratch&memprobe` GPU memory. The drop itself is timed by hand in 4.2. Verify the images and numbers are recorded in design.md under a "Baseline" heading.
 
 ## 2. Stepwise three upgrade (three's own `EffectComposer` throughout)
 
@@ -26,7 +26,7 @@
 ## 4. Integration
 
 - [ ] 4.1 Run `npm run typecheck` and `npm test`. Verify both pass, or that any failure is shown to be outside this change.
-- [ ] 4.2 Measure at High on the target PC (full screen, pane or window visible) in the commons and the R03 drop. Verify 1% lows of at least 30 fps, no worse than the 1.1 baseline by more than 10%, and GPU memory within 10% of baseline. Record the numbers in design.md. If they fall short, switch `n8ao` to half resolution and measure again.
+- [ ] 4.2 Measure at High on the target PC (full screen, pane or window visible) at the 1.1 commons and R03-pane pins, and by hand through the R03 drop with the pane visible. Verify 1% lows of at least 30 fps everywhere, the pins no worse than the 1.1 baseline by more than 10% (1.1 has no drop number, so the drop is held to the 30 fps floor only), and GPU memory within 10% of baseline. Record the numbers in design.md. If they fall short, switch `n8ao` to half resolution and measure again.
 - [ ] 4.3 Record the final tuned values (shadow radius per kind, `n8ao` and bloom parameters) in design.md and close its Open Questions. Verify `openspec validate upgrade-three-and-post-chain --strict` passes.
 
 ## Workflow follow-up
