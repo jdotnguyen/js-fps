@@ -56,7 +56,7 @@ data checkpoints `cp_first_contact`, `cp_cover_me`, `cp_security`, `cp_flooded`,
 - **Death restart still works as before:** die mid-fight in R06 and in R11; the fight replays from its checkpoint with the squad beside you.
 - **Running ahead into the Observation Gallery:** sprint in ahead of the squad. `D_R02_R03` stays open until Giles and Okafor are inside, then seals. Step back out before it seals: it waits for you. If a squadmate is stuck, after 8 s he appears inside near you (watch he does not pop in where you are looking).
 - **Regroup:** leave Giles far behind out of sight (for example, run through the tunnel), then start cover-me, the med-lab door or the climax. He should be near you when the scene starts, never teleporting in view.
-- **Climax arena:** during the R11 fight, step out through the north entrance into the maintenance corridor: the door to the Moon Pool must be sealed. Kill the last enemy from the corridor: "Power! Doors sealing" and the seal wait until you walk back into R11, then the reveal plays with Giles in front of you.
+- **Climax arena:** during the R11 fight, step out through the north entrance into the maintenance corridor: the door to the Launch Hall must be sealed. Kill the last enemy from the corridor: "Power! Doors sealing" and the seal wait until you walk back into R11, then the reveal plays with Giles in front of you.
 - **Debug jumps:** `?level=slice01&debug&jump=r11` and the other `jump=` values show the room instead of a black screen, with the squad beside you.
 
 ## [Assumed] choices to confirm or change

@@ -1037,7 +1037,7 @@ trigger(R12e, 'trig_hydro_store', cellBox(10, 10, 7, 7), 'trigger:hydro_store_en
 const DIVE = { fog: '#0b1316', fogDensity: 0.015, reverb: 'metal_hall', ambience: 'dive_drip' };
 const WORK = '#eef4f6';
 const R13a = room('R13a', 'Wet Vestibule', [[6, 7]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'metal_corridor' }, floor: 'floor_grate', ceiling: 'ceiling_pipes', lights: [L(0, 'steady', WORK, 8, undefined, { shaft: 0.01 })] });
-const R13b = room('R13b', 'Moon Pool', rect(5, 7, 8, 10), {
+const R13b = room('R13b', 'Launch Hall', rect(5, 7, 8, 10), {
   area: 'dive_bay',
   height: 5,
   atmosphere: { ...DIVE, ambience: 'launch_bay' },
@@ -1086,7 +1086,7 @@ prop(R13b, 'pipe_run', [24.5, 0, 41.4], 0, { length: 8, height: 0.4, paint: 'tea
 prop(R13b, 'crate', [26.5, 0, 40.65], 10, { size: 0.6 });
 // Signage (task 5.1): a plate and life-support panel by each entry, pipe labels on the service runs.
 wallProp(R13a, 'room_sign', 6, 7, 'w', 1.1, { code: 'R13A', name: 'WET VESTIBULE', warn: 'WET AREA · NON-SLIP BOOTS', y: 2.2, co2: 610, rh: 78 }, 0.01);
-wallProp(R13b, 'room_sign', 5, 8, 'n', 1.3, { code: 'R13B', name: 'LAUNCH TRUNK 1', warn: 'KEEP TRUNK GATE SHUT', co2: 650, rh: 81 }, 0.01);
+wallProp(R13b, 'room_sign', 5, 8, 'n', 1.3, { code: 'R13B', name: 'LAUNCH HALL', warn: 'KEEP TRUNK GATE SHUT', co2: 650, rh: 81 }, 0.01);
 wallProp(R13c, 'room_sign', 4, 9, 'e', -0.95, { code: 'R13C', name: 'ROV WORKSHOP', co2: 720, rh: 64 }, 0.01);
 wallProp(R13e, 'room_sign', 4, 10, 's', -1.05, { code: 'R13E', name: 'SAMPLE STORE', warn: 'LAB B CHAIN OF CUSTODY', co2: 590, rh: 55 }, 0.01);
 wallProp(R13d, 'room_sign', 8, 8, 'n', -1.2, { code: 'R13D', name: 'MAINTENANCE', panel: false }, 0.01);

@@ -770,7 +770,7 @@ test('dive bay rooms have their new roles: no dive-suit racks, the cold store at
   const props = data.rooms.flatMap((r) => (r.props ?? []).map((p) => ({ room: r.id, ...p })));
   assert.equal(props.filter((p) => p.kit === 'dive_suit_rack').length, 0, 'no open-water dive suits anywhere in slice01');
   const names = Object.fromEntries(data.rooms.filter((r) => r.id.startsWith('R13')).map((r) => [r.id, r.name]));
-  assert.deepEqual(names, { R13a: 'Wet Vestibule', R13b: 'Moon Pool', R13c: 'ROV Workshop', R13d: 'Maintenance Corridor', R13e: 'Sample Store' });
+  assert.deepEqual(names, { R13a: 'Wet Vestibule', R13b: 'Launch Hall', R13c: 'ROV Workshop', R13d: 'Maintenance Corridor', R13e: 'Sample Store' });
   const store = props.find((p) => p.kit === 'cold_store')!;
   assert.equal(store.room, 'R13e');
   const locker = data.rooms.find((r) => r.id === 'R13e')!.anchors!.find((a) => a.id === 'dive_case_locker')!;
@@ -785,7 +785,7 @@ test('dive bay rooms have their new roles: no dive-suit racks, the cold store at
 test('dive bay signage and wear: plates by the entries, and 4-8 wear decals per clean room (surface-dressing §4)', () => {
   const props = (id: string) => data.rooms.find((r) => r.id === id)!.props ?? [];
   const r13bSign = props('R13b').find((p) => p.kit === 'room_sign')!;
-  assert.equal(`${r13bSign.params!['code']} · ${r13bSign.params!['name']}`, 'R13B · LAUNCH TRUNK 1');
+  assert.equal(`${r13bSign.params!['code']} · ${r13bSign.params!['name']}`, 'R13B · LAUNCH HALL');
   for (const id of ['R13a', 'R13b', 'R13c', 'R13d', 'R13e']) assert.equal(props(id).filter((p) => p.kit === 'room_sign').length, 1, `${id} plate`);
   for (const id of ['R13a', 'R13b', 'R13c', 'R13e']) {
     assert.notEqual(props(id).find((p) => p.kit === 'room_sign')!.params!['panel'], false, `${id} life-support panel`);

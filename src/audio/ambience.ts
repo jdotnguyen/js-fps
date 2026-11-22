@@ -197,7 +197,7 @@ export const AMBIENCE_PRESETS = {
       { sound: 'distantMoan', every: [55, 110], gain: 0.35, placement: 'far', muffled: true, reverb: 0.9, rateRange: [0.94, 1.04] },
     ],
   },
-  // The Moon Pool launch hall (rebuild-dive-bay): hydraulic plant hum and water moving in the trunk, winch and
+  // The Launch Hall (rebuild-dive-bay): hydraulic plant hum and water moving in the trunk, winch and
   // pressure noises; no distant moans, so the quiet half stays calm here.
   launch_bay: {
     beds: [

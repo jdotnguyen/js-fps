@@ -7,18 +7,18 @@ Defines the dive bay suite behind the Commons (R13a–e) as a believable deep-se
 ## Requirements
 
 ### Requirement: Room roles
-The dive bay SHALL consist of five rooms with these names and roles: R13a "Wet Vestibule" (the transition from the dry station), R13b "Moon Pool" (launch-and-recovery hall around the launch trunk), R13c "ROV Workshop" (vehicle maintenance), R13e "Sample Store" (cold storage and chain of custody for recovered samples) and R13d "Maintenance Corridor" (dark service corridor). The station map SHALL show these names when the dive bay map station is used.
+The dive bay SHALL consist of five rooms with these names and roles: R13a "Wet Vestibule" (the transition from the dry station), R13b "Launch Hall" (launch-and-recovery hall around the launch trunk), R13c "ROV Workshop" (vehicle maintenance), R13e "Sample Store" (cold storage and chain of custody for recovered samples) and R13d "Maintenance Corridor" (dark service corridor). The station map SHALL show these names when the dive bay map station is used.
 
 #### Scenario: Map shows the new names
 - **WHEN** Jay uses the dive bay map station
-- **THEN** the map reveals all five rooms, labelled Wet Vestibule, Moon Pool, ROV Workshop, Maintenance Corridor and Sample Store
+- **THEN** the map reveals all five rooms, labelled Wet Vestibule, Launch Hall, ROV Workshop, Maintenance Corridor and Sample Store
 
 #### Scenario: No dive suits for open-water diving
 - **WHEN** slice01 is built
 - **THEN** no dive-suit rack stands in R13a, R13b or R13c
 
 ### Requirement: Launch trunk
-The moon pool SHALL be a closed vertical lock, not an open pool at deck level. It SHALL have an inner hatch at deck level, a drained shaft with depth marks and standing water at its foot, and a closed outer hatch with a lit viewport at the bottom. A rail with a closed gate SHALL surround it. No player or NPC SHALL be able to enter the shaft.
+The launch trunk SHALL be a closed vertical lock, not an open moon pool at deck level, and nothing the player sees or hears (room names, signs, map labels, dialogue, objectives) SHALL call it a moon pool. It SHALL have an inner hatch at deck level, a drained shaft with depth marks and standing water at its foot, and a closed outer hatch with a lit viewport at the bottom. A rail with a closed gate SHALL surround it. No player or NPC SHALL be able to enter the shaft.
 
 #### Scenario: Looking into the trunk
 - **WHEN** Jay stands at the rail while the inner hatch is open

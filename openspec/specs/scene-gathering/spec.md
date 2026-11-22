@@ -35,7 +35,7 @@ When the climax opens `D_R13d_R11` as an enemy entrance, `D_R13b_R13d` SHALL be 
 
 #### Scenario: Jay retreats through the north entrance
 - **WHEN** Jay walks out of R11 into R13d during the climax
-- **THEN** the door from R13d to the Moon Pool stays sealed
+- **THEN** the door from R13d to the Launch Hall stays sealed
 
 #### Scenario: Load during the climax
 - **WHEN** a save with `climax_started` set is loaded

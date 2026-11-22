@@ -14,7 +14,7 @@ Each room SHALL play the ambience preset named in its level data: `hull_hum`, `c
 - **THEN** the crew murmur bed fades in and the hull hum fades out over about 2 s
 
 #### Scenario: Enter the launch trunk hall
-- **WHEN** the player walks from the wet vestibule (`dive_drip`) into the Moon Pool hall (`launch_bay`)
+- **WHEN** the player walks from the wet vestibule (`dive_drip`) into the Launch Hall (`launch_bay`)
 - **THEN** the hydraulic hum and the water moving in the trunk fade in over about 2 s, with occasional winch clunks and pressure pings
 
 #### Scenario: Unknown preset

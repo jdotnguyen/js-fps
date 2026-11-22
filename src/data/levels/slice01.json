@@ -9124,7 +9124,7 @@
   },
   {
    "id": "R13b",
-   "name": "Moon Pool",
+   "name": "Launch Hall",
    "area": "dive_bay",
    "height": 5,
    "atmosphere": {
@@ -9467,7 +9467,7 @@
      "rot": 180,
      "params": {
       "code": "R13B",
-      "name": "LAUNCH TRUNK 1",
+      "name": "LAUNCH HALL",
       "warn": "KEEP TRUNK GATE SHUT",
       "co2": 650,
       "rh": 81

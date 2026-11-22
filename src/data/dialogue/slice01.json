@@ -205,7 +205,7 @@
       "emote": "laugh", "channel": "local", "priority": "story", "audio": "assets/vo/hydro_botanist_03.mp3", "minDuration": 2.5, "choices": [] },
     { "id": "hydro_store_locked_01", "speaker": "crew_botanist", "text": "Storeroom's Level 2. Admin's very particular about the fertiliser.",
       "emote": "neutral", "channel": "local", "priority": "story", "audio": "assets/vo/hydro_store_locked_01.mp3", "minDuration": 3, "choices": [] },
-    { "id": "dive_sung_01", "speaker": "crew_sung", "text": "Jay! Case is by the moon pool. Don't drop it.",
+    { "id": "dive_sung_01", "speaker": "crew_sung", "text": "Jay! Case is by the launch trunk. Don't drop it.",
       "emote": "neutral", "channel": "local", "priority": "story", "audio": "assets/vo/dive_sung_01.mp3", "minDuration": 2.5, "choices": [] },
     { "id": "dive_jay_01", "speaker": "player", "text": "What's in it?",
       "emote": "question", "channel": "local", "priority": "story", "audio": "assets/vo/dive_jay_01.mp3", "minDuration": 2.5, "choices": [] },
