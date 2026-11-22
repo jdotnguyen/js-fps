@@ -67,7 +67,12 @@ The split render (steps 1 and 3) keeps excluded meshes out of the depth that `n8
 
 ### 5. Effect order and merging
 - postprocessing renders into a linear HDR buffer, and three applies `renderer.toneMapping` only when drawing to the screen. So tone mapping moves into a `ToneMappingEffect` (ACES Filmic), after the grade, keeping today's "grade in linear, then tone map" order. `renderer.toneMapping` becomes `NoToneMapping` while the chain is on. Exposure 0.95 has to carry over; a task checks it against an r187 `EffectComposer` screenshot.
-- The grade is a custom `Effect` that samples its input at offsets for the aberration. That makes it a convolution effect, and postprocessing allows one per `EffectPass`. SMAA is also a convolution effect, so it gets its own pass (decision 4, step 5).
+- The grade is a custom `Effect` that samples its input at offsets for the aberration. SMAA is a convolution effect, and postprocessing allows one per `EffectPass`, so SMAA gets its own pass (decision 4, step 5).
+- **Revised in implementation:** the grade is declared without the `CONVOLUTION` attribute.
+  - `EffectPass.setEffects` sorts convolution effects to the front. A convolution grade would therefore run before bloom, leaving the glow ungraded (no vignette, no damage tint on it).
+  - Without the flag, the merged pass keeps bloom → grade → tone mapping.
+  - The grade still reads `inputBuffer` at the aberration offsets, and adds back what bloom added (`inputColor - inputBuffer`), so the glow is graded but not split into colours. That is the trade-off below.
+  - Nothing else in that pass samples neighbours, so the merge stays valid. A future convolution effect added to it would need its own pass.
 - Trade-off: inside the merged pass, the aberration samples the scene before bloom is added, so the glow itself is no longer split into colours. The difference is a fraction of a pixel at the screen edges. Rejected: a third pass just to keep that.
 
 ### 6. Tier toggles and the `Post` interface
@@ -78,8 +83,8 @@ The split render (steps 1 and 3) keeps excluded meshes out of the depth that `n8
 
 ### 7. Starting parameters
 Each is tuned by screenshot in R02, R03 and R04 against the last r187 `EffectComposer` capture:
-- **n8ao:** `aoRadius` about 1.5 m, `distanceFalloff` 1, `intensity` 2, quality `Medium`, full resolution.
-- **Bloom:** `mipmapBlur` on, `luminanceThreshold` 0.85, `intensity` matched to `UnrealBloomPass` strength 0.55.
+- **n8ao:** `aoRadius` about 1.5 m, `distanceFalloff` 1, `intensity` 2, quality `Medium`, full resolution. (Tuned to 1 m and intensity 1; see "Final values".)
+- **Bloom:** `mipmapBlur` on, `luminanceThreshold` 0.85, `intensity` matched to `UnrealBloomPass` strength 0.55. (Tuned to intensity 4 and radius 0.85; see "Final values".)
 
 ## Risks / Trade-offs
 
@@ -224,8 +229,86 @@ Results:
 - `baseline/r187-r04-through-glass.jpg`
 - `baseline/r187-flashlight-sofa-wall.jpg`
 
+## postprocessing chain (section 3)
+
+**Packages (3.1).** `three` 0.187.0, `@types/three` 0.187.0, `postprocessing` 6.39.6 and `n8ao` 2.1.0, all exact. `npm ci` installs cleanly. n8ao ships no types; `src/types/n8ao.d.ts` declares the part we use.
+
+**How the chain is built (3.2), and why it differs in places from decision 4:**
+- **Pass order:** `RenderPass` of the AO scene → `N8AOPostPass` → depth copy → `clear: false` `RenderPass` of the after-AO meshes → `EffectPass` (bloom, grade, tone mapping) → `EffectPass` (SMAA).
+- **The split hides objects by layer mask, not `visible`.** One walk per frame sorts the visible drawables, and clearing an object's layer mask takes it out of one render.
+  - `visible` would hide children too. A see-through sign on a solid door would then vanish from both renders.
+  - Changing the camera's layers would drop the lights from the second render (three filters lights by camera layers too).
+- **Which objects are after-AO:** `skipsAo` meshes, plus points, lines and sprites, which GTAO also kept out of its depth.
+- **A depth copy is needed.** postprocessing gives each ping-pong buffer its own depth texture. After `N8AOPostPass` swaps buffers, the after-AO render would have no depth, and glass would draw through walls.
+  - A small pass blits the AO scene's depth into the current buffer, using the same `blitFramebuffer` postprocessing uses for its stable depth copy.
+  - Checked in the browser: no GL errors, and turning the copy off changes the frame (max difference 455 in the sofa view).
+- **AO off (Medium, Low and the debug toggle):** nothing is split, and the copy and second render do nothing.
+- **Shadows:** the shadow pass runs inside the AO-scene render, so after-AO meshes no longer cast shadows. Today those are 11 flat decals on walls, whose shadow lands on the wall itself, so nothing visible changes.
+- **n8ao's transparency detection is off.** It traverses the whole scene every frame and adds two extra renders; the split already keeps see-through meshes out of its depth.
+- **Tone mapping:** `renderer.toneMapping` is set to `NoToneMapping` only around `composer.render()`, so camera feeds drawn straight to the screen keep ACES. `ToneMappingEffect` still applies `renderer.toneMappingExposure` (0.95), and the debug exposure slider still works.
+- **Screen output:** postprocessing marks only the last-added pass `renderToScreen`. `applyPostTier` hands it to the merged pass when SMAA is off, or nothing would reach the screen on Low.
+- **Console:** on a cold shader cache, ANGLE logs warning X3595 for n8ao's own AO shader (implicit-LOD texture reads in its sample loop). Like X4122 at 2.3, it is a third-party compiler notice and is left alone.
+
+**Grade (3.3).** `createGradeEffect` builds the effect from `THREE.Uniform` objects, and `post.grade` hands out those same objects (unit test). In the browser:
+- Film grain off (Settings): frame-to-frame noise on a flat floor patch went from 1.28 to 0. The corner and centre levels (vignette) and the aberration were unchanged.
+- Damage 1: the frame desaturates and its edges turn red, the bloom glow included (`baseline/pp-r02-damage-full.jpg`).
+
+**Tiers (3.4).** A runtime High → Low → Medium → High switch, through the settings store, with the level not reloaded:
+- Low: AO, bloom and SMAA off; the merged pass (grade and tone mapping only) draws to the screen.
+- Medium: bloom and SMAA on, AO off.
+- High: everything on.
+- The merged pass recompiles only when bloom actually changes.
+
+**Debug GUI (3.5).** With `&debug`, the AO toggle, AO strength and radius, and the bloom, bloom threshold and bloom radius sliders all exist, and each one changes the image. The sandbox's `createPost` call is unchanged.
+
+**Tuning (3.6).** Each value is fitted against the r187 GTAO + UnrealBloom chain, run side by side on the same load (a temporary `?legacypost` switch, since removed). The comparison is mean absolute luminance difference over 96×50 downscales of the R02, R03 and R04 pins.
+- **Exposure:** with AO and bloom off, the two chains match. Mean luminance is 0.369 in the commons for both, and the MAE (0.005) is at the grain's noise floor.
+- **n8ao:** `aoRadius` 1 m, `distanceFalloff` 1, `intensity` 1, quality `Medium`, full resolution, transparency detection off.
+  - The starting values (1.5 m, intensity 2) darkened about 2.5 times as much as GTAO.
+  - The chosen values give an MAE of 0.009 to 0.013 against GTAO's frames.
+- **Bloom:** `mipmapBlur`, `luminanceThreshold` 0.85, `intensity` 4, radius 0.85.
+  - postprocessing's intensity and radius are not on UnrealBloomPass's scale: UnrealBloom at strength 0.55 adds 0.069 of mean luminance in the commons.
+  - The chosen values give a summed MAE of 0.062 over the three pins.
+  - The remaining difference is the glare right around ceiling fixtures, where UnrealBloom spreads wider. Wider radii made the commons worse, so it is accepted.
+- **AO scenarios by eye:**
+  - The floor darkens softly where it meets the sofa (`pp-flashlight-sofa-wall.jpg`).
+  - Lab B through the glass shows no AO shapes from the panes (`pp-r04-through-glass.jpg`).
+  - The commons floor under the R02 fixture shafts shows none either. Shafts don't write depth, so they never reach the AO depth, and the unit test covers that rule.
+- **Side by side** (r187 `EffectComposer`, then the new chain):
+
+| Pin | r187 reference | postprocessing + n8ao |
+| --- | --- | --- |
+| R02 commons | `baseline/r187-r02-commons.jpg` | `baseline/pp-r02-commons.jpg` |
+| R03 sofa | `baseline/r187-r03-sofa.jpg` | `baseline/pp-r03-sofa.jpg` |
+| R04 through the glass | `baseline/r187-r04-through-glass.jpg` | `baseline/pp-r04-through-glass.jpg` |
+| Flashlight on the sofa | `baseline/r187-flashlight-sofa-wall.jpg` | `baseline/pp-flashlight-sofa-wall.jpg` |
+
+## Integration (section 4)
+
+**4.1.** typecheck: 0 errors. `npm test`: 1187 tests, 1180 pass, and exactly the 7 known r170 failures. No other failures.
+
+**4.2, part measured here** (High, the Baseline window, `?slot=scratch&memprobe&debug`, CPU at 11-17%):
+
+| Where | Frames | Avg fps | Median ms | p99 ms | Max ms | 1% low fps |
+| --- | --- | --- | --- | --- | --- | --- |
+| Commons pin, run 1 | 601 | 60.0 | 16.7 | 16.8 | 16.9 | 59.5 |
+| Commons pin, run 2 | 600 | 59.9 | 16.7 | 16.9 | 33.3 | 50.9 |
+| R03-pane pin, run 1 | 601 | 60.0 | 16.7 | 16.9 | 17.0 | 59.0 |
+| R03-pane pin, run 2 | 601 | 60.0 | 16.7 | 16.8 | 16.9 | 59.5 |
+
+- Both pins hold vsync's 60. Commons run 2 had a single 33 ms frame.
+- GPU memory: 990 MiB (textures 971, renderbuffers 0, buffers 19), 127 programs and 71 framebuffers. That is 3% under the r170 baseline. postprocessing keeps depth in textures, so the renderbuffers are gone.
+- **Still to do by hand:** the drop through R03 with the pane visible, on the target PC, against the 30 fps floor.
+
 Unrelated to the upgrade: three ambience one-shots referenced in `sounds.ts` (`archPass`, `archAlarm`, `wandBeep`) are missing from `public/assets` on `foundation`. Each page load logs a decode warning for them.
+
+## Final values (4.3)
+
+- **Shadows:** `PCFShadowMap`. `shadow.radius` is 2 for the flashlight and for every shadow-pool kind (ceiling, pendant, wall, emergency). Biases are unchanged from r170 (see `SHADOW_CONES` and `FLASHLIGHT_SHADOW`).
+- **n8ao:** `aoRadius` 1, `distanceFalloff` 1, `intensity` 1, quality `Medium`, full resolution, `autoDetectTransparency` and `transparencyAware` off.
+- **Bloom:** `mipmapBlur`, `luminanceThreshold` 0.85, `intensity` 4, radius 0.85.
+- **SMAA:** `SMAAPreset.MEDIUM`, in its own pass.
 
 ## Open Questions
 
-- Final tuned values (shadow radius per light kind, `n8ao` and bloom parameters) are found by screenshot during implementation and recorded here before archiving.
+- None remaining. The tuned values are recorded under "Final values". The by-hand drop timing for 4.2 is a measurement still to take, not an open design question.

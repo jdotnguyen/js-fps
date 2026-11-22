@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { RENDER_TIERS, anisotropyFor, clampTier, materialTextureUnits } from './tiers.ts';
 import { tierPixelRatio, applyQuality } from './renderer.ts';
 import { applyPostTier } from './post.ts';
+import type { Effect } from 'postprocessing';
 
 // render-quality spec (openspec fidelity-first-rendering): one table owns every tier's budget.
 
@@ -59,12 +60,32 @@ test('material units count the maps a material binds, plus the scene environment
   assert.equal(materialTextureUnits({ map: tex }, true), 1, 'an unlit material samples no environment');
 });
 
-test('post passes follow the tier: SMAA on Medium and High, off on Low', () => {
-  const passes = { gtao: { enabled: true }, bloom: { enabled: true }, smaa: { enabled: true } };
-  applyPostTier(passes, 'low');
-  assert.deepEqual([passes.gtao.enabled, passes.bloom.enabled, passes.smaa.enabled], [false, false, false]);
-  applyPostTier(passes, 'medium');
-  assert.deepEqual([passes.gtao.enabled, passes.bloom.enabled, passes.smaa.enabled], [false, true, true]);
-  applyPostTier(passes, 'high');
-  assert.deepEqual([passes.gtao.enabled, passes.bloom.enabled, passes.smaa.enabled], [true, true, true]);
+test('post passes follow the tier: AO on High, bloom and SMAA on Medium and High, off on Low', () => {
+  const bloom = { name: 'bloom' } as unknown as Effect;
+  const grade = { name: 'grade' } as unknown as Effect;
+  const toneMapping = { name: 'toneMapping' } as unknown as Effect;
+  const builds: string[][] = [];
+  const t = {
+    ao: { enabled: true },
+    smaa: { enabled: true, renderToScreen: true },
+    main: {
+      renderToScreen: false,
+      bloomOn: true as boolean | null,
+      setEffectList(effects: Effect[]) {
+        builds.push(effects.map((e) => e.name));
+      },
+    },
+    effects: { bloom, grade, toneMapping },
+  };
+  const state = () => [t.ao.enabled, t.main.bloomOn, t.smaa.enabled, t.main.renderToScreen];
+
+  applyPostTier(t, 'low');
+  assert.deepEqual(state(), [false, false, false, true], 'Low: no AO, bloom or SMAA, and the merged pass draws to the screen');
+  assert.deepEqual(builds, [['grade', 'toneMapping']], 'Low builds the merged pass without bloom');
+  applyPostTier(t, 'medium');
+  assert.deepEqual(state(), [false, true, true, false]);
+  assert.deepEqual(builds.at(-1), ['bloom', 'grade', 'toneMapping'], 'bloom comes back first, so the grade covers the glow');
+  applyPostTier(t, 'high');
+  assert.deepEqual(state(), [true, true, true, false]);
+  assert.equal(builds.length, 2, 'Medium to High keeps bloom, so the pass is not rebuilt (no recompile)');
 });

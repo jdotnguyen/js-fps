@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { excludeFromGtao, skipsAo, type GtaoVisibilityHooks } from './post.ts';
+import { AoSplit, createGradeEffect, skipsAo } from './post.ts';
 
 const mesh = (mat: THREE.MeshStandardMaterialParameters, userData: Record<string, unknown> = {}): THREE.Mesh => {
   const m = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial(mat));
@@ -9,31 +9,10 @@ const mesh = (mat: THREE.MeshStandardMaterialParameters, userData: Record<string
   return m;
 };
 
-/** Stand-in for three r179+ GTAOPass: hides lines itself and restores only what it hid. */
-function stubPass(scene: THREE.Object3D): GtaoVisibilityHooks & { renderGBuffer(): boolean[] } {
-  const cache: THREE.Object3D[] = [];
-  const pass = {
-    _overrideVisibility() {
-      scene.traverse((o) => {
-        if ((o as THREE.Line).isLine && o.visible) {
-          o.visible = false;
-          cache.push(o);
-        }
-      });
-    },
-    _restoreVisibility() {
-      for (const o of cache) o.visible = true;
-      cache.length = 0;
-    },
-    /** Mimics GTAOPass.render: override, draw depth/normals, restore; returns visibility during the draw. */
-    renderGBuffer(): boolean[] {
-      this._overrideVisibility();
-      const during = scene.children.map((c) => c.visible);
-      this._restoreVisibility();
-      return during;
-    },
-  };
-  return pass;
+/** Whether the renderer would draw `obj` for the default camera: visible up the chain and on layer 0. */
+function drawn(obj: THREE.Object3D, camera: THREE.Camera): boolean {
+  for (let o: THREE.Object3D | null = obj; o; o = o.parent) if (!o.visible) return false;
+  return obj.layers.test(camera.layers);
 }
 
 test('skipsAo: transparent, non-depth-writing and skipGtao meshes skip AO; solid meshes and non-meshes do not', () => {
@@ -44,24 +23,54 @@ test('skipsAo: transparent, non-depth-writing and skipGtao meshes skip AO; solid
   assert.equal(skipsAo(new THREE.Group()), false);
 });
 
-test('excludeFromGtao hides AO-excluded meshes during the GTAO depth pass and shows them again after (r179 restore)', () => {
+test('AoSplit draws solid meshes in the AO render and transparent, non-depth-writing and skipGtao meshes only in the second', () => {
+  const camera = new THREE.PerspectiveCamera();
   const scene = new THREE.Scene();
   const solid = mesh({});
   const glass = mesh({ transparent: true, opacity: 0.16, depthWrite: false });
+  const decal = mesh({ depthWrite: false });
   const shaft = mesh({}, { skipGtao: true });
-  const hiddenAlready = mesh({ transparent: true });
-  hiddenAlready.visible = false;
-  const line = new THREE.Line();
-  scene.add(solid, glass, shaft, hiddenAlready, line);
+  const dust = new THREE.Points();
+  const door = mesh({});
+  const doorSign = mesh({ transparent: true }); // an excluded child of a solid mesh
+  door.add(doorSign);
+  const pane = mesh({ transparent: true });
+  const frame = mesh({}); // a solid child of an excluded mesh
+  pane.add(frame);
+  const hidden = mesh({});
+  hidden.visible = false;
+  const light = new THREE.PointLight();
+  scene.add(solid, glass, decal, shaft, dust, door, pane, hidden, light);
+  const aoScene = [solid, door, frame];
+  const afterAo = [glass, decal, shaft, dust, doorSign, pane];
+  const all = [...aoScene, ...afterAo, hidden, light];
+  const masks = all.map((o) => o.layers.mask);
 
-  const pass = stubPass(scene);
-  excludeFromGtao(pass, scene);
+  const split = new AoSplit();
   for (let frame = 0; frame < 3; frame++) {
-    assert.deepEqual(pass.renderGBuffer(), [true, false, false, false, false], 'only the solid mesh is drawn into the AO buffers');
-    assert.deepEqual(scene.children.map((c) => c.visible), [true, true, true, false, true], 'after the pass everything is as before');
+    split.beginAoScene(scene);
+    assert.deepEqual(aoScene.map((o) => drawn(o, camera)), [true, true, true], 'AO render: solid geometry');
+    assert.deepEqual(afterAo.map((o) => drawn(o, camera)), afterAo.map(() => false), 'AO render: nothing see-through');
+    assert.equal(drawn(light, camera), true, 'lights stay in the AO render');
+
+    split.beginAfterAo();
+    assert.deepEqual(aoScene.map((o) => drawn(o, camera)), [false, false, false], 'second render: no solid geometry');
+    assert.deepEqual(afterAo.map((o) => drawn(o, camera)), afterAo.map(() => true), 'second render: every excluded mesh');
+    assert.equal(drawn(light, camera), true, 'lights stay in the second render');
+    assert.equal(drawn(hidden, camera), false);
+
+    split.end();
+    assert.deepEqual(all.map((o) => o.layers.mask), masks, 'every layer mask is restored');
   }
 });
 
-test('excludeFromGtao fails loudly when GTAOPass no longer has the hooks', () => {
-  assert.throws(() => excludeFromGtao({} as GtaoVisibilityHooks, new THREE.Scene()), /needs porting/);
+test('the grade effect uses the uniform objects post.grade hands out', () => {
+  const { effect, grade } = createGradeEffect();
+  for (const name of ['uGrain', 'uVignette', 'uAberration', 'uLift', 'uGain', 'uDamage', 'uTime', 'uResolution'] as const) {
+    assert.equal(effect.uniforms.get(name), grade[name], name);
+  }
+  grade.uGrain.value = 0;
+  grade.uDamage.value = 0.8;
+  assert.equal(effect.uniforms.get('uGrain')!.value, 0);
+  assert.equal(effect.uniforms.get('uDamage')!.value, 0.8);
 });
