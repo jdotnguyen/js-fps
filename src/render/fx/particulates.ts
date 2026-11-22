@@ -81,4 +81,9 @@ export class Particulates {
     this.uCamera.value.copy(camera);
     if (typeof window !== 'undefined') this.uScale.value = window.innerHeight * 0.5;
   }
+
+  dispose(): void {
+    this.points.geometry.dispose();
+    (this.points.material as THREE.Material).dispose();
+  }
 }

@@ -76,6 +76,7 @@ export interface Post {
   setSize(width: number, height: number, pixelRatio: number): void;
   setQuality(quality: Settings['quality']): void;
   render(time: number): void;
+  dispose(): void;
 }
 
 export function createPost(
@@ -122,10 +123,10 @@ export function createPost(
     uDamage: { value: 0 },
   };
   // Pass a ShaderMaterial (not a plain object) so ShaderPass keeps our uniform objects.
-  composer.addPass(
-    new ShaderPass(new THREE.ShaderMaterial({ uniforms: grade, vertexShader: GRADE_VERT, fragmentShader: GRADE_FRAG })),
-  );
-  composer.addPass(new OutputPass());
+  const gradePass = new ShaderPass(new THREE.ShaderMaterial({ uniforms: grade, vertexShader: GRADE_VERT, fragmentShader: GRADE_FRAG }));
+  composer.addPass(gradePass);
+  const outputPass = new OutputPass();
+  composer.addPass(outputPass);
   // Edge anti-aliasing last, on the display-referred image (render-quality spec); Low skips it.
   const smaa = new SMAAPass(size.x * renderer.getPixelRatio(), size.y * renderer.getPixelRatio());
   composer.addPass(smaa);
@@ -147,6 +148,14 @@ export function createPost(
     render(time) {
       grade.uTime.value = time;
       composer.render();
+    },
+    dispose() {
+      gtao.dispose();
+      bloom.dispose();
+      gradePass.dispose();
+      outputPass.dispose();
+      smaa.dispose();
+      composer.dispose();
     },
   };
   post.setQuality(quality);

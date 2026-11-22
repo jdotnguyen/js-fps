@@ -1,3 +1,4 @@
+import type { ColliderSurface } from './collision.ts';
 import type * as THREE from 'three';
 import type { Interactions } from '../actors/interaction.ts';
 import type { PlayerWorld } from '../actors/player.ts';
@@ -38,8 +39,12 @@ export interface World {
   /** Title-screen camera move. */
   attract(t: number, camera: THREE.PerspectiveCamera): void;
   update(t: number, dt: number, cameraPosition: THREE.Vector3, reducedFlashing: boolean, camera?: THREE.Camera): void;
+  /** Footstep surface at a body's feet, including standing water (standing-water spec). Worlds without water omit it. */
+  surfaceAt?(x: number, y: number, z: number): ColliderSurface | null;
   /** Resize this world's light pools for a quality tier (render-lighting spec). Worlds without pools omit it. */
   setLightBudget?(budget: LightBudget): void;
+  /** Release geometries, materials, light pools, navmesh, and event listeners (session teardown). */
+  dispose?(): void;
 }
 
 /** Light pool sizes a quality tier gives each world (render-lighting spec, RENDER_TIERS). */

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import * as THREE from 'three';
 import { installFakeWebAudio, pathGain, reaches, type FakeAudioContext, type FakeNode } from './testing/fakeWebAudio.ts';
-import { AudioEngine, BUS_BASE_LEVELS, type BusName, type VoiceOptions } from './engine.ts';
+import { AudioEngine, BUS_BASE_LEVELS, UI_SAMPLE_NAMES, UI_SOUND_NAMES, type BusName, type VoiceOptions } from './engine.ts';
 import { GLASS_CUTOFF_HZ, GLASS_GAIN_SCALE, OCCLUDED_CUTOFF_HZ, OCCLUDED_GAIN_SCALE, OCCLUDED_REVERB } from './occlusion.ts';
 import type { SoundName } from './sounds.ts';
 
@@ -126,4 +126,56 @@ test('through glass only, a sound is slightly quieter and duller, far less than 
   const wall = playAndRead(engine, OPTS);
   assert.ok(glass.gain > wall.gain && glass.cutoff! > wall.cutoff!, 'glass is louder and brighter than a wall');
   assert.ok(glass.gain < 0.8, 'glass is still a little quieter than the open');
+});
+
+test('UI-only boot renders only UI sounds, then renderSoundsAsync finishes the rest in chunks', async () => {
+  const engine = new AudioEngine();
+  engine.renderSounds(UI_SOUND_NAMES);
+  assert.equal(engine.hasSound('uiHover'), true);
+  assert.equal(engine.hasSound('uiSelect'), true);
+  assert.equal(engine.hasSound('pistolShot'), false, 'gameplay SFX deferred out of shell boot');
+
+  const steps: number[] = [];
+  await engine.renderSoundsAsync(undefined, {
+    batchSize: 5,
+    onProgress: (done, total) => steps.push(done / total),
+  });
+  assert.equal(engine.hasSound('pistolShot'), true);
+  assert.equal(engine.hasSound('footConcrete'), true);
+  assert.ok(steps.length > 5);
+  assert.equal(steps.at(-1), 1);
+});
+
+test('loadSamples respects bounded concurrency and skips already loaded samples', async () => {
+  const engine = new AudioEngine();
+  const ctx = engine.ctx as unknown as FakeAudioContext;
+  let active = 0;
+  let maxActive = 0;
+  const loaded: string[] = [];
+  await engine.loadSamples({
+    names: UI_SAMPLE_NAMES,
+    concurrency: 2,
+    fetchSample: async (name) => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      await Promise.resolve();
+      active--;
+      loaded.push(name);
+      return ctx.createBuffer(1, 64, ctx.sampleRate) as unknown as AudioBuffer;
+    },
+  });
+  assert.ok(maxActive <= 2, `concurrency capped at 2 (saw ${maxActive})`);
+  assert.equal(loaded.length, UI_SAMPLE_NAMES.length);
+  for (const name of UI_SAMPLE_NAMES) assert.equal(engine.hasSample(name), true);
+
+  // Calling again does not re-fetch loaded samples.
+  let secondCalls = 0;
+  await engine.loadSamples({
+    names: UI_SAMPLE_NAMES,
+    fetchSample: async () => {
+      secondCalls++;
+      return null;
+    },
+  });
+  assert.equal(secondCalls, 0);
 });

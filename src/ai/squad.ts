@@ -1144,4 +1144,10 @@ export class Squad {
   canSee(p: THREE.Vector3): boolean {
     return inPlayerView(this.playerHead, this.forward, p, (a, b) => this.nav.direct(a, b, 0));
   }
+
+  /** Dispose both squadmates' humanoid bodies and clear the group (session teardown). */
+  dispose(): void {
+    for (const m of this.mates) m.body.dispose();
+    this.group.clear();
+  }
 }

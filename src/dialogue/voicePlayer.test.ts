@@ -56,3 +56,43 @@ test('a queued PA resolves its grille once at audible start while local voices t
   assert.equal(speech.speaking()?.id, missing.id);
   assert.equal(ctx.nodes.length, beforeMissing, 'missing fixture keeps the subtitle without a centred audio source');
 });
+
+test('WebAudioVoicePlayer.loadLines prioritizes matching lines, caps concurrency, and stops on dispose', async (t) => {
+  t.after(installFakeWebAudio());
+  const audio = new AudioEngine();
+  const ctx = audio.ctx as unknown as FakeAudioContext;
+  (ctx as unknown as { decodeAudioData: (buf: ArrayBuffer) => Promise<AudioBuffer> }).decodeAudioData = async () =>
+    ctx.createBuffer(1, 32, ctx.sampleRate) as unknown as AudioBuffer;
+
+  const order: string[] = [];
+  let active = 0;
+  let maxActive = 0;
+  const origFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = origFetch;
+  });
+  globalThis.fetch = (async (url: string | URL | Request) => {
+    active++;
+    maxActive = Math.max(maxActive, active);
+    order.push(String(url));
+    await Promise.resolve();
+    active--;
+    return { ok: true, status: 200, arrayBuffer: async () => new ArrayBuffer(8) } as Response;
+  }) as typeof fetch;
+
+  const player = new WebAudioVoicePlayer({ ctx: audio.ctx, master: audio.buses.voice, reverbIn: audio.voiceReverbIn }, { baseUrl: '/' });
+  const lines = [
+    { id: 'late_01', channel: 'local' as const, speaker: 'engineer', priority: 'story' as const, emote: 'neutral' as const, audio: 'assets/vo/late_01.mp3', choices: [], minDuration: 0, text: 'Late.' },
+    { id: 'intro_01', channel: 'local' as const, speaker: 'engineer', priority: 'story' as const, emote: 'neutral' as const, audio: 'assets/vo/intro_01.mp3', choices: [], minDuration: 0, text: 'Intro.' },
+    { id: 'intro_02', channel: 'local' as const, speaker: 'engineer', priority: 'story' as const, emote: 'neutral' as const, audio: 'assets/vo/intro_02.mp3', choices: [], minDuration: 0, text: 'Intro 2.' },
+  ];
+
+  const count = await player.loadLines(lines, { concurrency: 1, idle: true, priority: (l) => l.id.startsWith('intro_') });
+  assert.equal(count, 3);
+  assert.equal(maxActive, 1);
+  assert.deepEqual(order, ['/assets/vo/intro_01.mp3', '/assets/vo/intro_02.mp3', '/assets/vo/late_01.mp3']);
+  assert.ok(player.hasRecorded(lines[1]!));
+
+  player.dispose();
+  assert.equal(player.hasRecorded(lines[1]!), false, 'dispose releases recorded VO buffers');
+});

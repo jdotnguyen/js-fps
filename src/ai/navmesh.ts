@@ -1,231 +1,50 @@
-import {
-  allocCompactHeightfield,
-  allocContourSet,
-  allocHeightfield,
-  allocPolyMesh,
-  allocPolyMeshDetail,
-  buildCompactHeightfield,
-  buildContours,
-  buildDistanceField,
-  buildPolyMesh,
-  buildPolyMeshDetail,
-  buildRegions,
-  calcGridSize,
-  createHeightfield,
-  createNavMeshData,
-  createRcConfig,
-  erodeWalkableArea,
-  filterLedgeSpans,
-  filterLowHangingWalkableObstacles,
-  filterWalkableLowHeightSpans,
-  freeCompactHeightfield,
-  freeContourSet,
-  freeHeightfield,
-  freePolyMesh,
-  freePolyMeshDetail,
-  init,
-  markBoxArea,
-  markWalkableTriangles,
-  NavMesh,
-  NavMeshCreateParams,
-  NavMeshQuery,
-  rasterizeTriangles,
-  Recast,
-  RecastBuildContext,
-  TriangleAreasArray,
-  TrianglesArray,
-  VerticesArray,
-  type Vector3Tuple,
-} from 'recast-navigation';
+import { NavMesh, NavMeshQuery, UnsignedCharArray } from 'recast-navigation';
 import type { Aabb, ColliderQuery } from '../actors/motor.ts';
 import { clearWalk, segmentBox, type NavDoor, type Navigator, type P3 } from './nav.ts';
+import {
+  buildNavMeshBytes,
+  FLAG_WALK,
+  initNavmesh,
+  NAVMESH,
+  navmeshReady,
+  type NavmeshWorkerReply,
+  type NavmeshWorkerRequest,
+} from './navmeshBuild.ts';
 
-/**
- * Navmesh navigation (ADR-0028): Recast builds a walkable surface from the level's collision boxes,
- * shrunk by the agent radius so every route keeps bodies off the walls; Detour finds shortest
- * routes over it. Each doorway is its own area, so a closed door switches its polygons off.
- * Implements the same Navigator interface as the ADR-0007 navgraph, so every AI switches together.
- */
-
-export const NAVMESH = {
-  /** Voxel size across / up, metres. */
-  cs: 0.1,
-  ch: 0.05,
-  /** Agent radius the walkable area is shrunk by: the 0.35 m body plus 5 cm. */
-  radius: 0.4,
-  /** Headroom needed, metres. */
-  height: 1.75,
-  /** Highest step, metres (the motor's step height). */
-  climb: 0.35,
-  /** Doorway strip marked as the door's area, metres either side of the leaf. */
-  doorDepth: 0.6,
-} as const;
-
-let ready = false;
-let loading: Promise<void> | null = null;
-
-/** Load the Recast/Detour WASM once (about 50 ms). Call before building a navmesh. */
-export function initNavmesh(): Promise<void> {
-  loading ??= init().then(() => {
-    ready = true;
-  });
-  return loading;
-}
-
-/** True once initNavmesh() has finished. */
-export function navmeshReady(): boolean {
-  return ready;
-}
+export { buildNavMeshBytes, initNavmesh, NAVMESH, navmeshReady, type NavmeshWorkerReply, type NavmeshWorkerRequest };
 
 export interface NavmeshBuildOptions {
   world: ColliderQuery;
   /** Every solid box (statics and door frames). Door leaves are given separately. */
   boxes: readonly Aabb[];
   doors?: NavDoor[];
+  /** Optional pre-built Detour binary (e.g. from navmeshWorker) to skip main-thread voxelization. */
+  bytes?: Uint8Array;
+  /** Optional pre-sampled walkable points (flat x,y,z Float32Array from navmeshWorker) to avoid a frame-1 stall. */
+  sampleNodes?: Float32Array;
 }
 
-/** Box triangles with outward-facing winding (Recast wants floors facing +y). */
-function pushBox(b: Aabb, pos: number[], idx: number[]): void {
-  const [x0, y0, z0] = b.min;
-  const [x1, y1, z1] = b.max;
-  const base = pos.length / 3;
-  // 0..3 bottom, 4..7 top: (x0,z0) (x1,z0) (x1,z1) (x0,z1)
-  pos.push(x0, y0, z0, x1, y0, z0, x1, y0, z1, x0, y0, z1, x0, y1, z0, x1, y1, z0, x1, y1, z1, x0, y1, z1);
-  const quads: Array<[number, number, number, number, [number, number, number]]> = [
-    [4, 5, 6, 7, [0, 1, 0]],
-    [0, 1, 2, 3, [0, -1, 0]],
-    [0, 1, 5, 4, [0, 0, -1]],
-    [3, 2, 6, 7, [0, 0, 1]],
-    [0, 3, 7, 4, [-1, 0, 0]],
-    [1, 2, 6, 5, [1, 0, 0]],
-  ];
-  const v = (i: number): [number, number, number] => [pos[(base + i) * 3]!, pos[(base + i) * 3 + 1]!, pos[(base + i) * 3 + 2]!];
-  for (const [a, bq, c, d, n] of quads) {
-    const pa = v(a);
-    const pb = v(bq);
-    const pc = v(c);
-    const e1 = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
-    const e2 = [pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2]];
-    const cr = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
-    const ok = cr[0]! * n[0] + cr[1]! * n[1] + cr[2]! * n[2] > 0;
-    if (ok) idx.push(base + a, base + bq, base + c, base + a, base + c, base + d);
-    else idx.push(base + a, base + c, base + bq, base + a, base + d, base + c);
+function navMeshFromBytes(bytes: Uint8Array): NavMesh {
+  const raw = new UnsignedCharArray();
+  raw.copy(bytes);
+  const navMesh = new NavMesh();
+  if (!navMesh.initSolo(raw)) {
+    raw.destroy();
+    throw new Error('navmesh: init');
   }
+  return navMesh;
 }
 
 function buildNavMesh(boxes: readonly Aabb[], doors: NavDoor[]): NavMesh {
-  const pos: number[] = [];
-  const idx: number[] = [];
-  for (const b of boxes) pushBox(b, pos, idx);
-  const bmin: Vector3Tuple = [Infinity, Infinity, Infinity];
-  const bmax: Vector3Tuple = [-Infinity, -Infinity, -Infinity];
-  for (let i = 0; i < pos.length; i += 3)
-    for (let k = 0; k < 3; k++) {
-      bmin[k] = Math.min(bmin[k]!, pos[i + k]!);
-      bmax[k] = Math.max(bmax[k]!, pos[i + k]!);
-    }
-  const C = NAVMESH;
-  const cfg = createRcConfig({
-    cs: C.cs,
-    ch: C.ch,
-    walkableSlopeAngle: 45,
-    walkableHeight: Math.ceil(C.height / C.ch),
-    walkableClimb: Math.floor(C.climb / C.ch),
-    walkableRadius: Math.ceil(C.radius / C.cs),
-    maxEdgeLen: Math.round(8 / C.cs),
-    maxSimplificationError: 1.1,
-    minRegionArea: 8,
-    mergeRegionArea: 20,
-    maxVertsPerPoly: 6,
-    detailSampleDist: 6,
-    detailSampleMaxError: 1,
-  });
-  cfg.minRegionArea = cfg.minRegionArea * cfg.minRegionArea;
-  cfg.mergeRegionArea = cfg.mergeRegionArea * cfg.mergeRegionArea;
-  cfg.detailSampleDist = cfg.cs * cfg.detailSampleDist;
-  cfg.detailSampleMaxError = cfg.ch * cfg.detailSampleMaxError;
-  const grid = calcGridSize(bmin, bmax, cfg.cs);
-  cfg.width = grid.width;
-  cfg.height = grid.height;
-
-  const ctx = new RecastBuildContext();
-  const hf = allocHeightfield();
-  const chf = allocCompactHeightfield();
-  const cset = allocContourSet();
-  const pmesh = allocPolyMesh();
-  const dmesh = allocPolyMeshDetail();
-  const verts = new VerticesArray();
-  const tris = new TrianglesArray();
-  const areas = new TriangleAreasArray();
-  try {
-    verts.copy(pos);
-    tris.copy(idx);
-    const nt = idx.length / 3;
-    if (!createHeightfield(ctx, hf, cfg.width, cfg.height, bmin, bmax, cfg.cs, cfg.ch)) throw new Error('navmesh: heightfield');
-    areas.resize(nt);
-    markWalkableTriangles(ctx, cfg.walkableSlopeAngle, verts, idx.length, tris, nt, areas);
-    if (!rasterizeTriangles(ctx, verts, idx.length, tris, areas, nt, hf, cfg.walkableClimb)) throw new Error('navmesh: rasterize');
-    filterLowHangingWalkableObstacles(ctx, cfg.walkableClimb, hf);
-    filterLedgeSpans(ctx, cfg.walkableHeight, cfg.walkableClimb, hf);
-    filterWalkableLowHeightSpans(ctx, cfg.walkableHeight, hf);
-    if (!buildCompactHeightfield(ctx, cfg.walkableHeight, cfg.walkableClimb, hf, chf)) throw new Error('navmesh: compact');
-    // Floor inside a solid box (under a wall, a counter, a crate) is not floor: boxes are rasterised
-    // as shells, so clear any surface strictly inside each one (its own top stays walkable).
-    for (const b of boxes) markBoxArea(ctx, [b.min[0], b.min[1] - C.ch, b.min[2]], [b.max[0], b.max[1] - C.ch * 0.5, b.max[2]], Recast.RC_NULL_AREA, chf);
-    if (!erodeWalkableArea(ctx, cfg.walkableRadius, chf)) throw new Error('navmesh: erode');
-    // Each doorway its own area (1 + door index), so its polygons can be switched off when closed.
-    doors.forEach((d, i) => {
-      const b = d.box;
-      const alongX = b.max[0] - b.min[0] >= b.max[2] - b.min[2];
-      const dx = alongX ? 0 : C.doorDepth;
-      const dz = alongX ? C.doorDepth : 0;
-      markBoxArea(ctx, [b.min[0] - dx, b.min[1] - 0.3, b.min[2] - dz], [b.max[0] + dx, b.min[1] + 0.6, b.max[2] + dz], 1 + i, chf);
-    });
-    if (!buildDistanceField(ctx, chf)) throw new Error('navmesh: distance field');
-    if (!buildRegions(ctx, chf, 0, cfg.minRegionArea, cfg.mergeRegionArea)) throw new Error('navmesh: regions');
-    if (!buildContours(ctx, chf, cfg.maxSimplificationError, cfg.maxEdgeLen, cset, Recast.RC_CONTOUR_TESS_WALL_EDGES)) throw new Error('navmesh: contours');
-    if (!buildPolyMesh(ctx, cset, cfg.maxVertsPerPoly, pmesh)) throw new Error('navmesh: poly mesh');
-    if (!buildPolyMeshDetail(ctx, pmesh, chf, cfg.detailSampleDist, cfg.detailSampleMaxError, dmesh)) throw new Error('navmesh: detail mesh');
-    for (let i = 0; i < pmesh.npolys(); i++) {
-      if (pmesh.areas(i) === Recast.RC_WALKABLE_AREA) pmesh.setAreas(i, 0);
-      pmesh.setFlags(i, FLAG_WALK);
-    }
-    const params = new NavMeshCreateParams();
-    params.setPolyMeshCreateParams(pmesh);
-    params.setPolyMeshDetailCreateParams(dmesh);
-    params.setWalkableHeight(cfg.walkableHeight * cfg.ch);
-    params.setWalkableRadius(cfg.walkableRadius * cfg.cs);
-    params.setWalkableClimb(cfg.walkableClimb * cfg.ch);
-    params.setCellSize(cfg.cs);
-    params.setCellHeight(cfg.ch);
-    params.setBuildBvTree(true);
-    const data = createNavMeshData(params);
-    params.destroy();
-    if (!data.success) throw new Error('navmesh: detour data');
-    const navMesh = new NavMesh();
-    if (!navMesh.initSolo(data.navMeshData)) throw new Error('navmesh: init');
-    return navMesh;
-  } finally {
-    verts.destroy();
-    tris.destroy();
-    areas.destroy();
-    freeHeightfield(hf);
-    freeCompactHeightfield(chf);
-    freeContourSet(cset);
-    freePolyMesh(pmesh);
-    freePolyMeshDetail(dmesh);
-    ctx.destroy();
-  }
+  return navMeshFromBytes(buildNavMeshBytes(boxes, doors));
 }
 
-const FLAG_WALK = 1;
 /** Search box for snapping a point onto the mesh. */
 const SNAP = { x: 1.2, y: 0.6, z: 1.2 };
 /** A goal this close to the walkable floor ends the route exactly (an anchor by a counter sits inside the eroded edge). */
 const END_SLACK = 0.45;
 /** Furthest a goal may be off the walkable floor and still be walked to (nooks, furniture), metres. */
 const GOAL_SNAP = 1.6;
-
 /** Height of the bands `nodes` samples per column (m). Below the 1.5 m+ gap between a floor and a slab top. */
 const NODE_LAYER = 1.0;
 
@@ -242,11 +61,11 @@ export class NavMeshNav implements Navigator {
   private sampleNodes: P3[] | null = null;
 
   constructor(opts: NavmeshBuildOptions) {
-    if (!ready) throw new Error('navmesh: call initNavmesh() first');
+    if (!navmeshReady()) throw new Error('navmesh: call initNavmesh() first');
     this.world = opts.world;
     this.doors = opts.doors ?? [];
     this.doorBoxes = new Set(this.doors.map((d) => d.box));
-    this.navMesh = buildNavMesh(opts.boxes, this.doors);
+    this.navMesh = opts.bytes ? navMeshFromBytes(opts.bytes) : buildNavMesh(opts.boxes, this.doors);
     this.query = new NavMeshQuery(this.navMesh);
     this.query.defaultQueryHalfExtents = { ...SNAP };
     const tile = this.navMesh.getTile(0);
@@ -258,6 +77,12 @@ export class NavMeshNav implements Navigator {
       if (area >= 1 && area <= this.doors.length) this.doorPolys[area - 1]!.push(base + i);
     }
     this.doorOpen = this.doors.map(() => true);
+    if (opts.sampleNodes) {
+      const a = opts.sampleNodes;
+      const out: P3[] = [];
+      for (let i = 0; i + 2 < a.length; i += 3) out.push({ x: a[i]!, y: a[i + 1]!, z: a[i + 2]! });
+      this.sampleNodes = out;
+    }
   }
 
   /** Polygons in the mesh (log line and debug). */
@@ -332,8 +157,6 @@ export class NavMeshNav implements Navigator {
     if (h) {
       const min = { x: h.bmin(0), y: h.bmin(1), z: h.bmin(2) };
       const max = { x: h.bmax(0), y: h.bmax(1), z: h.bmax(2) };
-      // One query spanning the whole height returns a single poly per column, usually a ceiling-slab top, which
-      // hid the floors from `reachable()`. Query in NODE_LAYER bands instead so every walkable level is kept.
       for (let x = min.x + 0.5; x <= max.x; x += 1)
         for (let z = min.z + 0.5; z <= max.z; z += 1) {
           const column: P3[] = [];
@@ -348,6 +171,42 @@ export class NavMeshNav implements Navigator {
     }
     this.sampleNodes = out;
     return out;
+  }
+
+  /**
+   * Build the Detour navmesh binary inside a Web Worker when available so loading stays smooth,
+   * falling back to synchronous main-thread build in Node/tests or if the worker fails.
+   */
+  static async buildAsync(opts: NavmeshBuildOptions): Promise<NavMeshNav> {
+    if (typeof Worker !== 'undefined' && !opts.bytes) {
+      try {
+        const req: NavmeshWorkerRequest = {
+          boxes: opts.boxes.map((b) => ({ min: [b.min[0], b.min[1], b.min[2]], max: [b.max[0], b.max[1], b.max[2]] })),
+          doors: (opts.doors ?? []).map((d) => ({ box: { min: [d.box.min[0], d.box.min[1], d.box.min[2]], max: [d.box.max[0], d.box.max[1], d.box.max[2]] } })),
+        };
+        const [result] = await Promise.all([
+          new Promise<{ bytes: Uint8Array; sampleNodes: Float32Array }>((resolve, reject) => {
+            const worker = new Worker(new URL('./navmeshWorker.ts', import.meta.url), { type: 'module' });
+            worker.onmessage = (e: MessageEvent<NavmeshWorkerReply>): void => {
+              worker.terminate();
+              if ('error' in e.data) reject(new Error(e.data.error));
+              else resolve({ bytes: e.data.bytes, sampleNodes: e.data.sampleNodes });
+            };
+            worker.onerror = (e): void => {
+              worker.terminate();
+              reject(new Error(e.message || 'navmesh worker error'));
+            };
+            worker.postMessage(req);
+          }),
+          initNavmesh(),
+        ]);
+        return new NavMeshNav({ ...opts, bytes: result.bytes, sampleNodes: result.sampleNodes });
+      } catch (err) {
+        console.warn('[nav] worker build failed; falling back to main thread', err);
+      }
+    }
+    await initNavmesh();
+    return new NavMeshNav(opts);
   }
 
   destroy(): void {

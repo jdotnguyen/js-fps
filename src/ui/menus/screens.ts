@@ -1,14 +1,27 @@
 import type { EventBus } from '../../core/events.ts';
 import { TUTORIAL_MODES, type Settings, type SettingsStore } from '../../core/settings.ts';
 import { DIFFICULTY_IDS, type DifficultyId, type DifficultyTable } from '../../data/types/difficulty.ts';
-import type { Game } from '../../game/game.ts';
 import { formatPlayTime, type SaveData, type SaveEntry, type SaveStore, type SlotSummary } from '../../game/save.ts';
 import { button, h } from '../dom.ts';
 import { Menu, type Screen } from './menu.ts';
 import { createTitleWordmark } from './titleWordmark.ts';
 
+/** Narrow game surface the menus need (satisfied by `Game` and by `AppShell`'s lazy proxy). */
+export interface MenuGameAdapter {
+  readonly slot: number;
+  readonly difficulty: DifficultyId;
+  readonly playTime: number;
+  readonly location: string;
+  newGame(slot: number, difficulty: DifficultyId): void;
+  load(save: SaveData): void;
+  resume(): void;
+  setDifficulty(id: DifficultyId): void;
+  manualSave(): void;
+  quitToTitle(): void;
+}
+
 export interface MenuDeps {
-  game: Game;
+  game: MenuGameAdapter;
   saves: SaveStore;
   settings: SettingsStore;
   difficulties: DifficultyTable;

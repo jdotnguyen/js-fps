@@ -396,6 +396,11 @@ export class Guidance {
       });
     }
   }
+
+  /** Detach window listeners owned by the map screen (session teardown). */
+  dispose(): void {
+    this.map?.dispose();
+  }
 }
 
 function loose(bus: EventBus): LooseBus {

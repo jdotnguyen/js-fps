@@ -44,6 +44,33 @@ export function preloadSubModel(baseUrl = '/'): Promise<void> {
   return loading;
 }
 
+/** Dispose cached supply-sub GLB geometries/materials/textures (session teardown). */
+export function disposeSubModelCache(): void {
+  if (model) {
+    const geoms = new Set<THREE.BufferGeometry>();
+    const mats = new Set<THREE.Material>();
+    model.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      geoms.add(o.geometry);
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+        if (m instanceof THREE.Material) mats.add(m);
+      }
+    });
+    for (const g of geoms) g.dispose();
+    for (const m of mats) {
+      const std = m as THREE.MeshStandardMaterial;
+      std.map?.dispose();
+      std.normalMap?.dispose();
+      std.roughnessMap?.dispose();
+      std.metalnessMap?.dispose();
+      std.emissiveMap?.dispose();
+      m.dispose();
+    }
+    model = null;
+  }
+  loading = null;
+}
+
 function prepare(scene: THREE.Object3D): THREE.Group {
   scene.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(scene);

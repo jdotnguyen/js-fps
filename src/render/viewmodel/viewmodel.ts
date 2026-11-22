@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PLAYER_TUNING, type Player } from '../../actors/player.ts';
 import type { EventBus } from '../../core/events.ts';
 import type { Input } from '../../core/input.ts';
+import { disposeTexture } from '../materials.ts';
 import type { ClipName, GlbWeapon, PlayOptions } from './glbWeapons.ts';
 import { FlashlightProp } from './flashlightProp.ts';
 import type { WeaponId } from './rig.ts';
@@ -257,6 +258,7 @@ export class Viewmodel {
   private recoilW = 0;
   /** The held flashlight (player-flashlight spec), shown with the pistol while the light is on. */
   readonly flashlight = new FlashlightProp();
+  private readonly offFootstep: () => void;
 
   constructor(deps: ViewmodelDeps) {
     this.d = deps;
@@ -267,7 +269,7 @@ export class Viewmodel {
     };
     this.group.name = 'viewmodel';
     // Each footfall thumps the heavy layer: a small dip, alternating side to side.
-    deps.events.on('player:footstep', (f) => {
+    this.offFootstep = deps.events.on('player:footstep', (f) => {
       const w = SPECS[this.current].feel.weight;
       if (w === 0 || this.d.reducedMotion()) return;
       this.stepSide = -this.stepSide;
@@ -831,5 +833,34 @@ export class Viewmodel {
       this.flash.visible = false;
       this.flashLight.intensity = 0;
     }
+  }
+
+  /** Detach listeners, remove from scene, and dispose weapon/flashlight/muzzle GPU resources. */
+  dispose(): void {
+    this.offFootstep();
+    this.group.removeFromParent();
+    const geoms = new Set<THREE.BufferGeometry>();
+    const mats = new Set<THREE.Material>();
+    const textures = new Set<THREE.Texture>();
+    const texSlots = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'bumpMap'] as const;
+    this.group.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      geoms.add(o.geometry);
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+        if (!(m instanceof THREE.Material)) continue;
+        mats.add(m);
+        const rec = m as unknown as Record<string, unknown>;
+        for (const slot of texSlots) {
+          const t = rec[slot];
+          if (t instanceof THREE.Texture) textures.add(t);
+        }
+      }
+    });
+    for (const g of geoms) g.dispose();
+    for (const t of textures) disposeTexture(t);
+    for (const m of mats) m.dispose();
+    this.flashLight.dispose();
+    this.fill.dispose();
+    this.group.clear();
   }
 }

@@ -185,6 +185,11 @@ export function sharedMocapLibrary(): MocapLibrary {
   return sharedLib;
 }
 
+/** Release the compiled shared mocap library (session teardown). */
+export function clearSharedMocapLibrary(): void {
+  sharedLib = null;
+}
+
 /**
  * Sample a clip at normalized phase `u` (0..1, wrapped if looping) into `out`.
  * Root rotation/position and jaw stay at identity so procedural layers own them.

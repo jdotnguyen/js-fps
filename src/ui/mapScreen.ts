@@ -233,13 +233,20 @@ export class MapScreen {
       },
       { passive: false },
     );
-    addEventListener('resize', () => {
-      if (this.isOpen) this.layout(false);
-    });
+    addEventListener('resize', this.onResize);
     deps.events.on('game:map', () => this.open());
     deps.events.on('game:mode', ({ mode }) => {
       if (mode !== 'paused') this.hide();
     });
+  }
+
+  private readonly onResize = (): void => {
+    if (this.isOpen) this.layout(false);
+  };
+
+  dispose(): void {
+    removeEventListener('resize', this.onResize);
+    this.root.remove();
   }
 
   get isOpen(): boolean {

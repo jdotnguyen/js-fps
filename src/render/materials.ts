@@ -227,6 +227,49 @@ function generateSetsAsync(textureSize: number): Promise<Record<TextureKey, TexS
   });
 }
 
+const MATERIAL_TEX_SLOTS = [
+  'map',
+  'normalMap',
+  'roughnessMap',
+  'metalnessMap',
+  'aoMap',
+  'emissiveMap',
+  'alphaMap',
+  'bumpMap',
+  'displacementMap',
+  'envMap',
+] as const;
+
+/** Close an ImageBitmap backing a texture (if present) before disposing the GPU texture. */
+export function disposeTexture(tex: THREE.Texture): void {
+  const img = (tex.image ?? tex.source?.data) as { close?: () => void } | null | undefined;
+  if (img && typeof img.close === 'function') {
+    try {
+      img.close();
+    } catch {
+      /* already closed */
+    }
+  }
+  tex.dispose();
+}
+
+/** Dispose every unique material and texture in a `Materials` table (session teardown). */
+export function disposeMaterials(materials: Materials): void {
+  const mats = new Set<THREE.Material>();
+  const textures = new Set<THREE.Texture>();
+  for (const m of Object.values(materials)) {
+    if (!(m instanceof THREE.Material)) continue;
+    mats.add(m);
+    const rec = m as unknown as Record<string, unknown>;
+    for (const slot of MATERIAL_TEX_SLOTS) {
+      const t = rec[slot];
+      if (t instanceof THREE.Texture) textures.add(t);
+    }
+  }
+  for (const t of textures) disposeTexture(t);
+  for (const m of mats) m.dispose();
+}
+
 /**
  * Procedural sets (worker) and photo textures (images) load in parallel; resolves when both settle.
  * Slots whose images fail use their manifest fallback generator.

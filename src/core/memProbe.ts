@@ -134,6 +134,24 @@ export class GlLedger {
     return { ...this.counts };
   }
 
+  /** Clear tracked WebGL objects when a context is explicitly lost/destroyed on session teardown. */
+  reset(): void {
+    this.counts.textures = 0;
+    this.counts.buffers = 0;
+    this.counts.renderbuffers = 0;
+    this.counts.framebuffers = 0;
+    this.counts.programs = 0;
+    this.counts.textureBytes = 0;
+    this.counts.bufferBytes = 0;
+    this.counts.renderbufferBytes = 0;
+    this.sizes.clear();
+    this.levels.clear();
+    this.boundTex.clear();
+    this.boundBuf.clear();
+    this.boundRb = null;
+    this.unit = 0;
+  }
+
   private texFor(target: number): object | null {
     const bindTarget = target >= GL.TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL.TEXTURE_CUBE_MAP_NEGATIVE_Z ? GL.TEXTURE_CUBE_MAP : target;
     return this.boundTex.get(`${this.unit}:${bindTarget}`) ?? null;
@@ -179,7 +197,7 @@ export interface MemProbeSources {
 export interface MemProbe {
   readonly ledger: GlLedger;
   readonly log: MemSample[];
-  attach(sources: MemProbeSources): void;
+  attach(sources: MemProbeSources | null): void;
   sample(tag?: string): MemSample;
 }
 

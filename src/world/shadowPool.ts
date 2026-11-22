@@ -46,6 +46,8 @@ export class ShadowPool {
       }
       this.bound.delete(l);
       this.parent.remove(l, l.target);
+      l.shadow.map?.dispose();
+      l.shadow.map = null;
       l.dispose();
     }
     while (this.lights.length < size) {

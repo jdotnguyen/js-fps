@@ -36,6 +36,7 @@ export class DemoRoomAudio {
   private readonly scheduler: Scheduler;
   private readonly buzz: Buzz[] = [];
   private readonly managed: ManagedLoop[] = [];
+  private offSample: (() => void) | null = null;
   private lastMoanCycle = -1;
 
   constructor(engine: AudioEngine, room: DemoRoom, rng: Rng) {
@@ -70,7 +71,7 @@ export class DemoRoomAudio {
     }
 
     // Hot-swap running procedural loops once their recorded ElevenLabs samples finish decoding.
-    e.onSampleLoaded((sample) => {
+    this.offSample = e.onSampleLoaded((sample) => {
       for (const m of this.managed) {
         if (m.name !== sample) continue;
         const next = e.loop(sample, { ...m.opts, gain: 0 });
@@ -154,5 +155,14 @@ export class DemoRoomAudio {
 
   flashlightClick(): void {
     this.engine.play('click', { bus: 'ui', gain: 0.5 });
+  }
+
+  stop(): void {
+    this.offSample?.();
+    this.offSample = null;
+    for (const m of this.managed) m.handle.stop(0.1);
+    for (const b of this.buzz) b.handle.stop(0.1);
+    this.managed.length = 0;
+    this.buzz.length = 0;
   }
 }

@@ -45,3 +45,9 @@ export function currentAnisotropy(): number {
 export function trackedTextureCount(): number {
   return tracked.size;
 }
+
+/** Drop all tracked textures and detach dispose listeners (session teardown). */
+export function clearTrackedAnisotropy(): void {
+  for (const t of tracked) t.removeEventListener('dispose', untrack);
+  tracked.clear();
+}

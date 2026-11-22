@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { castSpec } from '../actors/castLooks.ts';
 import { Humanoid, type HumanoidContext } from '../actors/humanoid.ts';
+import { yieldFrame } from '../core/yieldFrame.ts';
 import type { Interactable } from '../actors/interaction.ts';
 import type { ColliderQuery } from '../actors/motor.ts';
 import { separate, type SepBody } from '../actors/separation.ts';
@@ -326,6 +327,38 @@ export class NpcDirector {
       this.create(s.id, s.look, s.pos, s.yaw, s.pose, s.transformable === true, s.model);
     }
     // ADR-0029: NPCs sharing a chat id talk to each other.
+    const byChat = new Map<string, string[]>();
+    for (const s of spawns) if (s.chat && !this.isSquad(s.id)) byChat.set(s.chat, [...(byChat.get(s.chat) ?? []), s.id]);
+    for (const [chat, ids] of byChat) {
+      if (ids.length < 2) {
+        this.warnOnce(`npc chat "${chat}": only ${ids[0]} is in it`);
+        continue;
+      }
+      this.chats.set(chat, new ChatGroup(chat, ids.map((id) => this.chatMember(id))));
+    }
+  }
+
+  /** Spawn the level's cast and crew in small batches, yielding between batches so loading UI stays smooth. */
+  async spawnFromLevelAsync(
+    spawns: readonly NpcSpawn[],
+    onProgress?: (done: number, total: number) => void,
+    batchSize = 2,
+  ): Promise<void> {
+    const total = Math.max(1, spawns.length);
+    let created = 0;
+    for (let i = 0; i < spawns.length; i++) {
+      const s = spawns[i]!;
+      if (this.isSquad(s.id)) {
+        const a = this.actor(s.id, false);
+        a?.place(s.pos, s.yaw);
+      } else {
+        this.levelSpawns.set(s.id, s);
+        this.create(s.id, s.look, s.pos, s.yaw, s.pose, s.transformable === true, s.model);
+        created++;
+        if (created % batchSize === 0) await yieldFrame();
+      }
+      onProgress?.((i + 1) / total, total);
+    }
     const byChat = new Map<string, string[]>();
     for (const s of spawns) if (s.chat && !this.isSquad(s.id)) byChat.set(s.chat, [...(byChat.get(s.chat) ?? []), s.id]);
     for (const [chat, ids] of byChat) {
@@ -1089,5 +1122,24 @@ export class NpcDirector {
     if (this.warned.has(m)) return;
     this.warned.add(m);
     (this.deps.warn ?? ((x: string) => console.warn(`[npc] ${x}`)))(m);
+  }
+
+  /** Dispose all non-squad NPC bodies, active offers, chats and effects (session teardown). */
+  dispose(): void {
+    this.kills.reset();
+    for (const close of this.offers.values()) close();
+    this.offers.clear();
+    for (const id of [...this.actors.keys()]) {
+      if (!this.isSquad(id)) this.remove(id);
+    }
+    this.actors.clear();
+    this.spawned.clear();
+    this.levelSpawns.clear();
+    this.timers = [];
+    this.parked.clear();
+    this.chats.clear();
+    this.dynamicChats.clear();
+    this.group.clear();
+    this.fx.clear();
   }
 }

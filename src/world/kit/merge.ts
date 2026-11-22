@@ -5,7 +5,7 @@ import { applyWorldUvs } from '../../render/uvTiling.ts';
 /** Ambient occlusion in [0, 1] (1 = fully lit) at a world point with its normal. */
 export type AoFn = (p: THREE.Vector3, n: THREE.Vector3) => number;
 
-const vertexColorVariants = new WeakMap<THREE.Material, THREE.Material>();
+const vertexColorVariants = new Map<THREE.Material, THREE.Material>();
 
 /** Shared clone of a material that multiplies by vertex colours (the baked AO). */
 export function withVertexColors(material: THREE.Material): THREE.Material {
@@ -17,6 +17,15 @@ export function withVertexColors(material: THREE.Material): THREE.Material {
     vertexColorVariants.set(material, v);
   }
   return v;
+}
+
+/** Dispose and clear module-level merged material caches (session teardown). */
+export function disposeMergeCaches(): void {
+  for (const v of vertexColorVariants.values()) v.dispose();
+  vertexColorVariants.clear();
+  for (const b of flatBuckets.values()) b.dispose();
+  flatBuckets.clear();
+  glowBucket = null;
 }
 
 function takesAo(material: THREE.Material): boolean {

@@ -72,6 +72,16 @@ export class TitleCard {
     this.fadeOut();
   }
 
+  /** Cancel pending timers and remove the card element (session teardown). */
+  dispose(): void {
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = null;
+    if (this.dropLogo !== null) clearTimeout(this.dropLogo);
+    this.dropLogo = null;
+    this.title.replaceChildren();
+    this.root.remove();
+  }
+
   private fadeOut(): void {
     this.root.style.opacity = '0';
     if (this.dropLogo !== null) clearTimeout(this.dropLogo);

@@ -8,6 +8,7 @@
  * (spec: openspec/specs/voice-playback, openspec/specs/audio-mix).
  */
 import { Rng } from '../core/rng.ts';
+import { yieldIdle } from '../core/yieldFrame.ts';
 import { Biquad, fadeEdges, makeBuf, normalize, white, type Buf } from '../audio/dsp.ts';
 import { audioUrls, type DialogueLine, type Emote } from '../data/types/dialogue.ts';
 import type { PlayRequest, VoicePlayback, VoicePlayer } from './speech.ts';
@@ -95,6 +96,7 @@ export class WebAudioVoicePlayer implements VoicePlayer {
   private readonly lastVariant = new Map<string, string>();
   private readonly squelch: AudioBuffer;
   private readonly staticBuf: AudioBuffer;
+  private disposed = false;
 
   constructor(out: AudioOut, opts: WebAudioVoiceOptions = {}) {
     this.ctx = out.ctx;
@@ -129,16 +131,30 @@ export class WebAudioVoicePlayer implements VoicePlayer {
     }
   }
 
-  /** Fetch and decode every recorded VO file referenced by `lines`. */
-  async loadLines(lines: Iterable<DialogueLine>, concurrency = 8): Promise<number> {
-    const urls = [...new Set([...lines].flatMap((l) => audioUrls(l.audio)))];
+  /**
+   * Fetch and decode recorded VO files referenced by `lines`, optionally prioritizing matching lines
+   * and throttling concurrency with idle yields so decoding does not stutter active gameplay.
+   */
+  async loadLines(
+    lines: Iterable<DialogueLine>,
+    opts: number | { concurrency?: number; idle?: boolean; priority?: (line: DialogueLine) => boolean } = 2,
+  ): Promise<number> {
+    const cfg = typeof opts === 'number' ? { concurrency: opts, idle: false } : opts;
+    const concurrency = Math.max(1, cfg.concurrency ?? 2);
+    const useIdle = cfg.idle ?? typeof opts !== 'number';
+    const allLines = [...lines];
+    const ordered = cfg.priority
+      ? [...allLines.filter(cfg.priority), ...allLines.filter((l) => !cfg.priority!(l))]
+      : allLines;
+    const urls = [...new Set(ordered.flatMap((l) => audioUrls(l.audio)))];
     let loaded = 0;
     let next = 0;
     const worker = async (): Promise<void> => {
-      while (next < urls.length) {
+      while (next < urls.length && !this.disposed) {
         const url = urls[next++]!;
         const buf = await this.loadAudio(url);
         if (buf) loaded++;
+        if (useIdle && !this.disposed) await yieldIdle();
       }
     };
     await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, urls.length)) }, () => worker()));
@@ -178,6 +194,7 @@ export class WebAudioVoicePlayer implements VoicePlayer {
         const res = await fetch(this.baseUrl + url);
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const buf = await this.ctx.decodeAudioData(await res.arrayBuffer());
+        if (this.disposed) return null;
         this.recorded.set(url, buf);
         return buf;
       } catch (err) {
@@ -341,6 +358,22 @@ export class WebAudioVoicePlayer implements VoicePlayer {
   /** Clear cached procedural renders (e.g. after a speaker's rasp changes a lot). */
   clear(): void {
     this.cache.clear();
+  }
+
+  /** Disconnect audio nodes and drop all decoded VO and procedural buffers (session teardown). */
+  dispose(): void {
+    this.disposed = true;
+    this.recorded.clear();
+    this.cache.clear();
+    this.pending.clear();
+    this.lastVariant.clear();
+    try {
+      this.output.disconnect();
+      this.radioIn.disconnect();
+      this.radioBed.disconnect();
+    } catch {
+      /* already disconnected */
+    }
   }
 
   private blip(at: number): void {

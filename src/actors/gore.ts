@@ -13,6 +13,30 @@ export type GoreMode = 'full' | 'reduced';
 
 export const MAX_DEBRIS = 24;
 export const MAX_POOLS = 28;
+/** Blood clouds under standing water at once, and how long one takes to spread and fade (s). */
+export const MAX_CLOUDS = 12;
+export const CLOUD_LIFE = 20;
+
+/** Soft round falloff with a few lobes, so a cloud is not a perfect disc. Built once. */
+let cloudTex: THREE.Texture | null | undefined;
+function cloudTexture(): THREE.Texture | null {
+  if (cloudTex !== undefined) return cloudTex;
+  const n = 64;
+  const data = new Uint8Array(n * n * 4);
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const x = (i + 0.5) / n - 0.5;
+      const y = (j + 0.5) / n - 0.5;
+      const a = Math.atan2(y, x);
+      const r = Math.hypot(x, y) / (0.42 + 0.06 * Math.sin(a * 3) + 0.04 * Math.sin(a * 5 + 1.3));
+      const v = Math.max(0, 1 - r) ** 1.6;
+      data.set([255, 255, 255, Math.round(v * 255)], (j * n + i) * 4);
+    }
+  }
+  cloudTex = new THREE.DataTexture(data, n, n);
+  cloudTex.needsUpdate = true;
+  return cloudTex;
+}
 export const MAX_CHUNKS = 64;
 /** Marks on glass panes (hand smears, splats, running streaks), ring-buffered. */
 export const MAX_GLASS_MARKS = 20;
@@ -195,6 +219,13 @@ function poolTexture(): THREE.CanvasTexture {
 
 export class GoreSystem {
   mode: GoreMode = 'full';
+  /** Something came down on a floor (a piece, a chunk): standing water splashes there (standing-water spec). */
+  onLand: ((x: number, y: number, z: number, size: number) => void) | null = null;
+  /** Surface height of standing water over (x, z), or null where it is dry (standing-water spec: Blood clouds in water). */
+  waterLevelAt: ((x: number, z: number) => number | null) | null = null;
+  private readonly clouds: Array<{ mesh: THREE.Mesh; age: number; size: number }> = [];
+  private cloudCursor = 0;
+  private cloudMats: { full: THREE.MeshStandardMaterial; reduced: THREE.MeshStandardMaterial } | null = null;
   readonly group = new THREE.Group();
   private readonly rng: Rng;
   private readonly floorY: (x: number, z: number) => number;
@@ -293,6 +324,35 @@ export class GoreSystem {
         polygonOffsetUnits: -3,
       });
     this.poolMats = { full: pool(0x2a0305), reduced: pool(0x070606) };
+    // Pre-create gore canvas/data textures on construction so the first hit/crack never stalls gameplay.
+    if (typeof document !== 'undefined') this.prewarm();
+  }
+
+  /** Eagerly build all gore canvas/data textures & materials and return their unique textures for GPU pre-upload. */
+  prewarm(): THREE.Texture[] {
+    this.glassMaterials();
+    this.crackMaterial(0);
+    this.ensureCloudMats();
+    const textures = new Set<THREE.Texture>();
+    const mats: THREE.MeshStandardMaterial[] = [this.poolMats.full, this.poolMats.reduced];
+    if (this.cloudMats) mats.push(this.cloudMats.full, this.cloudMats.reduced);
+    if (this.glassMats) mats.push(...Object.values(this.glassMats));
+    if (this.crackMats) mats.push(...this.crackMats);
+    for (const m of mats) {
+      if (m.map) textures.add(m.map);
+      if (m.alphaMap) textures.add(m.alphaMap);
+    }
+    return [...textures];
+  }
+
+  private ensureCloudMats(): { full: THREE.MeshStandardMaterial; reduced: THREE.MeshStandardMaterial } {
+    if (!this.cloudMats) {
+      const tex = cloudTexture();
+      // Lit, so the plume shows where the flashlight or a lamp falls on it and stays dark elsewhere, as blood in murky water does.
+      const mk = (color: number): THREE.MeshStandardMaterial => new THREE.MeshStandardMaterial({ color, map: tex, transparent: true, depthWrite: false, opacity: 0.8, roughness: 1, metalness: 0 });
+      this.cloudMats = { full: mk(0x8a0c0a), reduced: mk(0x1a1a1a) };
+    }
+    return this.cloudMats;
   }
 
   get activeDebris(): number {
@@ -324,6 +384,7 @@ export class GoreSystem {
     for (const clip of this.clips) at[clip.axis] = clipCoord(clip, at[clip.axis], 0)[0];
     const size = Math.min(0.6, 0.18 + hit.piece.radius * 2 + hit.speed * 0.02);
     if (hit.normal.y > 0.6) {
+      this.onLand?.(at.x, at.y, at.z, size);
       this.pool(at, size * 0.8, this.mode === 'reduced', at.y);
       return;
     }
@@ -548,6 +609,12 @@ export class GoreSystem {
 
   /** Grow a floor pool under a world point (on the floor height there, or at `y`: a prop top a piece landed on). */
   pool(at: THREE.Vector3, size: number, dark = this.mode === 'reduced', y?: number): void {
+    // Under standing water blood clouds the water instead of pooling on the floor.
+    const level = this.waterLevelAt?.(at.x, at.z) ?? null;
+    if (level !== null && (y ?? this.floorY(at.x, at.z)) < level - 0.02) {
+      this.cloud(at, level, size, dark);
+      return;
+    }
     let p = this.pools.length < MAX_POOLS ? undefined : this.pools[this.poolCursor];
     if (!p) {
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.poolMats.full);
@@ -567,6 +634,35 @@ export class GoreSystem {
     p.grow = 0;
   }
 
+  /** A spreading blood cloud just under a water surface at `level`. */
+  private cloud(at: THREE.Vector3, level: number, size: number, dark: boolean): void {
+    const cloudMats = this.ensureCloudMats();
+    let c = this.clouds.length < MAX_CLOUDS ? undefined : this.clouds[this.cloudCursor];
+    if (!c) {
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), cloudMats.full.clone());
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.renderOrder = 1;
+      mesh.name = 'gore-blood-cloud';
+      this.group.add(mesh);
+      c = { mesh, age: 0, size };
+      this.clouds.push(c);
+    } else this.cloudCursor = (this.cloudCursor + 1) % MAX_CLOUDS;
+    const mat = c.mesh.material as THREE.MeshStandardMaterial;
+    mat.color.copy((dark ? cloudMats.reduced : cloudMats.full).color);
+    mat.opacity = 0.8;
+    c.mesh.position.set(at.x, level - 0.03, at.z);
+    c.mesh.rotation.z = this.rng.range(0, Math.PI * 2);
+    c.mesh.scale.setScalar(size * 0.4);
+    c.mesh.visible = true;
+    c.age = 0;
+    c.size = size;
+  }
+
+  /** Blood clouds under water (tests). */
+  cloudCount(): number {
+    return this.clouds.filter((c) => c.mesh.visible).length;
+  }
+
   update(dt: number): void {
     this.updateDebris(dt);
     this.updateEmitters(dt);
@@ -579,6 +675,15 @@ export class GoreSystem {
       const [w, h] = (m.mesh.userData['full'] as [number, number] | undefined) ?? [1, 1];
       if (m.kind === 'streak') m.mesh.scale.set(w, Math.max(0.001, h * (1 - (1 - k) ** 2)), 1);
       else m.mesh.scale.set(w * (0.3 + 0.7 * k), h * (0.3 + 0.7 * k), 1);
+    }
+    for (const c of this.clouds) {
+      if (c.age >= CLOUD_LIFE) continue;
+      c.age = Math.min(CLOUD_LIFE, c.age + dt);
+      const k = c.age / CLOUD_LIFE;
+      // Spreads quickly, then slowly, while it thins out.
+      c.mesh.scale.setScalar(c.size * (0.4 + 2.6 * (1 - (1 - k) ** 3)));
+      (c.mesh.material as THREE.MeshStandardMaterial).opacity = 0.8 * (1 - k) ** 1.5;
+      c.mesh.visible = c.age < CLOUD_LIFE;
     }
     for (const p of this.pools) {
       if (p.grow >= 1) continue;
@@ -600,6 +705,9 @@ export class GoreSystem {
     this.emitters.length = 0;
     for (const p of this.pools) p.mesh.removeFromParent();
     this.pools.length = 0;
+    for (const c of this.clouds) c.mesh.removeFromParent();
+    this.clouds.length = 0;
+    this.cloudCursor = 0;
     for (const m of this.glassMarks) m.mesh.removeFromParent();
     this.glassMarks.length = 0;
     this.glassCursor = 0;
@@ -638,6 +746,7 @@ export class GoreSystem {
       this.clipChunk(c);
       const floor = this.floorY(c.pos.x, c.pos.z) + 0.012 * c.scale;
       if (c.pos.y < floor) {
+        if (c.vel.y < -1.5) this.onLand?.(c.pos.x, floor, c.pos.z, 0.08 * c.scale);
         c.pos.y = floor;
         c.vel.y *= -0.18;
         c.vel.x *= 0.45;
@@ -790,5 +899,35 @@ export class GoreSystem {
       this.points.geometry.getAttribute('position').needsUpdate = true;
       this.points.geometry.getAttribute('color').needsUpdate = true;
     }
+  }
+
+  /** Dispose all gore geometries, materials, canvas/data textures, and module-level cloudTex. */
+  dispose(): void {
+    this.clear();
+    this.points.geometry.dispose();
+    (this.points.material as THREE.Material).dispose();
+    this.chunkMesh.geometry.dispose();
+    (this.chunkMesh.material as THREE.Material).dispose();
+    this.glassPlane.dispose();
+    this.streakPlane.dispose();
+    const mats: THREE.MeshStandardMaterial[] = [this.poolMats.full, this.poolMats.reduced];
+    if (this.cloudMats) mats.push(this.cloudMats.full, this.cloudMats.reduced);
+    if (this.glassMats) mats.push(...Object.values(this.glassMats));
+    if (this.crackMats) mats.push(...this.crackMats);
+    const textures = new Set<THREE.Texture>();
+    for (const m of mats) {
+      if (m.map) textures.add(m.map);
+      if (m.alphaMap) textures.add(m.alphaMap);
+      m.dispose();
+    }
+    for (const t of textures) t.dispose();
+    this.cloudMats = null;
+    this.glassMats = null;
+    this.crackMats = null;
+    if (cloudTex) {
+      cloudTex.dispose();
+      cloudTex = undefined;
+    }
+    this.group.clear();
   }
 }

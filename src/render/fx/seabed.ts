@@ -43,6 +43,24 @@ export function preloadSeabed(baseUrl = '/'): Promise<void> {
   return loading;
 }
 
+/** Dispose cached seabed GLB geometries/materials/textures (session teardown). */
+export function disposeSeabedCache(): void {
+  if (source) {
+    for (const g of source.rocks) g.dispose();
+    for (const m of source.rockMaterials) {
+      const std = m as THREE.MeshStandardMaterial;
+      std.map?.dispose();
+      std.normalMap?.dispose();
+      std.roughnessMap?.dispose();
+      m.dispose();
+    }
+    source.groundMap?.dispose();
+    source = null;
+  }
+  loading = null;
+  waiting.length = 0;
+}
+
 function prepare(scene: THREE.Object3D): SeabedSource {
   scene.updateMatrixWorld(true);
   const baked: Array<{ geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial; area: number }> = [];

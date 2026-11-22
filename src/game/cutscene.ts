@@ -40,12 +40,18 @@ export class CutsceneController {
   private wasSkippable = false;
   private skipping = false;
   private skipTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly offActivity: () => void;
 
   constructor(deps: CutsceneDeps) {
     this.d = deps;
-    deps.ui.onActivity(() => {
+    this.offActivity = deps.ui.onActivity(() => {
       if (this.skippable) this.hint = Math.max(this.hint, HINT_ACTIVITY);
     });
+  }
+
+  dispose(): void {
+    this.cancel();
+    this.offActivity();
   }
 
   private get skippable(): boolean {

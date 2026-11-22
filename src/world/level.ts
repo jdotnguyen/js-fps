@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { EventBus, EventName } from '../core/events.ts';
 import { Rng } from '../core/rng.ts';
+import { yieldFrame } from '../core/yieldFrame.ts';
 import { isKeyPickup, type SpotKind, type AmbientPreset, type DoorData, type DoorKit, type DoorState, type KeyPickupData, type LevelData, type RoomData, type TriggerData, type UnlockSource, type VentData } from '../data/types/level.ts';
 import type { UiText } from '../data/types/uiText.ts';
 import type { Inventory } from '../game/inventory.ts';
@@ -9,8 +10,8 @@ import { createShaft } from '../render/fx/shafts.ts';
 import { createOceanLife, type OceanZone } from '../render/fx/oceanLife.ts';
 import { Particulates } from '../render/fx/particulates.ts';
 import { LightController, type ControlledLight, type LightPattern, type ShaftUniforms } from '../render/lights.ts';
-import { createDebugCheckerMaterial, fixtureMaterial, type Materials } from '../render/materials.ts';
-import { CollisionWorld, type Collider } from './collision.ts';
+import { createDebugCheckerMaterial, disposeTexture, fixtureMaterial, type Materials } from '../render/materials.ts';
+import { CollisionWorld, type Collider, type ColliderSurface } from './collision.ts';
 import { at } from './kit/geom.ts';
 import { grillePosition, selectPaSpeaker, type PaSpeaker } from './paSpeakers.ts';
 import { buildDoor, type DoorVisual } from './kit/doors.ts';
@@ -27,7 +28,7 @@ import {
 import { HullBuilder, type ExteriorHull } from './kit/exteriorHull.ts';
 import { AoMergeBuilder, applyWorldMeterUvs, withVertexColors, type AoFn } from './kit/merge.ts';
 import { snapModelToSocket, type SnapOptions } from './kit/modelSnap.ts';
-import { CELL, CORRIDOR_H, DECK_H, ROOM_H, WALL_MOUNTED_PROPS, transformBox, type BoxSpec, type LightSlotKind, type PieceOutput, type PieceParams, type Socket, type SocketKind } from './kit/types.ts';
+import { CELL, CORRIDOR_H, DECK_H, ROOM_H, WALL_MOUNTED_PROPS, swingAngle, transformBox, type BoxSpec, type LightSlotKind, type PieceOutput, type PieceParams, type Socket, type SocketKind } from './kit/types.ts';
 import { LightPool, type PooledSlot } from './lightPool.ts';
 import { ShadowPool } from './shadowPool.ts';
 import type { LightBudget } from './world.ts';
@@ -43,6 +44,10 @@ import { buildExterior, type Exterior, type ExteriorWindow } from '../render/fx/
 import type { ExteriorLamp } from '../render/fx/exteriorLight.ts';
 import { VoiceGraph, type VoicePath, type VoicePortal } from '../audio/voicePath.ts';
 import type { WorldSfxEvent, WorldSoundLoop } from '../audio/propAudio.ts';
+import { WaterBodies, WaterBody } from './water.ts';
+import { WaterSurface } from '../render/water/surface.ts';
+import { addMurkTo } from '../render/water/murk.ts';
+import { FloatingJunk } from '../render/water/junk.ts';
 
 const EYE_HEIGHT = PLAYER_TUNING.eyeHeight;
 /** Seconds an auto door stays open after reaching fully open while nobody is nearby. */
@@ -52,6 +57,8 @@ const AUTO_CLOSE_ACTOR_DIST = 2.8;
 
 declare module '../core/events.ts' {
   interface EventMap {
+    /** A broken fixture threw sparks: its tube cut out (`strong`) or struck back on (flooded-tunnel spec). */
+    'light:sparks': { x: number; y: number; z: number; strong: boolean };
     /** Station power switched (station-power spec). */
     'power:changed': { state: StationPower };
     'room:entered': { id: string; name: string; reverb?: string | undefined; ambience?: string | undefined };
@@ -284,16 +291,71 @@ export interface LevelNpc {
   room: string;
 }
 
+/** Feet this deep (m) in standing water step on `water`. */
+const WET_FEET = 0.02;
+
+/** Placements may sit this far (m) above or below the walkable top they stand on. */
+const PLACEMENT_SLACK = 0.05;
+/** Pickups and item anchors may rest this far (m) above the top they lie on. */
+const ITEM_HOVER = 0.15;
+
+/**
+ * Sunken rooms (level-kit spec): every spawn, anchor, pickup or prop of a room with `floorY` that is authored at or
+ * below deck level must stand on a walkable top within 5 cm, so nothing is left at `y = 0` over the sunken floor.
+ * Placements higher up (wall props, ceiling vents, items on crates) are not checked. A prop with `params.float` is
+ * exempt (it floats on water). Returns one line per problem.
+ */
+export function sunkenPlacementProblems(data: LevelData, world: { query(minX: number, minZ: number, maxX: number, maxZ: number, out: Aabb[]): Aabb[] }): string[] {
+  const problems: string[] = [];
+  /** `hover`: how far above its top the placement may sit (items rest a little above what they lie on). */
+  const check = (room: string, what: string, pos: readonly [number, number, number], hover = PLACEMENT_SLACK): void => {
+    const [x, y, z] = pos;
+    if (y > PLACEMENT_SLACK) return;
+    const out = world.query(x - 0.01, z - 0.01, x + 0.01, z + 0.01, []);
+    const onTop = out.some((b) => b.min[0] <= x && b.max[0] >= x && b.min[2] <= z && b.max[2] >= z && b.max[1] - y <= PLACEMENT_SLACK && y - b.max[1] <= hover);
+    if (!onTop) problems.push(`${room} ${what} at [${pos.join(', ')}] has no walkable top within ${PLACEMENT_SLACK} m`);
+  };
+  const sunken = new Set(data.rooms.filter((r) => (r.floorY ?? 0) < 0).map((r) => r.id));
+  for (const r of data.rooms) {
+    if (!sunken.has(r.id)) continue;
+    for (const s of r.spawns ?? []) if (s.float !== true) check(r.id, `spawn ${s.id}`, s.pos);
+    // A point anchor (no facing) marks an item, which may rest up to ITEM_HOVER above its top.
+    for (const a of r.anchors ?? []) check(r.id, `anchor ${a.id}`, a.pos, a.yaw === undefined ? ITEM_HOVER : PLACEMENT_SLACK);
+    for (const p of r.props ?? []) if (p.params?.['float'] !== true) check(r.id, `prop ${p.kit}`, p.pos);
+  }
+  for (const pk of data.pickups ?? []) if (sunken.has(pk.room)) check(pk.room, `pickup ${pk.id}`, pk.pos, ITEM_HOVER);
+  return problems;
+}
+
+/** A light slot in world space while a room is built (a swinging one carries its pivot). */
+interface RawSlot {
+  pos: THREE.Vector3;
+  kind: LightSlotKind;
+  ry: number;
+  swing?: { pivot: THREE.Vector3; amp: number; period: number };
+}
+
 /** Placement matrix for a grid cell and a rotation in degrees. */
 function cellMatrix(cell: [number, number, number], rot: number): THREE.Matrix4 {
   return at(cell[0] * CELL, cell[1] * DECK_H, cell[2] * CELL, 0, deg(rot), 0);
 }
 
-/** Load every GLB the level needs, then build it. */
-export async function loadLevel(data: LevelData, deps: LevelDeps): Promise<Level> {
+export interface LevelLoadOptions {
+  /** Progress callback spanning GLB preload (0..0.35), room building (0.35..0.65), and AO/merge (0.65..1). */
+  onProgress?: (fraction: number, label: string) => void;
+}
+
+/** Load every GLB the level needs, then build it asynchronously with frame yields between rooms and merges. */
+export async function loadLevel(data: LevelData, deps: LevelDeps, opts?: LevelLoadOptions): Promise<Level> {
   const ids = data.rooms.flatMap((r) => [...r.pieces.map((p) => p.kit), ...(r.props ?? []).map((p) => p.kit)]);
-  await deps.registry.preload(ids);
-  return new Level(data, deps);
+  await deps.registry.preload(ids, undefined, (done, total) => {
+    opts?.onProgress?.((done / Math.max(1, total)) * 0.35, `Loading station models (${done}/${total})…`);
+  });
+  return Level.buildAsync(data, deps, {
+    onProgress: opts?.onProgress
+      ? (f, label) => opts.onProgress!(0.35 + f * 0.65, label)
+      : undefined,
+  });
 }
 
 /**
@@ -309,10 +371,20 @@ export class Level implements World {
   readonly group = new THREE.Group();
   readonly lights = new LightController();
   readonly collision = new CollisionWorld(2);
+  /** Standing water, one body per room with a `water` block (standing-water spec). */
+  readonly water = new WaterBodies();
+  /** The visible surface of each room's water (standing-water spec). */
+  readonly waterSurfaces = new Map<string, WaterSurface>();
+
+  /** Footstep surface at feet height `y`: `water` wherever the feet are under a water body's surface, else the collider's. */
+  surfaceAt(x: number, y: number, z: number): ColliderSurface | null {
+    if (this.water.depthAt(x, y, z) > WET_FEET) return 'water';
+    return this.collision.surfaceAt(x, y, z);
+  }
   readonly spawn: { position: THREE.Vector3; yaw: number };
   readonly bounds = null;
   readonly playerWorld: PlayerWorld;
-  readonly checkpoints: WorldCheckpoint[];
+  checkpoints: WorldCheckpoint[] = [];
   readonly defaultLocation: string;
   readonly debug: LevelDebugData;
   readonly pool: LightPool;
@@ -325,9 +397,9 @@ export class Level implements World {
   private readonly doors: DoorRuntime[] = [];
   private portalCuller!: PortalCuller;
   private readonly visibleRoomIds = new Set<string>();
-  private readonly hull: ExteriorHull;
+  private hull!: ExteriorHull;
   /** Everything outside the station, built once (openspec change overhaul-exterior-ocean). */
-  private readonly exterior: Exterior;
+  private exterior!: Exterior;
   private readonly exteriorWindows: ExteriorWindow[] = [];
   /** Rooms with real windows: the exterior draws only while one of them is visible. */
   private readonly exteriorRooms = new Set<string>();
@@ -371,6 +443,8 @@ export class Level implements World {
   private initialPatterns: LightPattern[] = [];
   private lastTime = 0;
   private lastFlashing = false;
+  /** Lights with an `id` (render-lighting spec: a single scripted light), with their authored colours. */
+  private readonly namedLights = new Map<string, { slot: { item: ControlledLight; color: THREE.Color }; color: THREE.Color; glows: THREE.Color[] }>();
   private readonly tinted = new Map<string, { slots: THREE.Color[]; glows: THREE.Color[]; sky: THREE.Color; ground: THREE.Color; intensity: number }>();
   private atmosphereReady = false;
   /** Station power (station-power spec), and what the backup look replaced on each backup light. */
@@ -391,8 +465,9 @@ export class Level implements World {
   private readonly checkerTargets: Array<{ mesh: THREE.Mesh; origMat: THREE.Material; origUv: THREE.BufferAttribute | null }> = [];
   private checkerMat: THREE.Material | null = null;
   private checkerActive = false;
+  private readonly offs: Array<() => void> = [];
 
-  constructor(data: LevelData, deps: LevelDeps) {
+  constructor(data: LevelData, deps: LevelDeps, deferBuild = false) {
     this.deps = deps;
     this.id = data.id;
     this.source = data;
@@ -411,13 +486,45 @@ export class Level implements World {
     this.keyFill.castShadow = false;
     this.group.add(this.keyFill);
 
+    const start = data.playerStart;
+    this.spawn = { position: new THREE.Vector3(start.pos[0], start.pos[1] + EYE_HEIGHT, start.pos[2]), yaw: deg(start.yaw) };
+    const startRoomData = data.rooms.find((r) => r.id === start.room);
+    this.defaultLocation = startRoomData?.name ?? this.name;
+    this.playerWorld = {
+      colliders: this.collision,
+      surfaceAt: (x, z) => this.surfaceAt(x, this.feetY, z) ?? 'metal',
+      waterDepth: (x, y, z) => this.water.depthAt(x, y, z),
+    };
+    this.dust = new Particulates(rng.fork('dust'), 1400, 6, 0, 4.5);
+    this.group.add(this.dust.points);
+
+    if (!deferBuild) this.buildAllSync(data, deps, rng);
+  }
+
+  /** Build a level asynchronously, yielding between room construction and per-room AO merges. */
+  static async buildAsync(
+    data: LevelData,
+    deps: LevelDeps,
+    opts?: { onProgress?: ((fraction: number, label: string) => void) | undefined },
+  ): Promise<Level> {
+    const level = new Level(data, deps, true);
+    const rng = new Rng(`${data.id}:${data.seed}`);
+    // Advance rng fork identically to constructor's dust fork so procedural seeds match sync builds.
+    rng.fork('dust');
+    await level.buildAllAsync(data, deps, rng, opts?.onProgress);
+    return level;
+  }
+
+  private prepareOccupancy(data: LevelData): GridOccupancy {
     const occupancy = new GridOccupancy();
     for (const d of data.doors) {
       const claim = occupancy.claimDoor(d.id, d.cell, d.rot);
       if (!claim.ok) console.warn(`[level] ${claim.reason}`);
     }
-    const hull = new HullBuilder();
-    for (const [index, r] of data.rooms.entries()) this.buildRoom(r, index, rng, occupancy, hull);
+    return occupancy;
+  }
+
+  private buildExteriorAndDoors(data: LevelData, deps: LevelDeps, rng: Rng, hull: HullBuilder): void {
     this.hull = hull.build(data.doors, deps.materials);
     this.group.add(this.hull.group);
     this.exterior = buildExterior({ columns: this.hull.columns, windows: this.exteriorWindows, steel: deps.materials.paintDark, rng: rng.fork('exterior') });
@@ -426,35 +533,45 @@ export class Level implements World {
       if (o.name === 'exterior-lamp') this.exteriorLampMarkers.push(o);
     });
     for (const d of data.doors) this.buildDoor(d, rng);
+    const misplaced = sunkenPlacementProblems(data, this.collision);
+    if (misplaced.length) throw new Error(`[level] ${data.id}: placements off a sunken floor:\n  ${misplaced.join('\n  ')}`);
     this.filterWorkSpots();
     this.initialPatterns = this.lights.items.map((it) => it.pattern);
-    // Bake AO and merge once every collider exists, so walls shade across room seams.
-    const ao = colliderAo(this.collision);
-    for (const room of this.rooms) {
-      for (const mesh of room.staticMeshes) room.merger.addMesh(mesh);
-      room.staticMeshes.length = 0;
-      room.stats.materials = room.merger.materialCount;
-      room.group.add(room.merger.build(`room:${room.data.id}`, ao));
-      room.group.traverse((o) => {
-        if (o instanceof THREE.Mesh) {
-          room.stats.drawCalls++;
-          const g = o.geometry;
-          room.stats.triangles += (g.index ? g.index.count : g.getAttribute('position').count) / 3;
-        }
-      });
-      this.addImportedCost(room);
-    }
-    this.collectLabBFloor();
-    this.deps.events.on('glass:set' as EventName, ((e: { id?: string; state?: string } | undefined) => {
-      if (e?.id === LAB_B.glass && (e.state === 'cracked' || e.state === 'shattered')) this.breakLabBFloor(true);
-    }) as never);
-    this.deps.events.on('level:reset', () => {
-      this.breakLabBFloor(false);
-      for (const [id, mp] of this.movableProps) {
-        this.setPropTransform(id, mp.initialPos, mp.initialYaw);
-        this.setPropVisible(id, mp.initialVisible);
+  }
+
+  private mergeRoom(room: RoomRuntime, ao: AoFn): void {
+    for (const mesh of room.staticMeshes) room.merger.addMesh(mesh);
+    room.staticMeshes.length = 0;
+    room.stats.materials = room.merger.materialCount;
+    room.group.add(room.merger.build(`room:${room.data.id}`, ao));
+    // What stands in standing water fades into it with depth (standing-water spec, D5).
+    if (room.data.water) addMurkTo(room.group);
+    room.group.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        room.stats.drawCalls++;
+        const g = o.geometry;
+        room.stats.triangles += (g.index ? g.index.count : g.getAttribute('position').count) / 3;
       }
     });
+    this.addImportedCost(room);
+  }
+
+  private finalizeBuild(data: LevelData, deps: LevelDeps, ao: AoFn): void {
+    this.collectLabBFloor();
+    this.offs.push(
+      this.deps.events.on('glass:set' as EventName, ((e: { id?: string; state?: string } | undefined) => {
+        if (e?.id === LAB_B.glass && (e.state === 'cracked' || e.state === 'shattered')) this.breakLabBFloor(true);
+      }) as never),
+    );
+    this.offs.push(
+      this.deps.events.on('level:reset', () => {
+        this.breakLabBFloor(false);
+        for (const [id, mp] of this.movableProps) {
+          this.setPropTransform(id, mp.initialPos, mp.initialYaw);
+          this.setPropVisible(id, mp.initialVisible);
+        }
+      }),
+    );
     for (const door of this.doors) {
       const mb = new AoMergeBuilder();
       for (const mesh of door.staticMeshes) mb.addMesh(mesh);
@@ -503,22 +620,10 @@ export class Level implements World {
         });
       }
     }
-
-    const start = data.playerStart;
-    this.spawn = { position: new THREE.Vector3(start.pos[0], start.pos[1] + EYE_HEIGHT, start.pos[2]), yaw: deg(start.yaw) };
-    const startRoom = this.roomById.get(start.room);
-    this.defaultLocation = startRoom?.data.name ?? this.name;
     this.checkpoints = data.checkpoints.map((cp) => {
       const room = this.roomById.get(cp.room)!;
       return { id: cp.id, label: room.data.name, reached: (feet: THREE.Vector3) => this.roomAt(this.scratch2.copy(feet).setY(feet.y + 0.5)) === room };
     });
-    this.playerWorld = {
-      colliders: this.collision,
-      surfaceAt: (x, z) => this.collision.surfaceAt(x, this.feetY, z) ?? 'metal',
-    };
-
-    this.dust = new Particulates(rng.fork('dust'), 1400, 6, 0, 4.5);
-    this.group.add(this.dust.points);
     for (const r of this.rooms) this.debug.rooms.push({ id: r.data.id, name: r.data.name, cells: r.cells });
     for (const r of this.rooms) for (const c of r.cells) this.debug.bounds.union(c);
     this.portalCuller = this.buildPortalCuller();
@@ -564,12 +669,12 @@ export class Level implements World {
         r.slots.map((s) => ({
           position: s.position,
           range: s.range,
-          active: () => s.pooled !== false && s.item.pattern !== 'off',
+          active: () => s.pooled !== false && s.item.power !== 0 && s.item.pattern !== 'off',
         })),
       );
     }
 
-    // 1. Door portals (dynamic open / see-through predicate).
+    // 1. Door portals (dynamic open / see-through / porthole predicate).
     const doorEdgeKeys = new Set<string>();
     for (const d of this.doors) {
       doorEdgeKeys.add(sharedEdgeKey(d.data.cell, d.data.rot));
@@ -586,7 +691,7 @@ export class Level implements World {
         rooms: [d.rooms[0].data.id, d.rooms[1].data.id],
         verts,
         box: quadBox(verts),
-        passable: () => d.open > 0.001 || d.visual.seeThrough,
+        passable: () => d.open > 0.001 || d.visual.seeThrough || d.visual.porthole,
       });
     }
 
@@ -594,6 +699,7 @@ export class Level implements World {
     const alwaysLinked = new Set<string>();
     const seenGlassEdges = new Set<string>();
     for (const r of this.rooms) {
+      const floorY = r.data.floorY ?? 0;
       for (const p of r.data.pieces) {
         if (p.kit !== 'wall_glass_partition') continue;
         const rot = p.rot ?? 0;
@@ -607,7 +713,7 @@ export class Level implements World {
             cellOwnerXZ.get(`${cell[0] + dx},${cell[2] + dz}`);
           if (!other || other === r) continue;
           seenGlassEdges.add(edgeKey);
-          const baseY = cell[1] * DECK_H;
+          const baseY = cell[1] * DECK_H + floorY;
           const ex = cell[0] * CELL + dx * (CELL / 2);
           const ez = cell[2] * CELL + dz * (CELL / 2);
           const verts = makeVerticalQuad(ex, ez, dx, dz, 3.9 / 2, baseY + 0.35, baseY + 2.54);
@@ -633,6 +739,9 @@ export class Level implements World {
         const mutual = fromRoom.data.visibleFrom?.includes(toRoom.data.id) ?? false;
         let sharedEdgesFound = 0;
         if (mutual) {
+          const fromFloor = fromRoom.data.floorY ?? 0;
+          const toFloor = toRoom.data.floorY ?? 0;
+          const minFloor = Math.min(fromFloor, toFloor);
           const maxHeight = Math.max(fromRoom.height, toRoom.height);
           for (const cell of roomCells.get(fromId) ?? []) {
             for (const rot of [0, 90, 180, 270] as const) {
@@ -644,7 +753,7 @@ export class Level implements World {
               const ex = cell[0] * CELL + dx * (CELL / 2);
               const ez = cell[2] * CELL + dz * (CELL / 2);
               const baseY = cell[1] * DECK_H;
-              const verts = makeVerticalQuad(ex, ez, dx, dz, CELL / 2, baseY, baseY + maxHeight);
+              const verts = makeVerticalQuad(ex, ez, dx, dz, CELL / 2, baseY + minFloor, baseY + maxHeight);
               portals.push({
                 rooms: [fromId, toRoom.data.id],
                 verts,
@@ -683,11 +792,51 @@ export class Level implements World {
     return new PortalCuller({ portals, fallbacks, oceanWindows, roomLights });
   }
 
+  private buildAllSync(data: LevelData, deps: LevelDeps, rng: Rng): void {
+    const occupancy = this.prepareOccupancy(data);
+    const hull = new HullBuilder();
+    for (const [index, r] of data.rooms.entries()) this.buildRoom(r, index, rng, occupancy, hull);
+    this.buildExteriorAndDoors(data, deps, rng, hull);
+    const ao = colliderAo(this.collision);
+    for (const room of this.rooms) this.mergeRoom(room, ao);
+    this.finalizeBuild(data, deps, ao);
+  }
+
+  private async buildAllAsync(
+    data: LevelData,
+    deps: LevelDeps,
+    rng: Rng,
+    onProgress?: (fraction: number, label: string) => void,
+  ): Promise<void> {
+    const occupancy = this.prepareOccupancy(data);
+    const hull = new HullBuilder();
+    const totalRooms = Math.max(1, data.rooms.length);
+    for (const [index, r] of data.rooms.entries()) {
+      onProgress?.((index / totalRooms) * 0.45, `Building ${r.name}…`);
+      this.buildRoom(r, index, rng, occupancy, hull);
+      await yieldFrame();
+    }
+    onProgress?.(0.48, 'Building exterior hull and doors…');
+    this.buildExteriorAndDoors(data, deps, rng, hull);
+    await yieldFrame();
+    const ao = colliderAo(this.collision);
+    for (let i = 0; i < this.rooms.length; i++) {
+      const room = this.rooms[i]!;
+      onProgress?.(0.5 + (i / totalRooms) * 0.45, `Baking lighting: ${room.data.name}…`);
+      this.mergeRoom(room, ao);
+      await yieldFrame();
+    }
+    onProgress?.(0.97, 'Finalizing station layout…');
+    this.finalizeBuild(data, deps, ao);
+    onProgress?.(1, 'Station built');
+  }
+
   // ---------------------------------------------------------------- building
 
   private buildRoom(r: RoomData, index: number, rng: Rng, occupancy: GridOccupancy, hull: HullBuilder): void {
     const { materials: m, registry } = this.deps;
     const height = r.height ?? ROOM_H;
+    const floorY = r.floorY ?? 0;
     const preset = AMBIENT[r.atmosphere?.ambient ?? 'normal'];
     const room: RoomRuntime = {
       data: r,
@@ -717,7 +866,7 @@ export class Level implements World {
     this.roomById.set(r.id, room);
 
     const cellKeys = new Set<string>();
-    const rawSlots: Array<{ pos: THREE.Vector3; kind: LightSlotKind; ry: number }> = [];
+    const rawSlots: RawSlot[] = [];
     for (const piece of r.pieces) {
       const cells = piece.cells ?? (piece.cell ? [piece.cell] : []);
       for (const cell of cells) {
@@ -729,11 +878,13 @@ export class Level implements World {
             continue;
           }
         }
-        const matrix = cellMatrix(cell, rot);
-        const params: PieceParams = { height, ...(r.area !== undefined ? { area: r.area } : {}), ...(piece.params ?? {}) };
+        // A sunken room (level-kit spec) builds every piece from `floorY`, one ceiling-height taller, so the
+        // ceiling stays at `height` and walls reach down to the floor without a seam at deck level.
+        const matrix = floorY !== 0 ? new THREE.Matrix4().makeTranslation(0, floorY, 0).multiply(cellMatrix(cell, rot)) : cellMatrix(cell, rot);
+        const params: PieceParams = { height: height - floorY, ...(r.area !== undefined ? { area: r.area } : {}), ...(piece.params ?? {}) };
         const out = registry.create(piece.kit, params, rng.fork(`${r.id}:${piece.kit}:${cell.join(',')}`), m);
-        const hullHeight = (piece.kit.startsWith('wall_') || piece.kit.startsWith('ceiling')) && typeof params.height === 'number' ? params.height : height;
-        hull.addPiece(r.id, cell, piece.kit, rot, hullHeight, out.sockets);
+        const hullHeight = (piece.kit.startsWith('wall_') || piece.kit.startsWith('ceiling')) && typeof params.height === 'number' ? params.height : height - floorY;
+        hull.addPiece(r.id, cell, piece.kit, rot, hullHeight, out.sockets, floorY);
         for (const k of out.keepouts ?? []) {
           const box = new THREE.Box3(new THREE.Vector3(...k.min), new THREE.Vector3(...k.max)).applyMatrix4(matrix);
           this.debug.keepouts.push({ room: r.id, source: `${piece.kit}@${cell.join(',')}`, box });
@@ -745,8 +896,25 @@ export class Level implements World {
           const x = cell[0] * CELL;
           const y = cell[1] * DECK_H;
           const z = cell[2] * CELL;
-          room.cells.push(new THREE.Box3(new THREE.Vector3(x - 2, y - 0.5, z - 2), new THREE.Vector3(x + 2, y + Math.max(height, CORRIDOR_H), z + 2)));
+          room.cells.push(new THREE.Box3(new THREE.Vector3(x - 2, y + floorY - 0.5, z - 2), new THREE.Vector3(x + 2, y + Math.max(height, CORRIDOR_H), z + 2)));
         }
+      }
+    }
+    if (r.water) {
+      const cells = [...cellKeys].map((k) => {
+        const [cx, , cz] = k.split(',').map(Number) as [number, number, number];
+        return { minX: cx * CELL - 2, maxX: cx * CELL + 2, minZ: cz * CELL - 2, maxZ: cz * CELL + 2 };
+      });
+      const body = new WaterBody({ room: r.id, level: r.water.level, floor: r.water.floor ?? floorY, cells });
+      this.water.add(body);
+      const surface = new WaterSurface(body);
+      this.waterSurfaces.set(r.id, surface);
+      room.group.add(surface.mesh);
+      room.ticks.push((t) => surface.update(t));
+      if (r.water.junk?.length) {
+        const junk = new FloatingJunk(r.water.junk, surface.uniforms);
+        room.group.add(junk.group);
+        room.ticks.push(() => junk.update(body.level));
       }
     }
     for (const [pi, prop] of (r.props ?? []).entries()) {
@@ -798,6 +966,7 @@ export class Level implements World {
 
     // Claim light slots.
     const claimed = new Set<number>();
+    const swingRefs: Array<{ ref: null | { position: THREE.Vector3 } }> = [];
     for (const [li, light] of (r.lights ?? []).entries()) {
       let idx = -1;
       if (typeof light.slot === 'number') idx = light.slot < rawSlots.length && !claimed.has(light.slot) ? light.slot : -1;
@@ -821,9 +990,27 @@ export class Level implements World {
       mesh.position.copy(slot.pos);
       mesh.rotation.y = slot.ry;
       room.group.add(mesh);
+      if (slot.swing) {
+        // A swinging fixture: its glow rides a pivot and its pooled light follows (flooded-tunnel spec).
+        const sw = slot.swing;
+        const pivot = new THREE.Group();
+        pivot.position.copy(sw.pivot);
+        pivot.rotation.order = 'YXZ';
+        pivot.rotation.y = slot.ry;
+        room.group.add(pivot);
+        pivot.attach(mesh);
+        const swingSlot = { ref: null as null | { position: THREE.Vector3 } };
+        room.ticks.push((t) => {
+          pivot.rotation.x = swingAngle(sw, t);
+          pivot.updateMatrixWorld(true);
+          if (swingSlot.ref) mesh.getWorldPosition(swingSlot.ref.position).y -= drop;
+        });
+        swingRefs.push(swingSlot);
+      }
       const shafts: ShaftUniforms[] = [];
       if (slot.kind === 'ceiling' && shaftBase > 0) {
-        const len = Math.min(slot.pos.y - 0.15, 3.2);
+        // A shaft stops at the floor, or at the surface of standing water (standing-water spec: murk hides what is under it).
+        const len = Math.min(slot.pos.y - 0.15 - (r.water ? Math.max(r.water.level, floorY) : floorY), 3.2);
         const shaft = createShaft(0.55, 1.6, len, color);
         shaft.mesh.position.set(slot.pos.x, slot.pos.y - 0.04 - len / 2, slot.pos.z);
         shaft.mesh.rotation.y = slot.ry;
@@ -856,6 +1043,13 @@ export class Level implements World {
         ...(light.backup === true ? { backup: true } : {}),
         score: 0,
       });
+      if (slot.swing) swingRefs.at(-1)!.ref = room.slots[room.slots.length - 1]!;
+      if (light.sparks) this.sparkers.push({ room, position: room.slots[room.slots.length - 1]!.position, light: item, prev: 1 });
+      if (light.id) {
+        if (this.namedLights.has(light.id)) console.warn(`[level] light id "${light.id}" is used twice`);
+        const s = room.slots[room.slots.length - 1]!;
+        this.namedLights.set(light.id, { slot: s, color: s.color.clone(), glows: s.item.emissives.map((m) => m.emissive.clone()) });
+      }
     }
     rawSlots.forEach((s, i) => {
       this.debug.slots.push({ pos: s.pos.clone(), kind: s.kind, claimed: claimed.has(i) });
@@ -1028,7 +1222,7 @@ export class Level implements World {
   }
 
   /** Place a piece: dynamic parts join the room group, static meshes wait for merging. */
-  private integrate(room: RoomRuntime, out: PieceOutput, matrix: THREE.Matrix4, ry: number, slots: Array<{ pos: THREE.Vector3; kind: LightSlotKind; ry: number }>): void {
+  private integrate(room: RoomRuntime, out: PieceOutput, matrix: THREE.Matrix4, ry: number, slots: RawSlot[]): void {
     const obj = out.object;
     obj.applyMatrix4(matrix);
     obj.updateMatrixWorld(true);
@@ -1069,7 +1263,10 @@ export class Level implements World {
         colliders: addedColliders.slice(0, out.colliders.length),
       });
     }
-    for (const s of out.lightSlots) slots.push({ pos: new THREE.Vector3(...s.pos).applyMatrix4(matrix), kind: s.kind, ry: s.ry + ry });
+    for (const s of out.lightSlots) {
+      const pos = new THREE.Vector3(...s.pos).applyMatrix4(matrix);
+      slots.push(s.swing ? { pos, kind: s.kind, ry: s.ry + ry, swing: { ...s.swing, pivot: new THREE.Vector3(...s.swing.pivot).applyMatrix4(matrix) } } : { pos, kind: s.kind, ry: s.ry + ry });
+    }
     for (const s of out.sockets) {
       const pos = new THREE.Vector3(...s.pos).applyMatrix4(matrix);
       const dir = new THREE.Vector3(...s.dir).transformDirection(matrix);
@@ -1085,7 +1282,7 @@ export class Level implements World {
     for (const n of out.navNodes) this.debug.nav.push(new THREE.Vector3(...n.pos).applyMatrix4(matrix));
     if (out.tick) room.ticks.push(out.tick);
     for (const l of out.listeners ?? []) {
-      this.deps.events.on(l.event as EventName, l.fn as never);
+      this.offs.push(this.deps.events.on(l.event as EventName, l.fn as never));
       this.onNamed(l.event, () => l.fn(undefined));
     }
     for (const sl of out.soundLoops ?? []) {
@@ -1211,6 +1408,7 @@ export class Level implements World {
       rng.fork(d.id),
       this.deps.materials,
       { ...(frontArea !== undefined ? { front: frontArea } : {}), ...(backArea !== undefined ? { back: backArea } : {}) },
+      { porthole: d.params?.['porthole'] === true },
     );
     const matrix = cellMatrix(d.cell, d.rot);
     const group = new THREE.Group();
@@ -1260,7 +1458,7 @@ export class Level implements World {
       const name = d.unlockOn;
       this.onNamed(name, () => this.unlockDoor(door, 'script'));
       // A sequence `emit` of the same name unlocks it too (e.g. `drop:done`, ADR-0014 beat 2).
-      this.deps.events.on(name as EventName, (() => this.unlockDoor(door, 'script')) as never);
+      this.offs.push(this.deps.events.on(name as EventName, (() => this.unlockDoor(door, 'script')) as never));
     }
     for (const s of visual.frame.sockets) {
       this.debug.sockets.push({ pos: new THREE.Vector3(...s.pos).applyMatrix4(matrix), dir: new THREE.Vector3(...s.dir).transformDirection(matrix) });
@@ -1289,6 +1487,35 @@ export class Level implements World {
   // ---------------------------------------------------------------- queries
 
   /** Does the level have a room with this id? */
+  /** Does something solid stand through a water surface at height `y` here (a wall, a step above it, a case)? */
+  solidThroughSurface(x: number, z: number, y: number): boolean {
+    const out = this.collision.query(x, z, x, z, this.solidScratch);
+    const hit = out.some((b) => b.min[0] <= x && b.max[0] >= x && b.min[2] <= z && b.max[2] >= z && b.min[1] < y - 0.01 && b.max[1] > y + 0.01);
+    out.length = 0;
+    return hit;
+  }
+
+  private readonly solidScratch: Aabb[] = [];
+
+  /**
+   * Floor height for gore and pools at (x, z): deck level (0), except over a sunken room (level-kit spec), where it is
+   * the highest walkable top at or below deck level there (the sunken floor, a submerged step, a landing).
+   */
+  floorAt(x: number, z: number): number {
+    const sunken = this.rooms.find((r) => (r.data.floorY ?? 0) < 0 && r.cells.some((c) => x >= c.min.x && x <= c.max.x && z >= c.min.z && z <= c.max.z));
+    if (!sunken) return 0;
+    const out = this.collision.query(x, z, x, z, this.solidScratch);
+    let top = sunken.data.floorY ?? 0;
+    for (const b of out) if (b.min[0] <= x && b.max[0] >= x && b.min[2] <= z && b.max[2] >= z && b.max[1] <= 0.05 && b.max[1] > top) top = b.max[1];
+    out.length = 0;
+    return top;
+  }
+
+  /** Is this room drawn this frame (it, or what its open doors and windows show)? */
+  roomVisible(id: string): boolean {
+    return this.roomById.get(id)?.visible ?? false;
+  }
+
   hasRoom(id: string): boolean {
     return this.roomById.has(id);
   }
@@ -1420,6 +1647,24 @@ export class Level implements World {
 
   /** Doors and "use" triggers as ADR-0004 interactables. */
   private nav: Navigator | null = null;
+
+  /** Build the Recast navmesh asynchronously (off-thread in browsers via navmeshWorker) and cache it. */
+  async buildNavAsync(): Promise<Navigator> {
+    if (this.nav) return this.nav;
+    const t0 = performance.now();
+    const navDoors = this.doors.map((d) => ({ id: d.data.id, box: d.collider as Aabb, isOpen: () => !d.collider.enabled || this.opensForActors(d) }));
+    const leaves = new Set<unknown>(this.doors.map((d) => d.collider));
+    const mesh = await NavMeshNav.buildAsync({
+      world: this.collision,
+      boxes: this.collision.colliders.filter((c) => !leaves.has(c)),
+      doors: navDoors,
+    });
+    const missing = mesh.unmarkedDoors();
+    if (missing.length) console.warn(`[nav] doorways with no navmesh: ${missing.join(', ')}`);
+    console.info(`[nav] navmesh: ${mesh.edgeCount()} polygons in ${(performance.now() - t0).toFixed(0)} ms`);
+    this.nav = mesh;
+    return mesh;
+  }
 
   /**
    * AI navigation. A Recast navmesh over the collision boxes once the WASM is loaded (ADR-0028,
@@ -1662,11 +1907,13 @@ export class Level implements World {
       it.pattern = this.initialPatterns[i] ?? it.pattern;
     });
     for (const room of [...this.tinted.keys()]) this.tintRoomLights(room, 'none');
+    for (const id of this.namedLights.keys()) this.setLight(id, this.namedLights.get(id)!.slot.item.pattern, 'none');
     for (const v of this.vents) {
       v.open = false;
       v.granted = false;
     }
     for (const pk of this.pickups) pk.mesh.visible = !this.deps.inventory?.has(pk.data.item);
+    for (const r of this.source.rooms) if (r.water) this.water.room(r.id)?.setLevel(r.water.level);
     // Props that hold story state (blinds, screens, camera feeds) go back to their authored look.
     this.deps.events.emit('level:reset', {});
   }
@@ -1717,6 +1964,22 @@ export class Level implements World {
   }
 
   /** Set the pattern of every light in a room. False if the room has none. */
+  /**
+   * Switch one named light (render-lighting spec: a single scripted light): its pattern, and a tint ("emergency", a
+   * "#rrggbb" colour, or "none" for its own colour). Every other light in its room keeps its pattern and colour.
+   */
+  setLight(id: string, pattern: LightPattern, tint?: string): boolean {
+    const named = this.namedLights.get(id);
+    if (!named) return false;
+    named.slot.item.pattern = pattern;
+    if (tint !== undefined) {
+      const color = tint === 'none' ? named.color : new THREE.Color(tint === 'emergency' ? '#ff2a1a' : tint);
+      named.slot.color.copy(color);
+      named.slot.item.emissives.forEach((m, i) => m.emissive.copy(tint === 'none' ? named.glows[i] ?? m.emissive : color));
+    }
+    return true;
+  }
+
   /** Current station power (station-power spec). */
   get power(): StationPower {
     return this.powerState;
@@ -1769,6 +2032,20 @@ export class Level implements World {
       any = true;
     }
     return any;
+  }
+
+  /** Broken fixtures (`sparks: true`) of the visible rooms, with their last brightness. */
+  private readonly sparkers: Array<{ room: RoomRuntime; position: THREE.Vector3; light: ControlledLight; prev: number }> = [];
+
+  /** A broken fixture throws sparks when its tube cuts out or strikes back on (flooded-tunnel spec). */
+  private updateSparks(): void {
+    for (const s of this.sparkers) {
+      const now = s.light.level;
+      const strike = s.prev < 0.4 && now > 0.75;
+      const cut = s.prev > 0.75 && now < 0.3;
+      if ((strike || cut) && s.room.visible) this.deps.events.emit('light:sparks', { x: s.position.x, y: s.position.y, z: s.position.z, strong: cut });
+      s.prev = now;
+    }
   }
 
   /** Pattern of each room's first light, enough to snapshot and restore. */
@@ -1948,6 +2225,7 @@ export class Level implements World {
     }
     this.updateDoors(dt, eye);
     this.updateTriggers(eye);
+    this.water.update(dt);
 
     // Frustum-clipped multi-hop portal culling.
     const cur = this.current;
@@ -1978,6 +2256,7 @@ export class Level implements World {
     this.lastFlashing = reducedFlashing;
     flashingState.reduced = reducedFlashing;
     this.lights.update(t, reducedFlashing);
+    this.updateSparks();
     this.pool.finish();
     this.shadowPool.finish();
 
@@ -2075,6 +2354,61 @@ export class Level implements World {
     camera.position.copy(this.spawn.position);
     camera.position.y += Math.sin(t * 0.3) * 0.03;
     camera.rotation.set(-0.06 + Math.sin(t * 0.07) * 0.05, this.spawn.yaw + Math.sin(t * 0.09) * 0.45, 0);
+  }
+
+  /** Release geometries, non-shared materials/textures, light pools, water surfaces, navmesh and listeners. */
+  dispose(): void {
+    for (const off of this.offs) off();
+    this.offs.length = 0;
+    this.pool.resize(0);
+    this.shadowPool.resize(0);
+    this.hemi.dispose();
+    this.keyFill.dispose();
+    this.dust.dispose();
+    for (const surface of this.waterSurfaces.values()) surface.dispose();
+    this.waterSurfaces.clear();
+    if (this.nav instanceof NavMeshNav) this.nav.destroy();
+    this.nav = null;
+    if (this.checkerMat) {
+      const map = (this.checkerMat as THREE.MeshStandardMaterial).map;
+      if (map) disposeTexture(map);
+      this.checkerMat.dispose();
+      this.checkerMat = null;
+    }
+    const sharedMats = new Set<THREE.Material>();
+    for (const m of Object.values(this.deps.materials)) {
+      if (m instanceof THREE.Material) sharedMats.add(m);
+    }
+    const sharedTex = new Set<THREE.Texture>();
+    const texSlots = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'bumpMap', 'displacementMap'] as const;
+    for (const m of sharedMats) {
+      const rec = m as unknown as Record<string, unknown>;
+      for (const slot of texSlots) {
+        const t = rec[slot];
+        if (t instanceof THREE.Texture) sharedTex.add(t);
+      }
+    }
+    const geoms = new Set<THREE.BufferGeometry>();
+    const mats = new Set<THREE.Material>();
+    const textures = new Set<THREE.Texture>();
+    this.group.traverse((o) => {
+      if (o instanceof THREE.Mesh || o instanceof THREE.Points || o instanceof THREE.Line) {
+        if (o.geometry) geoms.add(o.geometry);
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+          if (!(m instanceof THREE.Material) || sharedMats.has(m)) continue;
+          mats.add(m);
+          const rec = m as unknown as Record<string, unknown>;
+          for (const slot of texSlots) {
+            const t = rec[slot];
+            if (t instanceof THREE.Texture && !sharedTex.has(t)) textures.add(t);
+          }
+        }
+      }
+    });
+    for (const g of geoms) g.dispose();
+    for (const t of textures) disposeTexture(t);
+    for (const m of mats) m.dispose();
+    this.group.clear();
   }
 }
 

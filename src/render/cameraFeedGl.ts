@@ -121,6 +121,8 @@ export interface FeedGl extends FeedDraw {
   overlay(feed: Feed | null, alone?: boolean): void;
   /** Set when a GL error stopped the feeds; they stay dark. */
   readonly failed: boolean;
+  /** Pre-compile CCTV look and fullscreen overlay shaders during session loading. */
+  warm(): void;
   dispose(): void;
 }
 
@@ -284,6 +286,15 @@ export function createFeedGl(d: FeedGlDeps): FeedGl {
         else renderer.clearDepth();
         renderer.render(overlayScene, passCam);
         renderer.autoClear = auto;
+      } catch (err) {
+        fail(err);
+      }
+    },
+    warm() {
+      if (failed) return;
+      try {
+        renderer.compile(passScene, passCam);
+        renderer.compile(overlayScene, passCam);
       } catch (err) {
         fail(err);
       }

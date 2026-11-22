@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import type { Rng } from '../core/rng.ts';
+import { yieldFrame } from '../core/yieldFrame.ts';
 import { obj, record, str, type Validator } from '../core/validate.ts';
 import type { KitIds } from '../data/types/level.ts';
-import type { Materials } from '../render/materials.ts';
+import { disposeTexture, type Materials } from '../render/materials.ts';
 import { PROP_PIECES } from './kit/props.ts';
 import { STRUCTURE_PIECES } from './kit/structure.ts';
 import { SLICE_PROPS, SLICE_STRUCTURE } from './kit/slice.ts';
@@ -72,29 +73,71 @@ export class KitRegistry {
   /**
    * Load every GLB the manifest lists for the given IDs (call before create). An imported prop whose model fails
    * to load keeps its stand-in, with one warning naming the id; any other kit GLB failing is an error.
+   * When using the browser GLTF path, files download in parallel and parse with frame yields so loading UI stays smooth.
    */
-  async preload(ids: Iterable<string>, load?: (url: string) => Promise<{ scene: THREE.Group }>): Promise<void> {
+  async preload(
+    ids: Iterable<string>,
+    load?: (url: string) => Promise<{ scene: THREE.Group }>,
+    onProgress?: (done: number, total: number, id: string) => void,
+  ): Promise<void> {
     const wanted = [...new Set(ids)].filter((id) => this.manifest.glb[id] && !this.glbs.has(id));
     if (!wanted.length) return;
-    if (!load) {
-      const { createGltfLoader } = await import('../render/gltf.ts');
-      const loader = await createGltfLoader();
-      load = (url) => loader.loadAsync(url);
+    let done = 0;
+    const total = wanted.length;
+    if (load) {
+      await Promise.all(
+        wanted.map(async (id) => {
+          const url = this.manifest.glb[id]!;
+          const imported = this.defs.get(id)?.importedProp === true;
+          try {
+            const gltf = await load(url);
+            if (imported) tagImported(gltf.scene);
+            this.glbs.set(id, gltf.scene);
+          } catch (e) {
+            if (!imported) throw e;
+            console.warn(`[kit] imported prop "${id}": model failed to load (${url}); showing its stand-in. ${(e as Error).message ?? ''}`);
+          } finally {
+            done++;
+            onProgress?.(done, total, id);
+          }
+        }),
+      );
+      return;
     }
-    await Promise.all(
+
+    const { createGltfLoader } = await import('../render/gltf.ts');
+    const loader = await createGltfLoader();
+    // Fetch all raw GLB buffers in parallel, then parse sequentially with frame yields to avoid CPU stalls.
+    const fetched = await Promise.all(
       wanted.map(async (id) => {
         const url = this.manifest.glb[id]!;
         const imported = this.defs.get(id)?.importedProp === true;
         try {
-          const gltf = await load(url);
-          if (imported) tagImported(gltf.scene);
-          this.glbs.set(id, gltf.scene);
-        } catch (e) {
-          if (!imported) throw e;
-          console.warn(`[kit] imported prop "${id}": model failed to load (${url}); showing its stand-in. ${(e as Error).message ?? ''}`);
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return { id, url, imported, buffer: await res.arrayBuffer(), error: null as unknown };
+        } catch (error) {
+          return { id, url, imported, buffer: null as ArrayBuffer | null, error };
         }
       }),
     );
+
+    for (const item of fetched) {
+      try {
+        if (!item.buffer) throw item.error ?? new Error('missing buffer');
+        const slash = item.url.lastIndexOf('/');
+        const baseDir = slash >= 0 ? item.url.slice(0, slash + 1) : '';
+        const gltf = await loader.parseAsync(item.buffer, baseDir);
+        if (item.imported) tagImported(gltf.scene);
+        this.glbs.set(item.id, gltf.scene);
+      } catch (e) {
+        if (!item.imported) throw e;
+        console.warn(`[kit] imported prop "${item.id}": model failed to load (${item.url}); showing its stand-in. ${(e as Error).message ?? ''}`);
+      }
+      done++;
+      onProgress?.(done, total, item.id);
+      await yieldFrame();
+    }
   }
 
   /** An imported prop's recorded cost (null for any other piece). */
@@ -139,6 +182,35 @@ export class KitRegistry {
     if (glb) return fromGlb(glb.clone(true));
     if (!def) throw new Error(`unknown kit piece "${id}"`);
     return def.generate(params, rng, m);
+  }
+
+  /** Dispose all cached GLB templates, textures and cloned slot materials (session teardown). */
+  dispose(): void {
+    const geoms = new Set<THREE.BufferGeometry>();
+    const mats = new Set<THREE.Material>();
+    const textures = new Set<THREE.Texture>();
+    const texSlots = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'bumpMap', 'displacementMap'] as const;
+    for (const scene of this.glbs.values()) {
+      scene.traverse((o) => {
+        if (!(o instanceof THREE.Mesh)) return;
+        geoms.add(o.geometry);
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+          if (!(m instanceof THREE.Material)) continue;
+          mats.add(m);
+          const rec = m as unknown as Record<string, unknown>;
+          for (const slot of texSlots) {
+            const t = rec[slot];
+            if (t instanceof THREE.Texture) textures.add(t);
+          }
+        }
+      });
+    }
+    for (const g of geoms) g.dispose();
+    for (const t of textures) disposeTexture(t);
+    for (const m of mats) m.dispose();
+    for (const m of this.slotClones.values()) m.dispose();
+    this.glbs.clear();
+    this.slotClones.clear();
   }
 }
 

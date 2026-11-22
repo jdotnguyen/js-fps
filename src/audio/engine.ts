@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Rng } from '../core/rng.ts';
+import { yieldFrame, yieldIdle } from '../core/yieldFrame.ts';
 import { occludeVoice, type Occluder } from './occlusion.ts';
 import { DEFAULT_REVERB, REVERB_CROSSFADE, REVERB_SPECS, renderReverbIr, resolveReverb, type ReverbPreset } from './reverb.ts';
 import { SAMPLE_URLS, SOUND_SPECS, type SampleName, type SoundName } from './sounds.ts';
@@ -48,6 +49,8 @@ export interface VoiceOptions {
 
 export interface LoopHandle {
   setGain(value: number, timeConstant?: number): void;
+  /** Move a positional loop (a body wading, standing-water spec). No-op for a loop started without a position. */
+  setPosition?(x: number, y: number, z: number): void;
   /** Stop immediately, or fade smoothly to zero over `fadeSeconds` before stopping. */
   stop(fadeSeconds?: number): void;
 }
@@ -77,6 +80,15 @@ export function createAudioContext(): AudioContext {
   }
 }
 
+/** Procedural sounds needed on the title screen before any 3D session loads. */
+export const UI_SOUND_NAMES: ReadonlyArray<keyof typeof SOUND_SPECS> = ['uiHover', 'uiSelect'];
+/** Recorded samples needed on the title screen before any 3D session loads. */
+export const UI_SAMPLE_NAMES: ReadonlyArray<SampleName> = ['uiHover', 'uiSelect', 'uiMenuOpen'];
+
+function isPrioritySample(name: SampleName): boolean {
+  return /^(ui|pistol|shotgun|dryFire|foot|door|waterSplash)/.test(name);
+}
+
 export class AudioEngine {
   readonly ctx: AudioContext;
   readonly master: GainNode;
@@ -98,6 +110,7 @@ export class AudioEngine {
   private readonly buffers = new Map<SoundName, AudioBuffer[]>();
   private readonly loadedSamples = new Set<SampleName>();
   private readonly sampleListeners = new Set<(name: SampleName) => void>();
+  private sampleGen = 0;
   private readonly rng = new Rng('audio-engine');
   private readonly forward = new THREE.Vector3();
   private readonly up = new THREE.Vector3();
@@ -202,11 +215,14 @@ export class AudioEngine {
     if (this.ctx.state !== 'running') await this.ctx.resume();
   }
 
-  /** Render every sound in SOUND_SPECS at the context's sample rate. Returns ms taken. */
-  renderSounds(): number {
+  /** Render sound specs at the context's sample rate (defaults to all). Returns ms taken. */
+  renderSounds(names?: Iterable<keyof typeof SOUND_SPECS>): number {
     const t0 = performance.now();
     const sr = this.ctx.sampleRate;
-    for (const [name, spec] of Object.entries(SOUND_SPECS) as Array<[keyof typeof SOUND_SPECS, (typeof SOUND_SPECS)[keyof typeof SOUND_SPECS]]>) {
+    const listNames = names ? [...names] : (Object.keys(SOUND_SPECS) as Array<keyof typeof SOUND_SPECS>);
+    for (const name of listNames) {
+      if (this.buffers.has(name)) continue;
+      const spec = SOUND_SPECS[name];
       const list: AudioBuffer[] = [];
       for (let v = 0; v < spec.variants; v++) {
         const data = spec.make(sr, new Rng(`${name}:${v}`));
@@ -215,6 +231,38 @@ export class AudioEngine {
         list.push(buffer);
       }
       this.buffers.set(name, list);
+    }
+    return performance.now() - t0;
+  }
+
+  /** Render procedural sound specs in small batches, yielding a frame between batches so loading UI stays smooth. */
+  async renderSoundsAsync(
+    names?: Iterable<keyof typeof SOUND_SPECS>,
+    opts: { batchSize?: number; onProgress?: (done: number, total: number) => void } = {},
+  ): Promise<number> {
+    const t0 = performance.now();
+    const sr = this.ctx.sampleRate;
+    const batchSize = Math.max(1, opts.batchSize ?? 4);
+    const todo = (names ? [...names] : (Object.keys(SOUND_SPECS) as Array<keyof typeof SOUND_SPECS>)).filter((n) => !this.buffers.has(n));
+    const total = todo.length;
+    if (total === 0) {
+      opts.onProgress?.(1, 1);
+      return 0;
+    }
+    let done = 0;
+    for (const name of todo) {
+      const spec = SOUND_SPECS[name];
+      const list: AudioBuffer[] = [];
+      for (let v = 0; v < spec.variants; v++) {
+        const data = spec.make(sr, new Rng(`${name}:${v}`));
+        const buffer = this.ctx.createBuffer(1, data.length, sr);
+        buffer.copyToChannel(data, 0);
+        list.push(buffer);
+      }
+      this.buffers.set(name, list);
+      done++;
+      opts.onProgress?.(done, total);
+      if (done % batchSize === 0 && done < total) await yieldFrame();
     }
     return performance.now() - t0;
   }
@@ -257,22 +305,81 @@ export class AudioEngine {
   }
 
   /**
-   * Fetch and decode the recorded samples (SAMPLE_URLS), replacing any procedural sound of the same
-   * name. Failures are logged and leave the procedural fallback (or silence) in place.
+   * Fetch and decode recorded samples (SAMPLE_URLS), replacing any procedural sound of the same
+   * name. Bounded concurrency + optional idle yields avoid starving active frames.
    */
-  async loadSamples(): Promise<void> {
-    await Promise.all(
-      (Object.entries(SAMPLE_URLS) as Array<[SampleName, string | readonly string[]]>).map(async ([name, urls]) => {
-        const list = (await Promise.all((typeof urls === 'string' ? [urls] : urls).map((url) => this.fetchSample(name, url)))).filter(
-          (b): b is AudioBuffer => b !== null,
-        );
+  async loadSamples(opts: {
+    names?: Iterable<SampleName>;
+    concurrency?: number;
+    idle?: boolean;
+    onProgress?: (done: number, total: number) => void;
+    fetchSample?: (name: SampleName, url: string) => Promise<AudioBuffer | null>;
+  } = {}): Promise<void> {
+    const names = (opts.names ? [...opts.names] : (Object.keys(SAMPLE_URLS) as SampleName[])).filter((n) => !this.loadedSamples.has(n));
+    const total = names.length;
+    if (total === 0) {
+      opts.onProgress?.(1, 1);
+      return;
+    }
+    const concurrency = Math.max(1, opts.concurrency ?? 4);
+    const loadOne = opts.fetchSample ?? ((name: SampleName, url: string) => this.fetchSample(name, url));
+    const gen = this.sampleGen;
+    let next = 0;
+    let done = 0;
+    const worker = async (): Promise<void> => {
+      while (next < names.length && this.sampleGen === gen) {
+        const name = names[next++]!;
+        const urls = SAMPLE_URLS[name];
+        const urlList = typeof urls === 'string' ? [urls] : urls;
+        const list: AudioBuffer[] = [];
+        for (const url of urlList) {
+          if (this.sampleGen !== gen) return;
+          const buf = await loadOne(name, url);
+          if (this.sampleGen !== gen) return;
+          if (buf) list.push(buf);
+          if (opts.idle) await yieldIdle();
+        }
+        if (this.sampleGen !== gen) return;
         if (list.length > 0) {
           this.buffers.set(name, list);
           this.loadedSamples.add(name);
           for (const fn of this.sampleListeners) fn(name);
         }
-      }),
-    );
+        done++;
+        opts.onProgress?.(done, total);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(concurrency, total) }, () => worker()));
+  }
+
+  /** Load only the 3 menu UI samples for fast shell boot. */
+  loadUiSamples(): Promise<void> {
+    return this.loadSamples({ names: UI_SAMPLE_NAMES, concurrency: 3 });
+  }
+
+  /**
+   * Load core gameplay samples during session loading, then return a handle for throttled background
+   * decoding of remaining ambience/gore/zombie samples.
+   */
+  async loadGameplaySamples(opts: { onProgress?: (done: number, total: number) => void } = {}): Promise<{ background: Promise<void> }> {
+    const all = Object.keys(SAMPLE_URLS) as SampleName[];
+    const priority = all.filter((n) => isPrioritySample(n));
+    const rest = all.filter((n) => !isPrioritySample(n));
+    await this.loadSamples({ names: priority, concurrency: 4, ...(opts.onProgress ? { onProgress: opts.onProgress } : {}) });
+    const background = this.loadSamples({ names: rest, concurrency: 2, idle: true });
+    return { background };
+  }
+
+  /** Drop decoded gameplay SFX/ambience buffers while keeping UI menu sounds alive (session teardown). */
+  releaseGameplayBuffers(): void {
+    this.sampleGen++;
+    const keep = new Set<string>([...UI_SOUND_NAMES, ...UI_SAMPLE_NAMES]);
+    for (const name of [...this.buffers.keys()]) {
+      if (!keep.has(name)) this.buffers.delete(name);
+    }
+    for (const name of [...this.loadedSamples]) {
+      if (!keep.has(name)) this.loadedSamples.delete(name);
+    }
   }
 
   private async fetchSample(name: SampleName, url: string): Promise<AudioBuffer | null> {
@@ -450,7 +557,7 @@ export class AudioEngine {
   }
 
   loop(name: SoundName, opts: VoiceOptions = {}): LoopHandle {
-    const { source, gain, output } = this.voice(name, opts, true);
+    const { source, gain, output, panner } = this.voice(name, opts, true);
     const buffer = source.buffer;
     source.start(0, buffer ? this.rng.next() * buffer.duration : 0);
     let stopped = false;
@@ -474,6 +581,13 @@ export class AudioEngine {
         if (stopped) return;
         gain.gain.setTargetAtTime(value, this.ctx.currentTime, timeConstant);
       },
+      setPosition: (x, y, z) => {
+        if (stopped || !panner) return;
+        const t = this.ctx.currentTime;
+        panner.positionX.setTargetAtTime(x, t, 0.03);
+        panner.positionY.setTargetAtTime(y, t, 0.03);
+        panner.positionZ.setTargetAtTime(z, t, 0.03);
+      },
       stop: (fadeSeconds = 0) => {
         if (stopped) return;
         if (fadeSeconds <= 0) {
@@ -489,7 +603,7 @@ export class AudioEngine {
     };
   }
 
-  private voice(name: SoundName, opts: VoiceOptions, loop: boolean): { source: AudioBufferSourceNode; gain: GainNode; output: AudioNode } {
+  private voice(name: SoundName, opts: VoiceOptions, loop: boolean): { source: AudioBufferSourceNode; gain: GainNode; output: AudioNode; panner: PannerNode | null } {
     const list = this.buffers.get(name);
     if (!list || list.length === 0) throw new Error(`Sound "${name}" was not rendered`);
     const buffer = list[(opts.variant ?? this.rng.int(0, list.length - 1)) % list.length]!;
@@ -503,8 +617,9 @@ export class AudioEngine {
     const gain = new GainNode(this.ctx, { gain: opts.gain ?? 1 });
     node.connect(gain);
     node = gain;
+    let panner: PannerNode | null = null;
     if (opts.position) {
-      const panner = new PannerNode(this.ctx, {
+      panner = new PannerNode(this.ctx, {
         panningModel: 'HRTF',
         distanceModel: 'inverse',
         refDistance: 1.2,
@@ -522,6 +637,6 @@ export class AudioEngine {
       const send = new GainNode(this.ctx, { gain: opts.reverb });
       node.connect(send).connect(this.reverbIn);
     }
-    return { source, gain, output: node };
+    return { source, gain, output: node, panner };
   }
 }

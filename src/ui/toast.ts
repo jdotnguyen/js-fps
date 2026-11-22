@@ -18,4 +18,8 @@ export class Toasts {
       setTimeout(() => t.remove(), 400);
     }, ms);
   }
+
+  dispose(): void {
+    this.root.remove();
+  }
 }

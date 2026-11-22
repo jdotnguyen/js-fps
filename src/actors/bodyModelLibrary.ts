@@ -1,5 +1,6 @@
 import { arr, bool, numRange, obj, oneOf, optional, record, str, type Infer, type Validator } from '../core/validate.ts';
 import type { Rng } from '../core/rng.ts';
+import { disposeTexture } from '../render/materials.ts';
 import { prepareBodyModel, type PreparedBodyModel } from './bodyModel.ts';
 
 /**
@@ -71,5 +72,19 @@ export class BodyModelLibrary {
       if (rng.chance(this.forceShare ?? def.share)) return id;
     }
     return null;
+  }
+
+  /** Dispose all prepared body model geometries and shared surface textures (session teardown). */
+  dispose(): void {
+    const textures = new Set<import('three').Texture>();
+    for (const model of this.loaded.values()) {
+      for (const part of model.parts) part.geometry.dispose();
+      for (const s of Object.values(model.surfaces)) {
+        if (s.map) textures.add(s.map);
+        if (s.normalMap) textures.add(s.normalMap);
+      }
+    }
+    for (const t of textures) disposeTexture(t);
+    this.loaded.clear();
   }
 }
