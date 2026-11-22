@@ -1,13 +1,17 @@
 import * as THREE from 'three';
 import type { LightSlotKind } from './kit/types.ts';
 import { slotScore, type PooledSlot } from './lightPool.ts';
+import { pauseShadow } from '../render/shadowMapKeep.ts';
 
-/** Downward cone per fixture kind: half-angle (degrees), penumbra and shadow biases. */
-export const SHADOW_CONES: Record<LightSlotKind, { angle: number; penumbra: number; bias: number; normalBias: number }> = {
-  ceiling: { angle: 75, penumbra: 0.55, bias: -0.0005, normalBias: 0.03 },
-  pendant: { angle: 60, penumbra: 0.6, bias: -0.0003, normalBias: 0.02 },
-  wall: { angle: 70, penumbra: 0.6, bias: -0.0004, normalBias: 0.025 },
-  emergency: { angle: 70, penumbra: 0.5, bias: -0.0004, normalBias: 0.025 },
+/**
+ * Downward cone per fixture kind: half-angle (degrees), penumbra, shadow biases and the soft-PCF
+ * filter radius in shadow-map texels (`PCFShadowMap` since r183; render-lighting: soft edges).
+ */
+export const SHADOW_CONES: Record<LightSlotKind, { angle: number; penumbra: number; bias: number; normalBias: number; radius: number }> = {
+  ceiling: { angle: 75, penumbra: 0.55, bias: -0.0005, normalBias: 0.03, radius: 2 },
+  pendant: { angle: 60, penumbra: 0.6, bias: -0.0003, normalBias: 0.02, radius: 2 },
+  wall: { angle: 70, penumbra: 0.6, bias: -0.0004, normalBias: 0.025, radius: 2 },
+  emergency: { angle: 70, penumbra: 0.5, bias: -0.0004, normalBias: 0.025, radius: 2 },
 };
 
 /**
@@ -90,7 +94,7 @@ export class ShadowPool {
       const light = this.lights[i]!;
       const slot = c[i];
       if (!slot) {
-        light.shadow.autoUpdate = false;
+        pauseShadow(light.shadow);
         continue;
       }
       const cone = SHADOW_CONES[slot.kind ?? 'ceiling'];
@@ -103,6 +107,7 @@ export class ShadowPool {
       light.penumbra = cone.penumbra;
       light.shadow.bias = cone.bias;
       light.shadow.normalBias = cone.normalBias;
+      light.shadow.radius = cone.radius;
       light.shadow.camera.far = slot.range;
       light.shadow.autoUpdate = true;
       slot.item.light = light;

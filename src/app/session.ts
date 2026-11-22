@@ -1208,11 +1208,12 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       look.add(post.grade.uAberration, 'value', 0, 0.02, 0.0005).name('aberration');
       look.add(post.grade.uDamage, 'value', 0, 1, 0.01).name('damage tint');
       const fx = gui.addFolder('Post');
-      fx.add(post.gtao, 'enabled').name('ambient occlusion');
-      fx.add(post.gtao, 'blendIntensity', 0, 1, 0.01).name('AO strength');
-      fx.add(post.bloom, 'strength', 0, 2, 0.01).name('bloom');
-      fx.add(post.bloom, 'threshold', 0, 2, 0.01).name('bloom threshold');
-      fx.add(post.bloom, 'radius', 0, 1, 0.01).name('bloom radius');
+      fx.add(post.ao, 'enabled').name('ambient occlusion').listen();
+      fx.add(post.ao.configuration, 'intensity', 0, 8, 0.05).name('AO strength');
+      fx.add(post.ao.configuration, 'aoRadius', 0.1, 5, 0.05).name('AO radius');
+      fx.add(post.bloom, 'intensity', 0, 8, 0.05).name('bloom');
+      fx.add(post.bloom.luminanceMaterial, 'threshold', 0, 2, 0.01).name('bloom threshold');
+      fx.add(post.bloom.mipmapBlurPass, 'radius', 0, 1, 0.01).name('bloom radius');
       const lightsFolder = gui.addFolder('Lights');
       lightsFolder.add(flashlight, 'intensity', 0, 200, 1).name('flashlight');
       for (const item of world.lights.items) {

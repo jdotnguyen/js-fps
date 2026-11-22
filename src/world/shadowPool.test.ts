@@ -9,6 +9,7 @@ import { RENDER_TIERS } from '../render/tiers.ts';
 import { Level } from './level.ts';
 import { KitRegistry } from './registry.ts';
 import { LightPool } from './lightPool.ts';
+import { SHADOW_CONES } from './shadowPool.ts';
 import { labLamps } from './labWorld.ts';
 import type { LightBudget } from './world.ts';
 
@@ -171,4 +172,26 @@ test('level data accepts shadow: true and rejects a non-boolean', () => {
   const ok = validate(levelValidator(kits), raw(true), 'v');
   assert.equal(ok.rooms[0]!.lights![0]!.shadow, true);
   assert.throws(() => validate(levelValidator(kits), raw('yes'), 'v'), /shadow/);
+});
+
+test('every cone kind sets its shadow biases and a soft-PCF radius above 1, and a bound spot takes them (r183 PCFShadowMap)', () => {
+  for (const [kind, cone] of Object.entries(SHADOW_CONES)) {
+    assert.ok(cone.bias < 0 && cone.bias > -0.01, `${kind} bias`);
+    assert.ok(cone.normalBias > 0 && cone.normalBias < 0.1, `${kind} normal bias`);
+    assert.ok(cone.radius > 1, `${kind} radius ${cone.radius} is soft`);
+  }
+  const spot = build([0], 'high').roomLights('A')[0]!.light.light as THREE.SpotLight;
+  assert.equal(spot.shadow.bias, SHADOW_CONES.ceiling.bias);
+  assert.equal(spot.shadow.normalBias, SHADOW_CONES.ceiling.normalBias);
+  assert.equal(spot.shadow.radius, SHADOW_CONES.ceiling.radius);
+});
+
+test('an unbound pool spot stays paused but gets one shadow pass to allocate its map (r183 empty shadow sampler)', () => {
+  const level = build([0], 'high');
+  const spot = level.roomLights('A')[0]!.light.light as THREE.SpotLight;
+  let unbound: THREE.SpotLight | undefined;
+  level.group.traverse((o) => void (o instanceof THREE.SpotLight && o !== spot && o.intensity === 0 && o.castShadow && (unbound ??= o)));
+  assert.ok(unbound, 'High leaves pool spots unbound');
+  assert.equal(unbound.shadow.autoUpdate, false);
+  assert.equal(unbound.shadow.needsUpdate, true);
 });

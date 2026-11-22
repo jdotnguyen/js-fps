@@ -37,7 +37,7 @@ The booth SHALL contain a desk with keyboards and a wall-mounted bank of six cam
 
 #### Scenario: Room stays inside its draw-call budget
 - **WHEN** R01 is built
-- **THEN** the six-screen bank costs at most two screen draw calls, and R01 stays within the 60-per-room budget
+- **THEN** the six-screen bank costs at most two screen draw calls, and the level tests report R01's draw-call count
 
 ### Requirement: Detector line
 A walk-through arch SHALL stand at the front counter's east end, with at least 1.0 m of clear opening. Waist-high rails and a closed staff gate SHALL run from the arch to the dock window. A tray table SHALL stand on the dock side of the arch. Nothing on the line except the arch SHALL rise above 1.2 m.

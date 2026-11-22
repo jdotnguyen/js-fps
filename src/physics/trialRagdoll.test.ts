@@ -77,8 +77,10 @@ test('a chest shot on the stairs sends the body back down them, resting on the s
   h.group.updateMatrixWorld(true);
   const r = new TrialRagdoll(e, h.bones, { group: 2 });
   e.applyImpulse(r.body('chest')!, { x: 0, y: 0, z: -35 });
+  // 12 s: the fall is chaotic. On three r180 the body stops on the steps at about 6 s; on r183 a slightly
+  // different start pose tumbles it to the floor, where it rests at about 8.7 s. Both outcomes are allowed.
   let settledAt = -1;
-  for (let i = 0; i < 8 * 60; i++) {
+  for (let i = 0; i < 12 * 60; i++) {
     e.step(STEP);
     if (settledAt < 0 && i > 30 && r.maxSpeed() < 0.05) settledAt = i * STEP;
   }

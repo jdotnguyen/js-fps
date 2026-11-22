@@ -151,7 +151,8 @@ export class AoMergeBuilder {
     }
     if (!g.getAttribute('normal')) g.computeVertexNormals();
     if (!g.getAttribute('uv')) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.getAttribute('position').count * 2), 2));
-    g.morphAttributes = {};
+    // Drop morph targets (three r175 types morphAttributes with fixed keys, so clear them rather than assign {}).
+    for (const key of Object.keys(g.morphAttributes) as Array<keyof THREE.BufferGeometry['morphAttributes']>) delete g.morphAttributes[key];
     g.clearGroups();
     if (matrix) g.applyMatrix4(matrix);
     if (isFlatColor(material)) {
