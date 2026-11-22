@@ -25,13 +25,15 @@ interface HullCell {
   openings: Map<number, Opening>;
 }
 
-interface HullWindow {
+export interface HullWindow {
   room: string;
   x: number;
   z: number;
   dx: number;
   dz: number;
   halfWidth: number;
+  sill: number;
+  head: number;
 }
 
 type Plating = Pick<Materials, 'hullPlate' | 'boltPanel'>;
@@ -151,7 +153,16 @@ export class HullBuilder {
             if (high <= low) return;
             addSide(plates, m, frame, low, high, cell.floor, opening);
             if (opening?.window && low < cell.floor + opening.head && high > cell.floor + opening.sill) {
-              windows.push({ room: cell.room, x: x + dx * HALF, z: z + dz * HALF, dx, dz, halfWidth: opening.width / 2 });
+              windows.push({
+                room: cell.room,
+                x: x + dx * HALF,
+                z: z + dz * HALF,
+                dx,
+                dz,
+                halfWidth: opening.width / 2,
+                sill: cell.floor + opening.sill,
+                head: cell.floor + opening.head,
+              });
             }
           };
           for (const neighbour of neighbours) {

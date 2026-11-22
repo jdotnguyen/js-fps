@@ -131,7 +131,7 @@ export interface FeedGlDeps {
    * Run `draw` with the level set up to be seen from `eye` (rooms visible, lights bound), e.g.
    * `Level.renderFromEye`. Without a level, `draw` runs as is.
    */
-  view?: ((eye: THREE.Vector3, draw: () => void) => void) | null;
+  view?: ((eye: THREE.Vector3, draw: () => void, camera?: THREE.Camera) => void) | null;
   warn?: (message: string) => void;
 }
 
@@ -232,7 +232,7 @@ export function createFeedGl(d: FeedGlDeps): FeedGl {
           renderer.clear();
           renderer.render(scene, camera);
         };
-        if (d.view) d.view(camera.position, draw);
+        if (d.view) d.view(camera.position, draw, camera);
         else draw();
         renderer.setRenderTarget(null);
       } catch (err) {

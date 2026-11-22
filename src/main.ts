@@ -344,7 +344,7 @@ async function boot(): Promise<void> {
   freeCam.bounds = world.bounds;
 
   // Security camera feeds (ADR-0023): `cameraFeed` actions draw the world from a camera onto `feed:<id>` screens.
-  const feedGl = createFeedGl({ renderer, scene, view: level ? (eye, draw) => level.renderFromEye(eye, draw) : null });
+  const feedGl = createFeedGl({ renderer, scene, view: level ? (eye, draw, cam) => level.renderFromEye(eye, draw, cam) : null });
   const cameraFeeds = new CameraFeeds({ root: world.group, draw: feedGl });
   events.on('level:reset', () => cameraFeeds.reset());
 
@@ -1277,7 +1277,7 @@ async function boot(): Promise<void> {
       guidance.render(frameDt);
       viewmodel.update(frameDt);
       flashlight.update(frameDt);
-      world.update(simTime, frameDt, camera.position, settings.get().reducedFlashing);
+      world.update(simTime, frameDt, camera.position, settings.get().reducedFlashing, camera);
       if (level && levelStats) {
         levelStats.drawCalls = level.visibleDrawCalls();
         levelStats.pool = level.pool.boundCount();

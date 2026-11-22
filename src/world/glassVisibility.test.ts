@@ -61,15 +61,22 @@ test('one-way glass is reported with both rooms and the edge', () => {
   assert.deepEqual(glassVisibilityGaps(rooms), []);
 });
 
-test('slice01: Lab B draws the gallery and its glass, and the gallery draws Lab B', async () => {
+test('slice01: glass partitions, multi-hop portal sightlines, and frustum culling', async () => {
   const THREE = await import('three');
   const { level } = loadLevel('slice01');
   const room = (id: string) => level.group.getObjectByName(`room:${id}`)!;
+  const makeCam = (pos: [number, number, number], target: [number, number, number]) => {
+    const c = new THREE.PerspectiveCamera(75, 16 / 9, 0.1, 100);
+    c.position.set(...pos);
+    c.lookAt(...target);
+    c.updateMatrixWorld(true);
+    return c;
+  };
   level.group.updateMatrixWorld(true);
-  // Cell centres: Lab B (2,6) and the gallery (2,4); cells are 4 m.
+
+  // 1. Existing bidirectional glass partition guarantee (Lab B <-> Observation Gallery, closed D_R02_R03 keeps Commons hidden).
   level.renderFromEye(new THREE.Vector3(8, 1.7, 26), () => {
     assert.ok(room('R03').visible, 'gallery drawn from Lab B');
-    // The panes are R03's pieces (the headless loader gives `glass` a physical material); all three must draw.
     const panes: InstanceType<typeof THREE.Mesh>[] = [];
     room('R03').traverse((o) => {
       const m = o as InstanceType<typeof THREE.Mesh>;
@@ -81,9 +88,40 @@ test('slice01: Lab B draws the gallery and its glass, and the gallery draws Lab 
       pane.traverseAncestors((a) => void (shown &&= a.visible));
       assert.ok(shown && pane.visible, 'every gallery pane draws from Lab B');
     }
-    assert.equal(room('R02').visible, false, 'the commons is not drawn through the gallery glass');
+    assert.equal(room('R02').visible, false, 'the commons is not drawn through the gallery glass while D_R02_R03 is shut');
   });
   level.renderFromEye(new THREE.Vector3(8, 1.7, 18), () => {
     assert.ok(room('R04').visible, 'Lab B drawn from the gallery');
   });
+
+  // 2. TAG Offices glass chain (R02 -> R14a -> R14b -> R14d/R14c) with all opaque doors shut.
+  const camTag = makeCam([31.5, 1.7, 13.5], [40, 1.7, 6]);
+  level.renderFromEye(camTag.position, () => {
+    assert.ok(room('R02').visible, 'Commons visible');
+    assert.ok(room('R14a').visible, 'TAG Reception visible through D_R02_R14a glass');
+    assert.ok(room('R14b').visible, 'Open Office visible 2 hops through D_R02_R14a -> D_R14a_R14b glass');
+    assert.ok(room('R14d').visible || room('R14c').visible, '3-hop glass office visible down TAG sightline');
+  }, camTag);
+
+  // Facing away from TAG Offices on the far west side of Commons culls TAG Offices.
+  const camWest = makeCam([18, 1.7, 18], [8, 1.7, 18]);
+  level.renderFromEye(camWest.position, () => {
+    assert.equal(room('R14a').visible, false, 'TAG Reception culled when behind camera beyond light-bleed distance');
+    assert.equal(room('R14b').visible, false, 'Open Office culled when facing away');
+  }, camWest);
+
+  // 3. Commons -> Observation Gallery -> Lab B (R02 -> R03 -> R04) when D_R02_R03 opens.
+  const camGallery = makeCam([15.2, 1.7, 15.2], [10, 1.7, 22]);
+  // Step level.update so auto-door D_R02_R03 slides open while player stands in Commons.
+  for (let i = 0; i < 20; i++) level.update(i * 0.05, 0.05, camGallery.position, false, camGallery);
+  assert.ok(room('R02').visible, 'player is still in Commons');
+  assert.ok(room('R03').visible, 'Observation Gallery visible through open D_R02_R03');
+  assert.ok(room('R04').visible, 'Lab B visible 2 hops through open D_R02_R03 and gallery glass before entering R03');
+
+  // 4. Commons -> Hydroponics Vestibule -> Grow Hall -> Seed Lab (R02 -> R12a -> R12b -> R12c) when D_R02_R12a opens.
+  const camHydro = makeCam([32.5, 1.7, 20], [52, 1.7, 20]);
+  for (let i = 0; i < 20; i++) level.update(1 + i * 0.05, 0.05, camHydro.position, false, camHydro);
+  assert.ok(room('R12a').visible, 'Hydroponics Vestibule visible through open D_R02_R12a');
+  assert.ok(room('R12b').visible, 'Grow Hall visible 2 hops through D_R12a_R12b glass');
+  assert.ok(room('R12c').visible, 'Seed Lab visible 3 hops straight east through Grow Hall glass');
 });

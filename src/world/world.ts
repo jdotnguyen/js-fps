@@ -37,7 +37,7 @@ export interface World {
   resetToData?(): void;
   /** Title-screen camera move. */
   attract(t: number, camera: THREE.PerspectiveCamera): void;
-  update(t: number, dt: number, cameraPosition: THREE.Vector3, reducedFlashing: boolean): void;
+  update(t: number, dt: number, cameraPosition: THREE.Vector3, reducedFlashing: boolean, camera?: THREE.Camera): void;
   /** Resize this world's light pools for a quality tier (render-lighting spec). Worlds without pools omit it. */
   setLightBudget?(budget: LightBudget): void;
 }

@@ -14,7 +14,16 @@ import { CollisionWorld, type Collider } from './collision.ts';
 import { at } from './kit/geom.ts';
 import { grillePosition, selectPaSpeaker, type PaSpeaker } from './paSpeakers.ts';
 import { buildDoor, type DoorVisual } from './kit/doors.ts';
-import { GridOccupancy } from './kit/grid.ts';
+import { edgeDir, GridOccupancy, sharedEdgeKey } from './kit/grid.ts';
+import {
+  PortalCuller,
+  makeVerticalQuad,
+  quadBox,
+  type FallbackLink,
+  type OceanWindowPortal,
+  type PortalQuad,
+  type RoomLightSphere,
+} from './portalCull.ts';
 import { HullBuilder, type ExteriorHull } from './kit/exteriorHull.ts';
 import { AoMergeBuilder, applyWorldMeterUvs, withVertexColors, type AoFn } from './kit/merge.ts';
 import { snapModelToSocket, type SnapOptions } from './kit/modelSnap.ts';
@@ -307,6 +316,8 @@ export class Level implements World {
   private readonly paSpeakers: PaSpeaker[] = [];
   private readonly roomById = new Map<string, RoomRuntime>();
   private readonly doors: DoorRuntime[] = [];
+  private portalCuller!: PortalCuller;
+  private readonly visibleRoomIds = new Set<string>();
   private readonly hull: ExteriorHull;
   /** Everything outside the station, built once (openspec change overhaul-exterior-ocean). */
   private readonly exterior: Exterior;
@@ -493,6 +504,166 @@ export class Level implements World {
     this.group.add(this.dust.points);
     for (const r of this.rooms) this.debug.rooms.push({ id: r.data.id, name: r.data.name, cells: r.cells });
     for (const r of this.rooms) for (const c of r.cells) this.debug.bounds.union(c);
+    this.portalCuller = this.buildPortalCuller();
+  }
+
+  /** Extract the world-space portal graph from doors, glass partitions, open `visibleFrom` edges and ocean windows. */
+  private buildPortalCuller(): PortalCuller {
+    const ALWAYS_OPEN = (): boolean => true;
+    const pairKey = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
+
+    const portals: PortalQuad[] = [];
+    const fallbacks: FallbackLink[] = [];
+    const oceanWindows: OceanWindowPortal[] = [];
+    const roomLights = new Map<string, readonly RoomLightSphere[]>();
+
+    // Map grid cells to their owning rooms and compute each room's union world AABB.
+    const cellOwner = new Map<string, RoomRuntime>();
+    const cellOwnerXZ = new Map<string, RoomRuntime>();
+    const roomCells = new Map<string, Array<readonly [number, number, number]>>();
+    const roomBounds = new Map<string, THREE.Box3>();
+    for (const r of this.rooms) {
+      const seen = new Set<string>();
+      const list: Array<readonly [number, number, number]> = [];
+      for (const p of r.data.pieces) {
+        const cells = p.cells ?? (p.cell ? [p.cell] : []);
+        for (const c of cells) {
+          const key = `${c[0]},${c[1]},${c[2]}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            list.push(c);
+          }
+          cellOwner.set(key, r);
+          cellOwnerXZ.set(`${c[0]},${c[2]}`, r);
+        }
+      }
+      roomCells.set(r.data.id, list);
+      const box = new THREE.Box3();
+      for (const c of r.cells) box.union(c);
+      roomBounds.set(r.data.id, box);
+
+      roomLights.set(
+        r.data.id,
+        r.slots.map((s) => ({
+          position: s.position,
+          range: s.range,
+          active: () => s.pooled !== false && s.item.pattern !== 'off',
+        })),
+      );
+    }
+
+    // 1. Door portals (dynamic open / see-through predicate).
+    const doorEdgeKeys = new Set<string>();
+    for (const d of this.doors) {
+      doorEdgeKeys.add(sharedEdgeKey(d.data.cell, d.data.rot));
+      const matrix = cellMatrix(d.data.cell, d.data.rot);
+      const cb = d.visual.closedBox;
+      const zMid = (cb.min[2] + cb.max[2]) * 0.5;
+      const verts: [THREE.Vector3, THREE.Vector3, THREE.Vector3, THREE.Vector3] = [
+        new THREE.Vector3(cb.min[0], cb.min[1], zMid).applyMatrix4(matrix),
+        new THREE.Vector3(cb.max[0], cb.min[1], zMid).applyMatrix4(matrix),
+        new THREE.Vector3(cb.max[0], cb.max[1], zMid).applyMatrix4(matrix),
+        new THREE.Vector3(cb.min[0], cb.max[1], zMid).applyMatrix4(matrix),
+      ];
+      portals.push({
+        rooms: [d.rooms[0].data.id, d.rooms[1].data.id],
+        verts,
+        box: quadBox(verts),
+        passable: () => d.open > 0.001 || d.visual.seeThrough,
+      });
+    }
+
+    // 2. Glass partition portals (`wall_glass_partition` cell edges).
+    const alwaysLinked = new Set<string>();
+    const seenGlassEdges = new Set<string>();
+    for (const r of this.rooms) {
+      for (const p of r.data.pieces) {
+        if (p.kit !== 'wall_glass_partition') continue;
+        const rot = p.rot ?? 0;
+        const [dx, dz] = edgeDir(rot);
+        const cells = p.cells ?? (p.cell ? [p.cell] : []);
+        for (const cell of cells) {
+          const edgeKey = sharedEdgeKey(cell, rot);
+          if (seenGlassEdges.has(edgeKey)) continue;
+          const other =
+            cellOwner.get(`${cell[0] + dx},${cell[1]},${cell[2] + dz}`) ??
+            cellOwnerXZ.get(`${cell[0] + dx},${cell[2] + dz}`);
+          if (!other || other === r) continue;
+          seenGlassEdges.add(edgeKey);
+          const baseY = cell[1] * DECK_H;
+          const ex = cell[0] * CELL + dx * (CELL / 2);
+          const ez = cell[2] * CELL + dz * (CELL / 2);
+          const verts = makeVerticalQuad(ex, ez, dx, dz, 3.9 / 2, baseY + 0.35, baseY + 2.54);
+          portals.push({
+            rooms: [r.data.id, other.data.id],
+            verts,
+            box: quadBox(verts),
+            passable: ALWAYS_OPEN,
+          });
+          alwaysLinked.add(pairKey(r.data.id, other.data.id));
+        }
+      }
+    }
+
+    // 3. Open `visibleFrom` boundaries (shared non-door edges -> full quad; otherwise AABB fallback).
+    for (const toRoom of this.rooms) {
+      for (const fromId of toRoom.data.visibleFrom ?? []) {
+        const fromRoom = this.roomById.get(fromId);
+        if (!fromRoom || fromRoom === toRoom) continue;
+        const pk = pairKey(fromId, toRoom.data.id);
+        if (alwaysLinked.has(pk)) continue;
+
+        const mutual = fromRoom.data.visibleFrom?.includes(toRoom.data.id) ?? false;
+        let sharedEdgesFound = 0;
+        if (mutual) {
+          const maxHeight = Math.max(fromRoom.height, toRoom.height);
+          for (const cell of roomCells.get(fromId) ?? []) {
+            for (const rot of [0, 90, 180, 270] as const) {
+              const [dx, dz] = edgeDir(rot);
+              const neighbor = cellOwner.get(`${cell[0] + dx},${cell[1]},${cell[2] + dz}`);
+              if (neighbor !== toRoom) continue;
+              const edgeKey = sharedEdgeKey(cell, rot);
+              if (doorEdgeKeys.has(edgeKey)) continue;
+              const ex = cell[0] * CELL + dx * (CELL / 2);
+              const ez = cell[2] * CELL + dz * (CELL / 2);
+              const baseY = cell[1] * DECK_H;
+              const verts = makeVerticalQuad(ex, ez, dx, dz, CELL / 2, baseY, baseY + maxHeight);
+              portals.push({
+                rooms: [fromId, toRoom.data.id],
+                verts,
+                box: quadBox(verts),
+                passable: ALWAYS_OPEN,
+              });
+              sharedEdgesFound++;
+            }
+          }
+          if (sharedEdgesFound > 0) {
+            alwaysLinked.add(pk);
+            continue;
+          }
+        }
+
+        const targetBox = roomBounds.get(toRoom.data.id);
+        if (targetBox && !targetBox.isEmpty()) {
+          fallbacks.push({ from: fromId, to: toRoom.data.id, targetBox });
+        }
+      }
+    }
+
+    // 4. Exterior ocean windows (`hull.windows` -> `hull.windowViews`).
+    for (const w of this.hull.windows) {
+      const views = this.hull.windowViews.get(w.room);
+      if (!views?.size) continue;
+      const verts = makeVerticalQuad(w.x, w.z, w.dx, w.dz, w.halfWidth, w.sill, w.head);
+      oceanWindows.push({
+        room: w.room,
+        verts,
+        box: quadBox(verts),
+        targets: [...views],
+      });
+    }
+
+    return new PortalCuller({ portals, fallbacks, oceanWindows, roomLights });
   }
 
   // ---------------------------------------------------------------- building
@@ -1700,7 +1871,7 @@ export class Level implements World {
 
   // ---------------------------------------------------------------- per frame
 
-  update(t: number, dt: number, eye: THREE.Vector3, reducedFlashing: boolean): void {
+  update(t: number, dt: number, eye: THREE.Vector3, reducedFlashing: boolean, camera?: THREE.Camera): void {
     this.feetY = eye.y - EYE_HEIGHT;
     const room = this.roomAt(eye);
     if (room && room !== this.current) {
@@ -1715,9 +1886,9 @@ export class Level implements World {
     this.updateDoors(dt, eye);
     this.updateTriggers(eye);
 
-    // Portal-by-adjacency culling.
+    // Frustum-clipped multi-hop portal culling.
     const cur = this.current;
-    this.cull(cur, room ? undefined : eye);
+    this.cull(cur, room ? undefined : eye, camera);
 
     // Atmosphere follows the current room.
     if (cur) {
@@ -1756,28 +1927,31 @@ export class Level implements World {
     this.dust.update(eye, t, dt);
   }
 
-  /** Which rooms (and doors) draw when the view is in `cur`: it, what its open or see-through doors show, and its `visibleFrom` windows. */
-  private cull(cur: RoomRuntime | null, exteriorEye?: THREE.Vector3): void {
-    for (const r of this.rooms) r.visible = cur === null;
-    if (cur) {
-      cur.visible = true;
-      for (const d of this.doors) {
-        if (d.open <= 0.001 && !d.visual.seeThrough) continue;
-        if (d.rooms[0] === cur) d.rooms[1].visible = true;
-        else if (d.rooms[1] === cur) d.rooms[0].visible = true;
+  /**
+   * Which rooms (and doors) draw when the view is in `cur`: recursive frustum-clipped portal traversal
+   * across open/see-through doors, glass partitions, open `visibleFrom` boundaries, and ocean windows,
+   * with a 1-hop light-bleed guard and a 360-degree transitive fallback when `camera` is omitted.
+   */
+  private cull(cur: RoomRuntime | null, exteriorEye?: THREE.Vector3, camera?: THREE.Camera): void {
+    if (!cur) {
+      for (const r of this.rooms) {
+        r.visible = true;
+        r.group.visible = true;
       }
-      for (const r of this.rooms) if (r.data.visibleFrom?.includes(cur.data.id)) r.visible = true;
-      // Start at every room already drawn through a door or authored opening. Take a snapshot
-      // so a distant room's other windows don't recursively enable unrelated interiors.
-      const oceanViews = [];
-      for (const [id, views] of this.hull.windowViews) if (this.roomById.get(id)!.visible) oceanViews.push(views);
-      for (const views of oceanViews) for (const id of views) this.roomById.get(id)!.visible = true;
-      // An exterior camera can see directly into a seaward-facing pane without a source window.
-      if (exteriorEye) for (const w of this.hull.windows) {
-        if ((exteriorEye.x - w.x) * w.dx + (exteriorEye.z - w.z) * w.dz > 0) this.roomById.get(w.room)!.visible = true;
+      for (const d of this.doors) d.group.visible = true;
+      return;
+    }
+    this.portalCuller.computeVisible(cur.data.id, this.visibleRoomIds, camera, exteriorEye);
+    // An exterior camera can see directly into a seaward-facing pane without a source window.
+    if (exteriorEye) {
+      for (const w of this.hull.windows) {
+        if ((exteriorEye.x - w.x) * w.dx + (exteriorEye.z - w.z) * w.dz > 0) this.visibleRoomIds.add(w.room);
       }
     }
-    for (const r of this.rooms) r.group.visible = r.visible;
+    for (const r of this.rooms) {
+      r.visible = this.visibleRoomIds.has(r.data.id);
+      r.group.visible = r.visible;
+    }
     for (const d of this.doors) d.group.visible = d.rooms[0].visible || d.rooms[1].visible;
   }
 
@@ -1821,9 +1995,9 @@ export class Level implements World {
    * again by the next `update`, so call this before it each frame, never between `update` and the
    * main render. Light patterns are not advanced (`update` does that).
    */
-  renderFromEye(eye: THREE.Vector3, draw: () => void): void {
+  renderFromEye(eye: THREE.Vector3, draw: () => void, camera?: THREE.Camera): void {
     const room = this.roomAt(eye);
-    this.cull(room);
+    this.cull(room, undefined, camera);
     // Feeds light their rooms unshadowed: the frame's one shadow pass belongs to the player's view.
     this.bindLights(room, eye, false);
     this.lights.update(this.lastTime, this.lastFlashing); // sets the bound lights' intensities for these slots
