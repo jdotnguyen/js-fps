@@ -54,7 +54,7 @@ function walk(steps: Step[], visit: (s: Record<string, unknown>) => void): void 
 
 test('every shipped sequence names only things that exist: lines, sounds, anchors, NPCs, doors, rooms, objectives, items', () => {
   assert.ok(byId.size >= 25);
-  const npcSet = new Set([...npcIds, 'medbay_figure', 'r08_thing', 'researcher_a', 'giles', 'okafor']);
+  const npcSet = new Set([...npcIds, 'medbay_figure', 'r08_thing', 'researcher_a', 'giles', 'okafor', 'r09_flood_shambler']);
   // A `grownInside` kill spawns the creature that comes out of the victim (infection-kills spec).
   for (const def of defs) walk(def.steps, (s) => {
     if (s['do'] === 'kill') npcSet.add(typeof s['creatureId'] === 'string' ? s['creatureId'] : `${String(s['npc'])}_creature`);

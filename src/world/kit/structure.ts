@@ -479,16 +479,22 @@ export function doorFrame(pb: PieceBuilder, m: Materials, width: number, h: numb
 
 // ------------------------------------------------------------------ stairs and catwalk
 
-/** Stairs rising toward -Z by `rise` m (default 2) over the cell, `steps` steps. */
+/**
+ * Stairs rising toward -Z by `rise` m (default 2) over `run` m (default 3.6), `steps` steps. `offset` moves the run's
+ * centre along +Z (default 0, centred in the cell), so a shorter run can leave room for a `floor_landing` at its top.
+ */
 function stairs(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
   const pb = new PieceBuilder();
   const rise = numParam(p, 'rise', 2);
   const n = Math.max(2, Math.round(numParam(p, 'steps', Math.ceil(rise / 0.25))));
   const w = numParam(p, 'width', 3);
   const rails = strParam(p, 'rails', 'both');
-  const run = 3.6;
+  /** Open steel-grating treads with no risers (an industrial flight you can see through). */
+  const grate = boolParam(p, 'grate', false);
+  const run = numParam(p, 'run', 3.6);
   const tread = run / n;
-  const z0 = run / 2;
+  /** Bottom (+Z) edge of the run; its top edge is `z0 - run`. */
+  const z0 = numParam(p, 'offset', 0) + run / 2;
   const hw = w / 2;
   const profile = new THREE.Shape();
   profile.moveTo(-z0, 0);
@@ -496,14 +502,19 @@ function stairs(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
     const top = ((i + 1) * rise) / n;
     const zf = z0 - i * tread;
     const zb = zf - tread;
-    pb.add(slab(w - 0.1, 0.05, tread - 0.02), m.diamond, at(0, top - 0.025, (zf + zb) / 2));
-    pb.add(slab(w - 0.1, rise / n, 0.03), m.paintDark, at(0, top - rise / n / 2, zf - 0.015));
+    if (grate) {
+      pb.add(slab(w - 0.1, 0.03, tread - 0.02, 1), m.grating, at(0, top - 0.015, (zf + zb) / 2));
+      for (const z of [zf - 0.03, zb + 0.03]) pb.add(slab(w - 0.1, 0.05, 0.04), m.steel, at(0, top - 0.025, z));
+    } else {
+      pb.add(slab(w - 0.1, 0.05, tread - 0.02), m.diamond, at(0, top - 0.025, (zf + zb) / 2));
+      pb.add(slab(w - 0.1, rise / n, 0.03), m.paintDark, at(0, top - rise / n / 2, zf - 0.015));
+    }
     pb.add(slab(w - 0.12, 0.03, 0.04), m.steelBrushed, at(0, top - 0.01, zf - 0.03));
     pb.solid(-hw, 0, zb, hw, top, zf, 'metal');
     profile.lineTo(-zf, top);
     profile.lineTo(-zb, top);
   }
-  profile.lineTo(z0, 0);
+  profile.lineTo(run - z0, 0);
   profile.lineTo(-z0, 0);
   // Side stringers: extruded stepped profile (shape x = -z, y = y), turned to face X.
   for (const s of [-1, 1]) {
@@ -534,7 +545,42 @@ function stairs(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
   pb.socket('bottom', [0, 0, HALF], [0, 0, 1]);
   pb.socket('top', [0, rise, -HALF], [0, 0, -1]);
   pb.nav(0, 0, z0 + 0.3);
-  pb.nav(0, rise, -z0);
+  // A node on every tread, so graph navigation (edges climb at most 0.4 m) can walk the flight.
+  // Zig-zag across the flight: graph nodes closer than 0.5 m merge, and treads are only ~0.5 m apart.
+  for (let i = 0; i < n; i++) pb.nav(i % 2 ? 0.5 : -0.5, ((i + 1) * rise) / n, z0 - (i + 0.5) * tread);
+  pb.nav(0, rise, z0 - run);
+  return pb.build();
+}
+
+/**
+ * Raised landing along the cell's -Z edge (level-kit spec, sunken floors): a solid diamond-plate platform `rise` m
+ * high (default 1.2), `depth` m deep from the edge (default 1.4) and `width` m wide (default 3.5), with a riser face and
+ * a hazard nosing on its open +Z side. In a sunken room it brings a doorway's threshold down to the stairs.
+ */
+function floorLanding(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
+  const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
+  const rise = numParam(p, 'rise', 1.2);
+  const d = numParam(p, 'depth', 1.4);
+  const w = numParam(p, 'width', 3.5);
+  /** Open steel grating on a frame and legs, so what is under it (water) shows through. */
+  const grate = boolParam(p, 'grate', false);
+  const hw = w / 2;
+  const front = -HALF + d;
+  if (grate) {
+    pb.add(slab(w - 0.08, 0.03, d - 0.08, 1), m.grating, at(0, rise - 0.015, -HALF + d / 2));
+    for (const s of [-1, 1]) pb.add(slab(0.06, 0.1, d), m.steel, at(s * (hw - 0.03), rise - 0.05, -HALF + d / 2));
+    for (const z of [-HALF + 0.03, front - 0.03]) pb.add(slab(w, 0.1, 0.06), m.steel, at(0, rise - 0.05, z));
+    pb.add(slab(w, 0.1, 0.05), m.steel, at(0, rise - 0.05, -HALF + d / 2));
+    for (const sx of [-1, 1]) for (const z of [-HALF + 0.12, front - 0.12]) pb.add(slab(0.08, rise - 0.1, 0.08), m.paintDark, at(sx * (hw - 0.12), (rise - 0.1) / 2, z));
+  } else {
+    pb.add(slab(w, 0.05, d, 1), m.diamond, at(0, rise - 0.025, -HALF + d / 2));
+    pb.add(slab(w, rise - 0.05, 0.03), m.paintDark, at(0, (rise - 0.05) / 2, front - 0.015));
+    for (const s of [-1, 1]) pb.add(slab(0.03, rise - 0.05, d), m.paintDark, at(s * (hw - 0.015), (rise - 0.05) / 2, -HALF + d / 2));
+  }
+  pb.add(slab(w, 0.04, 0.08), pal.hazard, at(0, rise - 0.02, front - 0.04));
+  pb.solid(-hw, 0, -HALF, hw, rise, front, 'metal');
+  pb.nav(0, rise, -HALF + d / 2);
   return pb.build();
 }
 
@@ -622,5 +668,6 @@ export const STRUCTURE_PIECES: PieceDef[] = [
     return pb.build();
   }),
   tile('stairs', stairs),
+  tile('floor_landing', floorLanding),
   tile('catwalk', catwalk),
 ];

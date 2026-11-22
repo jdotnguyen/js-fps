@@ -13,6 +13,7 @@ export const sequenceV = obj({
   id,
   trigger: optional(obj({ event: str, requires: optional(str), unless: optional(str), match: optional(record(scalar)) })),
   skippable: optional(bool),
+  skippableAfter: optional(id),
   once: optional(bool),
   exclusive: optional(str),
   resumeFromCheckpoint: optional(bool),

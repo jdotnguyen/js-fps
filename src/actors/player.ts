@@ -10,6 +10,7 @@ import { clipMove, JAY_RADIUS, pushOut, removeInward, type Circle, type V2 } fro
 import { ControlStack, isOnRails } from './control.ts';
 import type { Interactions } from './interaction.ts';
 import { DEFAULT_MOTOR, moveBody, type ColliderQuery, type MotorState } from './motor.ts';
+import { WADING, canSprintAt, downedEye, wadeScale } from './wading.ts';
 import { MAX_HP, Vitals, type VitalsChange } from './vitals.ts';
 
 /** Footstep / wading surfaces (ADR-0003 `surfaces`). */
@@ -19,11 +20,15 @@ export type Surface = 'concrete' | 'metal' | 'grate' | 'rubber' | 'water';
 export interface PlayerWorld {
   colliders: ColliderQuery;
   surfaceAt(x: number, z: number): Surface;
+  /** Depth of standing water at feet height `feetY` (standing-water spec). Worlds without water omit it. */
+  waterDepth?(x: number, feetY: number, z: number): number;
 }
 
 declare module '../core/events.ts' {
   interface EventMap {
     'player:footstep': { surface: Surface; x: number; y: number; z: number; sprint: boolean; landing?: boolean };
+    /** A jump that started in standing water (the takeoff splash). */
+    'player:waterJump': { x: number; y: number; z: number };
     'player:flashlight': { on: boolean };
     'player:damaged': { amount: number; hp: number };
     'player:downed': { bleedOut: number };
@@ -53,7 +58,6 @@ export const PLAYER_TUNING = {
   /** Stamina seconds regained per second once regen starts. */
   sprintRegenRate: 2,
   aimMoveScale: 0.5,
-  wadeScale: 0.6,
   slowScale: 0.5,
   crawlSpeed: 0.6,
   accel: 18,
@@ -190,6 +194,11 @@ export class Player {
   private bobPhase = 0;
   private bobAmp = 0;
   private hitSlow = 0;
+  /** Wading depth when the current jump left the water (0 for a dry jump), and the recovery left after a water landing. */
+  private waterJumpDepth = 0;
+  private waterJumpRecovery = 0;
+  /** Depth of water at the feet this step (player-movement spec: wading slows with depth). */
+  private depth = 0;
   private hitPulse = 0;
   private kick = 0;
   private kickVel = 0;
@@ -523,7 +532,12 @@ export class Player {
     const { input } = this.d;
     const dead = this.vitals.state === 'dead';
     const surface = this.world.surfaceAt(this.body.x, this.body.z);
-    const wading = surface === 'water';
+    // Depth from the water itself where the world knows it; a bare `water` surface counts as knee-deep.
+    this.depth = this.world.waterDepth ? this.world.waterDepth(this.body.x, this.body.y, this.body.z) : surface === 'water' ? 0.45 : 0;
+    // In the air after a jump from the water, the jump keeps its takeoff depth: no hopping out of the drag.
+    const depth = this.body.grounded ? this.depth : Math.max(this.depth, this.waterJumpDepth);
+    const drag = wadeScale(depth);
+    this.waterJumpRecovery = Math.max(0, this.waterJumpRecovery - dt);
 
     // Wish direction in world space.
     let wx = 0;
@@ -569,13 +583,13 @@ export class Player {
       }
       const moving = len > 0;
       // Sprint: forward-ish, standing, not aiming, not wading, stamina left.
-      const canSprint = this.alive && moving && f > 0 && this.aimBlend < 0.5 && !wading && mode === 'free' && !this.exhausted;
+      const canSprint = this.alive && moving && f > 0 && this.aimBlend < 0.5 && canSprintAt(depth) && mode === 'free' && !this.exhausted;
       this.sprinting = canSprint && input.isDown('sprint');
       if (this.downed) speed = moving ? T.crawlSpeed : 0;
       else if (moving) speed = this.sprinting ? T.sprintSpeed : T.walkSpeed;
       if (!this.downed) {
         speed *= 1 - (1 - T.aimMoveScale) * this.aimBlend;
-        if (wading) speed *= T.wadeScale;
+        speed *= drag;
         if (mode === 'slow') speed *= T.slowScale;
         if (this.hitSlow > 0) speed *= T.hitSlowScale;
       }
@@ -583,10 +597,13 @@ export class Player {
     if (!this.walkTarget && (mode === 'locked' || dead)) this.sprinting = false;
     this.updateStamina(dt);
 
-    // Jump (Space): only from the ground, and never on rails, downed, dead, wading or on a scripted walk.
+    // Jump (Space): only from the ground, and never on rails, downed, dead or on a scripted walk. From the water it is
+    // heavier (player-movement spec) and waits out a short recovery after a water landing.
     const wasAirborne = !this.body.grounded;
-    if (mode !== 'locked' && !dead && !this.downed && !this.walkTarget && !wading && this.body.grounded && input.wasPressed('jump')) {
-      this.body.vy = T.jumpSpeed;
+    if (mode !== 'locked' && !dead && !this.downed && !this.walkTarget && this.body.grounded && this.waterJumpRecovery <= 0 && input.wasPressed('jump')) {
+      this.waterJumpDepth = this.depth > 0.02 ? this.depth : 0;
+      this.body.vy = this.waterJumpDepth > 0 ? T.jumpSpeed * WADING.jumpSpeedScale : T.jumpSpeed;
+      if (this.waterJumpDepth > 0) this.d.events.emit('player:waterJump', { x: this.body.x, y: this.body.y, z: this.body.z });
       this.body.grounded = false;
       // While jumping the motor lets Jay climb onto tops up to its jumpReach (player-movement spec).
       this.body.jumping = true;
@@ -600,7 +617,8 @@ export class Player {
     const err = Math.hypot(ex, ez);
     if (err > 0) {
       const speeding = tx * this.velocity.x + tz * this.velocity.y >= 0 && Math.hypot(tx, tz) > 0.01;
-      const rate = (speeding ? T.accel : T.decel) * dt;
+      // Water makes starting and stopping heavier, in step with the slowdown.
+      const rate = (speeding ? T.accel : T.decel) * drag * dt;
       const k = Math.min(1, rate / err);
       this.velocity.x += ex * k;
       this.velocity.y += ez * k;
@@ -620,8 +638,15 @@ export class Player {
       stepX = this.v2.x;
       stepZ = this.v2.z;
     }
-    const r = moveBody(this.body, stepX, stepZ, dt, { ...DEFAULT_MOTOR, jumpSpeed: T.jumpSpeed }, this.world.colliders);
-    if (wasAirborne && this.body.grounded) this.d.events.emit('player:footstep', { surface, x: this.body.x, y: this.body.y, z: this.body.z, sprint: false, landing: true });
+    const waterJump = this.waterJumpDepth > 0;
+    const motor = waterJump ? { ...DEFAULT_MOTOR, jumpSpeed: T.jumpSpeed * WADING.jumpSpeedScale, jumpReach: WADING.jumpReach } : { ...DEFAULT_MOTOR, jumpSpeed: T.jumpSpeed };
+    const r = moveBody(this.body, stepX, stepZ, dt, motor, this.world.colliders);
+    if (wasAirborne && this.body.grounded) {
+      const landDepth = this.world.waterDepth ? this.world.waterDepth(this.body.x, this.body.y, this.body.z) : 0;
+      if (landDepth > 0.02) this.waterJumpRecovery = WADING.jumpRecovery;
+      this.waterJumpDepth = 0;
+      this.d.events.emit('player:footstep', { surface: landDepth > 0.02 ? 'water' : surface, x: this.body.x, y: this.body.y, z: this.body.z, sprint: false, landing: true });
+    }
     let mx = this.body.x - x0;
     let mz = this.body.z - z0;
     // Walls eat the velocity that pushes into them, so we slide instead of sticking.
@@ -906,7 +931,8 @@ export class Player {
     const dt = Math.min(frameDt, 1 / 20);
     const reduced = this.d.settings().reducedMotion;
 
-    const eyeGoal = this.vitals.state === 'alive' ? T.eyeHeight : T.downedEyeHeight;
+    // Downed in water, the view stays just above the surface (player-movement spec).
+    const eyeGoal = this.vitals.state === 'alive' ? T.eyeHeight : downedEye(T.downedEyeHeight, this.depth);
     this.eyeHeight += (eyeGoal - this.eyeHeight) * Math.min(1, dt * (eyeGoal < this.eyeHeight ? 5 : 3));
     this.stepOffset *= Math.exp(-14 * dt);
 

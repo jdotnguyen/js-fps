@@ -27,6 +27,9 @@ import scoresJson from '../data/scores.json' with { type: 'json' };
 const SCORE_IDS = Object.keys(scoresJson) as [string, ...string[]];
 import { DOOR_STATES } from '../data/types/level.ts';
 import { LIGHT_PATTERNS } from '../render/lights.ts';
+
+/** Limbs a script can cut off (skeleton.ts SeverableRegion). */
+const SEVERABLE_REGIONS = ['head', 'upperArm_L', 'foreArm_L', 'upperArm_R', 'foreArm_R', 'thigh_L', 'shin_L', 'thigh_R', 'shin_R'] as const;
 import { POWER_FLAG, type ControlOverride, type FrameOptions, type SequenceHost } from './host.ts';
 import type { ActionStep, Flags, Running, Scalar, Step, TargetRef, Vec3Like } from './types.ts';
 
@@ -471,6 +474,8 @@ export const ACTIONS: Record<string, ActionDef> = {
   /** `by` drags the body along on a rope (lying pose, no gait); `stop` lets go. Skipped: let go. */
   npcDrag: npcAct('npcDrag', { npc: str, by: optional(str), pose: optional(str), distance: optional(numRange(0.3, 4)), stop: optional(bool) }),
   npcAnim: npcAct('npcAnim', { npc: str, anim: str }),
+  /** Cut limbs off (a door shearing its arms); the pieces fly along `dir`. */
+  npcSever: npcAct('npcSever', { npc: str, regions: arr(oneOf(SEVERABLE_REGIONS)), dir: optional(vec3) }),
   npcLookAt: npcAct('npcLookAt', { npc: str, target }),
   npcTask: npcAct('npcTask', { npc: str, task: str, args: optional(record(scalar)) }),
   /** `stay`: hold a squadmate where he is even after the sequence ends (until a later `npcFollow`). */
@@ -649,6 +654,15 @@ export const ACTIONS: Record<string, ActionDef> = {
   }),
 
   /**
+   * Force a sliding door's leaves part-open (level-kit spec): `open` 0..1 over `s` seconds, without changing its state.
+   * A sealed door stays sealed while something pries it; the next `doorState` closes or opens it from there.
+   */
+  doorPry: act({ id: str, open: numRange(0, 1), s: optional(numRange(0, 10)) }, (s, ctx) => {
+    if (!ctx.host.pryDoor) return ctx.missing('doorPry');
+    if (!ctx.host.pryDoor(s.id, s.open, s.s ?? 0.6)) ctx.host.warn(`${ctx.seqId}: doorPry: no door "${s.id}"`);
+  }),
+
+  /**
    * `tint`: "emergency" turns the room's lights and ambient emergency red, "none" restores the
    * level's colours, or a "#rrggbb" colour (ADR-0014 beat 2).
    */
@@ -718,16 +732,24 @@ export const ACTIONS: Record<string, ActionDef> = {
     ctx.host.setPower(s.state);
   }),
 
-  water: act({ level: num, s: optional(numRange(0, 600)), wait }, (s, ctx) => {
+  /** A room's standing water rises or falls to `level` (world y) over `s` seconds (standing-water spec); skip lands on `level`. */
+  water: act({ room: str, level: num, s: optional(numRange(0, 600)), wait }, (s, ctx) => {
     if (!ctx.host.water) return ctx.missing('water');
-    ctx.host.water(s.level, s.s ?? 0);
+    if (!ctx.host.water(s.room, s.level, s.s ?? 0)) return ctx.host.warn(`${ctx.seqId}: water: no water in room "${s.room}"`);
     if (s.wait && s.s) return timed(s.s);
   }),
 
+  /** One named light alone (render-lighting spec): `pattern`, and `tint` ("emergency", "#rrggbb" or "none"). */
+  light: act({ id: str, pattern: oneOf(LIGHT_PATTERNS), tint: optional(str) }, (s, ctx) => {
+    if (!ctx.host.light) return ctx.missing('light');
+    if (!ctx.host.light(s.id, s.pattern, s.tint)) ctx.host.warn(`${ctx.seqId}: light: no light "${s.id}"`);
+  }),
+
   /** `beat: true`: land on the score's next beat (adaptive-music spec), or play at once with no score. */
-  sfx: act({ id: str, at: optional(target), beat: optional(bool) }, (s, ctx) => {
+  sfx: act({ id: str, at: optional(target), beat: optional(bool), gain: optional(numRange(0.05, 12)) }, (s, ctx) => {
     if (!ctx.host.sfx) return ctx.missing('sfx');
-    ctx.host.sfx(s.id, s.at !== undefined ? resolve('sfx', s.at, ctx) : null, s.beat ? { beat: true } : undefined);
+    const opts = { ...(s.beat ? { beat: true } : {}), ...(s.gain !== undefined ? { gain: s.gain } : {}) };
+    ctx.host.sfx(s.id, s.at !== undefined ? resolve('sfx', s.at, ctx) : null, Object.keys(opts).length > 0 ? opts : undefined);
   }),
 
   /** Adaptive score (adaptive-music spec, data/scores.json): `load` it ahead, set a `cue`, or fire a `stinger`. */
@@ -831,6 +853,8 @@ const SKIPS: Record<string, SkipFn> = {
     for (let i = 0; i < Math.min(st.count, 10); i++) ctx.skipSteps(st.steps);
   },
   cameraShake: NOOP,
+  // A pry in progress snaps to its forced opening.
+  doorPry: (s, ctx) => void ctx.host.pryDoor?.(s['id'] as string, s['open'] as number, 0),
   timeScale: NOOP,
   sfx: NOOP,
   gore: NOOP,
@@ -867,7 +891,8 @@ const SKIPS: Record<string, SkipFn> = {
   fade: (s, ctx) => ctx.host.fade?.(s['to'] as number, 0),
   // The card has been and gone.
   titleCard: NOOP,
-  water: (s, ctx) => ctx.host.water?.(s['level'] as number, 0),
+  water: (s, ctx) => void ctx.host.water?.(s['room'] as string, s['level'] as number, 0),
+  light: (s, ctx) => void ctx.host.light?.(s['id'] as string, s['pattern'] as string, s['tint'] as string | undefined),
   say: (s, ctx) => ctx.host.markLinePlayed?.(s['line'] as string),
   // The hand-off is over: the item is Jay's, the NPC stands normally (no event: nobody took it).
   npcOffer: (s, ctx) => {
@@ -875,7 +900,7 @@ const SKIPS: Record<string, SkipFn> = {
     if (ctx.host.npc) void ctx.host.npc('npcOffer', { ...s, wait: false, instant: true });
   },
 };
-for (const name of ['npcMoveTo', 'npcAnim', 'npcLookAt', 'npcTask', 'npcFollow', 'transform', 'kill', 'spawn', 'despawn', 'attachToTrack', 'npcDrag']) {
+for (const name of ['npcMoveTo', 'npcAnim', 'npcSever', 'npcLookAt', 'npcTask', 'npcFollow', 'transform', 'kill', 'spawn', 'despawn', 'attachToTrack', 'npcDrag']) {
   SKIPS[name] = (s, ctx) => {
     if (ctx.host.npc) void ctx.host.npc(name, { ...s, wait: false, instant: true });
   };

@@ -7,7 +7,7 @@
  * interrupted sequence can never leave the player stuck.
  */
 import { ACTIONS, isParallel, type ActionContext, type Hook } from './actions.ts';
-import { POWER_FLAG, type ControlOverride, type SequenceHost } from './host.ts';
+import { POWER_FLAG, WATER_FLAG, type ControlOverride, type SequenceHost } from './host.ts';
 import type { Running, SequenceDef, Step } from './types.ts';
 
 export interface RunInfo {
@@ -163,13 +163,19 @@ export class SequenceManager {
       total: r.def.steps.length,
       label: r.label,
       elapsed: r.elapsed,
-      skippable: r.def.skippable === true,
+      skippable: this.canSkip(r.def),
     }));
   }
 
   /** A skippable sequence is running (the skip prompt shows only then). */
   get skippable(): boolean {
-    return this.runs.some((r) => r.def.skippable === true);
+    return this.runs.some((r) => this.canSkip(r.def));
+  }
+
+  /** `skippable`, or `skippableAfter` once that cutscene has been watched in this slot. */
+  private canSkip(def: SequenceDef): boolean {
+    if (def.skippable === true) return true;
+    return def.skippableAfter !== undefined && this.host.seen?.(def.skippableAfter) === true;
   }
 
   /**
@@ -179,7 +185,7 @@ export class SequenceManager {
   skip(): boolean {
     let any = false;
     for (const run of [...this.runs]) {
-      if (!run.def.skippable) continue;
+      if (!this.canSkip(run.def)) continue;
       any = true;
       try {
         run.root.skip?.();
@@ -363,6 +369,8 @@ export class SequenceManager {
     for (const fn of run.endFns.reverse()) fn();
     for (const release of run.releases.reverse()) release();
     for (const off of run.listeners) off();
+    // Watched to the end (or skipped once allowed): it may be skipped from now on in this slot.
+    if (!cancelled && run.def.skippableAfter) this.host.markSeen?.(run.def.skippableAfter);
     this.host.events.emit('sequence:ended', { id: run.def.id, cancelled, skipped });
     this.drainQueue();
   }
@@ -511,6 +519,10 @@ export class SequenceManager {
       for (const [id, state] of Object.entries(snap.doors)) this.host.setDoor?.(id, state);
       for (const [room, pattern] of Object.entries(snap.lights)) this.host.setLight?.(room, pattern);
       for (const id of snap.resume) resume.add(id);
+    }
+    // Standing water goes back to the level the checkpoint save recorded (standing-water spec).
+    for (const [key, level] of Object.entries(this.host.flags)) {
+      if (key.startsWith(WATER_FLAG) && typeof level === 'number') this.host.water?.(key.slice(WATER_FLAG.length), level, 0);
     }
     for (const id of resume) {
       const def = this.defs.get(id);

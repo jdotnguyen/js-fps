@@ -4,10 +4,22 @@ How to add or replace game audio. The behaviour these steps serve is specified i
 [`openspec/specs/audio-assets`](../openspec/specs/audio-assets/spec.md).
 Dialogue voice lines follow [voice-casting-standard.md](voice-casting-standard.md) instead.
 
-## 1. Generate the file (ElevenLabs SFX)
+## 1. Find or generate the file
 
-New and replacement sound effects come from ElevenLabs. Put `ELEVENLABS_API_KEY` in `.env`. Each
-script has a manifest of prompts at the top; add an entry there, then generate it:
+Look for a recording you may use before generating one, in this order:
+
+1. **CC0** (public domain): OpenGameArt, Freesound with the CC0 filter.
+2. **CC BY** (credit required): fine, with its `CREDITS.md` line.
+3. **Royalty-free game packs** that allow use in a commercial game without credit (for example the Sonniss GDC
+   bundles).
+4. **ElevenLabs**, for whatever none of the above has.
+
+Never use a clip under a non-commercial (NC) or share-alike (SA) licence. Check the licence on the clip's own page
+when you download it, not from a search result or a pack listing, and record it in `CREDITS.md` (step 3).
+Loudness-match a downloaded clip to the sounds it plays beside and run it through the room's reverb before keeping it.
+
+To generate with ElevenLabs, put `ELEVENLABS_API_KEY` in `.env`. Each script has a manifest of prompts at the top;
+add an entry there, then generate it:
 
 | Kind | Script | Output folder |
 | --- | --- | --- |

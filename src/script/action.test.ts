@@ -55,9 +55,9 @@ function walk(steps: Step[], visit: (s: Record<string, unknown>) => void): void 
 // ------------------------------------------------------------------------------- data checks
 
 test('the action sequences name only things that exist: lines, sounds, anchors, NPCs, doors, rooms, objectives, groups', () => {
-  assert.equal(actionDefs.length, 16);
+  assert.equal(actionDefs.length, 18);
   // `researcher_b_creature`: what grows out of Voss in the drop's kill (infection-kills spec), gone through the door at contact.
-  const npcSet = new Set([...npcIds, 'giles', 'okafor', 'r08_thing', 'researcher_b_creature']);
+  const npcSet = new Set([...npcIds, 'giles', 'okafor', 'r08_thing', 'researcher_b_creature', 'r09_flood_shambler']);
   for (const def of actionDefs) {
     walk(def.steps, (s) => {
       const where = `${def.id}: ${String(s['do'])}`;
@@ -70,7 +70,7 @@ test('the action sequences name only things that exist: lines, sounds, anchors, 
       }
       if (s['do'] === 'sfx') assert.ok((s['id'] as string) in SOUND_SPECS || (s['id'] as string) in SAMPLE_URLS, `${where} sound ${String(s['id'])}`);
       if (s['do'] === 'setObjective' || s['do'] === 'completeObjective') assert.ok(String(s['id']) in objectives, `${where} objective ${String(s['id'])}`);
-      if (s['do'] === 'doorState') assert.ok(doorIds.has(s['id'] as string), `${where} door ${String(s['id'])}`);
+      if (s['do'] === 'doorState' || s['do'] === 'doorPry') assert.ok(doorIds.has(s['id'] as string), `${where} door ${String(s['id'])}`);
       if (s['do'] === 'lightState') assert.ok(roomIds.has(s['room'] as string), `${where} room ${String(s['room'])}`);
       if (['spawnGroup', 'despawnGroup', 'waitGroup'].includes(String(s['do']))) assert.ok(groupIds.has(s['group'] as string), `${where} group ${String(s['group'])}`);
       if (typeof s['npc'] === 'string') assert.ok(npcSet.has(s['npc']), `${where} npc ${s['npc']}`);
@@ -171,8 +171,11 @@ function makeGame(only?: string[], opts: { holdMauled?: boolean } = {}) {
     stopSpeech: () => void log.push('stopSpeech'),
     checkpoint: (id) => void log.push(`checkpoint ${id}`),
     setDoor: (id, state) => (log.push(`door ${id} ${state}`), true),
+    pryDoor: (id, open) => (log.push(`pry ${id} ${open}`), true),
     setLight: (room, pattern, tint) => (log.push(`light ${room} ${pattern}${tint ? ` ${tint}` : ''}`), true),
     glass: (id, state) => void log.push(`glass ${id} ${state}`),
+    water: (room, level, sec) => room === 'R09' && (log.push(`water ${room} ${level} ${sec}`), true),
+    light: (id, pattern, tint) => (log.push(`namedLight ${id} ${pattern}${tint ? ` ${tint}` : ''}`), true),
     setPower: (state) => void log.push(`power ${state}`),
     cameraFeed: (id, opts) => (feeds.push(opts), void log.push(`feed ${id} ${opts.state}${opts.fullscreen ? ' fullscreen' : ''}`)),
     radio: (track) => void log.push(track ? `radio ${track}` : 'radio stop'),
@@ -312,6 +315,54 @@ test('gore and titleCard validate, reach the host, and warn (not crash) without 
   assert.equal(bare.log.filter((e) => e.startsWith('warn')).length, 2);
   assert.throws(() => validateSequences({ 'x.json': { id: 'bad', steps: [{ do: 'gore', at: [0, 0, 0], kind: 'gush' }] } }));
   assert.throws(() => validateSequences({ 'x.json': { id: 'bad', steps: [{ do: 'titleCard' }] } }));
+});
+
+test('water: a timed rise reaches the host, an unknown room warns, and a skip lands on the final level', () => {
+  const d = validateSequences({
+    'x.json': [
+      { id: 'flood', skippable: true, steps: [{ do: 'water', room: 'R09', level: 0.05, s: 3.5, wait: true }, { do: 'water', room: 'R09', level: 2.2, s: 2 }] },
+      { id: 'dry', steps: [{ do: 'water', room: 'R07', level: 1 }] },
+    ],
+  });
+  const g = makeGame();
+  const m = new SequenceManager(g.host, d);
+  m.start('flood');
+  assert.ok(g.log.includes('water R09 0.05 3.5'));
+  assert.equal(g.log.includes('water R09 2.2 2'), false, 'the second step waits for the rise');
+  assert.equal(m.skip(), true);
+  assert.equal(g.log.filter((e) => e.startsWith('water')).at(-1), 'water R09 2.2 0', 'skip snaps to the final level');
+  m.start('dry');
+  assert.ok(g.log.some((e) => e.startsWith('warn') && /no water in room "R07"/.test(e)));
+  assert.throws(() => validateSequences({ 'x.json': { id: 'bad', steps: [{ do: 'water', level: 1 }] } }), /room/);
+});
+
+test('power: switches station power, records it for saves, and validates its state', () => {
+  const d = validateSequences({ 'x.json': { id: 'blackout', skippable: true, steps: [{ do: 'wait', s: 5 }, { do: 'power', state: 'backup' }] } });
+  const g = makeGame();
+  const m = new SequenceManager(g.host, d);
+  m.start('blackout');
+  assert.equal(g.log.includes('power backup'), false);
+  assert.equal(m.skip(), true);
+  assert.ok(g.log.includes('power backup'), 'a skipped scene still lands on backup power');
+  assert.equal(g.host.flags['station_power'], 'backup');
+  assert.throws(() => validateSequences({ 'x.json': { id: 'bad', steps: [{ do: 'power', state: 'half' }] } }));
+});
+
+test('a restart puts standing water back at the level the checkpoint save recorded', () => {
+  const g = makeGame();
+  g.host.flags['water:R09'] = 2.2;
+  g.host.events.emit('game:restarted', { checkpoint: 'cp_valve' });
+  assert.ok(g.log.includes('water R09 2.2 0'));
+});
+
+test('R09 never floods: a load past the valve keeps the tunnel at its authored water', () => {
+  const g = makeGame();
+  g.host.flags['valve_done'] = true;
+  g.host.events.emit('game:mode', { mode: 'playing' });
+  assert.equal(g.log.some((e) => e.startsWith('water')), false);
+  const fresh = makeGame();
+  fresh.host.events.emit('game:mode', { mode: 'playing' });
+  assert.equal(fresh.log.some((e) => e.startsWith('water')), false, 'before the valve the tunnel keeps its authored water');
 });
 
 // ------------------------------------------------------------------------------- beat 3: first contact
@@ -611,20 +662,154 @@ test('the med-lab door: Okafor badges in (5 s biometric task) after the Priya sc
   noWarnings(g);
 });
 
-test('the valve: Giles says the only word about Mara, the objective moves on, cp_valve is taken', async () => {
+test('the valve: the flood plays out, the objective moves on, cp_valve is taken', async () => {
   const g = makeGame();
   setFlags(g, { ...COVER_DONE, sec_done: true, medlab_open: true, tunnel_started: true, 'giles.infectionStage': 3 });
   fire(g, 'valve:r10_main');
   assert.equal(g.m.isRunning('valve_turn'), true);
   await until(g, () => !g.m.isRunning('valve_turn'));
-  inOrder(g, [...lines('valve_giles_01', 'valve_quiet_giles_01', 'valve_quiet_giles_02', 'valve_quiet_okafor_01'), 'checkpoint cp_valve']);
+  inOrder(g, [...lines('flood_okafor_01', 'flood_okafor_02', 'flood_giles_02'), 'checkpoint cp_valve']);
+  // No casual lines after the panic (playtest).
+  for (const l of ['valve_giles_01', 'valve_quiet_giles_01', 'valve_quiet_giles_02', 'valve_quiet_okafor_01']) assert.equal(said(g, l), 0, l);
   assert.equal(g.host.flags['valve_done'], true);
   assert.equal(g.host.flags['obj:obj_valve'], 'done');
   assert.equal(g.host.flags['obj:obj_power'], 'active');
-  assert.equal(g.control.state.move, 'free', 'the Mara moment never takes Jay\'s controls');
+  assert.equal(g.control.state.move, 'free', 'controls back after the cutscene');
   fire(g, 'valve:r10_main');
-  assert.equal(said(g, 'valve_giles_01'), 1, 'once');
+  assert.equal(said(g, 'flood_giles_02'), 1, 'once');
   noWarnings(g);
+});
+
+// flooded-tunnel spec (overhaul-flooded-tunnel D9): the flood cutscene.
+const FLOOD_END = ['despawnGroup r09_tunnel', 'npc spawn r09_flood_shambler', 'namedLight r10_beacon alarm emergency', 'event flood:klaxon', 'door D_R09_R10 sealed', 'checkpoint cp_valve'];
+const VALVE_READY_FLAGS = { ...COVER_DONE, sec_done: true, medlab_open: true, tunnel_started: true, 'giles.infectionStage': 3 };
+const valveReady = (g: Game): void => setFlags(g, VALVE_READY_FLAGS);
+
+test('the valve cutscene: on rails at the wheel, the squad placed unseen, beacon, the charge and seal, the pounding, then quiet', async () => {
+  const g = makeGame();
+  valveReady(g);
+  fire(g, 'valve:r10_main');
+  assert.equal(g.control.state.move, 'locked', 'on rails with the bars');
+  assert.equal(g.m.skippable, false, 'not skippable the first time');
+  await until(g, () => !g.m.isRunning('valve_turn'));
+  inOrder(g, ['sfx valveTurn', ...FLOOD_END.slice(0, 5), ...lines('flood_giles_02'), 'checkpoint cp_valve']);
+  assert.ok(g.log.includes('npc npcMoveTo giles'), 'Giles placed');
+  assert.equal(g.log.some((e) => e.startsWith('water')), false, 'R09 does not flood');
+  assert.equal(g.control.state.move, 'free', 'controls back at the end');
+  assert.equal(g.host.flags['valve_done'], true);
+  // Playtest fixes: the door is locked before anything can walk up to it; the alarm blares before the turn; the squad panics
+  // during the charge; the camera is released with the controls (not held on the door through the lines).
+  // The door stands open from the start (the stairs seen through it), the creature shrieks as it charges, the door slams,
+  // it pounds on the door, then the hand. The pump room goes red with three beacons before the turn.
+  inOrder(g, ['door D_R09_R10 open', 'npc spawn r09_flood_shambler', 'door D_R09_R10 sealed', 'sfx floodSlamHit', 'sfx floodDoorSlam', 'sfx doorPound', 'npc npcMoveTo r09_flood_shambler']);
+  assert.equal(count(g, 'sfx creatureCharge'), 1, 'it shrieks as it charges');
+  assert.equal(g.log.includes('event flood:handslap'), false, 'no hand at the porthole: its arms come later');
+  assert.equal(g.log.filter((e) => e === 'sfx doorPound').length, 2, 'two rounds of pounding');
+  inOrder(g, ['namedLight r10_beacon alarm emergency', 'namedLight r10_beacon_s alarm emergency', 'sfx alarmBlast', 'score labB floodAlarm']);
+  // design D13: the score keeps going through the beat and only fades after the last line.
+  inOrder(g, ['score labB load', 'score labB floodAlarm', 'score labB floodHold', 'score labB hold', ...lines('flood_giles_02'), 'score labB floodOut']);
+  assert.equal(count(g, 'sfx floodStinger'), 0, 'the old 10 s stinger is gone');
+  assert.equal(g.log.includes('light R10 alarm emergency'), false, 'the pump room stays well lit');
+  for (const l of ['flood_okafor_01', 'flood_okafor_02', 'flood_giles_02']) assert.equal(said(g, l), 1, l);
+  assert.equal(said(g, 'flood_giles_01'), 0, 'the wheel line no longer plays: the view is on the door by then');
+  assert.equal(said(g, 'valve_giles_01'), 0, 'no casual lines after the panic');
+});
+
+// design D13: lines queue one at a time, so the beats are timed off them. Clip lengths from public/assets/vo (ffprobe).
+const FLOOD_CLIP_S: Record<string, number> = { flood_okafor_01: 3.22, flood_okafor_02: 1.4, flood_giles_02: 7.51 };
+const SPEECH_GAP_S = 0.15;
+
+test('the valve cutscene is timed off its lines: the seal comes on "Seal it now!", the hit on the leaves meeting, nothing said late', async () => {
+  const g = makeGame();
+  valveReady(g);
+  let now = 0;
+  let laneFree = 0;
+  const times = new Map<string, number>();
+  const stamp = (e: string): void => void (times.has(e) || times.set(e, now));
+  const pending: Array<{ at: number; resolve: () => void }> = [];
+  // A speech lane: a line starts when the one before it ends (plus the gap), and lasts its clip.
+  g.host.say = (line) => {
+    const start = Math.max(now, laneFree);
+    const end = start + (FLOOD_CLIP_S[line] ?? 2);
+    laneFree = end + SPEECH_GAP_S;
+    times.set(`start ${line}`, start);
+    times.set(`end ${line}`, end);
+    g.log.push(`say ${line}`);
+    return { done: new Promise<void>((resolve) => pending.push({ at: end, resolve })) };
+  };
+  const setDoor = g.host.setDoor!;
+  g.host.setDoor = (id, state) => (stamp(`door ${id} ${state}`), setDoor(id, state));
+  const sfx = g.host.sfx!;
+  g.host.sfx = (id, at, o) => (stamp(`sfx ${id}`), sfx(id, at, o));
+  const score = g.host.score!;
+  g.host.score = (id, o) => (o.cue && stamp(`cue ${o.cue}`), score(id, o));
+  fire(g, 'valve:r10_main');
+  for (let i = 0; i < 60 * 60 && g.m.isRunning('valve_turn'); i++) {
+    now += 1 / 60;
+    for (const p of pending.filter((q) => q.at <= now)) (pending.splice(pending.indexOf(p), 1), p.resolve());
+    g.m.update(1 / 60);
+    if (i % 3 === 0) await Promise.resolve();
+  }
+  assert.equal(g.m.isRunning('valve_turn'), false, 'ends');
+  const t = (k: string): number => {
+    assert.ok(times.has(k), k);
+    return times.get(k)!;
+  };
+  const sealed = t('door D_R09_R10 sealed');
+  const leavesMeet = sealed + 0.9;
+  assert.ok(t('end flood_okafor_01') <= t('start flood_okafor_02'), 'Okafor warns, then calls the seal');
+  assert.ok(sealed > t('start flood_okafor_02') && sealed < t('end flood_okafor_02'), 'the door starts closing during "Seal it now!"');
+  assert.ok(Math.abs(leavesMeet - t('end flood_okafor_02')) < 0.25, 'the leaves meet as the line ends');
+  assert.ok(Math.abs(t('sfx floodSlamHit') - sealed) < 1e-6 && Math.abs(t('sfx floodDoorSlam') - sealed) < 1e-6, 'the hit and the slam (both 0.9 s in) fire with the seal');
+  for (const [k, v] of times) if (k.startsWith('start ') && k !== 'start flood_giles_02') assert.ok(v < sealed, `${k} starts before the seal`);
+  assert.ok(t('start flood_giles_02') > leavesMeet + 3, 'Is it gone? only after the pounding');
+  assert.ok(t('cue floodAlarm') < t('cue floodCharge') && t('cue floodCharge') < sealed, 'the music builds into the charge');
+  assert.ok(Math.abs(t('cue floodHold') - leavesMeet) < 0.05, 'and turns on the slam');
+  assert.ok(t('cue floodOut') >= t('end flood_giles_02') - 1e-6, 'it fades only after the last line');
+  assert.ok(t('sfx creatureCharge') < sealed, 'the charge starts before the door closes');
+});
+
+test('once watched, skipping the flood cutscene at any point lands on the full end state', async () => {
+  for (const at of [0.5, 5, 9, 11, 12.5]) {
+    const g = makeGame();
+    valveReady(g);
+    const seen = new Set(['flood_cutscene']);
+    g.host.seen = (id) => seen.has(id);
+    fire(g, 'valve:r10_main');
+    for (let t = 0; t < at; t += 1 / 60) g.m.update(1 / 60);
+    assert.equal(g.m.skip(), true, `skippable at ${at} s`);
+    await until(g, () => !g.m.isRunning('valve_turn'));
+    for (const e of FLOOD_END) assert.ok(g.log.includes(e), `${e} (skipped at ${at} s)`);
+    assert.equal(g.log.some((e) => e.startsWith('water')), false, `no flood (skipped at ${at} s)`);
+    assert.equal(g.host.flags['valve_done'], true);
+    assert.equal(g.control.state.move, 'free');
+  }
+});
+
+test('after the valve, every load brings the alarm back: sealed door, beacons, klaxon', () => {
+  const g = makeGame();
+  g.host.flags['valve_done'] = true;
+  g.host.events.emit('game:mode', { mode: 'playing' });
+  for (const e of ['door D_R09_R10 sealed', 'namedLight r10_beacon alarm emergency', 'namedLight r10_beacon_n alarm emergency', 'event flood:klaxon']) assert.ok(g.log.includes(e), e);
+});
+
+// Playtest: it seems over, then at the R11 bulkhead it bursts back through the R09 door, which shears its arms off.
+test('the ambush at the R11 door: only after the valve, once; the elite pries the door open from the middle, it slams on its arms, both forearms cut', async () => {
+  const g = makeGame();
+  fire(g, 'trigger:r10_ambush');
+  assert.equal(g.m.isRunning('r10_ambush'), false, 'needs the valve');
+  setFlags(g, { ...VALVE_READY_FLAGS, valve_done: true });
+  fire(g, 'trigger:r10_ambush');
+  assert.equal(g.m.isRunning('r10_ambush'), true);
+  assert.equal(g.control.state.look, 'locked', 'the view is pulled to the door');
+  await until(g, () => !g.m.isRunning('r10_ambush'));
+  inOrder(g, ['npc spawn r09_flood_shambler', 'npc npcAnim r09_flood_shambler pry_reach', 'sfx ambushSting', 'pry D_R09_R10 0.06', 'npc npcAnim r09_flood_shambler pry_clamp', 'npc npcAnim r09_flood_shambler pry_wrench', 'sfx doorPry', 'pry D_R09_R10 0.3', 'sfx floodDoorSlam', 'door D_R09_R10 sealed', 'npc npcSever r09_flood_shambler', 'sfx creatureSeverShriek', ...lines('flood_okafor_03')]);
+  assert.equal(g.log.includes('door D_R09_R10 open'), false, 'the door is forced, never opened');
+  assert.equal(g.control.state.move, 'free', 'controls back');
+  assert.equal(g.host.flags['ambush_done'], true);
+  fire(g, 'trigger:r10_ambush');
+  assert.equal(g.m.isRunning('r10_ambush'), false, 'once');
+  assert.equal(g.log.filter((e) => e === 'npc spawn r09_flood_shambler').length, 1, 'not again');
 });
 
 // ------------------------------------------------------------------------------- beat 7: the climax
@@ -823,6 +1008,9 @@ async function playThrough(g: Game, events: string[]): Promise<void> {
   fire(g, 'trigger:r10_enter');
   fire(g, 'valve:r10_main');
   await settle('valve_done');
+  fire(g, 'trigger:r10_ambush');
+  await settle('ambush_done');
+  for (let i = 0; i < 12 * 60 && g.m.isRunning('r10_ambush'); i++) g.m.update(1 / 60);
   fire(g, 'trigger:r11_enter');
   await settle('climax_done');
 }
@@ -877,6 +1065,46 @@ test('a load or restart puts the doors the finished beats opened back, from the 
   g.host.events.emit('game:mode', { mode: 'playing' });
   assert.ok(at(g, 'door D_R10_R11 sealed') >= 0 && at(g, 'door D_R13d_R11 sealed') >= 0);
   noWarnings(g);
+});
+
+test('station-power "Panicked radio chatter": the calls come one after another, each letting the next start about 1 s before it ends', () => {
+  const steps = byId.get('contact')!.steps as Array<Record<string, unknown>>;
+  const calls = ['blackout_radio_ops_01', 'blackout_radio_dock_01', 'blackout_radio_hydro_01', 'blackout_radio_launch_01'];
+  for (const line of calls) {
+    const i = steps.findIndex((s) => s['line'] === line);
+    assert.ok(i >= 0 && steps[i]!['overlap'] === true && steps[i]!['wait'] === false, line);
+    const next = steps[i + 1]!;
+    // The wait is the clip's length minus about 1 s; the shortest clip runs 3.7 s.
+    assert.ok(next['do'] === 'wait' && (next['s'] as number) >= 2.5, `${line} is followed by a wait of at least 2.5 s`);
+  }
+});
+
+test('station-power: every sequence after the contact fight debug-starts under backup power', () => {
+  for (const id of ['cover_me', 'armory_auto', 'sec_glass', 'medlab_door', 'tunnel_enter', 'valve_turn', 'climax', 'cliffhanger']) {
+    const g = makeGame([id]);
+    g.m.start(id, { debug: true });
+    assert.ok(at(g, 'power backup') >= 0, `${id} starts on backup power`);
+  }
+  const g = makeGame(['contact']);
+  g.m.start('contact', { debug: true });
+  assert.equal(at(g, 'power backup'), -1, 'the contact fight itself starts on main power');
+});
+
+test('station-power "Power state survives checkpoints": a load after the blackout is on backup power, one before it is not', () => {
+  const before = makeGame(['action_restore']);
+  setFlags(before, { drop_started: true, drop_done: true });
+  before.host.events.emit('game:mode', { mode: 'playing' });
+  assert.equal(at(before, 'power backup'), -1, 'cp_drop loads on main power');
+  const after = makeGame(['action_restore']);
+  setFlags(after, { drop_started: true, drop_done: true, contact_done: true, station_power: 'backup' });
+  after.host.events.emit('game:mode', { mode: 'playing' });
+  assert.ok(at(after, 'power backup') >= 0);
+  // A save made after the contact fight but before this change has no station_power flag.
+  const old = makeGame(['action_restore']);
+  setFlags(old, { drop_started: true, drop_done: true, contact_done: true });
+  old.host.events.emit('game:mode', { mode: 'playing' });
+  assert.ok(at(old, 'power backup') >= 0, 'an older save loads dark too');
+  noWarnings(after);
 });
 
 test('medbay-attack "Restore after R08": Priya is put back dead in the surgery, with the centre pane\'s marks, and the attack does not replay', () => {
@@ -1185,54 +1413,22 @@ test('first contact releases the creature from the glass as the enemy, and the s
   assert.deepEqual(order, ['contact', 'rise', 'door', 'waitGroup', 'end']);
 });
 
-test('power: switches station power, records it for saves, and validates its state', () => {
-  const d = validateSequences({ 'x.json': { id: 'blackout', skippable: true, steps: [{ do: 'wait', s: 5 }, { do: 'power', state: 'backup' }] } });
+// flooded-tunnel spec "The flood cutscene can be skipped once seen" (overhaul-flooded-tunnel D9).
+test('skippableAfter: not skippable the first time, skippable once watched to the end', async () => {
+  const d = validateSequences({ 'x.json': { id: 'flood', skippableAfter: 'flood_cutscene', steps: [{ do: 'wait', s: 2 }, { do: 'setFlag', flag: 'flooded', value: true }] } });
   const g = makeGame();
+  const seen = new Set<string>();
+  g.host.seen = (id) => seen.has(id);
+  g.host.markSeen = (id) => void seen.add(id);
   const m = new SequenceManager(g.host, d);
-  m.start('blackout');
-  assert.equal(g.log.includes('power backup'), false);
+  m.start('flood');
+  assert.equal(m.skippable, false);
+  assert.equal(m.skip(), false, 'the first time it plays through');
+  for (let i = 0; i < 180; i++) m.update(1 / 60);
+  assert.equal(m.isRunning('flood'), false);
+  assert.ok(seen.has('flood_cutscene'), 'watched to the end is remembered');
+  m.start('flood');
+  assert.equal(m.skippable, true);
   assert.equal(m.skip(), true);
-  assert.ok(g.log.includes('power backup'), 'a skipped scene still lands on backup power');
-  assert.equal(g.host.flags['station_power'], 'backup');
-  assert.throws(() => validateSequences({ 'x.json': { id: 'bad', steps: [{ do: 'power', state: 'half' }] } }));
-});
-
-test('station-power "Panicked radio chatter": the calls come one after another, each letting the next start about 1 s before it ends', () => {
-  const steps = byId.get('contact')!.steps as Array<Record<string, unknown>>;
-  const calls = ['blackout_radio_ops_01', 'blackout_radio_dock_01', 'blackout_radio_hydro_01', 'blackout_radio_launch_01'];
-  for (const line of calls) {
-    const i = steps.findIndex((s) => s['line'] === line);
-    assert.ok(i >= 0 && steps[i]!['overlap'] === true && steps[i]!['wait'] === false, line);
-    const next = steps[i + 1]!;
-    // The wait is the clip's length minus about 1 s; the shortest clip runs 3.7 s.
-    assert.ok(next['do'] === 'wait' && (next['s'] as number) >= 2.5, `${line} is followed by a wait of at least 2.5 s`);
-  }
-});
-
-test('station-power: every sequence after the contact fight debug-starts under backup power', () => {
-  for (const id of ['cover_me', 'armory_auto', 'sec_glass', 'medlab_door', 'tunnel_enter', 'valve_turn', 'climax', 'cliffhanger']) {
-    const g = makeGame([id]);
-    g.m.start(id, { debug: true });
-    assert.ok(at(g, 'power backup') >= 0, `${id} starts on backup power`);
-  }
-  const g = makeGame(['contact']);
-  g.m.start('contact', { debug: true });
-  assert.equal(at(g, 'power backup'), -1, 'the contact fight itself starts on main power');
-});
-
-test('station-power "Power state survives checkpoints": a load after the blackout is on backup power, one before it is not', () => {
-  const before = makeGame(['action_restore']);
-  setFlags(before, { drop_started: true, drop_done: true });
-  before.host.events.emit('game:mode', { mode: 'playing' });
-  assert.equal(at(before, 'power backup'), -1, 'cp_drop loads on main power');
-  const after = makeGame(['action_restore']);
-  setFlags(after, { drop_started: true, drop_done: true, contact_done: true, station_power: 'backup' });
-  after.host.events.emit('game:mode', { mode: 'playing' });
-  assert.ok(at(after, 'power backup') >= 0);
-  // A save made after the contact fight but before this change has no station_power flag.
-  const old = makeGame(['action_restore']);
-  setFlags(old, { drop_started: true, drop_done: true, contact_done: true });
-  old.host.events.emit('game:mode', { mode: 'playing' });
-  assert.ok(at(old, 'power backup') >= 0, 'an older save loads dark too');
-  noWarnings(after);
+  assert.equal(g.host.flags['flooded'], true, 'the skip applies the end state');
 });

@@ -68,6 +68,20 @@ export interface LightSlot {
   kind: LightSlotKind;
   /** Yaw of the fixture (radians), so the glowing diffuser lines up with its housing. */
   ry: number;
+  /** A fixture swinging on a pendulum (flooded-tunnel spec: a tube hanging loose): its glow and light follow the swing. */
+  swing?: SlotSwing;
+}
+
+/** Pendulum swing about the X axis through `pivot` (piece space): `amp` radians, `period` seconds. */
+export interface SlotSwing {
+  pivot: Vec3;
+  amp: number;
+  period: number;
+}
+
+/** Angle of a swinging slot at time t (the prop and the level both use it, so housing and glow stay together). */
+export function swingAngle(s: Pick<SlotSwing, 'amp' | 'period'>, t: number): number {
+  return s.amp * Math.sin((2 * Math.PI * t) / s.period) + s.amp * 0.18 * Math.sin((2 * Math.PI * t) / (s.period * 2.7) + 1.1);
 }
 
 /** Positional looping sound declared by a kit prop (in piece space). */
@@ -123,7 +137,7 @@ export interface PieceOutput {
 }
 
 /** Props hung on a wall (back on their local z = 0): they must not overlap any wall piece's `keepouts`. */
-export const WALL_MOUNTED_PROPS: readonly string[] = ['pa_speaker', 'wall_screen', 'tag_poster', 'notice_board', 'wall_clock', 'menu_board', 'cctv_wall', 'whiteboard', 'shadow_board', 'eyewash_station', 'room_sign', 'pressure_gauge', 'service_panel', 'directory_sign', 'bulkhead_wheel', 'pressure_manifold', 'status_board'];
+export const WALL_MOUNTED_PROPS: readonly string[] = ['pa_speaker', 'wall_screen', 'tag_poster', 'notice_board', 'wall_clock', 'menu_board', 'cctv_wall', 'whiteboard', 'shadow_board', 'eyewash_station', 'room_sign', 'pressure_gauge', 'service_panel', 'directory_sign', 'bulkhead_wheel', 'pressure_manifold', 'status_board', 'tag_stencil'];
 
 export type PieceParams = Record<string, string | number | boolean>;
 
@@ -223,8 +237,8 @@ export class PieceBuilder {
     this.sockets.push(kind ? { name, pos, dir, kind } : { name, pos, dir });
   }
 
-  light(pos: Vec3, kind: LightSlotKind, ry = 0): void {
-    this.lightSlots.push({ pos, kind, ry });
+  light(pos: Vec3, kind: LightSlotKind, ry = 0, swing?: SlotSwing): void {
+    this.lightSlots.push(swing ? { pos, kind, ry, swing } : { pos, kind, ry });
   }
 
   /** An activity spot (ADR-0029): feet at (x, y, z), facing `yaw` (radians, 0 faces -Z); `seat` is the seat surface height. */

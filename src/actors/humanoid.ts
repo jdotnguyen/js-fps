@@ -7,7 +7,8 @@ import type { Emote } from '../data/types/dialogue.ts';
 import { bodyGeometryFromModel } from './bodyModel.ts';
 import type { BodyModelLibrary } from './bodyModelLibrary.ts';
 import { buildBodyGeometry, triangleCount, woundCap, type BodyGeometry, type ExtraBone, type ExtraBoneDef, type Look, type Outfit, type PartGeometry } from './bodyGeometry.ts';
-import { createBodyMaterials, MAX_BONES, MAX_BULGES, type BodyMaterials } from './bodyMaterial.ts';
+import { createBodyMaterials, DRY, MAX_BONES, MAX_BULGES, type BodyMaterials } from './bodyMaterial.ts';
+import { stepWetHeight, wetLine } from './wetness.ts';
 import { rayCapsule } from './capsule.ts';
 import { BodyDamage, DEFAULT_PROFILE, HERO_BASE_HP, HERO_PROFILE, POISE_WINDOW, SHAMBLER_BASE_HP, type HitResult, type LocomotionState } from './damage.ts';
 import { BELLY_WOUND } from './heroSculpt.ts';
@@ -119,6 +120,10 @@ export interface HumanoidContext {
   colliders?: ColliderQuery | null;
   /** Optional world-space footstep callback fired on foot plants (audio / perception). */
   onFootstep?: (step: FootstepEvent) => void;
+  /** Depth of standing water at a body's feet (standing-water spec: Bodies stay wet); absent where a world has none. */
+  waterDepth?: (x: number, feetY: number, z: number) => number;
+  /** A body moving in standing water this frame (its slosh, in-world-audio spec): world feet position and speed (m/s). */
+  onWade?: (actor: string, x: number, y: number, z: number, speed: number, dt: number) => void;
 }
 
 export interface BodyHit {
@@ -839,6 +844,23 @@ export class Humanoid {
     return result;
   }
 
+  /**
+   * Scripted cut (a closing door shears an arm off): lose `region` and everything below it, with the
+   * severed piece thrown along `dir` (world) and blood at the cut. Kills only by the usual limb rule.
+   */
+  cut(region: SeverableRegion, dir: THREE.Vector3): HitResult {
+    const wasWalking = this.locomotion.mode === 'walk';
+    const result = this.damage.apply(region, 1e6);
+    if (!result.severed) return result;
+    this.group.updateMatrixWorld(true);
+    const at = this.bones[SEVER_JOINT[region]].getWorldPosition(new THREE.Vector3());
+    this.ctx.gore.burst(at, dir.clone().multiplyScalar(0.8).add(new THREE.Vector3(0, 0.3, 0)), 60);
+    this.sever(result.severed, dir);
+    this.slam?.cancel();
+    if (result.killed) this.die(result.killedBy === 'limbs' && !wasWalking);
+    return result;
+  }
+
   /** Swipe animation for a crowd attack (ADR-0007): the arm on `side` lashes forward and the chest follows. */
   strike(side: Side, strength = 0.8): void {
     this.strikeDir.set(0, 0.2, -1);
@@ -875,6 +897,25 @@ export class Humanoid {
   /** 0..1 lunge (AI lurch bursts and attacks, ADR-0007): lean in, arms out, jaw wide. */
   charge = 0;
 
+  /** Height (m above the feet) standing water has wetted this body to; dries slowly (standing-water spec). */
+  private wetHeight = 0;
+
+  private readonly lastWadePos = new THREE.Vector3(NaN, 0, 0);
+
+  private updateWetness(dt: number): void {
+    const depth = this.ctx.waterDepth;
+    if (!depth && this.wetHeight === 0) return;
+    const p = this.group.position;
+    const d = depth ? depth(p.x, p.y, p.z) : 0;
+    if (this.ctx.onWade && (d > 0 || this.wetHeight > 0) && dt > 0) {
+      const speed = Number.isNaN(this.lastWadePos.x) ? 0 : Math.hypot(p.x - this.lastWadePos.x, p.z - this.lastWadePos.z) / dt;
+      this.ctx.onWade(this.spec.seed, p.x, p.y, p.z, this.state === 'dead' ? 0 : speed, dt);
+    }
+    this.lastWadePos.copy(p);
+    this.wetHeight = stepWetHeight(this.wetHeight, d, dt);
+    this.materials.uniforms.uWetLine.value = wetLine(p.y, this.wetHeight, DRY);
+  }
+
   update(dt: number, cameraPosition: THREE.Vector3 | null = null): void {
     this.time += dt;
     if (this.heldFor !== `${this.idlePose}|${this.state}|${String(this.heldOverride)}`) this.syncHeld();
@@ -891,6 +932,7 @@ export class Humanoid {
       }
     }
     this.updateSceneMotion(dt);
+    this.updateWetness(dt);
     this.updateInfection(dt);
     this.updateKinematics(dt);
     this.chooseAnimation();

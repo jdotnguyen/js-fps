@@ -30,6 +30,15 @@ export const DOOR_STATES = ['open', 'closed', 'locked', 'jammed', 'sealed'] as c
 export type DoorState = (typeof DOOR_STATES)[number];
 export const UNLOCK_SOURCES = ['player', 'engineer', 'medic', 'script'] as const;
 export type UnlockSource = (typeof UNLOCK_SOURCES)[number];
+/** A world [x, z] pair. */
+const xz = (v: unknown, p: string): [number, number] => {
+  if (!Array.isArray(v) || v.length !== 2 || !v.every((n) => typeof n === 'number')) throw new ValidationError(p, 'expected [x, z]');
+  return [v[0] as number, v[1] as number];
+};
+
+/** Things that float on standing water (standing-water spec, overhaul-flooded-tunnel). */
+export const WATER_JUNK_KINDS = ['paper', 'hardhat', 'glove', 'cup', 'sheen'] as const;
+
 export const AMBIENT_PRESETS = ['normal', 'emergency', 'flooded', 'dark', 'dock', 'commons', 'admin', 'hydro', 'gallery'] as const;
 export type AmbientPreset = (typeof AMBIENT_PRESETS)[number];
 
@@ -121,6 +130,8 @@ const propShape = {
 };
 
 const lightShape = {
+  /** Name for the `light` sequence step, which switches this light alone (render-lighting spec). Unique per level. */
+  id: optional(id),
   slot,
   pattern: oneOf(LIGHT_PATTERNS),
   color: optional(color),
@@ -136,8 +147,14 @@ const lightShape = {
   pool: optional(bool),
   /** true: casts shadows as a downward cone while the tier's shadow pool has room; otherwise lights the room unshadowed (render-lighting spec). */
   shadow: optional(bool),
+  /** A broken fixture: it throws sparks each time its tube cuts out or strikes back on (flooded-tunnel spec). */
+  sparks: optional(bool),
   /** true: stays lit, dimmed, under backup power (render-lighting spec "Backup lights"). `emergency` slots always do. */
   backup: optional(bool),
+  /** Keeps its own colour under backup power instead of the warm backup white (a red alarm beacon stays red). */
+  ownColor: optional(bool),
+  /** Strength on backup power instead of the usual dim share (a room on its own circuit, such as the pump room). Implies `backup`. */
+  backupScale: optional(numRange(0, 1)),
 };
 
 const triggerShape = {
@@ -216,12 +233,36 @@ const spawnShape = {
   /** A cast look (castLooks) for this point's enemies: its body, height and build, e.g. `lab_creature` (infection-kills). */
   look: optional(id),
   on: optional(str),
+  /** Floats in standing water (a play-dead corpse face down in the flooded tunnel): exempt from the sunken-floor check. */
+  float: optional(bool),
 };
 
 const roomShape = {
   id,
   name: str,
   height: optional(numRange(2, 12)),
+  /**
+   * Sunken floor (level-kit spec, overhaul-flooded-tunnel): the room's pieces build from this height (m, relative
+   * to its deck) instead of the deck, while the ceiling stays at `height` and doors stay at deck level.
+   */
+  floorY: optional(numRange(-3, 0)),
+  /**
+   * Standing water over the room's whole footprint (standing-water spec): `level` is the surface height (world y, m),
+   * `floor` the bottom of the water (default the room's `floorY`).
+   */
+  water: optional(
+    obj({
+      level: numRange(-3, 6),
+      floor: optional(numRange(-3, 6)),
+      /** Junk floating on it (world x, z; yaw in degrees). */
+      /** Drips and a pouring pipe that keep disturbing it (standing-water spec: ripples from drips and pouring water). */
+      emitters: optional(arr(obj({ kind: oneOf(['drip', 'pour'] as const), at: xz, rate: numRange(0.01, 60), radius: numRange(0.01, 2), strength: numRange(-1, 1) }))),
+      junk: optional(arr(obj({ kind: oneOf(WATER_JUNK_KINDS), at: (v: unknown, p: string): [number, number] => {
+        if (!Array.isArray(v) || v.length !== 2 || !v.every((n) => typeof n === 'number')) throw new ValidationError(p, 'expected [x, z]');
+        return [v[0] as number, v[1] as number];
+      }, rot: optional(num), scale: optional(numRange(0.2, 4)) }))),
+    }),
+  ),
   atmosphere: optional(
     obj({
       fog: optional(color),

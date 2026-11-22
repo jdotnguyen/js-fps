@@ -13,7 +13,9 @@ import { checkCoverage, gatherRequests, needFor, type MotionRequest } from './ca
 
 /** Named characters (everyone with a name) by look id -> profile id. `cook` is Bram's level look. */
 const NAMED: Record<string, string | undefined> = { giles: GILES.profile, okafor: OKAFOR.profile };
-for (const [look, c] of Object.entries(CAST)) if (look !== 'lab_creature') NAMED[look] = c.profile;
+// Creatures are not named characters: they have no motion profile of their own.
+const CREATURES = new Set(['lab_creature', 'flood_elite']);
+for (const [look, c] of Object.entries(CAST)) if (!CREATURES.has(look)) NAMED[look] = c.profile;
 
 /**
  * Characters whose own motion has landed (tasks 6.x): every request of theirs must be covered by their own profile.

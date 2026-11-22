@@ -114,6 +114,30 @@ export class SaveStore {
 
   clearSlot(slot: number): void {
     for (const kind of SAVE_KINDS) this.store.remove(this.key(slot, kind));
+    this.store.remove(this.seenKey(slot));
+  }
+
+  private seenKey(slot: number): string {
+    return `${this.ns}:slot${slot}:seen`;
+  }
+
+  /** Cutscenes watched to the end in this slot (sequence `skippableAfter`): beside the saves, never rolled back by one. */
+  seen(slot: number): Set<string> {
+    const raw = this.store.get(this.seenKey(slot));
+    if (!raw) return new Set();
+    try {
+      const v = JSON.parse(raw) as unknown;
+      return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  markSeen(slot: number, id: string): void {
+    const s = this.seen(slot);
+    if (s.has(id)) return;
+    s.add(id);
+    this.store.set(this.seenKey(slot), JSON.stringify([...s]));
   }
 
   summary(slot: number): SlotSummary {

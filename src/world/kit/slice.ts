@@ -17,7 +17,7 @@ import { inFrame, panelWall, wallFrame } from './detail.ts';
 import { AoMergeBuilder } from './merge.ts';
 import { TILE_FLOOR_KEYS, paletteFor, resolvePalette } from './palettes.ts';
 import { evaluateMisterCycle } from './misterCycle.ts';
-import { MOONPOOL_WIDTH, PieceBuilder, TRUNK_DEPTH, WALL_T, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams } from './types.ts';
+import { MOONPOOL_WIDTH, PieceBuilder, TRUNK_DEPTH, WALL_T, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams, type SoundLoopSlot } from './types.ts';
 
 /**
  * Slice-01 kit additions (ADR-0014, ADR-0023, intro-sequence spec): the kitchen, the supply sub, the
@@ -145,7 +145,7 @@ const MAT = {
   book: (i: number) => plain(`book${i}`, [0x6b2a22, 0x22405a, 0x2f4a2a, 0x8a7a50, 0x3a2a4a][i % 5]!, 0.8),
 };
 
-/** Deep-water surface for the moon pool and the flooded tunnel; one shared material and clock. */
+/** Deep-water surface for the moon pool; one shared material and clock. */
 const waterUniforms = { uTime: { value: 0 }, uTint: { value: new THREE.Color(0x0b3b40) } };
 
 /** Launch-trunk caustics (rebuild-dive-bay): soft moving light bands on the ceiling above the trunk, additive. */
@@ -1701,22 +1701,257 @@ const GEN: Record<string, Gen> = {
 
   // ---------------------------------------------------------------- dive bay (ADR-0023)
 
-  water_surface(p, _rng, _m, pb) {
-    const w = numParam(p, 'width', 4);
-    const d = numParam(p, 'depth', 4);
-    const level = numParam(p, 'level', 0.45);
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(w, d, 1, 1), waterMaterial());
-    plane.rotation.x = -PI / 2;
-    plane.position.y = level;
-    plane.renderOrder = 2;
-    pb.dynamic(plane);
+  // Standing water in a room (the flooded tunnel) is the room's `water` block, not a prop (standing-water spec).
+
+  /**
+   * The flood's source (flooded-tunnel spec "The flood has a visible source"): an overhead pipe running along X at
+   * `height` m (default 3.6) above the origin, burst open at the origin, with a stream falling `fall` m (default
+   * 2.85) into the water below and the pouring loop. Origin on the floor under the break.
+   */
+  burst_pipe(p, _rng, m, pb) {
+    const h = numParam(p, 'height', 3.6);
+    const fall = numParam(p, 'fall', 2.85);
+    const r = 0.11;
+    pb.add(cylinderBetween(V(-2, h, 0), V(-0.12, h, 0), r, 14), m.rustHeavy ?? m.steel);
+    pb.add(cylinderBetween(V(0.16, h, 0), V(2, h, 0), r, 14), m.rustHeavy ?? m.steel);
+    // Torn lips of the break, bent outward.
+    for (const [x, lean] of [[-0.12, -0.5], [0.16, 0.5]] as const) {
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * PI * 2;
+        pb.add(slab(0.05, 0.012, 0.07), m.steel, at(x + lean * 0.06, h + Math.sin(a) * r, Math.cos(a) * r, a, lean, 0));
+      }
+    }
+    for (const x of [-1.6, 1.6]) pb.add(cylinderBetween(V(x, h, 0), V(x, h + 0.6, 0), 0.02, 6), m.steel);
+    const uniforms = { uTime: { value: 0 } };
+    const stream = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.1, fall, 14, 8, true),
+      new THREE.ShaderMaterial({
+        uniforms,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        vertexShader: /* glsl */ `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }`,
+        fragmentShader: /* glsl */ `
+          uniform float uTime;
+          varying vec2 vUv;
+          ${NOISE_GLSL}
+          void main() {
+            float n = vnoise(vec2(vUv.x * 14.0, vUv.y * 6.0 + uTime * 5.5));
+            float streak = smoothstep(0.35, 0.8, n);
+            float a = (0.25 + 0.45 * streak) * smoothstep(0.0, 0.08, vUv.y);
+            gl_FragColor = vec4(mix(vec3(0.05, 0.09, 0.09), vec3(0.45, 0.55, 0.55), streak), a);
+          }`,
+      }),
+    );
+    stream.position.set(0, h - fall / 2, 0);
+    stream.renderOrder = 3;
+    pb.dynamic(stream);
     pb.tick((t) => {
-      waterUniforms.uTime.value = t;
+      uniforms.uTime.value = t;
     });
-    // Footsteps read "water" here (a 1 mm surface box on top of the floor).
-    const box = { min: [-w / 2, -0.05, -d / 2] as [number, number, number], max: [w / 2, 0.001, d / 2] as [number, number, number] };
-    pb.surfaces.push({ box, material: 'water' });
+    pb.soundLoop({ sound: 'pipePour', pos: [0, h - fall * 0.8, 0], gain: 0.55, maxDist: 18, reverb: 0.35, bus: 'ambience' });
   },
+
+  /**
+   * Sprayed stencil on bare concrete (flooded-tunnel spec, task 11.3), worn by water and age. Wall-mounted: back at
+   * z = 0, facing -Z. `kind`: "logo" (default: the TAG Industries lockup, the tunnel's name and its deck), or "depth" (a
+   * water-depth gauge, 0 at the origin's height `y` and marked down 1.2 m). `y`: centre height above the origin.
+   */
+  tag_stencil(p, _rng, _m, pb) {
+    const kind = strParam(p, 'kind', 'logo');
+    const y = numParam(p, 'y', 0.9);
+    const paint = '#d8d2b8';
+    if (kind === 'depth') {
+      const mat = paintedDecal(
+        (ctx, w, h) => {
+          ctx.fillStyle = paint;
+          ctx.font = '800 30px "Arial Narrow", Arial, sans-serif';
+          ctx.textAlign = 'left';
+          for (let i = 0; i <= 12; i++) {
+            const yy = 12 + (i / 12) * (h - 24);
+            const major = i % 5 === 0;
+            ctx.fillRect(0, yy - 3, major ? w * 0.55 : w * 0.3, 6);
+            if (major) ctx.fillText((-i / 10).toFixed(1), w * 0.6, yy + 10);
+          }
+        },
+        128,
+        640,
+        `depth-${y}`,
+      );
+      // 1.2 m tall, its top (0.0) at the origin's height y.
+      pb.add(new THREE.PlaneGeometry(0.24, 1.25), mat, at(0, y - 0.6, -0.004, 0, PI, 0));
+      return;
+    }
+    const mat = paintedDecal(
+      (ctx, w, h) => {
+        drawTagLockup(ctx, w * 0.05, h * 0.12, w * 0.5, { ink: paint, accent: '#c9b56a' });
+        ctx.fillStyle = paint;
+        ctx.textAlign = 'left';
+        ctx.font = '800 64px "Arial Narrow", Arial, sans-serif';
+        ctx.fillText('SERVICE TUNNEL 07', w * 0.05, h * 0.74);
+        ctx.font = '700 40px "Arial Narrow", Arial, sans-serif';
+        ctx.fillText('SUMP  ·  DECK 0  ·  NO ENTRY WHEN FLOODED', w * 0.05, h * 0.9);
+        ctx.fillStyle = '#c9b56a';
+        for (let i = 0; i < 6; i++) {
+          ctx.save();
+          ctx.translate(w * 0.62 + i * 46, h * 0.12);
+          ctx.transform(1, 0, -0.5, 1, 0, 0);
+          ctx.fillRect(0, 0, 22, h * 0.42);
+          ctx.restore();
+        }
+      },
+      1024,
+      512,
+      `tag-stencil-${y}`,
+    );
+    pb.add(new THREE.PlaneGeometry(2.0, 1.0), mat, at(0, y, -0.004, 0, PI, 0));
+  },
+
+  /**
+   * A cable tray hung from the ceiling (flooded-tunnel spec, task 11.4): a grated tray `length` m long (default 4)
+   * along X, `drop` m (default 0.35) under the ceiling on threaded rods, carrying bundled cables, a couple of which
+   * sag out between the hangers. Origin on the floor under its middle; `ceiling` is the height above it.
+   */
+  cable_tray(p, rng, m, pb) {
+    const len = numParam(p, 'length', 4);
+    const ceiling = numParam(p, 'ceiling', 3.2);
+    const y = ceiling - numParam(p, 'drop', 0.35);
+    const w = 0.4;
+    pb.add(slab(len, 0.02, w, 1), m.grating, at(0, y, 0));
+    for (const z of [-w / 2, w / 2]) pb.add(slab(len, 0.08, 0.02), m.steel, at(0, y + 0.04, z));
+    const hangers = Math.max(2, Math.round(len / 1.2) + 1);
+    const xs: number[] = [];
+    for (let i = 0; i < hangers; i++) {
+      const x = -len / 2 + 0.1 + (i / (hangers - 1)) * (len - 0.2);
+      xs.push(x);
+      pb.add(slab(0.05, 0.03, w + 0.12), m.steel, at(x, y - 0.025, 0));
+      for (const z of [-w / 2 - 0.04, w / 2 + 0.04]) pb.add(cylinderBetween(V(x, y - 0.03, z), V(x, ceiling, z), 0.008, 6), m.steel);
+    }
+    for (let k = 0; k < 6; k++) {
+      const z = -w / 2 + 0.05 + k * 0.06;
+      const r = rng.range(0.012, 0.024);
+      pb.add(pipe([V(-len / 2, y + 0.02 + r, z), V(0, y + 0.02 + r + rng.range(0, 0.01), z + rng.range(-0.02, 0.02)), V(len / 2, y + 0.02 + r, z)], r, 8, 6), k % 3 === 0 ? m.cable : m.rubber);
+    }
+    // Loops that have slipped over the edge and sag between hangers.
+    for (let i = 0; i < xs.length - 1; i++) {
+      if (!rng.chance(0.55)) continue;
+      const a = xs[i]!;
+      const b = xs[i + 1]!;
+      const sag = rng.range(0.2, 0.45);
+      const z = (rng.chance(0.5) ? 1 : -1) * (w / 2 + 0.03);
+      pb.add(pipe([V(a + 0.15, y + 0.03, z), V((a + b) / 2, y - sag, z * 1.15), V(b - 0.15, y + 0.03, z)], 0.016, 12, 6), m.cable);
+    }
+  },
+
+  /**
+   * The hand on the porthole (flooded-tunnel spec "A shambler is taken by the flood"): hidden until `flood:handslap`,
+   * then a turned hand slaps the glass from the flooded side, drags down it and sinks away into the murk. Faces -Z
+   * (the glass); place it just behind the porthole on the flooded side. A level reset hides it again.
+   */
+  porthole_hand(_p, _rng, _m, pb) {
+    const skin = new THREE.MeshStandardMaterial({ color: 0x5b5a52, roughness: 0.42, metalness: 0 });
+    skin.name = 'porthole-hand';
+    const hand = new THREE.Group();
+    const palm = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.1, 0.025), skin);
+    hand.add(palm);
+    for (let i = 0; i < 4; i++) {
+      const len = [0.07, 0.085, 0.08, 0.06][i]!;
+      const f = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.01, len, 6), skin);
+      f.position.set(-0.03 + i * 0.02, 0.05 + len / 2, 0);
+      f.rotation.z = (i - 1.5) * 0.08;
+      hand.add(f);
+    }
+    const thumb = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.011, 0.06, 6), skin);
+    thumb.position.set(0.055, 0.0, 0);
+    thumb.rotation.z = -0.9;
+    hand.add(thumb);
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.35, 8), skin);
+    arm.position.set(0, -0.2, 0.08);
+    arm.rotation.x = -0.5;
+    hand.add(arm);
+    hand.visible = false;
+    hand.name = 'porthole-hand';
+    pb.dynamic(hand);
+    let start = -1;
+    let clock = 0;
+    pb.on('flood:handslap', () => {
+      start = clock;
+      hand.visible = true;
+    });
+    pb.on('level:reset', () => {
+      start = -1;
+      hand.visible = false;
+    });
+    pb.tick((t) => {
+      clock = t;
+      if (start < 0) return;
+      const k = t - start;
+      // Slap in (0.1 s), hold, drag down 30 cm, then sink back into the water.
+      const z = k < 0.1 ? -0.18 * (1 - k / 0.1) : k < 1.1 ? 0 : -Math.min(0.5, (k - 1.1) * 0.5);
+      const y = k < 0.45 ? 0 : -Math.min(0.3, (k - 0.45) * 0.45);
+      hand.position.set(0, y, -z);
+      hand.rotation.z = k > 0.45 ? Math.min(0.25, (k - 0.45) * 0.3) : 0;
+      if (k > 2.4) {
+        hand.visible = false;
+        start = -1;
+      }
+    });
+  },
+
+  /**
+   * An invisible looping sound at the origin (`sound`: a registered sample; `gain`, `range` m). With `on`, it is
+   * silent until that event (a sequence `emit` or level trigger) and silent again after a level reset.
+   */
+  ambient_loop(p, _rng, _m, pb) {
+    const sound = strParam(p, 'sound', 'waterLap') as SoundLoopSlot['sound'];
+    const on = strParam(p, 'on', '');
+    let active = on === '';
+    if (on) {
+      pb.on(on, () => {
+        active = true;
+      });
+      pb.on('level:reset', () => {
+        active = false;
+      });
+    }
+    pb.soundLoop({ sound, pos: [0, numParam(p, 'y', 0.2), 0], gain: numParam(p, 'gain', 0.3), maxDist: numParam(p, 'range', 10), reverb: 0.3, bus: 'ambience', active: () => active });
+  },
+
+  /**
+   * A water pump on a skid (flooded-tunnel spec "The pump room overlooks the sump"): motor, volute, flanged pipes into
+   * the floor and a dial gauge whose needle hunts. Plays the pump-room loop. Footprint 1.4 x 0.8 m.
+   */
+  pump_unit(p, rng, m, pb) {
+    const paint = strParam(p, 'paint', 'teal') === 'dark' ? m.paintDark : m.paintTeal;
+    pb.add(rounded(1.4, 0.12, 0.8, 0.02), m.steel, at(0, 0.06, 0));
+    pb.add(cylinderBetween(V(-0.55, 0.45, 0), V(0.05, 0.45, 0), 0.24, 18), paint);
+    for (let i = 0; i < 9; i++) pb.add(slab(0.012, 0.5, 0.5), m.steelBrushed, at(-0.5 + i * 0.06, 0.45, 0));
+    pb.add(new THREE.SphereGeometry(0.3, 16, 12), paint, at(0.35, 0.45, 0));
+    pb.add(cylinderBetween(V(0.35, 0.45, 0), V(0.35, 0.45, -0.55), 0.1, 12), m.steel);
+    pb.add(cylinderBetween(V(0.35, 0.75, 0), V(0.35, 1.4, 0), 0.09, 12), m.steel);
+    pb.add(cylinderBetween(V(0.35, 1.4, 0), V(0.35, 1.4, 0.4), 0.09, 12), m.steel);
+    pb.add(cylinderBetween(V(0.27, 1.05, 0.02), V(0.43, 1.05, 0.02), 0.13, 14), m.steelDark ?? m.steel);
+    const face = new THREE.Mesh(new THREE.CircleGeometry(0.07, 20), fixtureMaterial(0xd8d2b4, 0.25));
+    face.position.set(0.6, 0.9, 0.051 + 0.3);
+    pb.add(cylinderBetween(V(0.6, 0.9, 0.3), V(0.6, 0.9, 0.35), 0.08, 18), m.steel);
+    const needle = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.055, 0.004), m.black);
+    needle.geometry.translate(0, 0.024, 0);
+    needle.position.set(0.6, 0.9, 0.356);
+    pb.dynamic(face);
+    pb.dynamic(needle);
+    const phase = rng.range(0, 10);
+    pb.tick((t) => {
+      needle.rotation.z = -0.6 + 0.25 * Math.sin(t * 1.7 + phase) + 0.08 * Math.sin(t * 7.3);
+    });
+    pb.soundLoop({ sound: 'pumpRoom', pos: [0, 0.5, 0], gain: 0.4, maxDist: 14, reverb: 0.3, bus: 'ambience' });
+    pb.solid(-0.7, 0, -0.4, 0.7, 1.0, 0.4, 'metal');
+  },
+
 
   dive_suit_rack(p, rng, m, pb) {
     const n = Math.round(numParam(p, 'suits', 3));

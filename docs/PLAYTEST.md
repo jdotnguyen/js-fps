@@ -7,7 +7,7 @@ Nothing here has been seen in a browser. Automated checks only prove the sequenc
 | URL | What it does |
 |---|---|
 | `/?level=slice01` | The full slice from the intro (about 25-30 min). New game plays the intro. |
-| `/?level=slice01&debug&jump=r05` | Skips the quiet half; flags and position of that beat's data checkpoint. `jump` = `r05` (first contact), `r06` (cover me), `r07` (armory + Priya), `r09` (med-lab door, tunnel, valve; you get the shotgun), `r11` (climax + reveal + end). Press New game, the jump happens 0.4 s after play starts. |
+| `/?level=slice01&debug&jump=r05` | Skips the quiet half; flags and position of that beat's data checkpoint. `jump` = `r05` (first contact), `r06` (cover me), `r07` (armory + Priya), `r09` (med-lab door, tunnel, valve; you get the shotgun), `r10_flood` (in front of the valve: the flood cutscene), `r11` (climax + reveal + end). Press New game, the jump happens 0.4 s after play starts. |
 | `&debug` | Stats, lil-gui, the running-sequence overlay (shows the current step of each sequence), F1 fly cam. |
 | `&seq=<id>` | Runs one sequence 1.2 s after play starts, applying its `debugSetup` flags. Useful: `cliffhanger`, `stinger_priya`, `title_card`, `sec_glass`, `climax`. Stand in the right room first (fly with F1), or combine with `jump`. |
 | `&enemies=shambler:3,hero,playDead` | Debug-spawn enemies (existing). |
@@ -48,9 +48,15 @@ data checkpoints `cp_first_contact`, `cp_cover_me`, `cp_security`, `cp_flooded`,
 - Then Giles "I'll get the panel, go", a strangled cry from the armory, Okafor "August? Talk to me", Giles back with "Cut it on the panel", Okafor offers, Giles refuses. Controls return; the objective is the med-lab door.
 - This is the scene to iterate on: all of it is `sec_glass` in `src/data/sequences/action_security.json`, one step per effect.
 
-**R09/R10 tunnel and valve** (`jump=r09`)
-- Interact with the med-lab door: Okafor hesitates, badge task (5 s), door opens. In the tunnel: knee-deep water (visual + slower, sprint off), dying lights, shamblers and two play-deads, "Quiet. Something's in the water.", Giles coughs.
-- Valve wheel in R10: shake, groan, then the quiet Mara lines (Jay keeps control, walk around). The R11 bulkhead unlocks.
+**R09 flooded sump and R10 pump room** (`jump=r09`, `jump=r10_flood`; openspec overhaul-flooded-tunnel)
+- Interact with the med-lab door: Okafor hesitates, badge task (5 s), door opens. Walk down the stairs into the water: it gets deeper step by step (slower, no sprint past the knees), the first wet step splashes, then wading steps and a slosh while you move.
+- The water: lit by the tubes, reflecting the tunnel (Medium and High), murky with depth (the lower steps fade). Rings from your steps, a wake from the shamblers before they round the bend, splashes from shots, drips and the burst pipe; floating junk bobs. Try Low: no reflection, the rest the same.
+- Failing tubes (slow stutters, dark spells), the loose tube swinging, the broken fixture at the bend throwing sparks that hiss in the water. Shamblers rise out of the water; the two play-deads float face down.
+- Jump in the water (heavier, a splash). The ammo is on the steel case by the bend: jump onto it from the water. Drop back in: a landing splash. Get downed in the water: the view stays above the surface.
+- From the pump room, look down through the low window into the sump bay and through the door's porthole.
+- The valve (`jump=r10_flood`): bars, view on the wheel (valve grind); the R09 door stands open; the score starts under the alarm; red beacons, alarm blast and klaxon; the view turns to the door; Okafor: "Something's coming up the stairs!", then the elite (blade-armed hero body) shrieks and charges; "Seal it now!" and the door closes during the line, the leaves meet as it ends with one big music hit on the slam. It pounds twice with the music still going, then walks back down; control comes back and Giles asks "Is it gone?"; the music fades after. No line about the door starts after it has sealed. R09's water does not rise. Not skippable the first time; on a replay (or after restoring an earlier checkpoint) hold to skip at any point: same end state. Then `cp_valve`, the R11 bulkhead unlocks.
+- The ambush: walk up to the R11 bulkhead. A bang and a jump-scare sting, the view whips round to the R09 door: the elite's blades stab into the seam, clamp together and wrench the leaves part-way apart from the middle (the door stays sealed, screen red, gap too narrow to pass); it lunges into the gap, the door slams back and shears both forearms off into the pump room (they stay on the floor); it shrieks; Okafor: "Its arms...". Once per save. R10 stays fully lit on backup power.
+- Reload after `cp_valve`: the door sealed, beacons and klaxon on, no cutscene (the ambush still to come if it had not played).
 
 **R11 climax** (`jump=r11`)
 - Both entrances open. Giles works at the console for 30 s, 14 enemies, never more than 8 alive, one hero (Okafor: "Big one. Shotgun, Jay. Now."). Check the shotgun feels good, ammo is enough (3 pickups in the room), and the fight is winnable on Hard. "Halfway!" at 50 %.

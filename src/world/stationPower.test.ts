@@ -106,3 +106,22 @@ test('a level reset returns to main power', () => {
   assert.equal(level.power, 'mains');
   assert.deepEqual(powers(level, 'A'), [1, 1]);
 });
+
+// overhaul-flooded-tunnel (playtest): the flooded tunnel's red alarm beacons stay red on backup power.
+test('a beacon with ownColor keeps its own colour on backup power, and is still the room\'s lit light', () => {
+  const r = room('A', 0, [{ slot: 0, pattern: 'steady' }, { slot: 'emergency', pattern: 'alarm', color: '#ff2a1a', ownColor: true }]);
+  r.props = [{ kit: 'emergency_beacon', pos: [1, 0, 1] }];
+  const level = build([r]);
+  const beacon = level.roomLights('A')[1]!.light;
+  const red = beacon.emissives[0]!.emissive.getHex();
+  level.setPower('backup');
+  assert.deepEqual(powers(level, 'A'), [0, BACKUP_LIGHT.scale]);
+  assert.equal(beacon.emissives[0]!.emissive.getHex(), red, 'still red');
+});
+
+// overhaul-flooded-tunnel (playtest): the pump room is on its own circuit, fully lit for the ambush.
+test('a light with backupScale stays lit at that strength on backup power', () => {
+  const level = build([room('A', 0, [{ slot: 0, pattern: 'steady', backupScale: 1 }, { slot: 1, pattern: 'steady' }])]);
+  level.setPower('backup');
+  assert.deepEqual(powers(level, 'A'), [1, 0]);
+});

@@ -69,9 +69,10 @@ export interface ExteriorHull {
 export class HullBuilder {
   private readonly cells = new Map<string, HullCell>();
 
-  addPiece(room: string, grid: GridCell, kit: string, rot: number, height: number, sockets: readonly Socket[]): void {
+  /** `floorY`: a sunken room's floor below its deck (level-kit spec); the hull reaches down to it. */
+  addPiece(room: string, grid: GridCell, kit: string, rot: number, height: number, sockets: readonly Socket[], floorY = 0): void {
     const key = grid.join(',');
-    const floor = grid[1] * DECK_H;
+    const floor = grid[1] * DECK_H + floorY;
     let cell = this.cells.get(key);
     if (!cell) {
       cell = { grid, room, floor, bottom: floor - 0.85, top: floor + height + 0.18, pool: false, openings: new Map() };

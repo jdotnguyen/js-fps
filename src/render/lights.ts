@@ -2,7 +2,7 @@ import type * as THREE from 'three';
 import { hash2 } from './tex/noise.ts';
 
 /** Light behaviours from ADR-0002. */
-export const LIGHT_PATTERNS = ['steady', 'flicker', 'dying', 'strobe', 'alarm', 'off'] as const;
+export const LIGHT_PATTERNS = ['steady', 'flicker', 'dying', 'strobe', 'alarm', 'off', 'failing'] as const;
 export type LightPattern = (typeof LIGHT_PATTERNS)[number];
 
 /**
@@ -33,9 +33,53 @@ export function patternValue(pattern: LightPattern, t: number, seed: number, red
       if (reducedFlashing) return 0.6 + 0.4 * Math.sin(t * Math.PI);
       return (t * 2) % 1 < 0.18 ? 1 : 0.05;
     }
+    case 'failing':
+      // Slow by design: never more than 3 changes a second, so reduced flashing leaves it as it is (render-lighting spec).
+      return failingValue(t, seed);
     case 'alarm':
       return 0.55 + 0.45 * Math.sin(t * Math.PI * 2 * (reducedFlashing ? 0.4 : 0.8));
   }
+}
+
+/** Failing-tube pattern (render-lighting spec): each window plans a hold, a stutter and, every other window, a dark spell. */
+export const FAILING_WINDOW = 14;
+/** Shortest time a failing tube stays in one state (s): at most 3 changes a second. */
+export const FAILING_MIN_STATE = 0.34;
+
+/** Brightness of a failing tube at time t: lit, stuttering, or dark for 1-4 s before stuttering back. */
+export function failingValue(t: number, seed: number): number {
+  const w = Math.floor(t / FAILING_WINDOW);
+  let u = t - w * FAILING_WINDOW;
+  const h = (k: number): number => hash2(w, 40 + k, seed);
+  const ON = 0.95 + 0.05 * h(9);
+  const DIM = 0.08;
+  const OFF = 0;
+  // Hold lit for 3-5 s.
+  const hold = 3 + 2 * h(0);
+  if (u < hold) return ON;
+  u -= hold;
+  // Stutter: 2-3 off/on blinks, each state at least FAILING_MIN_STATE long. The longest plan (13.4 s) fits the window.
+  const blinks = 2 + Math.floor(h(1) * 2);
+  for (let i = 0; i < blinks; i++) {
+    const off = FAILING_MIN_STATE + 0.18 * h(10 + i);
+    if (u < off) return DIM;
+    u -= off;
+    const on = FAILING_MIN_STATE + 0.3 * h(20 + i);
+    if (u < on) return ON;
+    u -= on;
+  }
+  // Every other window (by seed) the tube then dies for 1-4 s and stutters back once.
+  const darkWindow = (w + seed) % 2 === 0;
+  if (darkWindow) {
+    const dark = 1 + 3 * h(3);
+    if (u < dark) return OFF;
+    u -= dark;
+    const back = FAILING_MIN_STATE + 0.2 * h(4);
+    if (u < back) return ON;
+    u -= back;
+    if (u < FAILING_MIN_STATE) return DIM;
+  }
+  return ON;
 }
 
 export interface ShaftUniforms {

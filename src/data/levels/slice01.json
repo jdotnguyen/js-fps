@@ -6449,13 +6449,143 @@
    "id": "R09",
    "name": "Flooded Maintenance Tunnel",
    "area": "tunnel",
+   "floorY": -1.2,
+   "water": {
+    "level": -0.45,
+    "junk": [
+     {
+      "kind": "paper",
+      "at": [
+       11.2,
+       44.7
+      ],
+      "rot": 20
+     },
+     {
+      "kind": "paper",
+      "at": [
+       11.6,
+       44.3
+      ],
+      "rot": 75
+     },
+     {
+      "kind": "hardhat",
+      "at": [
+       13.4,
+       43.2
+      ],
+      "rot": 140
+     },
+     {
+      "kind": "sheen",
+      "at": [
+       15.2,
+       44.4
+      ],
+      "scale": 1.4
+     },
+     {
+      "kind": "glove",
+      "at": [
+       18.6,
+       47
+      ],
+      "rot": 200
+     },
+     {
+      "kind": "cup",
+      "at": [
+       21.4,
+       48.9
+      ],
+      "rot": 60
+     },
+     {
+      "kind": "paper",
+      "at": [
+       23.2,
+       47.3
+      ],
+      "rot": 160
+     },
+     {
+      "kind": "sheen",
+      "at": [
+       25.4,
+       48.5
+      ]
+     },
+     {
+      "kind": "cup",
+      "at": [
+       27.6,
+       51.6
+      ],
+      "rot": 15
+     },
+     {
+      "kind": "sheen",
+      "at": [
+       28.2,
+       52.6
+      ],
+      "scale": 0.8
+     }
+    ],
+    "emitters": [
+     {
+      "kind": "pour",
+      "at": [
+       28.4,
+       52.6
+      ],
+      "rate": 22,
+      "radius": 0.35,
+      "strength": -0.012
+     },
+     {
+      "kind": "drip",
+      "at": [
+       11.3,
+       44.9
+      ],
+      "rate": 0.45,
+      "radius": 0.06,
+      "strength": -0.014
+     },
+     {
+      "kind": "drip",
+      "at": [
+       19.1,
+       47.3
+      ],
+      "rate": 0.35,
+      "radius": 0.06,
+      "strength": -0.014
+     },
+     {
+      "kind": "drip",
+      "at": [
+       24.6,
+       48.9
+      ],
+      "rate": 0.5,
+      "radius": 0.06,
+      "strength": -0.014
+     }
+    ]
+   },
    "atmosphere": {
     "fog": "#03100f",
-    "fogDensity": 0.085,
+    "fogDensity": 0.07,
     "ambient": "flooded",
     "reverb": "flooded",
     "ambience": "water_drip"
    },
+   "visibleFrom": [
+    "R10"
+   ],
    "pieces": [
     {
      "kit": "ceiling",
@@ -6514,6 +6644,14 @@
      ]
     },
     {
+     "kit": "ceiling_pipes",
+     "cell": [
+      7,
+      0,
+      13
+     ]
+    },
+    {
      "kit": "floor_grate",
      "cells": [
       [
@@ -6550,21 +6688,11 @@
        7,
        0,
        12
-      ]
-     ]
-    },
-    {
-     "kit": "wall_vent",
-     "cells": [
-      [
-       2,
-       0,
-       11
       ],
       [
-       5,
+       7,
        0,
-       12
+       13
       ]
      ]
     },
@@ -6577,6 +6705,49 @@
        11
       ],
       [
+       3,
+       0,
+       11
+      ],
+      [
+       4,
+       0,
+       11
+      ],
+      [
+       5,
+       0,
+       12
+      ],
+      [
+       6,
+       0,
+       12
+      ],
+      [
+       7,
+       0,
+       12
+      ]
+     ],
+     "params": {
+      "material": "concrete"
+     }
+    },
+    {
+     "kit": "wall_plain",
+     "cells": [
+      [
+       2,
+       0,
+       11
+      ],
+      [
+       3,
+       0,
+       11
+      ],
+      [
        4,
        0,
        12
@@ -6587,27 +6758,6 @@
        12
       ],
       [
-       7,
-       0,
-       12
-      ]
-     ],
-     "rot": 180
-    },
-    {
-     "kit": "wall_plain",
-     "cells": [
-      [
-       3,
-       0,
-       11
-      ],
-      [
-       4,
-       0,
-       11
-      ],
-      [
        6,
        0,
        12
@@ -6615,24 +6765,12 @@
       [
        7,
        0,
-       12
-      ]
-     ]
-    },
-    {
-     "kit": "wall_vent",
-     "cells": [
-      [
-       3,
-       0,
-       11
-      ],
-      [
-       6,
-       0,
-       12
+       13
       ]
      ],
+     "params": {
+      "material": "concrete"
+     },
      "rot": 180
     },
     {
@@ -6644,6 +6782,9 @@
        11
       ]
      ],
+     "params": {
+      "material": "concrete"
+     },
      "rot": 270
     },
     {
@@ -6653,154 +6794,102 @@
        4,
        0,
        12
+      ],
+      [
+       7,
+       0,
+       13
       ]
      ],
+     "params": {
+      "material": "concrete"
+     },
      "rot": 90
+    },
+    {
+     "kit": "wall_glass_partition",
+     "cells": [
+      [
+       7,
+       0,
+       13
+      ]
+     ],
+     "params": {
+      "material": "concrete"
+     },
+     "rot": 270
+    },
+    {
+     "kit": "stairs",
+     "cell": [
+      2,
+      0,
+      11
+     ],
+     "rot": 90,
+     "params": {
+      "rise": 1.2,
+      "run": 2.4,
+      "offset": 0.6,
+      "grate": true
+     }
+    },
+    {
+     "kit": "floor_landing",
+     "cell": [
+      2,
+      0,
+      11
+     ],
+     "rot": 90,
+     "params": {
+      "rise": 1.2,
+      "depth": 1.4,
+      "grate": true
+     }
+    },
+    {
+     "kit": "stairs",
+     "cell": [
+      7,
+      0,
+      12
+     ],
+     "rot": 270,
+     "params": {
+      "rise": 1.2,
+      "run": 2.4,
+      "offset": 0.6,
+      "grate": true
+     }
+    },
+    {
+     "kit": "floor_landing",
+     "cell": [
+      7,
+      0,
+      12
+     ],
+     "rot": 270,
+     "params": {
+      "rise": 1.2,
+      "depth": 1.4,
+      "grate": true
+     }
     }
    ],
    "props": [
     {
-     "kit": "water_surface",
-     "pos": [
-      8,
-      0,
-      44
-     ],
-     "params": {
-      "width": 4,
-      "depth": 4,
-      "level": 0.45
-     }
-    },
-    {
-     "kit": "water_surface",
-     "pos": [
-      12,
-      0,
-      44
-     ],
-     "params": {
-      "width": 4,
-      "depth": 4,
-      "level": 0.45
-     }
-    },
-    {
-     "kit": "water_surface",
-     "pos": [
-      16,
-      0,
-      44
-     ],
-     "params": {
-      "width": 4,
-      "depth": 4,
-      "level": 0.45
-     }
-    },
-    {
-     "kit": "water_surface",
-     "pos": [
-      16,
-      0,
-      48
-     ],
-     "params": {
-      "width": 4,
-      "depth": 4,
-      "level": 0.45
-     }
-    },
-    {
-     "kit": "water_surface",
+     "kit": "hanging_tube",
      "pos": [
       20,
-      0,
+      -1.2,
       48
      ],
      "params": {
-      "width": 4,
-      "depth": 4,
-      "level": 0.45
-     }
-    },
-    {
-     "kit": "water_surface",
-     "pos": [
-      24,
-      0,
-      48
-     ],
-     "params": {
-      "width": 4,
-      "depth": 4,
-      "level": 0.45
-     }
-    },
-    {
-     "kit": "water_surface",
-     "pos": [
-      28,
-      0,
-      48
-     ],
-     "params": {
-      "width": 4,
-      "depth": 4,
-      "level": 0.45
-     }
-    },
-    {
-     "kit": "debris_pile",
-     "pos": [
-      12,
-      0,
-      44.6
-     ]
-    },
-    {
-     "kit": "debris_pile",
-     "pos": [
-      20,
-      0,
-      48.6
-     ]
-    },
-    {
-     "kit": "crate",
-     "pos": [
-      17.2,
-      0,
-      49.6
-     ],
-     "rot": 30,
-     "params": {
-      "size": 0.8
-     }
-    },
-    {
-     "kit": "crate",
-     "pos": [
-      25,
-      0,
-      49.4
-     ],
-     "rot": 70,
-     "params": {
-      "size": 0.6
-     }
-    },
-    {
-     "kit": "pipe_run",
-     "pos": [
-      10,
-      0,
-      45.6
-     ],
-     "params": {
-      "length": 6,
-      "height": 0.8,
-      "paint": "teal"
+      "amp": 0.14,
+      "period": 3.6
      }
     },
     {
@@ -6814,36 +6903,385 @@
      "params": {
       "wall": true
      }
+    },
+    {
+     "kit": "emergency_beacon",
+     "pos": [
+      7.6,
+      2.6,
+      45.73
+     ],
+     "params": {
+      "wall": true
+     }
+    },
+    {
+     "kit": "emergency_beacon",
+     "pos": [
+      13,
+      2.6,
+      42.27
+     ],
+     "rot": 180,
+     "params": {
+      "wall": true
+     }
+    },
+    {
+     "kit": "emergency_beacon",
+     "pos": [
+      24.6,
+      2.6,
+      49.73
+     ],
+     "params": {
+      "wall": true
+     }
+    },
+    {
+     "kit": "emergency_beacon",
+     "pos": [
+      26.27,
+      2.6,
+      52
+     ],
+     "rot": 270,
+     "params": {
+      "wall": true
+     }
+    },
+    {
+     "kit": "debris_pile",
+     "pos": [
+      12,
+      -1.2,
+      44.6
+     ]
+    },
+    {
+     "kit": "debris_pile",
+     "pos": [
+      20.4,
+      -1.2,
+      49.1
+     ]
+    },
+    {
+     "kit": "crate",
+     "pos": [
+      17.2,
+      -1.2,
+      49.2
+     ],
+     "rot": 30,
+     "params": {
+      "size": 0.85
+     }
+    },
+    {
+     "kit": "crate",
+     "pos": [
+      25,
+      -1.2,
+      49.4
+     ],
+     "rot": 70,
+     "params": {
+      "size": 0.6
+     }
+    },
+    {
+     "kit": "pipe_run",
+     "pos": [
+      10,
+      -1.2,
+      45.6
+     ],
+     "params": {
+      "length": 6,
+      "height": 2,
+      "paint": "teal"
+     }
+    },
+    {
+     "kit": "pipe_run",
+     "pos": [
+      22,
+      -1.2,
+      49.6
+     ],
+     "params": {
+      "length": 8,
+      "height": 1.15,
+      "paint": "dark"
+     }
+    },
+    {
+     "kit": "chair",
+     "pos": [
+      13.6,
+      -1.2,
+      43.4
+     ],
+     "rot": 80
+    },
+    {
+     "kit": "cable_bundle",
+     "pos": [
+      24,
+      -1.2,
+      46.6
+     ],
+     "params": {
+      "length": 7,
+      "height": 0.08
+     }
+    },
+    {
+     "kit": "burst_pipe",
+     "pos": [
+      28.4,
+      -1.2,
+      52.6
+     ],
+     "rot": 90,
+     "params": {
+      "height": 4,
+      "fall": 3.25
+     }
+    },
+    {
+     "kit": "tag_stencil",
+     "pos": [
+      12,
+      0.4,
+      42.27
+     ],
+     "rot": 180,
+     "params": {
+      "y": 1.2
+     }
+    },
+    {
+     "kit": "tag_stencil",
+     "pos": [
+      20,
+      0.4,
+      49.73
+     ],
+     "params": {
+      "y": 1.2
+     }
+    },
+    {
+     "kit": "tag_stencil",
+     "pos": [
+      9.2,
+      0.4,
+      42.27
+     ],
+     "rot": 180,
+     "params": {
+      "kind": "depth",
+      "y": -0.4
+     }
+    },
+    {
+     "kit": "tag_stencil",
+     "pos": [
+      26.8,
+      0.4,
+      46.27
+     ],
+     "rot": 180,
+     "params": {
+      "kind": "depth",
+      "y": -0.4
+     }
+    },
+    {
+     "kit": "cable_tray",
+     "pos": [
+      13,
+      -1.2,
+      43.1
+     ],
+     "params": {
+      "length": 9.6
+     }
+    },
+    {
+     "kit": "cable_tray",
+     "pos": [
+      22.2,
+      -1.2,
+      49
+     ],
+     "params": {
+      "length": 11.6,
+      "drop": 0.45
+     }
+    },
+    {
+     "kit": "pipe_run",
+     "pos": [
+      13,
+      -1.2,
+      45.3
+     ],
+     "params": {
+      "length": 9.6,
+      "height": 3.95,
+      "paint": "teal",
+      "hung": true
+     }
+    },
+    {
+     "kit": "pipe_run",
+     "pos": [
+      22,
+      -1.2,
+      46.7
+     ],
+     "params": {
+      "length": 11.6,
+      "height": 3.9,
+      "paint": "dark",
+      "hung": true
+     }
+    },
+    {
+     "kit": "ambient_loop",
+     "pos": [
+      12,
+      -0.45,
+      43
+     ],
+     "params": {
+      "sound": "waterLap",
+      "gain": 0.22,
+      "range": 9,
+      "float": true
+     }
+    },
+    {
+     "kit": "ambient_loop",
+     "pos": [
+      22,
+      -0.45,
+      49
+     ],
+     "params": {
+      "sound": "waterLap",
+      "gain": 0.22,
+      "range": 9,
+      "float": true
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
-     "pattern": "dying",
+     "pattern": "failing",
      "color": "#9fe8ff",
      "intensity": 6
     },
     {
+     "slot": 1,
+     "pattern": "failing",
+     "color": "#9fe8ff",
+     "intensity": 4,
+     "pool": false
+    },
+    {
      "slot": 2,
-     "pattern": "flicker",
+     "pattern": "failing",
      "color": "#9fe8ff",
      "intensity": 5
     },
     {
+     "slot": 3,
+     "pattern": "failing",
+     "color": "#bfefff",
+     "intensity": 6,
+     "sparks": true
+    },
+    {
      "slot": 4,
-     "pattern": "dying",
+     "pattern": "failing",
+     "color": "#9fe8ff",
+     "intensity": 4,
+     "pool": false
+    },
+    {
+     "slot": 5,
+     "pattern": "failing",
      "color": "#9fe8ff",
      "intensity": 5
     },
     {
      "slot": 6,
-     "pattern": "flicker",
+     "pattern": "failing",
      "color": "#9fe8ff",
      "intensity": 5
     },
     {
+     "slot": 7,
+     "pattern": "failing",
+     "color": "#9fe8ff",
+     "intensity": 4,
+     "pool": false
+    },
+    {
+     "slot": 8,
+     "pattern": "failing",
+     "color": "#cfefff",
+     "intensity": 5
+    },
+    {
      "slot": "emergency",
-     "pattern": "off"
+     "pattern": "alarm",
+     "color": "#ff2a1a",
+     "intensity": 12,
+     "range": 13,
+     "id": "r09_beacon_1",
+     "ownColor": true
+    },
+    {
+     "slot": "emergency",
+     "pattern": "alarm",
+     "color": "#ff2a1a",
+     "intensity": 12,
+     "range": 13,
+     "id": "r09_beacon_2",
+     "ownColor": true
+    },
+    {
+     "slot": "emergency",
+     "pattern": "alarm",
+     "color": "#ff2a1a",
+     "intensity": 12,
+     "range": 13,
+     "id": "r09_beacon_3",
+     "ownColor": true
+    },
+    {
+     "slot": "emergency",
+     "pattern": "alarm",
+     "color": "#ff2a1a",
+     "intensity": 12,
+     "range": 13,
+     "id": "r09_beacon_4",
+     "ownColor": true
+    },
+    {
+     "slot": "emergency",
+     "pattern": "alarm",
+     "color": "#ff2a1a",
+     "intensity": 12,
+     "range": 13,
+     "id": "r09_beacon_5",
+     "ownColor": true
     }
    ],
    "triggers": [
@@ -6852,7 +7290,7 @@
      "box": [
       [
        6.3,
-       0,
+       -0.2,
        42.3
       ],
       [
@@ -6869,12 +7307,12 @@
      "box": [
       [
        14.3,
-       0,
+       -1.3,
        46.3
       ],
       [
        17.7,
-       2.6,
+       1.6,
        49.7
       ]
      ],
@@ -6887,7 +7325,7 @@
      "id": "r09_floor_1",
      "pos": [
       13,
-      0,
+      -1.2,
       44
      ],
      "kind": "floor",
@@ -6899,19 +7337,20 @@
      "id": "r09_corpse_1",
      "pos": [
       16.4,
-      0,
-      49.4
+      -0.65,
+      48.6
      ],
      "kind": "corpse",
      "group": "r09_tunnel",
      "active": false,
-     "variant": "playDead"
+     "variant": "playDead",
+     "float": true
     },
     {
      "id": "r09_floor_2",
      "pos": [
       22,
-      0,
+      -1.2,
       47.2
      ],
      "kind": "floor",
@@ -6923,14 +7362,15 @@
     {
      "id": "r09_corpse_2",
      "pos": [
-      26.6,
-      0,
-      48.6
+      24.2,
+      -0.65,
+      47.6
      ],
      "kind": "corpse",
      "group": "r09_tunnel",
      "active": false,
-     "variant": "playDead"
+     "variant": "playDead",
+     "float": true
     },
     {
      "id": "r09_vent",
@@ -6949,7 +7389,7 @@
     {
      "id": "r09_entry",
      "pos": [
-      8.4,
+      6.9,
       0,
       44
      ],
@@ -6959,7 +7399,7 @@
      "id": "r09_mid",
      "pos": [
       16,
-      0,
+      -1.2,
       48
      ],
      "yaw": 270
@@ -6968,22 +7408,70 @@
      "id": "ammo_r09",
      "pos": [
       17.2,
-      0.9,
-      49.6
+      -0.25,
+      49.2
      ]
+    },
+    {
+     "id": "r09_flood_shambler",
+     "pos": [
+      24.4,
+      -1.2,
+      48.2
+     ],
+     "yaw": 90
+    },
+    {
+     "id": "r09_flood_top",
+     "pos": [
+      28.7,
+      0,
+      48.2
+     ],
+     "yaw": 90
+    },
+    {
+     "id": "r09_flood_behind",
+     "pos": [
+      28.9,
+      0,
+      48
+     ],
+     "yaw": 90
+    },
+    {
+     "id": "r09_flood_door",
+     "pos": [
+      29.55,
+      0,
+      48
+     ],
+     "yaw": 90
+    },
+    {
+     "id": "r09_pry",
+     "pos": [
+      29.5,
+      0,
+      48
+     ],
+     "yaw": 270
     }
    ]
   },
   {
    "id": "R10",
-   "name": "Valve Room",
+   "name": "Pump Room",
    "area": "tunnel",
    "atmosphere": {
     "fog": "#040a0a",
-    "fogDensity": 0.06,
+    "fogDensity": 0.05,
     "reverb": "metal_corridor",
     "ambience": "pipes_knock"
    },
+   "visibleFrom": [
+    "R09"
+   ],
    "pieces": [
     {
      "kit": "ceiling",
@@ -7043,6 +7531,19 @@
      ]
     },
     {
+     "kit": "wall_panel",
+     "cells": [
+      [
+       9,
+       0,
+       12
+      ]
+     ],
+     "params": {
+      "material": "concrete"
+     }
+    },
+    {
      "kit": "wall_plain",
      "cells": [
       [
@@ -7050,21 +7551,14 @@
        0,
        12
       ]
-     ]
-    },
-    {
-     "kit": "wall_panel",
-     "cells": [
-      [
-       9,
-       0,
-       12
-      ]
      ],
+     "params": {
+      "material": "concrete"
+     },
      "rot": 270
     },
     {
-     "kit": "wall_panel",
+     "kit": "wall_plain",
      "cells": [
       [
        8,
@@ -7072,32 +7566,27 @@
        13
       ]
      ],
+     "params": {
+      "material": "concrete"
+     },
      "rot": 180
     },
     {
      "kit": "wall_panel",
      "cells": [
       [
-       8,
-       0,
-       13
-      ]
-     ],
-     "rot": 90
-    },
-    {
-     "kit": "wall_plain",
-     "cells": [
-      [
        9,
        0,
        13
       ]
      ],
+     "params": {
+      "material": "concrete"
+     },
      "rot": 270
     },
     {
-     "kit": "wall_plain",
+     "kit": "wall_panel",
      "cells": [
       [
        9,
@@ -7105,6 +7594,9 @@
        13
       ]
      ],
+     "params": {
+      "material": "concrete"
+     },
      "rot": 180
     }
    ],
@@ -7122,11 +7614,31 @@
      }
     },
     {
+     "kit": "pump_unit",
+     "pos": [
+      35.6,
+      0,
+      47.2
+     ],
+     "params": {}
+    },
+    {
+     "kit": "pump_unit",
+     "pos": [
+      35.6,
+      0,
+      50
+     ],
+     "params": {
+      "paint": "dark"
+     }
+    },
+    {
      "kit": "console",
      "pos": [
       31.4,
       0,
-      52.6
+      49.8
      ],
      "rot": 270,
      "params": {
@@ -7142,7 +7654,7 @@
      ],
      "params": {
       "length": 7,
-      "height": 0.4,
+      "height": 2.6,
       "paint": "dark"
      }
     },
@@ -7155,26 +7667,153 @@
      ]
     },
     {
-     "kit": "valve",
+     "kit": "emergency_beacon",
      "pos": [
-      36.4,
+      30.3,
+      2.7,
+      48
+     ],
+     "rot": 90,
+     "params": {
+      "wall": true
+     }
+    },
+    {
+     "kit": "emergency_beacon",
+     "pos": [
+      32.8,
+      2.7,
+      46.27
+     ],
+     "rot": 180,
+     "params": {
+      "wall": true
+     }
+    },
+    {
+     "kit": "emergency_beacon",
+     "pos": [
+      35.2,
+      2.7,
+      53.73
+     ],
+     "params": {
+      "wall": true
+     }
+    },
+    {
+     "kit": "pressure_gauge",
+     "pos": [
+      35.2,
       0,
-      49.4
-     ]
+      46.31
+     ],
+     "rot": 180
+    },
+    {
+     "kit": "tag_stencil",
+     "pos": [
+      32,
+      0,
+      53.69
+     ],
+     "params": {
+      "y": 1.7
+     }
+    },
+    {
+     "kit": "cable_tray",
+     "pos": [
+      34,
+      0,
+      54.9
+     ],
+     "params": {
+      "length": 7.2,
+      "drop": 0.3
+     }
+    },
+    {
+     "kit": "pipe_run",
+     "pos": [
+      34,
+      0,
+      45.4
+     ],
+     "params": {
+      "length": 7.2,
+      "height": 2.85,
+      "paint": "teal",
+      "hung": true
+     }
+    },
+    {
+     "kit": "pressure_gauge",
+     "pos": [
+      36.2,
+      0,
+      46.31
+     ],
+     "rot": 180
+    },
+    {
+     "kit": "ambient_loop",
+     "pos": [
+      36.6,
+      2.6,
+      49
+     ],
+     "params": {
+      "sound": "klaxon",
+      "gain": 0.9,
+      "range": 20,
+      "on": "flood:klaxon"
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
-     "pattern": "flicker",
-     "color": "#ffd9a0",
-     "intensity": 7
+     "pattern": "steady",
+     "color": "#ffe2b8",
+     "intensity": 10,
+     "backupScale": 1,
+     "ownColor": true
     },
     {
      "slot": 3,
      "pattern": "steady",
-     "color": "#ffd9a0",
-     "intensity": 6
+     "color": "#ffe2b8",
+     "intensity": 9,
+     "backupScale": 1,
+     "ownColor": true
+    },
+    {
+     "slot": 4,
+     "pattern": "off",
+     "color": "#ff2a1a",
+     "intensity": 12,
+     "range": 14,
+     "id": "r10_beacon",
+     "ownColor": true
+    },
+    {
+     "slot": "emergency",
+     "pattern": "off",
+     "color": "#ff2a1a",
+     "intensity": 12,
+     "range": 14,
+     "id": "r10_beacon_n",
+     "ownColor": true
+    },
+    {
+     "slot": "emergency",
+     "pattern": "off",
+     "color": "#ff2a1a",
+     "intensity": 12,
+     "range": 14,
+     "id": "r10_beacon_s",
+     "ownColor": true
     }
    ],
    "triggers": [
@@ -7196,17 +7835,34 @@
      "emit": "trigger:r10_enter"
     },
     {
+     "id": "trig_r10_ambush",
+     "box": [
+      [
+       30.6,
+       0,
+       45.8
+      ],
+      [
+       33.4,
+       2.2,
+       48.6
+      ]
+     ],
+     "on": "enter",
+     "emit": "trigger:r10_ambush"
+    },
+    {
      "id": "trig_r10_valve",
      "box": [
       [
        36.1,
        0,
-       52.8
+       51.8
       ],
       [
        37.7,
        2.2,
-       54.4
+       53.4
       ]
      ],
      "on": "use",
@@ -7218,10 +7874,19 @@
     {
      "id": "valve_r10",
      "pos": [
-      37.5,
+      37.4,
       1.3,
-      53.6
+      52.6
      ]
+    },
+    {
+     "id": "r10_valve_stand",
+     "pos": [
+      36.3,
+      0,
+      52.6
+     ],
+     "yaw": 270
     },
     {
      "id": "r10_giles",
@@ -7247,6 +7912,40 @@
       33,
       1,
       54.6
+     ]
+    },
+    {
+     "id": "r10_flood_giles",
+     "pos": [
+      31.4,
+      0,
+      50.7
+     ],
+     "yaw": 90
+    },
+    {
+     "id": "r10_flood_okafor",
+     "pos": [
+      32.4,
+      0,
+      51.4
+     ],
+     "yaw": 90
+    },
+    {
+     "id": "r10_flood_view",
+     "pos": [
+      31,
+      1.5,
+      48
+     ]
+    },
+    {
+     "id": "r10_porthole",
+     "pos": [
+      30,
+      1.6,
+      48.5
      ]
     }
    ]
@@ -12402,7 +13101,10 @@
     12
    ],
    "rot": 270,
-   "state": "closed"
+   "state": "closed",
+   "params": {
+    "porthole": true
+   }
   },
   {
    "id": "D_R10_R11",
@@ -12753,8 +13455,8 @@
    "kind": "ammo_pistol",
    "pos": [
     17.2,
-    0.9,
-    49.6
+    -0.25,
+    49.2
    ]
   },
   {
@@ -12889,7 +13591,7 @@
    "id": "cp_flooded",
    "room": "R09",
    "pos": [
-    8.4,
+    6.9,
     0,
     44
    ],

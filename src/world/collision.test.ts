@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_MOTOR, moveBody, type Aabb, type MotorState } from '../actors/motor.ts';
+import * as THREE from 'three';
+import { Rng } from '../core/rng.ts';
+import type { Materials } from '../render/materials.ts';
 import { CollisionWorld } from './collision.ts';
+import { KitRegistry } from './registry.ts';
 
 function floorWorld(): CollisionWorld {
   const w = new CollisionWorld();
@@ -37,6 +41,28 @@ test('the ADR-0004 motor climbs kit stairs (0.25 m steps) through the hash', () 
   const s: MotorState = { x: 0, y: 0, z: 0, vy: 0, grounded: true };
   for (let i = 0; i < 180; i++) moveBody(s, 0, -2.5 / 60, 1 / 60, DEFAULT_MOTOR, w);
   assert.equal(s.y, 2);
+});
+
+test('kit stairs (rise 1.2, run 2.4) build five 0.24 m steps up to a floor_landing, and the motor climbs and descends them', () => {
+  const mats = new Proxy({} as Record<string, THREE.Material>, {
+    get: (t, k: string) => (t[k] ??= Object.assign(new THREE.MeshStandardMaterial(), { name: k })),
+  }) as unknown as Materials;
+  const reg = new KitRegistry({ glb: {} });
+  const rng = new Rng(1);
+  const stairs = reg.create('stairs', { rise: 1.2, run: 2.4, offset: 0.6 }, rng, mats);
+  const landing = reg.create('floor_landing', { rise: 1.2, depth: 1.4 }, rng, mats);
+  const tops = [...new Set(stairs.colliders.filter((c) => c.max[0] - c.min[0] > 2).map((c) => Math.round(c.max[1] * 100) / 100))].sort();
+  assert.deepEqual(tops, [0.24, 0.48, 0.72, 0.96, 1.2]);
+  const w = floorWorld();
+  for (const c of [...stairs.colliders, ...landing.colliders]) w.add(c, 'static', 'metal');
+  const s: MotorState = { x: 0, y: 0, z: 2.5, vy: 0, grounded: true };
+  for (let i = 0; i < 180 && s.z > -1.4; i++) moveBody(s, 0, -2.5 / 60, 1 / 60, DEFAULT_MOTOR, w);
+  assert.ok(s.z <= -1.4, `reached the landing, z=${s.z}`);
+  assert.ok(Math.abs(s.y - 1.2) < 0.01, `on the landing at y=${s.y}`);
+  for (let i = 0; i < 240 && s.z < 2.5; i++) moveBody(s, 0, 2.5 / 60, 1 / 60, DEFAULT_MOTOR, w);
+  for (let i = 0; i < 30; i++) moveBody(s, 0, 0, 1 / 60, DEFAULT_MOTOR, w);
+  assert.ok(s.z >= 2.5, `walked back down, z=${s.z}`);
+  assert.ok(Math.abs(s.y) < 0.01, `back on the floor at y=${s.y}`);
 });
 
 test('raycast returns the nearest hit and skips disabled boxes', () => {

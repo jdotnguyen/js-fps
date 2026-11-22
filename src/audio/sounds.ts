@@ -777,6 +777,35 @@ export const SAMPLE_URLS = {
   footConcrete: [1, 2, 3, 4, 5, 6, 7].map((i) => `assets/audio/footsteps/foot-concrete-${i}.mp3`),
   // Seven boot steps cut from the first ~4 s of freesound_community "metal footsteps" (14727).
   footPlate: [1, 2, 3, 4, 5, 6, 7].map((i) => `assets/audio/footsteps/foot-metal-${i}.mp3`),
+  // Wading in standing water (in-world-audio spec; ElevenLabs, scripts/footsteps-generate.ts): ankle-to-knee and thigh deep.
+  footWadeShallow: [1, 2, 3].map((i) => `assets/audio/footsteps/foot-wade-shallow-${i}.mp3`),
+  footWadeDeep: [1, 2, 3].map((i) => `assets/audio/footsteps/foot-wade-deep-${i}.mp3`),
+  // Splashes (standing-water spec; CC0, rubberduck on OpenGameArt, see CREDITS.md).
+  waterSplashStep: [1, 2, 3].map((i) => `assets/audio/water/splash-step-${i}.mp3`),
+  waterSplashBullet: [1, 2, 3].map((i) => `assets/audio/water/splash-bullet-${i}.mp3`),
+  waterSplashLand: [1, 2, 3].map((i) => `assets/audio/water/splash-land-${i}.mp3`),
+  waterSplashTakeoff: [1, 2].map((i) => `assets/audio/water/splash-takeoff-${i}.mp3`),
+  waterSplashBody: [1, 2].map((i) => `assets/audio/water/splash-body-${i}.mp3`),
+  // The flooded tunnel and pump room (overhaul-flooded-tunnel; ElevenLabs, scripts/ambience-generate.ts).
+  waterSlosh: 'assets/audio/ambience/emitter-water-slosh.mp3',
+  pipePour: 'assets/audio/ambience/emitter-pipe-pour.mp3',
+  waterLap: 'assets/audio/ambience/emitter-water-lap.mp3',
+  pumpRoom: 'assets/audio/ambience/emitter-pump-room.mp3',
+  klaxon: 'assets/audio/ambience/emitter-klaxon.mp3',
+  sparkHiss: [1, 2].map((i) => `assets/audio/ambience/oneshot-spark-hiss-${i}.mp3`),
+  tubeStrike: 'assets/audio/ambience/oneshot-tube-strike.mp3',
+  floodDoorSlam: 'assets/audio/ambience/oneshot-flood-door-slam.mp3',
+  bodyDrip: 'assets/audio/ambience/oneshot-body-drip.mp3',
+  // The flood cutscene: the alarm with the beacon, and the sting as the shambler charges the door.
+  valveTurn: 'assets/audio/ambience/oneshot-valve-turn.mp3',
+  creatureCharge: 'assets/audio/ambience/oneshot-creature-charge.mp3',
+  creatureSeverShriek: 'assets/audio/ambience/oneshot-creature-sever-shriek.mp3',
+  ambushSting: 'assets/audio/ambience/oneshot-ambush-sting.mp3',
+  doorPound: 'assets/audio/ambience/oneshot-door-pound.mp3',
+  alarmBlast: 'assets/audio/ambience/oneshot-alarm-blast.mp3',
+  // One hit on the valve cutscene's slam (impact at 0.9 s, the door's slide), and the elite prying the door at R11.
+  floodSlamHit: 'assets/audio/ambience/oneshot-flood-slam-hit.mp3',
+  doorPry: 'assets/audio/ambience/oneshot-door-pry.mp3',
 
   // Infected-kill body sounds (ElevenLabs, scripts/gore-generate.ts; infection-kills spec, data/kills.json).
   kill_crunch: ['assets/audio/gore/kill-crunch-1.mp3', 'assets/audio/gore/kill-crunch-2.mp3', 'assets/audio/gore/kill-crunch-3.mp3', 'assets/audio/gore/kill-crunch-4.mp3'],

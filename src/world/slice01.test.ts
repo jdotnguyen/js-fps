@@ -248,7 +248,8 @@ test('slice01 critical path: nav-reachable and walkable through the real doors',
       }
     }
     assert.ok(Math.hypot(to.x - body.x, to.z - body.z) < 0.6, `reached ${name}`);
-    assert.ok(Math.abs(body.y) < 0.05, `${name}: feet on the deck (y ${body.y.toFixed(2)})`);
+    // On the floor the anchor stands on: the deck, or a sunken floor (level-kit spec: the R09 sump).
+    assert.ok(Math.abs(body.y - to.y) < 0.05, `${name}: feet on its floor (y ${body.y.toFixed(2)}, anchor ${to.y.toFixed(2)})`);
   };
   const use = (id: string): void => {
     const it = uses.get(id);
@@ -1105,6 +1106,37 @@ test('under backup power every room keeps at least one light, and the post-lab p
   console.log(`[station-power] rooms still on the first-light fallback: ${fallback.join(', ')}`);
 });
 
+// flooded-tunnel spec (overhaul-flooded-tunnel group 7): the R09 sump and the R10 pump room.
+test('R09 is a sump: the water stays below both doors, the landings are out of jump reach, the case is within it', () => {
+  const { level } = build(new Inventory(items));
+  const water = level.water.room('R09');
+  assert.ok(water, 'R09 has standing water');
+  const sump = level.floorAt(10.8, 43);
+  assert.ok(Math.abs(sump - -1.2) < 0.01, `sump floor ${sump}`);
+  assert.ok(Math.abs(water.level - sump - 0.75) < 0.01, 'about 0.75 m deep');
+  for (const [name, x, z] of [['R07 landing', 6.7, 44], ['R10 landing', 29.3, 48]] as const) {
+    const top = level.floorAt(x, z);
+    assert.ok(Math.abs(top) < 0.01, `${name} at deck level (${top})`);
+    assert.ok(water.level < top - 0.3, `${name}: the waterline stays below the threshold`);
+    assert.ok(top - sump > 0.9, `${name}: more than a water jump's reach above the sump floor`);
+  }
+  const caseTop = level.floorAt(17.2, 49.2);
+  assert.ok(caseTop > water.level, `the case stands above the water (${caseTop})`);
+  assert.ok(caseTop - sump <= 0.9, `and within a water jump's reach (${(caseTop - sump).toFixed(2)} m)`);
+  const ammo = data.pickups?.find((p) => p.id === 'S_ammo_r09');
+  assert.ok(ammo && ammo.pos[1] > caseTop && ammo.pos[1] - caseTop < 0.2, 'the ammo lies on the case');
+});
+
+test('the squad and enemies can path from R07 through the sump to the pump room', () => {
+  const { level } = build(new Inventory(items));
+  const doors = (level as unknown as { doors: Array<{ collider: { enabled: boolean } }> }).doors;
+  for (const d of doors) d.collider.enabled = false;
+  const nav = level.navGraph();
+  const path = nav.findPath({ x: 6.8, y: 0, z: 39.1 }, { x: 34, y: 0, z: 50 }, { radius: 0.3 });
+  assert.ok(path, 'a route');
+  assert.ok(path.some((p) => p.y < -1), 'through the sump');
+});
+
 // dive-bay spec "The maintenance corridor is closed from the dive bay".
 test('the Launch Hall door to the maintenance corridor is out of service all game; the corridor still opens onto R11 for the climax', () => {
   const { level, events } = build();
@@ -1124,6 +1156,16 @@ test('the Launch Hall door to the maintenance corridor is out of service all gam
   assert.equal(level.doorStates()['D_R13d_R11'], 'open');
 });
 
+test('`jump=r10_flood` stands Jay at the valve, within reach of its use box', () => {
+  const { level } = build(new Inventory(items));
+  const a = level.anchor('r10_valve_stand');
+  assert.ok(a, 'the jump anchor exists');
+  assert.ok(Math.abs(a.pos.y - level.floorAt(a.pos.x, a.pos.z)) < 0.05, 'on the floor');
+  const valve = data.rooms.find((r) => r.id === 'R10')!.triggers!.find((t) => t.id === 'trig_r10_valve')!;
+  const [min, max] = valve.box;
+  assert.ok(a.pos.x >= min[0] && a.pos.x <= max[0] && a.pos.z >= min[2] && a.pos.z <= max[2], 'inside the valve use box');
+});
+
 // station-power spec "A squad reaction and the PA notice": the notice is heard where the blackout finds the player.
 test('the power-failure notice has a PA speaker in the Lab Junction and in Lab B', () => {
   const { level } = build();
@@ -1131,4 +1173,25 @@ test('the power-failure notice has a PA speaker in the Lab Junction and in Lab B
     const spot = new THREE.Vector3(...at);
     assert.ok(level.paSpeakerAt(spot), `${room} has a PA speaker`);
   }
+});
+
+test('R09 is bare concrete: plain wall tiles only, none with a vent under the water', () => {
+  const walls = data.rooms.find((r) => r.id === 'R09')!.pieces.filter((p) => p.kit.startsWith('wall_') && p.kit !== 'wall_glass_partition');
+  assert.ok(walls.length > 0);
+  for (const w of walls) {
+    assert.equal(w.kit, 'wall_plain');
+    assert.equal(w.params?.['material'], 'concrete');
+  }
+});
+
+// overhaul-flooded-tunnel (playtest): a door a sequence opened stays open until the sequence closes it (no auto-close),
+// so the R09 door stands open through the valve cutscene and the ambush.
+test('an auto door opened by a script holds open with nobody near it', () => {
+  const { level } = build();
+  level.setDoor('D_R09_R10', 'open');
+  const far = new THREE.Vector3(36.3, 1.62, 52.6);
+  for (let i = 0; i < 10 * 60; i++) level.update(i / 60, 1 / 60, far, false);
+  assert.equal(level.doorStates()['D_R09_R10'], 'open');
+  level.setDoor('D_R09_R10', 'sealed');
+  assert.equal(level.doorStates()['D_R09_R10'], 'sealed');
 });

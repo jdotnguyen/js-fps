@@ -57,6 +57,11 @@ function room(id, name, cells, o = {}) {
     name,
     cells,
     height: o.height ?? 3.2,
+    /** Sunken floor below deck level (level-kit spec), and standing water (standing-water spec). */
+    floorY: o.floorY,
+    water: o.water,
+    /** Structural pieces placed by hand on top of the generated tiles (stairs, landings). */
+    extraPieces: o.extraPieces ?? [],
     area: o.area,
     hidden: o.hidden,
     atmosphere: o.atmosphere,
@@ -102,7 +107,7 @@ function door(id, a, b, x, z, side, o = {}) {
   doorEdges.set(edgeKey(x, z, side), id);
   doorEdges.set(edgeKey(nx, nz, OPP[side]), id);
   const d = { id, kit: o.kit ?? 'pressure_slide', between: [a, b], cell: [x, 0, z], rot: WALL_ROT[side], state: o.state ?? 'closed' };
-  for (const k of ['unlockBy', 'task', 'unlockOn', 'access']) if (o[k] !== undefined) d[k] = o[k];
+  for (const k of ['unlockBy', 'task', 'unlockOn', 'access', 'params']) if (o[k] !== undefined) d[k] = o[k];
   doors.push(d);
   return { center: edgeCenter(x, z, side, 1.2) };
 }
@@ -860,53 +865,176 @@ trigger(R07, 'medbay_bang', [[-1.2, 0, 44.7], [1.8, 2.2, 45.75]], 'interact:medb
 trigger(R07a, 'trig_r07_armory', cellBox(2, 2, 10, 10), 'trigger:r07_armory');
 checkpoints.push({ id: 'cp_security', room: 'R07', pos: [0, 0, 40.2], yaw: 180 });
 
-// ---------------------------------------------------------------- R09 flooded tunnel, R10 valve room (tunnel)
-const R09 = room('R09', 'Flooded Maintenance Tunnel', [[2, 11], [3, 11], [4, 11], [4, 12], [5, 12], [6, 12], [7, 12]], {
+// ---------------------------------------------------------------- R09 flooded sump, R10 pump room (tunnel)
+// openspec overhaul-flooded-tunnel: R09's floor sits 1.2 m below deck with 0.75 m of standing water. Stairs fall from
+// the R07 door (cell 2,11, landing on its west edge) and rise to the R10 door (cell 7,12, landing on its east edge).
+// Cell 7,13 is a sump bay under the burst pipe, seen from R10 through a low window.
+const SUMP = -1.2;
+const WATER = -0.45;
+// Open steel grating (task 11.2): the water shows through the landings and between the treads.
+const STAIRS = { rise: 1.2, run: 2.4, offset: 0.6, grate: true };
+const LANDING = { rise: 1.2, depth: 1.4, grate: true };
+const R09 = room('R09', 'Flooded Maintenance Tunnel', [[2, 11], [3, 11], [4, 11], [4, 12], [5, 12], [6, 12], [7, 12], [7, 13]], {
   area: 'tunnel',
   floor: 'floor_grate',
   ceiling: 'ceiling_pipes',
-  walls: ['wall_plain', 'wall_vent', 'wall_plain'],
-  atmosphere: { fog: '#03100f', fogDensity: 0.085, ambient: 'flooded', reverb: 'flooded', ambience: 'water_drip' },
-  lights: [L(0, 'dying', '#9fe8ff', 6), L(2, 'flicker', '#9fe8ff', 5), L(4, 'dying', '#9fe8ff', 5), L(6, 'flicker', '#9fe8ff', 5)],
+  // Bare concrete (task 11.1), plain tiles only so no wall vent sits under the water.
+  walls: ['wall_plain'],
+  wallMaterial: 'concrete',
+  floorY: SUMP,
+  water: {
+    level: WATER,
+    junk: [
+      { kind: 'paper', at: [11.2, 44.7], rot: 20 },
+      { kind: 'paper', at: [11.6, 44.3], rot: 75 },
+      { kind: 'hardhat', at: [13.4, 43.2], rot: 140 },
+      { kind: 'sheen', at: [15.2, 44.4], scale: 1.4 },
+      { kind: 'glove', at: [18.6, 47.0], rot: 200 },
+      { kind: 'cup', at: [21.4, 48.9], rot: 60 },
+      { kind: 'paper', at: [23.2, 47.3], rot: 160 },
+      { kind: 'sheen', at: [25.4, 48.5] },
+      { kind: 'cup', at: [27.6, 51.6], rot: 15 },
+      { kind: 'sheen', at: [28.2, 52.6], scale: 0.8 },
+    ],
+    emitters: [
+      { kind: 'pour', at: [28.4, 52.6], rate: 22, radius: 0.35, strength: -0.012 },
+      { kind: 'drip', at: [11.3, 44.9], rate: 0.45, radius: 0.06, strength: -0.014 },
+      { kind: 'drip', at: [19.1, 47.3], rate: 0.35, radius: 0.06, strength: -0.014 },
+      { kind: 'drip', at: [24.6, 48.9], rate: 0.5, radius: 0.06, strength: -0.014 },
+    ],
+  },
+  extraPieces: [
+    { kit: 'stairs', cell: [2, 0, 11], rot: 90, params: STAIRS },
+    { kit: 'floor_landing', cell: [2, 0, 11], rot: 90, params: LANDING },
+    { kit: 'stairs', cell: [7, 0, 12], rot: 270, params: STAIRS },
+    { kit: 'floor_landing', cell: [7, 0, 12], rot: 270, params: LANDING },
+  ],
+  atmosphere: { fog: '#03100f', fogDensity: 0.07, ambient: 'flooded', reverb: 'flooded', ambience: 'water_drip' },
+  // Failing tubes (render-lighting spec): six pooled at most (Low keeps 12), the rest glow only. The L-bend fixture
+  // is the broken one that sparks; slot 8 is the tube hanging loose (the first prop slot after the eight ceilings).
+  lights: [
+    L(0, 'failing', '#9fe8ff', 6),
+    L(1, 'failing', '#9fe8ff', 4, undefined, { pool: false }),
+    L(2, 'failing', '#9fe8ff', 5),
+    L(3, 'failing', '#bfefff', 6, undefined, { sparks: true }),
+    L(4, 'failing', '#9fe8ff', 4, undefined, { pool: false }),
+    L(5, 'failing', '#9fe8ff', 5),
+    L(6, 'failing', '#9fe8ff', 5),
+    L(7, 'failing', '#9fe8ff', 4, undefined, { pool: false }),
+    L(8, 'failing', '#cfefff', 5),
+    // Red alarm beacons along the tunnel (playtest): they light the sump in red, on main and on backup power.
+    ...['r09_beacon_1', 'r09_beacon_2', 'r09_beacon_3', 'r09_beacon_4', 'r09_beacon_5'].map((id) => L('emergency', 'alarm', '#ff2a1a', 12, 13, { id, ownColor: true })),
+  ],
 });
-for (const [x, z] of R09.cells) prop(R09, 'water_surface', [cx(x), 0, cx(z)], 0, { width: 4, depth: 4, level: 0.45 });
-const R10 = room('R10', 'Valve Room', rect(8, 9, 12, 13), {
+const R10 = room('R10', 'Pump Room', rect(8, 9, 12, 13), {
   area: 'tunnel',
   ceiling: 'ceiling_pipes',
-  atmosphere: { fog: '#040a0a', fogDensity: 0.06, reverb: 'metal_corridor', ambience: 'pipes_knock' },
-  lights: [L(0, 'flicker', '#ffd9a0', 7), L(3, 'steady', '#ffd9a0', 6)],
+  walls: ['wall_plain', 'wall_panel'],
+  wallMaterial: 'concrete',
+  atmosphere: { fog: '#040a0a', fogDensity: 0.05, reverb: 'metal_corridor', ambience: 'pipes_knock' },
+  // Slot 4 is the beacon (the emergency_beacon prop's slot, after the four ceilings): off until the valve turns.
+  lights: [
+    // The pump room runs on its own circuit: fully lit on backup power (playtest: the ambush needs to be seen).
+    L(0, 'steady', '#ffe2b8', 10, undefined, { backupScale: 1, ownColor: true }),
+    L(3, 'steady', '#ffe2b8', 9, undefined, { backupScale: 1, ownColor: true }),
+    L(4, 'off', '#ff2a1a', 12, 14, { id: 'r10_beacon', ownColor: true }),
+    // Two more beacons on the north and south walls so the flood plays in strong red light.
+    L('emergency', 'off', '#ff2a1a', 12, 14, { id: 'r10_beacon_n', ownColor: true }),
+    L('emergency', 'off', '#ff2a1a', 12, 14, { id: 'r10_beacon_s', ownColor: true }),
+  ],
 });
-door('D_R09_R10', 'R09', 'R10', 7, 12, 'e');
+door('D_R09_R10', 'R09', 'R10', 7, 12, 'e', { params: { porthole: true } });
 door('D_R10_R11', 'R10', 'R11', 8, 12, 'n', { kit: 'bulkhead', state: 'locked', unlockBy: 'script', unlockOn: 'valve:r10_main' });
-prop(R09, 'debris_pile', [12, 0, 44.6]);
-prop(R09, 'debris_pile', [20, 0, 48.6]);
-prop(R09, 'crate', [17.2, 0, 49.6], 30, { size: 0.8 });
-prop(R09, 'crate', [25, 0, 49.4], 70, { size: 0.6 });
-prop(R09, 'pipe_run', [10, 0, 45.6], 0, { length: 6, height: 0.8, paint: 'teal' });
+// The overlook: a low window from the pump room down into the sump bay (R09 owns it, so it reaches the sunken floor).
+glass('R09', 7, 13, 'e');
+// R09 dressing (flooded-tunnel spec "The tunnel looks long-flooded").
+prop(R09, 'hanging_tube', [20, SUMP, 48], 0, { amp: 0.14, period: 3.6 });
 prop(R09, 'emergency_beacon', [17.7, 2.6, 46], 270, { wall: true });
+// High on the walls (2.6 m, above even the flooded level): over each flight, along both legs and in the bay.
+for (const [x, z, s, along] of [[2, 11, 's', 0.4], [3, 11, 'n', 1.0], [6, 12, 's', -0.6], [7, 13, 'w', 0]]) {
+  const w = onWall(x, z, s, along, 0.02);
+  prop(R09, 'emergency_beacon', [w.pos[0], 2.6, w.pos[2]], w.rot, { wall: true });
+}
+prop(R09, 'debris_pile', [12, SUMP, 44.6]);
+prop(R09, 'debris_pile', [20.4, SUMP, 49.1]);
+// The steel case with the ammo: wedged against the wall pipe, its top 0.85 m above the sump floor.
+prop(R09, 'crate', [17.2, SUMP, 49.2], 30, { size: 0.85 });
+prop(R09, 'crate', [25, SUMP, 49.4], 70, { size: 0.6 });
+prop(R09, 'pipe_run', [10, SUMP, 45.6], 0, { length: 6, height: 2.0, paint: 'teal' });
+prop(R09, 'pipe_run', [22, SUMP, 49.6], 0, { length: 8, height: 1.15, paint: 'dark' });
+prop(R09, 'chair', [13.6, SUMP, 43.4], 80);
+prop(R09, 'cable_bundle', [24, SUMP, 46.6], 0, { length: 7, height: 0.08 });
+prop(R09, 'burst_pipe', [28.4, SUMP, 52.6], 90, { height: 4.0, fall: 3.25 });
+// Industrial surfaces (tasks 11.3, 11.4): sprayed TAG stencils and depth gauges on the concrete, cable trays and high
+// pipes overhead. Wall stencils stand at 0.4 m (above the water, clear of the sunken-floor check).
+const stencil = (r, x, z, side, along, params) => {
+  const w = onWall(x, z, side, along, 0.02);
+  prop(r, 'tag_stencil', [w.pos[0], 0.4, w.pos[2]], w.rot, params);
+};
+stencil(R09, 3, 11, 'n', 0, { y: 1.2 });
+stencil(R09, 5, 12, 's', 0, { y: 1.2 });
+stencil(R09, 2, 11, 'n', 1.2, { kind: 'depth', y: -0.4 });
+stencil(R09, 7, 12, 'n', -1.2, { kind: 'depth', y: -0.4 });
+prop(R09, 'cable_tray', [13, SUMP, 43.1], 0, { length: 9.6 });
+prop(R09, 'cable_tray', [22.2, SUMP, 49.0], 0, { length: 11.6, drop: 0.45 });
+prop(R09, 'pipe_run', [13, SUMP, 45.3], 0, { length: 9.6, height: 3.95, paint: 'teal', hung: true });
+prop(R09, 'pipe_run', [22, SUMP, 46.7], 0, { length: 11.6, height: 3.9, paint: 'dark', hung: true });
+prop(R09, 'ambient_loop', [12, WATER, 43], 0, { sound: 'waterLap', gain: 0.22, range: 9, float: true });
+prop(R09, 'ambient_loop', [22, WATER, 49], 0, { sound: 'waterLap', gain: 0.22, range: 9, float: true });
+// R10 pump room (flooded-tunnel spec "The pump room overlooks the sump").
 wallProp(R10, 'valve_wheel', 9, 13, 'e', 0.6, { id: 'r10_main' });
-prop(R10, 'console', [31.4, 0, 52.6], 270, { screen: 'status' });
-prop(R10, 'pipe_run', [36, 0, 46.6], 0, { length: 7, height: 0.4, paint: 'dark' });
+prop(R10, 'pump_unit', [35.6, 0, 47.2], 0, {});
+prop(R10, 'pump_unit', [35.6, 0, 50.0], 0, { paint: 'dark' });
+prop(R10, 'console', [31.4, 0, 49.8], 270, { screen: 'status' });
+prop(R10, 'pipe_run', [36, 0, 46.6], 0, { length: 7, height: 2.6, paint: 'dark' });
 prop(R10, 'crate_stack', [33, 0, 54.6], 0);
-prop(R10, 'valve', [36.4, 0, 49.4]);
-anchor(R09, 'r09_entry', [8.4, 0, 44], 270);
-anchor(R09, 'r09_mid', [16, 0, 48], 270);
-anchor(R09, 'ammo_r09', [17.2, 0.9, 49.6]);
-anchor(R10, 'valve_r10', [37.5, 1.3, 53.6]);
-// Beat 6 (Mara moment): the squad waits in the valve room while Jay turns the wheel.
+prop(R10, 'emergency_beacon', [30.3, 2.7, 48.0], 90, { wall: true });
+for (const [x, z, s] of [[8, 12, 'n'], [9, 13, 's']]) {
+  const w = onWall(x, z, s, 0.8, 0.02);
+  prop(R10, 'emergency_beacon', [w.pos[0], 2.7, w.pos[2]], w.rot, { wall: true });
+}
+wallProp(R10, 'pressure_gauge', 9, 12, 'n', -0.8);
+wallProp(R10, 'tag_stencil', 8, 13, 's', 0, { y: 1.7 });
+prop(R10, 'cable_tray', [34, 0, 54.9], 0, { length: 7.2, drop: 0.3 });
+prop(R10, 'pipe_run', [34, 0, 45.4], 0, { length: 7.2, height: 2.85, paint: 'teal', hung: true });
+wallProp(R10, 'pressure_gauge', 9, 12, 'n', 0.2);
+// The klaxon sounds from the valve on (the flood cutscene emits flood:klaxon).
+prop(R10, 'ambient_loop', [36.6, 2.6, 49], 0, { sound: 'klaxon', gain: 0.9, range: 20, on: 'flood:klaxon' });
+anchor(R09, 'r09_entry', [6.9, 0, 44], 270);
+anchor(R09, 'r09_mid', [16, SUMP, 48], 270);
+anchor(R09, 'ammo_r09', [17.2, SUMP + 0.95, 49.2]);
+anchor(R10, 'valve_r10', [37.4, 1.3, 52.6]);
+// Where `?debug&jump=r10_flood` puts Jay: facing the valve wheel.
+anchor(R10, 'r10_valve_stand', [36.3, 0, 52.6], 270);
+// Beat 6: the squad waits in the pump room while Jay turns the wheel.
 anchor(R10, 'r10_giles', [35.4, 0, 52.2], 270);
 anchor(R10, 'r10_okafor', [34.2, 0, 50.6], 300);
 anchor(R10, 'health_r10', [33, 1.0, 54.6]);
-spawn(R09, 'r09_floor_1', [13, 0, 44], 'floor', 'r09_tunnel', { outfit: 'engineer' });
-spawn(R09, 'r09_corpse_1', [16.4, 0, 49.4], 'corpse', 'r09_tunnel', { variant: 'playDead' });
-spawn(R09, 'r09_floor_2', [22, 0, 47.2], 'floor', 'r09_tunnel', { count: 2, interval: 6 });
-spawn(R09, 'r09_corpse_2', [26.6, 0, 48.6], 'corpse', 'r09_tunnel', { variant: 'playDead' });
+// The flood cutscene (flooded-tunnel spec): the squad stands behind Jay at the wheel; the shambler starts in the sump.
+anchor(R10, 'r10_flood_giles', [31.4, 0, 50.7], 90);
+anchor(R10, 'r10_flood_okafor', [32.4, 0, 51.4], 90);
+anchor(R10, 'r10_flood_view', [31.0, 1.5, 48.0]);
+anchor(R10, 'r10_porthole', [30.0, 1.6, 48.5]);
+anchor(R09, 'r09_flood_shambler', [24.4, SUMP, 48.2], 90);
+anchor(R09, 'r09_flood_top', [28.7, 0, 48.2], 90);
+// The ambush: it waits right behind the door, then lunges into the doorway (elbows at the door's plane).
+anchor(R09, 'r09_flood_behind', [28.9, 0, 48.0], 90);
+anchor(R09, 'r09_flood_door', [29.55, 0, 48.0], 90);
+// The elite prying the door open from the middle (design D13): facing the door, blades within reach of the seam.
+anchor(R09, 'r09_pry', [29.5, 0, 48.0], 270);
+spawn(R09, 'r09_floor_1', [13, SUMP, 44], 'floor', 'r09_tunnel', { outfit: 'engineer' });
+// The play-dead corpses float face down (flooded-tunnel spec), just under the surface.
+spawn(R09, 'r09_corpse_1', [16.4, WATER - 0.2, 48.6], 'corpse', 'r09_tunnel', { variant: 'playDead', float: true });
+spawn(R09, 'r09_floor_2', [22, SUMP, 47.2], 'floor', 'r09_tunnel', { count: 2, interval: 6 });
+spawn(R09, 'r09_corpse_2', [24.2, WATER - 0.2, 47.6], 'corpse', 'r09_tunnel', { variant: 'playDead', float: true });
 spawn(R09, 'r09_vent', [19.6, 2.8, 49], 'vent', 'r09_tunnel', { count: 1 });
-trigger(R09, 'trig_r09_enter', cellBox(2, 2, 11, 11), 'trigger:r09_enter');
-trigger(R09, 'trig_r09_mid', cellBox(4, 4, 12, 12), 'trigger:r09_mid');
+trigger(R09, 'trig_r09_enter', [[6.3, -0.2, 42.3], [9.7, 2.6, 45.7]], 'trigger:r09_enter');
+trigger(R09, 'trig_r09_mid', [[14.3, SUMP - 0.1, 46.3], [17.7, 1.6, 49.7]], 'trigger:r09_mid');
 trigger(R10, 'trig_r10_enter', cellBox(8, 8, 12, 12), 'trigger:r10_enter');
-trigger(R10, 'trig_r10_valve', around([36.9, 0, 53.6], 0.8, 2.2), 'valve:r10_main', { on: 'use', prompt: 'Turn valve' });
-checkpoints.push({ id: 'cp_flooded', room: 'R09', pos: [8.4, 0, 44], yaw: 270 });
+// At the R11 bulkhead after the valve: the shambler bursts back through the R09 door.
+trigger(R10, 'trig_r10_ambush', around([32, 0, 47.2], 1.4, 2.2), 'trigger:r10_ambush');
+trigger(R10, 'trig_r10_valve', around([36.9, 0, 52.6], 0.8, 2.2), 'valve:r10_main', { on: 'use', prompt: 'Turn valve' });
+checkpoints.push({ id: 'cp_flooded', room: 'R09', pos: [6.9, 0, 44], yaw: 270 });
 
 // ---------------------------------------------------------------- R11 control room (control)
 const R11 = room('R11', 'Control Room', rect(8, 10, 9, 11), {
@@ -1378,7 +1506,7 @@ async function detectSpawnFields() {
   const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/data/types/level.ts'), 'utf8');
   const m = src.match(/spawnShape\s*=\s*\{([\s\S]*?)\n\};/) ?? src.match(/spawns:\s*optional\(arr\(obj\(\{([^}]*)\}/);
   const body = m ? m[1] : '';
-  return new Set(['group', 'active', 'variant', 'count', 'interval', 'yaw', 'outfit', 'infection', 'model', 'look', 'on'].filter((f) => new RegExp(`\\b${f}\\b`).test(body)));
+  return new Set(['group', 'active', 'variant', 'count', 'interval', 'yaw', 'outfit', 'infection', 'model', 'look', 'on', 'float'].filter((f) => new RegExp(`\\b${f}\\b`).test(body)));
 }
 
 function build() {
@@ -1441,10 +1569,13 @@ function build() {
       if (g.rot) p.rot = g.rot;
       pieces.push(p);
     }
+    for (const p of r.extraPieces) pieces.push(p);
     const o = { id: r.id, name: r.name };
     if (r.area) o.area = r.area;
     if (r.hidden) o.hidden = true;
     if (r.height !== 3.2) o.height = r.height;
+    if (r.floorY !== undefined) o.floorY = r.floorY;
+    if (r.water) o.water = r.water;
     if (r.atmosphere) o.atmosphere = r.atmosphere;
     if (r.visibleFrom) o.visibleFrom = r.visibleFrom;
     o.pieces = pieces;
@@ -1484,7 +1615,8 @@ function build() {
 // Medical Bay's west wall above the console (west-wall beacons face rot 90, as in R06 and R07).
 prop(R02, 'emergency_beacon', [14.3, 3.0, 20], 90, { wall: true });
 prop(R08, 'emergency_beacon', [-5.7, 2.6, 50], 90, { wall: true });
-for (const [r, n] of [[R02, 1], [R05, 1], [R06, 2], [R07, 1], [R08, 1], [R09, 1], [R11, 2]]) for (let i = 0; i < n; i++) r.lights.push(L('emergency', 'off'));
+// R09 authors its own red beacons (overhaul-flooded-tunnel), so it takes no standby beacon here.
+for (const [r, n] of [[R02, 1], [R05, 1], [R06, 2], [R07, 1], [R08, 1], [R11, 2]]) for (let i = 0; i < n; i++) r.lights.push(L('emergency', 'off'));
 
 SPAWN_FIELDS = await detectSpawnFields();
 const level = build();

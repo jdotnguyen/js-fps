@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { addMurk } from '../render/water/murk.ts';
 
 /** Upper bound on bones per humanoid (21 joints + detail hand/twist bones + growths, ribs, tendrils, stumps). */
 export const MAX_BONES = 96;
@@ -22,6 +23,8 @@ export interface BodyUniforms {
   uBulgeAmp: THREE.IUniform<Float32Array>;
   /** A torn-open wound on the front of the body, in bind-pose body space: xyz centre, w radius (0 = none). */
   uTear: THREE.IUniform<THREE.Vector4>;
+  /** World height below which the body is wet from standing water (standing-water spec: Bodies stay wet); DRY when dry. */
+  uWetLine: THREE.IUniform<number>;
 }
 
 /** A textured material for imported body models (one per model material). Textures are shared between bodies. */
@@ -59,6 +62,7 @@ uniform float uDark[${MAX_BONES}];
 uniform vec4 uBulge[${MAX_BULGES}];
 uniform float uBulgeAmp[${MAX_BULGES}];
 uniform vec4 uTear;
+varying float vWetY;
 `;
 
 const VERT_MAIN = /* glsl */ `
@@ -94,6 +98,8 @@ if (uTear.w > 0.0) {
 `;
 
 const FRAG_PARS = /* glsl */ `
+uniform float uWetLine;
+varying float vWetY;
 varying float vSkin;
 varying float vGlow;
 varying float vRot;
@@ -154,7 +160,22 @@ const FRAG_COLOR = /* glsl */ `
 }
 `;
 
+/** uWetLine when dry: far below anything. */
+export const DRY = -1e4;
+
+// World height of the skinned vertex, for the wet line (after skinning, so it follows the legs).
+const VERT_WET = /* glsl */ `
+vWetY = (modelMatrix * vec4(transformed, 1.0)).y;
+`;
+
+// Below the wet line: darker and glossier, with a soft 5 cm edge.
+const FRAG_WET = /* glsl */ `
+float wetK = 1.0 - smoothstep(uWetLine - 0.03, uWetLine + 0.02, vWetY);
+diffuseColor.rgb *= mix(1.0, 0.55, wetK);
+`;
+
 const FRAG_ROUGH = /* glsl */ `
+roughnessFactor = mix(roughnessFactor, 0.14, wetK);
 roughnessFactor = mix(roughnessFactor, 0.32, vSkin * uInfect);
 roughnessFactor = mix(roughnessFactor, mix(0.55, 0.12, inner), gRot);
 roughnessFactor = mix(roughnessFactor, 0.1, clamp(-vRot, 0.0, 1.0));
@@ -173,17 +194,21 @@ function hook(material: THREE.MeshStandardMaterial, uniforms: BodyUniforms, key:
     shader.uniforms.uBulge = uniforms.uBulge;
     shader.uniforms.uBulgeAmp = uniforms.uBulgeAmp;
     shader.uniforms.uTear = uniforms.uTear;
+    shader.uniforms.uWetLine = uniforms.uWetLine;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${VERT_PARS}`)
-      .replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_MAIN}`);
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_MAIN}`)
+      .replace('#include <project_vertex>', `#include <project_vertex>\n${VERT_WET}`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${FRAG_PARS}`)
-      .replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_COLOR}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_COLOR}\n${FRAG_WET}`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n${FRAG_ROUGH}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${FRAG_EMISSIVE}`);
   };
   // Same source for every humanoid, so they share one compiled program per variant.
   material.customProgramCacheKey = () => key;
+  // Legs under standing water fade into it (standing-water spec: Depth makes the water murky).
+  addMurk(material);
 }
 
 /** One set per humanoid: the uniforms (infection, glow, dark limbs) are per body. */
@@ -195,6 +220,7 @@ export function createBodyMaterials(surfaceDefs: Readonly<Record<string, Surface
     uBulge: { value: Array.from({ length: MAX_BULGES }, () => new THREE.Vector4(0, 0, 0, 0)) },
     uBulgeAmp: { value: new Float32Array(MAX_BULGES) },
     uTear: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uWetLine: { value: DRY },
   };
   const body = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0 });
   body.name = 'humanoid-body';

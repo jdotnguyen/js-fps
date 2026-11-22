@@ -173,7 +173,7 @@ interface RoomRuntime {
   height: number;
   group: THREE.Group;
   cells: THREE.Box3[];
-  slots: Array<PooledSlot & { kind: LightSlotKind; backup?: boolean }>;
+  slots: Array<PooledSlot & { kind: LightSlotKind; backup?: boolean; ownColor?: boolean; backupScale?: number }>;
   ticks: Array<(t: number, dt: number) => void>;
   staticMeshes: THREE.Mesh[];
   merger: AoMergeBuilder;
@@ -196,6 +196,13 @@ interface DoorRuntime {
   center: THREE.Vector3;
   /** Seconds the player has been away from an open auto door. */
   away: number;
+  /** Opened by a script: an auto door holds open until the next script state or a load. */
+  held?: boolean;
+  /**
+   * Forced part-open by a script (`doorPry`, level-kit spec): the leaves head to `target` at `rate` (fraction per second)
+   * whatever the door's state. The next state change drops it.
+   */
+  forced?: { target: number; rate: number } | null;
   /** Current leaf motion direction, for emitting `door:move` only on starts and reversals. */
   moving: 'open' | 'close' | null;
   auto: boolean;
@@ -1041,6 +1048,8 @@ export class Level implements World {
         ...(light.pool === false ? { pooled: false } : {}),
         ...(light.shadow === true ? { shadow: true } : {}),
         ...(light.backup === true ? { backup: true } : {}),
+        ...(light.ownColor === true ? { ownColor: true } : {}),
+        ...(light.backupScale !== undefined ? { backupScale: light.backupScale, backup: true } : {}),
         score: 0,
       });
       if (slot.swing) swingRefs.at(-1)!.ref = room.slots[room.slots.length - 1]!;
@@ -1882,7 +1891,32 @@ export class Level implements World {
     this.setDoorState(d, state);
     d.target = state === 'open' ? 1 : 0;
     d.away = 0;
+    d.held = state === 'open';
+    d.forced = null;
     return true;
+  }
+
+  /**
+   * Force a door's leaves to `open` (0..1) over `seconds` without changing its state (`doorPry`, level-kit spec): a sealed
+   * door stays sealed while something pries it. The next `setDoor` closes or opens it from there. False for unknown ids.
+   */
+  pryDoor(id: string, open: number, seconds: number): boolean {
+    const d = this.doors.find((x) => x.data.id === id);
+    if (!d) return false;
+    const target = Math.min(1, Math.max(0, open));
+    if (seconds <= 0) {
+      d.open = target;
+      d.visual.setOpen(target * target * (3 - 2 * target));
+      d.collider.enabled = d.open < 0.6;
+    }
+    d.forced = { target, rate: seconds > 0 ? Math.max(1e-3, Math.abs(target - d.open) / seconds) : Infinity };
+    d.target = target;
+    return true;
+  }
+
+  /** How far each door's leaves are open (0..1), by id: for tests and the debug overlay. */
+  doorOpenness(id: string): number | null {
+    return this.doors.find((x) => x.data.id === id)?.open ?? null;
   }
 
   /**
@@ -1893,6 +1927,8 @@ export class Level implements World {
   resetToData(): void {
     for (const d of this.doors) {
       d.granted = false;
+      d.held = false;
+      d.forced = null;
       this.setDoorState(d, d.data.state);
       d.target = d.state === 'open' ? 1 : 0;
       d.open = d.target;
@@ -2011,14 +2047,16 @@ export class Level implements World {
           }
           continue;
         }
-        s.item.power = isBackup ? BACKUP_LIGHT.scale : 0;
+        s.item.power = isBackup ? (s.backupScale ?? BACKUP_LIGHT.scale) : 0;
         if (!isBackup) continue;
         this.backupSaved.set(s, { color: s.color.clone(), glows: s.item.emissives.map((m) => m.emissive.clone()), range: s.range, pattern: s.item.pattern });
         // An emergency beacon on standby (`off` on main power) comes on when the mains fail.
         if (s.kind === 'emergency' && s.item.pattern === 'off') s.item.pattern = 'steady';
-        s.color.set(BACKUP_LIGHT.color);
-        for (const m of s.item.emissives) m.emissive.set(BACKUP_LIGHT.color);
-        s.range *= BACKUP_LIGHT.range;
+        if (!s.ownColor) {
+          s.color.set(BACKUP_LIGHT.color);
+          for (const m of s.item.emissives) m.emissive.set(BACKUP_LIGHT.color);
+        }
+        if (s.backupScale === undefined) s.range *= BACKUP_LIGHT.range;
       }
     }
     this.deps.events.emit('power:changed', { state });
@@ -2165,7 +2203,7 @@ export class Level implements World {
           this.openDoor(d);
         }
         else if (d.state === 'closed' && actor < 1.8) this.openDoor(d);
-        else if (d.state === 'open') {
+        else if (d.state === 'open' && !d.held) {
           // Hold open until the leaves finish opening and nobody is nearby for AUTO_DOOR_HOLD seconds.
           d.away = d.open >= 1 && dist > AUTO_CLOSE_PLAYER_DIST && actor > AUTO_CLOSE_ACTOR_DIST ? d.away + dt : 0;
           if (d.away >= AUTO_DOOR_HOLD) {
@@ -2175,12 +2213,14 @@ export class Level implements World {
         }
       }
       if (d.state !== 'open' && d.target > 0) d.target = 0;
+      // A pried door holds its forced opening whatever its state.
+      if (d.forced) d.target = d.forced.target;
       // Never close on the player standing in the doorway: auto doors smoothly re-open, sealed/manual doors pause.
       if (d.target === 0 && d.open > 0 && dist < 0.9) {
         if (d.auto && this.doorAccessOpen(d)) this.openDoor(d);
         else d.target = d.open;
       }
-      const speed = dt / d.visual.travelTime;
+      const speed = d.forced ? dt * d.forced.rate : dt / d.visual.travelTime;
       if (d.open !== d.target) {
         const dir: 'open' | 'close' = d.open < d.target ? 'open' : 'close';
         if (d.moving !== dir) {

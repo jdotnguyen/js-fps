@@ -32,8 +32,10 @@ export interface DoorVisual {
   setOpen(f: number): void;
   /** Collider while closed, in piece space. */
   closedBox: BoxSpec;
-  /** Glass doors let you see the next room even when shut. */
+  /** Glass doors let you see the next room even when shut (and sound passes as through glass). */
   seeThrough: boolean;
+  /** A pressure door with a porthole (level-kit spec): the next room is drawn through it when shut, but it blocks sound like any door. */
+  porthole: boolean;
   /** Seconds for a full open or close. */
   travelTime: number;
   tick(t: number): void;
@@ -56,7 +58,27 @@ function mergedLeaf(build: (mb: AoMergeBuilder) => void, name: string): THREE.Gr
   return mb.build(name, null);
 }
 
-export function buildDoor(kit: DoorKit, height: number, state: () => DoorState, _rng: Rng, m: Materials, areas?: DoorAreas): DoorVisual {
+/** Porthole on the +X leaf of a pressure door: centre height above the floor and glass radius (m). */
+export const PORTHOLE = { y: 1.6, r: 0.15 } as const;
+
+/** A pressure-door leaf (1.02 x 2.4 x 0.14) with a round hole through it for a porthole, centred at leaf-local (0, cy). */
+function portholeLeafGeometry(cy: number, r: number): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.51, -1.2);
+  shape.lineTo(0.51, -1.2);
+  shape.lineTo(0.51, 1.2);
+  shape.lineTo(-0.51, 1.2);
+  shape.closePath();
+  const hole = new THREE.Path();
+  hole.absarc(0, cy, r + 0.02, 0, PI * 2, true);
+  shape.holes.push(hole);
+  const g = new THREE.ExtrudeGeometry(shape, { depth: 0.14, bevelEnabled: false, curveSegments: 24 });
+  g.translate(0, 0, -0.07);
+  return g;
+}
+
+export function buildDoor(kit: DoorKit, height: number, state: () => DoorState, _rng: Rng, m: Materials, areas?: DoorAreas, opts?: { porthole?: boolean }): DoorVisual {
+  const porthole = kit === 'pressure_slide' && opts?.porthole === true;
   const pb = new PieceBuilder();
   const frontPal: AreaPalette | undefined = areas?.front ? AREA_PALETTES[areas.front] : undefined;
   const backPal: AreaPalette | undefined = areas?.back ? AREA_PALETTES[areas.back] : undefined;
@@ -108,13 +130,26 @@ export function buildDoor(kit: DoorKit, height: number, state: () => DoorState, 
           mb.add(rounded(0.08, 2.4, 0.12, 0.02), m.steel, at(0.47, 0, 0));
           mb.add(slab(0.86, 0.06, 0.104), glassBarMat, at(0, -0.15, 0));
         } else {
-          mb.add(rounded(1.02, 2.4, 0.14, 0.03), leafMat, at(0, 0, 0));
+          // The porthole sits in the +X leaf; that leaf drops its sign plate and grab rail to clear the glass.
+          const holed = porthole && s > 0;
+          const cy = PORTHOLE.y - 1.2;
+          mb.add(holed ? portholeLeafGeometry(cy, PORTHOLE.r) : rounded(1.02, 2.4, 0.14, 0.03), leafMat, at(0, 0, 0));
           mb.add(rounded(0.06, 2.4, 0.18, 0.02), m.steel, at(-s * 0.48, 0, 0));
           for (const fz of [-1, 1]) {
             mb.add(slab(0.96, 0.22, 0.02), m.steelBrushed, at(0, -0.98, fz * 0.075));
             mb.add(slab(0.055, 0.14, 0.02), m.hazardClean, at(-s * 0.48, 0.2, fz * 0.095));
-            mb.add(slab(0.3, 0.16, 0.02), m.black, at(s * 0.1, 0.7, fz * 0.075));
-            mb.add(rounded(0.7, 0.05, 0.03, 0.01), m.steel, at(0, 0.3, fz * 0.08));
+            if (holed) {
+              // Bolted ring round the glass on each face.
+              mb.add(new THREE.TorusGeometry(PORTHOLE.r + 0.03, 0.025, 8, 32), m.steel, at(0, cy, fz * 0.075));
+              for (let k = 0; k < 8; k++) {
+                const a = (k * PI) / 4;
+                const rr = PORTHOLE.r + 0.03;
+                mb.add(new THREE.CylinderGeometry(0.012, 0.012, 0.02, 6), m.steelBrushed, at(Math.cos(a) * rr, cy + Math.sin(a) * rr, fz * 0.1, PI / 2, 0, 0));
+              }
+            } else {
+              mb.add(slab(0.3, 0.16, 0.02), m.black, at(s * 0.1, 0.7, fz * 0.075));
+              mb.add(rounded(0.7, 0.05, 0.03, 0.01), m.steel, at(0, 0.3, fz * 0.08));
+            }
           }
         }
       }, `slide-leaf-${s}`);
@@ -124,12 +159,21 @@ export function buildDoor(kit: DoorKit, height: number, state: () => DoorState, 
         pane.renderOrder = 3;
         leaf.add(pane);
       }
+      if (porthole && s > 0) {
+        const pane = new THREE.Mesh(new THREE.CircleGeometry(PORTHOLE.r + 0.02, 32), m.glass);
+        pane.name = 'door-porthole-glass';
+        pane.position.set(0, PORTHOLE.y - 1.2, 0);
+        pane.renderOrder = 3;
+        leaf.add(pane);
+      }
       const closedX = s * 0.5;
       leaf.position.set(closedX, 1.2, Z);
       leaves.add(leaf);
     }
+    // Only the two leaves slide; the jamb status screens added to `leaves` below stay on the jamb.
+    const slide = [...leaves.children];
     setOpen = (f) => {
-      leaves.children.forEach((leaf, i) => {
+      slide.forEach((leaf, i) => {
         const s = i === 0 ? -1 : 1;
         leaf.position.x = s * (0.5 + f * 0.98);
       });
@@ -152,6 +196,7 @@ export function buildDoor(kit: DoorKit, height: number, state: () => DoorState, 
     setOpen,
     closedBox: { min: [-1, 0, Z - 0.14], max: [1, 2.4, Z + 0.14] },
     seeThrough: kit === 'glass_slide',
+    porthole,
     travelTime,
     tick: (t) => screen.update(t),
   };

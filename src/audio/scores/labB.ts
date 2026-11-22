@@ -12,6 +12,8 @@
  *   voice      wordless formant choir, oo <-> ah, cluster     the glass, the arch; nearing R05
  *   brutal     impacts, cracks, low brass b2/tritone, scrape  the arch; the fight
  *   hold       sparse pads with gaps, groans, a high note     after the burst; the walk
+ *
+ * The R10 flood cutscene reuses it (`floodAlarm`, `floodCharge`, `floodHold`, `floodOut`): the same creature music.
  */
 import type { Rng } from '../../core/rng.ts';
 import { Biquad, OnePole, TAU, white } from '../dsp.ts';

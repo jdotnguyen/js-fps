@@ -105,7 +105,7 @@
    },
    {
     "do": "wait",
-    "s": 2.0
+    "s": 2
    },
    {
     "do": "say",
@@ -113,7 +113,7 @@
    },
    {
     "do": "wait",
-    "s": 4.0
+    "s": 4
    },
    {
     "do": "say",
@@ -138,6 +138,7 @@
    "unless": "valve_done"
   },
   "resumeFromCheckpoint": true,
+  "skippableAfter": "flood_cutscene",
   "debugSetup": {
    "flags": {
     "station_power": "backup",
@@ -148,9 +149,63 @@
   },
   "steps": [
    {
+    "do": "playerControl",
+    "move": "locked",
+    "look": "locked",
+    "weapons": false,
+    "interact": false,
+    "flashlight": false
+   },
+   {
+    "do": "playerFrame",
+    "target": "anchor:valve_r10",
+    "duration": 0.6
+   },
+   {
+    "do": "sfx",
+    "id": "valveTurn",
+    "at": "anchor:valve_r10"
+   },
+   {
+    "do": "doorState",
+    "id": "D_R09_R10",
+    "state": "open"
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "giles",
+    "to": "anchor:r10_flood_giles",
+    "whenUnseen": true
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "okafor",
+    "to": "anchor:r10_flood_okafor",
+    "whenUnseen": true
+   },
+   {
+    "do": "despawnGroup",
+    "group": "r09_tunnel"
+   },
+   {
+    "do": "spawn",
+    "npc": "r09_flood_shambler",
+    "kind": "flood_elite",
+    "at": "anchor:r09_flood_shambler"
+   },
+   {
+    "do": "score",
+    "id": "labB",
+    "load": true
+   },
+   {
+    "do": "wait",
+    "s": 3
+   },
+   {
     "do": "cameraShake",
     "amount": 0.25,
-    "s": 1.4
+    "s": 1.2
    },
    {
     "do": "sfx",
@@ -163,38 +218,187 @@
     "at": "anchor:valve_r10"
    },
    {
-    "do": "npcMoveTo",
-    "npc": "giles",
-    "to": "anchor:r10_giles"
+    "do": "wait",
+    "s": 1
    },
    {
-    "do": "npcMoveTo",
-    "npc": "okafor",
-    "to": "anchor:r10_okafor"
+    "do": "light",
+    "id": "r10_beacon",
+    "pattern": "alarm",
+    "tint": "emergency"
+   },
+   {
+    "do": "light",
+    "id": "r10_beacon_n",
+    "pattern": "alarm",
+    "tint": "emergency"
+   },
+   {
+    "do": "light",
+    "id": "r10_beacon_s",
+    "pattern": "alarm",
+    "tint": "emergency"
+   },
+   {
+    "do": "emit",
+    "event": "flood:klaxon"
+   },
+   {
+    "do": "sfx",
+    "id": "alarmBlast"
+   },
+   {
+    "do": "score",
+    "id": "labB",
+    "cue": "floodAlarm"
    },
    {
     "do": "wait",
-    "s": 2.0
+    "s": 1.6
    },
    {
-    "do": "say",
-    "line": "valve_giles_01"
+    "parallel": [
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "say",
+        "line": "flood_okafor_01"
+       },
+       {
+        "do": "say",
+        "line": "flood_okafor_02",
+        "wait": false
+       },
+       {
+        "do": "wait",
+        "s": 0.5
+       },
+       {
+        "do": "doorState",
+        "id": "D_R09_R10",
+        "state": "sealed"
+       },
+       {
+        "do": "sfx",
+        "id": "floodSlamHit",
+        "gain": 1.4
+       },
+       {
+        "do": "sfx",
+        "id": "floodDoorSlam",
+        "at": "anchor:r10_porthole",
+        "gain": 4
+       },
+       {
+        "do": "wait",
+        "s": 0.9
+       },
+       {
+        "do": "cameraShake",
+        "amount": 0.35,
+        "s": 0.5
+       },
+       {
+        "do": "score",
+        "id": "labB",
+        "cue": "floodHold"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "playerFrame",
+        "target": "anchor:r10_porthole",
+        "duration": 1.2,
+        "wait": true
+       },
+       {
+        "do": "wait",
+        "s": 1.2
+       },
+       {
+        "do": "sfx",
+        "id": "creatureCharge",
+        "at": "anchor:r09_flood_top",
+        "gain": 6
+       },
+       {
+        "do": "score",
+        "id": "labB",
+        "cue": "floodCharge"
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "r09_flood_shambler",
+        "to": "anchor:r09_flood_behind",
+        "speed": 2.7,
+        "wait": true
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "do": "sfx",
+    "id": "doorPound",
+    "at": "anchor:r10_porthole",
+    "gain": 5
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.3,
+    "s": 0.6
    },
    {
     "do": "wait",
-    "s": 1.5
+    "s": 1.4
+   },
+   {
+    "do": "sfx",
+    "id": "doorPound",
+    "at": "anchor:r10_porthole",
+    "gain": 4
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.2,
+    "s": 0.4
+   },
+   {
+    "do": "wait",
+    "s": 1.6
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "r09_flood_shambler",
+    "to": "anchor:r09_flood_shambler",
+    "speed": 1
+   },
+   {
+    "do": "wait",
+    "s": 1.2
+   },
+   {
+    "do": "score",
+    "id": "labB",
+    "cue": "hold"
+   },
+   {
+    "do": "playerFrame",
+    "clear": true
+   },
+   {
+    "do": "playerControl",
+    "reset": true
    },
    {
     "do": "say",
-    "line": "valve_quiet_giles_01"
-   },
-   {
-    "do": "say",
-    "line": "valve_quiet_giles_02"
-   },
-   {
-    "do": "say",
-    "line": "valve_quiet_okafor_01"
+    "line": "flood_giles_02"
    },
    {
     "do": "npcAnim",
@@ -218,6 +422,238 @@
     "do": "checkpoint",
     "id": "cp_valve",
     "label": "Valve Room"
+   },
+   {
+    "do": "score",
+    "id": "labB",
+    "cue": "floodOut"
+   }
+  ]
+ },
+ {
+  "id": "flood_restore",
+  "trigger": {
+   "event": "game:mode",
+   "match": {
+    "mode": "playing"
+   },
+   "requires": "valve_done"
+  },
+  "steps": [
+   {
+    "do": "doorState",
+    "id": "D_R09_R10",
+    "state": "sealed"
+   },
+   {
+    "do": "light",
+    "id": "r10_beacon",
+    "pattern": "alarm",
+    "tint": "emergency"
+   },
+   {
+    "do": "light",
+    "id": "r10_beacon_n",
+    "pattern": "alarm",
+    "tint": "emergency"
+   },
+   {
+    "do": "light",
+    "id": "r10_beacon_s",
+    "pattern": "alarm",
+    "tint": "emergency"
+   },
+   {
+    "do": "emit",
+    "event": "flood:klaxon"
+   }
+  ]
+ },
+ {
+  "id": "r10_ambush",
+  "trigger": {
+   "event": "trigger:r10_ambush",
+   "requires": "valve_done",
+   "unless": "ambush_done"
+  },
+  "debugSetup": {
+   "flags": {
+    "station_power": "backup",
+    "sec_done": true,
+    "medlab_open": true,
+    "tunnel_started": true,
+    "valve_done": true
+   }
+  },
+  "steps": [
+   {
+    "do": "setFlag",
+    "flag": "ambush_done",
+    "value": true
+   },
+   {
+    "do": "despawn",
+    "npc": "r09_flood_shambler"
+   },
+   {
+    "do": "spawn",
+    "npc": "r09_flood_shambler",
+    "kind": "flood_elite",
+    "at": "anchor:r09_pry"
+   },
+   {
+    "do": "playerControl",
+    "move": "locked",
+    "look": "locked",
+    "weapons": false,
+    "interact": false
+   },
+   {
+    "do": "npcAnim",
+    "npc": "r09_flood_shambler",
+    "anim": "pry_reach"
+   },
+   {
+    "do": "sfx",
+    "id": "doorPound",
+    "at": "anchor:r10_porthole",
+    "gain": 6
+   },
+   {
+    "do": "sfx",
+    "id": "ambushSting",
+    "gain": 1.6
+   },
+   {
+    "do": "doorPry",
+    "id": "D_R09_R10",
+    "open": 0.06,
+    "s": 0.15
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.3,
+    "s": 0.4
+   },
+   {
+    "do": "playerFrame",
+    "target": "anchor:r10_porthole",
+    "duration": 0.35
+   },
+   {
+    "do": "wait",
+    "s": 0.5
+   },
+   {
+    "do": "npcAnim",
+    "npc": "r09_flood_shambler",
+    "anim": "pry_clamp"
+   },
+   {
+    "do": "wait",
+    "s": 0.4
+   },
+   {
+    "do": "npcAnim",
+    "npc": "r09_flood_shambler",
+    "anim": "pry_wrench"
+   },
+   {
+    "do": "sfx",
+    "id": "doorPry",
+    "at": "anchor:r09_flood_door",
+    "gain": 5
+   },
+   {
+    "do": "sfx",
+    "id": "creatureCharge",
+    "at": "anchor:r09_flood_door",
+    "gain": 5
+   },
+   {
+    "do": "doorPry",
+    "id": "D_R09_R10",
+    "open": 0.3,
+    "s": 1.1
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.25,
+    "s": 1.1
+   },
+   {
+    "do": "wait",
+    "s": 1.1
+   },
+   {
+    "do": "sfx",
+    "id": "floodDoorSlam",
+    "at": "anchor:r10_porthole",
+    "gain": 4
+   },
+   {
+    "do": "wait",
+    "s": 0.63
+   },
+   {
+    "do": "doorState",
+    "id": "D_R09_R10",
+    "state": "sealed"
+   },
+   {
+    "do": "wait",
+    "s": 0.27
+   },
+   {
+    "do": "npcSever",
+    "npc": "r09_flood_shambler",
+    "regions": [
+     "foreArm_L",
+     "foreArm_R"
+    ],
+    "dir": [
+     1,
+     0.3,
+     0
+    ]
+   },
+   {
+    "do": "sfx",
+    "id": "creatureSeverShriek",
+    "at": "anchor:r09_flood_door",
+    "gain": 6
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.4,
+    "s": 0.6
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "r09_flood_shambler",
+    "to": "anchor:r09_flood_shambler",
+    "speed": 2.5
+   },
+   {
+    "do": "wait",
+    "s": 1.6
+   },
+   {
+    "do": "say",
+    "line": "flood_okafor_03",
+    "wait": false
+   },
+   {
+    "do": "wait",
+    "s": 0.8
+   },
+   {
+    "do": "playerFrame",
+    "clear": true
+   },
+   {
+    "do": "playerControl",
+    "reset": true
    }
   ]
  }

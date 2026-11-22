@@ -22,11 +22,13 @@ import type { Level } from '../world/level.ts';
 import type { World } from '../world/world.ts';
 import type { NpcDirector } from '../ai/npcs.ts';
 import { RadioPlayer } from '../audio/radio.ts';
-import type { CameraFeedOptions, ScriptSpeechOptions, SequenceHost } from './host.ts';
+import { WATER_FLAG, type CameraFeedOptions, type ScriptSpeechOptions, type SequenceHost } from './host.ts';
 import type { TargetRef, Vec3Like } from './types.ts';
 
 export interface GameHostDeps {
   events: EventBus;
+  /** Per-slot record of watched cutscenes (sequence `skippableAfter`). */
+  saves?: { seen(slot: number): Set<string>; markSeen(slot: number, id: string): void } | undefined;
   game: Game;
   player: Player;
   world: World;
@@ -109,6 +111,8 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
     get flags() {
       return d.game.flags;
     },
+    seen: (id) => d.saves?.seen(d.game.slot).has(id) ?? false,
+    markSeen: (id) => d.saves?.markSeen(d.game.slot, id),
     warn: (message) => console.warn(`[seq] ${message}`),
 
     resolve(target: TargetRef): Vec3Like | null {
@@ -176,11 +180,22 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
 
     setDoor: (id, state) => d.level?.setDoor(id, state as DoorState) ?? false,
     doorStates: () => d.level?.doorStates() ?? {},
-    setPower: (state) => d.level?.setPower(state),
+    pryDoor: (id, open, seconds) => d.level?.pryDoor(id, open, seconds) ?? false,
     setLight: (room, pattern, tint) => {
       const ok = d.level?.setRoomLights(room, pattern as LightPattern) ?? false;
       if (tint !== undefined) d.level?.tintRoomLights(room, tint);
       return ok;
+    },
+    light: (id, pattern, tint) => d.level?.setLight(id, pattern as LightPattern, tint) ?? false,
+    setPower: (state) => d.level?.setPower(state),
+    cameraShake: (amount, seconds) => d.events.emit('camera:shake', { amount, seconds }),
+    water: (room, level, seconds) => {
+      const body = d.level?.water.room(room);
+      if (!body) return false;
+      body.setLevel(level, seconds);
+      // Checkpoint saves carry the level as a flag (standing-water spec: water level survives checkpoints).
+      d.game.flags[WATER_FLAG + room] = level;
+      return true;
     },
     // Glass partitions (`glass_cracks` props listen), ADR-0014 beat 2.
     glass: (id, state) => d.events.emit('glass:set' as EventName, { id, state } as never),
@@ -227,7 +242,8 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
           return;
         }
         // Sequence sounds play as authored, never muffled by walls (in-world-audio: World sound occlusion).
-        d.audio.play(id as SoundName, at ? { position: v3(at), occlude: false } : {});
+        const gain = opts?.gain !== undefined ? { gain: opts.gain } : {};
+        d.audio.play(id as SoundName, at ? { position: v3(at), occlude: false, ...gain } : gain);
       };
       // adaptive-music: a step that asks for the beat waits for the score's next one (at most a beat).
       const delay = opts?.beat && d.score ? d.score.untilBeat() : 0;

@@ -164,3 +164,70 @@ test('Humanoid fires alternating left/right footstep events synced to walking mo
     assert.ok(Number.isFinite(s.x) && Number.isFinite(s.z));
   }
 });
+
+// in-world-audio spec (overhaul-flooded-tunnel): footsteps, slosh and landings in standing water.
+function waterRig(depth: (y: number) => number) {
+  const { engine, played } = makeFakeAudio(3);
+  const loops: Array<{ name: SoundName; gains: number[]; stopped: boolean }> = [];
+  engine.loop = (name) => {
+    const l = { name, gains: [] as number[], stopped: false };
+    loops.push(l);
+    return { setGain: (v: number) => void l.gains.push(v), stop: () => void (l.stopped = true), setPosition: () => undefined };
+  };
+  const later: Array<() => void> = [];
+  const fs = new FootstepAudio({
+    audio: engine,
+    rng: new Rng('wade'),
+    listener: () => new THREE.Vector3(0, 1.6, 0),
+    surfaceAt: () => 'water',
+    waterDepth: (_x, y) => depth(y),
+    later: (fn) => void later.push(fn),
+  });
+  return { fs, played, loops, later };
+}
+
+test('walking down stairs into water: the first submerged step splashes, then wading steps, heavier when deeper', () => {
+  const { fs, played } = waterRig((y) => Math.max(0, -0.45 - y));
+  for (const y of [0, -0.24, -0.48, -0.72, -0.96, -1.2]) fs.playPlayer({ surface: -0.45 - y > 0.02 ? 'water' : 'metal', x: 0, y, z: 0, sprint: false });
+  const names = played.map((p) => p.name);
+  assert.deepEqual(names.filter((n) => n === 'waterSplashStep').length, 1, 'one splash, on the first wet step');
+  assert.equal(names.indexOf('waterSplashStep'), names.indexOf('footWadeShallow') - 1, 'the splash comes with the first wading step');
+  assert.ok(names.includes('footWadeDeep'), 'thigh-deep steps use the deep bank');
+  assert.equal(names[names.length - 1], 'footWadeDeep');
+  assert.ok(played.every((p) => p.opts.cutoff === undefined), 'real wading sounds, not a muffled concrete step');
+});
+
+test('a jump from the water onto a dry case: takeoff splash, then the case\'s landing step, then drips', () => {
+  const { fs, played, later } = waterRig((y) => Math.max(0, -0.45 - y));
+  fs.waterJump(0, -1.2, 0);
+  fs.playPlayer({ surface: 'metal', x: 0, y: -0.35, z: 0, sprint: false, landing: true });
+  assert.deepEqual(played.map((p) => p.name), ['waterSplashTakeoff', 'footPlate']);
+  assert.equal(later.length, 1);
+  later[0]!();
+  assert.equal(played.at(-1)!.name, 'bodyDrip');
+});
+
+test('dropping from the case back into the water: a landing splash and no dry landing step', () => {
+  const { fs, played } = waterRig((y) => Math.max(0, -0.45 - y));
+  fs.playPlayer({ surface: 'water', x: 0, y: -1.2, z: 0, sprint: false, landing: true });
+  assert.deepEqual(played.map((p) => p.name), ['waterSplashLand']);
+});
+
+test('wading slosh follows speed and fades out within about half a second of stopping', () => {
+  const { fs, loops } = waterRig(() => 0.75);
+  for (let i = 0; i < 30; i++) fs.slosh('player', 0, -1.2, 0, 1.6, 1 / 60);
+  assert.equal(loops.length, 1);
+  assert.equal(loops[0]!.name, 'waterSlosh');
+  const moving = loops[0]!.gains.at(-1)!;
+  assert.ok(moving > 0.1, `audible while wading (${moving})`);
+  fs.slosh('player', 0, -1.2, 0, 0, 1 / 60);
+  assert.equal(loops[0]!.gains.at(-1), 0, 'stopping targets silence (0.12 s time constant: ~0.5 s to fade)');
+  for (let i = 0; i < 120; i++) fs.slosh('player', 0, -1.2, 0, 0, 1 / 60);
+  assert.equal(loops[0]!.stopped, true, 'the loop is released after a while idle');
+});
+
+test('another body\'s slosh is cut beyond footstep range', () => {
+  const { fs, loops } = waterRig(() => 0.75);
+  fs.slosh('far', FOOTSTEP_MAX_DISTANCE + 5, -1.2, 0, 1.5, 1 / 60);
+  assert.equal(loops.length, 0);
+});

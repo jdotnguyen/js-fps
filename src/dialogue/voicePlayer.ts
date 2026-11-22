@@ -220,7 +220,7 @@ export class WebAudioVoicePlayer implements VoicePlayer {
       return { ...(recordedBuf ? { duration: recordedBuf.duration } : {}), stop() {} };
     }
     const src = new AudioBufferSourceNode(ctx, { buffer });
-    const lineGain = new GainNode(ctx, { gain: isPa ? 0.58 : 1 });
+    const lineGain = new GainNode(ctx, { gain: (isPa ? 0.58 : 1) * (req.line.gain ?? 1) });
     const nodes: AudioNode[] = [src, lineGain];
 
     // Subtle vocal grit when runtime rasp is raised on a recorded clip (Giles foreshadowing).

@@ -121,3 +121,14 @@ test('shipped difficulty.json is valid', () => {
   assert.equal(t.story.revivesPerCheckpoint, null);
   assert.ok(t.survival.playerDamageTaken > t.story.playerDamageTaken);
 });
+
+test('watched cutscenes are kept per slot beside the saves: writing or loading an earlier save never forgets them', () => {
+  const mem = new Map<string, string>();
+  const store = new SaveStore({ get: (k: string) => mem.get(k) ?? null, set: (k: string, v: string) => void mem.set(k, v), remove: (k: string) => void mem.delete(k) } as never);
+  store.markSeen(0, 'flood_cutscene');
+  store.write(sample({ slot: 0 }));
+  assert.ok(store.seen(0).has('flood_cutscene'));
+  assert.equal(store.seen(1).has('flood_cutscene'), false, 'per slot');
+  store.clearSlot(0);
+  assert.equal(store.seen(0).size, 0, 'a new game in the slot starts fresh');
+});

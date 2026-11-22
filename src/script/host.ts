@@ -6,6 +6,9 @@
  */
 import type { Scalar, Flags, TargetRef, Vec3Like } from './types.ts';
 
+/** Flag prefix that records a room's standing-water level for checkpoint saves (`water:R09` = 2.2). */
+export const WATER_FLAG = 'water:';
+
 /** Flag that records station power for checkpoint saves (station-power spec): `mains` or `backup`. */
 export const POWER_FLAG = 'station_power';
 
@@ -106,10 +109,10 @@ export interface SequenceHost {
 
   setDoor?(id: string, state: string): boolean;
   doorStates?(): Record<string, string>;
+  /** `doorPry` (level-kit spec): force a door's leaves to `open` (0..1) over `seconds`, keeping its state. False for unknown ids. */
+  pryDoor?(id: string, open: number, seconds: number): boolean;
   /** `tint`: "emergency", "none" (level colours) or "#rrggbb"; omitted keeps the current colour. */
   setLight?(room: string, pattern: string, tint?: string): boolean;
-  /** Station power (station-power spec): every room on main or backup lights. */
-  setPower?(state: 'mains' | 'backup'): void;
   lightStates?(): Record<string, string>;
   glass?(id: string, state: string): void;
   /** Security camera feed (render-to-texture, `render/cameraFeed.ts`). */
@@ -118,9 +121,17 @@ export interface SequenceHost {
   gore?(kind: 'burst' | 'chunks' | 'pool' | 'splash', at: Vec3Like, dir: Vec3Like, count: number | undefined, size: number | undefined, clip?: { axis: 'x' | 'y' | 'z'; at: number; keep: 'above' | 'below' }): void;
   /** Black title card over the game for `seconds`, then it fades (`titleCard` action). */
   titleCard?(title: string, sub: string, seconds: number): void;
-  water?(level: number, seconds: number): void;
+  /** A room's standing water (standing-water spec): to `level` at once or over `seconds`. False when the room has no water. */
+  water?(room: string, level: number, seconds: number): boolean;
+  /** Cutscenes watched to the end in this save slot (`skippableAfter`); kept outside checkpoints. */
+  seen?(id: string): boolean;
+  markSeen?(id: string): void;
+  /** One named light (render-lighting spec): pattern and optional tint. False when no light has that id. */
+  light?(id: string, pattern: string, tint?: string): boolean;
+  /** Station power (station-power spec): every room on main or backup lights. */
+  setPower?(state: 'mains' | 'backup'): void;
   /** `beat`: wait for the score's next beat (adaptive-music spec). */
-  sfx?(id: string, at: Vec3Like | null, opts?: { beat?: boolean }): void;
+  sfx?(id: string, at: Vec3Like | null, opts?: { beat?: boolean; gain?: number }): void;
   /** Adaptive score: load it, set a cue, or play a stinger. */
   score?(id: string, opts: { cue?: string; stinger?: string; load?: boolean }): void;
   music?(id: string | null): void;

@@ -214,7 +214,7 @@ test('cancel and failure release everything the sequence took', () => {
 
 test('unresolvable targets and missing systems warn instead of hanging', () => {
   const { t, m } = manager([
-    { id: 'soft', steps: [{ do: 'playerLookAt', target: 'npc:ghost', wait: true }, { do: 'water', level: 1 }, { do: 'setFlag', flag: 'reached' }] },
+    { id: 'soft', steps: [{ do: 'playerLookAt', target: 'npc:ghost', wait: true }, { do: 'water', room: 'R09', level: 1 }, { do: 'setFlag', flag: 'reached' }] },
   ]);
   m.start('soft');
   assert.equal(t.host.flags.reached, true);

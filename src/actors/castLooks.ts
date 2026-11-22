@@ -9,7 +9,7 @@ import { GILES, OKAFOR } from './squadLooks.ts';
  *
  * Outfits are the five body outfits (ADR-0006) recoloured through `look.outfitColors`.
  */
-export type CastLook = Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 'look' | 'pose' | 'model' | 'profile'>;
+export type CastLook = Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 'look' | 'pose' | 'model' | 'profile' | 'infection'>;
 
 /** Named characters, by look id. */
 const NAMED: Record<string, CastLook> = {
@@ -187,6 +187,20 @@ const NAMED: Record<string, CastLook> = {
     outfit: 'crew',
     height: 1.85,
     build: 0.9,
+  },
+  /**
+   * The elite that charges the R09-R10 door in the valve cutscene and pries it open at the R11 bulkhead (flooded-tunnel
+   * spec, design D13): the hero tier's body (the necromorph slasher, blade arms) at the hero's size, driven by the
+   * sequences. The same body as the Lab B creature and the R11 climax elite, on purpose. Its small extra hands are not rigged
+   * to joints and stay still.
+   */
+  flood_elite: {
+    seed: 'r09-flood-elite',
+    model: 'necromorph',
+    outfit: 'lab',
+    height: 2.15,
+    build: 1.25,
+    infection: 2,
   },
 };
 NAMED['bram'] = NAMED['cook']!;

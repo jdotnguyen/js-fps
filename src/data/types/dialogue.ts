@@ -50,6 +50,8 @@ const lineShape = {
   /** Path (or variant array) under public/, e.g. "assets/vo/giles_cover_01.mp3". Plays instead of the emote. */
   audio: nullable(audioPath),
   minDuration: numRange(0, 30),
+  /** Loudness multiplier for this line (a shout across a room over an alarm); default 1. */
+  gain: optional(numRange(0.25, 4)),
   /** Reserved for the dialogue-choice system; must be empty in the slice. */
   choices: arr(str),
 };

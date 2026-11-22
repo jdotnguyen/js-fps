@@ -1385,5 +1385,67 @@
     ],
     "at": "2026-11-22T17:46:13.508Z",
     "source": "generated"
+  },
+  {
+    "batch": "retake_medic_01",
+    "speakers": [
+      "medic"
+    ],
+    "voices": [
+      "Charon"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "flood_okafor_01",
+      "flood_okafor_02"
+    ],
+    "at": "2026-11-22T19:51:17.862Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_engineer_01",
+    "speakers": [
+      "engineer"
+    ],
+    "voices": [
+      "Algenib"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "flood_giles_01",
+      "flood_giles_02"
+    ],
+    "at": "2026-11-22T19:51:40.353Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_medic_01",
+    "speakers": [
+      "medic"
+    ],
+    "voices": [
+      "Charon"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "flood_okafor_03"
+    ],
+    "at": "2026-11-22T20:56:35.830Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_engineer_01",
+    "speakers": [
+      "engineer"
+    ],
+    "voices": [
+      "Algenib"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "flood_giles_02"
+    ],
+    "at": "2026-11-22T20:56:43.478Z",
+    "source": "generated"
   }
 ]

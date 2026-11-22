@@ -119,6 +119,38 @@
       "stop": {
         "fade": 0.8,
         "release": 3
+      },
+      "floodAlarm": {
+        "fade": 1.2,
+        "layers": {
+          "drone": 0.7,
+          "heartFast": 0.5,
+          "pulse": 0.35
+        }
+      },
+      "floodCharge": {
+        "fade": 0.4,
+        "layers": {
+          "drone": 0.6,
+          "heartFast": 0.5,
+          "pulse": 0.5,
+          "rise": 0.55,
+          "voice": 0.4,
+          "brutal": 0.45
+        }
+      },
+      "floodHold": {
+        "fade": 0.15,
+        "layers": {
+          "drone": 0.72,
+          "heartFast": 0.42,
+          "voice": 0.22,
+          "hold": 0.8
+        }
+      },
+      "floodOut": {
+        "fade": 5,
+        "release": 7
       }
     },
     "resume": [

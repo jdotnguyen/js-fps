@@ -581,6 +581,192 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     prompt:
       'industrial climate control console button press followed by a solid mechanical relay clunk and a calm resolving descending-to-neutral electronic acknowledgment chime as a humidity fault alarm clears, realistic utility room foley, no music, no voice',
   },
+  // ---- Flooded tunnel and pump room (openspec overhaul-flooded-tunnel) ----
+  {
+    id: 'waterSlosh',
+    file: 'emitter-water-slosh.mp3',
+    category: 'emitter',
+    loop: true,
+    duration: 6,
+    promptInfluence: 0.55,
+    prompt:
+      'seamless loop of a person wading slowly through knee-deep murky standing water in a narrow steel maintenance tunnel, continuous gentle sloshing and water swirling around legs, soft wet drag, close perspective, no music, no voice, no footsteps on hard floor, constant steady texture',
+  },
+  {
+    id: 'pipePour',
+    file: 'emitter-pipe-pour.mp3',
+    category: 'emitter',
+    loop: true,
+    duration: 8,
+    promptInfluence: 0.55,
+    prompt:
+      'seamless loop of water pouring steadily from a burst overhead steel pipe into a pool of standing water below, heavy splattering stream hitting the surface, churning bubbling water, metallic pipe resonance, enclosed concrete tunnel, no music, no voice, constant steady texture',
+  },
+  {
+    id: 'waterLap',
+    file: 'emitter-water-lap.mp3',
+    category: 'emitter',
+    loop: true,
+    duration: 8,
+    promptInfluence: 0.5,
+    prompt:
+      'seamless loop of small ripples lapping softly against a steel wall in a flooded underground tunnel, quiet slow wet slaps and gurgles, very gentle, still water, no music, no voice, constant steady texture',
+  },
+  {
+    id: 'pumpRoom',
+    file: 'emitter-pump-room.mp3',
+    category: 'emitter',
+    loop: true,
+    duration: 10,
+    promptInfluence: 0.5,
+    prompt:
+      'seamless loop of old industrial water pumps running in a small steel pump room aboard an underwater station, deep rhythmic motor drone, valve chatter, water rushing through large pipes, low mechanical vibration, no music, no voice, constant steady texture',
+  },
+  {
+    id: 'klaxon',
+    file: 'emitter-klaxon.mp3',
+    category: 'emitter',
+    loop: true,
+    duration: 4,
+    promptInfluence: 0.6,
+    prompt:
+      'seamless loop of an industrial emergency klaxon alarm horn inside a steel pump room, slow repeating two-second low harsh horn blasts, metallic room reverb, no music, no voice, constant steady repetition',
+  },
+  {
+    id: 'sparkHiss_1',
+    file: 'oneshot-spark-hiss-1.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1,
+    promptInfluence: 0.6,
+    prompt:
+      'single small electrical spark falling into water and fizzling out, short sharp hiss and tiny sizzle, close, dry, no music, no voice',
+  },
+  {
+    id: 'sparkHiss_2',
+    file: 'oneshot-spark-hiss-2.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1,
+    promptInfluence: 0.6,
+    prompt:
+      'a few hot electrical sparks dropping onto a wet surface and hissing briefly, quick crackling sizzle that dies away, close, no music, no voice',
+  },
+  {
+    id: 'tubeStrike',
+    file: 'oneshot-tube-strike.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2,
+    promptInfluence: 0.6,
+    prompt:
+      'a failing fluorescent tube light struggling to strike, ballast ticking and buzzing, two quick electric flutters then a steady hum, industrial ceiling fixture, no music, no voice',
+  },
+  {
+    id: 'floodDoorSlam',
+    file: 'oneshot-flood-door-slam.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2.5,
+    promptInfluence: 0.6,
+    prompt:
+      'a heavy steel pressure door slamming shut with a deep hydraulic thud and metal clang while water rushes behind it, muffled slosh after the slam, sealed hatch locking, no music, no voice',
+  },
+  {
+    id: 'valveTurn',
+    file: 'oneshot-valve-turn.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 3.5,
+    promptInfluence: 0.65,
+    prompt:
+      'a large rusted iron valve wheel being forced open by hand, heavy metal grinding and squealing as it turns two full turns, gritty ratcheting stem, a final clunk as it opens and water pressure rushing in the pipe, close, industrial pump room, no music, no voice',
+  },
+  {
+    id: 'creatureCharge',
+    file: 'oneshot-creature-charge.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 3,
+    promptInfluence: 0.6,
+    prompt:
+      'a horrifying infected human creature shrieking as it charges, wet torn throat, raw guttural scream rising to a screech, splashing through water as it runs, echoing in a concrete tunnel, horror, no music',
+  },
+  {
+    id: 'doorPound',
+    file: 'oneshot-door-pound.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 3,
+    promptInfluence: 0.65,
+    prompt:
+      'fists violently pounding on the far side of a heavy sealed steel pressure door, three hard banging hits, muffled by water, deep metallic thuds resonating through the hatch, horror, no music, no voice',
+  },
+  {
+    id: 'creatureSeverShriek',
+    file: 'oneshot-creature-sever-shriek.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 3,
+    promptInfluence: 0.6,
+    prompt:
+      'a heavy steel door slamming shut and crunching through flesh and bone, wet snap, then an infected creature screaming in agony, an ear-splitting raw shriek that cracks and gurgles, very loud and close, horror, no music',
+  },
+  {
+    id: 'ambushSting',
+    file: 'oneshot-ambush-sting.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 4.5,
+    promptInfluence: 0.6,
+    prompt:
+      'sudden horror movie jump scare stinger, a violent dissonant orchestral string stab with a huge metallic impact, then frantic shrieking violins and a pounding low drum pulse that fades, very loud, cinematic horror',
+  },
+  // The valve cutscene's slam (flooded-tunnel design D13): one hit, fired on the step that seals the door. The generated
+  // impact lands about 0.03 s in; after generating, pad it so the impact sits at 0.9 s (the door's slide):
+  //   ffmpeg -i raw.mp3 -af "adelay=870:all=1" -c:a libmp3lame -b:a 128k oneshot-flood-slam-hit.mp3
+  // The Lab B score plays under it.
+  {
+    id: 'floodSlamHit',
+    file: 'oneshot-flood-slam-hit.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 4,
+    promptInfluence: 0.7,
+    prompt:
+      'horror film score stinger: a very short fast string and brass crescendo rising for under one second into a single enormous orchestral impact hit, huge low drum and metallic boom together, then a long ringing low tail that fades, one hit only, no repeats, cinematic, no voice',
+  },
+  // The elite's blades forcing the sealed R09-R10 door apart from the middle (r10_ambush).
+  {
+    id: 'doorPry',
+    file: 'oneshot-door-pry.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2.5,
+    promptInfluence: 0.65,
+    prompt:
+      'heavy steel sliding pressure door being forced apart from the middle by a monster, metal blades scraping and grinding in the seam, door leaves screeching open a little against straining hydraulics, groaning metal, close, industrial, horror, no music, no voice',
+  },
+  {
+    id: 'alarmBlast',
+    file: 'oneshot-alarm-blast.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 3,
+    promptInfluence: 0.65,
+    prompt:
+      'a very loud industrial emergency evacuation alarm klaxon blaring twice in a small steel pump room, harsh low horn, metallic room echo, no music, no voice',
+  },
+  {
+    id: 'bodyDrip',
+    file: 'oneshot-body-drip.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2,
+    promptInfluence: 0.55,
+    prompt:
+      'water dripping and running off wet clothes and boots onto a steel deck after climbing out of water, brief patter of drips slowing down, close, no music, no voice',
+  },
   // Station blackout (station-power spec): the drop's lockdown alarm, the mains failing, and the backup lamps.
   {
     id: 'lockdownAlarm',

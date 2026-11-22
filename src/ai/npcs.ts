@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { castSpec } from '../actors/castLooks.ts';
 import { Humanoid, type HumanoidContext } from '../actors/humanoid.ts';
+import type { SeverableRegion } from '../actors/skeleton.ts';
 import { yieldFrame } from '../core/yieldFrame.ts';
 import type { Interactable } from '../actors/interaction.ts';
 import type { ColliderQuery } from '../actors/motor.ts';
@@ -685,6 +686,13 @@ export class NpcDirector {
         const name = String(step['anim'] ?? 'idle');
         if (name === 'rub_forearm' || name === 'flex_hand' || name === 'cough') this.deps.emit?.('squad:tell', { id: SQUAD_NAMES[npc] ?? npc, tell: name });
         return a.playAnim(name, { instant, has: (p) => this.deps.ctx.poses.has(p) });
+      }
+      case 'npcSever': {
+        const regions = Array.isArray(step['regions']) ? (step['regions'] as SeverableRegion[]) : [];
+        const d = step['dir'] as { x: number; y: number; z: number } | [number, number, number] | undefined;
+        const dir = Array.isArray(d) ? new THREE.Vector3(d[0], d[1], d[2]) : d ? new THREE.Vector3(d.x, d.y, d.z) : new THREE.Vector3(0, -1, 0);
+        for (const r of regions) a.body.cut(r, dir);
+        return Promise.resolve();
       }
       case 'npcLookAt':
         this.hold(npc);

@@ -10,7 +10,7 @@ import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { lathe, slab } from './shapes.ts';
 import { bolts, cableTray, inFrame, pipeRun } from './detail.ts';
 import { resolvePalette } from './palettes.ts';
-import { PieceBuilder, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams } from './types.ts';
+import { PieceBuilder, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams, swingAngle } from './types.ts';
 
 /**
  * Prop kit (ADR-0003). Placed freely in metres; origin on the floor, front faces -Z.
@@ -255,6 +255,48 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     pb.light([0, y, 0], 'wall');
   },
 
+  /**
+   * A fluorescent tube hanging loose by one chain (flooded-tunnel spec: failing lights): a ceiling bracket, a chain of
+   * `drop` m (default 0.7) and a 1.2 m tube hanging from it at a slant, swinging slowly (`amp` radians, default 0.12,
+   * `period` s, default 3.4). It offers one ceiling slot that swings with it. Origin on the floor under the bracket.
+   */
+  hanging_tube(p, _rng, m, pb) {
+    const ceiling = numParam(p, 'ceiling', 3.2);
+    const drop = numParam(p, 'drop', 0.7);
+    const amp = numParam(p, 'amp', 0.12);
+    const period = numParam(p, 'period', 3.4);
+    pb.add(rounded(0.16, 0.05, 0.1, 0.01), m.steel, at(0, ceiling - 0.025, 0));
+    const pivot = new THREE.Group();
+    pivot.position.set(0, ceiling - 0.05, 0);
+    // Chain straight down, then the tube hanging from its near end, tipped 35 degrees.
+    for (let i = 0; i < Math.round(drop / 0.06); i++) {
+      const link = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.004, 4, 8), m.steel);
+      link.position.set(0, -0.03 - i * 0.06, 0);
+      link.rotation.y = i % 2 ? Math.PI / 2 : 0;
+      pivot.add(link);
+    }
+    const tilt = 0.61;
+    const tube = new THREE.Group();
+    tube.position.set(0, -drop, 0);
+    tube.rotation.x = tilt;
+    const housing = new THREE.Mesh(rounded(0.14, 0.06, 1.2, 0.015), m.paintDark);
+    housing.position.set(0, 0, -0.6);
+    tube.add(housing);
+    // A cable dangling from the far end.
+    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.5, 5), m.rubber);
+    cable.position.set(0.03, -0.25, -1.2);
+    tube.add(cable);
+    pivot.add(tube);
+    pb.dynamic(pivot);
+    const swing = { pivot: [0, ceiling - 0.05, 0] as [number, number, number], amp, period };
+    pb.tick((t) => {
+      pivot.rotation.x = swingAngle(swing, t);
+    });
+    // The slot at the diffuser, under the middle of the tube.
+    const mid = new THREE.Vector3(0, -0.04, -0.6).applyAxisAngle(new THREE.Vector3(1, 0, 0), tilt).add(new THREE.Vector3(0, ceiling - 0.05 - drop, 0));
+    pb.light([mid.x, mid.y, mid.z], 'ceiling', 0, swing);
+  },
+
   emergency_beacon(p, _rng, m, pb) {
     const wall = boolParam(p, 'wall', false);
     if (wall) pb.add(rounded(0.2, 0.2, 0.1, 0.02), m.steel, at(0, 0, 0.05));
@@ -299,6 +341,16 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     const paint = strParam(p, 'paint', 'steel');
     const mat = paint === 'teal' ? pal.pipeAccent : paint === 'dark' ? pal.pipeMain : m.steel;
     pipeRun(pb, m, [V(-L / 2, y, 0), V(L / 2, y, 0)], r, mat, null, 1.5);
+    // `hung`: an overhead run on rods from the ceiling (flooded-tunnel task 11.4), solid only round the pipe.
+    if (boolParam(p, 'hung', false)) {
+      const ceiling = numParam(p, 'ceiling', 3.2);
+      for (let x = -L / 2 + 0.4; x < L / 2; x += 1.5) {
+        pb.add(cylinderBetween(V(x, y, 0), V(x, ceiling, 0), 0.01, 6), m.steel);
+        pb.add(new THREE.TorusGeometry(r + 0.012, 0.01, 6, 14), m.steel, at(x, y, 0, 0, PI / 2, 0));
+      }
+      pb.solid(-L / 2, y - r, -r, L / 2, y + r, r, 'metal');
+      return;
+    }
     for (let x = -L / 2 + 0.5; x < L / 2; x += 1.5) {
       pb.add(rounded(0.12, y, 0.3, 0.02), m.steel, at(x, y / 2 - r / 2, 0));
     }

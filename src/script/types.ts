@@ -44,6 +44,11 @@ export interface SequenceDef {
   trigger?: SequenceTrigger;
   /** The player may skip it (hold the skip key): every remaining step's end state is applied at once (intro-sequence spec). */
   skippable?: boolean;
+  /**
+   * Skippable only once the player has watched it to the end in this save slot (flooded-tunnel spec: the flood
+   * cutscene). The record is kept per slot, outside checkpoints, so restoring an earlier checkpoint keeps it.
+   */
+  skippableAfter?: string;
   /** Run at most once per playthrough (remembered in the flag `seq:<id>`). */
   once?: boolean;
   /** Sequences in one group never overlap; a later one waits its turn. */
