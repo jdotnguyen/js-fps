@@ -100,6 +100,11 @@ export interface MotionProfile {
   /** The character's own hands (character-motion; imported-body-models: every named character's hands move in their own way). */
   hands?: HandStyle;
   clips?: Partial<Record<Activity, string>>;
+  /**
+   * Takes an activity may play, one picked per body by its seed (the crew defaults' walks and runs from several performers, so a
+   * room of crew doesn't walk alike). A pool wins over the same profile's `clips` entry for that activity.
+   */
+  pools?: Partial<Record<Activity, string[]>>;
   holds?: Partial<Record<PostureFamily, string>>;
   style?: Partial<MotionStyle>;
   /**
@@ -174,6 +179,11 @@ const idOrIds: Validator<string | string[]> = (v, p) => {
   throw new ValidationError(p, 'expected an id or a non-empty list of ids');
 };
 
+const nonEmptyIds: Validator<string[]> = (v, p) => {
+  if (Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === 'string')) return v as string[];
+  throw new ValidationError(p, 'expected a non-empty list of clip ids');
+};
+
 const variantShape = obj({
   when: obj({ sequence: optional(idOrIds), task: optional(idOrIds), flag: optional(str), stage: optional(stageRange) }),
   clips: optional(keyedBy(ACTIVITIES, str, 'activity')),
@@ -186,6 +196,7 @@ const profileShape = obj({
   gender,
   inherits: optional(str),
   clips: optional(keyedBy(ACTIVITIES, str, 'activity')),
+  pools: optional(keyedBy(ACTIVITIES, nonEmptyIds, 'activity')),
   holds: optional(keyedBy(POSTURE_FAMILIES, str, 'posture family')),
   style: optional(obj(styleShape)),
   variants: optional(record(variantShape)),
@@ -250,7 +261,7 @@ export interface ResolvedMotion {
 
 const warned = new Set<string>();
 
-function warnOnce(id: string, msg: string): void {
+function warnOnceLog(id: string, msg: string): void {
   if (warned.has(id)) return;
   warned.add(id);
   console.warn(msg);
@@ -275,7 +286,8 @@ function chain(file: MotionProfileFile, id: string | undefined, g: Gender): { id
 
 /**
  * Resolve the motion for one body. `id` is the character's profile (named characters), `g` its body's gender. `formal` gives
- * generic crew the composed walk (medic outfits) where no profile in the chain names a walk of its own.
+ * generic crew the composed walk (medic outfits) where no profile in the chain names a walk of its own (a pool doesn't count).
+ * `pick` (0..1, from the body's seed) chooses each pooled activity's take; without it the pool's first take plays.
  */
 export function resolveProfile(
   lib: MocapLibrary,
@@ -284,7 +296,11 @@ export function resolveProfile(
   g: Gender,
   formal = false,
   scene?: SceneState,
+  /** Clips are expected to be missing (the character's pack is still loading): fall back without warnings. */
+  quiet = false,
+  pick?: number,
 ): ResolvedMotion {
+  const warnOnce = quiet ? (): void => {} : warnOnceLog;
   if (id && !file.profiles[id]) warnOnce(`profile:${id}`, `motion: no profile "${id}", using the ${g === 'f' ? 'feminine' : 'masculine'} default`);
   const own = id && file.profiles[id] ? id : undefined;
   const gen = own ? file.profiles[own]!.gender : g;
@@ -307,6 +323,11 @@ export function resolveProfile(
   if (formal) clips.walk = 'walk_formal';
   for (const a of ACTIVITIES) {
     for (const { prof } of links) {
+      const pool = formal && a === 'walk' ? undefined : (prof as MotionProfile).pools?.[a]?.filter((c) => lib.has(c));
+      if (pool?.length) {
+        clips[a] = pool[Math.min(pool.length - 1, Math.floor((pick ?? 0) * pool.length))]!;
+        break;
+      }
       const clip = prof.clips?.[a];
       if (!clip) continue;
       if (lib.has(clip)) {

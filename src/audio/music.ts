@@ -304,7 +304,7 @@ function addBassSwell(
 // ------------------------------------------------------------------ space
 
 /** Compact stereo Schroeder/Moorer reverb: 4 damped combs + 2 allpasses per channel. */
-function reverb(l: Buf, r: Buf, sr: number, rt60: number, damp: number): { l: Buf; r: Buf } {
+export function reverb(l: Buf, r: Buf, sr: number, rt60: number, damp: number): { l: Buf; r: Buf } {
   const run = (src: Buf, delaysMs: readonly number[], apMs: readonly number[]): Buf => {
     const out = new Float32Array(src.length);
     for (const ms of delaysMs) {

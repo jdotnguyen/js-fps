@@ -856,3 +856,17 @@ test('dive stow: the round completes on use while Sung is still talking, and his
   assert.ok(channels.get('dive_sung_01') && channels.get('dive_sung_03'));
   assert.notEqual(channels.get('dive_sung_01'), channels.get('dive_sung_03'), 'the stow is its own conversation');
 });
+
+test('dive bay: the trunk secures right after Sung finishes while Hale is still talking elsewhere', async () => {
+  const g = makeGame(['admin_hale', 'dive_moment', 'dive_trunk_secure']);
+  const base = g.host.say!;
+  g.host.say = (line, opts) => (line.startsWith('admin_') ? (g.log.push(`say ${line}`), { done: new Promise(() => undefined) }) : base(line, opts));
+  g.host.flags['briefingSeen'] = true;
+  fire(g, 'trigger:hale_office');
+  await advance(g, 0.5);
+  assert.equal(said(g, 'admin_hale_01'), 1);
+  fire(g, 'trigger:dive_enter');
+  await advance(g, 12);
+  assert.equal(g.host.flags['dive_trunk_secured'], true);
+  assert.equal(said(g, 'admin_hale_02'), 0, 'Hale is still on his first line');
+});

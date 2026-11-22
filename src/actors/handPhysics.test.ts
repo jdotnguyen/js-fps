@@ -2,12 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import { prepareBodyModel, type PreparedBodyModel } from './bodyModel.ts';
-import type { BodyModelLibrary } from './bodyModelLibrary.ts';
 import { MAX_BONES } from './bodyMaterial.ts';
+import type { PreparedBodyModel } from './bodyModel.ts';
 import {
   applySympatheticCoupling,
-  CAST_HAND_PERSONALITIES,
   chooseHandShape,
   extractTwistY,
   FINGER_LOD_DISTANCE,
@@ -23,62 +21,7 @@ import { JOINTS } from './skeleton.ts';
 import { GILES, OKAFOR } from './squadLooks.ts';
 import { CAST } from './castLooks.ts';
 import { ctx as enemyCtx } from '../ai/enemyTestKit.ts';
-
-async function loadWithoutTextures(url: URL): Promise<THREE.Group> {
-  const buf = readFileSync(url);
-  const jsonLen = buf.readUInt32LE(12);
-  const json = JSON.parse(buf.subarray(20, 20 + jsonLen).toString('utf8')) as {
-    images?: unknown;
-    textures?: unknown;
-    samplers?: unknown;
-    materials?: Array<{
-      pbrMetallicRoughness?: { baseColorTexture?: unknown; metallicRoughnessTexture?: unknown };
-      normalTexture?: unknown;
-      occlusionTexture?: unknown;
-      emissiveTexture?: unknown;
-      extensions?: unknown;
-    }>;
-  };
-  delete json.images;
-  delete json.textures;
-  delete json.samplers;
-  for (const m of json.materials ?? []) {
-    delete m.pbrMetallicRoughness?.baseColorTexture;
-    delete m.pbrMetallicRoughness?.metallicRoughnessTexture;
-    delete m.normalTexture;
-    delete m.occlusionTexture;
-    delete m.emissiveTexture;
-    delete m.extensions;
-  }
-  let text = Buffer.from(JSON.stringify(json));
-  while (text.length % 4) text = Buffer.concat([text, Buffer.from(' ')]);
-  const rest = buf.subarray(20 + jsonLen);
-  const head = Buffer.alloc(20);
-  head.write('glTF', 0);
-  head.writeUInt32LE(2, 4);
-  head.writeUInt32LE(20 + text.length + rest.length, 8);
-  head.writeUInt32LE(text.length, 12);
-  head.write('JSON', 16);
-  const glb = Buffer.concat([head, text, rest]);
-  const { createGltfLoader } = await import('../render/gltf.ts');
-  const gltf = await (await createGltfLoader()).parseAsync(glb.buffer.slice(glb.byteOffset, glb.byteOffset + glb.byteLength), '');
-  return gltf.scene;
-}
-
-const modelCache = new Map<string, PreparedBodyModel>();
-async function loadMainCast(id: 'mechanic' | 'doctor' | 'priya' | 'hale'): Promise<PreparedBodyModel> {
-  let m = modelCache.get(id);
-  if (!m) {
-    const url = new URL(`../../public/assets/models/squad/${id}.glb`, import.meta.url);
-    m = prepareBodyModel(await loadWithoutTextures(url), { detailHands: true });
-    modelCache.set(id, m);
-  }
-  return m;
-}
-
-function makeLib(entries: Record<string, PreparedBodyModel>): BodyModelLibrary {
-  return { get: (id: string) => entries[id] } as unknown as BodyModelLibrary;
-}
+import { loadMainCast, makeLib } from './castModelTestKit.ts';
 
 test('pure biomechanical helpers: tenodesis, sympathetic coupling, and Y-twist extraction', () => {
   // Tenodesis: wrist extension (+) curls fingers (+), wrist flexion (-) opens fingers (-).
@@ -101,14 +44,12 @@ test('pure biomechanical helpers: tenodesis, sympathetic coupling, and Y-twist e
   const qNeg = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -0.95);
   assert.ok(Math.abs(extractTwistY(qNeg) + 0.95) < 1e-5);
 
-  // Distinct main cast hand personalities exist and stay within sane ranges.
-  for (const seed of ['august-giles', 'tomas-okafor', 'priya-anand', 'director-hale']) {
-    assert.ok(CAST_HAND_PERSONALITIES[seed], seed);
+  // Seeded crew hands stay within sane ranges (named characters' hands live in their motion profiles).
+  for (const seed of ['crew:a', 'crew:b', 'crew:c']) {
     const p = handPersonalityFor(seed);
     assert.ok(p.tension > 0 && p.tension < 1);
     assert.ok(p.stiffness > 0.7 && p.stiffness < 1.4);
   }
-  assert.ok(handPersonalityFor('director-hale').tension > handPersonalityFor('tomas-okafor').tension, 'Hale is tenser than Okafor');
 });
 
 test('hand shape selector maps poses, speech emotes, IK, and infection to distinct shapes', () => {
@@ -123,13 +64,18 @@ test('hand shape selector maps poses, speech emotes, IK, and infection to distin
   assert.equal(chooseHandShape('R', 'corpseSupine', null, 0, 'R', false, 0, false, false, false), 'slack');
 });
 
-test('all 4 Phase 1 main cast GLBs (Giles, Okafor, Priya, Hale) preserve 30 calibrated finger bones and valid skinning', async () => {
-  for (const id of ['mechanic', 'doctor', 'priya', 'hale'] as const) {
+// Every named character's body (Giles mechanic, Okafor doctor, Priya, Hale, Voss office_3, and the scan bodies Bram, Heins, Ruiz and
+// Sung, rigged by scripts/lib/hand-rig.mjs: per-character-motion task 5.5).
+/** Scan bodies rigged by scripts/lib/hand-rig.mjs (their hands keep the scan's roll). */
+const SCAN_HANDS: ReadonlySet<string> = new Set(['bram', 'heins', 'ruiz', 'sung']);
+
+test("every named character's body carries 30 calibrated finger bones and valid skinning", async () => {
+  for (const id of ['mechanic', 'doctor', 'priya', 'hale', 'office_3', 'bram', 'heins', 'ruiz', 'sung'] as const) {
     const m = await loadMainCast(id);
     const fingers = m.handBones.filter((b): b is FingerBoneDef => b.kind === 'finger');
     const twists = m.handBones.filter((b) => b.kind === 'twist');
     assert.equal(fingers.length, 30, `${id}: 30 finger bones (5 fingers x 3 phalanges x 2 hands)`);
-    if (id !== 'mechanic') {
+    if (id !== 'mechanic' && id !== 'office_3') {
       assert.ok(twists.length >= 2, `${id}: preserves forearm twist bones (${twists.length})`);
     }
     // Total bones (21 joints + detail hand bones + 9 stumps) must fit inside MAX_BONES shader cap.
@@ -150,9 +96,23 @@ test('all 4 Phase 1 main cast GLBs (Giles, Okafor, Priya, Hale) preserve 30 cali
         if (fn !== 'thumb') {
           const ax = new THREE.Vector3(...f1.curlAxis);
           assert.ok(Math.abs(ax.length() - 1) < 1e-4, `${id} ${f1.name}: unit curlAxis`);
-          // Rotating downward finger +30 deg around curlAxis must move tip inward toward body (+inwardX).
-          const rotated = down.clone().applyAxisAngle(ax, 0.5);
-          assert.ok(rotated.x * inwardX > 0.35, `${id} ${f1.name}: +curl moves inward (x=${rotated.x.toFixed(2)}, inward=${inwardX})`);
+          if (!SCAN_HANDS.has(id)) {
+            // Rotating downward finger +30 deg around curlAxis must move tip inward toward body (+inwardX).
+            const rotated = down.clone().applyAxisAngle(ax, 0.5);
+            assert.ok(rotated.x * inwardX > 0.35, `${id} ${f1.name}: +curl moves inward (x=${rotated.x.toFixed(2)}, inward=${inwardX})`);
+          } else {
+            // Scan bodies keep their scan's hand roll once straightened (Ruiz's left swings palm-back), so "inward" is not the test:
+            // the curl must carry the finger toward its own palm, which the finger layout gives by the hand's chirality.
+            const at = (b: FingerBoneDef) => new THREE.Vector3(...b.offset);
+            const pinky1 = fingers.find((b) => b.side === s && b.finger === 'pinky' && b.phalanx === 1)!;
+            const mid2 = fingers.find((b) => b.side === s && b.finger === 'middle' && b.phalanx === 2)!;
+            const across = at(pinky1).sub(at(fingers.find((b) => b.side === s && b.finger === 'index' && b.phalanx === 1)!));
+            const fdown = at(mid2).normalize();
+            const palm = (s === 'L' ? across.clone().cross(fdown) : fdown.clone().cross(across)).normalize();
+            const seg = at(f2).normalize();
+            const moved = seg.clone().applyAxisAngle(ax, 0.5).sub(seg);
+            assert.ok(moved.dot(palm) > 0.1, `${id} ${f1.name}: +curl moves toward the palm (${moved.dot(palm).toFixed(2)})`);
+          }
         }
       }
       // Specifically verify mechanic.glb's Ring1 metacarpal was folded into hand so ring_1 sits at knuckle depth!
@@ -203,7 +163,8 @@ test('main cast Humanoids animate wrists, forearm twists, and individual fingers
   for (let i = 0; i < 60; i++) giles.update(1 / 60);
   const idxCurl = giles.fingerCurl('R', 'index');
   const pnkCurl = giles.fingerCurl('R', 'pinky');
-  assert.ok(pnkCurl > idxCurl + 0.08, `natural resting cascade: pinky (${pnkCurl.toFixed(2)}) > index (${idxCurl.toFixed(2)})`);
+  // His own idle (CMU) records no fingers, so the cascade comes from the hand solver's rest shape alone.
+  assert.ok(pnkCurl > idxCurl + 0.04, `natural resting cascade: pinky (${pnkCurl.toFixed(2)}) > index (${idxCurl.toFixed(2)})`);
 
   // Switch to aim_pistol: ring/pinky grip firmly while index stays lighter on the trigger.
   giles.setPose('aim_pistol', 0.15);
@@ -299,12 +260,98 @@ test('main cast Humanoids animate wrists, forearm twists, and individual fingers
 
 test('body-models.json enables handRig on Phase 1 main cast (mechanic, doctor, priya, hale) and keeps crowd rigs lean', () => {
   const table = JSON.parse(readFileSync(new URL('../data/body-models.json', import.meta.url), 'utf8')) as Record<string, { handRig?: boolean }>;
-  for (const id of ['mechanic', 'doctor', 'priya', 'hale']) {
+  for (const id of ['mechanic', 'doctor', 'priya', 'hale', 'office3']) {
     assert.equal(table[id]?.handRig, true, `${id} has handRig: true`);
   }
   for (const id of ['zombieWalk', 'necromorphCrowd', 'gameChar', 'necromorph']) {
     assert.ok(!table[id]?.handRig, `crowd/enemy ${id} stays lean without handRig`);
   }
+});
+
+test('finger tracks and grips: a clip\'s finger motion moves the fingers; a thinner grip wraps tighter; empty hands rest loosely', async () => {
+  const { MocapLibrary } = await import('./mocap.ts');
+  const { wrapCurl } = await import('./handPhysics.ts');
+  const core = (await import('../data/mocap-core.json', { with: { type: 'json' } })).default as unknown as import('./mocap.ts').RawMocapFile;
+  const mechanic = await loadMainCast('mechanic');
+  const bodyModels = makeLib({ mechanic });
+  const noFingers = { ...core, clips: Object.fromEntries(Object.entries(core.clips).map(([k, c]) => { const { fingers: _f, ...rest } = c; return [k, rest]; })) };
+  const track = (mocap: InstanceType<typeof MocapLibrary>): number[] => {
+    // The mechanic body on the default profile: its talk clip (Quaternius) records fingers; Giles's own (CMU) does not.
+    const { profile: _own, ...plain } = GILES;
+    const g = new Humanoid({ ...plain, seed: 'finger-probe', role: 'npc', pose: 'idle' }, { ...enemyCtx(), bodyModels, mocap });
+    g.speak('Third quarantine this month, and nobody tells the kitchen anything.', null, 3);
+    const out: number[] = [];
+    for (let i = 0; i < 150; i++) {
+      g.update(1 / 60);
+      out.push(g.fingerCurl('R', 'index'));
+    }
+    return out;
+  };
+  const withClip = track(new MocapLibrary(core));
+  const without = track(new MocapLibrary(noFingers as never));
+  const diff = Math.max(...withClip.map((v, i) => Math.abs(v - without[i]!)));
+  assert.ok(diff > 0.01, `the clip's finger track moves the fingers (${diff.toFixed(3)})`);
+
+  // A thin held item (the wand, radius 1.9 cm) wraps tighter than a wide one. The mug's wrap is measured in heldGrip.test.ts.
+  for (let fi = 1; fi < 5; fi++) assert.ok(wrapCurl(fi, 0.019) > wrapCurl(fi, 0.043), 'a thinner grip wraps tighter');
+  const idle = new Humanoid({ ...GILES, role: 'npc', pose: 'idle' }, { ...enemyCtx(), bodyModels });
+  for (let i = 0; i < 90; i++) idle.update(1 / 60);
+  const rest = idle.fingerCurl('R', 'middle');
+  assert.ok(rest > 0.15 && rest < 0.8, `empty hands rest in a loose curl (${rest.toFixed(2)})`);
+});
+
+test('severing a finger-rigged forearm: the piece carries the hand and fingers in their last pose; the stump has no finger geometry left', async () => {
+  const mechanic = await loadMainCast('mechanic');
+  const bodyModels = makeLib({ mechanic });
+  const pieces: THREE.Object3D[] = [];
+  const gore = { ...enemyCtx().gore, mode: 'full', addDebris: (o: THREE.Object3D) => pieces.push(o) } as unknown as ReturnType<typeof enemyCtx>['gore'];
+  const g = new Humanoid({ ...GILES, role: 'enemy', infection: 2 }, { ...enemyCtx(), gore, bodyModels });
+  g.update(1 / 60);
+  const fingerBones = [...(g['extras'] as Map<string, THREE.Bone>).entries()].filter(([n]) => n.startsWith('finger_L_'));
+  assert.ok(fingerBones.length >= 10, 'left hand has finger bones');
+  const arm = g.bones.foreArm_L.localToWorld(new THREE.Vector3(0, -0.12, 0));
+  const from = arm.clone().add(new THREE.Vector3(-2, 0, 0));
+  const hit = g.raycast(from, arm.clone().sub(from).normalize());
+  assert.ok(hit);
+  for (let i = 0; i < 25 && pieces.length === 0; i++) g.applyHit(hit!, 40, new THREE.Vector3(1, 0, 0));
+  assert.equal(pieces.length, 1, 'one severed piece');
+  const piece = pieces[0]!;
+  const box = new THREE.Box3().setFromObject(piece);
+  // The piece reaches past the wrist: hand and fingers are in it (forearm 0.26 m + hand and fingers ~0.18 m).
+  assert.ok(box.getSize(new THREE.Vector3()).length() > 0.3, `piece spans ${box.getSize(new THREE.Vector3()).length().toFixed(2)} m`);
+  g.update(1 / 60);
+  for (const [name, b] of fingerBones) {
+    const sc = b.getWorldScale(new THREE.Vector3());
+    assert.ok(sc.length() < 1e-3, `${name} collapsed with the severed hand on the body`);
+  }
+  g.dispose();
+});
+
+test("Voss's body (office3) carries a working finger rig", async () => {
+  const office3 = await loadMainCast('office_3');
+  const { CAST } = await import('./castLooks.ts');
+  const voss = new Humanoid({ ...CAST['voss']!, role: 'npc', pose: 'idle' }, { ...enemyCtx(), bodyModels: makeLib({ office3 }) });
+  assert.equal(voss.hasFingerRig, true, 'finger bones bound');
+  for (let i = 0; i < 60; i++) voss.update(1 / 60);
+  const c = voss.fingerCurl('R', 'middle');
+  assert.ok(c > 0.1 && c < 1, `fingers rest curled (${c.toFixed(2)})`);
+  voss.dispose();
+});
+
+test('?detail=0 turns the detail pass off and back on', async () => {
+  const { detailPass, readDetailFlag } = await import('./detailPass.ts');
+  const mechanic = await loadMainCast('mechanic');
+  const g = new Humanoid({ ...GILES, role: 'npc', pose: 'flex_hand' }, { ...enemyCtx(), bodyModels: makeLib({ mechanic }) });
+  readDetailFlag('?detail=0');
+  assert.equal(detailPass.enabled, false);
+  for (let i = 0; i < 30; i++) g.update(1 / 60);
+  const frozen = g.fingerCurl('R', 'middle');
+  for (let i = 0; i < 60; i++) g.update(1 / 60);
+  assert.equal(g.fingerCurl('R', 'middle'), frozen, 'fingers not solved while off');
+  readDetailFlag('?detail=1');
+  for (let i = 0; i < 60; i++) g.update(1 / 60);
+  assert.notEqual(g.fingerCurl('R', 'middle'), frozen, 'solved again when on');
+  g.dispose();
 });
 
 /** Each prepared vertex in the rest frame, its skin influences, and the triangles' vertex indices. */

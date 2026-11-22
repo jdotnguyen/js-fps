@@ -51,6 +51,16 @@ export interface SpeechLike {
   done: Promise<unknown>;
 }
 
+export interface ScriptSpeechOptions {
+  overlap?: boolean;
+  /** Fixed PA fixture for a staged cue. Roaming announcements use local coverage. */
+  fixture?: string;
+  /** Optional explicit addressee ('player', an NPC id, or a speaker id) for speaker gaze. */
+  to?: string;
+  /** The conversation the line belongs to: one per sequence run (dialogue-channels). */
+  channel?: string;
+}
+
 /** How a scripted shot's mouse give behaves (intro-sequence spec). */
 export interface FrameOptions {
   /** Seconds the give stays where the mouse left it before springing back. Default 0. */
@@ -104,14 +114,17 @@ export interface SequenceHost {
   /** Black title card over the game for `seconds`, then it fades (`titleCard` action). */
   titleCard?(title: string, sub: string, seconds: number): void;
   water?(level: number, seconds: number): void;
-  sfx?(id: string, at: Vec3Like | null): void;
+  /** `beat`: wait for the score's next beat (adaptive-music spec). */
+  sfx?(id: string, at: Vec3Like | null, opts?: { beat?: boolean }): void;
+  /** Adaptive score: load it, set a cue, or play a stinger. */
+  score?(id: string, opts: { cue?: string; stinger?: string; load?: boolean }): void;
   music?(id: string | null): void;
   /** In-world radio (TAG FM): play `track` at `at`, or stop it with null. */
   radio?(track: string | null, at: Vec3Like | null): void;
   ambience?(id: string): void;
 
   /** Speak a dialogue line. */
-  say?(line: string, opts?: { overlap?: boolean; fixture?: string; to?: string; channel?: string }): SpeechLike | null;
+  say?(line: string, opts?: ScriptSpeechOptions): SpeechLike | null;
   /** A skipped line must not be repeated by ambient barks. */
   markLinePlayed?(line: string): void;
   /** Cut off every line still playing (a scene was skipped). */
@@ -132,7 +145,8 @@ export interface SequenceHost {
    */
   npc?(action: string, step: Readonly<Record<string, unknown>>): Promise<void> | void;
   /** Enemy spawn groups (ADR-0007): trigger one (false if unknown or already triggered), remove one, ask if cleared. */
-  spawnGroup?(group: string): boolean;
+  /** `from`: `npc:<id>` whose place the group's enemies take (the NPC is removed). */
+  spawnGroup?(group: string, from?: string): boolean;
   despawnGroup?(group: string): boolean;
   groupCleared?(group: string): boolean;
   /** `squadRegroup` (squad-tasks spec): bring far, unseen squadmates near Jay; returns the ids moved. */

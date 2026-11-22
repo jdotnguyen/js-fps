@@ -165,7 +165,7 @@ test('slice01 Part A: the drop, the glimpse and the rounds have what they need i
   assert.equal(npcs.get('researcher_b')?.transformable, true, 'Voss can transform behind the glass');
   assert.equal(npcs.get('researcher_b')?.look, 'voss', 'the Lab B researcher is Dr. Voss, a named cast member (infection-kills spec)');
   const breakout = data.rooms.flatMap((r) => r.spawns ?? []).find((sp) => sp.id === 'r05_door');
-  assert.equal(breakout?.model, 'necromorph', 'the contact fight is the creature that came out of Voss');
+  assert.equal(breakout?.look, 'lab_creature', 'the contact fight is the creature that came out of Voss, in its own body');
   assert.ok(breakout && Math.abs(breakout.pos[2] - 22.5) < 0.3, 'it breaks out from where it stood pounding the glass');
   const emits = new Set(data.rooms.flatMap((r) => (r.triggers ?? []).map((t) => t.emit)));
   for (const e of ['trigger:commons_to_gallery', 'trigger:gallery_brief_spot', 'trigger:gallery_enter', 'round:hydro_log', 'round:dive_case', 'trigger:hale_office', 'trigger:security_booth', 'trigger:hydro_store_enter', 'trigger:dive_lockers_enter', 'commons:radio']) assert.ok(emits.has(e), `trigger ${e}`);
@@ -377,7 +377,9 @@ test('slice01 Part B: the action sequences find their anchors, doors, groups and
   assert.ok(spawns.some((s) => s.group === 'r11_climax' && s.variant === 'hero'), 'a hero in the climax');
   // The glass wall into the medical bay takes cracks and blood; the control room hides the bloom's trail.
   const r07 = data.rooms.find((r) => r.id === 'R07')!;
-  assert.equal(r07.props?.filter((p) => p.kit === 'glass_blood').length, 3);
+  // medbay-attack: marks land where Priya touches the centre pane, so no whole-pane blood overlay; each pane its own id.
+  assert.equal(r07.props?.filter((p) => p.kit === 'glass_blood').length, 0);
+  assert.deepEqual(r07.props?.filter((p) => p.kit === 'glass_cracks').map((p) => p.params?.['id']), ['medbay_w', 'medbay_c']);
   const r11 = data.rooms.find((r) => r.id === 'R11')!;
   assert.ok(r11.props?.some((p) => p.kit === 'fluid_trail'));
   const meshes = (prefix: string): THREE.Mesh[] => {
@@ -739,6 +741,228 @@ test('hydroponics work spots stay clear of colliders, navmesh-reachable across R
   assert.deepEqual(spawns.get('botanist_3')?.roam, ['R12c']);
 });
 
+test('security and medical bay (R07, R07a, R08, R08b) props stay inside their rooms, do not overlap, and keep the doors clear (medbay-attack spec)', () => {
+  const mats = fakeMaterials();
+  const deg = THREE.MathUtils.degToRad;
+  const ids = ['R07', 'R07a', 'R08', 'R08b'];
+  type Box = { label: string; min: [number, number, number]; max: [number, number, number] };
+  const all: Box[] = [];
+  const bad: string[] = [];
+  const check = (ok: boolean, msg: string): void => void (ok || bad.push(msg));
+  for (const id of ids) {
+    const r = data.rooms.find((x) => x.id === id)!;
+    const cells = r.pieces.flatMap((p) => p.cells ?? (p.cell ? [p.cell] : []));
+    const minX = Math.min(...cells.map((c) => c[0] * 4 - 1.75));
+    const maxX = Math.max(...cells.map((c) => c[0] * 4 + 1.75));
+    const minZ = Math.min(...cells.map((c) => c[2] * 4 - 1.75));
+    const maxZ = Math.max(...cells.map((c) => c[2] * 4 + 1.75));
+    const boxes: Box[] = [];
+    for (const p of r.props ?? []) {
+      const m = new THREE.Matrix4().compose(
+        new THREE.Vector3(...p.pos),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, deg(p.rot ?? 0), 0, 'YXZ')),
+        new THREE.Vector3(1, 1, 1),
+      );
+      const out = registry.create(p.kit, { ceiling: r.height ?? 3.2, area: r.area ?? 'security', ...(p.params ?? {}) }, new Rng(`${id}:${p.kit}:${p.pos.join(',')}`), mats);
+      for (const c of out.colliders) {
+        const b = new THREE.Box3(new THREE.Vector3(...c.min), new THREE.Vector3(...c.max)).applyMatrix4(m);
+        // "Nothing in the walls": every collider inside the room's inner wall faces (0.08 m for flush wall mounts).
+        check(b.min.x >= minX - 0.08 && b.max.x <= maxX + 0.08, `${id} ${p.kit}@${p.pos.join(',')} X [${b.min.x.toFixed(2)}, ${b.max.x.toFixed(2)}] inside [${minX}, ${maxX}]`);
+        check(b.min.z >= minZ - 0.08 && b.max.z <= maxZ + 0.08, `${id} ${p.kit}@${p.pos.join(',')} Z [${b.min.z.toFixed(2)}, ${b.max.z.toFixed(2)}] inside [${minZ}, ${maxZ}]`);
+        boxes.push({ label: `${id} ${p.kit}@${p.pos.join(',')}`, min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] });
+      }
+    }
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]!;
+        const b = boxes[j]!;
+        if (a.label === b.label) continue;
+        const overlap =
+          a.min[0] < b.max[0] - 0.01 && a.max[0] > b.min[0] + 0.01 &&
+          a.min[1] < b.max[1] - 0.01 && a.max[1] > b.min[1] + 0.01 &&
+          a.min[2] < b.max[2] - 0.01 && a.max[2] > b.min[2] + 0.01;
+        check(!overlap, `${a.label} overlaps ${b.label}`);
+      }
+    }
+    all.push(...boxes);
+  }
+  // "Doors are clear": no floor-standing collider in a door's 2 m opening or 1.2 m in front of it, on either side.
+  const SIDE: Record<number, [number, number]> = { 0: [0, -1], 90: [-1, 0], 180: [0, 1], 270: [1, 0] };
+  const doors = data.doors.filter((d) => d.between.some((b) => ids.includes(b)));
+  for (const want of ['D_R06_R07', 'D_R07_R07a', 'D_R07_R09', 'D_R07_R08', 'D_R08_R08b']) assert.ok(doors.some((d) => d.id === want), want);
+  for (const d of doors) {
+    const [sx, sz] = SIDE[d.rot]!;
+    const ex = d.cell[0] * 4 + sx * 2;
+    const ez = d.cell[2] * 4 + sz * 2;
+    const half = [sx !== 0 ? 1.2 : 1.0, sz !== 0 ? 1.2 : 1.0];
+    for (const b of all) {
+      if (b.min[1] > 2.0) continue; // wall-mounted above head height
+      const hit = b.min[0] < ex + half[0]! && b.max[0] > ex - half[0]! && b.min[2] < ez + half[1]! && b.max[2] > ez - half[1]!;
+      check(!hit, `${b.label} stands in front of ${d.id}`);
+    }
+  }
+  assert.deepEqual(bad, [], `R07/R07a/R08/R08b placement:\n${bad.join('\n')}`);
+});
+
+test('no one waits in a Commons doorway: R02 NPC spots stay out of door give-way reach (intro-sequence spec)', () => {
+  const room = data.rooms.find((r) => r.id === 'R02')!;
+  const anchors = new Map((room.anchors ?? []).map((a) => [a.id, a.pos as [number, number, number]]));
+  // Every spot an NPC is sent to in the Commons by any sequence, plus where the level puts its NPCs.
+  const spots: Array<{ label: string; x: number; z: number }> = [];
+  const visit = (node: unknown, file: string): void => {
+    if (Array.isArray(node)) return node.forEach((n) => visit(n, file));
+    if (!node || typeof node !== 'object') return;
+    const o = node as Record<string, unknown>;
+    const target = o['do'] === 'npcMoveTo' ? o['to'] : o['do'] === 'spawn' ? o['at'] : undefined;
+    const id = typeof target === 'string' && target.startsWith('anchor:') ? target.slice(7) : undefined;
+    const pos = id ? anchors.get(id) : undefined;
+    if (pos) spots.push({ label: `${file}: ${String(o['npc'])} -> ${id}`, x: pos[0], z: pos[2] });
+    for (const v of Object.values(o)) visit(v, file);
+  };
+  for (const file of readdirSync(new URL('../data/sequences/', import.meta.url)).filter((f) => f.endsWith('.json'))) {
+    visit(JSON.parse(readFileSync(new URL(`../data/sequences/${file}`, import.meta.url), 'utf8')), file);
+  }
+  for (const n of room.npcs ?? []) {
+    const pos = typeof n.at === 'string' ? anchors.get(n.at) : (n.at as [number, number, number]);
+    if (pos) spots.push({ label: `level npc ${n.id}`, x: pos[0], z: pos[2] });
+  }
+  assert.ok(spots.length >= 10, `found ${spots.length} Commons NPC spots`);
+  // A door's front box on either side: 1.0 m each way along it, GIVE_WAY.doorReach (1.2 m) out from it.
+  const SIDE: Record<number, [number, number]> = { 0: [0, -1], 90: [-1, 0], 180: [0, 1], 270: [1, 0] };
+  const bad: string[] = [];
+  for (const d of data.doors.filter((x) => x.between.includes('R02'))) {
+    const [sx, sz] = SIDE[d.rot]!;
+    const ex = d.cell[0] * 4 + sx * 2;
+    const ez = d.cell[2] * 4 + sz * 2;
+    const hx = sx !== 0 ? GIVE_WAY.doorReach : 1.0;
+    const hz = sz !== 0 ? GIVE_WAY.doorReach : 1.0;
+    for (const s of spots) if (Math.abs(s.x - ex) < hx && Math.abs(s.z - ez) < hz) bad.push(`${s.label} (${s.x}, ${s.z}) waits in front of ${d.id}`);
+  }
+  assert.deepEqual(bad, [], bad.join('\n'));
+});
+
+test('Priya waits off-stage in the shut surgery, outside the admin booth CAM 04 medbay shot (priya-commons-exit)', () => {
+  const anchors = new Map(data.rooms.flatMap((r) => (r.anchors ?? []).map((a) => [a.id, { room: r.id, pos: a.pos as [number, number, number] }] as const)));
+  const spot = anchors.get('priya_offstage');
+  assert.ok(spot, 'priya_offstage exists');
+  assert.equal(spot.room, 'R08b');
+  // The feed (rounds.json) looks from cam04_pos to cam04_look with a 62 degree vertical FOV. Even a wide 16:9 frame
+  // is under 100 degrees across, so a point more than 50 degrees off the view axis (or behind it) is out of frame.
+  const from = anchors.get('cam04_pos')!.pos;
+  const to = anchors.get('cam04_look')!.pos;
+  const offAxis = (p: [number, number, number]): number => {
+    const ax = to[0] - from[0], az = to[2] - from[2];
+    const px = p[0] - from[0], pz = p[2] - from[2];
+    return THREE.MathUtils.radToDeg(Math.acos((ax * px + az * pz) / (Math.hypot(ax, az) * Math.hypot(px, pz))));
+  };
+  assert.ok(offAxis(spot.pos) > 50, `priya_offstage is ${offAxis(spot.pos).toFixed(0)} degrees off the CAM 04 axis`);
+  assert.ok(offAxis(anchors.get('priya_r08')!.pos) < 31, 'priya_r08 is in the CAM 04 shot, which is why she does not wait there');
+});
+
+test('medbay staging: clear spine, viewing strip, stage and lane; the shotgun faces the door; Jay sees the cart (medbay-attack spec)', () => {
+  const mats = fakeMaterials();
+  const deg = THREE.MathUtils.degToRad;
+  const room = (id: string) => data.rooms.find((r) => r.id === id)!;
+  const anchor = (id: string): [number, number, number] => data.rooms.flatMap((r) => r.anchors ?? []).find((a) => a.id === id)!.pos as [number, number, number];
+  const boxesOf = (id: string): Array<{ kit: string; box: THREE.Box3 }> => {
+    const r = room(id);
+    const out: Array<{ kit: string; box: THREE.Box3 }> = [];
+    for (const p of r.props ?? []) {
+      const m = new THREE.Matrix4().compose(new THREE.Vector3(...p.pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, deg(p.rot ?? 0), 0, 'YXZ')), new THREE.Vector3(1, 1, 1));
+      const made = registry.create(p.kit, { ceiling: r.height ?? 3.2, area: r.area ?? 'security', ...(p.params ?? {}) }, new Rng(`${id}:${p.kit}:${p.pos.join(',')}`), mats);
+      for (const c of made.colliders) out.push({ kit: p.kit, box: new THREE.Box3(new THREE.Vector3(...c.min), new THREE.Vector3(...c.max)).applyMatrix4(m) });
+    }
+    return out;
+  };
+  const floor = (b: THREE.Box3): boolean => b.min.y < 2.0;
+  const hitsRect = (b: THREE.Box3, x0: number, x1: number, z0: number, z1: number): boolean => b.min.x < x1 && b.max.x > x0 && b.min.z < z1 && b.max.z > z0;
+  const dist2d = (b: THREE.Box3, x: number, z: number): number => Math.hypot(x - Math.max(b.min.x, Math.min(x, b.max.x)), z - Math.max(b.min.z, Math.min(z, b.max.z)));
+
+  // R07: the spine from the entry to the glass and the viewing strip along it stay clear.
+  const r07 = boxesOf('R07').filter((b) => floor(b.box));
+  for (const { kit, box } of r07) {
+    assert.ok(!hitsRect(box, -1.5, 1.5, 38.25, 45.75), `R07 ${kit} in the spine`);
+    assert.ok(!hitsRect(box, -5.75, 5.75, 44.6, 45.75), `R07 ${kit} in the viewing strip`);
+  }
+
+  // R07a "The shotgun is in view": the rack holding it faces the door, and from the R07 side of the doorway the pickup is ahead.
+  const rack = room('R07a').props!.find((p) => p.kit === 'armory_rack' && Math.abs(p.pos[0] - 9.45) < 0.3)!;
+  assert.equal(rack.rot, 90, 'the shotgun rack faces west, toward D_R07_R07a');
+  const gun = anchor('shotgun_pickup');
+  const door = data.doors.find((d) => d.id === 'D_R07_R07a')!;
+  const doorway: [number, number] = [door.cell[0] * 4 + 2 - 0.4, door.cell[2] * 4];
+  const ang = Math.abs(Math.atan2(gun[2] - doorway[1], gun[0] - doorway[0]));
+  assert.ok(ang < deg(30), `shotgun is ${THREE.MathUtils.radToDeg(ang).toFixed(0)} deg off the door's normal`);
+  assert.ok(Math.abs(gun[0] - rack.pos[0]) < 0.3 && Math.abs(gun[2] - rack.pos[2]) < 1.2, 'the pickup sits on that rack');
+
+  // R08 "Only the cart in front of the pane": nothing else within 2.5 m of the centre pane (x -2..2 on the partition, z 46.0).
+  const r08 = boxesOf('R08');
+  for (const { kit, box } of r08) {
+    if (kit === 'instrument_cart') continue;
+    const d = Math.hypot(Math.max(0, box.min.x - 2, -2 - box.max.x), Math.max(0, box.min.z - 46.0));
+    assert.ok(d >= 2.5, `R08 ${kit} is ${d.toFixed(2)} m from the centre pane`);
+  }
+  // "Clear lane": the route surgery door -> turn -> along the glass -> plead spot keeps 0.6 m from every R08 collider.
+  const route = ['r08_drag_exit', 'r08_drag_turn', 'r08_drag_mid', 'r08_grab'].map(anchor);
+  for (let i = 0; i + 1 < route.length; i++) {
+    const [a, b] = [route[i]!, route[i + 1]!];
+    for (let t = 0; t <= 1.0001; t += 0.05) {
+      const x = a[0] + (b[0] - a[0]) * t;
+      const z = a[2] + (b[2] - a[2]) * t;
+      for (const { kit, box } of r08) assert.ok(dist2d(box, x, z) >= 0.6, `lane point (${x.toFixed(2)}, ${z.toFixed(2)}) is ${dist2d(box, x, z).toFixed(2)} m from ${kit}`);
+    }
+  }
+  // Priya's walk from her work spot to the glass clears the cart (the current sec_glass walks it straight).
+  const [w0, w1] = [anchor('priya_r08'), anchor('priya_glass')];
+  const cart = r08.find((b) => b.kit === 'instrument_cart')!.box;
+  for (let t = 0; t <= 1.0001; t += 0.05) assert.ok(dist2d(cart, w0[0] + (w1[0] - w0[0]) * t, w0[2] + (w1[2] - w0[2]) * t) >= 0.35, 'Priya walks around the cart');
+
+  // R08b: the stinger camera still sees the bed and her end spot (no collider on either line of sight).
+  const cam = new THREE.Vector3(...anchor('stinger_cam'));
+  for (const target of ['stinger_look', 'priya_hide']) {
+    const to = new THREE.Vector3(...anchor(target)).setY(Math.max(0.3, anchor(target)[1]));
+    const ray = new THREE.Ray(cam, to.clone().sub(cam).normalize());
+    const len = cam.distanceTo(to);
+    for (const { kit, box } of boxesOf('R08b')) {
+      if (kit === 'med_bed') continue;
+      const hit = ray.intersectBox(box, new THREE.Vector3());
+      assert.ok(!hit || hit.distanceTo(cam) > len, `stinger view to ${target} blocked by ${kit}`);
+    }
+  }
+
+  // Everyone who stands on a spot in these rooms stands clear of the furniture (capsule 0.3 m).
+  const spots = ['r07_glass_jay', 'r07_glass_giles', 'r07_glass_okafor', 'r07_medbay_door', 'r07_armory_panel', 'okafor_biometric', 'r07_regroup', 'r07_panel', 'priya_r08', 'priya_glass', 'r08_grab', 'r08_reach', 'cam04_figure', 'r08_lurk', 'r08_approach', 'r08_around', 'r08_slam_spot', 'r08_feet', 'r08_drag_end'];
+  const furniture = [...boxesOf('R07'), ...boxesOf('R07a'), ...r08, ...boxesOf('R08b')].filter((b) => floor(b.box));
+  for (const id of spots) {
+    const a = anchor(id);
+    for (const { kit, box } of furniture) assert.ok(dist2d(box, a[0], a[2]) >= 0.3, `${id} stands ${dist2d(box, a[0], a[2]).toFixed(2)} m from ${kit}`);
+  }
+
+  // 1.7 "Close enough to see" and "Nothing in the way": Jay's eye to the cart top.
+  const jay = anchor('r07_glass_jay');
+  const eye = new THREE.Vector3(jay[0], 1.62, jay[2]);
+  const top = new THREE.Vector3(...anchor('r08_cart_top'));
+  assert.ok(eye.distanceTo(top) < 2.5, `cart top ${eye.distanceTo(top).toFixed(2)} m from Jay's eye`);
+  const ray = new THREE.Ray(eye, top.clone().sub(eye).normalize());
+  const len = eye.distanceTo(top);
+  for (const { kit, box } of [...boxesOf('R07'), ...r08]) {
+    if (kit === 'instrument_cart') continue;
+    const hit = ray.intersectBox(box, new THREE.Vector3());
+    assert.ok(!hit || hit.distanceTo(eye) > len, `Jay's view of the cart blocked by ${kit}`);
+  }
+  // It crosses the partition through the glass (sill 0.35 m, head 2.54 m), not the frame.
+  const tCross = (45.875 - eye.z) / (top.z - eye.z);
+  const yCross = eye.y + (top.y - eye.y) * tCross;
+  assert.ok(yCross > 0.45 && yCross < 2.4, `crosses the partition at y ${yCross.toFixed(2)}`);
+  // Okafor and Giles stand off that line (0.5 m in plan).
+  for (const id of ['r07_glass_okafor', 'r07_glass_giles', 'r07_medbay_door']) {
+    const a = anchor(id);
+    const dx = top.x - eye.x, dz = top.z - eye.z;
+    const t = Math.max(0, Math.min(1, ((a[0] - eye.x) * dx + (a[2] - eye.z) * dz) / (dx * dx + dz * dz)));
+    const off = Math.hypot(a[0] - (eye.x + dx * t), a[2] - (eye.z + dz * t));
+    assert.ok(off >= 0.5, `${id} is ${off.toFixed(2)} m from Jay's line to the cart`);
+  }
+});
 
 test('dive bay lanes fit two capsules side by side between the R13b doors (dive-bay spec, budgets and clearance)', () => {
   const { level } = build();
@@ -837,61 +1061,6 @@ test('dive bay signage and wear: plates by the entries, and 4-8 wear decals per 
   }
   assert.equal(props('R13d').find((p) => p.kit === 'room_sign')!.params!['panel'], false, 'R13d plate only');
   for (const id of ['R13b', 'R13d']) assert.ok(props(id).some((p) => p.kit === 'pipe_labels'), `${id} pipe labels`);
-});
-
-test('no one waits in a Commons doorway: R02 NPC spots stay out of door give-way reach (intro-sequence spec)', () => {
-  const room = data.rooms.find((r) => r.id === 'R02')!;
-  const anchors = new Map((room.anchors ?? []).map((a) => [a.id, a.pos as [number, number, number]]));
-  // Every spot an NPC is sent to in the Commons by any sequence, plus where the level puts its NPCs.
-  const spots: Array<{ label: string; x: number; z: number }> = [];
-  const visit = (node: unknown, file: string): void => {
-    if (Array.isArray(node)) return node.forEach((n) => visit(n, file));
-    if (!node || typeof node !== 'object') return;
-    const o = node as Record<string, unknown>;
-    const target = o['do'] === 'npcMoveTo' ? o['to'] : o['do'] === 'spawn' ? o['at'] : undefined;
-    const id = typeof target === 'string' && target.startsWith('anchor:') ? target.slice(7) : undefined;
-    const pos = id ? anchors.get(id) : undefined;
-    if (pos) spots.push({ label: `${file}: ${String(o['npc'])} -> ${id}`, x: pos[0], z: pos[2] });
-    for (const v of Object.values(o)) visit(v, file);
-  };
-  for (const file of readdirSync(new URL('../data/sequences/', import.meta.url)).filter((f) => f.endsWith('.json'))) {
-    visit(JSON.parse(readFileSync(new URL(`../data/sequences/${file}`, import.meta.url), 'utf8')), file);
-  }
-  for (const n of room.npcs ?? []) {
-    const pos = typeof n.at === 'string' ? anchors.get(n.at) : (n.at as [number, number, number]);
-    if (pos) spots.push({ label: `level npc ${n.id}`, x: pos[0], z: pos[2] });
-  }
-  assert.ok(spots.length >= 10, `found ${spots.length} Commons NPC spots`);
-  // A door's front box on either side: 1.0 m each way along it, GIVE_WAY.doorReach (1.2 m) out from it.
-  const SIDE: Record<number, [number, number]> = { 0: [0, -1], 90: [-1, 0], 180: [0, 1], 270: [1, 0] };
-  const bad: string[] = [];
-  for (const d of data.doors.filter((x) => x.between.includes('R02'))) {
-    const [sx, sz] = SIDE[d.rot]!;
-    const ex = d.cell[0] * 4 + sx * 2;
-    const ez = d.cell[2] * 4 + sz * 2;
-    const hx = sx !== 0 ? GIVE_WAY.doorReach : 1.0;
-    const hz = sz !== 0 ? GIVE_WAY.doorReach : 1.0;
-    for (const s of spots) if (Math.abs(s.x - ex) < hx && Math.abs(s.z - ez) < hz) bad.push(`${s.label} (${s.x}, ${s.z}) waits in front of ${d.id}`);
-  }
-  assert.deepEqual(bad, [], bad.join('\n'));
-});
-
-test('Priya waits off-stage in the shut surgery, outside the admin booth CAM 04 medbay shot (priya-commons-exit)', () => {
-  const anchors = new Map(data.rooms.flatMap((r) => (r.anchors ?? []).map((a) => [a.id, { room: r.id, pos: a.pos as [number, number, number] }] as const)));
-  const spot = anchors.get('priya_offstage');
-  assert.ok(spot, 'priya_offstage exists');
-  assert.equal(spot.room, 'R08b');
-  // The feed (rounds.json) looks from cam04_pos to cam04_look with a 62 degree vertical FOV. Even a wide 16:9 frame
-  // is under 100 degrees across, so a point more than 50 degrees off the view axis (or behind it) is out of frame.
-  const from = anchors.get('cam04_pos')!.pos;
-  const to = anchors.get('cam04_look')!.pos;
-  const offAxis = (p: [number, number, number]): number => {
-    const ax = to[0] - from[0], az = to[2] - from[2];
-    const px = p[0] - from[0], pz = p[2] - from[2];
-    return THREE.MathUtils.radToDeg(Math.acos((ax * px + az * pz) / (Math.hypot(ax, az) * Math.hypot(px, pz))));
-  };
-  assert.ok(offAxis(spot.pos) > 50, `priya_offstage is ${offAxis(spot.pos).toFixed(0)} degrees off the CAM 04 axis`);
-  assert.ok(offAxis(anchors.get('priya_r08')!.pos) < 31, 'priya_r08 is in the CAM 04 shot, which is why she does not wait there');
 });
 
 test('security and medbay overhaul: low fog, cleanWall armory walls, 8-light shared pool, and purposeful dressing (security-medbay spec)', () => {

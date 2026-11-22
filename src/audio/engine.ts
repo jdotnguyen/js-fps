@@ -91,6 +91,8 @@ export class AudioEngine {
   private readonly hushes: Record<BusName, GainNode>;
   /** Shared room convolution reverb input (spec audio-mix: Room reverb); also fed by local dialogue. */
   readonly reverbIn: GainNode;
+  /** Dialogue's wet send follows the voice slider before entering the shared room effect. */
+  readonly voiceReverbIn: GainNode;
   private readonly reverbs = new Map<ReverbPreset, ReverbNode>();
   private activeReverb: ReverbPreset;
   private readonly buffers = new Map<SoundName, AudioBuffer[]>();
@@ -120,6 +122,8 @@ export class AudioEngine {
     for (const n of names) this.buses[n].connect(this.volumes[n]).connect(this.ducks[n]).connect(this.hushes[n]).connect(this.master);
 
     this.reverbIn = new GainNode(this.ctx, { gain: 1 });
+    this.voiceReverbIn = new GainNode(this.ctx, { gain: 1 });
+    this.voiceReverbIn.connect(this.reverbIn);
     this.activeReverb = DEFAULT_REVERB;
     const initial = this.reverbNode(DEFAULT_REVERB);
     initial.out.gain.value = REVERB_SPECS[DEFAULT_REVERB].level;
@@ -301,6 +305,7 @@ export class AudioEngine {
   setBusVolume(bus: BusName, v: number): void {
     const clamped = Math.min(1, Math.max(0, v));
     this.volumes[bus].gain.setTargetAtTime(clamped, this.ctx.currentTime, LEVEL_TC);
+    if (bus === 'voice') this.voiceReverbIn.gain.setTargetAtTime(clamped, this.ctx.currentTime, LEVEL_TC);
   }
 
   /** Current player volume of a bus (its target level). */

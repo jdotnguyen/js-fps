@@ -7,6 +7,7 @@ import {
   sharedMocapLibrary,
   sampleFingers,
   FINGER_CHANNELS,
+  type CompiledMocapClip,
   type LocomotionSample,
   type MocapLibrary,
   type MotionSet,
@@ -122,7 +123,8 @@ const OVERLAY_HEAD_JOINTS: readonly JointName[] = ['neck', 'head'];
  */
 function standingOverlayKind(poseName: string): StandingOverlayKind | null {
   if (/^(sit_|lean_)/.test(poseName)) return null;
-  if (STANDING_ARMS_OVERLAY.has(poseName) || poseName.endsWith('_offer_mug')) return 'arms';
+  // A character's own arms-out scan pose (Ruiz's `ruiz_arms_out`) keeps their legs and trunk on their idle: restless, not frozen.
+  if (STANDING_ARMS_OVERLAY.has(poseName) || poseName.endsWith('_offer_mug') || poseName.endsWith('_arms_out')) return 'arms';
   if (STANDING_HEAD_OVERLAY.has(poseName) || poseName.endsWith('_glance') || poseName.endsWith('_glance_other')) return 'head';
   if (STANDING_IDLE_OVERLAY.has(poseName)) return 'idle';
   return null;
@@ -194,6 +196,17 @@ export class Animator {
   private readonly from = emptyPose('from');
   private readonly mocapPose = emptyPose('mocap');
   private readonly finalPose = emptyPose('final');
+  /** A captured clip played once as the base pose (`playClip`), its progress, and the pose it is sampled into. */
+  private oneShot: { clip: CompiledMocapClip; u: number; pose: CompiledPose } | null = null;
+  /**
+   * Where the last `playClip` wants the body's origin moved, on the floor, in the root bone's parent space (unscaled
+   * skeleton units, the body's own facing). The caller moves the body by it; the pose already allows for it.
+   */
+  readonly clipShift = new THREE.Vector3();
+  /** Clock the convulsion noise runs on (`update`). */
+  private convulsePhase = 0;
+  /** Convulsion runs at this share of its speed while a one-shot clip plays: tremor and spasm, not flicker at 30 fps. */
+  static readonly CLIP_CONVULSE_RATE = 1 / 3;
   private readonly overlayEuler = new THREE.Euler(0, 0, 0, 'YXZ');
   private readonly overlayYawQ = new THREE.Quaternion();
   private static readonly Y_AXIS = new THREE.Vector3(0, 1, 0);
@@ -316,10 +329,81 @@ export class Animator {
     return this.locoInfo.jogWeight;
   }
 
+  /** A one-shot clip is driving the base pose (a kill beat's `clip`). */
+  get clipPlaying(): boolean {
+    return this.oneShot !== null;
+  }
+
+  /**
+   * Play a captured clip once as the base pose, blending in over `blend` s (infection-kills spec "A kill beat can play
+   * a captured clip"). The caller moves it on with `clipPhase`; it holds its last frame at 1. Additive layers
+   * (convulsion, kicks, reactions, look) stay on top. `setPose` or `playSequence` stops it. Returns the clip's length
+   * in seconds, or null when this body's library has no such clip.
+   */
+  playClip(id: string, blend = 0.3): number | null {
+    if (!this.mocap.has(id)) return null;
+    const clip = this.mocap.get(id);
+    this.seq = null;
+    const pose = this.oneShot?.pose ?? emptyPose(`clip:${id}`);
+    pose.name = `clip:${id}`;
+    sampleClip(clip, 0, pose);
+    // A lying pose lies by tipping the root; a captured clip lies by turning the hips. Blending one into the other
+    // sags through the floor halfway, so first rebuild the pose being left on the clip's root (same body, same place).
+    this.rebaseRoot(this.current, pose);
+    // The bake centres a clip's hips on their average over the take, so a get-up's lying first frame sits off where
+    // the body actually lies (a prone pose lies by tipping the root, the clip by bending the joints). The body's
+    // origin moves (`clipShift`) so the first frame's hips land where the hips are now, and the pose being left
+    // moves back by as much so nothing jumps: it gets up from where it lay, and stands where the clip ends.
+    const shift = this.hipsOnRoot(this.current, this.clipShift).sub(this.hipsOnRoot(pose, this.hipsB));
+    shift.y = 0;
+    this.current.rootPos.sub(shift);
+    this.oneShot = { clip, u: 0, pose };
+    this.startBlend(pose, blend);
+    return clip.duration;
+  }
+
+  private readonly hipsB = new THREE.Vector3();
+
+  private readonly qA = new THREE.Quaternion();
+
+  /**
+   * Rewrite `pose` so its root bone matches `to`'s root, moving the difference into the hips (rotation and
+   * position), which leaves every joint where it was. The root's only child is the pelvis.
+   */
+  private rebaseRoot(pose: CompiledPose, to: CompiledPose): void {
+    const pelvisQ = pose.joints[J.pelvis];
+    if (!pelvisQ) return;
+    const hips = this.hipsOnRoot(pose, this.hipsA);
+    const inv = this.qA.copy(to.rootRot).invert();
+    pelvisQ.premultiply(pose.rootRot).premultiply(inv);
+    pose.rootRot.copy(to.rootRot);
+    pose.rootPos.copy(to.rootPos);
+    // hipsOnRoot(pose) must stay put: rootPos + rootRot * (rest + pelvis) = hips.
+    pose.pelvis.copy(hips.sub(to.rootPos).applyQuaternion(inv));
+    const rest = this.restPos[J.pelvis];
+    if (rest) pose.pelvis.sub(rest);
+  }
+
+  private readonly hipsA = new THREE.Vector3();
+
+  /** Where a pose puts the hips, in the space the root bone sits in. */
+  private hipsOnRoot(pose: CompiledPose, out: THREE.Vector3): THREE.Vector3 {
+    const rest = this.restPos[J.pelvis];
+    out.copy(pose.pelvis);
+    if (rest) out.add(rest);
+    return out.applyQuaternion(pose.rootRot).add(pose.rootPos);
+  }
+
+  /** How far through the one-shot clip the body is (0..1). */
+  clipPhase(u: number): void {
+    if (this.oneShot) this.oneShot.u = THREE.MathUtils.clamp(u, 0, 1);
+  }
+
   /** Blend to a pose from wherever the body is now. `blend <= 0` snaps immediately. */
   setPose(name: string, blend = 0.4): void {
     if (this.to.name === name && !this.seq) return;
     this.seq = null;
+    this.oneShot = null;
     const target = this.poses.get(name);
     if (blend <= 0) {
       this.to = target;
@@ -336,6 +420,7 @@ export class Animator {
     const steps = this.poses.sequence(name);
     const first = steps[0];
     if (!first) return;
+    this.oneShot = null;
     this.seq = { steps, index: 0, timer: first.blend + first.hold, onDone };
     this.startBlend(this.poses.get(first.pose), first.blend);
   }
@@ -365,7 +450,14 @@ export class Animator {
 
   update(dt: number): void {
     this.time += dt;
+    // Convulsion runs on its own clock: slower while a captured clip plays, so it reads as spasm over the motion
+    // rather than flicker (equal to `time` for a body that never plays one).
+    this.convulsePhase += dt * (this.oneShot ? Animator.CLIP_CONVULSE_RATE : 1);
+    const shot = this.oneShot;
+    if (shot) sampleClip(shot.clip, shot.u, shot.pose);
     this.updateBlend(dt);
+    // Once blended in, the clip is the base pose every frame (the blend above only moves `current` while it runs).
+    if (shot && this.to === shot.pose && this.blendT >= 1) copyPose(shot.pose, this.current);
     this.off.fill(0);
     this.bob.set(0, 0, 0);
     this.rootEuler.set(0, 0, 0);
@@ -401,6 +493,156 @@ export class Animator {
     this.addConvulsions();
     if (this.holdW >= 0.005 && this.holdClip) this.writeWithHold();
     else this.write();
+    this.anchorHandsOnHips(dt);
+    this.anchorCrossedArms(dt);
+  }
+
+  /** How far the hands are pinned to the hips (0..1), easing in and out with `idle_hips`. */
+  private hipW = 0;
+  /**
+   * The arms are placed against the body on purpose (hands on hips, arms crossed): the body's hand-contact solve keeps their
+   * elbows (limbContact `keepElbows`) instead of swinging them to its own anatomical pole, which would roll the forearms and
+   * carry the hands off the hips or out from round the other arm.
+   */
+  get armsPlaced(): boolean {
+    return this.hipW > 0.5 || this.crossW > 0.5;
+  }
+  private readonly hipTarget = new THREE.Vector3();
+  private readonly hipJoint = new THREE.Vector3();
+  private readonly hipPelvis = new THREE.Vector3();
+  private readonly hipOut = new THREE.Vector3();
+  private readonly hipBack = new THREE.Vector3();
+  private readonly hipElbow = new THREE.Vector3();
+  private readonly hipRot = new THREE.Quaternion();
+  /**
+   * Where a hand rests on its hip, from the hip joint: out to the side of the pelvis, up onto the crest and a touch back, so the
+   * body's contact push settles it on the side of the hip rather than shoving it forward (metres).
+   */
+  static readonly HIP_HAND_OUT = 0.11;
+  static readonly HIP_HAND_UP = 0.16;
+  static readonly HIP_HAND_BACK = 0.03;
+  /** Where the elbow is drawn, from the hand: well out, up and a little back (the akimbo elbow). */
+  static readonly HIP_ELBOW_OUT = 0.3;
+  static readonly HIP_ELBOW_UP = 0.2;
+  static readonly HIP_ELBOW_BACK = 0.08;
+
+  /**
+   * Hands on hips is a contact with the pelvis, not an arm shape: the arms hang off the chest, and under the standing arms overlay
+   * the trunk plays the character's own idle (leaning, swaying, a big man's chest well ahead of his hips), so the authored angles
+   * alone leave the hands off the hips on most bodies. After the pose is written, each hand is solved onto its own hip with the
+   * elbow drawn out wide, keeping the hand's orientation; the body's hand-contact solve then settles it on the surface.
+   */
+  private anchorHandsOnHips(dt: number): void {
+    const want = !this.twitchy && /(^|_)idle_hips$/.test(this.to.name) ? 1 : 0;
+    this.hipW += (want - this.hipW) * (1 - Math.exp(-6 * dt));
+    if (this.hipW < 0.003 || !this.bones[0]) {
+      if (!want) this.hipW = 0;
+      return;
+    }
+    const w = THREE.MathUtils.smoothstep(this.hipW, 0, 1);
+    const thighL = this.bones[J.thigh_L];
+    const thighR = this.bones[J.thigh_R];
+    if (!thighL || !thighR) return;
+    this.bones[0].updateWorldMatrix(true, true);
+    this.bones[J.pelvis]?.getWorldPosition(this.hipPelvis);
+    // Backward along the body: up x (left hip - right hip), level.
+    thighL.getWorldPosition(this.hipBack);
+    this.hipBack.sub(thighR.getWorldPosition(this.hipJoint)).setY(0);
+    if (this.hipBack.lengthSq() < 1e-6) return;
+    this.hipBack.normalize().cross(Animator.Y_AXIS).negate();
+    for (const s of ['L', 'R'] as const) {
+      const up = this.bones[J[`upperArm_${s}`]];
+      const lo = this.bones[J[`foreArm_${s}`]];
+      const hand = this.bones[J[`hand_${s}`]];
+      const thigh = s === 'L' ? thighL : thighR;
+      if (!up || !lo || !hand || this.limp.has(J[`hand_${s}`])) continue;
+      thigh.getWorldPosition(this.hipJoint);
+      this.hipOut.subVectors(this.hipJoint, this.hipPelvis).setY(0);
+      if (this.hipOut.lengthSq() < 1e-6) continue;
+      this.hipOut.normalize();
+      this.hipTarget.copy(this.hipJoint).addScaledVector(this.hipOut, Animator.HIP_HAND_OUT).addScaledVector(this.hipBack, Animator.HIP_HAND_BACK);
+      this.hipTarget.y += Animator.HIP_HAND_UP;
+      this.hipElbow.copy(this.hipTarget).addScaledVector(this.hipOut, Animator.HIP_ELBOW_OUT).addScaledVector(this.hipBack, Animator.HIP_ELBOW_BACK);
+      this.hipElbow.y += Animator.HIP_ELBOW_UP;
+      hand.getWorldPosition(this.hipJoint);
+      this.hipTarget.lerp(this.hipJoint, 1 - w);
+      hand.getWorldQuaternion(this.hipRot);
+      solveTwoBone(up, lo, hand, this.hipTarget, this.hipElbow);
+      const parentQ = lo.getWorldQuaternion(this.holdQ);
+      hand.quaternion.copy(parentQ.invert().multiply(this.hipRot));
+      hand.updateMatrixWorld(true);
+    }
+  }
+
+  /** How far the wrists are pinned onto the other arm (0..1), easing in and out with `idle_crossed`. */
+  private crossW = 0;
+  private readonly crossOther = new THREE.Vector3();
+  private readonly crossAlong = new THREE.Vector3();
+  private readonly crossLat = new THREE.Vector3();
+  private readonly crossTurn = new THREE.Quaternion();
+  private readonly crossEuler = new THREE.Euler();
+  /** Each hand's turn from the authored wrist once it is on the other arm (degrees, XYZ): flexed down over that arm. */
+  static readonly CROSS_HAND = { L: [-30, 0, 0], R: [-30, 0, 0] } as const;
+  /**
+   * Where each wrist rests, from the other arm's elbow (metres): up that arm toward the shoulder, in from its outer edge, and in
+   * front of it for the left (top) hand, which lies on the right biceps; behind it for the right one, tucked under the left arm.
+   */
+  static readonly CROSS_ALONG = { L: 0.1, R: 0.08 } as const;
+  static readonly CROSS_IN = { L: 0.11, R: 0.11 } as const;
+  static readonly CROSS_FRONT = { L: 0.05, R: -0.03 } as const;
+  static readonly CROSS_UP = { L: 0.04, R: -0.02 } as const;
+
+  /**
+   * Crossed arms are a contact between the forearms and the other arm, and how far a forearm reaches across depends on the build
+   * (shoulder width, forearm length, a coat's depth), so the authored angles alone leave some bodies' wrists short of the midline.
+   * After the pose is written, each wrist is solved onto the other arm just above its elbow, keeping its own elbow direction: the
+   * right first, tucked behind the left arm, then the left over it, lying on the right biceps. Each hand then flexes down over
+   * the arm it rests on instead of sticking out past it.
+   */
+  private anchorCrossedArms(dt: number): void {
+    const want = !this.twitchy && /(^|_)idle_crossed$/.test(this.to.name) ? 1 : 0;
+    this.crossW += (want - this.crossW) * (1 - Math.exp(-6 * dt));
+    if (this.crossW < 0.003 || !this.bones[0]) {
+      if (!want) this.crossW = 0;
+      return;
+    }
+    const thighL = this.bones[J.thigh_L];
+    const thighR = this.bones[J.thigh_R];
+    if (!thighL || !thighR) return;
+    const w = THREE.MathUtils.smoothstep(this.crossW, 0, 1);
+    this.bones[0].updateWorldMatrix(true, true);
+    // Forward along the body: (left hip - right hip) x up, level.
+    thighL.getWorldPosition(this.hipBack);
+    this.hipBack.sub(thighR.getWorldPosition(this.hipJoint)).setY(0);
+    if (this.hipBack.lengthSq() < 1e-6) return;
+    this.crossLat.copy(this.hipBack.normalize());
+    this.hipBack.cross(Animator.Y_AXIS);
+    for (const s of ['R', 'L'] as const) {
+      const o = s === 'L' ? 'R' : 'L';
+      const up = this.bones[J[`upperArm_${s}`]];
+      const lo = this.bones[J[`foreArm_${s}`]];
+      const hand = this.bones[J[`hand_${s}`]];
+      const otherUp = this.bones[J[`upperArm_${o}`]];
+      const otherLo = this.bones[J[`foreArm_${o}`]];
+      if (!up || !lo || !hand || !otherUp || !otherLo || this.limp.has(J[`hand_${s}`])) continue;
+      otherLo.getWorldPosition(this.crossOther);
+      otherUp.getWorldPosition(this.crossAlong).sub(this.crossOther).normalize();
+      this.hipTarget.copy(this.crossOther).addScaledVector(this.crossAlong, Animator.CROSS_ALONG[s]).addScaledVector(this.hipBack, Animator.CROSS_FRONT[s]);
+      this.hipTarget.addScaledVector(this.crossLat, (s === 'L' ? 1 : -1) * Animator.CROSS_IN[s]);
+      this.hipTarget.y += Animator.CROSS_UP[s];
+      hand.getWorldPosition(this.hipJoint);
+      this.hipTarget.lerp(this.hipJoint, 1 - w);
+      lo.getWorldPosition(this.hipElbow);
+      hand.getWorldQuaternion(this.hipRot);
+      solveTwoBone(up, lo, hand, this.hipTarget, this.hipElbow);
+      // Keep the authored wrist, then flex the hand down over the arm it rests on.
+      const parentQ = lo.getWorldQuaternion(this.holdQ);
+      hand.quaternion.copy(parentQ.invert().multiply(this.hipRot));
+      const turn = Animator.CROSS_HAND[s];
+      this.crossEuler.set(turn[0] * D2R * w, turn[1] * D2R * w, turn[2] * D2R * w, 'XYZ');
+      hand.quaternion.multiply(this.crossTurn.setFromEuler(this.crossEuler));
+      hand.updateMatrixWorld(true);
+    }
   }
 
   // ---------------------------------------------------------------- base pose + staggered follow-through
@@ -1517,7 +1759,7 @@ export class Animator {
   private addConvulsions(): void {
     const c = this.convulse;
     if (c <= 0) return;
-    const t = this.time;
+    const t = this.convulsePhase;
     for (let i = 1; i < N; i++) {
       const name = JOINTS[i]?.name ?? 'root';
       const amp = (UP_CHAIN.has(name) ? 16 : name.startsWith('hand') ? 32 : 24) * c;
@@ -1579,7 +1821,7 @@ export class Animator {
     const fam = treat ? act : postureFamily(pose);
     const id = treat ?? (fam ? this.motion.holds[fam as PostureFamily] : undefined);
     const clip = id && this.mocap.has(id) ? this.mocap.get(id) : null;
-    const active = clip?.additive === true && !this.seq && this.convulse <= 0.01 && !this.twitchy && this.mocapW < 0.5;
+    const active = clip?.additive === true && !this.seq && !this.oneShot && this.convulse <= 0.01 && !this.twitchy && this.mocapW < 0.5;
     if (active && id !== this.holdClip) {
       this.holdClip = id ?? null;
       this.holdPhase = this.idlePhase;

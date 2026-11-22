@@ -582,6 +582,7 @@ anchor(R03, 'labb_glass', [8, 1.5, 21.8]);
 anchor(R03, 'brief_jay', [8, 0, 17.4], 180);
 anchor(R03, 'brief_giles', [6.4, 0, 17.8], 160);
 anchor(R03, 'brief_okafor', [9.7, 0, 17.8], 200);
+anchor(R03, 'brief_sung', [5.2, 0, 18.8], 135);
 anchor(R03, 'brief_heins', [8, 0, 20.4], 0);
 anchor(R03, 'gallery_enter', [13, 0, 16], 90);
 anchor(R03, 'drop_jay', [8, 0, 19.6], 180);
@@ -593,7 +594,7 @@ anchor(R04, 'labb_victim', [8, 0, 26.5], 0);
 npc(R03, 'heins', 'heins', 'brief_heins', 'idle_crossed');
 npc(R04, 'researcher_b', 'voss', 'labb_victim', 'typing', { transformable: true }); // Dr. Voss: transforms in the drop (ADR-0023)
 trigger(R03, 'trig_gallery_enter', cellBox(1, 3, 4, 5), 'trigger:gallery_enter', { once: false });
-trigger(R03, 'trig_gallery_brief', around([8, 0, 17.4], 1.0, 2.2), 'trigger:gallery_brief_spot', { once: false });
+trigger(R03, 'trig_gallery_brief', [[2.3, 0, 14.3], [11.8, 2.6, 21.7]], 'trigger:gallery_brief_spot', { once: false });
 
 // ---------------------------------------------------------------- R05 lab junction, R06 pressure door hall (labs)
 // rebuild-lab-wing: the wing is in lockdown when the player first enters it (after the drop). Red alarm light, with one
@@ -843,7 +844,8 @@ anchor(R08b, 'r08_lurk', [7.0, 0, 51.35], 90); // just inside the surgery door, 
 anchor(R08b, 'r08_drag_end', [7.1, 0, 53.0], 90); // where the drag leaves her, between the bed and the door
 anchor(R08b, 'stinger_cam', [9.65, 2.85, 50.35]);
 anchor(R08b, 'stinger_look', [8.1, 0.55, 52.9]);
-anchor(R08b, 'priya_hide', [8.7, 0, 53.35], 300);
+anchor(R08b, 'priya_hide', [9.2, 0, 53.45], 0);
+anchor(R08b, 'priya_pool', [9.2, 0, 52.55]);
 // Where Priya waits off-stage between the intro and the security wing (priya-commons-exit): she "went to the medbay",
 // but the medbay itself is on the admin booth's CAM 04 feed, so she waits in the shut surgery, out of every view.
 anchor(R08b, 'priya_offstage', [9.3, 0, 50.9], 0);
@@ -1160,11 +1162,10 @@ prop(R13e, 'floor_wear', [15.6, 0, 40], 0, { kind: 'salt', width: 0.8, depth: 0.
 // R13c ROV workshop: bench and battery charger on the west wall, parts bins on the north, gas and hose to the south-east.
 wallProp(R13c, 'workbench', 4, 9, 'w', 0.5, { width: 2.4 }, 0.01);
 wallProp(R13c, 'battery_charger', 4, 8, 'w', 0.5, undefined, 0.01);
+prop(R13c, 'platform_trolley', [16.4, 0, 34.9], 0, { id: 'rov_trolley' }, { dynamic: { mass: 45 } });
 wallProp(R13c, 'parts_bins', 4, 8, 'n', 0, { width: 1.6 }, 0.01);
 wallProp(R13c, 'gas_cylinder_rack', 4, 9, 's', -1.0, undefined, 0.01);
 wallProp(R13c, 'hose_reel', 4, 9, 'e', 0.6, undefined, 0.01);
-// A pushable platform trolley (adopt-physics-engine 6.4): a physics prop with interaction on, static otherwise.
-prop(R13c, 'platform_trolley', [16.4, 0, 34.9], 0, { id: 'rov_trolley' }, { dynamic: { mass: 45 } });
 prop(R13d, 'pipe_run', [36, 0, 33.4], 0, { length: 11, height: 0.5, paint: 'dark' });
 prop(R13d, 'crate', [41, 0, 30.8], 15, { size: 0.7 });
 prop(R13d, 'debris_pile', [37.6, 0, 31.2]);

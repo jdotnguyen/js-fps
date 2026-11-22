@@ -1,4 +1,4 @@
-import type { KillBeat, KillEvent, KillStyle } from '../data/types/kills.ts';
+import { clipSpeedAt, type KillBeat, type KillEvent, type KillStyle } from '../data/types/kills.ts';
 
 /**
  * One scripted kill playing on one victim (infection-kills spec). Pure timing: which beat is on, when it ends (its cue
@@ -9,6 +9,13 @@ export interface KillHooks {
   /** A beat begins (the director emits `kill:<beat>`). */
   beat(id: string, index: number): void;
   pose(name: string, blend: number): void;
+  /**
+   * A beat's captured clip starts on the victim, blending in over `blend` s. Returns the clip's length in seconds, or
+   * null when the body has no such clip (the beat then plays its poses). A later `pose` stops the clip.
+   */
+  clip?(id: string, blend: number): number | null;
+  /** How far through the playing clip the victim is (0..1); the clip holds its last frame at 1. */
+  clipPhase?(u: number): void;
   convulse(target: number, rate: number): void;
   /** Lump `i` at `t` (0..1) along `path`; radius 0 clears it. */
   bulge(i: number, path: readonly string[], t: number, radius: number, amp: number): void;
@@ -22,6 +29,10 @@ export interface KillHooks {
   creatureReady(): boolean;
   /** The last beat ended. */
   done(): void;
+  /** `mauled`: the victim says a line (a beat's `lines`). */
+  say?(line: string): void;
+  /** `mauled`: whatever the victim is saying stops now (an impact). */
+  cutVoice?(): void;
 }
 
 /** Bulge slots a kill uses; matches the body shader's lump count. */
@@ -40,6 +51,14 @@ export class KillRun {
   private finished = false;
   /** Lines that have ended since the kill began (a line may end before its beat starts listening). */
   private readonly endedLines = new Set<string>();
+  /** Slam impacts landed in the current beat (`until: impacts`). */
+  private impacts = 0;
+  /** The current beat's clip: its length (s) and progress (0..1); null when the beat has none or the body lacks it. */
+  private clip: { duration: number; u: number } | null = null;
+  /** Warned once per missing clip id. */
+  private readonly missingClips = new Set<string>();
+  /** Where a missing clip is reported (default `console.warn`). */
+  warn: (message: string) => void = (m) => console.warn(`[kill] ${m}`);
   /** The beats that ran, in order (tests, debug). */
   readonly played: string[] = [];
 
@@ -62,6 +81,40 @@ export class KillRun {
     this.endedLines.add(id);
   }
 
+  /** Seconds into the current beat. */
+  get beatTime(): number {
+    return this.t;
+  }
+
+  /** The current beat (null before the first update and after the last). */
+  get beat(): KillBeat | null {
+    return this.style.beats[this.index] ?? null;
+  }
+
+  /** Impacts landed in the current beat. */
+  get impactCount(): number {
+    return this.impacts;
+  }
+
+  /** Progress through the current beat's clip (0..1), or null when no clip plays. */
+  get clipProgress(): number | null {
+    return this.clip?.u ?? null;
+  }
+
+  /**
+   * A slam impact landed on the victim (`mauled`). Her voice is cut, the beat's next line (if any) plays, and an
+   * `until: impacts` beat ends once its count is reached (checked on the next update).
+   */
+  impact(): number {
+    if (this.finished) return this.impacts;
+    const beat = this.style.beats[this.index];
+    this.impacts++;
+    this.hooks.cutVoice?.();
+    const line = beat?.lines?.[this.impacts];
+    if (line) this.hooks.say?.(line);
+    return this.impacts;
+  }
+
   /** Advance. The first call starts the first beat, so listeners set up in the same frame hear it. */
   update(dt: number): void {
     if (this.finished) return;
@@ -74,7 +127,8 @@ export class KillRun {
     if (!beat) return;
     this.t += dt;
     this.fire(beat);
-    this.loopPoses(beat);
+    if (this.clip) this.advanceClip(beat, dt);
+    else this.loopPoses(beat);
     this.moveBulges(beat);
     if (this.ended(beat)) this.enter(this.index + 1);
   }
@@ -86,7 +140,7 @@ export class KillRun {
       const beat = this.style.beats[i]!;
       const events = beat.events ?? [];
       const from = i === this.index ? this.fired : 0;
-      for (const e of events.slice(from)) if (e.do === 'tear' || e.do === 'die' || e.do === 'creature' || e.do === 'light') this.hooks.event(e, beat);
+      for (const e of events.slice(from)) if (e.do === 'tear' || e.do === 'die' || e.do === 'creature' || e.do === 'light' || e.do === 'infect' || e.do === 'face') this.hooks.event(e, beat);
     }
     const last = this.style.beats[this.style.beats.length - 1];
     if (last) this.hooks.pose(last.poses[0]!, 0.01);
@@ -111,10 +165,15 @@ export class KillRun {
     this.t = 0;
     this.fired = 0;
     this.poseIndex = 0;
+    this.impacts = 0;
+    this.clip = null;
     this.played.push(beat.id);
     this.hooks.beat(beat.id, i);
     this.hooks.pose(beat.poses[0]!, beat.blend ?? 0.25);
+    if (beat.clip !== undefined) this.startClip(beat, beat.clip);
     this.hooks.convulse(beat.convulse, beat.rate ?? 1.5);
+    const line = beat.lines?.[0];
+    if (line) this.hooks.say?.(line);
     this.fire(beat);
     this.moveBulges(beat);
   }
@@ -125,6 +184,27 @@ export class KillRun {
       this.hooks.event(events[this.fired]!, beat);
       this.fired++;
     }
+  }
+
+  /** Start the beat's clip; without one on the body, warn once and leave the beat to its poses. */
+  private startClip(beat: KillBeat, id: string): void {
+    const duration = this.hooks.clip?.(id, beat.blend ?? 0.3) ?? null;
+    if (duration === null || !(duration > 0)) {
+      if (!this.missingClips.has(id)) {
+        this.missingClips.add(id);
+        this.warn(`beat "${beat.id}": the victim has no clip "${id}"; playing its poses instead`);
+      }
+      return;
+    }
+    this.clip = { duration, u: 0 };
+    this.hooks.clipPhase?.(0);
+  }
+
+  /** Move the clip on at the beat's speed for this moment of the beat. */
+  private advanceClip(beat: KillBeat, dt: number): void {
+    const c = this.clip!;
+    c.u = Math.min(1, c.u + (dt * clipSpeedAt(beat.speed, this.t)) / c.duration);
+    this.hooks.clipPhase?.(c.u);
   }
 
   private loopPoses(beat: KillBeat): void {
@@ -155,6 +235,11 @@ export class KillRun {
         return this.hooks.arrived();
       case 'creature':
         return this.hooks.creatureReady();
+      case 'impacts':
+        return this.impacts >= (beat.impacts ?? 1);
+      case 'clip':
+        // A missing clip falls back to the poses, which then run for the beat's `s` (else its time limit).
+        return this.clip ? this.clip.u >= 1 : this.t >= (beat.s ?? beat.max);
     }
   }
 }

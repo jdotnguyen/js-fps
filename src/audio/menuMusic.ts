@@ -22,6 +22,8 @@ export class MenuMusic {
   private readonly engine: AudioEngine;
   private mode: GameMode;
   private handle: LoopHandle | null = null;
+  /** Kept silent whatever the mode (the end credits playing the last scene's score); `hold(false)` fades it in. */
+  private held = false;
   /** Track a sequence started in play (`{ "do": "music" }`); overrides the mode level until stopped. */
   private cued: MusicTrack | null = null;
   private resolveReady!: () => void;
@@ -66,6 +68,12 @@ export class MenuMusic {
     this.apply(track === null ? CUE_FADE_OUT : CUE_FADE_IN);
   }
 
+  /** Keep the theme silent (true), or let it come back at the mode's level over about `fadeIn` seconds (false). */
+  hold(on: boolean, fadeIn = 3): void {
+    this.held = on;
+    this.apply(on ? 0.3 : fadeIn / 3);
+  }
+
   get cuedTrack(): MusicTrack | null {
     return this.cued;
   }
@@ -73,7 +81,7 @@ export class MenuMusic {
   private apply(timeConstant?: number): void {
     const level = LEVELS[this.mode];
     // A cued track plays at full level in play, and keeps the pause-menu dip.
-    const gain = this.cued && this.mode !== 'title' ? (this.mode === 'paused' ? LEVELS.paused.gain : 1) : level.gain;
+    const gain = this.held ? 0 : this.cued && this.mode !== 'title' ? (this.mode === 'paused' ? LEVELS.paused.gain : 1) : level.gain;
     this.handle?.setGain(gain, timeConstant ?? level.timeConstant);
   }
 }

@@ -201,8 +201,6 @@ export interface ResolvedPalette {
   /** Acoustic footstep surface matching the visual `floor` material. */
   floorSurface: SurfaceMaterial;
   hazard: THREE.MeshStandardMaterial;
-  /** Tile argument for thin hazard strips: photo `hazard` needs metre UVs, the procedural stripes want 0.5. */
-  hazardTile: number;
   doorSurround: THREE.MeshStandardMaterial;
   doorPanel: THREE.MeshStandardMaterial;
   doorGlassBar: THREE.MeshStandardMaterial;
@@ -254,7 +252,6 @@ export function resolvePalette(params: PieceParams, m: Materials): ResolvedPalet
     floorAlt: m[pal.floorAlt ?? 'steel'],
     floorSurface: floorSurfaceForKey(floor),
     hazard: m[pal.hazard],
-    hazardTile: pal.hazard === 'hazard' ? 1 : 0.5,
     doorSurround: m[pal.doorSurround ?? 'paintDark'],
     doorPanel: m[pal.doorPanel ?? 'paintDark'],
     doorGlassBar: m[pal.doorGlassBar ?? 'paintBone'],

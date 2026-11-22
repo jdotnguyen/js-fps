@@ -1,5 +1,5 @@
 /**
- * Debug page: audition every emote for every voice, both channels,
+ * Debug page: audition every emote for every voice, all channels,
  * babble and Giles's rasp, and exercise the speech manager with the slice's lines.
  * Dev only: open /voices.html while `npm run dev` is running.
  */
@@ -48,7 +48,7 @@ app.innerHTML = `
   <div id="main" hidden>
     <h2>Options</h2>
     <div class="row">
-      <label>Channel <select id="channel"><option value="local">local (positional)</option><option value="radio">radio</option></select></label>
+      <label>Channel <select id="channel"><option value="local">local (positional)</option><option value="radio">radio</option><option value="pa">wall speaker</option></select></label>
       <label>Position <input id="pos" type="range" min="-4" max="4" step="0.5" value="0" /> <span id="posv">centre</span></label>
       <label><input id="vary" type="checkbox" /> new seed each click</label>
     </div>
@@ -77,7 +77,7 @@ app.innerHTML = `
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const library = loadDialogueLibrary();
 const engine = new AudioEngine();
-const player = new WebAudioVoicePlayer(engine);
+const player = new WebAudioVoicePlayer({ ctx: engine.ctx, master: engine.buses.voice, reverbIn: engine.voiceReverbIn });
 const bus = new EventBus();
 const speech = new SpeechManager(bus, library, player);
 
@@ -138,7 +138,7 @@ function audition(speaker: string, emote: Emote): void {
   const line: DialogueLine = { id, speaker, text, emote, channel: channel(), priority: 'story', audio: null, minDuration: 0, choices: [] };
   const profile = library.speaker(speaker);
   const r = speaker === 'engineer' && rasp() > 0 ? rasp() : null;
-  const pb = player.play({ line, profile, at: pos() === 0 ? undefined : at, rasp: r, babble });
+  const pb = player.play({ line, profile, at: line.channel === 'pa' || pos() !== 0 ? at : undefined, rasp: r, babble });
   const data = renderUtterance(engine.ctx.sampleRate, profile, emote, id, { ...(r === null ? {} : { rasp: r }), ...(babble ? { babbleText: text } : {}) });
   setTimeout(() => pb.stop(false), (data.length / engine.ctx.sampleRate) * 1000 + 150);
   drawWave(data, `${speaker} / ${babble ? 'babble' : emote}`);
@@ -183,7 +183,7 @@ for (const l of sortedLines) {
 
 function say(id: string): void {
   const l = library.line(id);
-  speech.say(id, l.channel === 'local' && pos() !== 0 ? { at } : {});
+  speech.say(id, l.channel === 'pa' || (l.channel === 'local' && pos() !== 0) ? { at } : {});
 }
 
 $('sc-interrupt').addEventListener('click', () => {

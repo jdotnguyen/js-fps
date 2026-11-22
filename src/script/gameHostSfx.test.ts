@@ -25,6 +25,48 @@ test('sfx with a registered but unloaded sample warns and does not throw', () =>
   assert.ok(warnings.every((w) => w.includes('not ready')));
 });
 
+// adaptive-music spec / in-world-audio "Klaxon on the beat": an sfx step that asks for the beat waits for the score.
+function beatHost(untilBeat: number | null): { host: ReturnType<typeof createGameHost>; played: string[]; cues: string[] } {
+  const played: string[] = [];
+  const cues: string[] = [];
+  const audio = { hasSound: () => true, play: (name: string) => void played.push(name) };
+  const score =
+    untilBeat === null
+      ? null
+      : {
+          load: (id: string) => void cues.push(`load ${id}`),
+          cue: (id: string, c: string) => void cues.push(`${id} ${c}`),
+          stinger: (s: string, id?: string) => void cues.push(`stinger ${s} ${id}`),
+          untilBeat: () => untilBeat,
+        };
+  const host = createGameHost({ audio, score, events: { on: () => () => undefined, emit: () => undefined } } as unknown as GameHostDeps);
+  return { host, played, cues };
+}
+
+test('sfx on the beat waits for the next beat of the score', async () => {
+  const { host, played } = beatHost(0.05);
+  host.sfx!('klaxon', null, { beat: true });
+  assert.deepEqual(played, []);
+  await new Promise((r) => setTimeout(r, 80));
+  assert.deepEqual(played, ['klaxon']);
+});
+
+test('sfx on the beat plays at once with no score, or when the beat is now', () => {
+  for (const until of [null, 0]) {
+    const { host, played } = beatHost(until);
+    host.sfx!('klaxon', null, { beat: true });
+    assert.deepEqual(played, ['klaxon'], String(until));
+  }
+});
+
+test('the score step loads, cues and fires stingers', () => {
+  const { host, cues } = beatHost(0);
+  host.score!('labB', { load: true });
+  host.score!('labB', { cue: 'door' });
+  host.score!('labB', { stinger: 'rise' });
+  assert.deepEqual(cues, ['load labB', 'labB door', 'stinger rise labB']);
+});
+
 // in-world-audio "World sound occlusion": sequence sounds play as authored, so positional ones opt out of wall muffling.
 test('a positional sfx step opts out of occlusion', () => {
   type Opts = { occlude?: boolean; position?: unknown };

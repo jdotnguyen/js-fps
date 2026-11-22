@@ -22,7 +22,7 @@ import type { Level } from '../world/level.ts';
 import type { World } from '../world/world.ts';
 import type { NpcDirector } from '../ai/npcs.ts';
 import { RadioPlayer } from '../audio/radio.ts';
-import type { CameraFeedOptions, SequenceHost } from './host.ts';
+import type { CameraFeedOptions, ScriptSpeechOptions, SequenceHost } from './host.ts';
 import type { TargetRef, Vec3Like } from './types.ts';
 
 export interface GameHostDeps {
@@ -37,6 +37,8 @@ export interface GameHostDeps {
   ambience?: AmbienceDirector | null | undefined;
   /** Music the sequence `music` step controls (the menu theme player). */
   music?: { cue(track: MusicTrack | null): void } | null | undefined;
+  /** Adaptive scores (adaptive-music spec): the `score` step, and `sfx` steps that wait for the beat. */
+  score?: { load(id: string): void; cue(id: string, cue: string): void; stinger(name: string, id?: string): void; untilBeat(): number } | null | undefined;
   hud: PlayerHud;
   toasts: Toasts;
   /** Key items (ADR-0024), for `giveItem`. */
@@ -46,10 +48,10 @@ export interface GameHostDeps {
   /** Scripted NPCs and the squad hand-over (ADR-0009/0011): `npc:<id>` targets and NPC actions. */
   npcs?: NpcDirector | null | undefined;
   /** Enemy spawn groups (ADR-0007 `spawnGroup` / `despawnGroup`). */
-  enemies?: { spawnGroup(group: string): boolean; despawnGroup(group: string): boolean; groupCleared(group: string): boolean } | null | undefined;
+  enemies?: { spawnGroup(group: string, from?: { pos: { x: number; y: number; z: number }; yaw?: number }): boolean; despawnGroup(group: string): boolean; groupCleared(group: string): boolean } | null | undefined;
   /** Speech manager for `say`; without it lines are skipped with a warning. */
-  speech?: { say(id: string, opts?: { overlap?: boolean }): { done: Promise<unknown> } | null; stopAll(): void; onlySpeakers?(speakers: readonly string[] | null): void } | null | undefined;
-  /** End-credits overlay triggered when the slice finishes. */
+  speech?: { say(id: string, opts?: ScriptSpeechOptions): { done: Promise<unknown> } | null; stopAll(): void; onlySpeakers?(speakers: readonly string[] | null): void } | null | undefined;
+  /** End-credits overlay triggered when the slice finishes; settles once it covers the screen. */
   showCredits?: (opts?: { instant?: boolean }) => void | Promise<void>;
   /** Security camera feeds (`render/cameraFeed.ts`) for the `cameraFeed` action. */
   cameraFeeds?: { apply(id: string, opts: CameraFeedOptions): void } | null | undefined;
@@ -67,14 +69,11 @@ function vec(v: THREE.Vector3): Vec3Like {
 }
 
 export function createGameHost(d: GameHostDeps): SequenceHost {
-  // Room tests for `gatherIn`: feet raised half a metre, as checkpoints test them. No level, or an unknown room: inside.
-  const roomIs = (p: Vec3Like, room: string): boolean => {
-    if (!d.level?.hasRoom(room)) return true;
-    return d.level.roomAt(tmp.set(p.x, p.y + 0.5, p.z))?.data.id === room;
-  };
   const v3 = (p: Vec3Like): THREE.Vector3 => new THREE.Vector3(p.x, p.y, p.z);
   const label = (id: string): string => d.game.location || id;
   const radio = new RadioPlayer(d.audio);
+  /** Spots a `pool` gore step has already marked this session (see `gore`). */
+  const pooled = new Set<string>();
   let radioKey: string | null = null;
   // Back to the title: the radio stops with everything else.
   // A scene's hush (`hush` action): the world's ambience and sound effects, and every voice but the scene's own.
@@ -97,6 +96,11 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
     if (hushed) hush(null, 0.2);
   });
 
+  // Room tests for `gatherIn`: feet raised half a metre, as checkpoints test them. No level, or an unknown room: inside.
+  const roomIs = (p: Vec3Like, room: string): boolean => {
+    if (!d.level?.hasRoom(room)) return true;
+    return d.level.roomAt(tmp.set(p.x, p.y + 0.5, p.z))?.data.id === room;
+  };
   const host: SequenceHost = {
     events: {
       on: (name, fn) => d.events.on(name as EventName, fn as never),
@@ -195,26 +199,50 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
             const dir = v3(to).sub(from).normalize();
             if (kind === 'burst' || kind === 'splash') d.gore!.burst(from, dir, count ?? 40, undefined, clip);
             if (kind === 'chunks') d.gore!.chunks(from, dir, count ?? 8, clip);
-            if (kind === 'pool' || kind === 'splash') d.gore!.pool(new THREE.Vector3(at.x, 0, at.z), size ?? 1.2);
+            if (kind === 'splash') d.gore!.pool(new THREE.Vector3(at.x, 0, at.z), size ?? 1.2);
+            // A `pool` step marks a spot once: restore sequences re-run on every resume (ADR-0009), and pools stay
+            // for the session (nothing clears them in the game), so a spot already pooled is left as it is.
+            if (kind === 'pool') {
+              const key = `${at.x.toFixed(2)},${at.z.toFixed(2)}`;
+              if (!pooled.has(key)) {
+                pooled.add(key);
+                d.gore!.pool(new THREE.Vector3(at.x, 0, at.z), size ?? 1.2);
+              }
+            }
           },
         }
       : {}),
     ...(d.titleCard ? { titleCard: (title: string, sub: string, seconds: number) => d.titleCard!.show(title, sub, seconds) } : {}),
     ...(d.cameraFeeds ? { cameraFeed: (id: string, opts: CameraFeedOptions) => d.cameraFeeds!.apply(id, opts) } : {}),
 
-    sfx(id, at) {
-      if (!(id in SOUND_SPECS) && !(id in SAMPLE_URLS)) {
-        console.warn(`[seq] sfx: no sound "${id}"`);
-        return;
-      }
-      if (!d.audio.hasSound(id as SoundName)) {
-        console.warn(`[seq] sfx: sound "${id}" not ready yet`);
-        return;
-      }
-      // Sequence sounds play as authored, never muffled by walls (in-world-audio: World sound occlusion).
-      d.audio.play(id as SoundName, at ? { position: v3(at), occlude: false } : {});
+    sfx(id, at, opts) {
+      const play = (): void => {
+        if (!(id in SOUND_SPECS) && !(id in SAMPLE_URLS)) {
+          console.warn(`[seq] sfx: no sound "${id}"`);
+          return;
+        }
+        if (!d.audio.hasSound(id as SoundName)) {
+          console.warn(`[seq] sfx: sound "${id}" not ready yet`);
+          return;
+        }
+        // Sequence sounds play as authored, never muffled by walls (in-world-audio: World sound occlusion).
+        d.audio.play(id as SoundName, at ? { position: v3(at), occlude: false } : {});
+      };
+      // adaptive-music: a step that asks for the beat waits for the score's next one (at most a beat).
+      const delay = opts?.beat && d.score ? d.score.untilBeat() : 0;
+      if (delay > 0.005) setTimeout(play, delay * 1000);
+      else play();
     },
     ...(d.ambience ? { ambience: (id: string) => d.ambience!.setOverride(id) } : {}),
+    ...(d.score
+      ? {
+          score: (id: string, o: { cue?: string; stinger?: string; load?: boolean }) => {
+            if (o.load) d.score!.load(id);
+            if (o.cue !== undefined) d.score!.cue(id, o.cue);
+            if (o.stinger !== undefined) d.score!.stinger(o.stinger, id);
+          },
+        }
+      : {}),
     ...(d.music
       ? {
           music: (id: string | null) => {
@@ -247,7 +275,21 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
     hush,
     giveItem: (id) => d.inventory?.give(id, 'script') ?? false,
     ...(d.enemies
-      ? { spawnGroup: (g: string) => d.enemies!.spawnGroup(g), despawnGroup: (g: string) => d.enemies!.despawnGroup(g), groupCleared: (g: string) => d.enemies!.groupCleared(g) }
+      ? {
+          spawnGroup: (g: string, from?: string) => {
+            if (from === undefined) return d.enemies!.spawnGroup(g);
+            // infection-kills: an NPC (the creature behind the glass) becomes the group's enemy where it stands.
+            const id = from.startsWith('npc:') ? from.slice(4) : from;
+            const a = d.npcs?.actor(id, false);
+            if (!a) {
+              console.warn(`[seq] spawnGroup ${g}: no NPC "${id}" to release, using the spawn points`);
+              return d.enemies!.spawnGroup(g);
+            }
+            const ok = d.enemies!.spawnGroup(g, { pos: { x: a.position.x, y: a.position.y, z: a.position.z }, yaw: a.body.heading });
+            if (ok) void d.npcs!.command('despawn', { npc: id });
+            return ok;
+          },
+          despawnGroup: (g: string) => d.enemies!.despawnGroup(g), groupCleared: (g: string) => d.enemies!.groupCleared(g) }
       : {}),
     ...(d.npcs ? { npc: (action: string, step: Readonly<Record<string, unknown>>) => d.npcs!.command(action, step) } : {}),
     ...(d.npcs
@@ -261,7 +303,7 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
           },
         }
       : {}),
-    ...(d.speech ? { say: (line: string, opts?: { overlap?: boolean }) => d.speech!.say(line, opts), stopSpeech: () => d.speech!.stopAll() } : {}),
+    ...(d.speech ? { say: (line: string, opts?: ScriptSpeechOptions) => d.speech!.say(line, opts), stopSpeech: () => d.speech!.stopAll() } : {}),
   };
   // NPC targets: positions through the same resolver, plus an anchor's facing (Level.anchor yaw).
   d.npcs?.setResolver((ref) => {

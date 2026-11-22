@@ -25,6 +25,8 @@ export interface SpawnPointData {
   outfit?: string | undefined;
   infection?: number | undefined;
   model?: string | undefined;
+  /** Cast look (castLooks) whose body the enemy uses. */
+  look?: string | undefined;
   on?: string | undefined;
 }
 

@@ -12,11 +12,22 @@ import {
 } from './motionProfiles.ts';
 import priyaPack from '../data/mocap/priya.json' with { type: 'json' };
 import vossPack from '../data/mocap/voss.json' with { type: 'json' };
+import bramPack from '../data/mocap/bram.json' with { type: 'json' };
+import ruizPack from '../data/mocap/ruiz.json' with { type: 'json' };
+import heinsPack from '../data/mocap/heins.json' with { type: 'json' };
+import halePack from '../data/mocap/hale.json' with { type: 'json' };
+import sungPack from '../data/mocap/sung.json' with { type: 'json' };
 
 // Named characters with clip packs (Priya) need them loaded, as the game does at start (loadMocapPacks). Node needs the JSON
 // import attribute, which the bundler's lazy pack import cannot carry, so tests add the pack directly.
 sharedMocapLibrary().addPack('priya', priyaPack as unknown as Parameters<ReturnType<typeof sharedMocapLibrary>['addPack']>[1]);
 sharedMocapLibrary().addPack('voss', vossPack as unknown as Parameters<ReturnType<typeof sharedMocapLibrary>['addPack']>[1]);
+sharedMocapLibrary().addPack('bram', bramPack as unknown as Parameters<ReturnType<typeof sharedMocapLibrary>['addPack']>[1]);
+sharedMocapLibrary().addPack('ruiz', ruizPack as unknown as Parameters<ReturnType<typeof sharedMocapLibrary>['addPack']>[1]);
+sharedMocapLibrary().addPack('heins', heinsPack as unknown as Parameters<ReturnType<typeof sharedMocapLibrary>['addPack']>[1]);
+sharedMocapLibrary().addPack('hale', halePack as unknown as Parameters<ReturnType<typeof sharedMocapLibrary>['addPack']>[1]);
+sharedMocapLibrary().addPack('sung', sungPack as unknown as Parameters<ReturnType<typeof sharedMocapLibrary>['addPack']>[1]);
+for (const p of ['priya', 'voss', 'bram', 'ruiz', 'heins', 'hale', 'sung']) sharedMocapLibrary().retainPack(p); // held for the whole file: test bodies come and go
 
 const base = (): Record<string, unknown> => ({
   defaults: { m: 'crew_m', f: 'crew_f' },
@@ -106,11 +117,13 @@ test('profile resolution: character, then gendered default, then neutral; one wa
   }
 });
 
-test('profile resolution: formal crew walk unless a profile names a walk', () => {
+test('profile resolution: formal crew walk unless a profile names a walk (the default walk pools give way to it)', () => {
   const lib = sharedMocapLibrary();
   const file = sharedMotionProfiles();
   assert.equal(resolveProfile(lib, file, undefined, 'm', true).clips.walk, 'walk_formal');
-  assert.equal(resolveProfile(lib, file, undefined, 'm').clips.walk, 'walk');
+  assert.equal(resolveProfile(lib, file, undefined, 'm', true, undefined, false, 0.9).clips.walk, 'walk_formal');
+  assert.match(resolveProfile(lib, file, undefined, 'm', true).clips.jog, /^crew_m_jog_/, 'formal crew still run from the pool');
+  assert.equal(resolveProfile(lib, file, undefined, 'm').clips.walk, 'crew_m_walk_a', 'no pick: the first take');
 });
 
 test('posture families group authored pose variants', () => {
@@ -203,6 +216,38 @@ test('Okafor\'s scene variants: intro coffee, console stillness and the revive a
   assert.equal(at({ task: 'bypass' }).variants.length, 0, 'Giles\'s tasks change nothing for Okafor');
   assert.ok(everyday.style.tempo < 1 && everyday.style.fidgetRate < 1 && everyday.style.posture > 0, 'slow, still and upright');
   for (const id of Object.values(file.profiles['okafor']!.clips ?? {})) assert.ok(lib.has(id), `${id} is in the library`);
+});
+
+test('Heins, Hale and Sung (task 6.8): their own clips, Heins stiller at her post in the briefing, Hale more nervous on rounds', () => {
+  const lib = sharedMocapLibrary();
+  const file = sharedMotionProfiles();
+  const scene = (sequences: string[] = []) => ({ sequences: new Set(sequences), task: null, stage: 0, flag: () => false });
+  const at = (id: string, g: 'm' | 'f', seqs?: string[]) => resolveProfile(lib, file, id, g, false, scene(seqs));
+  for (const [id, g] of [['heins', 'f'], ['hale', 'm'], ['sung', 'm']] as const) {
+    const everyday = at(id, g);
+    assert.deepEqual(everyday.variants, [], `${id} everyday`);
+    for (const slot of ['idle', 'walk', 'jog'] as const) assert.equal(everyday.clips[slot], `${id}_${slot}`, `${id} ${slot}`);
+    for (const clip of Object.values(file.profiles[id]!.clips ?? {})) assert.ok(lib.has(clip), `${clip} is in the library`);
+  }
+  // Heins: firm and upright; in the briefing and the drop, stiller still.
+  const heins = at('heins', 'f');
+  const post = at('heins', 'f', ['briefing_gallery']);
+  assert.deepEqual(post.variants, ['post']);
+  assert.deepEqual(at('heins', 'f', ['drop']).variants, ['post']);
+  assert.ok(heins.style.posture > 0.3 && post.style.fidgetRate < heins.style.fidgetRate, 'upright, and stiller on her post');
+  // Hale: talks with his own capture; quicker and more restless on rounds and in the briefing.
+  const hale = at('hale', 'm');
+  assert.equal(hale.clips.talk, 'hale_talk');
+  for (const seq of ['rounds', 'briefing_gallery']) {
+    const briefing = at('hale', 'm', [seq]);
+    assert.deepEqual(briefing.variants, ['briefing'], seq);
+    assert.ok(briefing.style.fidgetRate > hale.style.fidgetRate && briefing.style.tempo > hale.style.tempo, `${seq}: more nervous`);
+  }
+  assert.deepEqual(at('hale', 'm', ['intro_shift_change']).variants, [], 'other sequences leave him as he is');
+  // Sung: heavy (slow tempo, wide arm carry) and no scene variants.
+  const sung = at('sung', 'm', ['intro_shift_change', 'rounds']);
+  assert.deepEqual(sung.variants, []);
+  assert.ok(sung.style.tempo < 0.9 && sung.style.armCarry > 1.1, 'heavy');
 });
 
 test('profile pose swaps: Okafor glances his own way everywhere; others keep the shared glance', () => {

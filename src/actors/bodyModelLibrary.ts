@@ -1,4 +1,4 @@
-import { arr, bool, numRange, obj, optional, record, str, type Infer, type Validator } from '../core/validate.ts';
+import { arr, bool, numRange, obj, oneOf, optional, record, str, type Infer, type Validator } from '../core/validate.ts';
 import type { Rng } from '../core/rng.ts';
 import { prepareBodyModel, type PreparedBodyModel } from './bodyModel.ts';
 
@@ -14,6 +14,8 @@ const modelShape = {
   variants: arr(str),
   /** Chance (0..1) that a spawn of one of those variants uses it instead of a procedural body. */
   share: numRange(0, 1),
+  /** The body's gender: picks the masculine or feminine crew motion profile (character-motion spec). */
+  gender: oneOf(['m', 'f'] as const),
   /** How much the infection shader tints the model's opaque surfaces (default 0.3). */
   sickTint: optional(numRange(0, 1)),
   /** Preserve individual finger and forearm-twist bones for biomechanical hand physics (main cast). */

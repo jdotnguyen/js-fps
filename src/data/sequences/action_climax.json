@@ -516,6 +516,13 @@
     "interact": false
    },
    {
+    "do": "hush",
+    "speakers": [
+     "nurse"
+    ],
+    "s": 0.6
+   },
+   {
     "do": "npcMoveTo",
     "npc": "priya",
     "to": "anchor:priya_hide",
@@ -524,7 +531,7 @@
    {
     "do": "npcAnim",
     "npc": "priya",
-    "anim": "squad_downed",
+    "anim": "corpseProne",
     "instant": true
    },
    {
@@ -549,99 +556,38 @@
     "s": 0.6
    },
    {
-    "do": "wait",
-    "s": 2.5
-   },
-   {
-    "do": "say",
-    "line": "stinger_priya_01"
-   },
-   {
-    "do": "say",
-    "line": "stinger_priya_02"
-   },
-   {
-    "do": "spawn",
-    "npc": "r08_thing",
-    "kind": "lab",
-    "at": "anchor:stinger_enter"
-   },
-   {
-    "do": "transform",
-    "npc": "r08_thing",
-    "to": 3,
-    "instant": true
-   },
-   {
-    "do": "sfx",
-    "id": "distantMoan",
-    "at": "anchor:stinger_enter"
-   },
-   {
-    "do": "npcMoveTo",
-    "npc": "r08_thing",
-    "to": "anchor:stinger_kill",
-    "speed": 0.7
-   },
-   {
-    "do": "say",
-    "line": "stinger_priya_04"
-   },
-   {
-    "do": "wait",
-    "s": 1.0
-   },
-   {
-    "do": "say",
-    "line": "stinger_priya_05"
-   },
-   {
-    "do": "wait",
-    "s": 1.5
-   },
-   {
-    "do": "sfx",
-    "id": "fleshTear",
-    "at": "anchor:priya_hide"
-   },
-   {
-    "do": "gore",
-    "at": "anchor:priya_hide",
-    "kind": "splash",
-    "dir": "anchor:stinger_cam",
-    "count": 80,
-    "size": 1.8
-   },
-   {
-    "do": "say",
-    "line": "stinger_priya_03",
-    "wait": false
-   },
-   {
-    "do": "wait",
-    "s": 1.2
-   },
-   {
-    "do": "sfx",
-    "id": "fleshTear",
-    "at": "anchor:priya_hide"
-   },
-   {
-    "do": "gore",
-    "at": "anchor:priya_hide",
-    "kind": "chunks",
-    "dir": "anchor:stinger_cam",
-    "count": 14
-   },
-   {
-    "do": "wait",
-    "s": 3.0
-   },
-   {
-    "do": "cameraFeed",
-    "id": "stinger",
-    "state": "static",
-    "fullscreen": true
+    "parallel": [
+     {
+      "do": "kill",
+      "npc": "priya",
+      "kind": "convertedRise",
+      "marks": {
+       "camera": "anchor:stinger_cam"
+      },
+      "wait": true
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "waitFor",
+        "event": "kill:face",
+        "timeout": 20
+       },
+       {
+        "do": "wait",
+        "s": 1.2
+       },
+       {
+        "do": "cameraFeed",
+        "id": "stinger",
+        "state": "static",
+        "fullscreen": true
+       }
+      ]
+     }
+    ]
    },
    {
     "do": "wait",

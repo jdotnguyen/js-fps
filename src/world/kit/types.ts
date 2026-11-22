@@ -19,6 +19,11 @@ export const CORRIDOR_H = 3.2;
 export const ROOM_H = 3.2;
 export const DOOR_W = 2;
 export const DOOR_H = 2.4;
+export const WINDOW_SILL = 0.9;
+export const WINDOW_HEAD = 2.4;
+export const MOONPOOL_WIDTH = 2.4;
+/** Depth of the launch trunk below the deck, down to the outer hatch (rebuild-dive-bay). */
+export const TRUNK_DEPTH = 3.0;
 /** Depth of a room wall tile, measured inward from the cell edge. */
 export const WALL_T = 0.25;
 /** Outer back-face inset (m) so back-to-back walls on shared cell edges never z-fight. */
@@ -129,7 +134,6 @@ export interface PieceDef {
   family: PieceFamily;
   /** Cells covered in x and z. Props use [0, 0] (placed freely in metres). */
   footprint: [number, number];
-  generate(params: PieceParams, rng: Rng, m: Materials): PieceOutput;
   /**
    * A stand-in for an imported model (spec imported-props): when the registry has the model, it replaces only the
    * stand-in's visible meshes; colliders, surfaces, spots and keep-outs stay the stand-in's.
@@ -137,6 +141,7 @@ export interface PieceDef {
   importedProp?: boolean;
   /** For imported props: the model's recorded cost, and the stand-in's own triangles, for the room budgets. */
   importedCost?: { materials: number; triangles: number; standInTriangles: number };
+  generate(params: PieceParams, rng: Rng, m: Materials): PieceOutput;
 }
 
 export function numParam(p: PieceParams, key: string, fallback: number): number {

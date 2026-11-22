@@ -5,10 +5,18 @@
   },
   "profiles": {
     "crew_m": {
-      "gender": "m"
+      "gender": "m",
+      "pools": {
+        "walk": ["crew_m_walk_a", "crew_m_walk_b", "crew_m_walk_c"],
+        "jog": ["crew_m_jog_a", "crew_m_jog_b", "crew_m_jog_c"]
+      }
     },
     "crew_f": {
-      "gender": "f"
+      "gender": "f",
+      "pools": {
+        "walk": ["crew_f_walk_a", "crew_f_walk_b", "crew_f_walk_c"],
+        "jog": ["crew_f_jog_a", "crew_f_jog_b", "crew_f_jog_c"]
+      }
     },
     "giles": {
       "gender": "m",
@@ -211,6 +219,38 @@
     "bram": {
       "gender": "m",
       "inherits": "crew_m",
+      "clips": {
+        "idle": "bram_idle",
+        "talk": "bram_talk",
+        "walk": "bram_walk",
+        "jog": "bram_jog",
+        "work": "bram_work",
+        "drink": "bram_drink",
+        "aimPistol": "pistol_idle"
+      },
+      "holds": {
+        "stand": "bram_hold",
+        "lean_back": "bram_hold",
+        "lean_wall": "bram_hold",
+        "lean_counter": "bram_hold",
+        "sit_chair": "bram_hold",
+        "sit_stool": "bram_hold",
+        "sit_sofa": "bram_hold",
+        "crouch": "bram_hold",
+        "kneel": "bram_hold"
+      },
+      "style": {
+        "tempo": 0.85,
+        "fidgetRate": 0.6,
+        "armCarry": 1.1
+      },
+      "variants": {
+        "intro": {
+          "when": { "sequence": "intro_shift_change" },
+          "clips": { "work": "bram_coffee" },
+          "style": { "tempo": 1 }
+        }
+      },
       "hands": {
         "tension": 0.3,
         "stiffness": 0.82,
@@ -221,6 +261,38 @@
     "ruiz": {
       "gender": "f",
       "inherits": "crew_f",
+      "clips": {
+        "idle": "ruiz_idle",
+        "talk": "ruiz_idle",
+        "walk": "ruiz_walk",
+        "jog": "ruiz_jog",
+        "aimPistol": "pistol_idle"
+      },
+      "holds": {
+        "stand": "ruiz_hold",
+        "lean_back": "ruiz_hold",
+        "lean_wall": "ruiz_hold",
+        "lean_counter": "ruiz_hold",
+        "sit_chair": "ruiz_hold",
+        "sit_stool": "ruiz_hold",
+        "sit_sofa": "ruiz_hold",
+        "crouch": "ruiz_hold",
+        "kneel": "ruiz_hold"
+      },
+      "style": {
+        "tempo": 1.1,
+        "fidgetRate": 1.3,
+        "armCarry": 1.05,
+        "posture": 0.25,
+        "headPitch": -4
+      },
+      "variants": {
+        "checkpoint": {
+          "when": { "sequence": "intro_shift_change" },
+          "poses": { "arms_out": "ruiz_arms_out" },
+          "style": { "fidgetRate": 1.8 }
+        }
+      },
       "hands": {
         "tension": 0.36,
         "stiffness": 1.2,
@@ -231,6 +303,37 @@
     "heins": {
       "gender": "f",
       "inherits": "crew_f",
+      "clips": {
+        "idle": "heins_idle",
+        "talk": "heins_idle",
+        "walk": "heins_walk",
+        "jog": "heins_jog",
+        "aimPistol": "pistol_idle"
+      },
+      "holds": {
+        "stand": "heins_hold",
+        "lean_back": "heins_hold",
+        "lean_wall": "heins_hold",
+        "lean_counter": "heins_hold",
+        "sit_chair": "heins_hold",
+        "sit_stool": "heins_hold",
+        "sit_sofa": "heins_hold",
+        "crouch": "heins_hold",
+        "kneel": "heins_hold"
+      },
+      "style": {
+        "tempo": 1,
+        "fidgetRate": 0.5,
+        "armCarry": 0.95,
+        "posture": 0.4,
+        "headPitch": -2
+      },
+      "variants": {
+        "post": {
+          "when": { "sequence": ["briefing_gallery", "drop"] },
+          "style": { "fidgetRate": 0.3, "posture": 0.5 }
+        }
+      },
       "hands": {
         "tension": 0.5,
         "stiffness": 1.0,
@@ -241,6 +344,37 @@
     "hale": {
       "gender": "m",
       "inherits": "crew_m",
+      "clips": {
+        "idle": "hale_idle",
+        "talk": "hale_talk",
+        "walk": "hale_walk",
+        "jog": "hale_jog",
+        "aimPistol": "pistol_idle"
+      },
+      "holds": {
+        "stand": "hale_hold",
+        "lean_back": "hale_hold",
+        "lean_wall": "hale_hold",
+        "lean_counter": "hale_hold",
+        "sit_chair": "hale_hold",
+        "sit_stool": "hale_hold",
+        "sit_sofa": "hale_hold",
+        "crouch": "hale_hold",
+        "kneel": "hale_hold"
+      },
+      "style": {
+        "tempo": 1.05,
+        "fidgetRate": 1.8,
+        "posture": 0,
+        "headPitch": 2,
+        "asymmetry": 0.25
+      },
+      "variants": {
+        "briefing": {
+          "when": { "sequence": ["rounds", "briefing_gallery"] },
+          "style": { "tempo": 1.15, "fidgetRate": 2.4 }
+        }
+      },
       "hands": {
         "tension": 0.72,
         "stiffness": 1.18,
@@ -251,6 +385,30 @@
     "sung": {
       "gender": "m",
       "inherits": "crew_m",
+      "clips": {
+        "idle": "sung_idle",
+        "talk": "sung_idle",
+        "walk": "sung_walk",
+        "jog": "sung_jog",
+        "aimPistol": "pistol_idle"
+      },
+      "holds": {
+        "stand": "sung_hold",
+        "lean_back": "sung_hold",
+        "lean_wall": "sung_hold",
+        "lean_counter": "sung_hold",
+        "sit_chair": "sung_hold",
+        "sit_stool": "sung_hold",
+        "sit_sofa": "sung_hold",
+        "crouch": "sung_hold",
+        "kneel": "sung_hold"
+      },
+      "style": {
+        "tempo": 0.85,
+        "fidgetRate": 0.5,
+        "armCarry": 1.2,
+        "posture": 0.1
+      },
       "hands": {
         "tension": 0.2,
         "stiffness": 0.78,

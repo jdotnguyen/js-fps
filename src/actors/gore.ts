@@ -37,6 +37,8 @@ export interface Emitter {
   rate: number;
   speed: number;
   dark: boolean;
+  /** Index into the clip registry (-1 none): its blood stays on one side of a plane (a glass pane). */
+  clip: number;
 }
 
 interface Pool {
@@ -45,7 +47,11 @@ interface Pool {
   grow: number;
 }
 
-export type GlassMarkKind = 'print' | 'splat' | 'streak';
+/** Marks on a glass pane: a palm print, a blood splat, a streak that runs, and an impact crack (a star of fractures). */
+export type GlassMarkKind = 'print' | 'splat' | 'streak' | 'crack';
+
+/** Crack decal variants (drawn once each); a crack picks one and a random rotation. */
+const CRACK_VARIANTS = 3;
 
 interface GlassMark {
   mesh: THREE.Mesh;
@@ -90,6 +96,69 @@ function streakTexture(): THREE.CanvasTexture {
 }
 
 /** A soft, irregular pool texture, generated once. */
+/** A star crack radiating from the centre, white on clear: long rays with branches and a few concentric rings. */
+function crackTexture(variant: number): THREE.CanvasTexture {
+  const size = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  if (!ctx) throw new Error('2D canvas unavailable');
+  const rng = new Rng(`glass-crack-${variant}`);
+  const mid = size / 2;
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+  ctx.lineCap = 'round';
+  const rays = 9 + Math.floor(rng.range(0, 5));
+  const ends: Array<[number, number, number]> = [];
+  for (let i = 0; i < rays; i++) {
+    let a = (i / rays) * Math.PI * 2 + rng.range(-0.2, 0.2);
+    let x = mid;
+    let y = mid;
+    const len = rng.range(size * 0.28, size * 0.49);
+    let walked = 0;
+    ctx.lineWidth = rng.range(1.4, 2.6);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    while (walked < len) {
+      const step = rng.range(8, 18);
+      a += rng.range(-0.25, 0.25);
+      x += Math.cos(a) * step;
+      y += Math.sin(a) * step;
+      walked += step;
+      ctx.lineTo(x, y);
+      if (rng.chance(0.18)) ends.push([x, y, a + rng.range(-1.1, 1.1)]);
+    }
+    ctx.stroke();
+  }
+  ctx.lineWidth = 1;
+  for (const [x0, y0, a] of ends) {
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + Math.cos(a) * rng.range(8, 26), y0 + Math.sin(a) * rng.range(8, 26));
+    ctx.stroke();
+  }
+  // Concentric breaks near the strike, and a crushed centre.
+  for (const r of [size * 0.08, size * 0.17]) {
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let k = 0; k <= 24; k++) {
+      const a = (k / 24) * Math.PI * 2;
+      const rr = r * rng.range(0.85, 1.15);
+      if (k === 0) ctx.moveTo(mid + Math.cos(a) * rr, mid + Math.sin(a) * rr);
+      else if (rng.chance(0.8)) ctx.lineTo(mid + Math.cos(a) * rr, mid + Math.sin(a) * rr);
+      else ctx.moveTo(mid + Math.cos(a) * rr, mid + Math.sin(a) * rr);
+    }
+    ctx.stroke();
+  }
+  const g = ctx.createRadialGradient(mid, mid, 0, mid, mid, size * 0.06);
+  g.addColorStop(0, 'rgba(255,255,255,0.85)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.NoColorSpace;
+  return tex;
+}
+
 function poolTexture(): THREE.CanvasTexture {
   const size = 256;
   const c = document.createElement('canvas');
@@ -140,6 +209,7 @@ export class GoreSystem {
   private readonly glassMarks: GlassMark[] = [];
   private glassCursor = 0;
   private glassMats: Record<GlassMarkKind | 'reduced' | 'reducedStreak', THREE.MeshStandardMaterial> | null = null;
+  private crackMats: THREE.MeshStandardMaterial[] | null = null;
   private readonly glassPlane = new THREE.PlaneGeometry(1, 1);
   /** The same plane with its top edge at the origin, so a streak grows downward. */
   private readonly streakPlane = new THREE.PlaneGeometry(1, 1).translate(0, -0.5, 0);
@@ -322,16 +392,31 @@ export class GoreSystem {
       streak: mat(0x4a0407, runs, 0.95, 0.12),
       reduced: mat(0x0a0808, blob, 0.85, 0.3),
       reducedStreak: mat(0x0a0808, runs, 0.85, 0.3),
+      crack: mat(0xe9eef0, blob, 0.8, 0.1),
     };
     return this.glassMats;
   }
 
+  /** The crack decal for variant `i` (the same in Full and Reduced gore: it is glass, not blood). */
+  private crackMaterial(i: number): THREE.MeshStandardMaterial {
+    if (!this.crackMats) {
+      const base = this.glassMaterials().crack;
+      this.crackMats = Array.from({ length: CRACK_VARIANTS }, (_, v) => {
+        const m = base.clone();
+        m.alphaMap = crackTexture(v);
+        return m;
+      });
+    }
+    return this.crackMats[i % CRACK_VARIANTS]!;
+  }
+
   /**
    * A mark on a glass pane at `at`, facing along `normal` (toward the side it was made from). `size` is the mark's height
-   * (m); a streak is `size` long and runs down over `run` seconds from its top at `at`. With a `band`, the mark is moved
+   * (m); a streak is `size` long and runs down over `run` seconds from its top at `at` (or along `along`, a direction on
+   * the pane: a hand pulled sideways). A crack is a star of fractures centred on `at`. With a `band`, the mark is moved
    * clear of it so the player can still see through the glass there (infection-kills spec).
    */
-  glassMark(at: THREE.Vector3, normal: THREE.Vector3, kind: GlassMarkKind, size: number, opts: { band?: ClearBand; run?: number; dark?: boolean } = {}): void {
+  glassMark(at: THREE.Vector3, normal: THREE.Vector3, kind: GlassMarkKind, size: number, opts: { band?: ClearBand; run?: number; dark?: boolean; along?: THREE.Vector3 } = {}): void {
     const mats = this.glassMaterials();
     const dark = opts.dark ?? this.mode === 'reduced';
     let m = this.glassMarks.length < MAX_GLASS_MARKS ? undefined : this.glassMarks[this.glassCursor];
@@ -349,18 +434,27 @@ export class GoreSystem {
     m.length = size;
     m.run = kind === 'streak' ? Math.max(0.2, opts.run ?? 6) : 0.12;
     m.mesh.geometry = kind === 'streak' ? this.streakPlane : this.glassPlane;
-    m.mesh.material = kind === 'print' ? mats.print : dark ? (kind === 'streak' ? mats.reducedStreak : mats.reduced) : kind === 'streak' ? mats.streak : mats.splat;
+    m.mesh.material =
+      kind === 'crack' ? this.crackMaterial(Math.floor(this.rng.range(0, CRACK_VARIANTS)))
+      : kind === 'print' ? mats.print
+      : dark ? (kind === 'streak' ? mats.reducedStreak : mats.reduced)
+      : kind === 'streak' ? mats.streak : mats.splat;
+    const along = kind === 'streak' && opts.along ? opts.along.clone().addScaledVector(normal, -opts.along.dot(normal)) : null;
     const width = kind === 'streak' ? size * 0.28 : kind === 'print' ? size * 0.8 : size;
     let y = at.y;
-    if (kind === 'streak') {
+    if (kind === 'streak' && !along) {
       // The whole run (top down to top - size) stays out of the band: start it below the band if it would cross.
       if (opts.band && y - size < opts.band.max && y > opts.band.min) y = Math.min(y, opts.band.min - 0.01);
-    } else if (kind !== 'print') {
+    } else if (kind === 'splat') {
       y = clearOfBand(y, size, opts.band);
     }
     m.mesh.position.set(at.x, y, at.z).addScaledVector(normal, 0.004);
     m.mesh.lookAt(m.mesh.position.x + normal.x, m.mesh.position.y + normal.y, m.mesh.position.z + normal.z);
-    m.mesh.rotateZ(kind === 'streak' ? this.rng.range(-0.04, 0.04) : this.rng.range(0, Math.PI * 2));
+    if (along && along.lengthSq() > 1e-6) {
+      // Run along the pane: the streak's local -Y (its run) turned onto `along`.
+      const local = along.normalize().applyQuaternion(m.mesh.quaternion.clone().invert());
+      m.mesh.rotateZ(Math.atan2(local.x, -local.y));
+    } else m.mesh.rotateZ(kind === 'streak' ? this.rng.range(-0.04, 0.04) : this.rng.range(0, Math.PI * 2));
     m.mesh.scale.set(width, kind === 'streak' ? 0.001 : size, 1);
     if (kind !== 'streak') m.mesh.scale.multiplyScalar(0.3);
     m.mesh.userData['full'] = [width, size];
@@ -400,10 +494,11 @@ export class GoreSystem {
   }
 
   /** Spurt from `point` along `dir` (both local to `anchor`) for `duration` seconds. */
-  spurt(anchor: THREE.Object3D, point: THREE.Vector3, dir: THREE.Vector3, duration = 1.5, dark = this.mode === 'reduced'): void {
-    this.emitters.push({ anchor, point: point.clone(), dir: dir.clone().normalize(), duration, age: 0, rate: 260, speed: 2.8, dark });
+  spurt(anchor: THREE.Object3D, point: THREE.Vector3, dir: THREE.Vector3, duration = 1.5, dark = this.mode === 'reduced', clip?: GoreClip): void {
+    const ci = this.clipIndex(clip);
+    this.emitters.push({ anchor, point: point.clone(), dir: dir.clone().normalize(), duration, age: 0, rate: 260, speed: 2.8, dark, clip: ci });
     // Then it keeps dripping for a while.
-    this.emitters.push({ anchor, point: point.clone(), dir: dir.clone().normalize(), duration: duration * 4, age: 0, rate: 14, speed: 0.15, dark });
+    this.emitters.push({ anchor, point: point.clone(), dir: dir.clone().normalize(), duration: duration * 4, age: 0, rate: 14, speed: 0.15, dark, clip: ci });
   }
 
   /** Index of `clip` in the registry (added if new, the last slot is reused when full); -1 for none. */
@@ -615,7 +710,7 @@ export class GoreSystem {
         this.eVel.x += this.rng.range(-0.3, 0.3);
         this.eVel.y += this.rng.range(-0.2, 0.4);
         this.eVel.z += this.rng.range(-0.3, 0.3);
-        this.emit(this.ePos, this.eVel, e.dark);
+        this.emit(this.ePos, this.eVel, e.dark, e.clip);
       }
     }
   }

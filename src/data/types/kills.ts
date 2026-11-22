@@ -7,13 +7,62 @@ import { JOINT_NAMES, type JointName } from '../../actors/skeleton.ts';
  * events (sounds, jolts, gore, glass marks, the tear, the death, the creature), and ends on its cue or its time limit.
  */
 
-export const KILL_KINDS = ['grownInside', 'converted'] as const;
+export const KILL_KINDS = ['grownInside', 'converted', 'mauled'] as const;
 export type KillKind = (typeof KILL_KINDS)[number];
 
-/** How a beat ends (always also at `max` seconds): a spoken line, its own time `s`, reaching the glass, or the creature standing. */
-export const BEAT_UNTIL = ['line', 'time', 'arrive', 'creature'] as const;
+/**
+ * How a beat ends (always also at `max` seconds): a spoken line, its own time `s`, reaching the glass, the creature
+ * standing, (`mauled`) `impacts` slam impacts landing, or its captured `clip` reaching its last frame.
+ */
+export const BEAT_UNTIL = ['line', 'time', 'arrive', 'creature', 'impacts', 'clip'] as const;
 
-export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face'] as const;
+/** A beat clip's playback speed: one rate, or `[t, speed]` keys over the beat (linear between, held past the ends). */
+export type ClipSpeed = number | [number, number][];
+
+const SPEED_MIN = 0.05;
+const SPEED_MAX = 4;
+
+const clipSpeed: Validator<ClipSpeed> = (v, p) => {
+  if (typeof v === 'number') return numRange(SPEED_MIN, SPEED_MAX)(v, p);
+  if (!Array.isArray(v) || v.length === 0) throw new ValidationError(p, 'expected a speed or a list of [t, speed] keys');
+  let last = -Infinity;
+  return v.map((k, i) => {
+    const kp = `${p}[${i}]`;
+    if (!Array.isArray(k) || k.length !== 2) throw new ValidationError(kp, 'expected [t, speed]');
+    const t = numRange(0, 60)(k[0], `${kp}[0]`);
+    const s = numRange(SPEED_MIN, SPEED_MAX)(k[1], `${kp}[1]`);
+    if (t <= last) throw new ValidationError(kp, 'keys must be in time order');
+    last = t;
+    return [t, s] as [number, number];
+  });
+};
+
+/** Playback speed at `t` seconds into the beat. */
+export function clipSpeedAt(speed: ClipSpeed | undefined, t: number): number {
+  if (speed === undefined) return 1;
+  if (typeof speed === 'number') return speed;
+  const first = speed[0]!;
+  if (t <= first[0]) return first[1];
+  for (let i = 1; i < speed.length; i++) {
+    const [t1, s1] = speed[i]!;
+    if (t <= t1) {
+      const [t0, s0] = speed[i - 1]!;
+      return s0 + ((s1 - s0) * (t - t0)) / (t1 - t0);
+    }
+  }
+  return speed[speed.length - 1]![1];
+}
+
+/**
+ * Beat events. The `mauled` ones drive the attacker as well as the victim (medbay-attack spec): `pin` puts the attacker
+ * at an offset from her, `grip` closes its hand on one of her joints (or `release`s it), `attackerPose` poses it,
+ * `haulTo` walks it to a mark with the grip held, `slam` drives her gripped head onto a mark's surface, `throw` lets go
+ * and flies her to a mark on the glass, and `drag` walks it to a mark with her trailing from the grip.
+ */
+export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'haulTo', 'slam', 'throw', 'drag', 'infect'] as const;
+
+/** The `mauled` events that need an attacker on the kill step. */
+export const ATTACKER_EVENTS: readonly KillEventKind[] = ['pin', 'grip', 'attackerPose', 'haulTo', 'slam', 'throw', 'drag'];
 export type KillEventKind = (typeof KILL_EVENTS)[number];
 
 const joint: Validator<JointName> = (v, p) => {
@@ -29,14 +78,14 @@ const eventShape = {
   /** `pose`/`die`: the pose; `creature`: the creature's start pose. */
   pose: optional(str),
   blend: optional(numRange(0, 5)),
-  /** `sfx`: sound names, first one that exists plays (a recording to come, then an existing stand-in). */
+  /** `sfx`: sound names, first one that exists plays (a recording to come, then an existing stand-in); `stinger`: the score stinger. */
   id: optional(arr(str)),
   /** `sfx`/`kick`/`gore`: the joint it comes from. */
   joint: optional(joint),
-  /** `kick`: push direction in the victim's own frame (she faces forward). */
-  dir: optional(oneOf(['back', 'fwd', 'left', 'right', 'up'] as const)),
+  /** `kick`: push direction in the victim's own frame (she faces forward); `glass streak`: `pull` runs it along the pane the way she is dragged. */
+  dir: optional(oneOf(['back', 'fwd', 'left', 'right', 'up', 'pull'] as const)),
   strength: optional(numRange(0, 3)),
-  /** `gore`: burst | chunks | spurt | pool; `glass`: print | splat | streak. */
+  /** `gore`: burst | chunks | spurt | pool; `glass`: print | splat | streak | crack. */
   kind: optional(str),
   count: optional(numRange(1, 400)),
   size: optional(numRange(0.02, 6)),
@@ -48,8 +97,22 @@ const eventShape = {
   radius: optional(numRange(0, 0.5)),
   /** `light`: the kill's key light on the victim. */
   state: optional(oneOf(['on', 'off', 'dip'] as const)),
-  /** `toGlass`: walk speed (m/s). */
+  /** `toGlass`/`haulTo`/`drag`: walk speed (m/s). */
   speed: optional(numRange(0.1, 6)),
+  /** `pin`: metres behind the victim and to her right (her own frame); the attacker faces the way she faces, or `away`. */
+  behind: optional(numRange(-2, 2)),
+  side: optional(numRange(-2, 2)),
+  facing: optional(oneOf(['with', 'away'] as const)),
+  /** `grip`: the attacker's hand closes on this victim joint (`joint`), or lets go. `hand` is the attacker's hand. */
+  release: optional(bool),
+  /** `infect`: the bloom's stage on the victim's body (0..3). */
+  stage: optional(numRange(0, 3)),
+  /** `haulTo`/`slam`/`throw`/`drag`, and `face` (turn to it, e.g. a camera): a named mark from the kill step's `marks`. */
+  mark: optional(str),
+  /** `haulTo`/`drag`: on arrival the attacker turns to face this mark. */
+  faceMark: optional(str),
+  /** `throw`: how high (m) her body arcs on the way (over a cart between her and the glass). */
+  arc: optional(numRange(0, 2)),
 };
 
 const bulgeShape = {
@@ -62,8 +125,18 @@ const bulgeShape = {
 
 const beatShape = {
   id: str,
-  /** Poses held (one) or looped back and forth (two or more, every `period` s). */
+  /**
+   * Poses held (one) or looped back and forth (two or more, every `period` s). With a `clip`, they are only the
+   * fallback played if the body has no such clip.
+   */
   poses: arr(str),
+  /**
+   * A captured clip (an id in the victim's motion library or pack) played once from its first frame to its last, then
+   * held; it blends in over `blend` s. Convulsion and kicks layer on top of it.
+   */
+  clip: optional(str),
+  /** `clip` playback speed (default 1). */
+  speed: optional(clipSpeed),
   period: optional(numRange(0.05, 5)),
   blend: optional(numRange(0, 3)),
   /** Convulsion target (0..1) and how fast it eases there (per second). */
@@ -76,13 +149,37 @@ const beatShape = {
   max: numRange(0.1, 60),
   /** Only when the victim stands at a glass partition. */
   needsGlass: optional(bool),
+  /** `until: impacts`: how many slam impacts end the beat. */
+  impacts: optional(numRange(1, 12)),
+  /**
+   * The victim's voice in this beat (`mauled`): `lines[0]` plays as the beat starts, `lines[n]` right after impact n.
+   * Each impact cuts whatever she is saying first; an empty string is silence.
+   */
+  lines: optional(arr(str)),
   /** Lumps under the skin, moving start to end of their path over the beat (by `s`, else `max`). */
   bulges: optional(arr(obj(bulgeShape))),
   events: optional(arr(obj(eventShape))),
 };
 
+/**
+ * `mauled`: how the attacker reacts, once, to someone behind the glass while it approaches her (medbay-attack spec "It
+ * notices him"). `stare`: it stops, turns to the target and holds still for `hold` s, then goes on. It plays `at` s
+ * into the first beat unless a `kill:notice` brings it forward; it never moves a later beat. (`orient`, a short animal
+ * head-snap for mindless creatures, is the expected second kind; not built.)
+ */
+export const NOTICED_KINDS = ['stare'] as const;
+const noticedShape = {
+  kind: oneOf(NOTICED_KINDS),
+  at: numRange(0, 60),
+  hold: numRange(0.2, 6),
+  target: oneOf(['player'] as const),
+  /** The attacker's pose while it stares. */
+  pose: optional(str),
+};
+
 const styleShape = {
   kind: oneOf(KILL_KINDS),
+  noticed: optional(obj(noticedShape)),
   /** Look id (castLooks) of the creature that comes out of the victim (grownInside). */
   creature: optional(str),
   /** Heights above the floor (m) that blood marks on the glass keep clear of. */
@@ -101,6 +198,7 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
   const table = record(obj(styleShape))(v, p);
   for (const [id, style] of Object.entries(table)) {
     const sp = `${p} > ${id}`;
+    if (style.noticed && style.kind !== 'mauled') throw new ValidationError(`${sp} > noticed`, 'only "mauled" kills have an attacker to notice anyone');
     const seen = new Set<string>();
     style.beats.forEach((b, i) => {
       const bp = `${sp} > beats[${i}]`;
@@ -108,6 +206,9 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
       seen.add(b.id);
       if (b.poses.length === 0) throw new ValidationError(`${bp} > poses`, 'at least one pose');
       if (b.until === 'time' && b.s === undefined) throw new ValidationError(bp, '"until": "time" needs "s"');
+      if (b.until === 'impacts' && b.impacts === undefined) throw new ValidationError(bp, '"until": "impacts" needs "impacts"');
+      if (b.until === 'clip' && b.clip === undefined) throw new ValidationError(bp, '"until": "clip" needs "clip"');
+      if (b.speed !== undefined && b.clip === undefined) throw new ValidationError(`${bp} > speed`, '"speed" is for a "clip" beat');
       if (b.s !== undefined && b.s > b.max) throw new ValidationError(bp, '"s" is longer than the time limit "max"');
       for (const [k, e] of (b.events ?? []).entries()) {
         const ep = `${bp} > events[${k}]`;
@@ -115,8 +216,13 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
         if (e.do === 'sfx' && !e.id?.length) throw new ValidationError(ep, 'sfx needs "id"');
         if (e.do === 'kick' && (!e.joint || !e.dir)) throw new ValidationError(ep, 'kick needs "joint" and "dir"');
         if (e.do === 'gore' && !['burst', 'chunks', 'spurt', 'pool'].includes(e.kind ?? '')) throw new ValidationError(ep, 'gore kind is burst | chunks | spurt | pool');
-        if (e.do === 'glass' && !['print', 'splat', 'streak'].includes(e.kind ?? '')) throw new ValidationError(ep, 'glass kind is print | splat | streak');
-        if ((e.do === 'pose' || e.do === 'die') && !e.pose) throw new ValidationError(ep, `${e.do} needs "pose"`);
+        if (e.do === 'glass' && !['print', 'splat', 'streak', 'crack'].includes(e.kind ?? '')) throw new ValidationError(ep, 'glass kind is print | splat | streak | crack');
+        if (e.dir === 'pull' && !(e.do === 'glass' && e.kind === 'streak')) throw new ValidationError(ep, '"dir": "pull" is only for a glass streak');
+        if (e.do === 'stinger' && e.id?.length !== 1) throw new ValidationError(ep, 'stinger needs one "id"');
+        if ((e.do === 'pose' || e.do === 'die' || e.do === 'attackerPose') && !e.pose) throw new ValidationError(ep, `${e.do} needs "pose"`);
+        if (e.do === 'grip' && !e.release && !e.joint) throw new ValidationError(ep, 'grip needs "joint" (or "release": true)');
+        if ((e.do === 'haulTo' || e.do === 'slam' || e.do === 'throw' || e.do === 'drag') && !e.mark) throw new ValidationError(ep, `${e.do} needs "mark"`);
+        if (ATTACKER_EVENTS.includes(e.do) && style.kind !== 'mauled') throw new ValidationError(ep, `${e.do} is only for "mauled" kills`);
       }
     });
   }

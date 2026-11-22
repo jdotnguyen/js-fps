@@ -13,6 +13,7 @@ import { segmentHit, type Navigator, type P3 } from './nav.ts';
 import { hears, inPlayerView, PERCEPTION, type NoiseKind, type SenseSource } from './perception.ts';
 import { Spawner, type SpawnPointData, type SpawnRequest } from './spawner.ts';
 import { fireShot, WEAPON_HITS, type ShotReport } from '../actors/shots.ts';
+import { castSpec } from '../actors/castLooks.ts';
 
 /**
  * Runs every enemy (ADR-0007): spawning and limits, perception events (noise, alert sharing),
@@ -142,6 +143,7 @@ export class EnemyDirector implements EnemyHost {
   /** New game or checkpoint restart: remove everyone and queue the level-start spawns again. */
   reset(clearedGroups: ReadonlySet<string> = new Set()): void {
     this.clear();
+    this.groupFrom.clear();
     this.combatStarted = false;
     this.spawner.reset(clearedGroups);
   }
@@ -155,9 +157,14 @@ export class EnemyDirector implements EnemyHost {
     this.spawner.clear();
   }
 
-  /** Sequence action `spawnGroup` (ADR-0009). False if unknown or already triggered. */
-  spawnGroup(group: string): boolean {
-    return this.spawner.trigger(group);
+  /**
+   * Sequence action `spawnGroup` (ADR-0009). False if unknown or already triggered. `from`: the group's enemies start
+   * there instead of at their points (an NPC released as an enemy, e.g. the creature behind the Lab B glass).
+   */
+  spawnGroup(group: string, from?: { pos: P3; yaw?: number | undefined }): boolean {
+    const ok = this.spawner.trigger(group);
+    if (ok && from) this.groupFrom.set(group, from);
+    return ok;
   }
 
   /** Has this group been cleared (every enemy it spawned dead)? */
@@ -180,7 +187,7 @@ export class EnemyDirector implements EnemyHost {
   }
 
   /** Spawn one enemy now (debug, scripts). Feet position. */
-  spawn(variant: EnemyVariantId, pos: P3, yaw = 0, opts: { group?: string | null; outfit?: string; infection?: number; start?: 'stand' | 'playDead' | 'emerge'; id?: string; model?: string | null } = {}): Enemy {
+  spawn(variant: EnemyVariantId, pos: P3, yaw = 0, opts: { group?: string | null; outfit?: string; infection?: number; start?: 'stand' | 'playDead' | 'emerge'; id?: string; model?: string | null; look?: string } = {}): Enemy {
     const table = this.d.table;
     const tuning = table[variant];
     const id = opts.id ?? `${variant}-${++this.counter}`;
@@ -198,6 +205,11 @@ export class EnemyDirector implements EnemyHost {
     // Imported bodies for the crowd only (ADR-0026). Own rng fork, so procedural spawns stay as they were.
     const model = opts.model !== undefined ? opts.model : hero ? (this.d.ctx.bodyModels?.get(HERO_MODEL) ? HERO_MODEL : null) : (this.d.ctx.bodyModels?.pick(variant, rng.fork('model')) ?? null);
     if (model) spec.model = model;
+    if (opts.look !== undefined) {
+      // A cast look: that character's body (seed, model, height, build, outfit), e.g. the creature out of Voss.
+      const look = castSpec(opts.look, id);
+      Object.assign(spec, look, { role: 'enemy', baseHp: spec.baseHp, infection: opts.infection ?? 0 });
+    }
     const start = opts.start ?? (variant === 'playDead' ? 'playDead' : 'stand');
     if (start === 'emerge') {
       // Out of a vent or through the ceiling: come out on the floor below the point, never on a slab above it
@@ -265,6 +277,8 @@ export class EnemyDirector implements EnemyHost {
   private reachCheckT: number = UNREACHABLE.every;
   /** Seconds each spawn-group enemy has been unable to walk to any target. */
   private readonly unreachableT = new Map<Enemy, number>();
+  /** Groups released from somewhere else than their points (`spawnGroup ... from`). */
+  private readonly groupFrom = new Map<string, { pos: P3; yaw?: number | undefined }>();
 
   /** Can this enemy walk to any living target? Its feet must be on the walkable floor (not on a slab above it). */
   private reachable(e: Enemy): boolean {
@@ -517,13 +531,20 @@ export class EnemyDirector implements EnemyHost {
     // Several enemies from one point come out a little apart.
     const off = r.index === 0 ? 0 : 0.35;
     const a = r.index * 2.4;
-    const pos = { x: p.pos[0] + Math.sin(a) * off, y: p.pos[1], z: p.pos[2] + Math.cos(a) * off };
+    let pos = { x: p.pos[0] + Math.sin(a) * off, y: p.pos[1], z: p.pos[2] + Math.cos(a) * off };
+    let yaw = ((p.yaw ?? 0) * Math.PI) / 180;
     const start = r.variant === 'playDead' ? 'playDead' : p.kind === 'vent' || p.kind === 'ceiling' ? 'emerge' : 'stand';
     const opts: Parameters<EnemyDirector['spawn']>[3] = { group: r.group, start, id: r.index === 0 ? p.id : `${p.id}.${r.index}` };
+    const from = r.group ? this.groupFrom.get(r.group) : undefined;
+    if (from) {
+      pos = { x: from.pos.x + Math.sin(a) * off, y: from.pos.y, z: from.pos.z + Math.cos(a) * off };
+      if (from.yaw !== undefined) yaw = from.yaw;
+    }
+    if (p.look !== undefined) opts.look = p.look;
     if (p.outfit !== undefined) opts.outfit = p.outfit;
     if (p.infection !== undefined) opts.infection = p.infection;
     if (p.model !== undefined) opts.model = p.model;
-    const e = this.spawn(r.variant, pos, ((p.yaw ?? 0) * Math.PI) / 180, opts);
+    const e = this.spawn(r.variant, pos, yaw, opts);
     // Door and vent spawns arrive hunting; floor and corpse spawns wait to notice someone.
     if (p.kind === 'door' && e.state === 'dormant') {
       const pl = this.targets.find((t) => t.kind === 'player');

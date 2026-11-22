@@ -417,6 +417,10 @@ export class SequenceManager {
     return {
       host,
       seqId: run.def.id,
+      get elapsed() {
+        return run.elapsed;
+      },
+      runToken: run,
       isRunning: (id) => this.isRunning(id) || this.queue.includes(id),
       build: (steps) =>
         new Serial(

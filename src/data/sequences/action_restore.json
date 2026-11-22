@@ -123,14 +123,37 @@
      {
       "do": "npcMoveTo",
       "npc": "priya",
+      "to": "anchor:priya_glass",
+      "instant": true
+     },
+     {
+      "do": "kill",
+      "npc": "priya",
+      "kind": "mauled",
+      "glass": "anchor:medbay_c_glass",
+      "marks": {
+       "throwAt": "anchor:r08_throw_point",
+       "exit": "anchor:r08_drag_mid"
+      },
+      "instant": true
+     },
+     {
+      "do": "npcMoveTo",
+      "npc": "priya",
       "to": "anchor:priya_hide",
       "instant": true
      },
      {
       "do": "npcAnim",
       "npc": "priya",
-      "anim": "squad_downed",
+      "anim": "corpseProne",
       "instant": true
+     },
+     {
+      "do": "gore",
+      "at": "anchor:priya_pool",
+      "kind": "pool",
+      "size": 1.2
      }
     ]
    }

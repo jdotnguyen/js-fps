@@ -15,6 +15,11 @@
     "value": true
    },
    {
+    "do": "score",
+    "id": "labB",
+    "load": true
+   },
+   {
     "do": "completeObjective",
     "id": "round_return"
    },
@@ -179,7 +184,8 @@
          {
           "do": "sfx",
           "id": "klaxon",
-          "at": "anchor:labb_glass"
+          "at": "anchor:labb_glass",
+          "beat": true
          },
          {
           "do": "wait",

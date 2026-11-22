@@ -260,6 +260,9 @@ export class SquadTask {
 
 // ------------------------------------------------------------------ revive and downed
 
+/** The squad task a revive is published as (`squad:taskStarted` / `squad:taskDone`), for Okafor's `revive` scene variant. */
+export const REVIVE_TASK = 'revive';
+
 export const REVIVE = {
   duration: 3,
   /** A hit pauses the revive for this long. */

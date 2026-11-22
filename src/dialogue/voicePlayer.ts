@@ -1,8 +1,9 @@
 /**
  * Web Audio side of dialogue (spec voice-playback): plays recorded VO files when loaded (falling back
- * to procedural emotes) through one of two channels:
+ * to procedural emotes) through one of three channels:
  *   local: HRTF PannerNode at the speaker's head (or centred if no position) + room reverb send.
  *   radio: band-pass 300-3400 Hz -> waveshaper -> compressor, squelch clicks, static bed.
+ *   pa: a filtered wall speaker with a fixed grille position and a light room reflection.
  * Output goes to its own gain node, which the game connects to the engine's `voice` bus
  * (spec: openspec/specs/voice-playback, openspec/specs/audio-mix).
  */
@@ -195,8 +196,14 @@ export class WebAudioVoicePlayer implements VoicePlayer {
     const t0 = ctx.currentTime + 0.01;
     const recordedBuf = this.pickRecorded(req.line);
     const buffer = recordedBuf ?? this.buffer(req);
+    const isPa = req.line.channel === 'pa';
+    const position = req.line.channel === 'radio' ? null : req.at?.();
+    if (isPa && !position) {
+      if (import.meta.env?.DEV) console.warn(`[voice] missing PA fixture for ${req.line.id}`);
+      return { ...(recordedBuf ? { duration: recordedBuf.duration } : {}), stop() {} };
+    }
     const src = new AudioBufferSourceNode(ctx, { buffer });
-    const lineGain = new GainNode(ctx, { gain: 1 });
+    const lineGain = new GainNode(ctx, { gain: isPa ? 0.58 : 1 });
     const nodes: AudioNode[] = [src, lineGain];
 
     // Subtle vocal grit when runtime rasp is raised on a recorded clip (Giles foreshadowing).
@@ -215,6 +222,8 @@ export class WebAudioVoicePlayer implements VoicePlayer {
     let hearLp: BiquadFilterNode | null = null;
     let staticSrc: AudioBufferSourceNode | null = null;
     let bed: GainNode | null = null;
+    let chime: AudioBufferSourceNode | null = null;
+    let leadIn = 0;
 
     if (req.line.channel === 'radio') {
       lineGain.connect(this.radioIn);
@@ -230,28 +239,45 @@ export class WebAudioVoicePlayer implements VoicePlayer {
       src.start(t0 + 0.07);
     } else {
       let localOut: AudioNode = lineGain;
-      if (req.at) {
-        const p = req.at();
+      if (isPa) {
+        const hp = new BiquadFilterNode(ctx, { type: 'highpass', frequency: 340, Q: 0.7 });
+        const lp = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 3900, Q: 0.7 });
+        const mid = new BiquadFilterNode(ctx, { type: 'peaking', frequency: 1450, gain: 2.2, Q: 0.9 });
+        localOut = lineGain.connect(hp).connect(lp).connect(mid);
+        nodes.push(hp, lp, mid);
+        // The PA emote is itself the chime. Prefix it only when there is a voice take.
+        if (req.line.paChime && recordedBuf) {
+          chime = new AudioBufferSourceNode(ctx, { buffer: this.buffer(req) });
+          chime.connect(lineGain);
+          chime.start(t0);
+          nodes.push(chime);
+          leadIn = 0.82;
+        }
+      }
+      if (position) {
         // A local voice keeps falling off with distance (no 40 m floor); propagation fades it to silence (setAudibility).
         panner = new PannerNode(ctx, {
-          panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 1.5, maxDistance: 10000, rolloffFactor: 1,
-          positionX: p.x, positionY: p.y, positionZ: p.z,
+          panningModel: 'HRTF', distanceModel: 'inverse', refDistance: isPa ? 3 : 1.5, maxDistance: isPa ? 40 : 10000, rolloffFactor: 1,
+          positionX: position.x, positionY: position.y, positionZ: position.z,
         });
-        lineGain.connect(panner);
+        localOut.connect(panner);
         nodes.push(panner);
-        // Walls, doorways and the way round (voice-playback: Voices carry through the station), ramped per frame.
-        hearLp = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: OPEN_CUTOFF_HZ, Q: 0.7 });
-        hearGain = new GainNode(ctx, { gain: 1 });
-        localOut = panner.connect(hearLp).connect(hearGain);
-        nodes.push(hearLp, hearGain);
+        localOut = panner;
+        if (!isPa) {
+          // Walls, doorways and the way round (voice-playback: Voices carry through the station), ramped per frame.
+          hearLp = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: OPEN_CUTOFF_HZ, Q: 0.7 });
+          hearGain = new GainNode(ctx, { gain: 1 });
+          localOut = localOut.connect(hearLp).connect(hearGain);
+          nodes.push(hearLp, hearGain);
+        }
       }
       localOut.connect(this.output);
       if (this.reverbIn && this.reverbSend > 0) {
-        const send = new GainNode(ctx, { gain: this.reverbSend });
+        const send = new GainNode(ctx, { gain: this.reverbSend * (isPa ? 0.7 : 1) });
         localOut.connect(send).connect(this.reverbIn);
         nodes.push(send);
       }
-      src.start(t0);
+      src.start(t0 + leadIn);
     }
 
     src.onended = () => {
@@ -261,10 +287,11 @@ export class WebAudioVoicePlayer implements VoicePlayer {
     let stopped = false;
     return {
       // Real VO clips extend the subtitle/queue timer so speech is never cut off mid-word.
-      ...(recordedBuf ? { duration: recordedBuf.duration + (req.line.channel === 'radio' ? 0.16 : 0.08) } : {}),
+      ...(recordedBuf ? { duration: recordedBuf.duration + leadIn + (req.line.channel === 'radio' ? 0.16 : 0.08) } : {}),
       update: () => {
-        if (!panner || !req.at) return;
+        if (isPa || !panner || !req.at) return;
         const p = req.at();
+        if (!p) return;
         const t = ctx.currentTime;
         panner.positionX.setTargetAtTime(p.x, t, 0.02);
         panner.positionY.setTargetAtTime(p.y, t, 0.02);
@@ -283,6 +310,7 @@ export class WebAudioVoicePlayer implements VoicePlayer {
         const t = ctx.currentTime;
         if (interrupted) lineGain.gain.setTargetAtTime(0, t, 0.015);
         const cleanupAt = t + (interrupted ? 0.1 : 0.15);
+        chime?.stop(cleanupAt);
         if (staticSrc) {
           this.blip(t);
           bed?.gain.setTargetAtTime(0, t, 0.02);

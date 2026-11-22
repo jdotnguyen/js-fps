@@ -1,0 +1,134 @@
+{
+  "labB": {
+    "beat": 0.65,
+    "beatsPerBar": 4,
+    "bars": 8,
+    "level": 5,
+    "layers": [
+      "drone",
+      "heartSlow",
+      "heartFast",
+      "pulse",
+      "rise",
+      "voice",
+      "brutal",
+      "hold"
+    ],
+    "stingers": {
+      "stab": 0.9,
+      "swell": 0.85,
+      "rise": 0.8,
+      "slam": 1,
+      "end": 1
+    },
+    "cues": {
+      "load": {
+        "fade": 0.5
+      },
+      "kill:scratch": {
+        "fade": 2.5,
+        "layers": {
+          "drone": 0.76,
+          "heartSlow": 0.7
+        }
+      },
+      "kill:panic": {
+        "fade": 1,
+        "layers": {
+          "drone": 0.66,
+          "heartSlow": 0.14,
+          "heartFast": 0.57,
+          "pulse": 0.47,
+          "rise": 0.42
+        }
+      },
+      "kill:glass": {
+        "fade": 0.6,
+        "layers": {
+          "drone": 0.62,
+          "heartFast": 0.54,
+          "pulse": 0.51,
+          "rise": 0.51,
+          "voice": 0.39
+        }
+      },
+      "kill:arch": {
+        "fade": 0.25,
+        "layers": {
+          "drone": 0.49,
+          "heartFast": 0.44,
+          "pulse": 0.44,
+          "rise": 0.44,
+          "voice": 0.39,
+          "brutal": 0.49
+        }
+      },
+      "kill:burst": {
+        "cut": true
+      },
+      "kill:still": {
+        "fade": 1.2,
+        "layers": {
+          "drone": 0.59,
+          "hold": 1.37
+        }
+      },
+      "kill:creature": {
+        "fade": 2,
+        "stinger": "swell",
+        "layers": {
+          "drone": 0.71,
+          "voice": 0.28,
+          "hold": 0.99
+        }
+      },
+      "hold": {
+        "fade": 2,
+        "layers": {
+          "drone": 0.71,
+          "voice": 0.28,
+          "hold": 0.99
+        }
+      },
+      "contact": {
+        "fade": 1.5,
+        "layers": {
+          "drone": 0.71,
+          "heartFast": 0.53,
+          "voice": 0.53,
+          "hold": 0.53
+        }
+      },
+      "door": {
+        "fade": 0.15,
+        "stinger": "slam",
+        "layers": {
+          "drone": 0.46,
+          "heartFast": 0.41,
+          "pulse": 0.46,
+          "rise": 0.46,
+          "voice": 0.36,
+          "brutal": 0.51
+        }
+      },
+      "end": {
+        "fade": 0.4,
+        "stinger": "end",
+        "release": 5
+      },
+      "stop": {
+        "fade": 0.8,
+        "release": 3
+      }
+    },
+    "resume": [
+      {
+        "flags": {
+          "drop_done": true,
+          "contact_done": false
+        },
+        "cue": "hold"
+      }
+    ]
+  }
+}

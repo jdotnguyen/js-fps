@@ -61,8 +61,8 @@ declare module '../core/events.ts' {
 }
 
 export interface SayOptions {
-  /** World position of the speaker's head, read every frame for `local` lines. */
-  at?: () => Vec3Like;
+  /** Read at playback start for a PA fixture, or per frame for a local speaker. */
+  at?: () => Vec3Like | null;
   /** Play now on a channel of its own, beside whatever is speaking, without queuing (intro-sequence spec). */
   overlap?: boolean;
   /** Override the line's addressee for speaker gaze ('player', an NPC id, or a speaker id). */
@@ -74,7 +74,7 @@ export interface SayOptions {
 export interface PlayRequest {
   line: DialogueLine;
   profile: VoiceProfile;
-  at: (() => Vec3Like) | undefined;
+  at: SayOptions['at'];
   /** Runtime rasp override for this speaker, or null to use the profile. */
   rasp: number | null;
   babble: boolean;

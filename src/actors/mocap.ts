@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import mocapJson from '../data/mocap-clips.json' with { type: 'json' };
+import mocapJson from '../data/mocap-core.json' with { type: 'json' };
 import { blendPose, emptyPose, type CompiledPose } from './poses.ts';
 import { JOINT_INDEX, JOINTS, type JointName } from './skeleton.ts';
 
@@ -11,6 +11,8 @@ import { JOINT_INDEX, JOINTS, type JointName } from './skeleton.ts';
  */
 
 export interface RawMocapClip {
+  /** Bake-list source id (credits; see RawMocapFile.sources). */
+  source?: string;
   duration: number;
   frames: number;
   loop: boolean;
@@ -19,12 +21,18 @@ export interface RawMocapClip {
   contactL?: readonly number[];
   contactR?: readonly number[];
   joints: Readonly<Record<string, readonly number[]>>;
+  /** A posture hold baked as offsets from its own mean pose (design D4), to be layered on top of an authored pose. */
+  additive?: boolean;
+  /** Finger curls where the source records fingers: 12 per frame (left then right: thumb, index, middle, ring, pinky curl, thumb spread). */
+  fingers?: readonly number[];
 }
 
 export interface RawMocapFile {
   version: number;
   fps: number;
   source: string;
+  /** Credit for every source the file's clips come from, by source id. */
+  sources?: Readonly<Record<string, { title: string; author: string; licence: string; url: string }>>;
   clips: Readonly<Record<string, RawMocapClip>>;
 }
 
@@ -41,11 +49,26 @@ export interface CompiledMocapClip {
   /** Per-frame 0..1 stance contact weight for left/right feet (locomotion clips). */
   readonly contactL: Float32Array | null;
   readonly contactR: Float32Array | null;
+  /** Finger curls, 12 per frame (see RawMocapClip.fingers), or null when the source has no finger data. */
+  readonly fingers: Float32Array | null;
+  /** True for posture holds stored as offsets from their mean pose (layer them; don't play them as a pose). */
+  readonly additive: boolean;
+  /** Mean of each finger channel over the clip (to sample finger motion as offsets), or null. */
+  readonly fingersMean: Float32Array | null;
 }
+
+/** Floats per frame in a clip's finger track. */
+export const FINGER_CHANNELS = 12;
 
 const N = JOINTS.length;
 const qA = new THREE.Quaternion();
 const qB = new THREE.Quaternion();
+
+function channelMean(fr: Float32Array, frames: number): Float32Array {
+  const m = new Float32Array(FINGER_CHANNELS);
+  for (let f = 0; f < frames; f++) for (let c = 0; c < FINGER_CHANNELS; c++) m[c] = (m[c] ?? 0) + (fr[f * FINGER_CHANNELS + c] ?? 0) / frames;
+  return m;
+}
 
 function compileClip(id: string, raw: RawMocapClip): CompiledMocapClip {
   const frames = raw.frames;
@@ -74,6 +97,7 @@ function compileClip(id: string, raw: RawMocapClip): CompiledMocapClip {
 
   const contactL = raw.contactL ? Float32Array.from(raw.contactL) : null;
   const contactR = raw.contactR ? Float32Array.from(raw.contactR) : null;
+  const fingers = raw.fingers && raw.fingers.length === frames * FINGER_CHANNELS ? Float32Array.from(raw.fingers) : null;
 
   return {
     id,
@@ -85,6 +109,9 @@ function compileClip(id: string, raw: RawMocapClip): CompiledMocapClip {
     tracks,
     contactL,
     contactR,
+    fingers,
+    fingersMean: fingers ? channelMean(fingers, frames) : null,
+    additive: raw.additive === true,
   };
 }
 
@@ -92,6 +119,8 @@ export class MocapLibrary {
   readonly fps: number;
   readonly source: string;
   private readonly clips = new Map<string, CompiledMocapClip>();
+  /** Per-character clip packs (mocap-library spec: loaded with the body, released with it). */
+  private readonly packs = new Map<string, { ids: string[]; refs: number }>();
 
   constructor(file: RawMocapFile) {
     this.fps = file.fps;
@@ -114,11 +143,43 @@ export class MocapLibrary {
   ids(): string[] {
     return [...this.clips.keys()];
   }
+
+  /** Add a character's clip pack (src/data/mocap/<name>.json). Adding a pack that is already loaded does nothing. */
+  addPack(name: string, file: RawMocapFile): void {
+    if (this.packs.has(name)) return;
+    const ids: string[] = [];
+    for (const [id, raw] of Object.entries(file.clips)) {
+      if (this.clips.has(id)) continue;
+      this.clips.set(id, compileClip(id, raw));
+      ids.push(id);
+    }
+    this.packs.set(name, { ids, refs: 0 });
+  }
+
+  hasPack(name: string): boolean {
+    return this.packs.has(name);
+  }
+
+  /** A body using the pack's clips holds it. */
+  retainPack(name: string): void {
+    const p = this.packs.get(name);
+    if (p) p.refs++;
+  }
+
+  /** A body that used the pack is gone; the last one out removes the pack's clips. */
+  releasePack(name: string): void {
+    const p = this.packs.get(name);
+    if (!p) return;
+    p.refs--;
+    if (p.refs > 0) return;
+    for (const id of p.ids) this.clips.delete(id);
+    this.packs.delete(name);
+  }
 }
 
 let sharedLib: MocapLibrary | null = null;
 
-/** Shared compiled mocap library (compiled once from src/data/mocap-clips.json). */
+/** Shared compiled mocap library (compiled once from src/data/mocap-core.json). */
 export function sharedMocapLibrary(): MocapLibrary {
   if (!sharedLib) sharedLib = new MocapLibrary(mocapJson as unknown as RawMocapFile);
   return sharedLib;
@@ -164,6 +225,28 @@ export function sampleClip(clip: CompiledMocapClip, u: number, out: CompiledPose
   }
 }
 
+/**
+ * Sample a clip's finger curls at normalized phase `u` into `out` (12 floats: left then right hand, thumb..pinky curl in radians,
+ * then thumb spread). Returns false (and leaves `out` alone) when the clip has no finger data.
+ */
+export function sampleFingers(clip: CompiledMocapClip, u: number, out: Float32Array | number[], relative = false): boolean {
+  const fr = clip.fingers;
+  const mean = relative ? clip.fingersMean : null;
+  if (!fr) return false;
+  const n = clip.frames;
+  const wrapped = clip.loop ? ((u % 1) + 1) % 1 : THREE.MathUtils.clamp(u, 0, 1);
+  const fPos = clip.loop ? wrapped * n : wrapped * (n - 1);
+  const i0 = Math.floor(fPos) % n;
+  const i1 = clip.loop ? (i0 + 1) % n : Math.min(n - 1, i0 + 1);
+  const a = fPos - Math.floor(fPos);
+  for (let c = 0; c < FINGER_CHANNELS; c++) {
+    const v0 = fr[i0 * FINGER_CHANNELS + c] ?? 0;
+    const v1 = fr[i1 * FINGER_CHANNELS + c] ?? 0;
+    out[c] = v0 + (v1 - v0) * a - (mean?.[c] ?? 0);
+  }
+  return true;
+}
+
 /** Sample interpolated foot stance contacts [left, right] in 0..1 at normalized phase `u`. */
 export function sampleContacts(clip: CompiledMocapClip, u: number, out: [number, number]): void {
   if (!clip.contactL || !clip.contactR) {
@@ -193,9 +276,8 @@ const cWalk: [number, number] = [1, 1];
 const cJog: [number, number] = [1, 1];
 
 /**
- * The clips one character idles, talks and moves with. Every character runs on the shared 21-joint skeleton, so a main character
- * gets its own motion by naming its own baked clips here (e.g. `priya_walk`); a slot left out, or naming a clip the library does
- * not have, falls back to the default set.
+ * The locomotion clips the blend space samples (idle, talk, walk, jog). A body's full set of clips comes from its motion profile
+ * (motionProfiles.ts); this is the subset `sampleLocomotion` needs.
  */
 export interface MotionSet {
   idle: string;
@@ -207,25 +289,6 @@ export interface MotionSet {
 export const DEFAULT_MOTIONS: Readonly<MotionSet> = { idle: 'idle', talk: 'idle_talk', walk: 'walk', jog: 'jog' };
 /** The calmer, composed walk (medics, the director). */
 export const FORMAL_MOTIONS: Readonly<MotionSet> = { ...DEFAULT_MOTIONS, walk: 'walk_formal' };
-
-const warnedMotion = new Set<string>();
-
-/** `own` over the default (or formal) set; ids the library lacks fall back, with one warning per id. */
-export function resolveMotions(lib: MocapLibrary, own: Partial<MotionSet> | undefined, formal = false): MotionSet {
-  const base = formal ? FORMAL_MOTIONS : DEFAULT_MOTIONS;
-  const out: MotionSet = { ...base };
-  if (!own) return out;
-  for (const slot of Object.keys(base) as (keyof MotionSet)[]) {
-    const id = own[slot];
-    if (!id) continue;
-    if (lib.has(id)) out[slot] = id;
-    else if (!warnedMotion.has(id)) {
-      warnedMotion.add(id);
-      console.warn(`mocap: no clip "${id}" for the ${slot} slot, using "${base[slot]}"`);
-    }
-  }
-  return out;
-}
 
 export interface LocomotionSample {
   /** Blended stride length (m/cycle) at the current speed, for phase advancement. */

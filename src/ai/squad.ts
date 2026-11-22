@@ -3,6 +3,7 @@ import { DEFAULT_MOTOR, floorHeight, moveBody, type MotorConfig, type MotorState
 import { Humanoid, type HumanoidContext, type HumanoidSpec } from '../actors/humanoid.ts';
 import { GILES, OKAFOR } from '../actors/squadLooks.ts';
 import { tellsFor } from '../actors/castTells.ts';
+import { InjuryExposure, injuryWeight, inView } from '../actors/injury.ts';
 import { REACH_DY } from './enemy.ts';
 import { inPlayerView } from './perception.ts';
 import { GIVE_WAY, GiveWay, type WayEnv } from './giveWay.ts';
@@ -11,6 +12,7 @@ import {
   COMBAT,
   KillShare,
   REVIVE,
+  REVIVE_TASK,
   ReviveJob,
   SquadTask,
   TASK_ARRIVE,
@@ -306,6 +308,22 @@ export class SquadMate {
     }
   }
 
+  /** The revive job last published as a squad task (null: none). */
+  private publishedRevive: ReviveJob | null = null;
+
+  /**
+   * Publish a revive as a squad task named `revive` for as long as the job lasts, however it ends (finished, given up, or the
+   * medic knocked down), so scene variants keyed on `{ task: 'revive' }` (character-motion) apply while Okafor revives.
+   * Runs at the start of each update, before anything can return early.
+   */
+  private publishRevive(squad: Squad): void {
+    if (this.revive === this.publishedRevive) return;
+    const ended = this.publishedRevive;
+    if (ended) squad.emit('squad:taskDone', { id: this.id, task: REVIVE_TASK, panel: null, progress: ended.progress });
+    this.publishedRevive = this.revive;
+    if (this.revive) squad.emit('squad:taskStarted', { id: this.id, task: REVIVE_TASK, panel: null, progress: this.revive.progress });
+  }
+
   /** Combat, task, revive and downed upkeep each step (after movement). */
   act(dt: number, squad: Squad, player: SquadPlayer): void {
     const me = this.position;
@@ -431,6 +449,32 @@ export class SquadMate {
     this.gestureT = 30;
     squad.emit('squad:up', { id: this.id, revived });
     if (this.id === 'medic') squad.emit('squad:noSafetyNet', { downed: false });
+  }
+
+  private readonly injury = new InjuryExposure();
+  private readonly injuryEye = new THREE.Vector3();
+  private readonly injuryDir = new THREE.Vector3();
+  private readonly injuryAt = new THREE.Vector3();
+
+  /**
+   * Giles's concealed injury (design D12): hidden while Jay or Okafor is watching him or he is talking, showing once he has gone
+   * unwatched for a few seconds, during a ladder tell, and on arm-loading panel work from stage 2. Full at the reveal (stage 4).
+   */
+  private updateInjury(dt: number, squad: Squad, player: SquadPlayer): void {
+    const stage = squad.infectionStage;
+    this.injuryAt.copy(this.position).setY(this.position.y + 1.5);
+    player.eyePosition(this.injuryEye);
+    const jaySees = inView(this.injuryEye, player.viewDirection(this.injuryDir), this.injuryAt, 10, (35 * Math.PI) / 180);
+    const medic = squad.mate('medic');
+    const my = medic.body.group.rotation.y;
+    this.injuryDir.set(-Math.sin(my), 0, -Math.cos(my));
+    this.injuryEye.copy(medic.position).setY(medic.position.y + 1.6);
+    const okaforSees = !medic.downed && inView(this.injuryEye, this.injuryDir, this.injuryAt, 10, (60 * Math.PI) / 180);
+    const tell = this.gestureLeft > 0;
+    const loaded = stage >= 2 && this.task !== null && /bypass|unlock/.test(this.task.kind);
+    const exposure = this.injury.update(dt, { watched: jaySees || okaforSees, talking: this.body.speaking, spike: tell || loaded });
+    this.body.setInjury(stage >= 4 ? 1 : injuryWeight(stage, exposure), 'L');
+    this.body.setHandTwitchStage(stage);
   }
 
   /** Idle tells per the infection ladder (Giles only), and the get-up settle. */
@@ -563,6 +607,7 @@ export class SquadMate {
   }
 
   update(dt: number, squad: Squad, player: SquadPlayer, cameraPos: THREE.Vector3 | null): void {
+    this.publishRevive(squad);
     // A sequence is driving this body (npc actions): the NPC director moves and animates it.
     if (this.scripted) return;
     if (this.downed) {
@@ -712,6 +757,7 @@ export class SquadMate {
     this.lastPos.copy(me);
     this.act(dt, squad, player);
     this.idleGestures(dt, squad);
+    if (this.id === 'engineer') this.updateInjury(dt, squad, player);
     this.body.update(dt, cameraPos);
   }
 }

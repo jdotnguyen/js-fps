@@ -1,4 +1,155 @@
 {
+  "convertedRise": {
+    "kind": "converted",
+    "beats": [
+      { "id": "still", "poses": ["corpseProne"], "convulse": 0, "until": "time", "s": 3.4, "max": 3.4 },
+      {
+        "id": "twitch",
+        "poses": ["corpseProne"],
+        "convulse": 0.15,
+        "until": "time",
+        "s": 1.6,
+        "max": 1.6,
+        "lines": ["stinger_priya_06"],
+        "events": [
+          { "t": 0.1, "do": "kick", "joint": "hand_R", "dir": "up", "strength": 0.9 },
+          { "t": 0.9, "do": "kick", "joint": "shin_L", "dir": "up", "strength": 1.1 }
+        ]
+      },
+      { "id": "turn", "poses": ["writhingProne"], "blend": 0.3, "convulse": 0.7, "rate": 3, "until": "time", "s": 2.2, "max": 2.2, "events": [{ "t": 0.4, "do": "infect", "stage": 3 }] },
+      { "id": "rise", "poses": ["getUp_0", "getUp_1", "getUp_2", "idle"], "period": 0.38, "blend": 0.3, "clip": "priya_rise", "speed": [[0, 0.6], [1.3, 0.6], [1.55, 1.35], [1.85, 0.65], [3.6, 0.7], [3.8, 1.25], [4.05, 0.8]], "convulse": 0.1, "rate": 2, "until": "clip", "s": 1.5, "max": 9, "events": [{ "t": 0.9, "do": "kick", "joint": "shoulder_R", "dir": "back", "strength": 0.8 }, { "t": 2.6, "do": "kick", "joint": "head", "dir": "left", "strength": 0.9 }, { "t": 4.4, "do": "kick", "joint": "shoulder_L", "dir": "up", "strength": 0.7 }] },
+      { "id": "face", "poses": ["idle"], "blend": 0.6, "convulse": 0.1, "until": "time", "s": 1.0, "max": 1.0, "events": [{ "t": 0, "do": "face", "mark": "camera" }] }
+    ]
+  },
+  "mauled": {
+    "kind": "mauled",
+    "glassStand": 0.55,
+    "clearBand": { "min": 1.1, "max": 1.8 },
+    "noticed": { "kind": "stare", "at": 4.2, "hold": 1.5, "target": "player", "pose": "stare" },
+    "beats": [
+      {
+        "id": "plead",
+        "poses": ["kill_glass_0", "kill_glass_1"],
+        "period": 0.45,
+        "convulse": 0,
+        "until": "time",
+        "s": 10,
+        "max": 11,
+        "lines": ["sec_priya_05"],
+        "events": [
+          { "t": 0, "do": "attackerPose", "pose": "maul_grip", "blend": 0.6 },
+          { "t": 0, "do": "haulTo", "mark": "approach", "faceMark": "throwAt", "speed": 1.2 },
+          { "t": 0.6, "do": "glass", "kind": "print", "hand": "L", "size": 0.22 },
+          { "t": 1.5, "do": "glass", "kind": "print", "hand": "R", "size": 0.22 }
+        ]
+      },
+      {
+        "id": "grab",
+        "poses": ["kill_grabbed"],
+        "blend": 0.12,
+        "convulse": 0.3,
+        "until": "time",
+        "s": 1.4,
+        "max": 2,
+        "lines": ["sec_priya_02"],
+        "events": [
+          { "t": 0, "do": "pin", "behind": 0.42, "side": 0.1 },
+          { "t": 0, "do": "attackerPose", "pose": "maul_grip", "blend": 0.1 },
+          { "t": 0, "do": "grip", "hand": "R", "joint": "head" },
+          { "t": 0, "do": "light", "state": "on" },
+          { "t": 0, "do": "sfx", "id": ["glass_squeak", "palm_glass_hit"], "joint": "hand_R" }
+        ]
+      },
+      {
+        "id": "haul",
+        "poses": ["kill_hauled"],
+        "convulse": 0.4,
+        "until": "time",
+        "s": 3.4,
+        "max": 4,
+        "events": [
+          { "t": 0, "do": "attackerPose", "pose": "maul_haul" },
+          { "t": 0, "do": "haulTo", "mark": "around", "speed": 1.3 },
+          { "t": 1.3, "do": "haulTo", "mark": "slamSpot", "faceMark": "slamFace", "speed": 1.3 }
+        ]
+      },
+      {
+        "id": "slam",
+        "poses": ["kill_slammed"],
+        "convulse": 0.6,
+        "until": "impacts",
+        "impacts": 3,
+        "max": 6,
+        "lines": ["sec_priya_06", "sec_priya_07", "sec_priya_03", ""],
+        "events": [
+          { "t": 0.5, "do": "slam", "mark": "cart" },
+          { "t": 1.6, "do": "slam", "mark": "cart" },
+          { "t": 2.6, "do": "slam", "mark": "cart" }
+        ]
+      },
+      {
+        "id": "throw",
+        "poses": ["kill_thrown"],
+        "blend": 0.08,
+        "convulse": 0.2,
+        "until": "time",
+        "s": 1.8,
+        "max": 2.5,
+        "events": [
+          { "t": 0, "do": "grip", "release": true },
+          { "t": 0, "do": "throw", "mark": "throwAt", "s": 0.55, "arc": 0.9 },
+          { "t": 0.6, "do": "pose", "pose": "kill_slide", "blend": 0.5 }
+        ]
+      },
+      {
+        "id": "reach",
+        "poses": ["kill_reach"],
+        "blend": 0.6,
+        "convulse": 0.1,
+        "until": "time",
+        "s": 2.4,
+        "max": 2.8,
+        "events": [
+          { "t": 0, "do": "face" },
+          { "t": 0, "do": "attackerPose", "pose": "maul_drag" },
+          { "t": 0, "do": "haulTo", "mark": "feet", "speed": 1.3 },
+          { "t": 0.9, "do": "glass", "kind": "print", "hand": "R", "size": 0.22 }
+        ]
+      },
+      {
+        "id": "drag",
+        "poses": ["kill_dragged"],
+        "convulse": 0.05,
+        "until": "time",
+        "s": 10.5,
+        "max": 11,
+        "events": [
+          { "t": 0, "do": "glass", "kind": "streak", "dir": "pull", "hand": "R", "size": 1.1, "s": 1.4 },
+          { "t": 0, "do": "pin", "behind": 1.6, "side": 0.25, "facing": "away" },
+          { "t": 0, "do": "grip", "hand": "R", "joint": "foot_R" },
+          { "t": 0, "do": "drag", "mark": "exit", "speed": 1.1 },
+          { "t": 0.2, "do": "sfx", "id": ["glass_squeak", "creak"], "joint": "hand_R" },
+          { "t": 0.5, "do": "sfx", "id": ["bodyDrag"], "joint": "chest" },
+          { "t": 2.8, "do": "drag", "mark": "turn", "speed": 1.1 },
+          { "t": 4.8, "do": "drag", "mark": "door", "speed": 1.1 },
+          { "t": 8.2, "do": "drag", "mark": "surgery", "speed": 1.0 }
+        ]
+      },
+      {
+        "id": "still",
+        "poses": ["corpseProne"],
+        "convulse": 0,
+        "until": "time",
+        "s": 1,
+        "max": 1,
+        "events": [
+          { "t": 0, "do": "grip", "release": true },
+          { "t": 0, "do": "die", "pose": "corpseProne", "blend": 0.6 },
+          { "t": 0, "do": "light", "state": "off" }
+        ]
+      }
+    ]
+  },
   "grownInside": {
     "kind": "grownInside",
     "creature": "lab_creature",
@@ -52,14 +203,18 @@
         "events": [
           { "t": 0.0, "do": "face" },
           { "t": 0.4, "do": "glass", "kind": "print", "hand": "L", "size": 0.16 },
+          { "t": 0.4, "do": "stinger", "id": ["stab"] },
           { "t": 0.4, "do": "sfx", "id": ["palm_glass_hit", "glassThud"], "joint": "hand_L" },
           { "t": 0.4, "do": "kick", "joint": "chest", "dir": "back", "strength": 0.5 },
           { "t": 0.8, "do": "glass", "kind": "print", "hand": "R", "size": 0.16 },
+          { "t": 0.8, "do": "stinger", "id": ["stab"] },
           { "t": 0.8, "do": "sfx", "id": ["palm_glass_hit", "glassThud"], "joint": "hand_R" },
           { "t": 1.2, "do": "glass", "kind": "print", "hand": "L", "size": 0.15 },
+          { "t": 1.2, "do": "stinger", "id": ["stab"] },
           { "t": 1.2, "do": "sfx", "id": ["palm_glass_hit", "glassThud"], "joint": "hand_L" },
           { "t": 1.2, "do": "kick", "joint": "chest", "dir": "back", "strength": 0.5 },
           { "t": 1.6, "do": "glass", "kind": "print", "hand": "R", "size": 0.15 },
+          { "t": 1.6, "do": "stinger", "id": ["stab"] },
           { "t": 1.6, "do": "sfx", "id": ["palm_glass_hit", "glassThud"], "joint": "hand_R" }
         ]
       },

@@ -22,6 +22,9 @@ import {
   type Validator,
 } from '../core/validate.ts';
 import { MUSIC_TRACKS } from '../audio/musicTracks.ts';
+import scoresJson from '../data/scores.json' with { type: 'json' };
+
+const SCORE_IDS = Object.keys(scoresJson) as [string, ...string[]];
 import { DOOR_STATES } from '../data/types/level.ts';
 import { LIGHT_PATTERNS } from '../render/lights.ts';
 import type { ControlOverride, FrameOptions, SequenceHost } from './host.ts';
@@ -39,6 +42,10 @@ export type Hook = (args: {
 export interface ActionContext {
   readonly host: SequenceHost;
   readonly seqId: string;
+  /** Seconds this run of the sequence has been playing. */
+  readonly elapsed: number;
+  /** The same object for every step of one run (per-run memory, e.g. a `say` pool's turn and cooldown). */
+  readonly runToken: object;
   /** Is this sequence running or queued right now? (`if` on the flag `running:<id>`.) */
   isRunning(id: string): boolean;
   /** Build a nested step list (used by `if` and `loop`). */
@@ -57,6 +64,16 @@ export interface ActionContext {
   hook(name: string): Hook | undefined;
   /** Warn once that a system this action needs is not available yet. */
   missing(feature: string): void;
+}
+
+/** Per run, per `say` step: whose turn it is in its pool, and when its cooldown ends. */
+const sayMemos = new WeakMap<object, WeakMap<object, { next: number; freeAt: number }>>();
+function sayMemo(run: object, step: object): { next: number; freeAt: number } {
+  let byStep = sayMemos.get(run);
+  if (!byStep) sayMemos.set(run, (byStep = new WeakMap()));
+  let m = byStep.get(step);
+  if (!m) byStep.set(step, (m = { next: 0, freeAt: -Infinity }));
+  return m;
 }
 
 export interface ActionDef {
@@ -465,7 +482,9 @@ export const ACTIONS: Record<string, ActionDef> = {
    * the creature's look (default the style's). Emits `kill:<beat>` as each beat begins and `kill:done` at the end.
    * Skipped or restored (`instant`): the end state (torn corpse, the creature standing).
    */
-  kill: npcAct('kill', { npc: str, kind: optional(str), glass: optional(target), lines: optional(record(str)), creature: optional(str), creatureId: optional(str) }),
+  // A `mauled` kill (medbay-attack spec) names its `attacker` (an NPC already there) and the level points its beats use
+  // (`marks`: e.g. { cart: 'anchor:r08_cart_top' }).
+  kill: npcAct('kill', { npc: str, kind: optional(str), glass: optional(target), lines: optional(record(str)), creature: optional(str), creatureId: optional(str), attacker: optional(str), marks: optional(record(target)) }),
   spawn: npcAct('spawn', { npc: str, kind: optional(str), at: target }),
   despawn: npcAct('despawn', { npc: str }),
   attachToTrack: npcAct('attachToTrack', { npc: str, track: str, speed: optional(numRange(0.1, 20)), pose: optional(str) }),
@@ -473,11 +492,12 @@ export const ACTIONS: Record<string, ActionDef> = {
   // ---- enemies (ADR-0007)
   /**
    * Trigger a level spawn group (points with `group` and `active: false`). With `wait` the step ends
-   * when every enemy of the group is dead (`group:cleared`). Skipped: the group spawns, no wait.
+   * when every enemy of the group is dead (`group:cleared`). Skipped: the group spawns, no wait. `from: "npc:<id>"`:
+   * that NPC becomes the group's enemy, starting where it stands (infection-kills: the creature breaks out).
    */
-  spawnGroup: act({ group: str, wait }, (s, ctx) => {
+  spawnGroup: act({ group: str, wait, from: optional(str) }, (s, ctx) => {
     if (!ctx.host.spawnGroup) return ctx.missing('spawnGroup');
-    if (!ctx.host.spawnGroup(s.group)) ctx.host.warn(`${ctx.seqId}: spawnGroup: "${s.group}" is unknown or already triggered`);
+    if (!ctx.host.spawnGroup(s.group, s.from)) ctx.host.warn(`${ctx.seqId}: spawnGroup: "${s.group}" is unknown or already triggered`);
     if (!s.wait) return;
     let cleared = ctx.host.groupCleared?.(s.group) ?? false;
     const off = ctx.listen('group:cleared', (p) => {
@@ -694,9 +714,16 @@ export const ACTIONS: Record<string, ActionDef> = {
     if (s.wait && s.s) return timed(s.s);
   }),
 
-  sfx: act({ id: str, at: optional(target) }, (s, ctx) => {
+  /** `beat: true`: land on the score's next beat (adaptive-music spec), or play at once with no score. */
+  sfx: act({ id: str, at: optional(target), beat: optional(bool) }, (s, ctx) => {
     if (!ctx.host.sfx) return ctx.missing('sfx');
-    ctx.host.sfx(s.id, s.at !== undefined ? resolve('sfx', s.at, ctx) : null);
+    ctx.host.sfx(s.id, s.at !== undefined ? resolve('sfx', s.at, ctx) : null, s.beat ? { beat: true } : undefined);
+  }),
+
+  /** Adaptive score (adaptive-music spec, data/scores.json): `load` it ahead, set a `cue`, or fire a `stinger`. */
+  score: act({ id: oneOf(SCORE_IDS), cue: optional(str), stinger: optional(str), load: optional(bool) }, (s, ctx) => {
+    if (!ctx.host.score) return ctx.missing('score');
+    ctx.host.score(s.id, { ...(s.cue !== undefined ? { cue: s.cue } : {}), ...(s.stinger !== undefined ? { stinger: s.stinger } : {}), ...(s.load ? { load: true } : {}) });
   }),
 
   music: act({ id: optional(oneOf(MUSIC_TRACKS)), stop: optional(bool) }, (s, ctx) => {
@@ -720,16 +747,29 @@ export const ACTIONS: Record<string, ActionDef> = {
     ctx.host.hush(s.off ? null : (s.speakers ?? []), s.s ?? 0.5);
   }),
   /** `overlap`: play beside the current line instead of queuing (a PA the squad talks over). */
-  say: act({ line: str, wait, overlap: optional(bool), fixture: optional(str), to: optional(str) }, (s, ctx) => {
+  /**
+   * Say a line. `line` may be a pool: each time the step runs it says the next one in turn. With `cooldown`, a run of
+   * the step within that many seconds of its last line says nothing (Jay's shouts as he bangs on the medbay glass).
+   */
+  say: act({ line: (v, p) => (Array.isArray(v) ? arr(str)(v, p) : str(v, p)), wait, overlap: optional(bool), fixture: optional(str), to: optional(str), cooldown: optional(numRange(0, 60)) }, (s, ctx) => {
     if (!ctx.host.say) return ctx.missing('say');
-    const h = ctx.host.say(s.line, {
+    let line: string;
+    if (Array.isArray(s.line) || s.cooldown !== undefined) {
+      const pool = Array.isArray(s.line) ? s.line : [s.line];
+      const memo = sayMemo(ctx.runToken, s);
+      if (s.cooldown !== undefined && ctx.elapsed < memo.freeAt) return;
+      line = pool[memo.next % pool.length]!;
+      memo.next++;
+      memo.freeAt = ctx.elapsed + (s.cooldown ?? 0);
+    } else line = s.line;
+    const h = ctx.host.say(line, {
       ...(s.overlap ? { overlap: true } : {}),
       ...(s.fixture !== undefined ? { fixture: s.fixture } : {}),
       ...(s.to !== undefined ? { to: s.to } : {}),
       // A sequence is one conversation (it never runs twice at once): its lines share a channel (dialogue-channels).
       channel: `seq:${ctx.seqId}`,
     });
-    if (h && s.wait !== false) return { ...pending(h.done), skip: () => ctx.host.markLinePlayed?.(s.line) };
+    if (h && s.wait !== false) return { ...pending(h.done), skip: () => ctx.host.markLinePlayed?.(line) };
   }),
 
   setObjective: act({ id: str }, (s, ctx) => {

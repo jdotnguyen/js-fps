@@ -235,8 +235,10 @@
     "speed": 2.2
    },
    {
-    "do": "say",
-    "line": "sec_okafor_02"
+    "do": "spawn",
+    "npc": "r08_thing",
+    "kind": "lab_creature",
+    "at": "anchor:r08_lurk"
    },
    {
     "do": "doorState",
@@ -244,210 +246,39 @@
     "state": "open"
    },
    {
-    "do": "spawn",
-    "npc": "r08_thing",
-    "kind": "lab",
-    "at": "anchor:r08_lurk"
-   },
-   {
-    "do": "transform",
-    "npc": "r08_thing",
-    "to": 3,
-    "instant": true
-   },
-   {
-    "do": "say",
-    "line": "sec_priya_01"
+    "do": "playerControl",
+    "interact": true
    },
    {
     "parallel": [
      {
-      "do": "npcMoveTo",
-      "npc": "r08_thing",
-      "to": [
-       1.3,
-       0,
-       47.6
-      ],
-      "speed": 2.6
-     },
-     {
       "do": "loop",
-      "count": 2,
+      "count": 1,
       "steps": [
        {
-        "do": "sfx",
-        "id": "glassThud",
-        "at": "anchor:priya_glass"
+        "do": "kill",
+        "npc": "priya",
+        "kind": "mauled",
+        "attacker": "r08_thing",
+        "glass": "anchor:medbay_c_glass",
+        "marks": {
+         "approach": "anchor:r08_approach",
+         "around": "anchor:r08_around",
+         "slamSpot": "anchor:r08_slam_spot",
+         "slamFace": "anchor:r08_slam_face",
+         "cart": "anchor:r08_cart_top",
+         "throwAt": "anchor:r08_throw_point",
+         "feet": "anchor:r08_feet",
+         "exit": "anchor:r08_drag_mid",
+         "turn": "anchor:r08_drag_turn",
+         "door": "anchor:r08_drag_exit",
+         "surgery": "anchor:r08_drag_end"
+        },
+        "wait": true
        },
        {
-        "do": "cameraShake",
-        "amount": 0.12,
-        "s": 0.25
-       },
-       {
-        "do": "wait",
-        "s": 0.55
-       }
-      ]
-     },
-     {
-      "do": "say",
-      "line": "sec_okafor_03"
-     }
-    ]
-   },
-   {
-    "do": "npcLookAt",
-    "npc": "priya",
-    "target": "npc:r08_thing"
-   },
-   {
-    "do": "emit",
-    "event": "glass:blood",
-    "payload": {
-     "id": "medbay",
-     "level": 1
-    }
-   },
-   {
-    "do": "gore",
-    "clipAxis": "z",
-    "clipAt": 46.05,
-    "clipKeep": "above",
-    "at": [
-     0.3,
-     1.3,
-     47.0
-    ],
-    "kind": "burst",
-    "dir": [
-     0.3,
-     1.5,
-     49.5
-    ],
-    "count": 70
-   },
-   {
-    "do": "sfx",
-    "id": "fleshTear",
-    "at": "anchor:priya_glass"
-   },
-   {
-    "do": "cameraShake",
-    "amount": 0.3,
-    "s": 0.6
-   },
-   {
-    "do": "say",
-    "line": "sec_priya_04",
-    "wait": false
-   },
-   {
-    "do": "npcAnim",
-    "npc": "priya",
-    "anim": "squad_downed"
-   },
-   {
-    "do": "wait",
-    "s": 0.6
-   },
-   {
-    "do": "gore",
-    "clipAxis": "z",
-    "clipAt": 46.05,
-    "clipKeep": "above",
-    "at": [
-     0.3,
-     0.4,
-     47.0
-    ],
-    "kind": "splash",
-    "dir": [
-     0.3,
-     0.4,
-     49.5
-    ],
-    "count": 90,
-    "size": 1.6
-   },
-   {
-    "do": "gore",
-    "clipAxis": "z",
-    "clipAt": 46.05,
-    "clipKeep": "above",
-    "at": [
-     0.4,
-     1.0,
-     47.0
-    ],
-    "kind": "chunks",
-    "dir": [
-     1.2,
-     1.2,
-     49.5
-    ],
-    "count": 14
-   },
-   {
-    "do": "emit",
-    "event": "glass:blood",
-    "payload": {
-     "id": "medbay",
-     "level": 2
-    }
-   },
-   {
-    "do": "glass",
-    "id": "medbay",
-    "state": "cracked"
-   },
-   {
-    "do": "sfx",
-    "id": "glassThud",
-    "at": "anchor:priya_glass"
-   },
-   {
-    "do": "cameraShake",
-    "amount": 0.4,
-    "s": 0.8
-   },
-   {
-    "do": "say",
-    "line": "sec_priya_02",
-    "wait": false
-   },
-   {
-    "do": "wait",
-    "s": 1.0
-   },
-   {
-    "do": "npcDrag",
-    "npc": "priya",
-    "by": "r08_thing",
-    "pose": "corpseSupine",
-    "distance": 1.1
-   },
-   {
-    "parallel": [
-     {
-      "do": "npcMoveTo",
-      "npc": "r08_thing",
-      "to": "anchor:r08_drag_mid",
-      "speed": 1.1
-     },
-     {
-      "do": "loop",
-      "count": 3,
-      "steps": [
-       {
-        "do": "sfx",
-        "id": "bodyDrag",
-        "at": "anchor:r08_drag_mid"
-       },
-       {
-        "do": "wait",
-        "s": 1.1
+        "do": "emit",
+        "event": "medbay:over"
        }
       ]
      },
@@ -456,101 +287,244 @@
       "count": 1,
       "steps": [
        {
-        "do": "wait",
-        "s": 0.6
-       },
-       {
-        "do": "gore",
-        "clipAxis": "z",
-        "clipAt": 46.05,
-        "clipKeep": "above",
-        "at": "anchor:priya_glass",
-        "kind": "pool",
-        "size": 1.9
+        "do": "waitFor",
+        "event": [
+         "kill:plead",
+         "medbay:over"
+        ],
+        "timeout": 5
        },
        {
         "do": "wait",
-        "s": 0.9
+        "s": 1.5
        },
        {
-        "do": "emit",
-        "event": "glass:blood",
-        "payload": {
-         "id": "medbay",
-         "level": 3
-        }
-       },
-       {
-        "do": "gore",
-        "clipAxis": "z",
-        "clipAt": 46.05,
-        "clipKeep": "above",
-        "at": [
-         1.6,
-         0.3,
-         47.6
-        ],
-        "kind": "splash",
-        "dir": [
-         1.6,
-         1.0,
-         47.6
-        ],
-        "count": 40,
-        "size": 1.1
+        "do": "setFlag",
+        "flag": "r08_thing_in",
+        "value": true
        }
       ]
      },
      {
-      "do": "say",
-      "line": "sec_priya_03"
+      "do": "loop",
+      "until": "medbay:over",
+      "steps": [
+       {
+        "do": "waitFor",
+        "event": "interact:medbay_bang",
+        "timeout": 30
+       },
+       {
+        "do": "sfx",
+        "id": "glassThud",
+        "at": "anchor:medbay_c_glass"
+       },
+       {
+        "do": "cameraShake",
+        "amount": 0.08,
+        "s": 0.2
+       },
+       {
+        "do": "say",
+        "line": [
+         "sec_jay_bang_01",
+         "sec_jay_bang_02",
+         "sec_jay_bang_03",
+         "sec_jay_bang_04"
+        ],
+        "wait": false,
+        "overlap": true,
+        "cooldown": 2.5
+       },
+       {
+        "do": "if",
+        "flag": "r08_thing_in",
+        "then": [
+         {
+          "do": "emit",
+          "event": "kill:notice",
+          "payload": {
+           "npc": "priya"
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "waitFor",
+        "event": [
+         "kill:plead",
+         "medbay:over"
+        ],
+        "timeout": 5
+       },
+       {
+        "do": "say",
+        "line": "sec_okafor_02",
+        "wait": false,
+        "overlap": true
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "okafor",
+        "to": "anchor:r07_medbay_door",
+        "speed": 2.4
+       },
+       {
+        "do": "emit",
+        "event": "door:denied",
+        "payload": {
+         "id": "D_R07_R08",
+         "reason": "Sealed. Lockdown."
+        }
+       },
+       {
+        "do": "wait",
+        "s": 0.6
+       },
+       {
+        "do": "say",
+        "line": "sec_giles_06",
+        "wait": false,
+        "overlap": true
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "waitFor",
+        "event": [
+         "kill:grab",
+         "medbay:over"
+        ],
+        "timeout": 60
+       },
+       {
+        "do": "playerControl",
+        "interact": false
+       },
+       {
+        "do": "say",
+        "line": "sec_okafor_03",
+        "wait": false,
+        "overlap": true
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "waitFor",
+        "event": [
+         "kill:grab",
+         "medbay:over"
+        ],
+        "timeout": 60
+       },
+       {
+        "do": "wait",
+        "s": 0.5
+       },
+       {
+        "do": "say",
+        "line": "sec_jay_01",
+        "wait": false,
+        "overlap": true
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "waitFor",
+        "event": [
+         "kill:haul",
+         "medbay:over"
+        ],
+        "timeout": 30
+       },
+       {
+        "do": "wait",
+        "s": 1.2
+       },
+       {
+        "do": "say",
+        "line": "sec_okafor_08",
+        "wait": false,
+        "overlap": true
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "waitFor",
+        "event": [
+         "kill:throw",
+         "medbay:over"
+        ],
+        "timeout": 40
+       },
+       {
+        "do": "wait",
+        "s": 0.8
+       },
+       {
+        "do": "say",
+        "line": "sec_giles_07",
+        "wait": false,
+        "overlap": true
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "waitFor",
+        "event": [
+         "kill:reach",
+         "medbay:over"
+        ],
+        "timeout": 40
+       },
+       {
+        "do": "wait",
+        "s": 0.7
+       },
+       {
+        "do": "say",
+        "line": "sec_jay_02",
+        "wait": false,
+        "overlap": true
+       }
+      ]
      }
     ]
    },
    {
-    "do": "gore",
-    "clipAxis": "z",
-    "clipAt": 46.05,
-    "clipKeep": "above",
-    "at": "anchor:r08_drag_mid",
-    "kind": "pool",
-    "size": 1.4
+    "do": "doorState",
+    "id": "D_R08_R08b",
+    "state": "closed"
    },
    {
-    "do": "npcMoveTo",
-    "npc": "r08_thing",
-    "to": "anchor:r08_drag_turn",
-    "speed": 1.0
-   },
-   {
-    "do": "wait",
-    "s": 1.6
-   },
-   {
-    "do": "gore",
-    "clipAxis": "z",
-    "clipAt": 46.05,
-    "clipKeep": "above",
-    "at": "anchor:r08_drag_turn",
-    "kind": "splash",
-    "dir": "anchor:r08_drag_exit",
-    "count": 50,
-    "size": 1.5
-   },
-   {
-    "do": "npcMoveTo",
-    "npc": "r08_thing",
-    "to": "anchor:r08_drag_exit",
-    "speed": 1.0
-   },
-   {
-    "do": "wait",
-    "s": 2.2
-   },
-   {
-    "do": "npcDrag",
-    "npc": "priya",
-    "stop": true
+    "do": "despawn",
+    "npc": "r08_thing"
    },
    {
     "do": "npcMoveTo",
@@ -561,17 +535,14 @@
    {
     "do": "npcAnim",
     "npc": "priya",
-    "anim": "squad_downed",
+    "anim": "corpseProne",
     "instant": true
    },
    {
-    "do": "despawn",
-    "npc": "r08_thing"
-   },
-   {
-    "do": "doorState",
-    "id": "D_R08_R08b",
-    "state": "closed"
+    "do": "gore",
+    "at": "anchor:priya_pool",
+    "kind": "pool",
+    "size": 1.2
    },
    {
     "do": "wait",

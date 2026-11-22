@@ -195,6 +195,110 @@
    {
     "do": "say",
     "line": "dive_maint_01"
+   },
+   {
+    "do": "emit",
+    "event": "trunk:secure"
+   }
+  ]
+ },
+ {
+  "id": "dive_trunk_secure",
+  "trigger": {
+   "event": "trunk:secure",
+   "unless": "dive_trunk_secured"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "emit",
+    "event": "trunk:beacon",
+    "payload": {
+     "on": true
+    }
+   },
+   {
+    "do": "sfx",
+    "id": "trunkChirp",
+    "at": "anchor:moon_pool"
+   },
+   {
+    "do": "wait",
+    "s": 0.7
+   },
+   {
+    "do": "sfx",
+    "id": "trunkChirp",
+    "at": "anchor:moon_pool"
+   },
+   {
+    "do": "wait",
+    "s": 0.8
+   },
+   {
+    "do": "emit",
+    "event": "trunk:state",
+    "payload": {
+     "state": "closed"
+    }
+   },
+   {
+    "do": "setFlag",
+    "flag": "dive_trunk_secured",
+    "value": true
+   },
+   {
+    "do": "sfx",
+    "id": "trunkHatch",
+    "at": "anchor:moon_pool"
+   },
+   {
+    "do": "wait",
+    "s": 4.2
+   },
+   {
+    "do": "sfx",
+    "id": "trunkVent",
+    "at": "anchor:moon_pool"
+   },
+   {
+    "do": "wait",
+    "s": 1.5
+   },
+   {
+    "do": "emit",
+    "event": "trunk:beacon",
+    "payload": {
+     "on": false
+    }
+   }
+  ]
+ },
+ {
+  "id": "dive_leak",
+  "trigger": {
+   "event": "trigger:dive_leak",
+   "unless": "dive_leak_cool"
+  },
+  "steps": [
+   {
+    "do": "setFlag",
+    "flag": "dive_leak_cool",
+    "value": true
+   },
+   {
+    "do": "sfx",
+    "id": "leakHiss",
+    "at": "anchor:dive_leak"
+   },
+   {
+    "do": "wait",
+    "s": 20
+   },
+   {
+    "do": "setFlag",
+    "flag": "dive_leak_cool",
+    "value": false
    }
   ]
  },
@@ -686,6 +790,11 @@
   },
   "once": true,
   "steps": [
+   {
+    "do": "score",
+    "id": "labB",
+    "load": true
+   },
    {
     "do": "wait",
     "s": 2.0

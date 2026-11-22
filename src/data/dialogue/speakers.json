@@ -25,7 +25,7 @@
   },
   "pa": {
     "name": "Station PA", "kind": "chime", "f0": 440, "formants": 1, "tempo": 1, "attack": 1,
-    "breath": 0, "rasp": 0, "drive": 0, "detune": 0, "brightness": 6000, "channel": "radio"
+    "breath": 0, "rasp": 0, "drive": 0, "detune": 0, "brightness": 6000, "channel": "pa"
   },
   "crew_cook": {
     "name": "Bram", "kind": "voice", "f0": 132, "formants": 0.96, "tempo": 1.05, "attack": 1.1,

@@ -116,6 +116,8 @@ import { Subtitles } from './ui/hud/subtitles.ts';
 
 /** The level New game plays (ADR-0014). */
 const DEFAULT_LEVEL = 'slice01';
+/** Seconds the last scene's score takes to fade under the menu theme when the end credits close. */
+const CREDITS_SCORE_FADE = 3;
 const LEVEL_FILES = import.meta.glob<unknown>('./data/levels/*.json', { import: 'default' });
 const TEXTURE_SIZE = 512;
 const FOG_COLOR = 0x04080a;
@@ -802,11 +804,25 @@ async function boot(): Promise<void> {
     }));
   // Loaded ahead (small): the end of the slice cuts from black straight to them, with no wait for a download.
   setTimeout(() => void loadCredits().catch(() => (creditsLoad = null)), 4000);
+  // The end of the slice: the score under the last scene plays on under the credits (no cut to the menu theme), and
+  // fades out as they close while the menu theme fades in.
+  let creditsScore = false;
+  const endCreditsScore = (): void => {
+    if (!creditsScore) return;
+    creditsScore = false;
+    score.fadeOutAll(CREDITS_SCORE_FADE);
+    menuMusic.hold(false, CREDITS_SCORE_FADE);
+  };
   /** Open the end credits; settles once they cover the screen (or failed to load). `instant`: over a black screen. */
-  const showCredits = (opts: { instant?: boolean } = {}): Promise<void> =>
-    loadCredits()
+  const showCredits = (opts: { instant?: boolean } = {}): Promise<void> => {
+    if (opts.instant && score.playing) {
+      creditsScore = true;
+      menuMusic.hold(true);
+    }
+    return loadCredits()
       .then((c) =>
         c.show(() => {
+          endCreditsScore();
           if (!menuRoot.hidden) {
             menuRoot.querySelector<HTMLElement>('[autofocus], button, input, select')?.focus();
           }
@@ -814,8 +830,10 @@ async function boot(): Promise<void> {
       )
       .catch((e: unknown) => {
         creditsLoad = null;
+        endCreditsScore();
         console.error('[credits]', e);
       });
+  };
   createMenus(menuRoot, { game, saves, settings, difficulties, events, resetTutorials: () => tutorials.reset(), showCredits: () => void showCredits() });
   // Menu UI sounds: hover/keyboard focus on a control, and a chirp when it's activated.
   const menuControl = (t: EventTarget | null): HTMLElement | null =>
@@ -844,7 +862,7 @@ async function boot(): Promise<void> {
   };
   let menuOpenPending = false;
   const onMenuShown = (): void => {
-    // Behind the end credits (the slice just ended) the menu opens unseen: no sting over the credits.
+    // Behind the end credits (the slice just ended) the menu opens unseen: no sting over the credits' song.
     if (credits?.open) return;
     if (audio.ctx.state === 'running') playMenuOpen();
     else menuOpenPending = true;
@@ -886,7 +904,8 @@ async function boot(): Promise<void> {
     score.resume(game.flags);
   });
   events.on('game:mode', ({ mode }) => {
-    if (mode === 'title') score.stopAll();
+    // Going to the title under the end credits keeps their score (see showCredits).
+    if (mode === 'title' && !creditsScore) score.stopAll();
   });
   for (const name of score.events()) events.on(name as never, () => score.onEvent(name));
   events.on('score:stinger' as never, (p: { id?: string }) => {

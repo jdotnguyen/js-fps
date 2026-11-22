@@ -14,6 +14,11 @@
   },
   "steps": [
    {
+    "do": "score",
+    "id": "labB",
+    "cue": "contact"
+   },
+   {
     "do": "doorState",
     "id": "D_R05_R06",
     "state": "sealed"
@@ -61,6 +66,15 @@
     "line": "contact_okafor_01"
    },
    {
+    "do": "score",
+    "id": "labB",
+    "stinger": "rise"
+   },
+   {
+    "do": "wait",
+    "s": 2.4
+   },
+   {
     "parallel": [
      {
       "do": "cameraShake",
@@ -78,12 +92,14 @@
       "state": "open"
      },
      {
-      "do": "despawn",
-      "npc": "researcher_b_creature"
+      "do": "spawnGroup",
+      "group": "r05_contact",
+      "from": "npc:researcher_b_creature"
      },
      {
-      "do": "spawnGroup",
-      "group": "r05_contact"
+      "do": "score",
+      "id": "labB",
+      "cue": "door"
      }
     ]
    },
@@ -98,6 +114,11 @@
    {
     "do": "waitGroup",
     "group": "r05_contact"
+   },
+   {
+    "do": "score",
+    "id": "labB",
+    "cue": "end"
    },
    {
     "do": "wait",

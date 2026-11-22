@@ -1,9 +1,12 @@
 /**
  * Retarget CC0 Quaternius Universal Animation Library (glTF) clips onto Thalassa's 21-joint
- * canonical humanoid skeleton (src/actors/skeleton.ts) and bake them into src/data/mocap-clips.json.
+ * canonical humanoid skeleton (src/actors/skeleton.ts) and bake them into src/data/mocap-core.json.
  *
  * Usage:
- *   node scripts/bake-mocap.mjs [path/to/AnimationLibrary_Godot_Standard.gltf]
+ *   node scripts/mocap-fetch.mjs        download the sources the bake list names into previews/sources/mocap/
+ *   node scripts/bake-mocap.mjs [--check] [--manifest scripts/mocap.sources.json] [--out src/data/mocap-core.json]
+ *
+ * Every source comes from the bake list (scripts/mocap.sources.json, docs/mocap-sources.md) and lives under previews/sources/.
  *
  * Source asset:
  *   Universal Animation Library (Standard) by Quaternius (CC0 1.0 Public Domain)
@@ -14,9 +17,33 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as THREE from 'three';
 
-const DEFAULT_SRC = 'C:/Users/justi/.gemini/antigravity-cli/brain/4a4164d3-2a56-4a1c-a435-1a5ae53af061/scratch/ual/AnimationLibrary_Godot_Standard.gltf';
-const ZOMBIE_GLB_SRC = path.resolve('public/assets/models/infected/zombie_walk.glb');
-const OUT_PATH = path.resolve('src/data/mocap-clips.json');
+import { DEFAULT_MANIFEST, ROOT, loadManifest, missingSources, sourceFile } from './lib/mocapSources.mjs';
+import { BONE_MAPS, bakeBvh, guessBoneMap, loadBvh } from './lib/bvhBake.mjs';
+import { clearanceProblems, fixClearance } from './lib/clipChecks.mjs';
+import { makeAdditive } from './lib/additive.mjs';
+
+// Options: --manifest <file> (default scripts/mocap.sources.json), --out <file> (default src/data/mocap-core.json),
+// --check (validate the bake list and report missing sources, then stop).
+const argOf = (flag) => {
+  const i = process.argv.indexOf(flag);
+  return i > 0 ? process.argv[i + 1] : undefined;
+};
+const MANIFEST = loadManifest(argOf('--manifest') ? path.resolve(argOf('--manifest')) : DEFAULT_MANIFEST);
+const missing = missingSources(MANIFEST);
+if (missing.length) {
+  // mocap-library spec: a missing source stops the bake, names the file and where to get it, and leaves the library untouched.
+  console.error('Missing mocap sources (run `node scripts/mocap-fetch.mjs`):');
+  for (const m of missing) console.error(`  ${m.file} (clip ${m.clip}): ${m.get}`);
+  process.exit(2);
+}
+if (process.argv.includes('--check')) {
+  console.log(`bake list OK: ${MANIFEST.clips.length} clips, every source present`);
+  process.exit(0);
+}
+const ualClip = MANIFEST.clips.find((c) => c.source === 'quaternius-ual');
+const DEFAULT_SRC = sourceFile(MANIFEST, ualClip);
+const ZOMBIE_GLB_SRC = sourceFile(MANIFEST, MANIFEST.clips.find((c) => c.source === 'zombie-walk'));
+const OUT_PATH = argOf('--out') ? path.resolve(argOf('--out')) : path.join(ROOT, 'src/data/mocap-core.json');
 const SAMPLE_FPS = 24;
 const REFERENCE_HEIGHT = 1.78;
 
@@ -68,17 +95,10 @@ const SRC_MAP = {
   foot_R: 'DEF-foot.R',
 };
 
-/** Clips to extract: target game clip id -> source glTF animation name + metadata. */
-const CLIPS = [
-  { id: 'idle', src: 'Idle_Loop', loop: true, loco: false },
-  { id: 'idle_talk', src: 'Idle_Talking_Loop', loop: true, loco: false },
-  { id: 'walk', src: 'Walk_Loop', loop: true, loco: true },
-  { id: 'walk_formal', src: 'Walk_Formal_Loop', loop: true, loco: true },
-  { id: 'jog', src: 'Jog_Fwd_Loop', loop: true, loco: true },
-  { id: 'crouch_idle', src: 'Crouch_Idle_Loop', loop: true, loco: false },
-  { id: 'kneel_fix', src: 'Fixing_Kneeling', loop: true, loco: false, start: 0.9, end: 3.8, seamBlend: 6 },
-  { id: 'pistol_idle', src: 'Pistol_Idle_Loop', loop: true, loco: false },
-];
+/** Clips to extract from the Quaternius glTF (from the bake list): target game clip id -> source animation name + metadata. */
+const CLIPS = MANIFEST.clips
+  .filter((c) => c.source === 'quaternius-ual')
+  .map(({ take, source: _s, ...rest }) => ({ ...rest, src: take }));
 
 // ---------------------------------------------------------------- glTF binary reader
 
@@ -140,7 +160,7 @@ function sampleTrack(times, values, stride, t, isQuat, out) {
 
 // ---------------------------------------------------------------- main
 
-const srcPath = path.resolve(process.argv[2] ?? DEFAULT_SRC);
+const srcPath = DEFAULT_SRC;
 const gltf = JSON.parse(fs.readFileSync(srcPath, 'utf8'));
 const binPath = path.resolve(path.dirname(srcPath), gltf.buffers[0].uri);
 const bin = fs.readFileSync(binPath);
@@ -172,6 +192,29 @@ const resetNodes = () => {
 };
 
 const byName = new Map(nodes.map((n) => [n.name, n]));
+
+/**
+ * Finger channels: per hand, a curl (radians, summed over the phalanges) for thumb, index, middle, ring and pinky, then the thumb's
+ * spread (its base joint), 12 floats per frame in all (left hand first). Measured against the bind pose.
+ */
+const FINGERS = ['thumb', 'f_index', 'f_middle', 'f_ring', 'f_pinky'];
+const FINGER_NODES = {};
+for (const side of ['L', 'R']) {
+  for (const f of FINGERS) FINGER_NODES[`${f}.${side}`] = [1, 2, 3].map((k) => nodes.findIndex((n) => n.name === `DEF-${f}.0${k}.${side}`));
+}
+const FINGER_NODE_SET = new Set(Object.values(FINGER_NODES).flat().filter((i) => i >= 0));
+const deltaAngle = (i) => (i < 0 ? 0 : restTransforms[i].q.angleTo(nodes[i].quaternion));
+function fingerCurls() {
+  const out = [];
+  for (const side of ['L', 'R']) {
+    for (const f of FINGERS) {
+      const [a, b, c] = FINGER_NODES[`${f}.${side}`];
+      out.push(f === 'thumb' ? deltaAngle(b) + deltaAngle(c) : deltaAngle(a) + deltaAngle(b) + deltaAngle(c));
+    }
+    out.push(deltaAngle(FINGER_NODES[`thumb.${side}`][0]));
+  }
+  return out;
+}
 
 // Global facing alignment: source faces +Z, Thalassa faces -Z -> rotate 180 deg around Y.
 const R_ALIGN = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
@@ -279,6 +322,8 @@ for (const spec of CLIPS) {
 
   const tmpBuf = [0, 0, 0, 0];
   const worldQ = {};
+  const hasFingers = tracks.some((tr) => FINGER_NODE_SET.has(tr.node));
+  const fingerFrames = [];
 
   for (let f = 0; f < numFrames; f++) {
     const t = tStart + f * dt;
@@ -315,6 +360,9 @@ for (const spec of CLIPS) {
     byName.get('DEF-hips').getWorldPosition(hipsPos);
     hipsPos.applyQuaternion(R_ALIGN).sub(bindWorldP.pelvis).multiplyScalar(heightScale);
     pelvisPos.push([hipsPos.x, hipsPos.y, hipsPos.z]);
+
+    // Finger curls (mocap-library spec: finger motion is kept where the source has it).
+    if (hasFingers) fingerFrames.push(fingerCurls());
   }
 
   // Optional loop seam blend for trimmed clips (e.g. kneel_fix)
@@ -438,6 +486,7 @@ for (const spec of CLIPS) {
     pelvis: pelvisFlat,
     ...(contactL ? { contactL, contactR } : {}),
     joints: tracksOut,
+    ...(hasFingers ? { fingers: fingerFrames.flat().map(r3) } : {}),
   };
 }
 
@@ -796,14 +845,89 @@ function bakeZombieClips() {
 }
 
 bakeZombieClips();
+for (const [id, clip] of Object.entries(outClips)) {
+  if (clip.additive) continue;
+  const p = clearanceProblems(clip);
+  if (p.length) throw new Error(`${id}: ${p.length} clearance problems (${p[0].what} at frame ${p[0].frame})`);
+}
 
-const payload = {
+// ---------------------------------------------------------------- BVH sources (CMU, Bandai Namco, 100STYLE)
+const BVH_MAP_OF = { cmu: 'cmu', 'bandai-1': 'bandai', 'bandai-2': 'bandai' };
+for (const spec of MANIFEST.clips) {
+  if (MANIFEST.sources[spec.source].kind !== 'bvh') continue;
+  const text = fs.readFileSync(sourceFile(MANIFEST, spec), 'utf8');
+  const map = BONE_MAPS[BVH_MAP_OF[spec.source]] ?? guessBoneMap(loadBvh(text).names);
+  const { clip, info } = bakeBvh(text, map, spec);
+  // Source proportions differ from the shared skeleton's: keep hands out of the torso and feet out of the other leg.
+  const fixedFrames = fixClearance(clip);
+  const left = clearanceProblems(clip);
+  if (left.length) throw new Error(`${spec.id}: ${left.length} clearance problems left after the fix (${left[0].what} at frame ${left[0].frame})`);
+  if (fixedFrames) console.log(`[${spec.id}] clearance fixed on ${fixedFrames} frames`);
+  // Posture holds (design D4) are stored as offsets from their own mean pose, layered on top of authored poses at runtime.
+  if (spec.additive) makeAdditive(clip, spec.additiveScale ?? 1);
+  outClips[spec.id] = clip;
+  console.log(
+    `[${spec.id}] ${spec.source} ${spec.take} ${info.start.toFixed(2)}-${info.end.toFixed(2)}s -> ${clip.frames}f` +
+      (clip.stride ? ` stride ${clip.stride} m` : '') +
+      ` segment error ${info.segmentError.toFixed(2)} deg (max ${info.segmentErrorMax.toFixed(1)})` +
+      // levelTrunk (standing-posture-stability): the trunk's average forward pitch before -> after, pelvis/spine/chest.
+      (info.trunk
+        ? ` trunk levelled ${['pelvis', 'spine', 'chest'].map((j) => `${info.trunk.before[j].toFixed(0)}->${info.trunk.after[j].toFixed(0)}`).join('/')} deg`
+        : ''),
+  );
+}
+
+// ---------------------------------------------------------------- write: core library + one pack per character
+// mocap-library spec: the core (defaults, neutral clips, Giles and Okafor) loads at start and stays within 2 MB; every other
+// character's clips are their own pack (src/data/mocap/<character>.json), loaded with the body and released with it.
+const CORE_LIMIT = 2 * 1024 * 1024;
+const packOf = new Map(MANIFEST.clips.map((c) => [c.id, c.pack ?? null]));
+const usedSources = (ids) => [...new Set(ids.map((id) => MANIFEST.clips.find((c) => c.id === id)?.source).filter(Boolean))];
+const describe = (ids) => usedSources(ids).map((sid) => `${MANIFEST.sources[sid].title} (${MANIFEST.sources[sid].licence})`).join(' + ');
+const fileFor = (ids) => ({
   version: 1,
   fps: SAMPLE_FPS,
-  source: 'Quaternius Universal Animation Library (CC0 1.0) + zombie_walk.glb (CC-BY-NC 4.0)',
-  clips: outClips,
-};
-
-fs.writeFileSync(OUT_PATH, JSON.stringify(payload));
-const sizeKb = (fs.statSync(OUT_PATH).size / 1024).toFixed(1);
-console.log(`\nWrote ${OUT_PATH} (${sizeKb} KB)`);
+  source: describe(ids),
+  // mocap-library spec: each clip's source, author and licence are carried into the library.
+  sources: Object.fromEntries(
+    usedSources(ids).map((sid) => {
+      const src = MANIFEST.sources[sid];
+      return [sid, { title: src.title, author: src.author, licence: src.licence, url: src.url }];
+    }),
+  ),
+  clips: Object.fromEntries(ids.map((id) => [id, { source: MANIFEST.clips.find((c) => c.id === id).source, ...outClips[id] }])),
+});
+const coreIds = Object.keys(outClips).filter((id) => !packOf.get(id));
+const packs = new Map();
+for (const id of Object.keys(outClips)) {
+  const p = packOf.get(id);
+  if (p) packs.set(p, [...(packs.get(p) ?? []), id]);
+}
+const coreText = JSON.stringify(fileFor(coreIds));
+if (coreText.length > CORE_LIMIT) throw new Error(`core clip library is ${(coreText.length / 1024).toFixed(0)} KB, over the 2 MB limit; move clips into character packs`);
+fs.writeFileSync(OUT_PATH, coreText);
+const sizes = [['core', coreIds.length, coreText.length]];
+if (!argOf('--out')) {
+  const packDir = path.join(ROOT, 'src/data/mocap');
+  fs.mkdirSync(packDir, { recursive: true });
+  for (const [name, ids] of [...packs].sort()) {
+    const text = JSON.stringify(fileFor(ids));
+    fs.writeFileSync(path.join(packDir, `${name}.json`), text);
+    sizes.push([name, ids.length, text.length]);
+  }
+  const loaders = [...packs.keys()].sort().map((n) => `  ${JSON.stringify(n)}: () => import('./${n}.json'),`);
+  fs.writeFileSync(
+    path.join(packDir, 'packs.ts'),
+    `// Generated by scripts/bake-mocap.mjs: one lazily loaded clip pack per character (mocap-library spec). Do not edit.\n` +
+      `export const MOCAP_PACKS: Readonly<Record<string, () => Promise<{ default: unknown }>>> = {${loaders.length ? `\n${loaders.join('\n')}\n` : ''}};\n`,
+  );
+  // Record the sizes in docs/mocap-sources.md between its markers.
+  const docPath = path.join(ROOT, 'docs/mocap-sources.md');
+  const doc = fs.readFileSync(docPath, 'utf8');
+  const table = ['| Pack | Clips | Size |', '|---|---|---|', ...sizes.map(([n, c, b]) => `| ${n} | ${c} | ${(b / 1024).toFixed(1)} KB |`)].join('\n');
+  const begin = '<!-- sizes:begin -->';
+  const end = '<!-- sizes:end -->';
+  if (doc.includes(begin)) fs.writeFileSync(docPath, doc.replace(new RegExp(`${begin}[\\s\\S]*${end}`), `${begin}\n${table}\n${end}`));
+}
+for (const [n, c, b] of sizes) console.log(`${n}: ${c} clips, ${(b / 1024).toFixed(1)} KB`);
+console.log(`\nWrote ${OUT_PATH} (${(coreText.length / 1024).toFixed(1)} KB)`);

@@ -22,7 +22,7 @@ import { solveTwoBone } from './ik.ts';
 import type { MocapLibrary } from './mocap.ts';
 import { resolveProfile, sharedMotionProfiles, type Gender, type MotionProfileFile } from './motionProfiles.ts';
 import { motionScene } from './motionScene.ts';
-import { hasMocapPack } from './mocapPacks.ts';
+import { hasMocapPack, loadMocapPacks } from './mocapPacks.ts';
 import type { PoseLibrary } from './poses.ts';
 import { footprintOf } from './separation.ts';
 import { heldGripFor, type HeldGrip } from './heldGrip.ts';
@@ -113,6 +113,8 @@ export interface HumanoidContext {
   mocap?: MocapLibrary;
   /** Motion profiles (tests); defaults to src/data/motion-profiles.json. */
   motionProfiles?: MotionProfileFile;
+  /** Load a character's clip pack into the library (tests); defaults to the bundled packs (mocapPacks.ts). */
+  loadMocapPack?: (lib: MocapLibrary, name: string) => Promise<void>;
   /** World static/furniture colliders for general hand-vs-surface contact resolution. */
   colliders?: ColliderQuery | null;
   /** Optional world-space footstep callback fired on foot plants (audio / perception). */
@@ -152,6 +154,8 @@ interface CapsuleBinding {
   b: THREE.Vector3;
   r: number;
 }
+
+const tmpClipShift = new THREE.Vector3();
 
 export class Humanoid {
   readonly group = new THREE.Group();
@@ -253,7 +257,9 @@ export class Humanoid {
     this.motionGender = (spec.model ? ctx.bodyModels?.table?.[spec.model]?.gender : undefined) ?? spec.gender ?? 'm';
     this.motionFormal = spec.role === 'npc' && (spec.outfit === 'medic' || spec.seed === 'director-hale');
     this.hasVariants = Boolean(spec.profile && (ctx.motionProfiles ?? sharedMotionProfiles()).profiles[spec.profile]?.variants);
-    const motion = this.resolveMotion();
+    // A character whose pack was released (its last body went, as on a restart) waits for it quietly; see holdMocapPack.
+    const packPending = Boolean(spec.profile && hasMocapPack(spec.profile) && !this.animator.mocapLibrary.hasPack(spec.profile));
+    const motion = this.resolveMotion(packPending);
     this.animator.setMotion(motion);
     const ownInitial = motion.poses[this.idlePose];
     if (ownInitial && ctx.poses.has(ownInitial)) {
@@ -261,10 +267,7 @@ export class Humanoid {
       this.animator.setPose(ownInitial, 0);
     }
     // Hold the character's clip pack while this body exists (released in dispose).
-    if (spec.profile && hasMocapPack(spec.profile)) {
-      this.mocapPack = spec.profile;
-      this.animator.mocapLibrary.retainPack(spec.profile);
-    }
+    if (spec.profile && hasMocapPack(spec.profile)) this.holdMocapPack(spec.profile);
     this.handPhysics = new HandPhysicsSolver(spec.seed, this.geo.handBones ?? [], this.extras, this.animator.motion.hands);
     this.applyBoneScales();
     this.group.updateMatrixWorld(true);
@@ -406,6 +409,27 @@ export class Humanoid {
 
   get killing(): boolean {
     return this.kill !== null;
+  }
+
+  /**
+   * A kill beat's captured clip plays once on this body, blending in over `blend` s (a raised corpse gets up). Any
+   * carried pose is dropped so the clip owns the body. Returns the clip's length (s), or null if this body has no
+   * such clip in its library or character pack.
+   */
+  playKillClip(id: string, blend: number): number | null {
+    const duration = this.animator.playClip(id, blend);
+    if (duration === null) return null;
+    this.carried = null;
+    // The clip starts where the body lies: move the origin under it (the animator already moved the pose back).
+    const shift = tmpClipShift.copy(this.animator.clipShift).multiplyScalar(this.geo.scale.y).applyQuaternion(this.group.quaternion);
+    this.group.position.add(shift);
+    this.prevWorldPos.add(shift);
+    return duration;
+  }
+
+  /** Progress through the kill clip (0..1). */
+  killClipPhase(u: number): void {
+    this.animator.clipPhase(u);
   }
 
   /** The convulsion the body eases toward (0..1), at `rate` per second. */
@@ -925,6 +949,7 @@ export class Humanoid {
       skipR: ikTargetR !== null,
       enabled: handContactEligible,
       dt,
+      keepElbows: this.animator.armsPlaced,
     });
     // A favoured (injured) arm moves less and more slowly, contact pushes included (character-motion, design D12).
     this.animator.guardArm(dt);
@@ -1289,18 +1314,49 @@ export class Humanoid {
   }
 
   private motionGender: Gender = 'm';
+  /** This body's pick among pooled takes (crew default walks and runs), 0..1, from its seed: the same every run. */
+  private get motionPick(): number {
+    // The seeded generator, not the bare string hash: FNV's top bits barely move between ids that differ only in their last
+    // character (crew:mess:0 .. :9 all landed on the first take).
+    return new Rng(`motion-pick:${this.spec.seed}`).next();
+  }
   private motionFormal = false;
   private hasVariants = false;
   private sceneVersion = -1;
   private sceneCheck = 0;
 
+  /**
+   * Hold the character's clip pack while this body exists (released in dispose). Packs are loaded at start, and the last body of
+   * a character releases its pack; when a body is built again after that (a death restart or checkpoint restore rebuilds the
+   * NPCs), the pack is loaded again and the body switches to its own motion when it arrives.
+   */
+  private holdMocapPack(name: string): void {
+    const lib = this.animator.mocapLibrary;
+    if (lib.hasPack(name)) {
+      this.mocapPack = name;
+      lib.retainPack(name);
+      return;
+    }
+    const load = this.ctx.loadMocapPack ?? ((l: MocapLibrary, n: string) => loadMocapPacks(l, [n]));
+    void load(lib, name)
+      .then(() => {
+        if (this.bodyDisposed || !lib.hasPack(name)) return;
+        this.mocapPack = name;
+        lib.retainPack(name);
+        this.animator.setMotion(this.resolveMotion(), 0.3);
+      })
+      .catch((e: unknown) => console.warn(`mocap: could not load the "${name}" clip pack`, e));
+  }
+
+  private bodyDisposed = false;
+
   /** This body's motion profile with the scene variants in effect (character-motion spec). */
-  private resolveMotion(): ReturnType<typeof resolveProfile> {
+  private resolveMotion(quiet = false): ReturnType<typeof resolveProfile> {
     const profile = this.spec.profile;
     const scene = profile
       ? { sequences: motionScene.sequences, task: motionScene.tasks.get(profile) ?? null, stage: motionScene.stage, flag: (n: string) => Boolean(motionScene.flags()[n]) }
       : undefined;
-    return resolveProfile(this.animator.mocapLibrary, this.ctx.motionProfiles ?? sharedMotionProfiles(), profile, this.motionGender, this.motionFormal, scene);
+    return resolveProfile(this.animator.mocapLibrary, this.ctx.motionProfiles ?? sharedMotionProfiles(), profile, this.motionGender, this.motionFormal, scene, quiet, this.motionPick);
   }
 
   /** Re-resolve scene variants when the scene changes (and a few times a second, for story flags); cross-fade over 0.3 s. */
@@ -1334,6 +1390,7 @@ export class Humanoid {
   private mocapPack: string | null = null;
 
   dispose(): void {
+    this.bodyDisposed = true;
     if (this.mocapPack) {
       this.animator.mocapLibrary.releasePack(this.mocapPack);
       this.mocapPack = null;
@@ -1543,7 +1600,7 @@ export class Humanoid {
     const crawling = gait === 'crawl' || gait === 'drag';
     this.animator.turnRate = crawling ? this.turn.vel : this.uprightTurn.vel;
     this.animator.turnError = crawling ? this.turnError : this.uprightTurn.error;
-    if (this.state !== 'alive' || this.animator.sequencePlaying) return;
+    if (this.state !== 'alive' || this.animator.sequencePlaying || this.animator.clipPlaying) return;
     const phase = this.slam?.phase ?? 'idle';
     if (phase !== this.slamPhaseShown) {
       this.slamPhaseShown = phase;

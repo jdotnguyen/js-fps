@@ -6,6 +6,7 @@
       "playDead"
     ],
     "share": 0.3333,
+    "gender": "m",
     "sickTint": 0.3,
     "credit": {
       "title": "Zombie Walk",
@@ -21,6 +22,7 @@
       "playDead"
     ],
     "share": 0.5,
+    "gender": "m",
     "sickTint": 0.15,
     "credit": {
       "title": "zombie monster slasher necromorph",
@@ -33,6 +35,7 @@
     "url": "assets/models/squad/mechanic.glb",
     "variants": [],
     "share": 0,
+    "gender": "m",
     "sickTint": 0.3,
     "handRig": true,
     "credit": {
@@ -46,6 +49,7 @@
     "url": "assets/models/squad/doctor.glb",
     "variants": [],
     "share": 0,
+    "gender": "m",
     "sickTint": 0.3,
     "handRig": true,
     "credit": {
@@ -59,6 +63,7 @@
     "url": "assets/models/squad/priya.glb",
     "variants": [],
     "share": 0,
+    "gender": "f",
     "sickTint": 0.3,
     "handRig": true,
     "credit": {
@@ -70,8 +75,10 @@
   },
   "sung": {
     "url": "assets/models/squad/sung.glb",
+    "handRig": true,
     "variants": [],
     "share": 0,
+    "gender": "m",
     "sickTint": 0.3,
     "credit": {
       "title": "Construction Worker In Safety Gear",
@@ -82,8 +89,10 @@
   },
   "ruiz": {
     "url": "assets/models/squad/ruiz.glb",
+    "handRig": true,
     "variants": [],
     "share": 0,
+    "gender": "f",
     "sickTint": 0.3,
     "credit": {
       "title": "Blue Overalls Technician",
@@ -94,8 +103,10 @@
   },
   "heins": {
     "url": "assets/models/squad/heins.glb",
+    "handRig": true,
     "variants": [],
     "share": 0,
+    "gender": "f",
     "sickTint": 0.3,
     "credit": {
       "title": "BS-V1 Cyborg",
@@ -108,6 +119,7 @@
     "url": "assets/models/squad/hale.glb",
     "variants": [],
     "share": 0,
+    "gender": "m",
     "sickTint": 0.3,
     "handRig": true,
     "credit": {
@@ -121,6 +133,7 @@
     "url": "assets/models/infected/necromorph_slasher.glb",
     "variants": [],
     "share": 0,
+    "gender": "m",
     "sickTint": 0.15,
     "credit": {
       "title": "Necromorph Slasher Varient 1 Rig",
@@ -131,8 +144,10 @@
   },
   "bram": {
     "url": "assets/models/squad/bram.glb",
+    "handRig": true,
     "variants": [],
     "share": 0,
+    "gender": "m",
     "sickTint": 0.3,
     "credit": {
       "title": "Chef T pose",
@@ -145,6 +160,7 @@
     "url": "assets/models/crew/assistant.glb",
     "variants": [],
     "share": 0,
+    "gender": "f",
     "sickTint": 0.3,
     "credit": {
       "title": "Lady in a trenchcoat",
@@ -157,6 +173,7 @@
     "url": "assets/models/crew/botanist_1.glb",
     "variants": [],
     "share": 0,
+    "gender": "m",
     "sickTint": 0.3,
     "credit": {
       "title": "scientist",
@@ -169,6 +186,7 @@
     "url": "assets/models/crew/botanist_2.glb",
     "variants": [],
     "share": 0,
+    "gender": "m",
     "sickTint": 0.3,
     "credit": {
       "title": "source scientist",
@@ -181,6 +199,7 @@
     "url": "assets/models/crew/botanist_3.glb",
     "variants": [],
     "share": 0,
+    "gender": "m",
     "sickTint": 0.3,
     "credit": {
       "title": "Scientist",
@@ -196,6 +215,7 @@
       "playDead"
     ],
     "share": 1,
+    "gender": "m",
     "sickTint": 0.3,
     "credit": {
       "title": "Zombie (Game character)",
@@ -208,6 +228,7 @@
     "url": "assets/models/crew/office_1.glb",
     "variants": [],
     "share": 0,
+    "gender": "m",
     "sickTint": 0.3,
     "credit": {
       "title": "Eric Rigged 001 - Rigged 3D Business Man",
@@ -220,6 +241,7 @@
     "url": "assets/models/crew/office_2.glb",
     "variants": [],
     "share": 0,
+    "gender": "f",
     "sickTint": 0.3,
     "credit": {
       "title": "Carla Rigged 001 - Rigged 3D Business Women",
@@ -232,6 +254,8 @@
     "url": "assets/models/crew/office_3.glb",
     "variants": [],
     "share": 0,
+    "gender": "f",
+    "handRig": true,
     "sickTint": 0.3,
     "credit": {
       "title": "Claudia Rigged 002 - 3D Rigged Business Women",
@@ -244,6 +268,7 @@
     "url": "assets/models/crew/guard_1.glb",
     "variants": [],
     "share": 0,
+    "gender": "m",
     "sickTint": 0.3,
     "credit": {
       "title": "Security Guard - Rigged 3D Model",
@@ -256,6 +281,7 @@
     "url": "assets/models/crew/scientist_1.glb",
     "variants": [],
     "share": 0,
+    "gender": "m",
     "sickTint": 0.3,
     "credit": {
       "title": "SCP Scientist Male 1 - FIX RIGGER",

@@ -211,6 +211,8 @@ const spawnShape = {
   infection: optional(numRange(0, 3)),
   /** Imported body (a `data/body-models.json` id) for this point's enemies, e.g. the creature that came out of Voss. */
   model: optional(id),
+  /** A cast look (castLooks) for this point's enemies: its body, height and build, e.g. `lab_creature` (infection-kills). */
+  look: optional(id),
   on: optional(str),
 };
 

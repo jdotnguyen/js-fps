@@ -6,19 +6,21 @@ import { CanvasScreen, SCREEN_FONT } from '../../render/screens.ts';
 import { paintedDecal, stencilDecal } from '../../render/decals.ts';
 import { drawTagBanner, drawTagLockup, drawTagMark } from '../../render/logo.ts';
 import { NOISE_GLSL } from '../../render/fx/glsl.ts';
+import { createShaft } from '../../render/fx/shafts.ts';
 import { SUB_RADIUS, SUB_SAIL_TOP, SUB_LENGTH, SUB_SCALE, createSubModel } from '../../render/fx/subModel.ts';
 import { createBeamConeGeometry, createExteriorBeamMaterial } from '../../render/fx/exterior.ts';
 import { exteriorize } from '../../render/fx/exteriorLight.ts';
 import { at, cylinderBetween, pipe, rounded } from './geom.ts';
+import { PA_GRILLE_Y, PA_GRILLE_Z } from '../paSpeakers.ts';
 import { lathe, slab } from './shapes.ts';
 import { inFrame, panelWall, wallFrame } from './detail.ts';
 import { AoMergeBuilder } from './merge.ts';
 import { TILE_FLOOR_KEYS, paletteFor, resolvePalette } from './palettes.ts';
 import { evaluateMisterCycle } from './misterCycle.ts';
-import { PieceBuilder, WALL_T, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams } from './types.ts';
+import { MOONPOOL_WIDTH, PieceBuilder, TRUNK_DEPTH, WALL_T, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams } from './types.ts';
 
 /**
- * Slice-01 kit additions (ADR-0014, ADR-0017, ADR-0023): the kitchen, the supply sub, the
+ * Slice-01 kit additions (ADR-0014, ADR-0023, intro-sequence spec): the kitchen, the supply sub, the
  * briefing screen and Lab B blinds, hydroponics plants, the dive bay moon pool, the TAG
  * admin office and the action-half set dressing (valve wheel, consoles, armory).
  *
@@ -34,6 +36,8 @@ import { PieceBuilder, WALL_T, boolParam, numParam, strParam, type PieceDef, typ
  *   blinds         `blinds:set` { id, state: up|down, instant? }, and `blinds:<id>_up` / `blinds:<id>_down`
  *   valve_wheel    `valve:<id>` (spins two turns), `valve:<id>_reset`
  *   security_monitor `camera:feed` { id, state: live|figure|static }
+ *   cctv_wall      `camera:feed` { id, state } (its live tile)
+ *   metal_detector `detector:scan` { id, result: pass|alarm }
  *   glass_cracks   `glass:set` { id, state: intact|cracked|shattered }
  *   glass_blood    `glass:blood` { id, level: 0..3 }
  *   fluid_trail    `reveal:trail`
@@ -41,6 +45,11 @@ import { PieceBuilder, WALL_T, boolParam, numParam, strParam, type PieceDef, typ
 
 const V = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3(x, y, z);
 const PI = Math.PI;
+
+/** Metal detector light bar colours (dock-checkpoint). */
+export const DETECTOR_IDLE = 0x8a5a1a;
+export const DETECTOR_PASS = 0x39ff9e;
+export const DETECTOR_ALARM = 0xff2a1f;
 
 // ------------------------------------------------------------------ shared materials
 
@@ -118,6 +127,9 @@ const MAT = {
   tealGloss: () => plain('tealGloss', 0x2a6466, 0.45),
   shade: () => plain('shade', 0x1f2a2c, 0.5, 0, { side: THREE.DoubleSide }),
   shadeBrass: () => plain('shadeBrass', 0x8f7144, 0.35, 0.5, { side: THREE.DoubleSide }),
+  deskPanel: () => plain('deskPanel', 0xd6d2c8, 0.55),
+  deskDark: () => plain('deskDark', 0x202429, 0.45, 0.1),
+  wallPlaster: () => plain('wallPlaster', 0xd8d3c8, 0.88),
   tomato: () => plain('tomato', 0xc92a22, 0.3),
   tomatoWarm: () => plain('tomatoWarm', 0xd96228, 0.35),
   trayWhite: () => plain('trayWhite', 0xe2e6e0, 0.38),
@@ -127,17 +139,74 @@ const MAT = {
   cotOlive: () => plain('cotOlive', 0x4b5748, 0.92),
   blanketNavy: () => plain('blanketNavy', 0x2a3b4e, 0.95),
   sackBurlap: () => plain('sackBurlap', 0xa68d68, 0.94),
-  labCoat: () => plain('labCoat', 0xe9ece8, 0.88),
-  bootYellow: () => plain('bootYellow', 0xc99c1a, 0.42),
-  ductLight: () => plain('ductLight', 0x9aa4a8, 0.42, 0.55),
-  deskPanel: () => plain('deskPanel', 0xd6d2c8, 0.55),
-  deskDark: () => plain('deskDark', 0x202429, 0.45, 0.1),
-  wallPlaster: () => plain('wallPlaster', 0xd8d3c8, 0.88),
+  labCoat: () => plain('labCoat', 0xeceee8, 0.85),
+  bootYellow: () => plain('bootYellow', 0xc49520, 0.45),
+  ductLight: () => plain('ductLight', 0x8e999e, 0.45, 0.5),
   book: (i: number) => plain(`book${i}`, [0x6b2a22, 0x22405a, 0x2f4a2a, 0x8a7a50, 0x3a2a4a][i % 5]!, 0.8),
 };
 
 /** Deep-water surface for the moon pool and the flooded tunnel; one shared material and clock. */
 const waterUniforms = { uTime: { value: 0 }, uTint: { value: new THREE.Color(0x0b3b40) } };
+
+/** Launch-trunk caustics (rebuild-dive-bay): soft moving light bands on the ceiling above the trunk, additive. */
+const causticUniforms = { uTime: { value: 0 } };
+function causticMaterial(): THREE.ShaderMaterial {
+  // Not cached: `uGain` follows each trunk's own hatch.
+  return new THREE.ShaderMaterial({
+    uniforms: { uTime: causticUniforms.uTime, uGain: { value: 1 }, uColor: { value: new THREE.Color(0x58c8e0) } },
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: /* glsl */ `
+      uniform float uTime; uniform float uGain; uniform vec3 uColor;
+      varying vec2 vUv;
+      void main() {
+        vec2 p = vUv * 9.0;
+        float t = uTime * 0.45;
+        float c = 0.0;
+        for (int i = 0; i < 3; i++) {
+          p += vec2(sin(t + p.y * 1.3), cos(t * 0.8 + p.x * 1.1)) * 0.4;
+          c += 1.0 / (1.0 + 22.0 * abs(sin(p.x) * sin(p.y)));
+        }
+        float fade = 1.0 - smoothstep(0.12, 0.5, length(vUv - 0.5));
+        float a = pow(c / 3.0, 2.2) * fade * uGain * 0.55;
+        gl_FragColor = vec4(uColor * a, 1.0);
+      }`,
+  });
+}
+
+/** Thin cold mist lying on the trunk's standing water: scrolled value noise, very faint. */
+const trunkMistUniforms = { uTime: { value: 0 } };
+function trunkMistMaterial(): THREE.ShaderMaterial {
+  return cached(
+    'trunk-mist',
+    () =>
+      new THREE.ShaderMaterial({
+        uniforms: { uTime: trunkMistUniforms.uTime },
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        vertexShader: /* glsl */ `
+          varying vec2 vUv;
+          void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+        fragmentShader: /* glsl */ `
+          uniform float uTime;
+          varying vec2 vUv;
+          ${NOISE_GLSL}
+          void main() {
+            vec2 p = vUv * 3.0 + vec2(uTime * 0.07, uTime * 0.03);
+            float n = vnoise(p) * 0.6 + vnoise(p * 2.1 - uTime * 0.05) * 0.4;
+            float edge = smoothstep(0.0, 0.2, vUv.x) * smoothstep(1.0, 0.8, vUv.x) * smoothstep(0.0, 0.2, vUv.y) * smoothstep(1.0, 0.8, vUv.y);
+            float a = smoothstep(0.4, 0.9, n) * edge * 0.32;
+            if (a < 0.003) discard;
+            gl_FragColor = vec4(0.72, 0.86, 0.9, a);
+          }`,
+      }),
+  );
+}
 function waterMaterial(): THREE.ShaderMaterial {
   return cached(
     'water',
@@ -329,7 +398,6 @@ const MISTER_CLOUD_FRAG = /* glsl */ `
   }
 `;
 
-
 // ------------------------------------------------------------------ small helpers
 
 /** A tapered, curled leaf blade standing on its base along +Y (length `len`). */
@@ -435,7 +503,7 @@ function crackMaterial(seed: number, state: 'cracked' | 'shattered'): THREE.Mesh
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false });
+  mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }); // seen from both sides of the glass (room-visibility)
   mat.name = `glass-cracks-${key}`;
   crackCache.set(key, mat);
   return mat;
@@ -491,7 +559,7 @@ function bloodGlassMaterial(seed: number, level: number): THREE.MeshBasicMateria
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false });
+  mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }); // seen from both sides of the glass (room-visibility)
   mat.name = `glass-blood-${key}`;
   bloodGlassCache.set(key, mat);
   return mat;
@@ -541,7 +609,7 @@ type Gen = (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuilder) => void;
 // ------------------------------------------------------------------ props
 
 const GEN: Record<string, Gen> = {
-  // ---------------------------------------------------------------- kitchen (ADR-0017)
+  // ---------------------------------------------------------------- kitchen (intro-sequence spec)
 
   mug(p, _rng, _m, pb) {
     const c = strParam(p, 'color', 'white');
@@ -559,7 +627,7 @@ const GEN: Record<string, Gen> = {
     for (let i = 0; i < n; i++) mugAt(pb, mats[i % 3]!, -0.15 + (i % 3) * 0.15, 0.018, i < 3 ? -0.05 : 0.08, rng.range(0, PI * 2));
   },
 
-  coffee_machine(_p, _rng, m, pb) {
+  coffee_machine(_p, rng, m, pb) {
     pb.add(rounded(0.42, 0.56, 0.4, 0.03), m.paintDark, at(0, 0.28, 0));
     pb.add(rounded(0.44, 0.06, 0.42, 0.02), m.steel, at(0, 0.59, 0));
     pb.add(lathe([[0, 0], [0.1, 0], [0.12, 0.16], [0.1, 0.18], [0, 0.18]], 16), MAT.coffee(), at(0.08, 0.62, 0.04));
@@ -571,6 +639,7 @@ const GEN: Record<string, Gen> = {
     pb.add(slab(0.03, 0.03, 0.01), glow('coffee-red', 0xff3b2f, 2.4), at(0.15, 0.38, -0.202));
     for (let i = 0; i < 3; i++) pb.add(new THREE.CylinderGeometry(0.018, 0.018, 0.02, 10), m.steel, at(0.04 + i * 0.05, 0.38, -0.205, PI / 2, 0, 0));
     mugAt(pb, MAT.ceramic(), 0.1, 0.045, -0.17, 1.2);
+    steamPlume(pb, rng, { x: -0.02, y: 0.22, z: -0.18, width: 0.18, depth: 0.1, height: 0.34, count: 14, opacity: 0.17, size: 0.09 });
     pb.solid(-0.22, 0, -0.21, 0.22, 0.64, 0.21, 'metal');
   },
 
@@ -628,7 +697,7 @@ const GEN: Record<string, Gen> = {
     pb.add(rounded(0.24, 0.02, 0.02, 0.008), m.paintDark, at(0, 0.19, 0));
   },
 
-  // ---------------------------------------------------------------- the supply sub (ADR-0017)
+  // ---------------------------------------------------------------- the supply sub (intro-sequence spec)
 
   supply_sub(p, _rng, m, pb) {
     // Origin is the docked centre of the hull, outside the dock window. Long axis on X.
@@ -638,6 +707,7 @@ const GEN: Record<string, Gen> = {
     // The GLB hull when preloaded (main.ts), else the original procedural one.
     const kilo = createSubModel();
     const L = kilo ? SUB_LENGTH : 9;
+    const berthX = boolParam(p, 'alignBow', false) ? -L / 2 : 0;
     const R = kilo ? SUB_RADIUS : 1.35;
     const sailTop = kilo ? SUB_SAIL_TOP : R + 1.25;
     const K = kilo ? SUB_SCALE : 1; // lights and beams scale with the hull
@@ -660,7 +730,7 @@ const GEN: Record<string, Gen> = {
       // Viewport bubble at the bow and the hull band.
       mb.add(new THREE.SphereGeometry(0.75, 18, 12, 0, PI * 2, 0, PI / 2), m.black, at(L / 2 - 0.55, 0.15, 0, 0, 0, -PI / 2));
       for (const x of [-1.6, 1.4]) mb.add(new THREE.TorusGeometry(R + 0.02, 0.05, 6, 32), MAT.subDark(), at(x, 0, 0, 0, PI / 2, 0));
-      mb.add(slab(0.8, 0.5, 0.02), m.hazardClean, at(-0.6, 0.4, R + 0.01));
+      mb.add(slab(0.8, 0.5, 0.02), m.boltPanel, at(-0.6, 0.4, R + 0.01));
       group.add(mb.build('supply_sub:hull', null));
     }
     // Lights: headlamps, beams, running lights. Beams tilt down far enough to reach the seabed below R01.
@@ -723,16 +793,17 @@ const GEN: Record<string, Gen> = {
         amb.add(cylinderBetween(V(-0.25 * K, 0, 0), V(0.25 * K, 0, 0), 0.2 * K, 12), m.steel);
         arm.add(amb.build('supply_sub:arm', null));
         arms.push(arm);
-        pb.add(rounded(0.6 * K, 1.4 * K, 0.6 * K, 0.04 * K), m.paintDark, at(x * K, -3.0 * K, -standoff + s * off)); // pylon under the hinge
+        pb.add(rounded(0.6 * K, 1.4 * K, 0.6 * K, 0.04 * K), m.paintDark, at(berthX + x * K, -3.0 * K, -standoff + s * off)); // pylon under the hinge
       }
-      pb.add(rounded(5.2 * K, 0.3 * K, 0.6 * K, 0.04 * K), m.paintDark, at(0, -2.45 * K, -standoff + s * off)); // plinth rail
+      pb.add(rounded(5.2 * K, 0.3 * K, 0.6 * K, 0.04 * K), m.paintDark, at(berthX, -2.45 * K, -standoff + s * off)); // plinth rail
     }
-    pb.add(slab(0.5 * K, 0.3 * K, 2 * off), m.paintDark, at(-0.1 * K, -2.45 * K, -standoff)); // cross beam under the hull
+    pb.add(slab(0.5 * K, 0.3 * K, 2 * off), m.paintDark, at(berthX - 0.1 * K, -2.45 * K, -standoff)); // cross beam under the hull
     // Umbilical boom from the station-side arm to the station wall (5.15 m from the piece origin).
     const nearZ = -standoff + off;
     const boomLen = Math.max(0.5, 5.15 - nearZ);
-    pb.add(slab(0.5 * K, 0.3 * K, boomLen), m.paintDark, at(-0.1 * K, -2.45 * K, nearZ + boomLen / 2));
+    pb.add(slab(0.5 * K, 0.3 * K, boomLen), m.paintDark, at(berthX - 0.1 * K, -2.45 * K, nearZ + boomLen / 2));
     const root = new THREE.Group();
+    root.position.x = berthX;
     exteriorize(group); // the hull is lit by lamps and fogged like the rest of the exterior
     root.add(group, ...arms);
     pb.dynamic(root);
@@ -799,10 +870,16 @@ const GEN: Record<string, Gen> = {
     const h = numParam(p, 'height', w * 0.5625);
     const y = numParam(p, 'y', 1.75);
     const id = strParam(p, 'id', 'screen');
+    const channel = strParam(p, 'channel', '');
     const initial = strParam(p, 'state', 'off');
     let state = initial;
     let who = 'hale';
-    const screen = new CanvasScreen(640, 360, (ctx, t, cw, ch) => drawBroadcast(ctx, t, cw, ch, state, who), 1.5, 10);
+    const draw = (ctx: CanvasRenderingContext2D, t: number, cw: number, ch: number): void => {
+      if (state === 'on' && channel === 'boardroom') return drawBoardroomDeck(ctx, t, cw, ch);
+      if (state === 'on' && channel === 'commons') return drawCommonsBoard(ctx, t, cw, ch);
+      drawBroadcast(ctx, t, cw, ch, state, who);
+    };
+    const screen = new CanvasScreen(640, 360, draw, 1.4, channel === 'boardroom' || channel === 'commons' ? 4 : 10);
     pb.add(rounded(w + 0.12, h + 0.12, 0.08, 0.02), m.paintDark, at(0, y, -0.04));
     pb.add(slab(0.3, 0.2, 0.06), m.steel, at(0, y, -0.01));
     const display = screenPlane(screen.material, w, h, 0, y, -0.082);
@@ -811,7 +888,7 @@ const GEN: Record<string, Gen> = {
     const apply = (s: unknown): void => {
       if (typeof s !== 'string') return;
       state = s;
-      screen.material.emissiveIntensity = s === 'off' ? 0.25 : 1.5;
+      screen.material.emissiveIntensity = s === 'off' ? 0.25 : channel === 'boardroom' || channel === 'commons' ? 1.15 : 1.5;
     };
     apply(state);
     pb.tick((t) => screen.update(t));
@@ -820,7 +897,7 @@ const GEN: Record<string, Gen> = {
       if (ev?.id === id) apply(ev.state);
     });
     pb.on('level:reset', () => apply(initial));
-    if (strParam(p, 'channel', '') === 'briefing') {
+    if (channel === 'briefing') {
       pb.on('briefing:screen', (e) => {
         const ev = e as { state?: string; who?: string } | undefined;
         if (typeof ev?.who === 'string') who = ev.who;
@@ -1674,7 +1751,8 @@ const GEN: Record<string, Gen> = {
   office_desk(p, rng, m, pb) {
     const w = numParam(p, 'width', 1.6);
     const exec = boolParam(p, 'exec', false);
-    const top = exec ? MAT.woodDark() : m.woodPanel;
+    // `top: 'panel'` swaps the wood for the flat desk-panel paint (no extra textured material in a room without wood).
+    const top = exec ? MAT.woodDark() : strParam(p, 'top', 'wood') === 'panel' ? MAT.deskPanel() : m.woodPanel;
     const metal = m.steelBrushed;
     const dark = MAT.deskDark();
     pb.add(rounded(w, 0.05, 0.8, 0.012), top, at(0, 0.75, 0));
@@ -1682,11 +1760,26 @@ const GEN: Record<string, Gen> = {
     for (const x of [-w / 2 + 0.04, w / 2 - 0.04]) pb.add(slab(0.04, 0.73, 0.76), exec ? MAT.woodDark() : metal, at(x, 0.365, 0));
     if (exec) pb.add(slab(0.45, 0.6, 0.7), MAT.woodDark(), at(w / 2 - 0.3, 0.42, 0));
     if (boolParam(p, 'monitor', true)) {
+      const screens = [
+        glow('office-mon-teal', 0x56a8b8, 0.85),
+        glow('office-mon-warm', 0xc9b48a, 0.78),
+        glow('office-mon-blue', 0x6f9ec8, 0.85),
+      ];
+      const screenMat = rng.pick(screens);
       pb.add(rounded(0.62, 0.38, 0.04, 0.01), dark, at(0, 1.12, 0.18));
-      pb.add(slab(0.56, 0.32, 0.005), glow('office-monitor', 0x6fa8c8, 0.7), at(0, 1.12, 0.157));
+      pb.add(slab(0.56, 0.32, 0.005), screenMat, at(0, 1.12, 0.157));
+      pb.add(slab(0.56, 0.045, 0.006), glow('office-mon-bar', 0x1c3a44, 0.55), at(0, 1.255, 0.155));
+      pb.add(slab(0.018, 0.012, 0.006), glow('office-mon-led', 0x39ff9e, 1.8), at(0.25, 0.945, 0.155));
       pb.add(cylinderBetween(V(0, 0.775, 0.2), V(0, 0.93, 0.2), 0.02, 8), metal);
       pb.add(rounded(0.22, 0.012, 0.16, 0.004), metal, at(0, 0.781, 0.2));
       pb.add(rounded(0.44, 0.015, 0.14, 0.004), dark, at(0, 0.783, -0.12));
+    }
+    // Extra keyboard + mouse sets for a desk that faces a wall of screens instead of its own monitor (the dock security desk).
+    const keyboards = Math.round(numParam(p, 'keyboards', 0));
+    for (let i = 0; i < keyboards; i++) {
+      const x = keyboards === 1 ? 0 : -w / 2 + 0.4 + ((w - 0.8) * i) / (keyboards - 1);
+      pb.add(rounded(0.44, 0.015, 0.14, 0.004), dark, at(x, 0.783, -0.12));
+      pb.add(rounded(0.06, 0.014, 0.1, 0.006), dark, at(x + 0.3, 0.783, -0.12));
     }
     const papers = Math.round(numParam(p, 'papers', 3));
     const pmats = [MAT.paper(), MAT.paperBlue(), MAT.paper()];
@@ -1710,7 +1803,7 @@ const GEN: Record<string, Gen> = {
     for (let i = 0; i < seats; i++) {
       const x = -w / 2 + 0.2 + ((w - 0.4) / seats) * (i + 0.5);
       pb.add(rounded((w - 0.4) / seats - 0.02, 0.12, 0.6, 0.05), mat, at(x, 0.45, -0.06));
-      pb.spot('sit_sofa', x, 0, 0.08, 0, 0.51); // ADR-0029: hips back against the backrest, facing out
+      pb.spot('sit_sofa', x, 0, -0.04, 0, 0.51); // ADR-0029: hips back against the backrest, facing out
     }
     pb.solid(-w / 2, 0, -0.43, w / 2, 0.85, 0.43, 'rubber');
   },
@@ -1727,7 +1820,7 @@ const GEN: Record<string, Gen> = {
       pb.add(rounded(0.14, h, d + 0.04, 0.02), m.steel, at(sx * (w / 2 - 0.07), h / 2, 0));
     }
     for (const fz of [-1, 1]) {
-      pb.add(slab(w - 0.16, 0.16, 0.02, pal.hazardTile), pal.hazard, at(0, 0.08, fz * (d / 2 + 0.01)));
+      pb.add(slab(w - 0.16, 0.16, 0.02), m.steelBrushed, at(0, 0.08, fz * (d / 2 + 0.01)));
     }
     pb.solid(-w / 2, 0, -d / 2 - 0.03, w / 2, h, d / 2 + 0.03, 'metal');
   },
@@ -1795,6 +1888,190 @@ const GEN: Record<string, Gen> = {
     pb.solid(-0.95, 0, -0.42, 0.95, 1.95, 0.38, 'metal');
   },
 
+  // ---------------------------------------------------------------- dock checkpoint (dock-checkpoint spec)
+
+  /**
+   * Walk-through metal detector arch. The clear opening (`opening`, default 1.0 m) runs across local X;
+   * people walk through along Z. The header's light bar idles dim amber; `detector:scan`
+   * { id, result: pass|alarm } shows green for 1 s or a pulsing red for 1.5 s, then idles again.
+   */
+  metal_detector(p, _rng, m, pb) {
+    const id = strParam(p, 'id', 'arch');
+    const open = Math.max(0.9, numParam(p, 'opening', 1.0));
+    const h = 2.2;
+    const pw = 0.16;
+    const d = 0.55;
+    const px = open / 2 + pw / 2;
+    for (const s of [-1, 1]) {
+      pb.add(rounded(pw, h, d, 0.03), m.steelBrushed, at(s * px, h / 2, 0));
+      pb.add(rounded(pw + 0.03, 0.1, d + 0.05, 0.02), m.steelDark, at(s * px, 0.05, 0));
+      // Sensor strip down each inner face.
+      pb.add(slab(0.01, h - 0.5, 0.05), m.steelDark, at(s * (open / 2 + 0.003), h / 2 + 0.05, 0));
+      pb.solid(s * px - pw / 2, 0, -d / 2, s * px + pw / 2, h, d / 2, 'metal');
+    }
+    const hw = open + pw * 2;
+    pb.add(rounded(hw, 0.24, d, 0.03), m.steelDark, at(0, h + 0.12, 0));
+    pb.add(slab(hw - 0.08, 0.03, d + 0.01), m.steelBrushed, at(0, h + 0.012, 0));
+    pb.solid(-hw / 2, h, -d / 2, hw / 2, h + 0.24, d / 2, 'metal');
+    // Small status panel on the station-side face (+Z face is the exit side).
+    pb.add(rounded(0.22, 0.14, 0.03, 0.01), m.steelDark, at(px, 1.45, d / 2 + 0.01));
+    pb.add(slab(0.16, 0.08, 0.005), glow('detector-panel', 0x4fd6d0, 1.2), at(px, 1.45, d / 2 + 0.027));
+
+    const bar = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: DETECTOR_IDLE, emissiveIntensity: 0.5, roughness: 0.4 });
+    bar.name = 'detector-bar';
+    const barMesh = new THREE.Mesh(new THREE.BoxGeometry(open * 0.8, 0.05, d + 0.02), bar);
+    barMesh.position.set(0, h + 0.13, 0);
+    barMesh.name = `detector:${id}`;
+    pb.dynamic(barMesh);
+    let state: 'idle' | 'pass' | 'alarm' = 'idle';
+    let now = 0;
+    let until = 0;
+    const show = (): void => {
+      bar.emissive.setHex(state === 'pass' ? DETECTOR_PASS : state === 'alarm' ? DETECTOR_ALARM : DETECTOR_IDLE);
+      bar.emissiveIntensity = state === 'idle' ? 0.5 : 3;
+    };
+    barMesh.userData['detectorState'] = (): string => state;
+    pb.tick((t) => {
+      now = t;
+      if (state !== 'idle' && t >= until) {
+        state = 'idle';
+        show();
+      } else if (state === 'alarm') {
+        bar.emissiveIntensity = 1.5 + 1.5 * (0.5 + 0.5 * Math.sin(t * 18));
+      }
+    });
+    pb.on('detector:scan', (e) => {
+      const ev = e as { id?: string; result?: string } | undefined;
+      if (ev?.id !== id || (ev.result !== 'pass' && ev.result !== 'alarm')) return;
+      state = ev.result;
+      until = now + (state === 'pass' ? 1 : 1.5);
+      show();
+    });
+  },
+
+  /** Waist-high barrier rail along local X (`length`, default 1.5 m; `height`, default 1.0 m), posts about every metre. */
+  rail(p, _rng, m, pb) {
+    const len = numParam(p, 'length', 1.5);
+    const h = Math.min(1.2, numParam(p, 'height', 1.0));
+    const posts = Math.max(2, Math.ceil(len / 1.0) + 1);
+    for (let i = 0; i < posts; i++) {
+      const x = -len / 2 + (len * i) / (posts - 1);
+      pb.add(cylinderBetween(V(x, 0, 0), V(x, h, 0), 0.03, 10), m.steelBrushed);
+      pb.add(new THREE.CylinderGeometry(0.09, 0.1, 0.03, 14), m.steelDark, at(x, 0.015, 0));
+    }
+    pb.add(cylinderBetween(V(-len / 2, h, 0), V(len / 2, h, 0), 0.025, 10), m.steelBrushed);
+    pb.add(cylinderBetween(V(-len / 2, h * 0.55, 0), V(len / 2, h * 0.55, 0), 0.018, 8), m.steelBrushed);
+    pb.add(slab(len - 0.08, 0.09, 0.012), m.cleanTeal, at(0, h * 0.78, 0));
+    pb.solid(-len / 2 - 0.05, 0, -0.06, len / 2 + 0.05, h, 0.06, 'metal');
+  },
+
+  /** A closed staff gate across local X (`width`, default 1.2 m). Decoration only: it never opens (design.md §4). */
+  staff_gate(p, _rng, m, pb) {
+    const w = numParam(p, 'width', 1.2);
+    const h = 1.0;
+    for (const s of [-1, 1]) {
+      pb.add(rounded(0.09, h + 0.05, 0.09, 0.02), m.steelDark, at(s * (w / 2 - 0.045), (h + 0.05) / 2, 0));
+    }
+    const lw = w - 0.2;
+    for (const y of [0.15, h - 0.05]) pb.add(cylinderBetween(V(-lw / 2, y, 0), V(lw / 2, y, 0), 0.022, 8), m.steelBrushed);
+    for (const x of [-lw / 2, lw / 2]) pb.add(cylinderBetween(V(x, 0.15, 0), V(x, h - 0.05, 0), 0.022, 8), m.steelBrushed);
+    for (let i = 1; i < 6; i++) {
+      const x = -lw / 2 + (lw * i) / 6;
+      pb.add(cylinderBetween(V(x, 0.15, 0), V(x, h - 0.05, 0), 0.01, 6), m.steelBrushed);
+    }
+    pb.add(rounded(0.36, 0.14, 0.012, 0.005), m.cleanTeal, at(0, h * 0.62, -0.02));
+    pb.add(rounded(0.36, 0.14, 0.012, 0.005), m.cleanTeal, at(0, h * 0.62, 0.02));
+    pb.solid(-w / 2, 0, -0.07, w / 2, h + 0.05, 0.07, 'metal');
+  },
+
+  /** Inspection tray table on the arrivals side of the detector, with a few grey trays. */
+  tray_table(_p, rng, m, pb) {
+    const w = 0.9;
+    const d = 0.5;
+    const h = 0.82;
+    pb.add(rounded(w, 0.04, d, 0.01), m.steelBrushed, at(0, h - 0.02, 0));
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) pb.add(cylinderBetween(V(sx * (w / 2 - 0.05), 0, sz * (d / 2 - 0.05)), V(sx * (w / 2 - 0.05), h - 0.04, sz * (d / 2 - 0.05)), 0.018, 8), m.steel);
+    }
+    pb.add(slab(w - 0.1, 0.02, d - 0.1), m.steelDark, at(0, 0.2, 0));
+    for (let i = 0; i < 3; i++) {
+      const tray = m.steelDark;
+      const y = h + 0.03 + i * 0.045;
+      pb.add(rounded(0.42, 0.04, 0.32, 0.01), tray, at(-0.18 + rng.range(-0.02, 0.02), y, rng.range(-0.02, 0.02), 0, rng.range(-0.05, 0.05), 0));
+    }
+    pb.add(rounded(0.42, 0.04, 0.32, 0.01), m.steelDark, at(0.22, h + 0.03, 0.02, 0, 0.08, 0));
+    pb.solid(-w / 2, 0, -d / 2, w / 2, h + 0.16, d / 2, 'metal');
+  },
+
+  /**
+   * Wall bank of six camera feeds, 3 across x 2 high (`width` m overall), back on z = 0, facing -Z (rot 0 on a south wall). All six
+   * tiles share one canvas screen (one draw call). The live tile (`live`, default index 1, the top middle) shows
+   * the `camera` label and follows `camera:feed` { id, state } like `security_monitor`; the others loop. The bank
+   * is named `cctv:<id>`, not `feed:<id>`, so a `cameraFeed` remote render does not take over the whole wall.
+   */
+  cctv_wall(p, rng, m, pb) {
+    const id = strParam(p, 'id', 'cam');
+    const live = Math.max(0, Math.min(5, Math.round(numParam(p, 'live', 1))));
+    const labels = strParam(p, 'labels', 'CAM 01  DOCK RING|CAM 02  DOCK AIRLOCK|CAM 03  RING WALK|CAM 04  COMMONS|CAM 05  LAB B CORRIDOR|CAM 06  DIVE BAY').split('|');
+    labels[live] = strParam(p, 'camera', labels[live] ?? 'CAM 02  DOCK AIRLOCK');
+    let feed = strParam(p, 'feed', 'live');
+    // `width` (default 2.1 m) sets the bank's overall width; tiles keep a 0.62:0.44 shape. Fit it between a wall's pilasters.
+    const gap = 0.06;
+    const tw = (Math.max(1.2, numParam(p, 'width', 2.1)) - gap * 4) / 3;
+    const th = tw * (0.44 / 0.62);
+    const y0 = numParam(p, 'y', 1.25);
+    const W = tw * 3 + gap * 4;
+    const H = th * 2 + gap * 3;
+    pb.add(rounded(W, H, 0.1, 0.02), m.steelDark, at(0, y0 + H / 2, -0.05));
+    pb.add(slab(W - 0.1, 0.02, 0.06), m.steelBrushed, at(0, y0 + 0.02, -0.11));
+    const tile = (i: number): [number, number] => [-W / 2 + gap + tw / 2 + (i % 3) * (tw + gap), y0 + H - gap - th / 2 - Math.floor(i / 3) * (th + gap)];
+    for (let i = 0; i < 6; i++) {
+      const [x, y] = tile(i);
+      pb.add(rounded(tw + 0.03, th + 0.03, 0.03, 0.008), m.steelDark, at(x, y, -0.105));
+    }
+    const PX = 220;
+    const PY = Math.round((PX * th) / tw);
+    const canvasW = PX * 3;
+    const canvasH = PY * 2;
+    const phases = Array.from({ length: 6 }, (_, i) => (i === live ? 0 : rng.range(0, 40)));
+    const bank = new CanvasScreen(canvasW, canvasH, (ctx, t) => {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+      for (let i = 0; i < 6; i++) {
+        ctx.save();
+        ctx.translate((i % 3) * PX, Math.floor(i / 3) * PY);
+        ctx.beginPath();
+        ctx.rect(0, 0, PX, PY);
+        ctx.clip();
+        drawCameraFeed(ctx, t + phases[i]!, PX, PY, i === live ? feed : 'live', labels[i] ?? `CAM 0${i + 1}`);
+        ctx.restore();
+      }
+    }, 1.25, 6);
+    // One mesh for the bank: each tile's quad maps its own region of the canvas.
+    const geos: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < 6; i++) {
+      const [x, y] = tile(i);
+      const g = new THREE.PlaneGeometry(tw, th);
+      const u0 = (i % 3) / 3;
+      const v0 = 0.5 - Math.floor(i / 3) / 2;
+      const uv = g.getAttribute('uv') as THREE.BufferAttribute;
+      for (let k = 0; k < uv.count; k++) uv.setXY(k, u0 + uv.getX(k) / 3, v0 + uv.getY(k) / 2);
+      g.rotateY(PI);
+      g.translate(x, y, -0.125);
+      geos.push(g);
+    }
+    const bankMesh = new THREE.Mesh(mergeGeometries(geos)!, bank.material);
+    bankMesh.name = `cctv:${id}`;
+    bankMesh.userData['feedState'] = (): string => feed;
+    pb.dynamic(bankMesh);
+    pb.tick((t) => bank.update(t));
+    pb.on('camera:feed', (e) => {
+      const ev = e as { id?: string; state?: string } | undefined;
+      if (ev?.id === id && typeof ev.state === 'string') feed = ev.state;
+    });
+    pb.solid(-W / 2, y0, -0.16, W / 2, y0 + H, 0);
+  },
+
   // ---------------------------------------------------------------- walls: boards, posters, maps
 
   notice_board(p, rng, m, pb) {
@@ -1813,7 +2090,7 @@ const GEN: Record<string, Gen> = {
     notice.position.set(-w / 2 + 0.32, y + 0.05, -0.062);
     notice.rotation.set(0, PI, 0.03);
     pb.dynamic(notice);
-    pb.add(new THREE.SphereGeometry(0.012, 6, 4), m.hazardClean, at(-w / 2 + 0.32, y + 0.31, -0.065));
+    pb.add(new THREE.SphereGeometry(0.012, 6, 4), m.steelBrushed, at(-w / 2 + 0.32, y + 0.31, -0.065));
     pb.solid(-w / 2 - 0.04, y - h / 2, -0.07, w / 2 + 0.04, y + h / 2, 0);
   },
 
@@ -1850,13 +2127,13 @@ const GEN: Record<string, Gen> = {
     // Gauge beside it.
     pb.add(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 18), m.steel, at(0.55, y + 0.35, -0.04, PI / 2, 0, 0));
     pb.add(new THREE.CircleGeometry(0.1, 18), MAT.paper(), at(0.55, y + 0.35, -0.066, 0, PI, 0));
-    const needle = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.085, 0.004), m.hazardClean);
+    const needle = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.085, 0.004), m.black);
     needle.geometry.translate(0, 0.04, 0);
     needle.position.set(0.55, y + 0.35, -0.07);
     needle.rotation.z = 2.2;
     const wheel = new THREE.Group();
     const wb = new AoMergeBuilder();
-    wb.add(new THREE.TorusGeometry(r, 0.035, 10, 36), m.hazardClean);
+    wb.add(new THREE.TorusGeometry(r, 0.035, 10, 36), m.paintTeal);
     for (let k = 0; k < 3; k++) wb.add(slab(r * 2, 0.04, 0.03), m.steel, at(0, 0, 0, 0, 0, (k * PI) / 3));
     wb.add(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 12), m.steel, at(0, 0, 0, PI / 2, 0, 0));
     wheel.add(wb.build(`valve:${id}`, null));
@@ -1967,9 +2244,13 @@ const GEN: Record<string, Gen> = {
 
   lab_bench(p, rng, m, pb) {
     const w = numParam(p, 'width', 2.4);
+    const pal = resolvePalette(p, m);
+    const clean = pal.doorPanel !== m.paintDark;
+    const bodyMat = clean ? m.cleanWall : m.paintBone;
+    const scopeMat = clean ? pal.doorPanel : m.paintDark;
     pb.add(rounded(w, 0.05, 0.75, 0.01), MAT.stone(), at(0, 0.9, 0));
-    pb.add(slab(w - 0.04, 0.86, 0.68), m.paintBone, at(0, 0.44, 0.02));
-    pb.add(slab(w, 0.7, 0.03), m.paintBone, at(0, 1.45, 0.36));
+    pb.add(slab(w - 0.04, 0.86, 0.68), bodyMat, at(0, 0.44, 0.02));
+    pb.add(slab(w, 0.7, 0.03), bodyMat, at(0, 1.45, 0.36));
     pb.add(slab(w, 0.03, 0.3), m.steel, at(0, 1.6, 0.22));
     const glassy = [MAT.ceramic(), MAT.ceramicTeal(), MAT.plastic()];
     for (let i = 0; i < 7; i++) {
@@ -1979,8 +2260,8 @@ const GEN: Record<string, Gen> = {
       pb.add(lathe([[0, 0], [r, 0], [r, h], [r * 0.5, h + 0.03], [0, h + 0.03]], 12), rng.pick(glassy), at(x, 0.925, rng.range(-0.25, 0.1)));
     }
     // A microscope-ish instrument and a sample rack.
-    pb.add(rounded(0.3, 0.06, 0.3, 0.01), m.paintDark, at(-w / 4, 0.955, 0));
-    pb.add(cylinderBetween(V(-w / 4, 0.98, 0.08), V(-w / 4, 1.3, 0.0), 0.035, 10), m.paintDark);
+    pb.add(rounded(0.3, 0.06, 0.3, 0.01), scopeMat, at(-w / 4, 0.955, 0));
+    pb.add(cylinderBetween(V(-w / 4, 0.98, 0.08), V(-w / 4, 1.3, 0.0), 0.035, 10), scopeMat);
     pb.add(cylinderBetween(V(-w / 4, 1.25, 0.0), V(-w / 4, 1.18, -0.12), 0.03, 10), m.black);
     pb.add(rounded(0.4, 0.08, 0.14, 0.01), m.steel, at(w / 4, 0.965, 0.1));
     for (let i = 0; i < 6; i++) pb.add(new THREE.CylinderGeometry(0.012, 0.012, 0.12, 8), rng.pick([MAT.ceramicRed(), MAT.leafLight(), MAT.ceramicTeal()]), at(w / 4 - 0.15 + i * 0.06, 1.02, 0.1));
@@ -1993,8 +2274,10 @@ const GEN: Record<string, Gen> = {
     const w = numParam(p, 'width', 2);
     const h = 2.1;
     const d = 0.55;
+    const pal = resolvePalette(p, m);
+    const clean = pal.doorPanel !== m.paintDark;
     for (const x of [-w / 2 + 0.03, w / 2 - 0.03]) for (const z of [-d / 2 + 0.03, d / 2 - 0.03]) pb.add(slab(0.05, h, 0.05), m.steel, at(x, h / 2, z));
-    const mats = [m.paintTeal, m.paintBone, MAT.plastic(), MAT.cork()];
+    const mats = clean ? [m.cleanTeal, m.cleanWall, MAT.plastic(), MAT.cork()] : [m.paintTeal, m.paintBone, MAT.plastic(), MAT.cork()];
     for (let s = 0; s < 4; s++) {
       const y = 0.12 + s * 0.62;
       pb.add(slab(w, 0.03, d), m.grating, at(0, y, 0));
@@ -2006,6 +2289,36 @@ const GEN: Record<string, Gen> = {
       }
     }
     pb.solid(-w / 2, 0, -d / 2, w / 2, h, d / 2, 'metal');
+  },
+
+  /**
+   * Steel instrument cart (medbay-attack spec, R08): about 1.0 x 0.55 m, a lipped top at 0.9 m, a lower shelf, casters,
+   * a push handle on the +X end and a few instruments. Long side along X. The top is the slam target (`r08_cart_top`).
+   */
+  instrument_cart(p, rng, m, pb) {
+    const w = numParam(p, 'width', 1.0);
+    const d = 0.55;
+    const top = 0.9;
+    for (const x of [-w / 2 + 0.03, w / 2 - 0.03]) for (const z of [-d / 2 + 0.03, d / 2 - 0.03]) {
+      pb.add(cylinderBetween(V(x, 0.1, z), V(x, top - 0.02, z), 0.016, 8), m.steel);
+      pb.add(new THREE.CylinderGeometry(0.04, 0.04, 0.03, 12), m.rubber, at(x, 0.04, z, PI / 2, 0, 0));
+      pb.add(slab(0.03, 0.05, 0.03), m.steel, at(x, 0.085, z));
+    }
+    // Top: a flat steel tray with a low lip, and a lower shelf.
+    pb.add(rounded(w, 0.025, d, 0.006), m.steel, at(0, top - 0.0125, 0));
+    for (const z of [-d / 2 + 0.008, d / 2 - 0.008]) pb.add(slab(w, 0.025, 0.016), m.steel, at(0, top + 0.0125, z));
+    for (const x of [-w / 2 + 0.008, w / 2 - 0.008]) pb.add(slab(0.016, 0.025, d), m.steel, at(x, top + 0.0125, 0));
+    pb.add(slab(w - 0.04, 0.02, d - 0.04), m.steel, at(0, 0.28, 0));
+    // Push handle on the +X end.
+    pb.add(cylinderBetween(V(w / 2 + 0.06, top - 0.02, -d / 2 + 0.06), V(w / 2 + 0.06, top - 0.02, d / 2 - 0.06), 0.012, 8), m.steel);
+    for (const z of [-d / 2 + 0.06, d / 2 - 0.06]) pb.add(cylinderBetween(V(w / 2 - 0.02, top - 0.02, z), V(w / 2 + 0.06, top - 0.02, z), 0.01, 6), m.steel);
+    // Instruments: a kidney dish, a wrapped pack, a few thin tools, and a box and a basin on the shelf.
+    pb.add(lathe([[0, 0], [0.09, 0], [0.11, 0.035], [0.1, 0.04], [0, 0.04]], 14), m.steel, at(-w / 4, top + 0.002, rng.range(-0.08, 0.04)));
+    pb.add(rounded(0.22, 0.04, 0.16, 0.01), MAT.paper(), at(w / 5, top + 0.02, 0.08, 0, rng.range(-0.3, 0.3), 0));
+    for (let i = 0; i < 4; i++) pb.add(slab(0.14, 0.006, 0.012), m.steel, at(rng.range(-0.05, 0.2), top + 0.005, rng.range(-0.18, -0.06), 0, rng.range(-0.6, 0.6), 0));
+    pb.add(rounded(0.3, 0.12, 0.2, 0.01), m.cleanWall, at(-w / 5, 0.35, 0));
+    pb.add(lathe([[0, 0], [0.12, 0], [0.14, 0.06], [0, 0.06]], 14), m.steel, at(w / 4, 0.29, 0));
+    pb.solid(-w / 2, 0, -d / 2, w / 2, top + 0.025, d / 2, 'metal');
   },
 
   // ---------------------------------------------------------------- commons galley + lounge (R02)
@@ -2055,8 +2368,12 @@ const GEN: Record<string, Gen> = {
       const x = -w / 2 + 0.1 + ((w - 0.2) * i) / Math.ceil(w / 1.2);
       pb.add(slab(0.03, 0.03, 0.26), m.steel, at(x, 0.825, -d / 2 - 0.13));
     }
+    // Soft rising steam across the hot food wells.
+    steamPlume(pb, rng, { x: 0, y: h + 0.05, z: 0.0, width: Math.max(0.6, w - 0.5), depth: 0.36, height: 0.48, count: 38, opacity: 0.16, size: 0.16 });
     pb.solid(-w / 2, 0, -d / 2 - 0.28, w / 2, 0.95, d / 2, 'metal');
     pb.solid(-w / 2, 0.95, -0.2, w / 2, 1.5, d / 2);
+    pb.spot('lean_counter', -Math.min(0.8, w * 0.22), 0, -d / 2 - 0.66, PI);
+    pb.spot('lean_counter', Math.min(0.8, w * 0.22), 0, -d / 2 - 0.66, PI);
     pb.nav(0, 0, -d / 2 - 0.9);
   },
 
@@ -2108,6 +2425,7 @@ const GEN: Record<string, Gen> = {
     pb.add(rounded(0.26, 0.12, 0.12, 0.01), m.steel, at(wx - 0.02, h + 0.06, -0.2));
     for (let i = 0; i < 9; i++) pb.add(cylinderBetween(V(wx - 0.1 + (i % 3) * 0.08, h + 0.08, -0.22 + Math.floor(i / 3) * 0.04), V(wx - 0.1 + (i % 3) * 0.08 + 0.01, h + 0.2, -0.22 + Math.floor(i / 3) * 0.04), 0.005, 4), m.steel);
     pb.solid(-w / 2, 0, -d / 2, w / 2, h + 0.72, d / 2, 'metal');
+    pb.spot('lean_counter', 0, 0, -d / 2 - 0.46, PI);
   },
 
   /** Waste and recycling bins in a steel frame, coloured lids. Front faces -Z. */
@@ -2137,8 +2455,95 @@ const GEN: Record<string, Gen> = {
     pb.surfaces.push({ box: { min: [-w / 2, -0.05, -d / 2], max: [w / 2, 0.014, d / 2] }, material: 'rubber' });
   },
 
+  /** Executive boardroom conference table: dark wood top, steel cable tray, high-back chairs with `sit_chair` spots, laptops, folders and water service. */
+  conference_table(p, rng, m, pb) {
+    const w = numParam(p, 'width', 4.4);
+    const d = numParam(p, 'depth', 1.3);
+    const h = 0.75;
+    // Executive dark wood tabletop + brushed steel centre cable channel.
+    pb.add(rounded(w, 0.06, d, 0.02), MAT.woodDark(), at(0, h - 0.03, 0));
+    pb.add(rounded(w - 0.8, 0.012, 0.18, 0.004), m.steelBrushed, at(0, h + 0.002, 0));
+    // Twin architectural pedestal bases.
+    for (const x of [-w / 2 + 0.85, w / 2 - 0.85]) {
+      pb.add(rounded(0.22, h - 0.08, d - 0.42, 0.02), MAT.woodDark(), at(x, (h - 0.08) / 2 + 0.02, 0));
+      pb.add(rounded(0.5, 0.03, d - 0.28, 0.01), m.steelBrushed, at(x, 0.015, 0));
+    }
+    pb.add(slab(w - 1.8, 0.14, 0.12), m.steelBrushed, at(0, 0.32, 0));
+    // Central conference phone puck + water carafe and glasses.
+    pb.add(new THREE.CylinderGeometry(0.11, 0.13, 0.035, 16), MAT.deskDark(), at(0, h + 0.018, 0));
+    pb.add(slab(0.05, 0.006, 0.03), glow('conf-led', 0x39ff9e, 1.8), at(0, h + 0.037, 0));
+    pb.add(lathe([[0, 0], [0.055, 0], [0.06, 0.14], [0.038, 0.22], [0.044, 0.25], [0, 0.25]], 14), MAT.waterJug(), at(0.45, h, 0.04));
+    for (const gx of [0.28, 0.62]) pb.add(lathe([[0, 0], [0.028, 0], [0.032, 0.09], [0, 0.09]], 10), MAT.ceramic(), at(gx, h, -0.06));
+
+    const sidePer = Math.max(1, Math.round(numParam(p, 'sideSeats', 3)));
+    const endEast = boolParam(p, 'endEast', true);
+    const placeChair = (x: number, z: number, yaw: number): void => {
+      const f = at(x, 0, z, 0, yaw, 0);
+      // Local -Z faces the table; backrest sits on +Z behind the seated torso so it never clips.
+      pb.add(rounded(0.48, 0.07, 0.46, 0.03), MAT.deskDark(), inFrame(f, 0, 0.455, 0));
+      pb.add(rounded(0.46, 0.52, 0.06, 0.025), MAT.deskDark(), inFrame(f, 0, 0.78, 0.22, -0.1, 0, 0));
+      for (const sx of [-0.25, 0.25]) pb.add(rounded(0.04, 0.03, 0.34, 0.01), m.steelBrushed, inFrame(f, sx, 0.63, 0.03));
+      pb.add(cylinderBetween(V(x, 0.07, z), V(x, 0.43, z), 0.028, 8), m.steelBrushed);
+      for (let k = 0; k < 5; k++) {
+        const a = (k * 2 * PI) / 5 + yaw;
+        pb.add(cylinderBetween(V(x, 0.07, z), V(x + Math.cos(a) * 0.26, 0.03, z + Math.sin(a) * 0.26), 0.016, 6), m.steelBrushed);
+      }
+      pb.solid(x - 0.26, 0, z - 0.26, x + 0.26, 1.04, z + 0.26, 'rubber');
+      pb.spot('sit_chair', x, 0, z, yaw, 0.49);
+    };
+
+    const pmats = [MAT.paper(), MAT.paperBlue(), MAT.paper()];
+    for (let k = 0; k < sidePer; k++) {
+      const x = -w / 2 + (w / sidePer) * (k + 0.5);
+      for (const side of [-1, 1] as const) {
+        const jx = rng.range(-0.04, 0.04);
+        const jz = rng.range(-0.03, 0.03);
+        const cz = side * (d / 2 + 0.42) + jz;
+        placeChair(x + jx, cz, side < 0 ? PI : 0);
+        // Place settings: open laptop at alternating seats, folders/mugs at the rest.
+        const lz = side * (d / 2 - 0.24);
+        if ((k + (side > 0 ? 1 : 0)) % 2 === 0) {
+          const lf = at(x, h, lz, 0, side < 0 ? PI : 0, 0);
+          pb.add(rounded(0.32, 0.012, 0.22, 0.004), m.steelBrushed, inFrame(lf, 0, 0.006, 0));
+          pb.add(rounded(0.32, 0.21, 0.01, 0.004), m.steelBrushed, inFrame(lf, 0, 0.108, -0.125, -0.25, 0, 0));
+          pb.add(slab(0.28, 0.17, 0.004), glow('laptop-screen', 0x6fb8c8, 0.9), inFrame(lf, 0, 0.108, -0.118, -0.25, 0, 0));
+        } else {
+          pb.add(slab(0.22, 0.008, 0.3), pmats[(k + 1) % 3]!, at(x + rng.range(-0.04, 0.04), h + 0.004, lz, 0, rng.range(-0.2, 0.2), 0));
+        }
+        if (rng.chance(0.55)) mugAt(pb, rng.pick([MAT.ceramic(), MAT.ceramicTeal()]), x + 0.24 * side, h, lz + side * 0.04, rng.range(0, 6));
+      }
+    }
+    if (endEast) placeChair(w / 2 + 0.44, 0, PI / 2);
+    pb.solid(-w / 2, 0, -d / 2, w / 2, h + 0.02, d / 2, 'metal');
+  },
+
+  /** Executive sideboard / credenza (back on +Z, front faces -Z): dark wood cabinet with coffee service & folders. */
+  credenza(p, rng, m, pb) {
+    const w = numParam(p, 'width', 2.4);
+    const d = 0.52;
+    const h = 0.84;
+    pb.add(rounded(w, h - 0.1, d - 0.04, 0.015), MAT.woodDark(), at(0, (h - 0.1) / 2 + 0.1, 0.01));
+    pb.add(slab(w - 0.06, 0.1, d - 0.1), m.black, at(0, 0.05, 0.02));
+    pb.add(rounded(w + 0.03, 0.035, d + 0.02, 0.01), MAT.stone(), at(0, h - 0.0175, 0));
+    const doors = Math.max(2, Math.round(w / 0.6));
+    const dw = w / doors;
+    for (let i = 0; i < doors; i++) {
+      const x = -w / 2 + dw * (i + 0.5);
+      pb.add(rounded(dw - 0.03, h - 0.18, 0.02, 0.005), m.woodPanel, at(x, (h - 0.1) / 2 + 0.1, -d / 2 + 0.01));
+      pb.add(rounded(0.14, 0.016, 0.024, 0.006), m.steelBrushed, at(x, h - 0.18, -d / 2 - 0.01));
+    }
+    // Coffee carafe, mug tray, and neat binder stack on top.
+    pb.add(lathe([[0, 0], [0.065, 0], [0.075, 0.16], [0.05, 0.24], [0.058, 0.27], [0, 0.27]], 14), m.steelBrushed, at(-w / 2 + 0.35, h, 0));
+    pb.add(rounded(0.42, 0.016, 0.28, 0.006), MAT.deskDark(), at(-w / 2 + 0.85, h + 0.008, 0));
+    for (let i = 0; i < 3; i++) mugAt(pb, i === 1 ? MAT.ceramicTeal() : MAT.ceramic(), -w / 2 + 0.72 + i * 0.13, h + 0.016, rng.range(-0.04, 0.04), rng.range(0, 6));
+    for (let i = 0; i < 3; i++) pb.add(slab(0.24, 0.02, 0.32), i % 2 === 0 ? MAT.paperBlue() : MAT.paper(), at(w / 2 - 0.35, h + 0.01 + i * 0.021, 0, 0, rng.range(-0.08, 0.08), 0));
+    steamPlume(pb, rng, { x: -w / 2 + 0.35, y: h + 0.27, z: 0, width: 0.1, depth: 0.1, height: 0.26, count: 10, opacity: 0.15, size: 0.08 });
+    pb.solid(-w / 2, 0, -d / 2, w / 2, h + 0.28, d / 2, 'metal');
+    pb.spot('lean_counter', -w / 2 + 0.55, 0, -d / 2 - 0.46, PI);
+  },
+
   /**
-   * Pendant lamps on cables: dark cone shades with a warm bulb. `count` along X. By default the bulbs are a static
+   * Pendant lamps on cables: cone shades with a warm bulb. `count` along X. By default the bulbs are a static
    * glow (emissive only, no light). `slots: true` instead offers one `pendant` light slot per bulb, so the room's
    * `lights` can claim them as real lights that follow patterns and tints (render-lighting spec).
    */
@@ -2147,6 +2552,7 @@ const GEN: Record<string, Gen> = {
     const drop = numParam(p, 'drop', 1.2);
     const n = Math.max(1, Math.round(numParam(p, 'count', 1)));
     const gap = numParam(p, 'spacing', 1);
+    const shadeMat = strParam(p, 'shade', 'dark') === 'brass' ? MAT.shadeBrass() : MAT.shade();
     const slotted = boolParam(p, 'slots', false);
     const y = ceil - drop;
     for (let i = 0; i < n; i++) {
@@ -2154,9 +2560,9 @@ const GEN: Record<string, Gen> = {
       pb.add(cylinderBetween(V(x, ceil, 0), V(x, y + 0.22, 0), 0.005, 5), m.cable);
       pb.add(new THREE.CylinderGeometry(0.04, 0.04, 0.04, 10), m.steel, at(x, ceil - 0.02, 0));
       pb.add(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 10), m.steel, at(x, y + 0.21, 0));
-      pb.add(new THREE.ConeGeometry(0.21, 0.22, 20, 1, true), MAT.shade(), at(x, y + 0.11, 0));
-      if (slotted) pb.light([x, y + 0.06, 0], 'pendant');
-      else pb.add(new THREE.SphereGeometry(0.055, 12, 8), glow('pendant-bulb', 0xffd6a0, 2.6), at(x, y + 0.06, 0));
+      pb.add(new THREE.ConeGeometry(0.21, 0.22, 20, 1, true), shadeMat, at(x, y + 0.11, 0));
+      if (slotted) pb.light([x, y + 0.055, 0], 'pendant');
+      else pb.add(new THREE.SphereGeometry(0.06, 12, 8), glow('pendant-bulb', 0xffdca8, 3.0), at(x, y + 0.055, 0));
     }
   },
 
@@ -2182,6 +2588,20 @@ const GEN: Record<string, Gen> = {
     }
     for (let i = 0; i < Math.round(numParam(p, 'mugs', 1)); i++) mugAt(pb, rng.pick([MAT.ceramic(), MAT.ceramicTeal(), MAT.ceramicRed()]), rng.range(-w / 2 + 0.2, w / 2 - 0.2), h, rng.range(-0.1, 0.08), rng.range(0, 6));
     pb.solid(-w / 2, 0, -d / 2, w / 2, h, d / 2, 'metal');
+  },
+
+  pa_speaker(_p, _rng, m, pb) {
+    const y = PA_GRILLE_Y;
+    pb.add(slab(0.32, 0.22, 0.06), m.black, at(0, y, 0));
+    pb.add(rounded(0.48, 0.36, 0.2, 0.025), m.steel, at(0, y, -0.134));
+    pb.add(slab(0.408, 0.276, 0.008), m.black, at(0, y, PA_GRILLE_Z));
+    for (const side of [-1, 1]) {
+      pb.add(rounded(0.446, 0.025, 0.032, 0.006), m.steel, at(0, y + side * 0.15, PA_GRILLE_Z - 0.01));
+      pb.add(slab(0.018, 0.276, 0.032), m.steel, at(side * 0.214, y, PA_GRILLE_Z - 0.01));
+    }
+    for (let row = -3; row <= 3; row++) {
+      pb.add(slab(0.388, 0.014, 0.019), m.steel, at(0, y + row * 0.036, PA_GRILLE_Z - 0.01, -0.22, 0, 0));
+    }
   },
 
   /** Wall clock (back on z = 0): steel rim, paper face, hands at `hour`:`minute` (the 06:40 shift change). */
@@ -2369,7 +2789,6 @@ function drawHydroLog(ctx: CanvasRenderingContext2D, t: number, w: number, h: nu
   ctx.fillText('[E] SIGN DAILY IRRIGATION LOG  ·  WEN', w * 0.05, h * 0.92);
 }
 
-
 const menuCache = new Map<string, THREE.MeshStandardMaterial>();
 /** The galley menu: three service columns on dark slate, backlit (emissive from its own map). */
 function menuMat(title: string, aspect: number): THREE.MeshStandardMaterial {
@@ -2507,6 +2926,165 @@ function posterMat(slogan: string): THREE.MeshStandardMaterial {
     posterCache.set(slogan, mat);
   }
   return mat;
+}
+
+function drawBoardroomDeck(ctx: CanvasRenderingContext2D, t: number, w: number, h: number): void {
+  const slide = Math.floor(t / 12) % 3;
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#0f222a');
+  g.addColorStop(1, '#071015');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  // Header bar with TAG mark and slide indicator.
+  ctx.fillStyle = '#132d36';
+  ctx.fillRect(0, 0, w, h * 0.17);
+  ctx.fillStyle = '#4fd6d0';
+  ctx.fillRect(0, h * 0.17, w, 3);
+  drawTagMark(ctx, w * 0.06, h * 0.085, h * 0.055, { ink: '#e8f4f2', accent: '#4fd6d0' });
+  ctx.textAlign = 'left';
+  ctx.font = `700 ${Math.round(h * 0.062)}px ${SCREEN_FONT}`;
+  ctx.fillStyle = '#eef7f5';
+  const titles = ['Q4 DEEP-CORE YIELD  //  SECTOR 7', 'THALASSA STATION TELEMETRY', 'CONTAINMENT BRIEF  //  LAB B'];
+  ctx.fillText(titles[slide]!, w * 0.12, h * 0.11);
+  ctx.textAlign = 'right';
+  ctx.font = `${Math.round(h * 0.042)}px ${SCREEN_FONT}`;
+  ctx.fillStyle = '#8cc4be';
+  ctx.fillText(`SLIDE 0${slide + 1} / 03`, w * 0.95, h * 0.105);
+
+  ctx.textAlign = 'left';
+  if (slide === 0) {
+    // Bar chart of quarterly mineral & bio-sample output.
+    const bars = [0.48, 0.62, 0.71, 0.89, 0.76, 0.94];
+    const labels = ['MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT'];
+    const base = h * 0.78;
+    const maxH = h * 0.44;
+    ctx.strokeStyle = '#1f444e';
+    ctx.lineWidth = 1;
+    for (let r = 0; r < 4; r++) {
+      const y = base - (maxH * r) / 3;
+      ctx.beginPath();
+      ctx.moveTo(w * 0.08, y);
+      ctx.lineTo(w * 0.62, y);
+      ctx.stroke();
+    }
+    bars.forEach((v, i) => {
+      const pulse = 1 + Math.sin(t * 1.4 + i) * 0.02;
+      const bh = maxH * v * pulse;
+      const bx = w * 0.1 + i * w * 0.085;
+      ctx.fillStyle = i === 5 ? '#f2c14e' : '#3fb5ae';
+      ctx.fillRect(bx, base - bh, w * 0.055, bh);
+      ctx.fillStyle = '#9fc4c0';
+      ctx.font = `${Math.round(h * 0.038)}px ${SCREEN_FONT}`;
+      ctx.fillText(labels[i]!, bx, base + h * 0.06);
+    });
+    // Right-hand KPI callouts.
+    const kpis: Array<[string, string, string]> = [
+      ['CORE OUTPUT', '+18.4%', '#4fd6d0'],
+      ['HULL INTEGRITY', '99.2%', '#eef7f5'],
+      ['NEXT RESUPPLY', 'DOCKED', '#f2c14e'],
+    ];
+    kpis.forEach(([k, val, col], i) => {
+      const y = h * 0.32 + i * h * 0.18;
+      ctx.fillStyle = 'rgba(20,48,58,0.7)';
+      ctx.fillRect(w * 0.67, y - h * 0.06, w * 0.28, h * 0.14);
+      ctx.fillStyle = '#89b4b0';
+      ctx.font = `${Math.round(h * 0.036)}px ${SCREEN_FONT}`;
+      ctx.fillText(k, w * 0.69, y);
+      ctx.fillStyle = col;
+      ctx.font = `700 ${Math.round(h * 0.065)}px ${SCREEN_FONT}`;
+      ctx.fillText(val, w * 0.69, y + h * 0.065);
+    });
+  } else if (slide === 1) {
+    // Live waveform + sector rows.
+    const rows: Array<[string, string, string]> = [
+      ['DEPTH', '3,210 m', '#4fd6d0'],
+      ['EXTERNAL PRESSURE', `${(319.8 + Math.sin(t * 0.5) * 0.2).toFixed(1)} ATM`, '#eef7f5'],
+      ['HYDRO O2 OUTPUT', `${(104.2 + Math.sin(t * 0.8) * 0.4).toFixed(1)} %`, '#7fe3a0'],
+      ['REACTOR LOAD', '68.4 %', '#f2c14e'],
+    ];
+    rows.forEach(([k, val, col], i) => {
+      const y = h * 0.31 + i * h * 0.12;
+      ctx.fillStyle = '#8ab6b2';
+      ctx.font = `${Math.round(h * 0.044)}px ${SCREEN_FONT}`;
+      ctx.fillText(k, w * 0.08, y);
+      ctx.fillStyle = col;
+      ctx.font = `700 ${Math.round(h * 0.048)}px ${SCREEN_FONT}`;
+      ctx.fillText(val, w * 0.48, y);
+    });
+    ctx.strokeStyle = '#4fd6d0';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let x = 0; x < w * 0.84; x += 6) {
+      const y = h * 0.82 + Math.sin(x * 0.03 + t * 2.2) * 14 * Math.cos(x * 0.01 - t * 0.4);
+      if (x === 0) ctx.moveTo(w * 0.08 + x, y);
+      else ctx.lineTo(w * 0.08 + x, y);
+    }
+    ctx.stroke();
+  } else {
+    // Subtle story-foreshadowing TAG slide about Lab B.
+    ctx.fillStyle = 'rgba(184, 35, 28, 0.22)';
+    ctx.fillRect(w * 0.08, h * 0.26, w * 0.84, h * 0.14);
+    ctx.fillStyle = '#f2c14e';
+    ctx.font = `700 ${Math.round(h * 0.055)}px ${SCREEN_FONT}`;
+    ctx.fillText('ADVISORY: LAB B SAMPLE ISOLATION (ROUTINE)', w * 0.11, h * 0.35);
+    const bullets = [
+      '•  Specimen 04-C remains sealed under Level-2 containment.',
+      '•  Security rounds scheduled for 07:00 across Admin, Hydro & Dive Bay.',
+      '•  Topside corporate uplink deferred until next buoy window.',
+      '•  All personnel reminded: direct inquiries to Director Hale.',
+    ];
+    ctx.fillStyle = '#d8ecea';
+    ctx.font = `${Math.round(h * 0.044)}px ${SCREEN_FONT}`;
+    bullets.forEach((b, i) => ctx.fillText(b, w * 0.09, h * 0.5 + i * h * 0.1));
+  }
+}
+
+function drawCommonsBoard(ctx: CanvasRenderingContext2D, t: number, w: number, h: number): void {
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#17292e');
+  g.addColorStop(1, '#0b1418');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#1f363c';
+  ctx.fillRect(0, 0, w, h * 0.2);
+  ctx.fillStyle = '#f2c14e';
+  ctx.fillRect(0, h * 0.2, w, 3);
+  drawTagMark(ctx, w * 0.06, h * 0.1, h * 0.06, { ink: '#f2ede0', accent: '#4fd6d0' });
+  ctx.textAlign = 'left';
+  ctx.font = `700 ${Math.round(h * 0.072)}px ${SCREEN_FONT}`;
+  ctx.fillStyle = '#f5efe2';
+  ctx.fillText('THALASSA COMMONS  //  MORNING BRIEF', w * 0.12, h * 0.125);
+  ctx.textAlign = 'right';
+  const mins = 40 + (Math.floor(t / 15) % 19);
+  ctx.fillStyle = '#f2c14e';
+  ctx.fillText(`06:${mins < 10 ? '0' : ''}${mins}`, w * 0.95, h * 0.125);
+
+  ctx.textAlign = 'left';
+  const cards: Array<[string, string, string]> = [
+    ['SEAFLOOR CONDITIONS', '2.1 °C  ·  CURRENT 0.4 KT', '#4fd6d0'],
+    ['SUPPLY SUB BERTH 01', 'CARGO UNLOAD IN PROGRESS', '#f2c14e'],
+    ['GALLEY SPECIAL', 'KELP SCRAMBLE & HOT COFFEE', '#d9f0d0'],
+  ];
+  cards.forEach(([hdr, body, col], i) => {
+    const y = h * 0.29 + i * h * 0.19;
+    ctx.fillStyle = 'rgba(12, 24, 28, 0.72)';
+    ctx.fillRect(w * 0.06, y, w * 0.88, h * 0.15);
+    ctx.fillStyle = col;
+    ctx.fillRect(w * 0.06, y, 5, h * 0.15);
+    ctx.font = `700 ${Math.round(h * 0.04)}px ${SCREEN_FONT}`;
+    ctx.fillText(hdr, w * 0.09, y + h * 0.055);
+    ctx.fillStyle = '#eef4f2';
+    ctx.font = `${Math.round(h * 0.048)}px ${SCREEN_FONT}`;
+    ctx.fillText(body, w * 0.09, y + h * 0.118);
+  });
+  // Bottom scrolling ticker.
+  ctx.fillStyle = '#091215';
+  ctx.fillRect(0, h * 0.87, w, h * 0.13);
+  ctx.fillStyle = '#8cc4be';
+  ctx.font = `${Math.round(h * 0.044)}px ${SCREEN_FONT}`;
+  const ticker = 'SHIFT CHANGEOVER 06:40  ·  HYDRO FRESH GREENS DELIVERED TO GALLEY  ·  ROTATION SHUTTLE IN 42 DAYS  ·  ';
+  const off = (t * 48) % (ticker.length * h * 0.025);
+  ctx.fillText(ticker + ticker, w * 0.04 - off, h * 0.95);
 }
 
 function drawBroadcast(ctx: CanvasRenderingContext2D, t: number, w: number, h: number, state: string, who: string): void {
@@ -2774,45 +3352,187 @@ const STRUCT: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceB
     pb.solid(-HALF, 0, -HALF, HALF, h, -HALF + WALL_T);
   },
 
-  /** A floor tile with the dive bay's moon pool cut in it, railed so nobody falls in. */
+  /**
+   * The dive bay's "moon pool" (rebuild-dive-bay, dive-bay spec "Launch trunk"): a closed 1-atm lock trunk, not
+   * an open pool. Deck coaming, an inner hatch hinged on the east edge with two hydraulic rams, a drained steel
+   * shaft with depth marks down to the outer hatch (lit viewport) and a little standing water. Railed on all
+   * four sides (the east side is a gate, modelled shut); the rail is the only barrier, so the hatch has no
+   * collider. Listens for `trunk:state` { state: open|closed, instant? } and resets to open on `level:reset`.
+   */
   floor_moonpool(p, _rng, m, pb) {
     const pal = resolvePalette(p, m);
-    const hole = 2.4;
+    const hole = MOONPOOL_WIDTH;
+    const h2 = hole / 2;
     const rim = (4 - hole) / 2;
+    const depth = TRUNK_DEPTH;
+    const white = plain('trunk-marks', 0xd9dbd4, 0.6);
+    const seam = plain('trunk-seam', 0x2a2f33, 0.7, 0.4);
+    // Deck around the trunk: grating, walkable.
     for (const s of [-1, 1]) {
-      pb.add(slab(4, 0.1, rim), pal.floor, at(0, -0.05, s * (hole / 2 + rim / 2)));
-      pb.add(slab(rim, 0.1, hole), pal.floor, at(s * (hole / 2 + rim / 2), -0.05, 0));
-      pb.solid(-2, -0.2, s > 0 ? hole / 2 : -2, 2, 0, s > 0 ? 2 : -hole / 2, 'grate');
-      pb.solid(s > 0 ? hole / 2 : -2, -0.2, -hole / 2, s > 0 ? 2 : -hole / 2, 0, hole / 2, 'grate');
-      // Shaft walls and hazard lip.
-      pb.add(slab(hole, 3, 0.1), m.paintDark, at(0, -1.6, s * (hole / 2 + 0.05)));
-      pb.add(slab(0.1, 3, hole), m.paintDark, at(s * (hole / 2 + 0.05), -1.6, 0));
-      pb.add(slab(hole + 0.2, 0.02, 0.12), pal.hazard, at(0, 0.005, s * (hole / 2 + 0.06)));
-      pb.add(slab(0.12, 0.02, hole), pal.hazard, at(s * (hole / 2 + 0.06), 0.005, 0));
+      pb.add(slab(4, 0.1, rim), pal.floorAlt, at(0, -0.05, s * (h2 + rim / 2)));
+      pb.add(slab(rim, 0.1, hole), pal.floorAlt, at(s * (h2 + rim / 2), -0.05, 0));
+      pb.solid(-2, -0.2, s > 0 ? h2 : -2, 2, 0, s > 0 ? 2 : -h2, 'grate');
+      pb.solid(s > 0 ? h2 : -2, -0.2, -h2, s > 0 ? 2 : -h2, 0, h2, 'grate');
+      // Coaming ring and its painted top, and the hazard band on the deck around it.
+      pb.add(slab(hole + 0.12, 0.12, 0.06), m.steel, at(0, 0.06, s * (h2 + 0.03)));
+      pb.add(slab(0.06, 0.12, hole), m.steel, at(s * (h2 + 0.03), 0.06, 0));
+      pb.add(slab(hole + 0.6, 0.02, 0.18), pal.hazard, at(0, 0.006, s * (h2 + 0.17)));
+      pb.add(slab(0.18, 0.02, hole + 0.24), pal.hazard, at(s * (h2 + 0.17), 0.006, 0));
+      // Shaft walls in pressure-hull plate, with weld seams.
+      pb.add(slab(hole, depth, 0.1), m.hullPlate, at(0, -depth / 2, s * (h2 + 0.05)));
+      pb.add(slab(0.1, depth, hole), m.hullPlate, at(s * (h2 + 0.05), -depth / 2, 0));
+      for (const y of [-1, -2]) {
+        pb.add(slab(hole, 0.03, 0.02), seam, at(0, y, s * (h2 - 0.005)));
+        pb.add(slab(0.02, 0.03, hole), seam, at(s * (h2 - 0.005), y, 0));
+      }
+      // Depth marks every 0.5 m on the north and south walls, long ones on whole metres.
+      for (let d = 0.5; d < depth - 0.1; d += 0.5) {
+        const whole = Math.abs(d - Math.round(d)) < 0.01;
+        pb.add(slab(whole ? 0.5 : 0.25, 0.035, 0.012), white, at(-0.6, -d, s * (h2 - 0.007)));
+      }
+      // Shaft lamps near the foot, and the closed outer hatch's viewport glow.
+      pb.add(slab(0.3, 0.08, 0.04), glow('trunk-lamp', 0xbfe9ff, 1.4), at(0.55, -2.35, s * (h2 - 0.02)));
     }
-    // Railing (colliders keep bodies out of the water).
-    const r = hole / 2 + 0.25;
-    for (const [x, z] of [[-r, -r], [r, -r], [r, r], [-r, r]] as const) pb.add(cylinderBetween(V(x, 0, z), V(x, 1.05, z), 0.03, 8), m.steel);
+    // A wall light slot on the north shaft lamp: claimed by the room, it lights the shaft and throws blue up out of the trunk.
+    pb.light([0.55, -2.25, -(h2 - 0.08)], 'wall');
+    pb.add(slab(hole, 0.12, hole), plain('trunk-outer', 0x30373c, 0.5, 0.6), at(0, -depth - 0.06, 0));
+    pb.add(new THREE.CircleGeometry(0.5, 32).rotateX(-PI / 2), glow('moonpool-deep', 0x1d8fa0, 0.9), at(0, -depth + 0.002, 0));
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * PI * 2;
+      pb.add(slab(0.08, 0.05, 0.08), m.steel, at(Math.cos(a) * 0.62, -depth + 0.025, Math.sin(a) * 0.62));
+    }
+    // Standing water at the foot of the drained trunk.
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(hole, hole), waterMaterial());
+    water.rotation.x = -PI / 2;
+    water.position.y = -depth + 0.15;
+    water.renderOrder = 2;
+    water.name = 'trunk-water';
+    pb.dynamic(water);
+
+    // Inner hatch: plate with a round viewport, hinged on the east coaming. Angle 0 = closed, OPEN = open.
+    const span = hole + 0.1;
+    const hingeX = span / 2;
+    const hingeY = 0.12;
+    const shape = new THREE.Shape();
+    shape.moveTo(-span, -span / 2);
+    shape.lineTo(0, -span / 2);
+    shape.lineTo(0, span / 2);
+    shape.lineTo(-span, span / 2);
+    shape.closePath();
+    const port = new THREE.Path();
+    port.absarc(-span / 2, 0, 0.42, 0, PI * 2, true);
+    shape.holes.push(port);
+    const plateGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false }).rotateX(PI / 2).translate(0, 0.08, 0);
+    const parts: THREE.BufferGeometry[] = [plateGeo, new THREE.TorusGeometry(0.43, 0.035, 8, 32).rotateX(PI / 2).translate(-span / 2, 0.09, 0)];
+    for (const z of [-0.8, 0, 0.8]) parts.push(rounded(0.16, 0.06, 0.22, 0.02).translate(-span + 0.06, 0.1, z)); // dogs
+    for (const z of [-0.9, 0.9]) parts.push(new THREE.CylinderGeometry(0.06, 0.06, 0.4, 12).rotateX(PI / 2).translate(0, 0.04, z)); // hinge knuckles
+    const hatchMat = cached('trunk-hatch', () => new THREE.MeshStandardMaterial({ color: 0xb8952a, roughness: 0.55, metalness: 0.35 }));
+    const plate = new THREE.Mesh(mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)), false)!, hatchMat);
+    const pane = new THREE.Mesh(new THREE.CircleGeometry(0.42, 32).rotateX(-PI / 2).translate(-span / 2, 0.05, 0), m.glass);
+    pane.renderOrder = 3;
+    const hatch = new THREE.Group();
+    hatch.name = 'trunk-hatch';
+    hatch.position.set(hingeX, hingeY, 0);
+    hatch.add(plate, pane);
+    pb.dynamic(hatch);
+    // Rams from brackets on the east shaft wall to lugs 0.6 m out along the hatch.
+    const ramMat = cached('trunk-ram', () => new THREE.MeshStandardMaterial({ color: 0xc8ced2, roughness: 0.25, metalness: 0.9 }));
+    const rams = [-0.7, 0.7].map((z) => {
+      const ram = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 1, 10), ramMat);
+      pb.dynamic(ram);
+      return { ram, base: V(h2 - 0.12, -0.35, z) };
+    });
+    const OPEN = (100 * PI) / 180;
+    const lug = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    let angle = OPEN;
+    let target = OPEN;
+    const place = (): void => {
+      hatch.rotation.z = -angle;
+      hatch.userData['open'] = angle / OPEN;
+      for (const { ram, base } of rams) {
+        lug.set(hingeX - 0.6 * Math.cos(angle), hingeY + 0.6 * Math.sin(angle), base.z);
+        const dir = lug.clone().sub(base);
+        const len = dir.length();
+        ram.position.copy(base).addScaledVector(dir, 0.5);
+        ram.quaternion.setFromUnitVectors(up, dir.normalize());
+        ram.scale.set(1, len, 1);
+      }
+    };
+    place();
+    pb.tick((t, dt) => {
+      waterUniforms.uTime.value = t;
+      if (angle === target) return;
+      const step = (OPEN / 4) * dt; // about 4 s end to end
+      angle = angle < target ? Math.min(target, angle + step) : Math.max(target, angle - step);
+      place();
+    });
+    // Light out of the trunk (dive-bay spec "Lighting and atmosphere"): an upward blue shaft, moving caustics on the
+    // ceiling above, and a thin mist on the shaft water. The shaft and caustics fade as the inner hatch closes.
+    const roomH = numParam(p, 'height', 5);
+    const upH = roomH - 0.3;
+    const upShaft = createShaft(1.0, 1.9, upH, 0x58c8e0);
+    upShaft.mesh.rotation.x = PI;
+    upShaft.mesh.position.set(0, 0.15 + upH / 2, 0);
+    upShaft.mesh.name = 'trunk-upshaft';
+    pb.dynamic(upShaft.mesh);
+    const caustics = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 5.6).rotateX(PI / 2), causticMaterial());
+    caustics.position.y = roomH - 0.035;
+    caustics.renderOrder = 3;
+    caustics.name = 'trunk-caustics';
+    pb.dynamic(caustics);
+    const mist = new THREE.Mesh(
+      mergeGeometries([new THREE.PlaneGeometry(hole - 0.05, hole - 0.05).rotateX(-PI / 2).translate(0, 0.18, 0), new THREE.PlaneGeometry(hole - 0.05, hole - 0.05).rotateX(-PI / 2).translate(0, 0.38, 0)], false)!,
+      trunkMistMaterial(),
+    );
+    mist.position.y = -depth + 0.15;
+    mist.renderOrder = 3;
+    mist.name = 'trunk-mist';
+    pb.dynamic(mist);
+    const causticGain = (caustics.material as THREE.ShaderMaterial).uniforms['uGain']!;
+    const glowFx = (): void => {
+      const open = angle / OPEN;
+      upShaft.uniforms.uIntensity.value = 0.045 * open;
+      upShaft.mesh.visible = open > 0.01;
+      causticGain.value = open;
+      caustics.visible = open > 0.01;
+    };
+    glowFx();
+    pb.tick((t) => {
+      upShaft.uniforms.uTime.value = t;
+      causticUniforms.uTime.value = t;
+      trunkMistUniforms.uTime.value = t;
+      glowFx();
+    });
+    const set = (state: unknown, instant: unknown): void => {
+      if (state !== 'open' && state !== 'closed') return;
+      target = state === 'open' ? OPEN : 0;
+      if (instant === true) {
+        angle = target;
+        place();
+      }
+    };
+    pb.on('trunk:state', (e) => {
+      const ev = e as { state?: string; instant?: boolean } | undefined;
+      set(ev?.state, ev?.instant);
+    });
+    pb.on('level:reset', () => set('open', true));
+
+    // Rail on all four sides; the east side carries a gate (modelled shut). Colliders keep bodies out.
+    const r = h2 + 0.25;
+    for (const [x, z] of [[-r, -r], [r, -r], [r, r], [-r, r], [r, -0.55], [r, 0.55]] as const) pb.add(cylinderBetween(V(x, 0, z), V(x, 1.05, z), 0.03, 8), m.steel);
     for (const y of [0.55, 1.05]) {
       for (const s of [-1, 1]) {
         pb.add(cylinderBetween(V(-r, y, s * r), V(r, y, s * r), 0.022, 8), pal.hazard);
         pb.add(cylinderBetween(V(s * r, y, -r), V(s * r, y, r), 0.022, 8), pal.hazard);
       }
     }
+    for (const z of [-0.3, 0, 0.3]) pb.add(cylinderBetween(V(r, 0.1, z), V(r, 1.0, z), 0.015, 6), m.steel); // gate bars
+    pb.add(rounded(0.06, 0.12, 0.08, 0.01), plain('trunk-latch', 0x9a2a1e, 0.5, 0.3), at(r + 0.03, 0.85, 0.5));
     for (const s of [-1, 1]) {
       pb.solid(-r - 0.05, 0, s * r - 0.05, r + 0.05, 1.1, s * r + 0.05);
       pb.solid(s * r - 0.05, 0, -r - 0.05, s * r + 0.05, 1.1, r + 0.05);
     }
-    // The water and a cold glow from below.
-    pb.add(slab(hole, 0.02, hole), glow('moonpool-deep', 0x1d8fa0, 0.6), at(0, -2.8, 0));
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(hole, hole), waterMaterial());
-    water.rotation.x = -PI / 2;
-    water.position.y = -0.55;
-    water.renderOrder = 2;
-    pb.dynamic(water);
-    pb.tick((t) => {
-      waterUniforms.uTime.value = t;
-    });
     for (const [x, z] of [[-1.6, -1.6], [1.6, -1.6], [1.6, 1.6], [-1.6, 1.6]] as const) pb.nav(x, 0, z);
   },
 };

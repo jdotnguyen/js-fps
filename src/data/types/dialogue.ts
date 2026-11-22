@@ -5,7 +5,7 @@ import { arr, bool, nullable, numRange, obj, oneOf, optional, record, str, type 
 export const EMOTES = ['neutral', 'question', 'urgent', 'alarmed', 'pained', 'relieved', 'laugh', 'whisper', 'dread', 'scream'] as const;
 export type Emote = (typeof EMOTES)[number];
 
-export const CHANNELS = ['local', 'radio'] as const;
+export const CHANNELS = ['local', 'radio', 'pa'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 /** Lowest first. Higher interrupts lower; equal queues. */
@@ -43,6 +43,8 @@ const lineShape = {
   /** Required unless `audio` is set. */
   emote: nullable(oneOf(EMOTES)),
   babble: optional(bool),
+  /** Play the station's two-tone chime before the announcement. */
+  paChime: optional(bool),
   channel: oneOf(CHANNELS),
   priority: oneOf(PRIORITIES),
   /** Path (or variant array) under public/, e.g. "assets/vo/giles_cover_01.mp3". Plays instead of the emote. */

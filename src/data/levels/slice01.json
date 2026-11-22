@@ -6358,11 +6358,19 @@
     {
      "id": "priya_hide",
      "pos": [
-      8.7,
+      9.2,
       0,
-      53.35
+      53.45
      ],
-     "yaw": 300
+     "yaw": 0
+    },
+    {
+     "id": "priya_pool",
+     "pos": [
+      9.2,
+      0,
+      52.55
+     ]
     },
     {
      "id": "priya_offstage",
@@ -8277,9 +8285,8 @@
      ],
      "params": {
       "length": 8,
-      "period": 11.4,
-      "offset": 3.8,
-      "sputter": true
+      "period": 9.6,
+      "offset": 0.4
      }
     },
     {
@@ -8291,8 +8298,9 @@
      ],
      "params": {
       "length": 8,
-      "period": 9.6,
-      "offset": 0.4
+      "period": 11.4,
+      "offset": 3.8,
+      "sputter": true
      }
     },
     {
@@ -8304,8 +8312,8 @@
      ],
      "params": {
       "length": 8,
-      "period": 10.5,
-      "offset": 5.2
+      "period": 12.8,
+      "offset": 7.1
      }
     },
     {
@@ -8317,8 +8325,8 @@
      ],
      "params": {
       "length": 8,
-      "period": 12.8,
-      "offset": 7.1
+      "period": 10.5,
+      "offset": 5.2
      }
     },
     {
@@ -10052,6 +10060,20 @@
      "rot": 270
     },
     {
+     "kit": "platform_trolley",
+     "pos": [
+      16.4,
+      0,
+      34.9
+     ],
+     "params": {
+      "id": "rov_trolley"
+     },
+     "dynamic": {
+      "mass": 45
+     }
+    },
+    {
      "kit": "parts_bins",
      "pos": [
       16,
@@ -10079,20 +10101,6 @@
       36.6
      ],
      "rot": 90
-    },
-    {
-     "kit": "platform_trolley",
-     "pos": [
-      16.4,
-      0,
-      34.9
-     ],
-     "params": {
-      "id": "rov_trolley"
-     },
-     "dynamic": {
-      "mass": 45
-     }
     },
     {
      "kit": "pa_speaker",

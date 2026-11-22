@@ -62,8 +62,11 @@ test('the action sequences name only things that exist: lines, sounds, anchors, 
     walk(def.steps, (s) => {
       const where = `${def.id}: ${String(s['do'])}`;
       if (s['do'] === 'say') {
-        assert.ok(library.hasLine(s['line'] as string), `${where} line ${String(s['line'])}`);
-        assert.equal(library.line(s['line'] as string).priority, 'story', `${where} ${String(s['line'])} must be story priority`);
+        // A say may be a pool of lines said in turn (medbay-attack: Jay's shouts at the glass).
+        for (const line of Array.isArray(s['line']) ? (s['line'] as string[]) : [s['line'] as string]) {
+          assert.ok(library.hasLine(line), `${where} line ${line}`);
+          assert.equal(library.line(line).priority, 'story', `${where} ${line} must be story priority`);
+        }
       }
       if (s['do'] === 'sfx') assert.ok((s['id'] as string) in SOUND_SPECS, `${where} sound ${String(s['id'])}`);
       if (s['do'] === 'setObjective' || s['do'] === 'completeObjective') assert.ok(String(s['id']) in objectives, `${where} objective ${String(s['id'])}`);
@@ -120,7 +123,9 @@ interface Task {
   resolve: () => void;
 }
 
-function makeGame(only?: string[]) {
+function makeGame(only?: string[], opts: { holdMauled?: boolean } = {}) {
+  /** `holdMauled`: a mauled kill step stays running until the test ends it (`kills`), so its beats can be played. */
+  const kills: Array<{ step: Record<string, unknown>; resolve: () => void }> = [];
   const log: string[] = [];
   const control = new ControlStack();
   const handlers = new Map<string, Set<(p: unknown) => void>>();
@@ -157,6 +162,7 @@ function makeGame(only?: string[]) {
     fade: (level) => void log.push(`fade ${level}`),
     cameraShake: () => void log.push('shake'),
     sfx: (id) => void log.push(`sfx ${id}`),
+    score: (id, o) => void log.push(`score ${id} ${o.cue ?? (o.stinger ? `stinger ${o.stinger}` : 'load')}`),
     say: (line, opts) => {
       log.push(`say ${line}${opts?.overlap ? ' overlap' : ''}`);
       return { done: Promise.resolve() };
@@ -170,6 +176,7 @@ function makeGame(only?: string[]) {
     cameraFeed: (id, opts) => (feeds.push(opts), void log.push(`feed ${id} ${opts.state}${opts.fullscreen ? ' fullscreen' : ''}`)),
     radio: (track) => void log.push(track ? `radio ${track}` : 'radio stop'),
     gore: (kind) => void log.push(`gore ${kind}`),
+    hush: (speakers) => void log.push(speakers ? `hush ${speakers.join(",")}` : "hush off"),
     titleCard: (title) => void cards.push(title),
     endSlice: () => void ended++,
     spawnGroup: (g) => {
@@ -188,6 +195,7 @@ function makeGame(only?: string[]) {
     npc: (action, step) => {
       log.push(`npc ${action} ${String(step['npc'])}${step['anim'] ? ` ${String(step['anim'])}` : ''}${step['task'] ? ` ${String(step['task'])}` : ''}${step['instant'] ? ' instant' : ''}`);
       if (action === 'npcTask' && step['wait'] !== false) return new Promise<void>((resolve) => tasks.push({ step, resolve }));
+      if (opts.holdMauled && action === 'kill' && step['kind'] === 'mauled' && !step['instant']) return new Promise<void>((resolve) => kills.push({ step, resolve }));
       return undefined;
     },
   };
@@ -206,7 +214,7 @@ function makeGame(only?: string[]) {
     host.events.emit('squad:taskDone', { id: 'engineer', task: String(t.step['task']), panel: null, progress: 1 });
     t.resolve();
   };
-  return { m, host, log, control, feeds, tasks, groups, cards, clear, finishTask, ended: () => ended };
+  return { m, host, log, control, feeds, tasks, groups, cards, kills, clear, finishTask, ended: () => ended };
 }
 type Game = ReturnType<typeof makeGame>;
 
@@ -494,7 +502,7 @@ test('trying the biometric door early starts the glass scene anyway (a latched t
 });
 
 test('the glass scene waits for the play-dead (or 20 s), then locks Jay in, plays Priya and ends with the bandage and cp_security_done', async () => {
-  const g = makeGame();
+  const g = makeGame(undefined, { holdMauled: true });
   await armoryThenGlass(g);
   g.groups.get('r07_playdead')!.triggered = true;
   fire(g, 'trigger:r08_glass');
@@ -505,19 +513,32 @@ test('the glass scene waits for the play-dead (or 20 s), then locks Jay in, play
   assert.equal(g.control.state.move, 'locked');
   assert.equal(g.control.state.weapons, false);
   assert.equal(g.m.skip(), false, 'Priya cannot be skipped');
+  await until(g, () => g.kills.length === 1, 30);
+  // medbay-attack: one kill step does the attack, with the creature as its attacker, on the centre pane.
+  const k = g.kills[0]!.step;
+  assert.deepEqual([k['npc'], k['kind'], k['attacker'], k['glass']], ['priya', 'mauled', 'r08_thing', 'anchor:medbay_c_glass']);
+  assert.ok(g.log.includes('npc spawn r08_thing'));
+  assert.equal(g.control.state.interact, true, 'the bang prompt is offered while she pleads');
+  for (const beat of ['plead', 'grab', 'haul', 'slam', 'throw', 'reach', 'drag', 'still']) {
+    g.host.events.emit(`kill:${beat}`, { npc: 'priya', beat });
+    await advance(g, 2);
+    if (beat === 'grab') assert.equal(g.control.state.interact, false, 'the prompt goes with the grab');
+  }
+  g.kills[0]!.resolve();
   await until(g, () => !g.m.isRunning('sec_glass'), 120);
   inOrder(g, [
-    ...lines('sec_okafor_01', 'sec_okafor_02', 'sec_priya_01', 'sec_okafor_03', 'sec_priya_04', 'sec_priya_02', 'sec_priya_03', 'sec_okafor_04', 'sec_okafor_05', 'sec_giles_03', 'sec_giles_05', 'sec_okafor_07', 'giles_cut_01', 'sec_okafor_06', 'sec_giles_04'),
+    ...lines('sec_okafor_01'),
+    'say sec_okafor_02 overlap',
+    'say sec_okafor_03 overlap',
+    ...lines('sec_okafor_04', 'sec_okafor_05', 'sec_giles_03', 'sec_giles_05', 'sec_okafor_07', 'giles_cut_01', 'sec_okafor_06', 'sec_giles_04'),
     'checkpoint cp_security_done',
   ]);
-  // Gruesome through the glass: blood climbs in three levels, the pane cracks, gore of every kind, a drag trail.
-  for (const kind of ['burst', 'splash', 'chunks', 'pool']) assert.ok(at(g, `gore ${kind}`) >= 0, `gore ${kind}`);
-  assert.equal(count(g, 'event glass:blood'), 3);
-  assert.ok(at(g, 'glass medbay cracked') > at(g, 'event glass:blood') && at(g, 'sfx bodyDrag') > at(g, 'glass medbay cracked'));
-  // She survives: hidden in the surgery, the attacker removed, the sealed door shut again.
-  assert.ok(g.log.indexOf('npc spawn r08_thing') >= 0 && g.log.indexOf('npc despawn r08_thing') > g.log.indexOf('npc spawn r08_thing'));
-  const hide = g.log.lastIndexOf('npc npcMoveTo priya instant');
-  assert.ok(hide > at(g, 'sfx bodyDrag'), 'Priya ends hidden, not dead');
+  // No hand-placed gore or whole-pane blood any more: the kill puts every mark where she touches the glass. The one
+  // placed mark is the pool she lies in, in the surgery (stinger-feed-and-rise).
+  assert.equal(g.log.filter((e) => (e.startsWith('gore ') && e !== 'gore pool') || e.startsWith('event glass:blood') || e.startsWith('glass medbay')).length, 0);
+  assert.equal(g.log.filter((e) => e === 'gore pool').length, 1, 'one pool where she lies');
+  // She is dead in the surgery: the creature gone, the door shut on her.
+  assert.ok(g.log.indexOf('npc despawn r08_thing') > g.log.indexOf('npc spawn r08_thing'));
   assert.ok(g.log.lastIndexOf('door D_R08_R08b closed') > g.log.lastIndexOf('door D_R08_R08b open'));
   // Foreshadow 2 and the stage.
   assert.equal(g.host.flags['giles.infectionStage'], 2);
@@ -687,7 +708,7 @@ test('dying in the climax replays it from cp_climax with the entrances open agai
 
 const WON = { ...VALVE_DONE, climax_started: true, climax_done: true };
 const REVEAL_LINES = ['end_okafor_01', 'end_giles_01', 'end_jay_01', 'end_giles_02', 'giles_reveal_01', 'end_giles_03', 'end_giles_04', 'end_giles_05', 'end_jay_02', 'end_okafor_02', 'end_giles_06'];
-const STINGER_LINES = ['stinger_priya_01', 'stinger_priya_02', 'stinger_priya_04', 'stinger_priya_05', 'stinger_priya_03'];
+/** slice-stinger: the bloom turns Priya's corpse on camera; she says nothing (her one breath is her kill's beat line). */
 
 test('cliffhanger to endSlice: banter, lights and trail, "I didn\'t want you to see this", Okafor steps in, "Stay back, Tomas.", black, title card, the stinger feed, end', async () => {
   const g = makeGame();
@@ -711,7 +732,9 @@ test('cliffhanger to endSlice: banter, lights and trail, "I didn\'t want you to 
   assert.ok(g.log.lastIndexOf('npc npcMoveTo okafor') > at(g, 'say end_jay_02') && at(g, 'say end_okafor_02') < at(g, 'say end_giles_06'));
   await until(g, () => g.ended() === 1, 120);
   inOrder(g, lines(...REVEAL_LINES));
-  inOrder(g, [...lines('end_giles_06'), 'fade 1', 'event story:cliffhanger', 'feed stinger live fullscreen', ...lines(...STINGER_LINES), 'feed stinger static fullscreen', 'fade 1', 'feed stinger off fullscreen']);
+  inOrder(g, [...lines('end_giles_06'), 'fade 1', 'event story:cliffhanger', 'hush nurse', 'feed stinger live fullscreen', 'npc kill priya', 'feed stinger static fullscreen', 'fade 1', 'feed stinger off fullscreen']);
+  assert.equal(g.log.filter((e) => e.startsWith('say stinger_')).length, 0, 'no words from her in the stinger');
+  assert.equal(at(g, 'npc spawn r08_thing') > at(g, 'feed stinger live fullscreen'), false, 'nobody else in the room');
   assert.deepEqual(g.cards, ['THALASSA']);
   assert.ok(at(g, 'event story:cliffhanger') < at(g, 'event story:title_done') && at(g, 'event story:title_done') < at(g, 'feed stinger live fullscreen'));
   assert.equal(g.ended(), 1);
@@ -721,7 +744,6 @@ test('cliffhanger to endSlice: banter, lights and trail, "I didn\'t want you to 
   assert.equal(g.feeds[0]!.fps, 30);
   assert.deepEqual(g.feeds[0]!.size, { w: 960, h: 540 });
   assert.equal(g.feeds[0]!.look, 'fullscreen');
-  assert.ok(count(g, 'gore splash') >= 1, 'the stinger');
   noWarnings(g);
 });
 
@@ -761,7 +783,7 @@ test('skipping the stinger ends the slice at once with the feed off; skipping ri
   assert.equal(g.feeds.at(-1)!.state, 'off');
   assert.equal(g.m.isRunning('stinger_priya'), false);
   assert.equal(g.control.state.move, 'free');
-  assert.equal(count(g, 'npc spawn r08_thing instant') + count(g, 'npc spawn r08_thing'), 1);
+  assert.equal(count(g, 'npc spawn r08_thing instant') + count(g, 'npc spawn r08_thing'), 0, 'slice-stinger: nobody else in the surgery');
   await advance(g, 30);
   assert.equal(g.ended(), 1, 'never twice');
 });
@@ -826,7 +848,7 @@ test('every dialogue line of the action half is played at least once on the way 
   await playThrough(g, []);
   await until(g, () => g.ended() === 1, 200);
   const used = new Set<string>();
-  for (const def of actionDefs) walk(def.steps, (s) => s['do'] === 'say' && used.add(String(s['line'])));
+  for (const def of actionDefs) walk(def.steps, (s) => s['do'] === 'say' && (Array.isArray(s['line']) ? [] : [String(s['line'])]).forEach((l) => used.add(l)));
   // Everything the sequences can say was said in this run except the hero call (a separate trigger).
   for (const l of used) if (l !== 'climax_okafor_02') assert.ok(said(g, l) >= 1, `${l} was said`);
   assert.ok(used.has('climax_okafor_02'));
@@ -853,6 +875,18 @@ test('a load or restart puts the doors the finished beats opened back, from the 
   noWarnings(g);
 });
 
+test('medbay-attack "Restore after R08": Priya is put back dead in the surgery, with the centre pane\'s marks, and the attack does not replay', () => {
+  const g = makeGame(['action_restore']);
+  setFlags(g, { ...COVER_DONE, armory_open: true, sec_done: true });
+  g.host.events.emit('game:mode', { mode: 'playing' });
+  const kill = at(g, 'npc kill priya instant');
+  assert.ok(at(g, 'npc npcMoveTo priya instant') >= 0 && kill > at(g, 'npc npcMoveTo priya instant'), 'at the glass, then the kill played to its end at once');
+  assert.ok(g.log.lastIndexOf('npc npcMoveTo priya instant') > kill, 'then laid in the surgery');
+  assert.ok(at(g, 'npc npcAnim priya corpseProne instant') > kill, 'dead, lying prone');
+  assert.equal(at(g, 'npc spawn r08_thing'), -1, 'no attacker comes back');
+  noWarnings(g);
+});
+
 test('a counted loop inside a skipped sequence applies its body (a block, not an event loop)', () => {
   const d = validateSequences({
     'x.json': { id: 'blk', skippable: true, steps: [{ do: 'wait', s: 99 }, { do: 'loop', count: 1, steps: [{ do: 'say', line: 'end_giles_06' }, { do: 'setFlag', flag: 'blockDone' }] }] },
@@ -865,17 +899,87 @@ test('a counted loop inside a skipped sequence applies its body (a block, not an
   assert.ok(g.log.includes('played end_giles_06'));
 });
 
-test('every gore step in Priya\'s scene carries the glass clip, and the clip reaches the host', () => {
+/** Into the R08 attack with the kill held open, at its plead beat. */
+async function toPlead(): Promise<Game> {
+  const g = makeGame(undefined, { holdMauled: true });
+  await armoryThenGlass(g);
+  g.clear('r07_playdead');
+  fire(g, 'trigger:r08_glass');
+  await until(g, () => g.kills.length === 1, 30);
+  g.host.events.emit('kill:plead', { npc: 'priya', beat: 'plead' });
+  return g;
+}
+
+test('medbay-attack: banging on the glass thuds and shakes each time, shouts at most every 2.5 s, and changes nothing else', async () => {
+  const g = await toPlead();
+  await advance(g, 0.2);
+  const before = g.log.length;
+  for (let i = 0; i < 5; i++) {
+    fire(g, 'interact:medbay_bang');
+    await advance(g, 0.35);
+  }
+  const during = g.log.slice(before);
+  assert.equal(during.filter((e) => e === 'sfx glassThud').length, 5, 'five thuds');
+  assert.equal(during.filter((e) => e === 'shake').length, 5, 'five shakes');
+  const shouts = during.filter((e) => e.startsWith('say sec_jay_bang_'));
+  assert.equal(shouts.length, 1, `shouts do not pile up (${shouts.join(', ')})`);
+  assert.equal(g.kills.length, 1, 'the kill is unchanged');
+  assert.ok(!during.some((e) => e.startsWith('glass ') || e.startsWith('gore ')), 'the glass does not crack');
+  // A later bang, past the cooldown, shouts the next line in the pool.
+  await advance(g, 2.5);
+  fire(g, 'interact:medbay_bang');
+  await advance(g, 0.1);
+  assert.deepEqual(g.log.filter((e) => e.startsWith('say sec_jay_bang_')), ['say sec_jay_bang_01 overlap', 'say sec_jay_bang_02 overlap']);
+});
+
+test('medbay-attack: a bang brings the stare forward only once the creature is in the medical bay', async () => {
+  const g = await toPlead();
+  fire(g, 'interact:medbay_bang');
+  await advance(g, 0.3);
+  assert.equal(count(g, 'event kill:notice'), 0, 'still in the surgery: no notice');
+  await advance(g, 1.5);
+  fire(g, 'interact:medbay_bang');
+  await advance(g, 0.1);
+  assert.ok(count(g, 'event kill:notice') >= 1, 'in the room: the bang reaches it');
+});
+
+test('medbay-attack: Okafor tries the medical bay door and the lockdown refuses him; Giles cannot override it', async () => {
+  const g = await toPlead();
+  await advance(g, 3);
+  assert.ok(at(g, 'npc npcMoveTo okafor') >= 0);
+  assert.equal(count(g, 'event door:denied'), 1, 'the door refuses (its denied buzzer plays at it)');
+  assert.ok(at(g, 'say sec_giles_06 overlap') > at(g, 'event door:denied'));
+});
+
+test('medbay-attack: every voice is heard; the prompt goes with the grab; silence, then "...Work. We work."', async () => {
+  const g = await toPlead();
+  await advance(g, 2);
+  for (const beat of ['grab', 'haul', 'slam', 'throw', 'reach', 'drag', 'still']) {
+    g.host.events.emit(`kill:${beat}`, { npc: 'priya', beat });
+    await advance(g, 2);
+  }
+  // Okafor (medic), Giles (engineer), Jay (player) from the scene; Priya (nurse) from her kill's beat lines.
+  const speakers = new Set(g.log.filter((e) => e.startsWith('say ')).map((e) => library.line(e.split(' ')[1]!).speaker));
+  for (const sp of ['medic', 'engineer', 'player']) assert.ok(speakers.has(sp), sp);
+  const kills = json('../data/kills.json');
+  const hers = (kills.mauled.beats as Array<{ lines?: string[] }>).flatMap((b) => b.lines ?? []).filter(Boolean);
+  assert.ok(hers.length >= 4 && hers.every((l) => library.line(l).speaker === 'nurse'), 'her lines are hers');
+  assert.ok(said(g, 'sec_okafor_03') === 1 && said(g, 'sec_jay_01') === 1 && said(g, 'sec_jay_02') === 1 && said(g, 'sec_giles_07') === 1);
+  // The aftermath: the kill ends; the surgery door shuts; at least 2 s with no voice; then Okafor.
+  const n = g.log.length;
+  g.kills[0]!.resolve();
+  await advance(g, 2.0);
+  assert.ok(g.log.slice(n).includes('door D_R08_R08b closed'));
+  assert.ok(!g.log.slice(n).some((e) => e.startsWith('say ')), 'no voice for 2 s');
+  await advance(g, 1.0);
+  assert.ok(g.log.slice(n).includes('say sec_okafor_04'));
+});
+
+test('Priya\'s scene has no hand-placed gore (the kill clips its own at the pane), and a gore step\'s clip still reaches the host', () => {
   const sec = actionDefs.find((d) => d.id === 'sec_glass')!;
   let n = 0;
-  walk(sec.steps, (st) => {
-    if (st['do'] !== 'gore') return;
-    n++;
-    assert.equal(st['clipAxis'], 'z');
-    assert.equal(st['clipKeep'], 'above');
-    assert.ok(Number(st['clipAt']) > 46 && Number(st['clipAt']) < 46.5);
-  });
-  assert.ok(n >= 6);
+  walk(sec.steps, (st) => void (st['do'] === 'gore' && !(st['kind'] === 'pool' && st['at'] === 'anchor:priya_pool') && n++));
+  assert.equal(n, 0, 'medbay-attack: the mauled kill derives its gore clip from the centre pane (z 45.78); only her floor pool is placed');
   const g = makeGame();
   let seen: unknown;
   g.host.gore = (_k, _a, _d, _c, _s, clip) => void (seen = clip);
@@ -1061,4 +1165,18 @@ test('speaker shot: skipping or ending the sequence releases the view', () => {
   const n = g.frames.length;
   g.speak('engineer');
   assert.equal(g.frames.length, n, 'listener gone');
+});
+
+// infection-kills "The fight is the creature" and adaptive-music "The Lab B score follows the incident".
+test('first contact releases the creature from the glass as the enemy, and the score rises, slams and ends on its death', () => {
+  const contact = byId.get('contact')!;
+  const steps: Array<Record<string, unknown>> = [];
+  walk(contact.steps, (s) => steps.push(s));
+  const release = steps.find((s) => s['do'] === 'spawnGroup' && s['group'] === 'r05_contact');
+  assert.equal(release?.['from'], 'npc:researcher_b_creature', 'the creature itself comes through the door');
+  assert.ok(!steps.some((s) => s['do'] === 'despawn' && s['npc'] === 'researcher_b_creature'), 'no stand-in swap');
+  const spawn = level.rooms.flatMap((r: any) => r.spawns ?? []).find((s: any) => s.id === 'r05_door');
+  assert.equal(spawn.look, 'lab_creature', "the enemy wears the creature's body");
+  const order = steps.filter((s) => s['do'] === 'score' || (s['do'] === 'waitGroup' && s['group'] === 'r05_contact')).map((s) => String(s['cue'] ?? s['stinger'] ?? s['do']));
+  assert.deepEqual(order, ['contact', 'rise', 'door', 'waitGroup', 'end']);
 });

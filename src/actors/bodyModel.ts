@@ -301,8 +301,8 @@ export function prepareBodyModel(root: THREE.Object3D, opts: PrepareOptions = {}
     for (let i = 0; i < bones.length; i++) {
       const { side, rest } = sideOf(normaliseBoneName(bones[i]!.name));
       if (!side) continue;
-      // Forearm twist bones: ForearmTwist01/02 (CC/doctor) or ForeArm1/2 (Mixamo/priya/hale).
-      if (i !== pv[`foreArm_${side}`] && /^forearm(?:twist)?\d+$/.test(rest)) {
+      // Forearm twist bones: ForearmTwist01/02 (CC/doctor), ForeArm1/2 (Mixamo/priya/hale) or lowerarm_twist (Renderpeople/office3).
+      if (i !== pv[`foreArm_${side}`] && (/^forearm(?:twist)?\d+$/.test(rest) || /^(?:fore|lower)arm_?twist_?\d*$/.test(rest))) {
         const pA = poser.pos(pv[`foreArm_${side}`]);
         const pB = poser.pos(pv[`hand_${side}`]);
         const seg = pB.clone().sub(pA);
@@ -313,7 +313,7 @@ export function prepareBodyModel(root: THREE.Object3D, opts: PrepareOptions = {}
         }
         continue;
       }
-      const fm = /^(?:hand)?(thumb|index|middle|ring|pinky|little)([1-4]|[a-d])$/.exec(rest);
+      const fm = /^(?:hand)?(thumb|index|middle|ring|pinky|little)_?0?([1-4]|[a-d])$/.exec(rest);
       if (!fm) continue;
       const fName = (fm[1] === 'little' ? 'pinky' : fm[1]) as FingerName;
       const ord = fingerLetter[fm[2]!] ?? Number(fm[2]);

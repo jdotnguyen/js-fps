@@ -60,6 +60,11 @@ export interface LimbContactInput {
   /** True when the body is alive, near enough, and not lying/ragdolling. */
   enabled: boolean;
   dt: number;
+  /**
+   * Keep the arm's own elbow direction when pushing a hand clear, instead of the anatomical outward-and-back pole: the pose has
+   * placed the elbow on purpose (hands on hips with the elbows out wide, or arms crossed). Off by default.
+   */
+  keepElbows?: boolean;
 }
 
 interface WorldCapsule {
@@ -770,7 +775,8 @@ export class LimbContactSolver {
         const torsoSwing = THREE.MathUtils.clamp(torsoPushMag / 0.14, 0, 1);
         const poleZ = THREE.MathUtils.lerp(0.78, -0.35, torsoSwing);
         const poleX = xSign * THREE.MathUtils.lerp(0.68, 0.92, torsoSwing);
-        input.group.localToWorld(vPole.set(poleX, Math.max(0.55, (vShoulder.y - floorY) - 0.25), poleZ));
+        if (input.keepElbows) vPole.copy(vElbow);
+        else input.group.localToWorld(vPole.set(poleX, Math.max(0.55, (vShoulder.y - floorY) - 0.25), poleZ));
         solveTwoBone(upper, fore, hand, vTarget, vPole, 1);
         solvedAny = true;
       }
