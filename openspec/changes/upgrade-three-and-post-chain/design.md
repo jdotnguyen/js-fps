@@ -135,6 +135,35 @@ What to look for:
 - **total: 1020 MiB**
 - 131 programs and 24 framebuffers
 
+## Upgrade steps
+
+Every step re-shoots the four Baseline pins and re-times the two timing pins, on the same window and settings.
+
+**`npm test` reference.** On r170 the full suite has 7 failures that are not caused by this change:
+- the three slice01 walk tests;
+- the R03 light-slot claim;
+- finger bones on every named body;
+- dock_guard motion binding;
+- chair reach-and-sit.
+
+A step passes `npm test` when it fails exactly these 7 and no others.
+
+**0.175.0 (2.1).** Two breaks:
+- **SMAA:** `SMAAPass` takes no constructor arguments from r175, not r187. The composer still sizes it in `addPass` and `setSize`.
+- **GTAO hook:** `GTAOPass.overrideVisibility` became the private `_overrideVisibility`. `@types/three` still declares the public name, so the typecheck passed, and the game failed at boot with "Cannot read properties of undefined (reading 'bind')". `post.ts` now wraps `_overrideVisibility` and throws a clear error if it is missing. Section 3 removes `GTAOPass`.
+
+One type-only fix: `@types/three` 0.175 gives `morphAttributes` fixed keys, so `merge.ts` deletes the keys instead of assigning `{}`.
+
+Results:
+- typecheck: 0 errors
+- `npm test`: 1171 pass, the same 7 failures as r170
+- console: no three.js or shader warnings
+- the four pins match r170 by eye (exposure, colour, the sofa's soft shadow, the flashlight shadow, no AO marks under the commons lights)
+- 1% lows: 59.4 at the commons pin and at the R03-pane pin
+- GPU memory: 1020 MiB, 131 programs, the same as r170
+
+Unrelated to the upgrade: three ambience one-shots referenced in `sounds.ts` (`archPass`, `archAlarm`, `wandBeep`) are missing from `public/assets` on `foundation`. Each page load logs a decode warning for them.
+
 ## Open Questions
 
 - Final tuned values (shadow radius per light kind, `n8ao` and bloom parameters) are found by screenshot during implementation and recorded here before archiving.

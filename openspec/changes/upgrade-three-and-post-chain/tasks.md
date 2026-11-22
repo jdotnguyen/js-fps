@@ -8,7 +8,7 @@
 
 ## 2. Stepwise three upgrade (three's own `EffectComposer` throughout)
 
-- [ ] 2.1 Upgrade `three` and `@types/three` to 0.175.0 and fix what breaks. Verify `npm run typecheck` and `npm test` pass, the console shows no shader warnings, and screenshots match the baseline in mood.
+- [x] 2.1 Upgrade `three` and `@types/three` to 0.175.0 and fix what breaks. Verify `npm run typecheck` and `npm test` pass, the console shows no shader warnings, and screenshots match the baseline in mood.
 - [ ] 2.2 Upgrade to 0.180.0 and fix what breaks. Verify as in 2.1.
 - [ ] 2.3 Upgrade to 0.183.0 and retune the flashlight and `SHADOW_CONES` bias and normal bias for r183's shadow changes. Verify as in 2.1, plus a test that each cone kind still sets its bias, and the flashlight shadow screenshot has no acne or peter-panning.
 - [ ] 2.4 Upgrade to 0.187.0. Switch `renderer.shadowMap.type` to `PCFShadowMap`, give the flashlight and each `SHADOW_CONES` kind a `shadow.radius` tuned to the baseline's soft edge, change `new SMAAPass(w, h)` to `new SMAAPass()`, and retune `GTAOPass` for its r181 to r186 output changes. Verify as in 2.1, plus a test that no light uses `PCFSoftShadowMap` and every shadow light has a radius above 1. The console must show no "PCFSoftShadowMap has been removed" warning, and the sofa and flashlight shadows must have soft edges (render-lighting: Shadows have soft edges).

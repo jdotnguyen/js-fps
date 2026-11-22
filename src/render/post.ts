@@ -92,8 +92,12 @@ export function createPost(
   gtao.blendIntensity = 0.9;
   // Exclude transparent / non-depth-writing meshes (e.g. volumetric light shafts, decals, glass)
   // from the GTAO normal/depth pass so they don't cast solid AO shadows onto the floor.
-  const origOverride = gtao.overrideVisibility.bind(gtao);
-  gtao.overrideVisibility = () => {
+  // three r175 made the hook private (`_overrideVisibility`); @types/three still declares the old public name,
+  // so the typecheck cannot catch a rename here. `_restoreVisibility` restores from values cached before this runs.
+  const hooks = gtao as unknown as { _overrideVisibility: () => void };
+  if (typeof hooks._overrideVisibility !== 'function') throw new Error('GTAOPass._overrideVisibility is missing; the AO exclusion needs porting');
+  const origOverride = hooks._overrideVisibility.bind(gtao);
+  hooks._overrideVisibility = () => {
     origOverride();
     scene.traverse((obj) => {
       if (!obj.visible || !(obj instanceof THREE.Mesh)) return;
@@ -127,7 +131,8 @@ export function createPost(
   );
   composer.addPass(new OutputPass());
   // Edge anti-aliasing last, on the display-referred image (render-quality spec); Low skips it.
-  const smaa = new SMAAPass(size.x * renderer.getPixelRatio(), size.y * renderer.getPixelRatio());
+  // No size arguments since r175: the composer sizes it in addPass and setSize.
+  const smaa = new SMAAPass();
   composer.addPass(smaa);
 
   const post: Post = {
