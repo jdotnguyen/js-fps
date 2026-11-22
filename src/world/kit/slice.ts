@@ -1172,25 +1172,38 @@ const GEN: Record<string, Gen> = {
   console_bank(p, _rng, m, pb) {
     const w = numParam(p, 'width', 3);
     const mode = strParam(p, 'mode', 'control');
-    pb.add(rounded(w, 0.85, 0.75, 0.03), m.paintDark, at(0, 0.425, 0));
-    pb.add(rounded(w + 0.1, 0.05, 0.9, 0.015), m.steel, at(0, 0.875, -0.05));
+    const pal = resolvePalette(p, m);
+    const clean = pal.doorPanel !== m.paintDark;
+    const bodyMat = clean ? pal.doorPanel : m.paintDark;
+    const trimMat = clean ? m.steelBrushed : m.steel;
+    pb.add(rounded(w, 0.85, 0.75, 0.03), bodyMat, at(0, 0.425, 0));
+    pb.add(rounded(w + 0.1, 0.05, 0.9, 0.015), trimMat, at(0, 0.875, -0.05));
     for (let i = 0; i < Math.floor(w / 0.5); i++) pb.add(slab(0.03, 0.012, 0.03), glow('bank-amber', 0xffa21a, 2.2), at(-w / 2 + 0.25 + i * 0.5, 0.906, -0.25));
     pb.add(rounded(w - 0.2, 0.04, 0.28, 0.01), m.rubber, at(0, 0.92, -0.18));
     const screen = new CanvasScreen(1024, 192, (ctx, t, cw, ch) => drawBank(ctx, t, cw, ch, mode), 1.3, 6);
-    pb.add(rounded(w - 0.1, 0.6, 0.1, 0.02), m.paintDark, at(0, 1.4, 0.28, 0.2, 0, 0));
+    pb.add(rounded(w - 0.1, 0.6, 0.1, 0.02), bodyMat, at(0, 1.4, 0.28, 0.2, 0, 0));
     const disp = screenPlane(screen.material, w - 0.2, 0.5, 0, 1.4, 0.225);
     disp.rotation.x = 0.2;
     pb.dynamic(disp);
-    pb.add(cylinderBetween(V(0, 0.9, 0.3), V(0, 1.12, 0.3), 0.04), m.steel);
+    pb.add(cylinderBetween(V(0, 0.9, 0.3), V(0, 1.12, 0.3), 0.04), trimMat);
     pb.tick((t) => screen.update(t));
     pb.solid(-w / 2, 0, -0.48, w / 2, 1.0, 0.4, 'metal');
   },
 
   armory_rack(p, _rng, m, pb) {
     const w = numParam(p, 'width', 2);
+    const pal = resolvePalette(p, m);
+    const clean = pal.doorPanel !== m.paintDark;
+    const frameMat = clean ? m.steelBrushed : m.steel;
+    const stockMat = clean ? pal.doorPanel : m.paintDark;
+    const caseMat = clean ? m.cleanTeal : m.paintTeal;
     pb.add(slab(w, 2.0, 0.08), m.grating, at(0, 1.1, 0.2));
-    for (const x of [-w / 2, w / 2]) pb.add(slab(0.06, 2.2, 0.5), m.steel, at(x, 1.1, 0));
-    pb.add(slab(w, 0.05, 0.5), m.steel, at(0, 0.5, 0));
+    for (const x of [-w / 2, w / 2]) pb.add(slab(0.06, 2.2, 0.5), frameMat, at(x, 1.1, 0));
+    pb.add(slab(w, 0.05, 0.5), frameMat, at(0, 0.5, 0));
+    if (clean) {
+      pb.add(slab(w, 0.05, 0.44), frameMat, at(0, 2.18, 0.02));
+      pb.add(slab(w - 0.2, 0.025, 0.05), glow('rack-strip', 0xeaf4ff, 1.6), at(0, 2.14, -0.14));
+    }
     const empty = Math.round(numParam(p, 'empty', 1));
     const slots = Math.max(2, Math.floor(w / 0.35));
     for (let i = 0; i < slots; i++) {
@@ -1199,9 +1212,9 @@ const GEN: Record<string, Gen> = {
       pb.add(slab(0.08, 0.06, 0.12), m.rubber, at(x, 0.62, 0.1));
       if (i < empty) continue;
       pb.add(slab(0.05, 1.05, 0.12), m.black, at(x, 1.2, 0.06));
-      pb.add(slab(0.06, 0.25, 0.18), m.paintDark, at(x, 0.85, 0.04));
+      pb.add(slab(0.06, 0.25, 0.18), stockMat, at(x, 0.85, 0.04));
     }
-    for (let i = 0; i < 3; i++) pb.add(rounded(0.3, 0.18, 0.22, 0.01), m.paintTeal, at(-w / 2 + 0.3 + i * 0.36, 0.09, -0.05));
+    for (let i = 0; i < 3; i++) pb.add(rounded(0.3, 0.18, 0.22, 0.01), caseMat, at(-w / 2 + 0.3 + i * 0.36, 0.09, -0.05));
     pb.add(slab(0.6, 0.12, 0.02), stencilMat('ARMORY - SEC 07'), at(0, 2.3, 0.15));
     pb.solid(-w / 2, 0, -0.27, w / 2, 2.2, 0.27, 'metal');
   },

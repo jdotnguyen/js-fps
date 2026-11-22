@@ -702,19 +702,52 @@ prop(R06, 'bloom_decal', [-3.25, 0, 37.73], 0, { w: 0.8, h: 1.1, y: 0.95, seed: 
 // ---------------------------------------------------------------- R07 security + armory, R08 medical bay
 const R07 = room('R07', 'Security Office', rect(-1, 1, 10, 11), {
   area: 'security',
-  atmosphere: { fog: '#06080a', fogDensity: 0.045, reverb: 'small_office', ambience: 'office_hvac' },
-  lights: [L(0, 'steady', '#e0ecff', 8), L(2, 'steady', '#e0ecff', 8), L(4, 'flicker', '#e0ecff', 6)],
+  atmosphere: { fog: '#090d11', fogDensity: 0.022, reverb: 'small_office', ambience: 'office_hvac' },
+  // 3 pooled + 3 glow-only: keeps R07 slightly dimmer than R08 while staying inside the 8-light shared pool with R08 (3) and R07a (2).
+  lights: [
+    L(0, 'steady', '#e6f0ff', 8, 10),
+    L(1, 'steady', '#e6f0ff', undefined, undefined, { pool: false, emissive: 2.0, shaft: 0 }),
+    L(2, 'steady', '#e6f0ff', 8, 10),
+    L(3, 'steady', '#e6f0ff', undefined, undefined, { pool: false, emissive: 1.6, shaft: 0 }),
+    L(4, 'flicker', '#e6f0ff', 6.5, 9),
+    L(5, 'steady', '#e6f0ff', undefined, undefined, { pool: false, emissive: 1.6, shaft: 0 }),
+  ],
 });
-const R07a = room('R07a', 'Armory', [[2, 10]], { area: 'security', atmosphere: { fog: '#06080a', fogDensity: 0.045, reverb: 'small_office' }, walls: ['wall_plain'], lights: [L(0, 'steady', '#ffe0b0', 7)] });
+const R07a = room('R07a', 'Armory', [[2, 10]], {
+  area: 'security',
+  wallMaterial: 'cleanWall',
+  atmosphere: { fog: '#0c1014', fogDensity: 0.018, reverb: 'small_office' },
+  walls: ['wall_plain'],
+  // 2 pooled lights: crisp overhead work light (slot 0) + dedicated pendant over the east shotgun rack (slot 1).
+  lights: [
+    L(0, 'steady', '#f4f8ff', 12, 10, { shaft: 0.03, emissive: 2.8 }),
+    L(1, 'steady', '#fff4e0', 9, 7, { emissive: 3.0 }),
+  ],
+});
 const R08 = room('R08', 'Medical Bay', rect(-1, 1, 12, 13), {
   area: 'medbay',
-  atmosphere: { fog: '#05090a', fogDensity: 0.04, reverb: 'small_office', ambience: 'med_beeps' },
+  atmosphere: { fog: '#081012', fogDensity: 0.018, reverb: 'small_office', ambience: 'med_beeps' },
   floor: 'floor_tiles',
   walls: ['wall_tiles'],
-  // medbay-attack staging: a steady key over the cart (cell 0,12), a flicker over the door and the lane, low over the beds.
-  lights: [L(0, 'steady', '#eaf6ff', 5), L(1, 'steady', '#eaf6ff', 9), L(2, 'flicker', '#eaf6ff', 7)],
+  // medbay-attack staging: 3 pooled on the front row (steady key over the cart at cell 0,12, flicker over the door and
+  // lane, soft fill over beds) + 3 low-emissive glow-only back-row fixtures so the ceiling has no dark diffusers.
+  lights: [
+    L(0, 'steady', '#eef8ff', 6, 10),
+    L(1, 'steady', '#f2faff', 11, 11, { shaft: 0.035, emissive: 2.8 }),
+    L(2, 'flicker', '#eef8ff', 7.5, 10),
+    L(3, 'steady', '#eef8ff', undefined, undefined, { pool: false, emissive: 1.4, shaft: 0 }),
+    L(4, 'steady', '#eef8ff', undefined, undefined, { pool: false, emissive: 1.4, shaft: 0 }),
+    L(5, 'steady', '#eef8ff', undefined, undefined, { pool: false, emissive: 1.4, shaft: 0 }),
+  ],
 });
-const R08b = room('R08b', 'Surgery', [[2, 13]], { area: 'medbay', hidden: true, floor: 'floor_tiles', walls: ['wall_tiles'], atmosphere: { fog: '#05090a', fogDensity: 0.05, reverb: 'small_office' }, lights: [L(0, 'dying', '#eaf6ff', 6)] });
+const R08b = room('R08b', 'Surgery', [[2, 13]], {
+  area: 'medbay',
+  hidden: true,
+  floor: 'floor_tiles',
+  walls: ['wall_tiles'],
+  atmosphere: { fog: '#081012', fogDensity: 0.022, reverb: 'small_office' },
+  lights: [L(0, 'dying', '#eef8ff', 7.5, 9)],
+});
 // Two panes and the medical bay door (medbay-attack spec): the east edge is the sealed glass door Okafor tries.
 for (const x of [-1, 0]) glass('R07', x, 11, 's');
 // Each pane its own id (medbay-attack spec "Only the struck pane"): the kill's marks land where Priya touches the centre
@@ -739,19 +772,29 @@ prop(R07, 'locker', [3.4, 0, 38.55], 180, { count: 2, label: 'SEC-07' });
 prop(R07, 'desk', [-5.3, 0, 42.6], 90, { width: 1.6 });
 prop(R07, 'chair', [-4.4, 0, 43.9], 200);
 prop(R07, 'emergency_beacon', [-5.7, 2.6, 41], 90, { wall: true });
-// R07a: the rack faces the door so the Breacher is framed as it opens; a looted rack and a shelf for the ammo.
+// Purposeful security dressing (overhaul-security-medbay-look): shift roster, clock, and desktop items.
+wallKit(R07, -1, 10, 'w', 'wall_plain');
+wallProp(R07, 'notice_board', -1, 10, 'w', 0, { text: 'SECURITY WATCH', detail: 'LOCKDOWN PROTOCOL' });
+wallProp(R07, 'wall_clock', 1, 10, 'n', 0.4, { y: 2.75 });
+prop(R07, 'mug', [-2.65, 0.9, 38.62], 40, { color: 'teal' });
+prop(R07, 'desk_wand', [-5.15, 0.775, 42.15], 115, { id: 'r07_wand' });
+// R07a: the rack faces the door so the Breacher is framed as it opens; a looted rack, a shelf for the ammo, and a dedicated rack lamp.
 prop(R07a, 'armory_rack', [9.45, 0, 40], 90, { width: 2.4, empty: 2 });
 prop(R07a, 'armory_rack', [8.2, 0, 38.55], 180, { width: 1.6, empty: 3 });
 prop(R07a, 'storage_shelf', [7.9, 0, 41.45], 0, { width: 1.6 });
-// R08 medical bay: only the cart in front of the centre pane (the stage); beds and vitals on the west wall; bench,
-// shelf and the parked gurney on the south wall; the lane x 2.5..5.75 from the door to the surgery stays empty.
+prop(R07a, 'pendant_light', [8.8, 0, 40.0], 0, { ceiling: 3.2, drop: 0.72, count: 1, slots: true });
+// R08 medical bay: only the cart in front of the centre pane (the stage); beds and vitals on the west wall; clinical
+// storage, glass supply cabinet, bench, scrub sink and parked gurney on the south wall; the lane x 2.5..5.75 stays empty.
 prop(R08, 'instrument_cart', [0, 0, 47.4], 0);
 prop(R08, 'med_bed', [-4.7, 0, 48.6], 90);
 prop(R08, 'console', [-5.3, 0, 50.1], 270, { screen: 'status' });
 prop(R08, 'med_bed', [-4.7, 0, 51.6], 90);
-prop(R08, 'lab_bench', [-1.4, 0, 53.35], 0, { width: 3.2 });
-prop(R08, 'storage_shelf', [-4.6, 0, 53.45], 0, { width: 1.6 });
+prop(R08, 'storage_shelf', [-4.9, 0, 53.45], 0, { width: 1.6 });
+prop(R08, 'lab_cabinet', [-3.4, 0, 53.48], 0);
+prop(R08, 'lab_bench', [-1.45, 0, 53.35], 0, { width: 2.4 });
+prop(R08, 'bio_wash_station', [0.35, 0, 53.5], 0);
 prop(R08, 'gurney', [2.0, 0, 53.3], 90);
+wallProp(R08, 'wall_clock', 0, 13, 's', 0, { y: 2.75 });
 // R08b surgery: the bed, and a shelf on the north wall behind the stinger camera (no specimen tank).
 prop(R08b, 'med_bed', [8, 0, 52], 0);
 prop(R08b, 'storage_shelf', [7.3, 0, 50.55], 180, { width: 1.6 });

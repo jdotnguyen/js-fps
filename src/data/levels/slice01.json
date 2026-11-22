@@ -5045,8 +5045,8 @@
    "name": "Security Office",
    "area": "security",
    "atmosphere": {
-    "fog": "#06080a",
-    "fogDensity": 0.045,
+    "fog": "#090d11",
+    "fogDensity": 0.022,
     "reverb": "small_office",
     "ambience": "office_hvac"
    },
@@ -5153,12 +5153,17 @@
      ]
     },
     {
-     "kit": "wall_panel",
+     "kit": "wall_plain",
      "cells": [
       [
        -1,
        0,
        10
+      ],
+      [
+       -1,
+       0,
+       11
       ]
      ],
      "rot": 90
@@ -5178,17 +5183,6 @@
       ]
      ],
      "rot": 180
-    },
-    {
-     "kit": "wall_plain",
-     "cells": [
-      [
-       -1,
-       0,
-       11
-      ]
-     ],
-     "rot": 90
     }
    ],
    "props": [
@@ -5308,26 +5302,102 @@
      "params": {
       "wall": true
      }
+    },
+    {
+     "kit": "notice_board",
+     "pos": [
+      -5.69,
+      0,
+      40
+     ],
+     "rot": 270,
+     "params": {
+      "text": "SECURITY WATCH",
+      "detail": "LOCKDOWN PROTOCOL"
+     }
+    },
+    {
+     "kit": "wall_clock",
+     "pos": [
+      4.4,
+      0,
+      38.31
+     ],
+     "rot": 180,
+     "params": {
+      "y": 2.75
+     }
+    },
+    {
+     "kit": "mug",
+     "pos": [
+      -2.65,
+      0.9,
+      38.62
+     ],
+     "rot": 40,
+     "params": {
+      "color": "teal"
+     }
+    },
+    {
+     "kit": "desk_wand",
+     "pos": [
+      -5.15,
+      0.78,
+      42.15
+     ],
+     "rot": 115,
+     "params": {
+      "id": "r07_wand"
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#e0ecff",
-     "intensity": 8
+     "color": "#e6f0ff",
+     "intensity": 8,
+     "range": 10
+    },
+    {
+     "slot": 1,
+     "pattern": "steady",
+     "color": "#e6f0ff",
+     "pool": false,
+     "emissive": 2,
+     "shaft": 0
     },
     {
      "slot": 2,
      "pattern": "steady",
-     "color": "#e0ecff",
-     "intensity": 8
+     "color": "#e6f0ff",
+     "intensity": 8,
+     "range": 10
+    },
+    {
+     "slot": 3,
+     "pattern": "steady",
+     "color": "#e6f0ff",
+     "pool": false,
+     "emissive": 1.6,
+     "shaft": 0
     },
     {
      "slot": 4,
      "pattern": "flicker",
-     "color": "#e0ecff",
-     "intensity": 6
+     "color": "#e6f0ff",
+     "intensity": 6.5,
+     "range": 9
+    },
+    {
+     "slot": 5,
+     "pattern": "steady",
+     "color": "#e6f0ff",
+     "pool": false,
+     "emissive": 1.6,
+     "shaft": 0
     }
    ],
    "triggers": [
@@ -5524,8 +5594,8 @@
    "name": "Armory",
    "area": "security",
    "atmosphere": {
-    "fog": "#06080a",
-    "fogDensity": 0.045,
+    "fog": "#0c1014",
+    "fogDensity": 0.018,
     "reverb": "small_office"
    },
    "pieces": [
@@ -5555,7 +5625,10 @@
        0,
        10
       ]
-     ]
+     ],
+     "params": {
+      "material": "cleanWall"
+     }
     },
     {
      "kit": "wall_plain",
@@ -5566,6 +5639,9 @@
        10
       ]
      ],
+     "params": {
+      "material": "cleanWall"
+     },
      "rot": 270
     },
     {
@@ -5577,6 +5653,9 @@
        10
       ]
      ],
+     "params": {
+      "material": "cleanWall"
+     },
      "rot": 180
     }
    ],
@@ -5617,14 +5696,39 @@
      "params": {
       "width": 1.6
      }
+    },
+    {
+     "kit": "pendant_light",
+     "pos": [
+      8.8,
+      0,
+      40
+     ],
+     "params": {
+      "ceiling": 3.2,
+      "drop": 0.72,
+      "count": 1,
+      "slots": true
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#ffe0b0",
-     "intensity": 7
+     "color": "#f4f8ff",
+     "intensity": 12,
+     "range": 10,
+     "shaft": 0.03,
+     "emissive": 2.8
+    },
+    {
+     "slot": 1,
+     "pattern": "steady",
+     "color": "#fff4e0",
+     "intensity": 9,
+     "range": 7,
+     "emissive": 3
     }
    ],
    "triggers": [
@@ -5679,8 +5783,8 @@
    "name": "Medical Bay",
    "area": "medbay",
    "atmosphere": {
-    "fog": "#05090a",
-    "fogDensity": 0.04,
+    "fog": "#081012",
+    "fogDensity": 0.018,
     "reverb": "small_office",
     "ambience": "med_beeps"
    },
@@ -5860,26 +5964,42 @@
      "rot": 90
     },
     {
-     "kit": "lab_bench",
-     "pos": [
-      -1.4,
-      0,
-      53.35
-     ],
-     "params": {
-      "width": 3.2
-     }
-    },
-    {
      "kit": "storage_shelf",
      "pos": [
-      -4.6,
+      -4.9,
       0,
       53.45
      ],
      "params": {
       "width": 1.6
      }
+    },
+    {
+     "kit": "lab_cabinet",
+     "pos": [
+      -3.4,
+      0,
+      53.48
+     ]
+    },
+    {
+     "kit": "lab_bench",
+     "pos": [
+      -1.45,
+      0,
+      53.35
+     ],
+     "params": {
+      "width": 2.4
+     }
+    },
+    {
+     "kit": "bio_wash_station",
+     "pos": [
+      0.35,
+      0,
+      53.5
+     ]
     },
     {
      "kit": "gurney",
@@ -5889,26 +6009,66 @@
       53.3
      ],
      "rot": 90
+    },
+    {
+     "kit": "wall_clock",
+     "pos": [
+      0,
+      0,
+      53.69
+     ],
+     "params": {
+      "y": 2.75
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#eaf6ff",
-     "intensity": 5
+     "color": "#eef8ff",
+     "intensity": 6,
+     "range": 10
     },
     {
      "slot": 1,
      "pattern": "steady",
-     "color": "#eaf6ff",
-     "intensity": 9
+     "color": "#f2faff",
+     "intensity": 11,
+     "range": 11,
+     "shaft": 0.035,
+     "emissive": 2.8
     },
     {
      "slot": 2,
      "pattern": "flicker",
-     "color": "#eaf6ff",
-     "intensity": 7
+     "color": "#eef8ff",
+     "intensity": 7.5,
+     "range": 10
+    },
+    {
+     "slot": 3,
+     "pattern": "steady",
+     "color": "#eef8ff",
+     "pool": false,
+     "emissive": 1.4,
+     "shaft": 0
+    },
+    {
+     "slot": 4,
+     "pattern": "steady",
+     "color": "#eef8ff",
+     "pool": false,
+     "emissive": 1.4,
+     "shaft": 0
+    },
+    {
+     "slot": 5,
+     "pattern": "steady",
+     "color": "#eef8ff",
+     "pool": false,
+     "emissive": 1.4,
+     "shaft": 0
     }
    ],
    "anchors": [
@@ -6073,8 +6233,8 @@
    "area": "medbay",
    "hidden": true,
    "atmosphere": {
-    "fog": "#05090a",
-    "fogDensity": 0.05,
+    "fog": "#081012",
+    "fogDensity": 0.022,
     "reverb": "small_office"
    },
    "pieces": [
@@ -6155,8 +6315,9 @@
     {
      "slot": 0,
      "pattern": "dying",
-     "color": "#eaf6ff",
-     "intensity": 6
+     "color": "#eef8ff",
+     "intensity": 7.5,
+     "range": 9
     }
    ],
    "anchors": [

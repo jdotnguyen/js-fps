@@ -7,6 +7,8 @@ import { PHOTO_SLOT_KEYS } from '../../render/tex/manifest.ts';
 import { AREA_PALETTES, DEFAULT_PALETTE, PALETTE_MATERIAL_KEYS, isPaletteMaterialKey, paletteFor, resolvePalette } from './palettes.ts';
 import { Rng } from '../../core/rng.ts';
 import { STRUCTURE_PIECES } from './structure.ts';
+import { PROP_PIECES } from './props.ts';
+import { SLICE_PROPS, SLICE_STRUCTURE } from './slice.ts';
 
 // Area palettes (openspec adopt-photoscanned-textures, group 5): every slice01 area has one, every entry names a
 // real Materials key, hazard stripes are rusty only in the tunnel (the dive bay went clean in rebuild-dive-bay), and `params.material` overrides.
@@ -79,13 +81,25 @@ test('resolvePalette follows the area and falls back to the default for unknown 
   assert.equal(admin.doorPanel, m.steelDark);
   assert.equal(admin.doorGlassBar, m.steelBrushed);
   const med = resolvePalette({ area: 'medbay' }, m);
-  assert.equal(med.wallMain, m.paintBone);
+  assert.equal(med.wallMain, m.cleanWall);
+  assert.equal(med.wallAlt, m.cleanTeal);
+  assert.equal(med.ceiling, m.officeCeiling);
+  assert.equal(med.trim, m.steelBrushed);
   assert.equal(med.floor, m.labTile);
-  assert.equal(med.wallAlt, m.paintBone, 'wallAlt defaults to wallMain');
-  assert.equal(med.ceiling, m.paintDark, 'ceiling defaults to paintDark');
-  assert.equal(med.trim, m.steel, 'trim defaults to steel');
-  assert.equal(med.floorAlt, m.steel, 'floorAlt defaults to steel');
+  assert.equal(med.floorAlt, m.steelBrushed);
+  assert.equal(med.doorSurround, m.cleanWall);
+  assert.equal(med.doorPanel, m.steelDark);
+  assert.equal(med.doorGlassBar, m.steelBrushed);
   assert.equal(med.hazard, m.hazardClean);
+  const sec = resolvePalette({ area: 'security' }, m);
+  assert.equal(sec.wallMain, m.cleanSlate);
+  assert.equal(sec.wallAlt, m.cleanWall);
+  assert.equal(sec.ceiling, m.officeCeiling);
+  assert.equal(sec.trim, m.steelBrushed);
+  assert.equal(sec.floor, m.rubber);
+  assert.equal(sec.doorSurround, m.cleanSlate);
+  assert.equal(sec.doorPanel, m.steelDark);
+  assert.equal(sec.hazard, m.hazardClean);
   assert.equal(paletteFor('nowhere'), DEFAULT_PALETTE);
   assert.equal(resolvePalette({}, m).wallMain, m[DEFAULT_PALETTE.wallMain]);
 });
@@ -154,4 +168,43 @@ test('Lab wing walls: the labs palette is clean, with a slate band and no worn s
     if (k === 'overridden') continue;
     for (const w of WORN_SLOTS) assert.notEqual(v, m[w], `labs.${k} is ${w}`);
   }
+});
+
+test('security and medbay palettes are clean (no worn slots) and clean props honor them', () => {
+  const m = stubMaterials();
+  for (const area of ['security', 'medbay'] as const) {
+    const pal = resolvePalette({ area }, m);
+    for (const [k, v] of Object.entries(pal)) {
+      if (k === 'overridden') continue;
+      for (const w of WORN_SLOTS) assert.notEqual(v, m[w], `${area}.${k} is ${w}`);
+    }
+  }
+  const noop = (): void => undefined;
+  const ctx = new Proxy({} as Record<string | symbol, unknown>, {
+    get: (t, k) => (k in t ? t[k] : k === 'measureText' ? () => ({ width: 10 }) : noop),
+    set: (t, k, v) => ((t[k] = v), true),
+  });
+  (globalThis as { document?: unknown }).document ??= { createElement: () => ({ width: 1, height: 1, getContext: () => ctx, style: {} }) };
+  const meshMats = (out: { object: THREE.Object3D }): Set<string> => {
+    const names = new Set<string>();
+    out.object.traverse((c) => {
+      if (c instanceof THREE.Mesh) names.add((Array.isArray(c.material) ? c.material[0] : c.material).name);
+    });
+    return names;
+  };
+  const bedClean = meshMats(PROP_PIECES.find((p) => p.id === 'med_bed')!.generate({ area: 'medbay' }, new Rng('bed'), m));
+  assert.ok(bedClean.has('cleanWall') && bedClean.has('steelDark'), `clean med_bed uses cleanWall + steelDark (${[...bedClean].join(', ')})`);
+  assert.ok(!bedClean.has('paintBone') && !bedClean.has('paintDark'), 'clean med_bed drops worn paint');
+
+  const bankClean = meshMats(SLICE_PROPS.find((p) => p.id === 'console_bank')!.generate({ area: 'security' }, new Rng('bank'), m));
+  assert.ok(bankClean.has('steelDark') && bankClean.has('steelBrushed'), `clean console_bank uses steelDark + steelBrushed (${[...bankClean].join(', ')})`);
+  assert.ok(!bankClean.has('paintDark'), 'clean console_bank drops paintDark');
+
+  const rackClean = meshMats(SLICE_PROPS.find((p) => p.id === 'armory_rack')!.generate({ area: 'security', width: 2.4, empty: 2 }, new Rng('rack'), m));
+  assert.ok(rackClean.has('steelDark') && rackClean.has('cleanTeal') && rackClean.has('glow-rack-strip'), `clean armory_rack uses clean materials and header glow (${[...rackClean].join(', ')})`);
+  assert.ok(!rackClean.has('paintDark') && !rackClean.has('paintTeal'), 'clean armory_rack drops worn paint');
+
+  const wallMed = meshMats(SLICE_STRUCTURE.find((p) => p.id === 'wall_tiles')!.generate({ area: 'medbay', height: 4 }, new Rng('wt'), m));
+  assert.ok(wallMed.has('tileWall') && wallMed.has('cleanTeal'), `medbay wall_tiles uses tileWall + cleanTeal upper (${[...wallMed].join(', ')})`);
+  assert.ok(!wallMed.has('paintDark'), 'medbay wall_tiles has no paintDark');
 });

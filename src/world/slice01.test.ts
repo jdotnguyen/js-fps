@@ -850,3 +850,27 @@ test('Priya waits off-stage in the shut surgery, outside the admin booth CAM 04 
   assert.ok(offAxis(spot.pos) > 50, `priya_offstage is ${offAxis(spot.pos).toFixed(0)} degrees off the CAM 04 axis`);
   assert.ok(offAxis(anchors.get('priya_r08')!.pos) < 31, 'priya_r08 is in the CAM 04 shot, which is why she does not wait there');
 });
+
+test('security and medbay overhaul: low fog, cleanWall armory walls, 8-light shared pool, and purposeful dressing (security-medbay spec)', () => {
+  const room = (id: string) => data.rooms.find((r) => r.id === id)!;
+  for (const id of ['R07', 'R07a', 'R08', 'R08b']) {
+    const fog = room(id).atmosphere?.fogDensity ?? 0;
+    assert.ok(fog > 0 && fog <= 0.025, `${id} fogDensity ${fog} <= 0.025`);
+  }
+  const r07aWalls = room('R07a').pieces.filter((p) => p.kit.startsWith('wall_'));
+  assert.ok(r07aWalls.length > 0, 'R07a has wall pieces');
+  for (const w of r07aWalls) assert.equal(w.params?.material, 'cleanWall', 'R07a walls override to cleanWall');
+  const pooled = (id: string) => (room(id).lights ?? []).filter((l) => l.pool !== false).length;
+  const totalPooled = pooled('R07') + pooled('R07a') + pooled('R08');
+  assert.ok(totalPooled <= 8, `R07 (${pooled('R07')}) + R07a (${pooled('R07a')}) + R08 (${pooled('R08')}) = ${totalPooled} <= 8`);
+  assert.equal(pooled('R07a'), 2, 'R07a has overhead + dedicated rack light');
+  assert.ok((room('R07a').props ?? []).some((p) => p.kit === 'pendant_light' && p.params?.slots === true), 'R07a rack pendant_light');
+  assert.equal((room('R07').lights ?? []).length, 6, 'all R07 ceiling slots claimed (no dead diffusers)');
+  assert.equal((room('R08').lights ?? []).length, 6, 'all R08 ceiling slots claimed (no dead diffusers)');
+  for (const kit of ['notice_board', 'wall_clock', 'mug', 'desk_wand']) {
+    assert.ok((room('R07').props ?? []).some((p) => p.kit === kit), `R07 has ${kit}`);
+  }
+  for (const kit of ['bio_wash_station', 'lab_cabinet', 'wall_clock']) {
+    assert.ok((room('R08').props ?? []).some((p) => p.kit === kit), `R08 has ${kit}`);
+  }
+});

@@ -44,6 +44,18 @@ Wall and floor pieces SHALL take their materials from the room's area palette un
 - **WHEN** the lab wing (R04, R05, R06) is built
 - **THEN** its walls use clean panel materials with a slate service band, and no rust or peeling-paint material
 
+#### Scenario: Security office surfaces
+- **WHEN** the security area (`R07`) is built
+- **THEN** its walls, ceiling, trim, and door frames use clean materials (`cleanSlate`, clean upper band, `officeCeiling`, `steelBrushed`, `steelDark`) with no rust or peeling-paint material
+
+#### Scenario: Armory lighter walls
+- **WHEN** the armory (`R07a`) is built
+- **THEN** the level data overrides its walls with lighter clean wall panels (`cleanWall`) so it reads brighter than `R07`
+
+#### Scenario: Medical bay and surgery surfaces
+- **WHEN** the medbay area (`R08`, `R08b`) is built
+- **THEN** its lower walls use clean white wall tiles, its upper band uses clean clinical teal (`cleanTeal`), its ceiling uses `officeCeiling`, its floor uses `labTile`, and no surface uses a rust or peeling-paint material
+
 ### Requirement: Import pipeline
 The project SHALL provide one command that converts the raw downloaded texture sets into the game's slot format, and the raw downloads SHALL stay out of the repository.
 

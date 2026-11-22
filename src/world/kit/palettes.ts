@@ -107,8 +107,38 @@ export const AREA_PALETTES: Record<string, AreaPalette> = {
     pipeAccent: 'cleanTeal',
     pipeMain: 'steelDark',
   },
-  security: { wallMain: 'paintDark', floor: 'rubber', hazard: 'hazardClean' },
-  medbay: { wallMain: 'paintBone', floor: 'labTile', hazard: 'hazardClean' },
+  // Security office (R07, R07a; openspec overhaul-security-medbay-look): clean institutional slate with a light upper
+  // band, acoustic office ceiling, brushed trim and dark steel door panels. R07a overrides its walls to `cleanWall`.
+  security: {
+    wallMain: 'cleanSlate',
+    wallAlt: 'cleanWall',
+    ceiling: 'officeCeiling',
+    trim: 'steelBrushed',
+    floor: 'rubber',
+    floorAlt: 'steelBrushed',
+    hazard: 'hazardClean',
+    doorSurround: 'cleanSlate',
+    doorPanel: 'steelDark',
+    doorGlassBar: 'steelBrushed',
+    pipeAccent: 'cleanTeal',
+    pipeMain: 'steelDark',
+  },
+  // Medical bay and surgery (R08, R08b; openspec overhaul-security-medbay-look): clean clinical tiles with a teal upper
+  // band (`wall_tiles` reads `wallAlt` above 2.4 m), acoustic office ceiling, brushed trim and clean lab tile floor.
+  medbay: {
+    wallMain: 'cleanWall',
+    wallAlt: 'cleanTeal',
+    ceiling: 'officeCeiling',
+    trim: 'steelBrushed',
+    floor: 'labTile',
+    floorAlt: 'steelBrushed',
+    hazard: 'hazardClean',
+    doorSurround: 'cleanWall',
+    doorPanel: 'steelDark',
+    doorGlassBar: 'steelBrushed',
+    pipeAccent: 'cleanTeal',
+    pipeMain: 'steelDark',
+  },
   tunnel: { wallMain: 'rustHeavy', wallAlt: 'concrete', floor: 'concreteFloor', floorAlt: 'diamondRusty', hazard: 'hazard' },
   control: { wallMain: 'paintDark', floor: 'concretePainted', hazard: 'hazardClean' },
   // Hydroponics (R12a-R12e): clean washable white FRP-style panels, cool slate upper service band, stainless trim and dark structural ceiling.

@@ -208,17 +208,19 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     pb.solidC(0, 1.45, 0, 1.24, 2.9, 1.24, 'metal');
   },
 
-  med_bed(_p, _rng, m, pb) {
-    pb.add(rounded(0.9, 0.55, 2.0, 0.04), m.paintBone, at(0, 0.275, 0));
+  med_bed(p, _rng, m, pb) {
+    const pal = resolvePalette(p, m);
+    const clean = pal.doorPanel !== m.paintDark;
+    pb.add(rounded(0.9, 0.55, 2.0, 0.04), clean ? m.cleanWall : m.paintBone, at(0, 0.275, 0));
     pb.add(rounded(0.82, 0.12, 1.3, 0.05), m.rubber, at(0, 0.61, 0.32));
     pb.add(rounded(0.82, 0.12, 0.75, 0.05), m.rubber, at(0, 0.82, -0.6, -0.5, 0, 0));
-    pb.add(cylinderBetween(V(0.55, 0, -0.9), V(0.55, 1.7, -0.9), 0.03), m.steel);
-    pb.add(cylinderBetween(V(0.55, 1.7, -0.9), V(0.25, 1.75, -0.9), 0.025), m.steel);
+    pb.add(cylinderBetween(V(0.55, 0, -0.9), V(0.55, 1.7, -0.9), 0.03), clean ? m.steelBrushed : m.steel);
+    pb.add(cylinderBetween(V(0.55, 1.7, -0.9), V(0.25, 1.75, -0.9), 0.025), clean ? m.steelBrushed : m.steel);
     const screen = new CanvasScreen(256, 160, drawVitals, 1.4, 10);
     const mon = new THREE.Group();
     mon.position.set(0.2, 1.62, -0.92);
     mon.rotation.y = PI * 0.85;
-    mon.add(new THREE.Mesh(rounded(0.42, 0.28, 0.06, 0.015), m.paintDark));
+    mon.add(new THREE.Mesh(rounded(0.42, 0.28, 0.06, 0.015), clean ? pal.doorPanel : m.paintDark));
     const disp = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.22), screen.material);
     disp.position.z = 0.032;
     mon.add(disp);
