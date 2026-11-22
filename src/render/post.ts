@@ -78,6 +78,52 @@ export interface Post {
   render(time: number): void;
 }
 
+/**
+ * Ambient occlusion skips see-through and effect surfaces (post-processing spec): transparent meshes,
+ * meshes that do not write depth (light shafts, decals, glass) and meshes flagged `userData.skipGtao`.
+ */
+export function skipsAo(obj: THREE.Object3D): boolean {
+  if (!(obj instanceof THREE.Mesh)) return false;
+  if (obj.userData['skipGtao']) return true;
+  const mat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+  return !!mat && (mat.transparent || !mat.depthWrite);
+}
+
+/** GTAOPass's private visibility hooks around its own depth/normal render (three r175+). */
+export interface GtaoVisibilityHooks {
+  _overrideVisibility: () => void;
+  _restoreVisibility: () => void;
+}
+
+/**
+ * Hide `skipsAo` meshes while GTAO renders its depth and normals, so they cast no AO, and show them again after.
+ * Restores what it hid itself: since r179 GTAOPass's `_restoreVisibility` only re-shows the points and lines
+ * it hid, so meshes hidden here would otherwise stay invisible (the gallery glass vanished on High).
+ * The hooks are private and untyped (@types/three still names the pre-r175 public method), hence the guard.
+ */
+export function excludeFromGtao(pass: GtaoVisibilityHooks, scene: THREE.Object3D): void {
+  if (typeof pass._overrideVisibility !== 'function' || typeof pass._restoreVisibility !== 'function') {
+    throw new Error('GTAOPass visibility hooks are missing; the AO exclusion needs porting');
+  }
+  const override = pass._overrideVisibility.bind(pass);
+  const restore = pass._restoreVisibility.bind(pass);
+  const hidden: THREE.Object3D[] = [];
+  pass._overrideVisibility = () => {
+    override();
+    scene.traverse((obj) => {
+      if (obj.visible && skipsAo(obj)) {
+        obj.visible = false;
+        hidden.push(obj);
+      }
+    });
+  };
+  pass._restoreVisibility = () => {
+    restore();
+    for (const obj of hidden) obj.visible = true;
+    hidden.length = 0;
+  };
+}
+
 export function createPost(
   renderer: THREE.WebGLRenderer,
   scene: THREE.Scene,
@@ -90,25 +136,7 @@ export function createPost(
 
   const gtao = new GTAOPass(scene, camera, size.x, size.y);
   gtao.blendIntensity = 0.9;
-  // Exclude transparent / non-depth-writing meshes (e.g. volumetric light shafts, decals, glass)
-  // from the GTAO normal/depth pass so they don't cast solid AO shadows onto the floor.
-  // three r175 made the hook private (`_overrideVisibility`); @types/three still declares the old public name,
-  // so the typecheck cannot catch a rename here. `_restoreVisibility` restores from values cached before this runs.
-  const hooks = gtao as unknown as { _overrideVisibility: () => void };
-  if (typeof hooks._overrideVisibility !== 'function') throw new Error('GTAOPass._overrideVisibility is missing; the AO exclusion needs porting');
-  const origOverride = hooks._overrideVisibility.bind(gtao);
-  hooks._overrideVisibility = () => {
-    origOverride();
-    scene.traverse((obj) => {
-      if (!obj.visible || !(obj instanceof THREE.Mesh)) return;
-      if (obj.userData['skipGtao']) {
-        obj.visible = false;
-        return;
-      }
-      const mat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
-      if (mat && (mat.transparent || !mat.depthWrite)) obj.visible = false;
-    });
-  };
+  excludeFromGtao(gtao as unknown as GtaoVisibilityHooks, scene);
   composer.addPass(gtao);
 
   const bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.55, 0.45, 0.85);

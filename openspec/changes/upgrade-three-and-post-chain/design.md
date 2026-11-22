@@ -162,6 +162,20 @@ Results:
 - 1% lows: 59.4 at the commons pin and at the R03-pane pin
 - GPU memory: 1020 MiB, 131 programs, the same as r170
 
+**0.180.0 (2.2).** The typecheck was clean and the tests passed, but the screenshots caught a silent break: on High the gallery glass stopped rendering.
+- **Symptom:** the east lamp's reflection on the R03/R04 glass was gone from three pins. Shader programs dropped from 131 to 125 and GPU memory from 1020 to 1006 MiB.
+- **Bisect:** r178 is good and r179 is bad. On r178, hiding the glass removes the highlight, and `pool-light-4` is the light it reflects.
+- **Cause:** in r179, `GTAOPass._restoreVisibility` only re-shows the points and lines it hid itself. Before, it restored every object from a cache. Our AO exclusion hides transparent, non-depth-writing and `skipGtao` meshes (glass, light shafts, decals) for the depth/normal pass, so from the first High frame on they stayed hidden.
+- **Fix:** `excludeFromGtao` in `post.ts` restores what it hid, after GTAO's own restore. The predicate is now `skipsAo` (section 3 reuses it). The new `post.test.ts` runs a stub pass with r179's restore behaviour, and the test fails without the fix.
+
+Results after the fix:
+- typecheck: 0 errors
+- `npm test`: 1174 pass, the same 7 failures as r170 (3 new tests)
+- console: no three.js or shader warnings
+- the four pins match r170 by eye, the glass reflection included
+- 1% lows: 59.5 at the commons pin and 59.3 at the R03-pane pin
+- GPU memory: 1020 MiB, 131 programs, the same as r170
+
 Unrelated to the upgrade: three ambience one-shots referenced in `sounds.ts` (`archPass`, `archAlarm`, `wandBeep`) are missing from `public/assets` on `foundation`. Each page load logs a decode warning for them.
 
 ## Open Questions
