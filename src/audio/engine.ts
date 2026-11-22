@@ -87,6 +87,8 @@ export class AudioEngine {
   private readonly volumes: Record<BusName, GainNode>;
   /** Story-ducking gain per bus (1 unless ducked). */
   private readonly ducks: Record<BusName, GainNode>;
+  /** Scene hush per bus (1 unless a scene silenced it, `hush`): apart from settings and ducking so none fight. */
+  private readonly hushes: Record<BusName, GainNode>;
   /** Shared room convolution reverb input (spec audio-mix: Room reverb); also fed by local dialogue. */
   readonly reverbIn: GainNode;
   private readonly reverbs = new Map<ReverbPreset, ReverbNode>();
@@ -114,7 +116,8 @@ export class AudioEngine {
     this.buses = make((n) => BUS_BASE_LEVELS[n]);
     this.volumes = make(() => 1);
     this.ducks = make(() => 1);
-    for (const n of names) this.buses[n].connect(this.volumes[n]).connect(this.ducks[n]).connect(this.master);
+    this.hushes = make(() => 1);
+    for (const n of names) this.buses[n].connect(this.volumes[n]).connect(this.ducks[n]).connect(this.hushes[n]).connect(this.master);
 
     this.reverbIn = new GainNode(this.ctx, { gain: 1 });
     this.activeReverb = DEFAULT_REVERB;
@@ -309,6 +312,20 @@ export class AudioEngine {
   setDuck(db: number): void {
     const g = Math.pow(10, -Math.max(0, db) / 20);
     for (const n of DUCKED_BUSES) this.ducks[n].gain.setTargetAtTime(g, this.ctx.currentTime, DUCK_TC);
+  }
+
+  /**
+   * Silence `buses` (a fullscreen scene that should carry only its own sound), or bring every bus back with
+   * `hush([])`. Fades over about `seconds`.
+   */
+  hush(buses: readonly BusName[], seconds = 0.5): void {
+    const tc = Math.max(0.01, seconds / 3);
+    for (const n of Object.keys(this.hushes) as BusName[]) this.hushes[n].gain.setTargetAtTime(buses.includes(n) ? 0 : 1, this.ctx.currentTime, tc);
+  }
+
+  /** Current hush gain of a bus (1 = not hushed). */
+  hushGain(bus: BusName): number {
+    return this.hushes[bus].gain.value;
   }
 
   /** Current duck gain of a bus (1 = not ducked). */

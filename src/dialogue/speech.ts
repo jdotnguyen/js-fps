@@ -119,6 +119,8 @@ export class SpeechManager {
   private now = 0;
   private nextStartAt = 0;
   private seq = 0;
+  /** While set, only these speakers are heard (`onlySpeakers`): everyone else's lines are cut off or dropped. */
+  private only: ReadonlySet<string> | null = null;
   /** Global babble setting (off by default [Assumed]); a line's own `babble` wins when set. */
   babble = false;
 
@@ -130,6 +132,22 @@ export class SpeechManager {
     this.maxWait = opts.maxWait ?? 2;
   }
 
+  /**
+   * Let only `speakers` be heard (a scene that should carry nobody else's voice), or everyone again with `null`.
+   * Lines from anyone else stop now, and new ones are dropped until it is lifted.
+   */
+  onlySpeakers(speakers: readonly string[] | null): void {
+    this.only = speakers ? new Set(speakers) : null;
+    const only = this.only;
+    if (!only) return;
+    for (const e of this.queue.filter((q) => !only.has(q.line.speaker))) {
+      this.queue.splice(this.queue.indexOf(e), 1);
+      this.end(e, 'stopped');
+    }
+    for (const o of this.overlaps.filter((x) => !only.has(x.line.speaker))) this.finishOverlap(o, 'stopped');
+    if (this.current && !only.has(this.current.line.speaker)) this.finishCurrent('stopped');
+  }
+
   /** Queue or play a line by id. Resolves when it finishes, is cut off or dropped. */
   say(id: string, opts: SayOptions = {}): SpeechHandle {
     if (this.current?.line.id === id) return this.current.handle;
@@ -139,6 +157,10 @@ export class SpeechManager {
     if (queued) return queued.handle;
 
     const line = this.library.line(id);
+    if (this.only && !this.only.has(line.speaker)) {
+      this.bus.emit('speech:dropped', { id, speaker: line.speaker, waited: 0 });
+      return { id, done: Promise.resolve('dropped') };
+    }
     const profile = this.library.speaker(line.speaker);
     let resolve!: (r: EndReason) => void;
     const done = new Promise<EndReason>((r) => (resolve = r));

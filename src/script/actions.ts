@@ -640,6 +640,9 @@ export const ACTIONS: Record<string, ActionDef> = {
       fullscreen: optional(bool),
       label: optional(str),
       fov: optional(numRange(10, 120)),
+      fps: optional(numRange(1, 240)),
+      size: optional(obj({ w: numRange(16, 3840), h: numRange(16, 2160) })),
+      look: optional(oneOf(['monitor', 'fullscreen'] as const)),
     },
     (s, ctx) => {
       const from = s.from !== undefined ? resolve('cameraFeed', s.from, ctx) : null;
@@ -654,6 +657,9 @@ export const ACTIONS: Record<string, ActionDef> = {
         fullscreen: s.fullscreen === true,
         ...(s.label !== undefined ? { label: s.label } : {}),
         ...(s.fov !== undefined ? { fov: s.fov } : {}),
+        ...(s.fps !== undefined ? { fps: s.fps } : {}),
+        ...(s.size !== undefined ? { size: { w: Math.round(s.size.w), h: Math.round(s.size.h) } } : {}),
+        ...(s.look !== undefined ? { look: s.look } : {}),
       });
     },
   ),
@@ -693,6 +699,15 @@ export const ACTIONS: Record<string, ActionDef> = {
   }),
 
   // ---- story
+  /**
+   * Silence everything but the scene (stinger-feed-and-rise): the world's ambience and sound effects fade out and only
+   * `speakers` can be heard (none when left out); music and the menu stay. `off` brings it all back. Going to the title
+   * or restarting lifts it too. Instant either way.
+   */
+  hush: act({ speakers: optional(arr(str)), off: optional(bool), s: optional(numRange(0, 10)) }, (s, ctx) => {
+    if (!ctx.host.hush) return ctx.missing('hush');
+    ctx.host.hush(s.off ? null : (s.speakers ?? []), s.s ?? 0.5);
+  }),
   /** `overlap`: play beside the current line instead of queuing (a PA the squad talks over). */
   say: act({ line: str, wait, overlap: optional(bool), fixture: optional(str) }, (s, ctx) => {
     if (!ctx.host.say) return ctx.missing('say');

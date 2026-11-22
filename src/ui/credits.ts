@@ -1,4 +1,5 @@
 import { button, h } from './dom.ts';
+import { createTitleWordmark } from './menus/titleWordmark.ts';
 
 export interface HeadlineCredit {
   eyebrow?: string;
@@ -107,6 +108,8 @@ export const AUDIO_CREDITS: readonly CreditEntry[] = [
   { role: 'Infected Vocalizations', name: 'Dragon Studio' },
 ];
 
+/** Longest wait for the credits' fade-in (`#credits` opacity, 700 ms in credits.css) before calling them shown. */
+const COVER_FALLBACK_MS = 900;
 const CARD_IN_MS = 900;
 const CARD_HOLD_MS = 2100;
 const CARD_OUT_MS = 900;
@@ -216,8 +219,18 @@ export class EndCredits {
     return this.active;
   }
 
-  show(onClose?: () => void): void {
-    if (this.active) return;
+  /** The credits are open (covering, or fading in to cover, the screen). */
+  get open(): boolean {
+    return this.active;
+  }
+
+  /**
+   * Open the credits. The returned promise settles once they fully cover the screen (their fade-in is done), so a
+   * caller can change what is underneath without it showing through. `instant` skips the fade-in: for a screen that
+   * is already black (the end of the slice), so nothing above the black shows through while they would fade in.
+   */
+  show(onClose?: () => void, opts: { instant?: boolean } = {}): Promise<void> {
+    if (this.active) return Promise.resolve();
     this.active = true;
     this.onCloseCb = onClose ?? null;
     this.fastForward = false;
@@ -228,9 +241,13 @@ export class EndCredits {
     this.stage.replaceChildren();
 
     this.root.hidden = false;
-    requestAnimationFrame(() => {
-      if (this.active) this.root.classList.add('visible');
-    });
+    this.root.classList.toggle('instant', opts.instant === true);
+    if (opts.instant) this.root.classList.add('visible');
+    else {
+      requestAnimationFrame(() => {
+        if (this.active) this.root.classList.add('visible');
+      });
+    }
     this.closeBtn.focus();
 
     addEventListener('keydown', this.onKeyDown, { capture: true });
@@ -239,6 +256,20 @@ export class EndCredits {
 
     this.startVisorLoop();
     void this.runSequence();
+    if (opts.instant) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const done = (): void => {
+        clearTimeout(timer);
+        this.root.removeEventListener('transitionend', onEnd);
+        resolve();
+      };
+      const onEnd = (e: TransitionEvent): void => {
+        if (e.target === this.root && e.propertyName === 'opacity') done();
+      };
+      // Reduced motion (or a missed event) has no transition to wait for: never hold the caller past the CSS fade.
+      const timer = setTimeout(done, COVER_FALLBACK_MS);
+      this.root.addEventListener('transitionend', onEnd);
+    });
   }
 
   hide(): void {
@@ -254,7 +285,7 @@ export class EndCredits {
     removeEventListener('keyup', this.onKeyUp, { capture: true });
     this.root.removeEventListener('wheel', this.onWheel);
 
-    this.root.classList.remove('visible');
+    this.root.classList.remove('visible', 'instant');
     this.root.hidden = true;
     this.stage.replaceChildren();
     this.scrollMask = null;
@@ -287,7 +318,15 @@ export class EndCredits {
         'div',
         { class: `credits-card${card.accent ? ' accent' : ''}` },
         card.eyebrow ? h('div', { class: 'credits-card-eyebrow', text: card.eyebrow }) : null,
-        h('div', { class: 'credits-card-title', text: card.title }),
+        card.title === 'THALASSA'
+          ? // The game's name is its logo (the title screen's failing-display wordmark); the text stays for screen readers.
+            h(
+              'div',
+              { class: 'credits-card-title credits-card-logo' },
+              h('span', { class: 'sr-only', text: card.title }),
+              createTitleWordmark({ reducedFlashing: () => this.opts.reducedFlashing?.() ?? false, reducedMotion: () => this.isReducedMotion() }),
+            )
+          : h('div', { class: 'credits-card-title', text: card.title }),
         card.subtitle ? h('div', { class: 'credits-card-sub', text: card.subtitle }) : null,
       );
       this.stage.replaceChildren(el);

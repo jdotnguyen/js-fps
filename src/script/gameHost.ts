@@ -9,7 +9,7 @@ import { PLAYER_TUNING, type Player } from '../actors/player.ts';
 import type { SoundName } from '../audio/sounds.ts';
 import { SAMPLE_URLS, SOUND_SPECS } from '../audio/sounds.ts';
 import type { AmbienceDirector } from '../audio/ambience.ts';
-import type { AudioEngine } from '../audio/engine.ts';
+import type { AudioEngine, BusName } from '../audio/engine.ts';
 import type { EventBus, EventName } from '../core/events.ts';
 import type { DoorState } from '../data/types/level.ts';
 import type { Game } from '../game/game.ts';
@@ -48,9 +48,9 @@ export interface GameHostDeps {
   /** Enemy spawn groups (ADR-0007 `spawnGroup` / `despawnGroup`). */
   enemies?: { spawnGroup(group: string): boolean; despawnGroup(group: string): boolean; groupCleared(group: string): boolean } | null | undefined;
   /** Speech manager for `say`; without it lines are skipped with a warning. */
-  speech?: { say(id: string, opts?: { overlap?: boolean }): { done: Promise<unknown> } | null; stopAll(): void } | null | undefined;
+  speech?: { say(id: string, opts?: { overlap?: boolean }): { done: Promise<unknown> } | null; stopAll(): void; onlySpeakers?(speakers: readonly string[] | null): void } | null | undefined;
   /** End-credits overlay triggered when the slice finishes. */
-  showCredits?: () => void;
+  showCredits?: (opts?: { instant?: boolean }) => void | Promise<void>;
   /** Security camera feeds (`render/cameraFeed.ts`) for the `cameraFeed` action. */
   cameraFeeds?: { apply(id: string, opts: CameraFeedOptions): void } | null | undefined;
   /** Gore particles and pools (`gore` action). */
@@ -77,11 +77,24 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
   const radio = new RadioPlayer(d.audio);
   let radioKey: string | null = null;
   // Back to the title: the radio stops with everything else.
+  // A scene's hush (`hush` action): the world's ambience and sound effects, and every voice but the scene's own.
+  const HUSHED: readonly BusName[] = ['ambience', 'sfx'];
+  let hushed = false;
+  const hush = (speakers: readonly string[] | null, seconds: number): void => {
+    hushed = speakers !== null;
+    d.audio.hush(hushed ? HUSHED : [], seconds);
+    d.speech?.onlySpeakers?.(speakers);
+  };
+  // Back to the title: the radio stops with everything else, and a hush lifts.
   d.events.on('game:mode', ({ mode }) => {
     if (mode === 'title') {
       radio.stop();
       d.titleCard?.hide();
+      if (hushed) hush(null, 1);
     }
+  });
+  d.events.on('game:restarted', () => {
+    if (hushed) hush(null, 0.2);
   });
 
   const host: SequenceHost = {
@@ -219,12 +232,19 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
       d.game.reachCheckpoint(id, text ?? label(id));
     },
     // The slice is over (ADR-0014 beat 8): show the end credits with the theme song, then land on the title.
+    // The screen is black (the sequence faded out): cover it with the credits at once (no fade-in for pop-ups to show
+    // through) and only then go to the title underneath, so nothing shows between the last shot and the credits.
     endSlice: () => {
       d.game.flags['slice_done'] = true;
-      d.game.quitToTitle();
-      if (d.showCredits) d.showCredits();
-      else d.toasts.show('End of slice', 'Thanks for playing');
+      if (!d.showCredits) {
+        d.game.quitToTitle();
+        d.toasts.show('End of slice', 'Thanks for playing');
+        return;
+      }
+      const toTitle = (): void => d.game.quitToTitle();
+      void Promise.resolve(d.showCredits({ instant: true })).then(toTitle, toTitle);
     },
+    hush,
     giveItem: (id) => d.inventory?.give(id, 'script') ?? false,
     ...(d.enemies
       ? { spawnGroup: (g: string) => d.enemies!.spawnGroup(g), despawnGroup: (g: string) => d.enemies!.despawnGroup(g), groupCleared: (g: string) => d.enemies!.groupCleared(g) }

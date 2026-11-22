@@ -743,26 +743,32 @@ async function boot(): Promise<void> {
   setWayfindingSpotlight = (on) => guidance.setSpotlight(on);
   const menuRoot = el<HTMLElement>('#menu');
   let credits: EndCredits | null = null;
-  const showCredits = (): void => {
-    void (async () => {
-      if (!credits) {
-        const [{ EndCredits }] = await Promise.all([
-          import('./ui/credits.ts'),
-          import('./ui/styles/credits.css'),
-        ]);
-        credits = new EndCredits(document.body, {
-          reducedMotion: () => settings.get().reducedMotion,
-          reducedFlashing: () => settings.get().reducedFlashing,
-        });
-      }
-      credits.show(() => {
-        if (!menuRoot.hidden) {
-          menuRoot.querySelector<HTMLElement>('[autofocus], button, input, select')?.focus();
-        }
+  let creditsLoad: Promise<EndCredits> | null = null;
+  const loadCredits = (): Promise<EndCredits> =>
+    (creditsLoad ??= Promise.all([import('./ui/credits.ts'), import('./ui/styles/credits.css')]).then(([{ EndCredits }]) => {
+      credits = new EndCredits(document.body, {
+        reducedMotion: () => settings.get().reducedMotion,
+        reducedFlashing: () => settings.get().reducedFlashing,
       });
-    })();
-  };
-  createMenus(menuRoot, { game, saves, settings, difficulties, events, resetTutorials: () => tutorials.reset(), showCredits });
+      return credits;
+    }));
+  // Loaded ahead (small): the end of the slice cuts from black straight to them, with no wait for a download.
+  setTimeout(() => void loadCredits().catch(() => (creditsLoad = null)), 4000);
+  /** Open the end credits; settles once they cover the screen (or failed to load). `instant`: over a black screen. */
+  const showCredits = (opts: { instant?: boolean } = {}): Promise<void> =>
+    loadCredits()
+      .then((c) =>
+        c.show(() => {
+          if (!menuRoot.hidden) {
+            menuRoot.querySelector<HTMLElement>('[autofocus], button, input, select')?.focus();
+          }
+        }, opts),
+      )
+      .catch((e: unknown) => {
+        creditsLoad = null;
+        console.error('[credits]', e);
+      });
+  createMenus(menuRoot, { game, saves, settings, difficulties, events, resetTutorials: () => tutorials.reset(), showCredits: () => void showCredits() });
   // Menu UI sounds: hover/keyboard focus on a control, and a chirp when it's activated.
   const menuControl = (t: EventTarget | null): HTMLElement | null =>
     t instanceof Element ? t.closest<HTMLElement>('button:not([disabled]), select, input') : null;
@@ -790,6 +796,8 @@ async function boot(): Promise<void> {
   };
   let menuOpenPending = false;
   const onMenuShown = (): void => {
+    // Behind the end credits (the slice just ended) the menu opens unseen: no sting over the credits.
+    if (credits?.open) return;
     if (audio.ctx.state === 'running') playMenuOpen();
     else menuOpenPending = true;
   };
@@ -801,7 +809,7 @@ async function boot(): Promise<void> {
     void audio.resume().then(() => {
       if (!menuOpenPending) return;
       menuOpenPending = false;
-      if (!menuRoot.hidden) playMenuOpen();
+      if (!menuRoot.hidden && !credits?.open) playMenuOpen();
     });
   };
   addEventListener('pointerdown', flushPendingMenuOpen, { capture: true, once: false });
@@ -1201,8 +1209,12 @@ async function boot(): Promise<void> {
       post.grade.uDamage.value = game.mode === 'title' || game.flying ? 0 : player.damageFx;
       // One shadow pass per frame, for the player's view (see renderer.shadowMap.autoUpdate below).
       renderer.shadowMap.needsUpdate = true;
-      post.render(simTime);
-      feedGl.overlay(game.mode === 'playing' ? cameraFeeds.fullscreen : null);
+      // A fullscreen feed (the ending stinger) replaces the player's view (camera-feeds spec): skip
+      // rendering it underneath, so the world is drawn at most once a frame, from the feed's camera.
+      // The pending shadow update is taken by the feed's next render instead.
+      const coverFeed = game.mode === 'playing' && !feedGl.failed ? cameraFeeds.fullscreen : null;
+      if (!coverFeed) post.render(simTime);
+      feedGl.overlay(coverFeed, coverFeed !== null);
       debug?.endFrame();
     },
   });
@@ -1224,9 +1236,12 @@ async function boot(): Promise<void> {
       npcs,
       cameraFeeds,
       gore,
-      titleCard: new TitleCard(el<HTMLElement>('#ui')),
+      titleCard: new TitleCard(el<HTMLElement>('#ui'), {
+        reducedFlashing: () => settings.get().reducedFlashing,
+        reducedMotion: () => settings.get().reducedMotion,
+      }),
       showCredits,
-      speech: { say, stopAll: () => speech.stopAll() },
+      speech: { say, stopAll: () => speech.stopAll(), onlySpeakers: (who) => speech.onlySpeakers(who) },
       anchors: room ? { door: room.anchors.door, window: room.anchors.window, vent: room.anchors.vent, console: room.anchors.console, abyss: room.anchors.abyss } : undefined,
       setTimeScale: (scale) => {
         loop.clock.scale = scale;

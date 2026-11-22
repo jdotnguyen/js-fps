@@ -10,6 +10,11 @@
   transition: opacity 700ms ease;
   pointer-events: auto;
 }
+/* Opened over a black screen (the end of the slice): cover at once, no fade-in to see through. */
+#credits.instant {
+  transition: none;
+}
+
 #credits.visible {
   opacity: 1;
 }
@@ -83,6 +88,13 @@
   text-transform: uppercase;
   color: #f0f7fa;
   text-shadow: 0 0 28px rgb(207 232 240 / 0.2);
+}
+/* THALASSA as its logo (titleWordmark.ts): sized by width, no letter spacing or glow of its own. */
+.credits-card-title.credits-card-logo {
+  width: min(78vw, 46rem);
+  padding-left: 0;
+  letter-spacing: normal;
+  text-shadow: none;
 }
 .credits-card.accent .credits-card-title {
   color: #f5f9fb;

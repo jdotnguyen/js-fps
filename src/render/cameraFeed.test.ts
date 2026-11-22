@@ -115,3 +115,65 @@ test('the feed id can also be found by the mesh userData.feed marker', () => {
   feeds.apply('cam_b', opts());
   assert.equal(m.material, feeds.get('cam_b')!.screen);
 });
+
+test('a feed that sets no rate or size keeps the 10 fps, 320x180 default', () => {
+  const { feeds } = setup();
+  feeds.apply('cam_a', opts());
+  const f = feeds.get('cam_a')!;
+  assert.equal(f.fps, 10);
+  assert.equal(f.look, 'monitor');
+  assert.deepEqual([f.raw.width, f.raw.height, f.output.width, f.output.height], [320, 180, 320, 180]);
+});
+
+test('a feed can set its own rate, size and look; a later step resizes it in place', () => {
+  const { feeds } = setup(false);
+  feeds.apply('stinger', opts({ fullscreen: true, fps: 30, size: { w: 960, h: 540 }, look: 'fullscreen' }));
+  const f = feeds.get('stinger')!;
+  const raw = f.raw;
+  assert.equal(f.fps, 30);
+  assert.equal(f.look, 'fullscreen');
+  assert.deepEqual([f.raw.width, f.raw.height, f.output.width, f.output.height], [960, 540, 960, 540]);
+  feeds.apply('stinger', opts({ fullscreen: true, size: { w: 640, h: 480 } }));
+  assert.equal(f.raw, raw, 'the same target, resized');
+  assert.deepEqual([f.raw.width, f.raw.height], [640, 480]);
+  assert.ok(Math.abs(f.camera.aspect - 640 / 480) < 1e-9);
+  assert.equal(f.fps, 30, 'a step without fps keeps the last rate');
+});
+
+test('a 30 fps feed at a steady 60 Hz renders exactly every second frame', () => {
+  const { feeds, calls } = setup(false);
+  feeds.apply('stinger', opts({ fullscreen: true, fps: 30 }));
+  const frames: number[] = [];
+  for (let i = 0; i < 120; i++) {
+    const before = calls.scene.length;
+    feeds.update(1 / 60, i / 60);
+    if (calls.scene.length > before) frames.push(i);
+  }
+  assert.equal(frames.length, 60, `${frames.length} renders in 2 s`);
+  for (let i = 1; i < frames.length; i++) assert.equal(frames[i]! - frames[i - 1]!, 2, `gap before render ${i}`);
+});
+
+test('a 10 fps feed holds its rate instead of drifting below it', () => {
+  const { feeds, calls } = setup();
+  feeds.apply('cam_a', opts());
+  for (let i = 0; i < 600; i++) feeds.update(1 / 60, i / 60);
+  assert.equal(calls.scene.length, 100, '10 s at 10 fps');
+});
+
+test('a feed at or above the display rate renders every frame', () => {
+  const { feeds, calls } = setup(false);
+  feeds.apply('stinger', opts({ fullscreen: true, fps: 120 }));
+  for (let i = 0; i < 60; i++) feeds.update(1 / 60, i / 60);
+  assert.equal(calls.scene.length, 60);
+});
+
+test('after a hitch the feed renders once, not a burst of catch-up frames', () => {
+  const { feeds, calls } = setup(false);
+  feeds.apply('stinger', opts({ fullscreen: true, fps: 30 }));
+  for (let i = 0; i < 10; i++) feeds.update(1 / 60, i / 60);
+  const before = calls.scene.length;
+  feeds.update(0.5, 1);
+  assert.equal(calls.scene.length - before, 1, 'one render for the long frame');
+  feeds.update(1 / 60, 1.02);
+  assert.equal(calls.scene.length - before, 1, 'nothing queued for the next frame');
+});

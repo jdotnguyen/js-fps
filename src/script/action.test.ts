@@ -711,12 +711,16 @@ test('cliffhanger to endSlice: banter, lights and trail, "I didn\'t want you to 
   assert.ok(g.log.lastIndexOf('npc npcMoveTo okafor') > at(g, 'say end_jay_02') && at(g, 'say end_okafor_02') < at(g, 'say end_giles_06'));
   await until(g, () => g.ended() === 1, 120);
   inOrder(g, lines(...REVEAL_LINES));
-  inOrder(g, [...lines('end_giles_06'), 'fade 1', 'event story:cliffhanger', 'feed stinger live fullscreen', ...lines(...STINGER_LINES), 'feed stinger static fullscreen', 'feed stinger off fullscreen', 'fade 1']);
+  inOrder(g, [...lines('end_giles_06'), 'fade 1', 'event story:cliffhanger', 'feed stinger live fullscreen', ...lines(...STINGER_LINES), 'feed stinger static fullscreen', 'fade 1', 'feed stinger off fullscreen']);
   assert.deepEqual(g.cards, ['THALASSA']);
   assert.ok(at(g, 'event story:cliffhanger') < at(g, 'event story:title_done') && at(g, 'event story:title_done') < at(g, 'feed stinger live fullscreen'));
   assert.equal(g.ended(), 1);
   assert.equal(g.control.state.move, 'free', 'every control layer is released at the end');
   assert.ok(g.feeds[0]!.fullscreen && g.feeds[0]!.state === 'live');
+  // camera-feeds spec: the stinger is sharp and smooth, with the fullscreen look.
+  assert.equal(g.feeds[0]!.fps, 30);
+  assert.deepEqual(g.feeds[0]!.size, { w: 960, h: 540 });
+  assert.equal(g.feeds[0]!.look, 'fullscreen');
   assert.ok(count(g, 'gore splash') >= 1, 'the stinger');
   noWarnings(g);
 });

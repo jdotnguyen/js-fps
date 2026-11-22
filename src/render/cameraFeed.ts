@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { CameraFeedOptions } from '../script/host.ts';
+import type { CameraFeedOptions, FeedLook } from '../script/host.ts';
 import type { Vec3Like } from '../script/types.ts';
 
 /**
@@ -9,9 +9,10 @@ import type { Vec3Like } from '../script/types.ts';
  *
  * The sequence action is `cameraFeed { id, from, lookAt, state: live|static|off, fullscreen? }`.
  * A feed shows on every mesh named `feed:<id>` (the `security_monitor` prop's screen) and, with
- * `fullscreen`, over the whole view after the post-processing. Rendering is throttled
- * (FEED_FPS, FEED_SIZE) and only happens while someone can see the feed; `static` and `off`
- * cost only the cheap noise pass.
+ * `fullscreen`, over the whole view after the post-processing. Rendering is throttled to each
+ * feed's own rate and size (FEED_FPS and FEED_SIZE unless the action sets `fps`/`size`, spec
+ * camera-feeds) and only happens while someone can see the feed; `static` and `off` cost only
+ * the cheap noise pass.
  *
  * The WebGL work lives behind `FeedDraw` (`cameraFeedGl.ts`) so the state, the throttle and the
  * screen swap are tested headless (`cameraFeed.test.ts`).
@@ -19,7 +20,7 @@ import type { Vec3Like } from '../script/types.ts';
 
 export type FeedState = 'live' | 'static' | 'off';
 
-/** Rendered frames per second of a live feed, and the size of its texture (16:9). */
+/** Default rendered frames per second of a live feed, and the default size of its texture (16:9). */
 export const FEED_FPS = 10;
 export const FEED_SIZE = { w: 320, h: 180 } as const;
 export const FEED_FOV = 62;
@@ -37,6 +38,10 @@ export interface Feed {
   state: FeedState;
   fullscreen: boolean;
   label: string;
+  /** Rendered frames per second while live and seen. */
+  fps: number;
+  /** CCTV look strength (`cameraFeedGl.ts`). */
+  look: FeedLook;
   readonly camera: THREE.PerspectiveCamera;
   /** Linear HDR scene colour, before the CCTV look. */
   readonly raw: THREE.WebGLRenderTarget;
@@ -63,6 +68,8 @@ export interface CameraFeedsDeps {
 }
 
 const tmpLook = new THREE.Vector3();
+/** Seconds of tolerance on the throttle interval (well under a frame at any display rate). */
+const THROTTLE_SLACK = 1e-4;
 
 function isShown(o: THREE.Object3D): boolean {
   for (let p: THREE.Object3D | null = o; p; p = p.parent) if (!p.visible) return false;
@@ -101,14 +108,24 @@ export class CameraFeeds {
     f.state = opts.state;
     f.fullscreen = opts.fullscreen;
     if (opts.label !== undefined) f.label = opts.label;
+    if (opts.fps !== undefined) f.fps = opts.fps;
+    if (opts.look !== undefined) f.look = opts.look;
+    if (opts.size && (opts.size.w !== f.raw.width || opts.size.h !== f.raw.height)) {
+      f.raw.setSize(opts.size.w, opts.size.h);
+      f.output.setSize(opts.size.w, opts.size.h);
+      f.camera.aspect = opts.size.w / opts.size.h;
+      f.camera.updateProjectionMatrix();
+      f.hasFrame = false;
+    }
     if (opts.fov !== undefined) {
       f.camera.fov = opts.fov;
       f.camera.updateProjectionMatrix();
     }
     if (opts.from) f.camera.position.set(opts.from.x, opts.from.y, opts.from.z);
     if (opts.lookAt) this.lookAt(f, opts.lookAt);
-    // A live feed draws its first frame on the next update, not after a whole interval.
-    f.since = 1 / FEED_FPS;
+    // A live feed draws its first frame on the next update, not after a whole interval
+    // (a stalled clock: the throttle renders at once and restarts it).
+    f.since = Number.POSITIVE_INFINITY;
     f.needsLook = true;
     if (f.meshes.length === 0) this.attach(f);
     if (f.state === 'off') f.hasFrame = false;
@@ -127,14 +144,21 @@ export class CameraFeeds {
   /**
    * Per rendered frame, before the world updates (a feed render rebinds lights and room
    * visibility; `world.update` then sets them back for the player's own view).
+   *
+   * The throttle keeps the time left over past each interval, so a feed holds its rate (a 30 fps
+   * feed renders on every second frame at 60 Hz) instead of drifting below it. After a stall (a
+   * hitch, an unseen stretch) it renders once and restarts its clock: no catch-up burst.
    */
   update(dt: number, time: number): void {
     for (const f of this.feeds.values()) {
       f.since += dt;
-      if (f.since < 1 / FEED_FPS) continue;
+      const interval = 1 / f.fps;
+      // A little slack so float sums of frame times (2 x 1/60 against 1/30) never skip a frame.
+      if (f.since + THROTTLE_SLACK < interval) continue;
       const seen = f.fullscreen || f.meshes.some(isShown);
       if (!seen) continue;
-      f.since = 0;
+      f.since -= interval;
+      if (f.since >= interval) f.since = 0;
       if (f.state === 'live') {
         this.d.draw.scene(f, f.camera);
         f.hasFrame = true;
@@ -175,7 +199,7 @@ export class CameraFeeds {
     }
     const screen = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: output.texture, emissiveIntensity: 1.25, roughness: 0.25, metalness: 0 });
     screen.name = `feed-screen:${id}`;
-    const f: Feed = { id, state: 'off', fullscreen: false, label: '', camera, raw, output, screen, meshes: [], originals: null, since: 1, hasFrame: false, needsLook: true };
+    const f: Feed = { id, state: 'off', fullscreen: false, label: '', fps: FEED_FPS, look: 'monitor', camera, raw, output, screen, meshes: [], originals: null, since: 1, hasFrame: false, needsLook: true };
     this.feeds.set(id, f);
     return f;
   }

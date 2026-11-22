@@ -159,3 +159,23 @@ test('stopAll also stops overlap lines', async () => {
   sm.stopAll();
   assert.equal(await pa.done, 'stopped');
 });
+
+test('onlySpeakers cuts everyone else off and drops their new lines until lifted (a scene hush)', async () => {
+  const { sm, log } = setup();
+  const engineer = sm.say('story_a');
+  const queued = sm.say('story_b');
+  sm.onlySpeakers(['medic']);
+  assert.equal(await engineer.done, 'stopped');
+  assert.equal(await queued.done, 'stopped');
+  assert.equal(await sm.say('combat_a').done, 'dropped', 'a new line from anyone else is dropped');
+  assert.ok(log.includes('drop combat_a'));
+  const medic = sm.say('medic_a');
+  run(sm, 0.3);
+  assert.equal(sm.speaking()?.id, 'medic_a', 'the scene\'s own speaker is heard');
+  run(sm, 3);
+  assert.equal(await medic.done, 'finished');
+  sm.onlySpeakers(null);
+  sm.say('story_a');
+  run(sm, 0.3);
+  assert.equal(sm.speaking()?.id, 'story_a', 'everyone back once lifted');
+});

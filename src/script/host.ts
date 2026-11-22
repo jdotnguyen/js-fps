@@ -37,7 +37,15 @@ export interface CameraFeedOptions {
   /** Top-left caption, e.g. "CAM 07  SECURITY OFFICE". */
   label?: string;
   fov?: number;
+  /** Rendered frames per second (camera-feeds spec); a feed that never sets it renders at 10. */
+  fps?: number;
+  /** Render size in pixels; a feed that never sets it renders at 320x180. */
+  size?: { w: number; h: number };
+  /** CCTV look strength: `monitor` (default) for in-world screens, `fullscreen` for a feed over the whole view. */
+  look?: FeedLook;
 }
+
+export type FeedLook = 'monitor' | 'fullscreen';
 
 export interface SpeechLike {
   done: Promise<unknown>;
@@ -108,6 +116,11 @@ export interface SequenceHost {
   markLinePlayed?(line: string): void;
   /** Cut off every line still playing (a scene was skipped). */
   stopSpeech?(): void;
+  /**
+   * `hush` action: silence the world's ambience and sound effects and every voice but `speakers` (a fullscreen
+   * feed that should carry only its own sound), over about `seconds`; `null` brings it all back.
+   */
+  hush?(speakers: readonly string[] | null, seconds: number): void;
   /** Give a key item (ADR-0024). False if unknown or already held. */
   giveItem?(id: string): boolean;
   /** Record a checkpoint in the game (autosave, toast). */

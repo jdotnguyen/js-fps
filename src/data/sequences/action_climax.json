@@ -535,7 +535,13 @@
     "state": "live",
     "fullscreen": true,
     "label": "CAM 04  SURGERY",
-    "fov": 70
+    "fov": 70,
+    "fps": 30,
+    "size": {
+     "w": 960,
+     "h": 540
+    },
+    "look": "fullscreen"
    },
    {
     "do": "fade",
@@ -642,16 +648,16 @@
     "s": 1.8
    },
    {
-    "do": "cameraFeed",
-    "id": "stinger",
-    "state": "off",
-    "fullscreen": true
-   },
-   {
     "do": "fade",
     "to": 1,
     "s": 0.8,
     "wait": true
+   },
+   {
+    "do": "cameraFeed",
+    "id": "stinger",
+    "state": "off",
+    "fullscreen": true
    },
    {
     "do": "setFlag",
