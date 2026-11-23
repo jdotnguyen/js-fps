@@ -26,10 +26,11 @@ import { motionScene } from './motionScene.ts';
 import { hasMocapPack, loadMocapPacks } from './mocapPacks.ts';
 import type { PoseLibrary } from './poses.ts';
 import { footprintOf } from './separation.ts';
-import { heldGripFor, type HeldGrip } from './heldGrip.ts';
+import { heldGripFor, type HeldGrip, type SolvedItem } from './heldGrip.ts';
 import { ManualCaster, shadowCasters, type ShadowCasterSet } from '../render/shadowCasters.ts';
 import { contactBodies, type ContactSample } from '../render/contactShadows.ts';
-import { HELD_GRIP_RADIUS, heldItemFor, heldTiltFor, levelHeld, makeHeld, MOUTH_IN_HEAD, mouthFromJaw, MUG_RIM, type HeldItem } from './heldProps.ts';
+import { HELD_GRIP_RADIUS, heldDuringBlend, heldItemFor, heldTiltFor, levelHeld, makeHeld, MOUTH_IN_HEAD, mouthFromJaw, MUG_RIM, pistolGripFrameFor, type HeldItem } from './heldProps.ts';
+import { AIM_CLAMP, aimSwing, ARM_AIM_CLAMP, ARM_AIM_EASE, MUZZLE_FLASH_TIME, pistolParts, SLIDE_CYCLE, slideOffset, type HeldPistolParts } from './squadPistol.ts';
 import { settleUprightTurn, Spring1D, stepUprightTurn, type UprightTurnState } from './springs.ts';
 import { CRAWL_TURN, DRAG_TURN, newTurnState, settleTurn, stepTurn, type TurnState } from './turning.ts';
 import { JOINT_INDEX, JOINTS, SEVER_JOINT, subtree, type JointName, type Region, type SeverableRegion, type Side } from './skeleton.ts';
@@ -360,22 +361,39 @@ export class Humanoid {
    */
   setHeldItem(item: HeldItem | null | undefined): void {
     this.heldOverride = item;
-    this.syncHeld();
+    this.syncHeld(true);
   }
 
-  /** Show the item the pose holds (or the explicit `heldOverride`) while alive; hide the rest. */
-  private syncHeld(): void {
+  /**
+   * Follow the item the pose holds (or the explicit `heldOverride`) while alive. The mug and the wand change with the pose; a
+   * pistol appears or goes at the pose blend's midpoint (squad-sidearms D2), unless `now` (an override, or death) says at once.
+   */
+  private syncHeld(now = false): void {
     this.heldFor = `${this.idlePose}|${this.state}|${String(this.heldOverride)}`;
     const want = this.state === 'alive' ? (this.heldOverride !== undefined ? this.heldOverride : heldItemFor(this.idlePose)) : null;
-    this.heldNow = want;
-    if (want && !this.heldItems.has(want)) {
-      // A mug in a hand with finger bones: its rig's own grip frame (D4) and the wrap solved for it, handle turned into the opening (D5).
-      if (want === 'mug') this.mugGrip = heldGripFor(this.geo.handBones);
-      const mesh = makeHeld(want, want === 'mug' ? (this.mugGrip?.frame ?? null) : null);
-      this.heldItems.set(want, mesh);
+    this.heldFrom = now || this.state !== 'alive' ? want : this.heldNow;
+    this.heldTarget = want;
+    this.showHeld(heldDuringBlend(this.heldFrom, want, this.animator.blendProgress));
+  }
+
+  /** Show one held item (making it on first use) and hide the rest. */
+  private showHeld(item: HeldItem | null): void {
+    this.heldNow = item;
+    if (item && !this.heldItems.has(item)) {
+      // A mug or pistol in a hand with finger bones: its rig's own grip frame (D4) and the wrap solved for it.
+      if (item === 'mug' || item === 'pistol') this.solvedGrips[item] = heldGripFor(this.geo.handBones, item);
+      const grip = item === 'mug' || item === 'pistol' ? (this.solvedGrips[item]?.frame ?? (item === 'pistol' ? pistolGripFrameFor(this.geo.handBones) : null)) : null;
+      const mesh = makeHeld(item, grip);
+      this.heldItems.set(item, mesh);
       this.bones.hand_R.add(mesh);
     }
-    for (const [item, mesh] of this.heldItems) mesh.visible = item === want;
+    for (const [held, mesh] of this.heldItems) mesh.visible = held === item;
+  }
+
+  /** The held pistol's muzzle, ejection port and slide while it shows, else null (squad-sidearms D4). */
+  get pistol(): HeldPistolParts | null {
+    const held = this.heldNow === 'pistol' ? this.heldItems.get('pistol') : undefined;
+    return held?.visible ? pistolParts(held) : null;
   }
 
   /** The item in the right hand right now, if any (tests). */
@@ -952,6 +970,7 @@ export class Humanoid {
   update(dt: number, cameraPosition: THREE.Vector3 | null = null): void {
     this.time += dt;
     if (this.heldFor !== `${this.idlePose}|${this.state}|${String(this.heldOverride)}`) this.syncHeld();
+    else if (this.heldNow !== this.heldTarget) this.showHeld(heldDuringBlend(this.heldFrom, this.heldTarget, this.animator.blendProgress));
     this.updateTimers(dt);
     if (this.slam) {
       if (this.state !== 'alive' || this.locomotion.mode !== 'walk') this.slam.cancel();
@@ -1064,10 +1083,121 @@ export class Humanoid {
       clipFingerWeight: this.animator.clipFingerW,
       // The wand keeps the radius wrap; a mug uses its solved contact pose (a hand without finger bones has nothing to wrap).
       heldRadiusR: this.heldNow === 'wand' ? HELD_GRIP_RADIUS.wand : null,
-      heldGripR: this.heldNow === 'mug' ? this.mugGrip : null,
+      heldGripR: this.heldNow === 'mug' || this.heldNow === 'pistol' ? this.solvedGrips[this.heldNow] : null,
     });
     this.levelHeldMug(dt);
+    this.aimHeldPistol(dt);
+    this.updateSlide(dt);
     this.updateFootsteps(dt);
+  }
+
+  /** Where a held pistol points (world; squad-sidearms D3): the target's aim point, or null to leave the clip's arm alone. */
+  aimTarget: THREE.Vector3 | null = null;
+  /** The last frame's wrist correction and shoulder swing (radians; tests). */
+  aimSwingAngle = 0;
+  armSwingAngle = 0;
+  /** How far the shoulder swing is eased in (0..1): it grows over about 0.15 s once the pistol shows, so the arm never snaps. */
+  private aimWeight = 0;
+  private readonly aimTmp = { muzzle: new THREE.Vector3(), barrel: new THREE.Vector3(), want: new THREE.Vector3(), swing: new THREE.Quaternion(), handQ: new THREE.Quaternion(), parentQ: new THREE.Quaternion() };
+
+  /** The bore (the model's -Z through the muzzle) and the line from the muzzle to the target, both unit; false when degenerate. */
+  private aimLines(parts: HeldPistolParts, target: THREE.Vector3): boolean {
+    const t = this.aimTmp;
+    parts.muzzle.getWorldPosition(t.muzzle);
+    // The bore, not grip-to-muzzle: the muzzle sits 8 cm above the grip marker, 27° off the barrel line.
+    t.barrel.set(0, 0, -1).applyQuaternion(parts.muzzle.getWorldQuaternion(t.handQ)).normalize();
+    t.want.subVectors(target, t.muzzle);
+    if (t.want.lengthSq() < 1e-4) return false;
+    t.want.normalize();
+    return true;
+  }
+
+  /** Turn `bone` in world space by `swing` (premultiplied), keeping its parent. */
+  private swingBone(bone: THREE.Object3D, swing: THREE.Quaternion): void {
+    const t = this.aimTmp;
+    bone.getWorldQuaternion(t.handQ).premultiply(swing);
+    bone.parent!.getWorldQuaternion(t.parentQ).invert();
+    bone.quaternion.copy(t.parentQ.multiply(t.handQ));
+    bone.updateMatrixWorld(true);
+  }
+
+  /**
+   * Point a held pistol at `aimTarget` (squad-sidearms D3), after everything else has moved the arm: turn the wrist so the bore lines
+   * up with the line from the muzzle to the target (in all at most AIM_CLAMP), and swing the whole right arm rigidly at the shoulder
+   * for what the wrist cannot reach (at most ARM_AIM_CLAMP, eased in). The pistol stays rigid in the hand, so it is as steady as the
+   * arm.
+   */
+  private aimHeldPistol(dt: number): void {
+    this.aimSwingAngle = 0;
+    this.armSwingAngle = 0;
+    const parts = this.pistol;
+    const limpR = !this.limbAttached('R', true) || this.animator.limp.has(JOINT_INDEX.hand_R) || this.animator.limp.has(JOINT_INDEX.foreArm_R) || this.animator.limp.has(JOINT_INDEX.upperArm_R);
+    const target = this.aimTarget;
+    if (!parts || !target || this.state !== 'alive' || limpR) {
+      this.aimWeight = 0;
+      return;
+    }
+    this.aimWeight = Math.min(1, this.aimWeight + Math.max(0, dt) / ARM_AIM_EASE);
+    const t = this.aimTmp;
+    const hand = this.bones.hand_R;
+    const upper = this.bones.upperArm_R;
+    if (!hand.parent || !upper.parent) return;
+    upper.updateWorldMatrix(true, true);
+    // The wrist first, as far as it goes (a shooter's ulnar deviation); then the shoulder for what is left (a target off to one
+    // side), two passes since the swing moves the muzzle too; then the wrist again with what remains of its range.
+    if (!this.aimLines(parts, target)) return;
+    this.aimSwingAngle = aimSwing(t.barrel, t.want, AIM_CLAMP, t.swing);
+    this.swingBone(hand, t.swing);
+    for (let pass = 0; pass < 2; pass++) {
+      if (!this.aimLines(parts, target)) return;
+      const full = 2 * Math.acos(THREE.MathUtils.clamp(Math.abs(t.swing.setFromUnitVectors(t.barrel, t.want).w), 0, 1));
+      const left = ARM_AIM_CLAMP - this.armSwingAngle;
+      if (left <= 1e-6 || full < 1e-4) break;
+      this.armSwingAngle += aimSwing(t.barrel, t.want, Math.min(left, full * this.aimWeight), t.swing);
+      this.swingBone(upper, t.swing);
+    }
+    if (!this.aimLines(parts, target) || AIM_CLAMP - this.aimSwingAngle <= 1e-6) return;
+    this.aimSwingAngle += aimSwing(t.barrel, t.want, AIM_CLAMP - this.aimSwingAngle, t.swing);
+    this.swingBone(hand, t.swing);
+  }
+
+  /** Seconds since the held pistol last fired (the slide kick; Infinity at rest). */
+  private sinceShot = Infinity;
+
+  /** Kick the held pistol's slide back (one squad shot, squad-sidearms D4). */
+  kickSlide(): void {
+    this.sinceShot = 0;
+    // The muzzle flash (D7): a fresh roll and size each shot, shown until MUZZLE_FLASH_TIME.
+    const flash = this.pistol?.flash;
+    if (flash) {
+      flash.rotation.z = Math.random() * Math.PI;
+      flash.scale.setScalar(0.8 + Math.random() * 0.4);
+      flash.visible = true;
+    }
+  }
+
+  /** Is the held pistol's muzzle flash showing (tests)? */
+  get muzzleFlashing(): boolean {
+    return this.pistol?.flash.visible ?? false;
+  }
+
+  /** The slide's back-travel right now (m; tests). */
+  get slideTravel(): number {
+    return this.pistol?.slide.position.z ?? 0;
+  }
+
+  private updateSlide(dt: number): void {
+    if (this.sinceShot === Infinity) return;
+    this.sinceShot += dt;
+    // The pistol's parts even while it is hidden, so a flash cut short by lowering the gun never shows again when it comes back.
+    const held = this.heldItems.get('pistol');
+    const parts = held ? pistolParts(held) : null;
+    const off = slideOffset(this.sinceShot);
+    if (parts) {
+      parts.slide.position.z = off;
+      parts.flash.visible = this.sinceShot < MUZZLE_FLASH_TIME;
+    }
+    if (off === 0 && this.sinceShot > Math.max(SLIDE_CYCLE, MUZZLE_FLASH_TIME)) this.sinceShot = Infinity;
   }
 
   /** How far the held mug leans from vertical (radians), eased toward the pose's tilt so a sip never snaps. */
@@ -1153,9 +1283,12 @@ export class Humanoid {
   private smoothAccelZ = 0;
   private readonly footIk = new FootIkSolver();
   /** ADR-0029: a mug in the right hand while the pose is a mug or drink pose (made on first use). */
-  private readonly heldItems = new Map<HeldItem, THREE.Mesh>();
+  private readonly heldItems = new Map<HeldItem, THREE.Object3D>();
   /** The solved mug wrap for this body's hand, or null for a hand without finger bones. */
-  private mugGrip: HeldGrip | null = null;
+  private readonly solvedGrips: Record<SolvedItem, HeldGrip | null> = { mug: null, pistol: null };
+  /** What showed when the held item last changed target, and the target: a pistol swaps between them at the blend's midpoint. */
+  private heldFrom: HeldItem | null = null;
+  private heldTarget: HeldItem | null = null;
   private heldFor = '';
   /** Explicit held-item override (`undefined` follows pose; `null` forces empty hand). */
   private heldOverride: HeldItem | null | undefined = undefined;

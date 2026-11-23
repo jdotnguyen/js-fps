@@ -25,6 +25,7 @@ import { sharedMotionProfiles } from '../actors/motionProfiles.ts';
 import { needFor, ownCovers } from '../actors/castMotionCoverage.ts';
 import { detailPass } from '../actors/detailPass.ts';
 import { injuryWeight } from '../actors/injury.ts';
+import { loadSquadPistolModel } from '../actors/squadPistol.ts';
 
 /**
  * Cast motion sandbox (character-motion spec, design D10): one row per named character plus the two crew defaults, one column
@@ -139,6 +140,7 @@ async function boot(): Promise<void> {
   await Promise.all([
     bodyModels.load(import.meta.env.BASE_URL),
     loadSharedMocapLibrary().then((lib) => loadMocapPacks(lib, Object.keys(profiles.profiles))),
+    loadSquadPistolModel(),
   ]);
   const gore = new GoreSystem(new Rng('sandbox-gore'));
   scene.add(gore.group);

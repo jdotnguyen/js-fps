@@ -765,6 +765,9 @@ export const SAMPLE_URLS = {
   shotgunPump: 'assets/audio/weapons/shotgun-pump-fit.mp3', // stretched x1.1 to match the old PostFire clip (scripts/fit-weapon-audio.mjs); the new Shoot racks quicker, see swap-viewmodels-to-just-models
   shotgunShell: 'assets/audio/weapons/shotgun-shell.mp3',
   dryFire: 'assets/audio/weapons/dry-fire.mp3',
+  // Giles's and Okafor's covering fire (squad-sidearms D5): "pistol shot" by mrfriends (Pixabay Content License, see CREDITS.md),
+  // trimmed and level-matched. Recorded only, played positionally from the mate's muzzle, its pitch varied per shot.
+  squadPistolShot: 'assets/audio/weapons/squad-pistol-shot.mp3',
   // Spent casings landing (in-world-audio spec: Spent casings; src/audio/casings.ts). Built by scripts/casings-generate.ts:
   // CC0 cuts (GrayJoy, GryffDavid, BlondPanda, MrGungus, lumikon, magnuswaker, Metrolynn; see CREDITS.md) for brass on
   // concrete and soft floors and hulls on concrete, ElevenLabs for the rest. Every clip peaks at -6 dB; play gain sets the surface.

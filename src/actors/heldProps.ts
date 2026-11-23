@@ -1,26 +1,44 @@
 import * as THREE from 'three';
+import { makeHeldPistol, PISTOL_FORWARD, PISTOL_GRIP_HALF_WIDTH, PISTOL_MARKERS, PISTOL_RAISE } from './squadPistol.ts';
 
 /**
- * Small things a body holds in the right hand (ADR-0029): a coffee mug, or the dock guard's scanning wand
- * (dock-checkpoint spec). Which one shows follows the body's pose: mug and drink poses (`idle_mug`, `offer_mug`,
- * `drink`, `lean_back_mug_drink`, ...) hold the mug, wand poses (`idle_wand`, `wand_up`, `wand_down`) the wand, so a
- * sequence or the ambient gestures only have to pick the pose. One shared geometry and material per item.
+ * Small things a body holds in the right hand (ADR-0029): a coffee mug, the dock guard's scanning wand (dock-checkpoint spec),
+ * or a squad mate's pistol (squad-sidearms). Which one shows follows the body's pose: mug and drink poses (`idle_mug`,
+ * `offer_mug`, `drink`, `lean_back_mug_drink`, ...) hold the mug, wand poses (`idle_wand`, `wand_up`, `wand_down`) the wand,
+ * pistol poses (`aim_pistol`) the pistol, so a sequence or the ambient gestures only have to pick the pose. One shared
+ * geometry and material per item.
  */
 
 /** Radius (m) of what each held item's grip wraps around: the hand wraps it no tighter than this (no finger inside the mug). */
-export const HELD_GRIP_RADIUS: Readonly<Record<HeldItem, number>> = { mug: 0.043, wand: 0.019 };
+export const HELD_GRIP_RADIUS: Readonly<Record<HeldItem, number>> = { mug: 0.043, wand: 0.019, pistol: 0.016 };
 
 /** Poses that have a mug in the right hand. */
 export const MUG_POSE = /(^|_)(mug|drink)(_|$)/;
 /** Poses that have the scanning wand in the right hand. */
 export const WAND_POSE = /(^|_)wand(_|$)/;
+/** Poses that have the pistol in the right hand (squad-sidearms D2). */
+export const PISTOL_POSE = /(^|_)pistol(_|$)/;
 
-export type HeldItem = 'mug' | 'wand';
+export type HeldItem = 'mug' | 'wand' | 'pistol';
+
+/** A pistol appears once the blend into its pose is this far done, and goes once the blend out is (squad-sidearms D2). */
+export const HELD_SWAP_AT = 0.5;
+
+/**
+ * What the right hand shows while blending from a pose that held `from` to one that holds `to`, `blend` (0..1) of the way: a
+ * change to or from the pistol waits for the blend's midpoint (the arm is mid-raise, so the swap hides in the motion); the mug and
+ * the wand change with the pose, as before. Never two items at once.
+ */
+export function heldDuringBlend(from: HeldItem | null, to: HeldItem | null, blend: number): HeldItem | null {
+  if (from === to || (from !== 'pistol' && to !== 'pistol')) return to;
+  return blend >= HELD_SWAP_AT ? to : from;
+}
 
 /** The item a pose holds in the right hand, if any. */
 export function heldItemFor(pose: string): HeldItem | null {
   if (MUG_POSE.test(pose)) return 'mug';
   if (WAND_POSE.test(pose)) return 'wand';
+  if (PISTOL_POSE.test(pose)) return 'pistol';
   return null;
 }
 
@@ -313,7 +331,56 @@ export function makeHeldWand(): THREE.Mesh {
   return mesh;
 }
 
-/** A fresh mesh for a held item; a mug uses the rig's grip frame when given one. */
-export function makeHeld(item: HeldItem, grip: GripFrame | null = null): THREE.Mesh {
-  return item === 'mug' ? makeHeldMug(grip) : makeHeldWand();
+// ------------------------------------------------------------------ pistol (squad-sidearms D2)
+
+/** Where the pistol sits in a hand without finger bones (canonical frame): its grip in the palm, the barrel along the fingers. */
+export const PISTOL_IN_HAND: GripFrame = {
+  position: new THREE.Vector3(-0.035, -0.07, 0.0),
+  up: new THREE.Vector3(0, 0, -1),
+  handle: new THREE.Vector3(-1, 0, 0),
+  palm: new THREE.Vector3(-1, 0, 0),
+};
+
+/**
+ * The rotation that puts the pistol's grip frame (+Y up the grip, -Z forward, +X its right-hand side) in a right hand: the grip
+ * axis along `frame.up` (the knuckle row toward the index), the gun's right side against the palm (its +X = -palm, `palm` pointing
+ * out of the palm), so the fingers wrap square to the grip. As with a real pistol held with a straight wrist, the bore then points
+ * high of the forearm, and the aim's wrist turn (D3) brings it down.
+ */
+export function pistolRotation(frame: GripFrame): THREE.Quaternion {
+  const y = frame.up.clone().normalize();
+  const x = frame.palm.clone().negate().addScaledVector(y, frame.palm.dot(y)).normalize();
+  const z = new THREE.Vector3().crossVectors(x, y);
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+}
+
+/** The pistol model's rotation in a right hand: the grip frame's, turned back by the grip marker's own rotation. */
+export function pistolModelRotation(frame: GripFrame): THREE.Quaternion {
+  return pistolRotation(frame).multiply(PISTOL_MARKERS.gripRotation.clone().invert());
+}
+
+/**
+ * A rig's pistol grip frame: the mug's frame for a bar the frame's width (the side panel against the palm), moved PISTOL_FORWARD
+ * along the fingers (toward the wrist: the knuckles along the grip's front-right edge, so the fingers bend round the front strap)
+ * and PISTOL_RAISE toward the index. Null without finger bones.
+ */
+export function pistolGripFrameFor(handBones: readonly FingerDefLike[] | undefined): GripFrame | null {
+  const f = gripFrameFor(handBones, PISTOL_GRIP_HALF_WIDTH);
+  if (!f) return null;
+  const down = new THREE.Vector3().crossVectors(f.palm, f.up).normalize();
+  f.position.addScaledVector(down, PISTOL_FORWARD).addScaledVector(f.up, PISTOL_RAISE);
+  return f;
+}
+
+/** A pistol, parented to a hand bone with its grip marker on the rig's grip frame (or the canonical placement). */
+export function makeHeldPistolIn(grip: GripFrame | null): THREE.Object3D {
+  const g = grip ?? PISTOL_IN_HAND;
+  return makeHeldPistol({ position: g.position.clone(), quaternion: pistolRotation(g) });
+}
+
+/** A fresh object for a held item; the mug and the pistol use the rig's grip frame when given one. */
+export function makeHeld(item: HeldItem, grip: GripFrame | null = null): THREE.Object3D {
+  if (item === 'mug') return makeHeldMug(grip);
+  if (item === 'pistol') return makeHeldPistolIn(grip);
+  return makeHeldWand();
 }

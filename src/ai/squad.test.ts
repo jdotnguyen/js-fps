@@ -622,3 +622,81 @@ test('a revive is published as the medic\'s `revive` task for as long as it last
   squad.update(dt, null);
   assert.deepEqual(reviveEvents().slice(2), ['squad:taskStarted', 'squad:taskDone'], 'a revive cut short still ends its task');
 });
+
+// ------------------------------------------------------------------ squad-sidearms task 3.1: the shot comes from the pistol
+
+/** A squad whose enemy source records each shot's damage and origin. */
+function shootingRange() {
+  const shots: Array<{ damage: number; origin: { x: number; y: number; z: number } }> = [];
+  const enemy: SquadEnemy = { id: 'e0', position: { x: 0, y: 0, z: -4 }, alive: true, grabbing: null } as unknown as SquadEnemy;
+  const source: SquadEnemySource = {
+    list: () => [enemy],
+    shoot(_id, _aim, damage, origin) {
+      shots.push({ damage, origin: { ...origin! } });
+      return false;
+    },
+  };
+  const s = setup({ enemies: source });
+  return { ...s, shots, enemy };
+}
+
+type Fired = { hit: boolean; muzzle: { x: number; y: number; z: number }; ejectPort: { x: number; y: number; z: number }; right: { x: number; y: number; z: number }; fromPistol: boolean };
+const firedOf = (events: Array<{ name: string; payload: unknown }>): Fired[] => events.filter((e) => e.name === 'squad:fired').map((e) => e.payload as Fired);
+
+test('squad shot without a pistol showing: from 1.4 m above the mate, as before (fallback)', () => {
+  const { squad, events, shots, enemy } = shootingRange();
+  squad.update(1 / 60, null);
+  const m = squad.mates[0]!;
+  assert.equal(m.body.pistol, null, 'idle: no pistol');
+  squad.fire(m, enemy);
+  const f = firedOf(events).at(-1)!;
+  assert.equal(f.fromPistol, false);
+  assert.deepEqual(f.muzzle, { x: m.position.x, y: m.position.y + 1.4, z: m.position.z });
+  assert.deepEqual(f.ejectPort, f.muzzle);
+  assert.ok(Math.abs(Math.hypot(f.right.x, f.right.y, f.right.z) - 1) < 1e-6);
+  if (f.hit) assert.deepEqual(shots.at(-1)!.origin, f.muzzle, 'the hit origin is that point');
+});
+
+test('squad shot with the pistol up: muzzle, ejection port and right vector from the gun; the muzzle is the hit origin', () => {
+  const { squad, events, shots, enemy } = shootingRange();
+  const m = squad.mates[0]!;
+  m.body.setPose('aim_pistol', 0.2);
+  for (let i = 0; i < 40; i++) m.body.update(1 / 60);
+  const gun = m.body.pistol;
+  assert.ok(gun, 'aim pose: pistol showing');
+  let hits = 0;
+  for (let i = 0; i < 30; i++) {
+    squad.fire(m, enemy);
+    const f = firedOf(events).at(-1)!;
+    assert.equal(f.fromPistol, true);
+    m.body.group.updateMatrixWorld(true);
+    const muzzle = gun.muzzle.getWorldPosition(new THREE.Vector3());
+    assert.ok(muzzle.distanceTo(new THREE.Vector3(f.muzzle.x, f.muzzle.y, f.muzzle.z)) < 1e-6, 'muzzle from the marker');
+    const port = new THREE.Vector3(f.ejectPort.x, f.ejectPort.y, f.ejectPort.z);
+    assert.ok(port.distanceTo(muzzle) < 0.12 && port.distanceTo(muzzle) > 0.05, 'the ejection port is on the gun, behind the muzzle');
+    assert.ok(Math.abs(new THREE.Vector3(f.right.x, f.right.y, f.right.z).length() - 1) < 1e-6);
+    // Muzzle roughly at hand height, not the fallback point.
+    assert.ok(f.muzzle.y > 0.9 && f.muzzle.y < 1.7);
+    if (f.hit) {
+      hits++;
+      assert.deepEqual(shots.at(-1)!.origin, f.muzzle, 'the hit origin is the muzzle');
+    }
+  }
+  assert.ok(hits > 0);
+});
+
+test('the pistol changes nothing about accuracy, damage or fire rate', () => {
+  // Same seeds, one squad with the pistol up and one without: the same hit pattern and damage.
+  const run = (aim: boolean) => {
+    const r = shootingRange();
+    const m = r.squad.mates[0]!;
+    if (aim) {
+      m.body.setPose('aim_pistol', 0.2);
+      for (let i = 0; i < 40; i++) m.body.update(1 / 60);
+      assert.ok(m.body.pistol);
+    }
+    for (let i = 0; i < 50; i++) r.squad.fire(m, r.enemy);
+    return { hits: firedOf(r.events).map((f) => f.hit), damage: r.shots.map((s) => s.damage) };
+  };
+  assert.deepEqual(run(true), run(false));
+});

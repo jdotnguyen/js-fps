@@ -315,6 +315,11 @@ export class Animator {
     return this.to.name;
   }
 
+  /** How far (0..1) the blend into the current pose has come; 1 once it has landed. */
+  get blendProgress(): number {
+    return this.blendT;
+  }
+
   get sequencePlaying(): boolean {
     return this.seq !== null;
   }

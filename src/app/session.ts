@@ -53,6 +53,8 @@ import { AMBIENCE_PRESETS, AmbienceDirector } from '../audio/ambience.ts';
 import { DoorAudio } from '../audio/doorAudio.ts';
 import type { AudioEngine } from '../audio/engine.ts';
 import { CasingAudio, ejectOnWeaponEvents } from '../audio/casings.ts';
+import { wireSquadShots } from './squadShots.ts';
+import { SquadMuzzleLight } from '../render/squadMuzzleLight.ts';
 import { FootstepAudio } from '../audio/footsteps.ts';
 import { StageTimer } from './stageTimer.ts';
 import { levelFileLoader } from './levelFiles.ts';
@@ -95,6 +97,7 @@ import { TutorialPrompts } from '../ui/tutorialPrompts.ts';
 import { TutorialProfile } from '../ui/tutorials.ts';
 import { loadWeaponModels } from '../render/viewmodel/glbWeapons.ts';
 import { Viewmodel } from '../render/viewmodel/viewmodel.ts';
+import { loadSquadPistolModel } from '../actors/squadPistol.ts';
 import { Squad } from '../ai/squad.ts';
 import { REVIVE_TASK } from '../ai/squadBrain.ts';
 import { NpcDirector } from '../ai/npcs.ts';
@@ -265,6 +268,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
   let doorAudio: DoorAudio | null = null;
   let footsteps: FootstepAudio | null = null;
   let casings: CasingAudio | null = null;
+  let squadMuzzleLight: SquadMuzzleLight | null = null;
   let voicePlayer: WebAudioVoicePlayer | null = null;
   let storyDucker: StoryDucker | null = null;
   let score: ScorePlayer | null = null;
@@ -324,6 +328,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     footsteps = null;
     casings?.stopAll();
     casings = null;
+    squadMuzzleLight?.dispose();
+    squadMuzzleLight = null;
     voicePlayer?.dispose();
     voicePlayer = null;
     audio.releaseGameplayBuffers();
@@ -492,6 +498,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       bodyModelsReady,
       adopt(ITEMS.mocap, () => mocapPromise.then((lib) => loadMocapPacks(lib, Object.keys(sharedMotionProfiles().profiles)))),
       adopt(ITEMS.weapons, loadWeaponModels),
+      loadSquadPistolModel(),
     ]);
 
     // Stage 2 (0.24..0.60): Load & chunk-build the level.
@@ -1195,6 +1202,17 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       });
       events.on('game:restarted', () => caseAudio.stopAll());
     }
+    // Covering fire (squad-sidearms D4): the squad gunshot from the mate's muzzle, the slide kick, and the brass.
+    // The squad's muzzle flashes light the room (D7): one shared light, only in a world with a squad.
+    if (squad) squadMuzzleLight = new SquadMuzzleLight(scene);
+    wireSquadShots({
+      events,
+      audio,
+      casings: () => casings,
+      light: squadMuzzleLight,
+      body: (id) => squad?.mate(id).body ?? null,
+      active: () => game.mode === 'playing' && !game.flying,
+    });
 
     let ambienceRoom: string | null = null;
     events.on('room:entered', (r) => {
@@ -1571,6 +1589,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         }
         guidance!.render(frameDt);
         viewmodel!.update(frameDt);
+        squadMuzzleLight?.update(frameDt);
         flashlight.update(frameDt);
         world!.update(simTime, frameDt, camera.position, settings.get().reducedFlashing, camera);
         if (level && levelStats) {

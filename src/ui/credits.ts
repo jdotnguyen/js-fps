@@ -91,6 +91,7 @@ export const MODEL_CREDITS: readonly ModelCredit[] = [
   { asset: 'Lady in a trenchcoat', author: 'ustoopia', licence: 'CC BY 4.0', usedAs: "Admin Assistant's Body" },
   { asset: 'AnimatedPistol', author: 'JUST', licence: 'CC BY 4.0', usedAs: "Jay's Pistol" },
   { asset: 'Animated Shotgun', author: 'JUST', licence: 'CC BY 4.0', usedAs: "Jay's Shotgun" },
+  { asset: 'Heckler & Koch USP Pistol', author: 'Urpo', licence: 'CC BY 4.0', usedAs: 'Squad Sidearm' },
   { asset: 'Ocean floor scene', author: 'teacherap123', licence: 'CC BY 4.0', usedAs: 'Sea Floor' },
   { asset: 'Kilo-class Submarine', author: 'spacelynxcanfly', licence: 'CC BY 4.0', usedAs: 'Supply Submarine' },
   { asset: 'Location underground laboratory', author: 'bazz4r', licence: 'CC BY 4.0', usedAs: 'Underground Lab' },

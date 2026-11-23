@@ -1,18 +1,56 @@
 import * as THREE from 'three';
 import { FINGER_MAX_CURL, FINGER_NAMES, MAX_SPLAY, shapeSplay, THUMB_MAX_CURL, THUMB_MAX_SPLAY, type FingerBoneDef, type FingerName, type HandDetailBone } from './handPhysics.ts';
-import { gripFrameFor, mugRotation, MUG_SHAPE, type GripFrame } from './heldProps.ts';
+import { gripFrameFor, mugRotation, MUG_SHAPE, pistolGripFrameFor, pistolRotation, type GripFrame } from './heldProps.ts';
+import { pistolDistance } from './squadPistol.ts';
 
-const solved = new WeakMap<readonly HandDetailBone[], HeldGrip | null>();
+/** Items whose wrap is solved against their shape: the mug and the pistol (the wand keeps the radius wrap). */
+export type SolvedItem = 'mug' | 'pistol';
 
-/** The mug wrap for a rig's hand (grip frame, then the solve), computed once per rig and shared by every body built from it. */
-export function heldGripFor(handBones: readonly HandDetailBone[] | undefined): HeldGrip | null {
+const solved: Record<SolvedItem, WeakMap<readonly HandDetailBone[], HeldGrip | null>> = { mug: new WeakMap(), pistol: new WeakMap() };
+
+/**
+ * The wrap of a held mug or pistol for a rig's hand (grip frame, then the solve), computed once per rig and item and shared by every
+ * body built from it.
+ */
+export function heldGripFor(handBones: readonly HandDetailBone[] | undefined, item: SolvedItem = 'mug'): HeldGrip | null {
   if (!handBones || handBones.length === 0) return null;
-  if (solved.has(handBones)) return solved.get(handBones)!;
-  const frame = gripFrameFor(handBones);
-  const grip = frame ? solveHeldGrip(handBones, frame, shapeSplay('cup')) : null;
-  solved.set(handBones, grip);
+  const cache = solved[item];
+  if (cache.has(handBones)) return cache.get(handBones)!;
+  const frame = item === 'mug' ? gripFrameFor(handBones) : pistolGripFrameFor(handBones);
+  const grip = frame ? solveHeldGrip(handBones, frame, shapeSplay(item === 'mug' ? 'cup' : 'grip'), HELD_SHAPES[item]) : null;
+  cache.set(handBones, grip);
   return grip;
 }
+
+/** Signed clearance (m) of a finger's centre-line point, in the item's own frame, from its solid: negative = inside skin + margin. */
+type Clearance = (p: THREE.Vector3) => number;
+
+/** What the wrap solve needs of an item. */
+export interface HeldShape {
+  /** The item's rotation in the hand for a grip frame. */
+  rotation(frame: GripFrame): THREE.Quaternion;
+  clearance: Clearance;
+  /** Turn the frame about its up axis so the item's +X (the mug's handle) points into the widest gap between the contacts. */
+  turnHandle: boolean;
+  /** Per-finger bend limits (radians, phalanges 1-3) tighter than the hand's own: the pistol's index stays straight. */
+  maxCurl?: Partial<Record<FingerName, readonly [number, number, number]>>;
+  /** How far (radians) a phalanx may open past straight to clear the item (default -0.1; the hand solver writes down to -0.25). */
+  minCurl?: number;
+}
+
+/** Bend limits that keep a finger straight along the frame, off the trigger (squad-sidearms D2). */
+export const STRAIGHT_INDEX: readonly [number, number, number] = [0.12, 0.08, 0.06];
+
+export const HELD_SHAPES: Readonly<Record<SolvedItem, HeldShape>> = {
+  mug: { rotation: (f) => mugRotation(f.up, f.handle), clearance: (p) => mugClearance(p), turnHandle: true },
+  pistol: {
+    rotation: (f) => pistolRotation(f),
+    clearance: (p) => pistolDistance(p) - (WRAP_FINGER_HALF + WRAP_MARGIN),
+    turnHandle: false,
+    maxCurl: { index: STRAIGHT_INDEX },
+    minCurl: -0.25,
+  },
+};
 
 /**
  * The wrap of a held mug (held-props spec, upright-mug-grip D5): for one rig, the largest bend of each finger and thumb phalanx that
@@ -73,7 +111,7 @@ const SAMPLES = 6;
 const STEP = 0.02;
 
 /** Signed clearance (m) of a centre-line point (mug-local) from the mug body and handle: negative = inside skin + margin. */
-function clearance(p: THREE.Vector3): number {
+function mugClearance(p: THREE.Vector3): number {
   const s = MUG_SHAPE;
   const t = THREE.MathUtils.clamp((p.y - s.yBottom) / (s.yTop - s.yBottom), 0, 1);
   const r = THREE.MathUtils.lerp(s.rBottom, s.rTop, t);
@@ -93,9 +131,9 @@ function clearance(p: THREE.Vector3): number {
   return Math.min(body, handle) - keep;
 }
 
-/** Hand-rest space -> mug-local transform for a grip frame. */
-function mugInverse(frame: GripFrame): THREE.Matrix4 {
-  return new THREE.Matrix4().compose(frame.position, mugRotation(frame.up, frame.handle), new THREE.Vector3(1, 1, 1)).invert();
+/** Hand-rest space -> item-local transform for a grip frame. */
+function itemInverse(frame: GripFrame, shape: HeldShape): THREE.Matrix4 {
+  return new THREE.Matrix4().compose(frame.position, shape.rotation(frame), new THREE.Vector3(1, 1, 1)).invert();
 }
 
 /** One finger's three phalanges, from the rig's calibrated definitions. */
@@ -139,7 +177,7 @@ function chainPoints(chain: Phalanx[], angles: readonly number[], splay: number)
 }
 
 /** Least clearance over the segments from joint `from` to the tip, sampled along each. */
-function chainClearance(pts: THREE.Vector3[], from: number, inv: THREE.Matrix4): number {
+function chainClearance(pts: THREE.Vector3[], from: number, inv: THREE.Matrix4, clearance: Clearance): number {
   let min = Infinity;
   const v = new THREE.Vector3();
   for (let k = from; k + 1 < pts.length; k++) {
@@ -155,7 +193,7 @@ function chainClearance(pts: THREE.Vector3[], from: number, inv: THREE.Matrix4):
  * Bend each phalanx in turn, from the knuckle out, as far as it goes before its own segment meets the mug (that segment's samples
  * only: the phalanges beyond it bend next). A phalanx already touching at its rest angle stays at its lowest angle.
  */
-function wrapFinger(chain: Phalanx[], splay: number, inv: THREE.Matrix4, maxes: readonly number[]): [number, number, number] {
+function wrapFinger(chain: Phalanx[], splay: number, inv: THREE.Matrix4, maxes: readonly number[], clearance: Clearance, lo = -0.1): [number, number, number] {
   const angles = [0, 0, 0];
   for (let k = 0; k < 3; k++) {
     const segOk = (a: number): boolean => {
@@ -164,9 +202,9 @@ function wrapFinger(chain: Phalanx[], splay: number, inv: THREE.Matrix4, maxes: 
       // This phalanx's own segment (its joint -> the next joint or the tip), never deeper than where it starts: a knuckle that
       // rests pressed against the wall (GRIP_PRESS) may bend as long as the segment does not go further in.
       const start = clearance(pts[k]!.clone().applyMatrix4(inv));
-      return chainClearance(pts.slice(k, k + 2), 0, inv) >= Math.min(0, start) - 1e-4;
+      return chainClearance(pts.slice(k, k + 2), 0, inv, clearance) >= Math.min(0, start) - 1e-4;
     };
-    const lo = -0.1;
+
     let a = lo;
     if (!segOk(lo)) {
       angles[k] = lo;
@@ -193,8 +231,9 @@ const aroundAxis = (p: THREE.Vector3): number => Math.atan2(p.z, p.x);
  * curl for the closest contact on the far side from the fingers. Then turn the handle into the widest gap between the contacts and
  * solve once more. Null when the hand lacks a full set of finger bones.
  */
-export function solveHeldGrip(handBones: readonly HandDetailBone[] | undefined, frame: GripFrame, cupSplay: readonly number[]): HeldGrip | null {
+export function solveHeldGrip(handBones: readonly HandDetailBone[] | undefined, frame: GripFrame, cupSplay: readonly number[], shape: HeldShape = HELD_SHAPES.mug): HeldGrip | null {
   if (!handBones) return null;
+  const clearance = shape.clearance;
   const chains = new Map<FingerName, Phalanx[]>();
   for (const f of FINGER_NAMES) {
     const c = phalanges(handBones, f);
@@ -205,7 +244,7 @@ export function solveHeldGrip(handBones: readonly HandDetailBone[] | undefined, 
   // way to the middle knuckle.
   const palmPoint = new THREE.Vector3().lerp(chains.get('middle')![0]!.offset, 0.6);
   const solve = (fr: GripFrame): HeldGrip => {
-    const inv = mugInverse(fr);
+    const inv = itemInverse(fr, shape);
     const contact = {} as Record<FingerName, [number, number, number]>;
     const splay = {} as Record<FingerName, number>;
     // Seen down the mug's axis, which side of the line from the axis to the palm a point lies on.
@@ -216,7 +255,7 @@ export function solveHeldGrip(handBones: readonly HandDetailBone[] | undefined, 
     for (let fi = 1; fi < 5; fi++) {
       const f = FINGER_NAMES[fi]!;
       const sp = (cupSplay[fi] ?? 0) * MAX_SPLAY;
-      contact[f] = wrapFinger(chains.get(f)!, sp, inv, FINGER_MAX_CURL);
+      contact[f] = wrapFinger(chains.get(f)!, sp, inv, shape.maxCurl?.[f] ?? FINGER_MAX_CURL, clearance, shape.minCurl);
       splay[f] = sp;
       if (f === 'middle') {
         const pts = chainPoints(chains.get(f)!, contact[f], sp);
@@ -236,7 +275,7 @@ export function solveHeldGrip(handBones: readonly HandDetailBone[] | undefined, 
             for (const a3 of steps(lo, THUMB_MAX_CURL[2] * reach, 6)) {
               const angles: [number, number, number] = [a1, a2, a3];
               const pts = chainPoints(thumb, angles, sp);
-              if (chainClearance(pts, 0, inv) < THUMB_ALLOW) continue;
+              if (chainClearance(pts, 0, inv, clearance) < THUMB_ALLOW) continue;
               const tip = pts[pts.length - 1]!.clone().applyMatrix4(inv);
               const score = Math.max(0, clearance(tip)) + (sideOf(tip) === -fingerSide ? 0 : 0.05);
               if (!best || score < best.score) best = { score, angles, sp };
@@ -251,14 +290,15 @@ export function solveHeldGrip(handBones: readonly HandDetailBone[] | undefined, 
     if (!best) search(THUMB_OPPOSITION, -0.25, HELD_THUMB_REACH);
     contact.thumb = best ? best.angles : [0, 0, 0];
     splay.thumb = best ? best.sp : 0;
-    const clearanceAt = (finger: FingerName, angles: readonly number[], sp: number): number => chainClearance(chainPoints(chains.get(finger)!, angles, sp), 0, inv);
+    const clearanceAt = (finger: FingerName, angles: readonly number[], sp: number): number => chainClearance(chainPoints(chains.get(finger)!, angles, sp), 0, inv, clearance);
     const pointsAt = (finger: FingerName, angles: readonly number[], sp: number): THREE.Vector3[] => chainPoints(chains.get(finger)!, angles, sp).map((p) => p.applyMatrix4(inv));
     return { contact, splay, frame: fr, clearanceAt, pointsAt, palm: palmLocal };
   };
 
   const first = solve(frame);
+  if (!shape.turnHandle) return first;
   // Turn the handle into the widest opening between where the fingers and thumb are.
-  const inv = mugInverse(frame);
+  const inv = itemInverse(frame, shape);
   const angles: number[] = [];
   for (const f of FINGER_NAMES) {
     for (const p of chainPoints(chains.get(f)!, first.contact[f], first.splay[f])) {

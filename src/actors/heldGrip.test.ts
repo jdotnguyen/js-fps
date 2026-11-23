@@ -8,7 +8,8 @@ import { ctx as enemyCtx } from '../ai/enemyTestKit.ts';
 import { CAST } from './castLooks.ts';
 import { loadMainCast, makeLib, type MainCastModel } from './castModelTestKit.ts';
 import { gripFrameFor, makeHeldMug, MUG_IN_HAND, PALM_DEPTH } from './heldProps.ts';
-import { heldGripFor } from './heldGrip.ts';
+import { heldGripFor, STRAIGHT_INDEX } from './heldGrip.ts';
+import { PISTOL_SHAPE, pistolDistance } from './squadPistol.ts';
 import { Humanoid, type HumanoidSpec } from './humanoid.ts';
 import { MocapLibrary, type RawMocapFile } from './mocap.ts';
 import type { BodyModelLibrary } from './bodyModelLibrary.ts';
@@ -701,6 +702,84 @@ test('The mug\'s handle points away from the grip, never into the palm', async (
       const r = readGrip(h)!;
       if (r.handleFromPalm < 90 || r.inHandle > 0) bad.push(`${who}/${pose} handle ${deg(r.handleFromPalm)} from the palm, ${r.inHandle} finger points in it`);
     }
+  }
+  assert.deepEqual(bad, [], bad.join('; '));
+});
+
+// ------------------------------------------------------------------ the squad pistol (squad-sidearms task 2.1)
+
+/** The posed pistol's grip marker frame (world -> grip-local) and the finger samples, for one body in a pistol pose. */
+function readPistol(h: Humanoid): { deepest: number; deepestFinger: string; tipDist: Partial<Record<Finger, number>>; palmInGuard: number; indexInGuard: number } | null {
+  let held: THREE.Object3D | null = null;
+  h.group.traverse((o) => {
+    if (o.name === 'held_pistol' && o.visible) held = o;
+  });
+  if (!held) return null;
+  h.group.updateMatrixWorld(true);
+  const grip = (held as THREE.Object3D).getObjectByName('grip')!;
+  const inv = grip.matrixWorld.clone().invert();
+  const local = (v: THREE.Vector3): THREE.Vector3 => v.clone().applyMatrix4(inv);
+  const samples = sampleFingers(h.group)!;
+  let deepest = -Infinity;
+  let deepestFinger = '';
+  for (const [f, pts] of samples.points) {
+    for (const p of pts) {
+      const d = FINGER_HALF - pistolDistance(local(p));
+      if (d > deepest) {
+        deepest = d;
+        deepestFinger = f;
+      }
+    }
+  }
+  const tipDist: Partial<Record<Finger, number>> = {};
+  for (const [f, tip] of samples.tips) tipDist[f] = Math.max(0, pistolDistance(local(tip)) - FINGER_HALF);
+  // How far the palm (60% from the wrist to the middle knuckle) and the index are inside the trigger guard's loop (<= 0: clear).
+  const guard = PISTOL_SHAPE.triggerGuard;
+  const into = (p: THREE.Vector3): number => {
+    const q = local(p);
+    return Math.min(q.x - guard.min.x, guard.max.x - q.x, q.y - guard.min.y, guard.max.y - q.y, q.z - guard.min.z, guard.max.z - q.z);
+  };
+  const hand = h.bones.hand_R.getWorldPosition(new THREE.Vector3());
+  let knuckle = hand;
+  h.group.traverse((o) => {
+    if (o.name === 'finger_R_middle_1') knuckle = o.getWorldPosition(new THREE.Vector3());
+  });
+  const palmInGuard = into(hand.clone().lerp(knuckle, 0.6));
+  const indexInGuard = Math.max(...(samples.points.get('index') ?? []).map(into));
+  return { deepest, deepestFinger, tipDist, palmInGuard, indexInGuard };
+}
+
+test('pistol wrap (squad-sidearms 2.1): solved per rig, every phalanx within 3 mm of the grip, the index kept straight', async () => {
+  for (const [who, model] of RIGGED.filter(([w]) => w === 'giles' || w === 'okafor')) {
+    const hb = (await loadMainCast(model)).handBones;
+    const g = heldGripFor(hb, 'pistol')!;
+    assert.ok(g, `${who}: a pistol grip is solved`);
+    assert.equal(heldGripFor(hb, 'pistol'), g, `${who}: cached per rig`);
+    assert.notEqual(heldGripFor(hb, 'mug'), g, `${who}: the mug has its own solve`);
+    for (const f of FINGERS) {
+      // clearanceAt is measured to the skin plus the 1.5 mm margin: 3 mm into the grip is -4.5 mm.
+      const c = g.clearanceAt(f, g.contact[f], g.splay[f]);
+      assert.ok(c >= -0.0045, `${who} ${f}: ${cm(c + 0.0015)} into the grip`);
+    }
+    assert.ok(g.contact.index.every((a, i) => a <= STRAIGHT_INDEX[i]! + 1e-6), `${who}: the index stays straight (${g.contact.index.map((a) => a.toFixed(2))})`);
+  }
+});
+
+test('The pistol sits in each mate\'s own grip: Giles and Okafor (8.6 and 12.6 cm hands) aim with no finger over 3 mm in, the guard clear of the palm', async () => {
+  const l = await cast();
+  const bad: string[] = [];
+  for (const who of ['giles', 'okafor']) {
+    const h = body(who, 'aim_pistol', l);
+    for (let i = 0; i < FPS; i++) h.update(1 / FPS);
+    const r = readPistol(h);
+    assert.ok(r, `${who}: holds the pistol in aim_pistol`);
+    if (r.deepest > 0.003) bad.push(`${who}: ${r.deepestFinger} ${cm(r.deepest)} into the gun`);
+    // As for the mug: the fingertips within 2 cm of the gun.
+    const wrapped = (['middle', 'ring'] as const).filter((f) => (r.tipDist[f] ?? Infinity) <= 0.02).length;
+    if (wrapped < 2) bad.push(`${who}: fingers not round the grip (tip gaps ${JSON.stringify(r.tipDist)})`);
+    if (r.palmInGuard > -0.005) bad.push(`${who}: palm ${cm(r.palmInGuard)} into the trigger guard`);
+    if (r.indexInGuard > 0) bad.push(`${who}: index ${cm(r.indexInGuard)} inside the trigger guard`);
+    h.dispose();
   }
   assert.deepEqual(bad, [], bad.join('; '));
 });

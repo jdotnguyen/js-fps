@@ -37,6 +37,13 @@ import { Rng } from '../core/rng.ts';
 
 export type { SquadId, SquadEnemy, SquadEnemySource } from './squadBrain.ts';
 
+/** A plain world point or direction in an event payload. */
+export interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
 /** Events the squad raises, for barks, hints and the HUD (ADR-0012) to hook. */
 export interface SquadEvents {
   'squad:reloading': { id: SquadId };
@@ -57,7 +64,11 @@ export interface SquadEvents {
   /** Jay went down while the medic was down (ADR-0011): game over. */
   'squad:gameOver': { reason: 'medicDown' };
   'squad:shoved': { id: SquadId; enemy: string };
-  'squad:fired': { id: SquadId; enemy: string; hit: boolean; killed: boolean };
+  /**
+   * One squad shot (squad-sidearms D4): `muzzle` (the hit origin), `ejectPort`, the gun's `right` and the bore's `forward` (world), read from the mate's
+   * held pistol; `fromPistol` false when the body had no pistol showing, and the points fall back to 1.4 m above the mate.
+   */
+  'squad:fired': { id: SquadId; enemy: string; hit: boolean; killed: boolean; muzzle: Vec3; ejectPort: Vec3; right: Vec3; forward: Vec3; fromPistol: boolean };
   'squad:infectionStage': { stage: number };
   /** A tell played (cough, rub_forearm, flex_hand), for audio and barks. */
   'squad:tell': { id: SquadId; tell: string };
@@ -203,6 +214,8 @@ export class SquadMate {
   private repathT = 0;
   private stuckT = 0;
   private readonly lastPos = new THREE.Vector3();
+  /** The target's aim point this mate looks and points the pistol at. */
+  private readonly aimPoint = new THREE.Vector3();
   /** Side committed to while dodging out of the aim cone (0 = not dodging). */
   private dodgeSide = 0;
   /** Walking after Jay (true) or standing where they are (false). */
@@ -585,7 +598,9 @@ export class SquadMate {
     // Face the target, then shoot.
     const face = tmpE.set(target.position.x - me.x, 0, target.position.z - me.z);
     if (face.lengthSq() > 1e-4 && this.body.speed < 0.3) this.body.steer(face.normalize(), dt, { maxSpeed: 0, turnRate: 4 });
-    this.body.lookTarget = tmpF.set(target.position.x, target.position.y + 1.4, target.position.z);
+    // Its own point (not a shared temporary): the body aims the pistol at it after the squad has updated every mate.
+    this.body.lookTarget = this.aimPoint.set(target.position.x, target.position.y + 1.4, target.position.z);
+    this.body.aimTarget = this.aimPoint;
     if (this.behaviour === 'combat' && this.body.speed < 0.2 && this.body.idlePose !== 'aim_pistol') this.body.setPose('aim_pistol', 0.3);
     const want = Math.atan2(-face.x, -face.z);
     const off = Math.abs(Math.atan2(Math.sin(want - this.body.heading), Math.cos(want - this.body.heading)));
@@ -796,6 +811,7 @@ export class SquadMate {
       this.downedT -= dt;
       if (this.downedT <= 0) this.getUp(squad, false);
       this.body.lookTarget = null;
+      this.body.aimTarget = null;
       this.body.steer(null, dt, { maxSpeed: 0 });
       this.body.update(dt, cameraPos);
       return;
@@ -917,6 +933,7 @@ export class SquadMate {
     // Idle: look at Jay now and then; while moving, look where they walk.
     if (this.behaviour !== 'follow') {
       this.body.lookTarget = null;
+      this.body.aimTarget = null;
     } else if (speed === 0 && this.body.speed < 0.2) {
       this.mode = this.mode === 'aimDodge' ? 'aimDodge' : 'idle';
       this.body.lookTarget = squad.playerHead;
@@ -930,6 +947,7 @@ export class SquadMate {
       }
     } else {
       this.body.lookTarget = null;
+      this.body.aimTarget = null;
     }
 
     // Stuck: wanted to move but barely did.
@@ -954,7 +972,6 @@ const tmpB = new THREE.Vector3();
 const tmpC = new THREE.Vector3();
 const tmpD = new THREE.Vector3();
 const tmpE = new THREE.Vector3();
-const tmpF = new THREE.Vector3();
 
 export interface SquadDeps {
   ctx: HumanoidContext;
@@ -1063,13 +1080,14 @@ export class Squad {
   fire(m: SquadMate, e: SquadEnemy): void {
     const diff = this.difficulty();
     const hit = this.rng.next() < diff.squadAccuracy;
+    const gun = shotPoints(m);
     let killed = false;
     if (hit && this.enemies) {
       const damage = COMBAT.playerDamage * diff.squadDamage * this.kills.factor;
-      killed = this.enemies.shoot(e.id, aimFor(m.id, e), damage, { x: m.position.x, y: m.position.y + 1.4, z: m.position.z });
+      killed = this.enemies.shoot(e.id, aimFor(m.id, e), damage, gun.muzzle);
       if (killed) this.kills.record('squad');
     }
-    this.emit('squad:fired', { id: m.id, enemy: e.id, hit, killed });
+    this.emit('squad:fired', { id: m.id, enemy: e.id, hit, killed, ...gun });
   }
 
   /** An enemy hit a squadmate (the enemy AI calls this). */
@@ -1338,4 +1356,27 @@ export class Squad {
     for (const m of this.mates) m.body.dispose();
     this.group.clear();
   }
+}
+
+const shotTmp = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
+const xyz = (v: THREE.Vector3): Vec3 => ({ x: v.x, y: v.y, z: v.z });
+
+/**
+ * Where a mate's shot comes from (squad-sidearms D4): the held pistol's muzzle and ejection port and the gun's right vector, in
+ * world space, or, with no pistol showing (the body not loaded, or out of the aim pose), the old point 1.4 m above the mate, with
+ * the ejection there too and the body's right.
+ */
+export function shotPoints(m: { position: THREE.Vector3; body: Humanoid }): { muzzle: Vec3; ejectPort: Vec3; right: Vec3; forward: Vec3; fromPistol: boolean } {
+  const gun = m.body.pistol;
+  if (gun) {
+    m.body.group.updateMatrixWorld(true);
+    gun.muzzle.getWorldQuaternion(shotTmp.q);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(shotTmp.q);
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(shotTmp.q);
+    return { muzzle: xyz(gun.muzzle.getWorldPosition(shotTmp.p)), ejectPort: xyz(gun.ejectPort.getWorldPosition(shotTmp.p)), right: xyz(right), forward: xyz(forward), fromPistol: true };
+  }
+  const at = { x: m.position.x, y: m.position.y + 1.4, z: m.position.z };
+  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(m.body.group.quaternion);
+  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(m.body.group.quaternion);
+  return { muzzle: at, ejectPort: { ...at }, right: xyz(right), forward: xyz(forward), fromPistol: false };
 }

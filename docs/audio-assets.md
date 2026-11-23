@@ -30,6 +30,12 @@ add an entry there, then generate it:
 | Spent-casing landings (brass and shotgun hulls, per floor surface). Its manifest mixes CC0 cuts, whose raw downloads live in `../audio-src/casings/`, with ElevenLabs prompts | `npm run casings:generate -- --id <id>` | `public/assets/audio/weapons/casings/` |
 
 `--list` shows the manifest, `--all` generates everything missing, and `--force` regenerates.
+
+The squad's covering-fire gunshot (`squadPistolShot`, `public/assets/audio/weapons/squad-pistol-shot.mp3`) is a
+downloaded clip, not generated: "pistol shot" by mrfriends on Pixabay, raw download in
+`../audio-src/weapons/mrfriends-pistol-shot-233473.mp3`. It was made mono, its leading silence and silent tail trimmed
+(1.35 s, a 0.2 s fade-out), and raised 3.3 dB into a -1 dB limiter; the game varies its pitch ±4% per shot.
+
 Do not add a new procedural synth for a new sound: procedural audio is fallback-only.
 
 Kill sounds (`data/kills.json`, infection-kills spec) name a list of sounds per event: the first that exists plays, so a
