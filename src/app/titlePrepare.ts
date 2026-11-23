@@ -117,8 +117,12 @@ export function realSharedLoaders(options: { baseUrl: string; physicsSetting: ()
       return lib;
     },
     [ITEMS.environment]: async () => {
-      const [{ preloadSeabed }, { preloadSubModel }] = await Promise.all([import('../render/fx/seabed.ts'), import('../render/fx/subModel.ts')]);
-      await Promise.all([preloadSeabed(baseUrl), preloadSubModel(baseUrl)]);
+      const [{ preloadSeabed }, { preloadSubModel }, { loadSquadPistolModel }] = await Promise.all([
+        import('../render/fx/seabed.ts'),
+        import('../render/fx/subModel.ts'),
+        import('../actors/squadPistol.ts'),
+      ]);
+      await Promise.all([preloadSeabed(baseUrl), preloadSubModel(baseUrl), loadSquadPistolModel()]);
     },
     // The engine is the shell's and already skips sounds it holds, so a session that finds these done costs nothing.
     // One sound per slice, so a slice stays well under a frame at the title (the session load uses batches of four).
