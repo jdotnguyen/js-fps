@@ -45,11 +45,12 @@ data checkpoints `cp_first_contact`, `cp_cover_me`, `cp_security`, `cp_flooded`,
 
 **Hale's office** (openspec end-scene-when-player-leaves, scene-presence spec). The scene `admin_hale` is bound to the Director's Office (`R14c`) by its `room` field. Walk in with the briefing done, then try these on a scratch slot (`?slot=scratch`):
 - Stay put: Hale, Jay ("Everything all right, Director?") and Hale's last two lines all play.
-- Step out through the glass door in the middle of any line: that line, its subtitle and its voice stop at once, and nobody says anything more, Jay included. Hale drops the gesture and the look and idles. Go and stand in the open office with the door open: still silent.
+- Step out through the glass door in the middle of any line: that line finishes, fading as you walk off, and nobody says anything more, Jay included. Hale drops the gesture and the look and idles. Go and stand in the open office with the door open: still silent.
 - Leave in the pause before Jay's line: Jay does not say it.
 - Walk back in: nothing restarts. The card still comes with the desk exchange and completes the Admin round.
 - The Commons walk-by (`researcher_walkby`, bound to `R02`; after the first round, on entering the Commons): a lab researcher crosses the room and Jay greets them ("Morning, Doctor.", then "...Rough night, I guess."). Leave the Commons before or between the two lines: Jay says nothing more, and the researcher is gone, not left standing there.
-- Authoring: put `"room": "<room id>"` on a sequence for a stationary talk-to-an-NPC scene that should end when Jay leaves. Leave it off for scenes where the squad walks and talks with him, which keep the earshot rule for Jay's lines. A `room` that is not in the level warns when sequences load.
+- The round conversations (openspec room-bound-round-scenes): hydroponics (`R12a` and `R12b`), the dive bay (`R13a` and `R13b`), reception (`R14a`) and the storeroom (`R12e`). Walk in and stay: every line plays. Walk out through the doors while a botanist, Sung or the assistant is mid-line: the line already playing finishes and fades as you walk away, and nothing more is said, Jay's reply included. Leaving the dive bay still closes and vents the sample trunk. Walk back in: nothing restarts.
+- Authoring: put `"room": "<room id>"` (or a list, `["R12a", "R12b"]`, for a scene that spans a vestibule and the hall beyond it) on a sequence for a stationary talk-to-an-NPC scene that should end when Jay leaves. Leave it off for scenes where the squad walks and talks with him, which keep the earshot rule for Jay's lines. A `room` that is not in the level warns when sequences load.
 
 **Dive bay corridor** (dive-bay spec): the Launch Hall door to the maintenance corridor (R13d) says "This door won't open. Out of service." during the rounds. In the R11 climax the corridor still opens from the Control Room.
 

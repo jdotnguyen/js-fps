@@ -179,3 +179,23 @@ test('stopChannel ends a conversation on the spot: the line stops, its subtitle 
   sm.stopChannel('admin');
   sm.stopChannel('never_used');
 });
+
+test('stopChannels with letFinish drops the queue but lets the line already playing end by itself', async () => {
+  const { sm, log, subs } = setup({ director: { distance: 3, audible: true }, crew_sung: { distance: 3, audible: true } });
+  sm.say('hale_1', { channel: 'admin' });
+  const jay = sm.say('jay_hale', { channel: 'admin' });
+  const next = sm.say('hale_2', { channel: 'admin' });
+  sm.say('sung_1', { channel: 'dive' });
+  run(sm, 0.5);
+  assert.ok(subs.has('hale_1'));
+  sm.stopChannels((c) => c === 'admin', true);
+  assert.ok(subs.has('hale_1'), 'the line playing is not cut off');
+  assert.ok(!log.includes('end hale_1 stopped'));
+  assert.equal(await jay.done, 'stopped');
+  assert.equal(await next.done, 'stopped');
+  run(sm, 8);
+  assert.ok(log.includes('end hale_1 finished'), 'it ends on its own');
+  assert.ok(!subs.has('hale_1'));
+  assert.ok(!log.includes('start jay_hale') && !log.includes('start hale_2'), 'nothing queued behind it plays');
+  assert.ok(log.includes('end sung_1 finished'), 'the other conversation carries on');
+});

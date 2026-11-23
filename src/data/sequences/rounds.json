@@ -6,6 +6,10 @@
    "requires": "briefingSeen"
   },
   "once": true,
+  "room": [
+   "R12a",
+   "R12b"
+  ],
   "steps": [
    {
     "do": "wait",
@@ -113,6 +117,7 @@
    "event": "trigger:hydro_store_enter"
   },
   "once": true,
+  "room": "R12e",
   "steps": [
    {
     "do": "wait",
@@ -140,6 +145,10 @@
    "requires": "briefingSeen"
   },
   "once": true,
+  "room": [
+   "R13a",
+   "R13b"
+  ],
   "steps": [
    {
     "do": "npcMoveTo",
@@ -370,6 +379,7 @@
    "requires": "briefingSeen"
   },
   "once": true,
+  "room": "R14a",
   "steps": [
    {
     "do": "wait",

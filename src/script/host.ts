@@ -147,7 +147,7 @@ export interface SequenceHost {
   markLinePlayed?(line: string): void;
   /** Cut off every line still playing (a scene was skipped). */
   stopSpeech?(): void;
-  /** Stop every line a sequence is saying or has queued, on its own channel and its named side channels (scene-presence). */
+  /** Drop every line a sequence has queued, on its own channel and its named side channels, and let the one playing finish (scene-presence). */
   stopSceneSpeech?(sequenceId: string): void;
   /** A room scene ended early (scene-presence): these NPCs drop their scripted look and gesture and go back to idle. */
   releaseNpcs?(npcIds: readonly string[]): void;

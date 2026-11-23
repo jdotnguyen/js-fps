@@ -105,6 +105,11 @@ class Parallel implements Running {
 }
 
 /** Every NPC id a sequence's steps name (they get released when the scene ends early). */
+/** The rooms a scene belongs to (scene-presence): none, one, or a list. */
+function roomsOf(def: SequenceDef): readonly string[] {
+  return def.room === undefined ? [] : typeof def.room === 'string' ? [def.room] : def.room;
+}
+
 function sceneNpcs(steps: readonly Step[], out = new Set<string>()): string[] {
   for (const step of steps) {
     if (isParallel(step)) sceneNpcs(step.parallel, out);
@@ -144,7 +149,9 @@ export class SequenceManager {
     for (const d of defs) {
       this.defs.set(d.id, d);
       // A scene tied to a room that does not exist could never end (an unknown room counts as inside): say so at load.
-      if (d.room !== undefined && host.hasRoom && !host.hasRoom(d.room)) host.warn(`sequence "${d.id}": room "${d.room}" is not a room of this level, so the scene never ends when the player leaves`);
+      for (const room of roomsOf(d)) {
+        if (host.hasRoom && !host.hasRoom(room)) host.warn(`sequence "${d.id}": room "${room}" is not a room of this level, so the scene never ends when the player leaves`);
+      }
     }
     this.wireTriggers();
     this.subs.push(
@@ -250,7 +257,9 @@ export class SequenceManager {
 
   /** The sequence belongs to a room (scene-presence) and the player is outside it. A host that cannot tell counts as inside. */
   private playerLeft(def: SequenceDef): boolean {
-    return def.room !== undefined && this.host.inRoom !== undefined && !this.host.inRoom('player', def.room);
+    const rooms = roomsOf(def);
+    const inRoom = this.host.inRoom;
+    return rooms.length > 0 && inRoom !== undefined && !rooms.some((r) => inRoom.call(this.host, 'player', r));
   }
 
   /**

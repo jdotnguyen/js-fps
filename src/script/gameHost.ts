@@ -52,7 +52,7 @@ export interface GameHostDeps {
   /** Enemy spawn groups (ADR-0007 `spawnGroup` / `despawnGroup`). */
   enemies?: { spawnGroup(group: string, from?: { pos: { x: number; y: number; z: number }; yaw?: number }): boolean; despawnGroup(group: string): boolean; groupCleared(group: string): boolean } | null | undefined;
   /** Speech manager for `say`; without it lines are skipped with a warning. */
-  speech?: { say(id: string, opts?: ScriptSpeechOptions): { done: Promise<unknown> } | null; stopAll(): void; stopChannels?(match: (channel: string) => boolean): void; onlySpeakers?(speakers: readonly string[] | null): void } | null | undefined;
+  speech?: { say(id: string, opts?: ScriptSpeechOptions): { done: Promise<unknown> } | null; stopAll(): void; stopChannels?(match: (channel: string) => boolean, letFinish?: boolean): void; onlySpeakers?(speakers: readonly string[] | null): void } | null | undefined;
   /** End-credits overlay triggered when the slice finishes; settles once it covers the screen. */
   showCredits?: (opts?: { instant?: boolean }) => void | Promise<void>;
   /** Security camera feeds (`render/cameraFeed.ts`) for the `cameraFeed` action. */
@@ -322,7 +322,7 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
         }
       : {}),
     ...(d.speech ? { say: (line: string, opts?: ScriptSpeechOptions) => d.speech!.say(line, opts), stopSpeech: () => d.speech!.stopAll(),
-        stopSceneSpeech: (id: string) => d.speech!.stopChannels?.((c) => c === `seq:${id}` || c.startsWith(`seq:${id}:`)) } : {}),
+        stopSceneSpeech: (id: string) => d.speech!.stopChannels?.((c) => c === `seq:${id}` || c.startsWith(`seq:${id}:`), true) } : {}),
     hasRoom: (room: string) => d.level?.hasRoom(room) ?? true,
   };
   // NPC targets: positions through the same resolver, plus an anchor's facing (Level.anchor yaw).

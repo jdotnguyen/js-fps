@@ -9,13 +9,20 @@ const id: Validator<string> = (v, p) => {
   return s;
 };
 
+/** A scene's room: one level room id, or a non-empty list of them (scene-presence). */
+const roomsV: Validator<string | string[]> = (v, p) => {
+  if (!Array.isArray(v)) return id(v, p);
+  if (v.length === 0) throw new ValidationError(p, 'expected at least one room id');
+  return arr(id)(v, p);
+};
+
 export const sequenceV = obj({
   id,
   trigger: optional(obj({ event: str, requires: optional(str), unless: optional(str), match: optional(record(scalar)) })),
   skippable: optional(bool),
   skippableAfter: optional(id),
   once: optional(bool),
-  room: optional(id),
+  room: optional(roomsV),
   exclusive: optional(str),
   resumeFromCheckpoint: optional(bool),
   debugSetup: optional(obj({ flags: optional(record(scalar)) })),

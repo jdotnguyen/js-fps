@@ -54,8 +54,10 @@ export interface SequenceDef {
   /**
    * A scene that belongs to this level room (scene-presence spec): the moment the player is outside it, the scene
    * ends for everyone: its voice and subtitles stop, its queued lines are dropped, and its speakers return to idle.
+   * A list means the scene spans those rooms, such as a vestibule and the hall beyond it: the player is inside while
+   * in any of them.
    */
-  room?: string;
+  room?: string | string[];
   /** Sequences in one group never overlap; a later one waits its turn. */
   exclusive?: string;
   /** Restart from step 0 after death if it was running and had not reached a checkpoint. */

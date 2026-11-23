@@ -297,11 +297,16 @@ export class SpeechManager {
     this.stopChannels((key) => key === channel);
   }
 
-  /** `stopChannel` for every channel `match` accepts (a scene's own channel and its named side conversations). */
-  stopChannels(match: (channel: string) => boolean): void {
+  /**
+   * `stopChannel` for every channel `match` accepts (a scene's own channel and its named side conversations).
+   * `letFinish`: the line already playing is left to end by itself (its voice and subtitle keep following the player's
+   * earshot, so it fades as he walks off); only the lines queued behind it are dropped.
+   */
+  stopChannels(match: (channel: string) => boolean, letFinish = false): void {
     for (const lane of [...this.lanes.values()]) {
       if (!match(lane.key)) continue;
       for (const e of lane.queue.splice(0)) this.end(e, 'stopped');
+      if (letFinish && lane.current) continue;
       if (lane.current) this.finish(lane, 'stopped');
       this.lanes.delete(lane.key);
     }

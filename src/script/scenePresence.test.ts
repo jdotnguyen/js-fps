@@ -40,7 +40,8 @@ function setup(def: Record<string, unknown> = {}) {
   speechBus.on('subtitle:hide', (e) => subs.delete(e.id));
   const speech = new SpeechManager(speechBus, library, voice);
 
-  const state = { inside: true };
+  // `at` set: the player stands in that room (a scene bound to several rooms); otherwise `inside` answers for R14c.
+  const state: { inside: boolean; at: string | null } = { inside: true, at: null };
   const handlers = new Map<string, Set<(p: unknown) => void>>();
   const ended: Array<{ id: string; cancelled: boolean }> = [];
   const released: string[][] = [];
@@ -67,10 +68,11 @@ function setup(def: Record<string, unknown> = {}) {
     npc: () => undefined,
     say: (line, opts) => speech.say(line, opts),
     stopSpeech: () => speech.stopAll(),
-    stopSceneSpeech: (id) => speech.stopChannels((c) => c === `seq:${id}` || c.startsWith(`seq:${id}:`)),
+    stopSceneSpeech: (id) => speech.stopChannels((c) => c === `seq:${id}` || c.startsWith(`seq:${id}:`), true),
     releaseNpcs: (ids) => void released.push([...ids]),
     inRoom: (who, room) => {
       assert.equal(who, 'player');
+      if (state.at !== null) return room === state.at;
       assert.equal(room, 'R14c');
       return state.inside;
     },
@@ -95,6 +97,64 @@ test('the room field validates: a level room id, nothing else', () => {
   assert.throws(() => validateSequences({ 'a.json': [{ id: 'a', room: 'R 14c!', steps: [] }] }), /room/);
 });
 
+test('the room field also takes a list of level room ids', () => {
+  assert.deepEqual(validateSequences({ 'a.json': [{ id: 'a', room: ['R12a', 'R12b'], steps: [] }] })[0]!.room, ['R12a', 'R12b']);
+  assert.throws(() => validateSequences({ 'a.json': [{ id: 'a', room: [], steps: [] }] }), /room/);
+  assert.throws(() => validateSequences({ 'a.json': [{ id: 'a', room: ['R12a', 'R 12b!'], steps: [] }] }), /room/);
+});
+
+const TWO = { room: ['R12a', 'R12b'] };
+
+test('a scene bound to two rooms carries on while the player walks from one into the other', async () => {
+  const { m, state, host, log, ended, tick } = setup(TWO);
+  state.at = 'R12a';
+  m.start('scene');
+  await tick(0.5);
+  state.at = 'R12b';
+  await tick(12);
+  assert.deepEqual(log.filter((l) => l.startsWith('start')), ['start hale_1', 'start jay_1', 'start hale_2']);
+  assert.equal(host.flags['scene_finished'], true);
+  assert.deepEqual(ended, [{ id: 'scene', cancelled: false }]);
+});
+
+test('a scene bound to two rooms ends when the player is in neither', async () => {
+  const { m, state, log, ended, released, tick } = setup(TWO);
+  state.at = 'R12b';
+  m.start('scene');
+  await tick(0.5);
+  state.at = 'R12c';
+  await tick(12);
+  assert.ok(!log.includes('start jay_1'), 'Jay never says his line');
+  assert.equal(m.isRunning('scene'), false);
+  assert.deepEqual(ended, [{ id: 'scene', cancelled: true }]);
+  assert.deepEqual(released, [['hale']]);
+});
+
+test('a scene bound to two rooms starts when the player is only in the second one', async () => {
+  const { m, state, fire, tick } = setup({ ...TWO, once: true, trigger: { event: 'enter' } });
+  state.at = 'R12c';
+  fire('enter');
+  assert.equal(m.isRunning('scene'), false);
+  state.at = 'R12b';
+  fire('enter');
+  assert.equal(m.isRunning('scene'), true);
+  await tick(0.1);
+});
+
+test('a scene with a room list warns at load for each id that is not a room of the level', () => {
+  const warnings: string[] = [];
+  const host: SequenceHost = {
+    events: { on: () => () => undefined, emit: () => undefined },
+    flags: {} as Flags,
+    resolve: () => null,
+    warn: (m) => warnings.push(m),
+    hasRoom: (room) => room === 'R12a',
+  };
+  new SequenceManager(host, validateSequences({ 'a.json': [{ id: 'hall', room: ['R12a', 'R12x'], steps: [] }] }));
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0]!, /"hall".*"R12x"/);
+});
+
 test('a room scene plays through while the player stays in its room', async () => {
   const { m, host, log, ended, tick } = setup({ room: 'R14c' });
   m.start('scene');
@@ -104,16 +164,18 @@ test('a room scene plays through while the player stays in its room', async () =
   assert.deepEqual(ended, [{ id: 'scene', cancelled: false }]);
 });
 
-test('leaving mid-line stops that line and its subtitle, drops the rest, and ends the scene for everyone', async () => {
+test('leaving mid-line lets that line finish by itself, drops the rest, and ends the scene for everyone', async () => {
   const { m, state, log, subs, ended, released, tick } = setup({ room: 'R14c' });
   m.start('scene');
   await tick(0.5);
   assert.ok(subs.has('hale_1'));
   state.inside = false;
   await tick(0.05);
-  assert.ok(log.includes('end hale_1 stopped'), 'the line stops at once');
-  assert.ok(!subs.has('hale_1'), 'its subtitle hides');
+  assert.ok(!log.includes('end hale_1 stopped'), 'the line is not cut off');
+  assert.ok(subs.has('hale_1'), 'its subtitle stays while it plays');
   await tick(12);
+  assert.ok(log.includes('end hale_1 finished'), 'it ends on its own');
+  assert.ok(!subs.has('hale_1'), 'and its subtitle hides then');
   assert.ok(!log.includes('start jay_1'), 'Jay never says his line');
   assert.ok(!log.includes('start hale_2'), 'Hale says nothing more');
   assert.equal(m.isRunning('scene'), false);
@@ -216,10 +278,17 @@ const inRoom = (id: string, [x, y, z]: readonly [number, number, number]): boole
 test('Hale scene: it is bound to his office, and every shipped sequence room exists in the level', () => {
   const sequences = readdirSync(new URL('../data/sequences/', import.meta.url))
     .filter((n) => n.endsWith('.json'))
-    .flatMap((n) => readJson(`../data/sequences/${n}`) as Array<{ id: string; room?: string }>);
+    .flatMap((n) => readJson(`../data/sequences/${n}`) as Array<{ id: string; room?: string | string[] }>);
   const bound = sequences.filter((s) => s.room !== undefined);
-  assert.deepEqual(bound.map((s) => [s.id, s.room]), [['admin_hale', 'R14c'], ['researcher_walkby', 'R02']]);
-  for (const s of bound) assert.ok(level.rooms.some((r) => r.id === s.room), `${s.id}: room ${s.room}`);
+  const byId = Object.fromEntries(bound.map((s) => [s.id, s.room]));
+  assert.deepEqual(byId['admin_hale'], 'R14c');
+  assert.deepEqual(byId['researcher_walkby'], 'R02');
+  // The round conversations (room-bound-round-scenes): a vestibule and the hall beyond it for the two that straddle one.
+  assert.deepEqual(byId['hydro_moment'], ['R12a', 'R12b']);
+  assert.deepEqual(byId['dive_moment'], ['R13a', 'R13b']);
+  assert.equal(byId['admin_moment'], 'R14a');
+  assert.equal(byId['hydro_store_moment'], 'R12e');
+  for (const s of bound) for (const r of [s.room!].flat()) assert.ok(level.rooms.some((x) => x.id === r), `${s.id}: room ${r}`);
 });
 
 test('Hale office presence: his desk and standing spot are inside, the open office and corridor are outside', () => {
@@ -274,7 +343,7 @@ async function playShippedScene(leaveAt: string | number | null, seconds: number
     npc: (action, step) => void npcCalls.push(`${action} ${String(step['npc'])}`),
     say: (line, opts) => speech.say(line, opts),
     stopSpeech: () => speech.stopAll(),
-    stopSceneSpeech: (id) => speech.stopChannels((c) => c === `seq:${id}` || c.startsWith(`seq:${id}:`)),
+    stopSceneSpeech: (id) => speech.stopChannels((c) => c === `seq:${id}` || c.startsWith(`seq:${id}:`), true),
     releaseNpcs: (ids) => void released.push([...ids]),
     hasRoom: (r) => level.rooms.some((x) => x.id === r),
     inRoom: (_who, r) => inRoom(r, jay),
@@ -315,7 +384,7 @@ test('shipped admin_hale, Jay walks out through the glass door before answering:
   assert.ok(log.includes('start admin_hale_02'));
   assert.ok(!log.includes('start admin_jay_01'), 'Jay does not speak');
   assert.ok(!log.includes('start admin_hale_03') && !log.includes('start admin_hale_04'), 'Hale does not go on');
-  assert.ok(log.some((l) => /^end admin_hale_02 stopped|^end admin_hale_02 finished/.test(l)));
+  assert.ok(log.some((l) => /^end admin_hale_02 finished/.test(l)));
   assert.equal(m.isRunning('admin_hale'), false);
   assert.ok(released.length === 1 && released[0]!.includes('hale'), 'Hale is released');
 });
@@ -354,4 +423,89 @@ test('walk-by researcher: an event that reaches it while Jay is outside the Comm
   const out = await playShippedScene(null, 0.2, { ...WALKBY, start: WALKBY.out });
   assert.equal(out.m.isRunning('researcher_walkby'), false);
   assert.equal(out.host.flags['seq:researcher_walkby'], undefined);
+});
+
+// ---- the round conversations (room-bound-round-scenes): hydroponics, dive bay, reception, storeroom
+
+const COMMONS: [number, number, number] = [20, 0, 18];
+const HYDRO: ShippedScene = { event: 'trigger:hydro_enter', flags: { briefingSeen: true } as Flags, start: [36, 0, 20], out: COMMONS };
+const HYDRO_HALL = anchor('botanist_1_spot');
+const DIVE: ShippedScene = { event: 'trigger:dive_enter', flags: { briefingSeen: true } as Flags, start: [24, 0, 28], out: COMMONS };
+const ADMIN: ShippedScene = { event: 'trigger:admin_enter', flags: { briefingSeen: true } as Flags, start: [36, 0, 12], out: COMMONS };
+const STORE: ShippedScene = { event: 'trigger:hydro_store_enter', flags: {} as Flags, start: anchor('hydro_store_moment'), out: COMMONS };
+const said = (log: string[]): string[] => log.filter((l) => l.startsWith('start')).map((l) => l.slice(6));
+
+test('round scene rooms: each trigger and each speaker spot is inside the scene rooms, the Commons is outside all of them', () => {
+  assert.ok(inRoom('R12a', HYDRO.start) && inRoom('R12b', HYDRO_HALL), 'hydroponics: the vestibule trigger, the botanist in the hall');
+  assert.ok(inRoom('R13a', DIVE.start) && inRoom('R13b', anchor('diver_1_spot')), 'dive bay: the vestibule trigger, Sung in the launch hall');
+  assert.ok(inRoom('R14a', ADMIN.start), 'reception');
+  assert.ok(inRoom('R12e', STORE.start), 'storeroom');
+  for (const r of ['R12a', 'R12b', 'R12e', 'R13a', 'R13b', 'R14a']) assert.ok(!inRoom(r, COMMONS), `the Commons is not ${r}`);
+});
+
+test('hydroponics, Jay walks on from the vestibule into the hall: all five lines play', async () => {
+  const out = await playShippedScene(null, 30, HYDRO);
+  assert.deepEqual(said(out.log), ['hydro_botanist_01', 'hydro_jay_01', 'hydro_botanist_02', 'hydro_jay_02', 'hydro_botanist_03']);
+  const hall = await playShippedScene(null, 0.1, HYDRO);
+  assert.ok(hall.m.isRunning('hydro_moment'));
+  assert.ok(inRoom('R12b', HYDRO_HALL));
+});
+
+test('hydroponics, Jay leaves while the botanist is speaking: his reply is never said and nobody goes on', async () => {
+  const out = await playShippedScene('start hydro_botanist_01', 30, HYDRO);
+  assert.deepEqual(said(out.log), ['hydro_botanist_01']);
+  assert.ok(out.log.some((l) => /^end hydro_botanist_01 finished/.test(l)), 'her line finishes by itself');
+  assert.equal(out.m.isRunning('hydro_moment'), false);
+});
+
+test('hydroponics, Jay comes back after leaving: the conversation does not start again', async () => {
+  const out = await playShippedScene('start hydro_botanist_02', 12, HYDRO);
+  const before = out.log.length;
+  await out.comeBack(25);
+  assert.equal(out.log.length, before, 'nothing plays again');
+  assert.equal(out.m.isRunning('hydro_moment'), false);
+});
+
+test('an event that reaches the hydroponics scene while Jay is outside does not start it or spend its once', async () => {
+  const out = await playShippedScene(null, 0.2, { ...HYDRO, start: COMMONS });
+  assert.equal(out.m.isRunning('hydro_moment'), false);
+  assert.equal(out.host.flags['seq:hydro_moment'], undefined);
+});
+
+test('dive bay, Jay stays: Sung, Jay, Sung and the maintenance worker all speak and the trunk is secured', async () => {
+  const out = await playShippedScene(null, 30, DIVE);
+  assert.deepEqual(said(out.log), ['dive_sung_01', 'dive_jay_01', 'dive_sung_02', 'dive_maint_01']);
+  assert.equal(out.host.flags['dive_trunk_secured'], true);
+});
+
+test('dive bay, Jay leaves while Sung is speaking: the talk stops, the trunk is still secured, and Sung is released', async () => {
+  const out = await playShippedScene('start dive_sung_01', 30, DIVE);
+  assert.deepEqual(said(out.log), ['dive_sung_01']);
+  assert.equal(out.m.isRunning('dive_moment'), false);
+  assert.equal(out.host.flags['dive_trunk_secured'], true, 'what the scene left to do still lands');
+  assert.ok(out.released.some((ids) => ids.includes('sung')), 'Sung returns to idle');
+});
+
+test('dive bay, Jay comes back after leaving: Sung does not repeat himself', async () => {
+  const out = await playShippedScene('start dive_sung_01', 12, DIVE);
+  const before = out.log.length;
+  await out.comeBack(25);
+  assert.equal(out.log.length, before);
+});
+
+test('reception, Jay leaves while the assistant is speaking: she stops and says nothing more', async () => {
+  const stay = await playShippedScene(null, 12, ADMIN);
+  assert.deepEqual(said(stay.log), ['admin_assistant_01']);
+  const out = await playShippedScene('start admin_assistant_01', 12, ADMIN);
+  assert.ok(out.log.some((l) => /^end admin_assistant_01 finished/.test(l)), 'her line finishes by itself');
+  assert.equal(out.m.isRunning('admin_moment'), false);
+});
+
+test('storeroom, Jay stays: both of his remarks play; Jay leaves after the first: he does not make the second', async () => {
+  const stay = await playShippedScene(null, 15, STORE);
+  assert.deepEqual(said(stay.log), ['hydro_store_jay_01', 'hydro_store_jay_02']);
+  assert.equal(stay.host.flags['hydro_store_seen'], true);
+  const out = await playShippedScene('start hydro_store_jay_01', 15, STORE);
+  assert.deepEqual(said(out.log), ['hydro_store_jay_01']);
+  assert.equal(out.host.flags['hydro_store_seen'], true, 'the scene still counts as seen');
 });
