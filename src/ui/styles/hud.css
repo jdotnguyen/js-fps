@@ -203,6 +203,7 @@
   pointer-events: none;
 }
 .compass-hud[hidden] { display: none; }
+.compass-mark[hidden] { display: none; }
 #ui:has(.cine.on) .compass-hud { display: none; }
 .compass-hud.spotlight-focus {
   z-index: 12;
@@ -259,6 +260,7 @@
   pointer-events: none;
 }
 .world-markers[hidden] { display: none; }
+.world-marker[hidden] { display: none; }
 #ui:has(.cine.on) .world-markers { display: none; }
 .world-marker {
   position: absolute;
