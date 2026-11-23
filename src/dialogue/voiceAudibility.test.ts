@@ -50,3 +50,21 @@ test('radio lines ignore propagation: comms reach the player wherever they are',
   assert.doesNotThrow(() => playback.setAudibility?.(0, 520));
   playback.stop(false);
 });
+
+test('per-line gain scales a local voice alongside propagation audibility', (t) => {
+  t.after(installFakeWebAudio());
+  const { ctx, dry, library, player } = rig([
+    { ...lineOf('quiet', 'local', 'crew_dock_guard'), gain: 0.6 },
+    { ...lineOf('loud', 'local', 'medic'), gain: 2 },
+  ]);
+  for (const [id, expected] of [['quiet', 0.6], ['loud', 2]] as const) {
+    const line = library.line(id);
+    const before = ctx.nodes.length;
+    const playback = player.play({ line, profile: library.speaker(line.speaker), at: () => ({ x: 4, y: 1.6, z: 0 }), rasp: null, babble: false });
+    const src = ctx.nodes.slice(before).find((n) => n.kind === 'source')!;
+    assert.ok(Math.abs(pathGain(src, dry) - expected) < 1e-6, `${id}: full audibility`);
+    playback.setAudibility!(0.5, 2500);
+    assert.ok(Math.abs(pathGain(src, dry) - expected * 0.5) < 1e-6, `${id}: scaled by audibility`);
+    playback.stop(false);
+  }
+});

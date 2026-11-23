@@ -23,6 +23,8 @@ import type { DialogueChapter, DialogueLine, Emote } from '../src/data/types/dia
 import { allBatches, idsBatches, maxBatchSeconds, type BatchSpec } from './lib/voBatches.ts';
 import { batchModel, castFor, promptProfile } from './lib/voCast.ts';
 import { recordBatch } from './lib/voTakes.ts';
+import { TIGHT_LINES } from './lib/voPauses.ts';
+import { tightenClip } from './lib/voTighten.ts';
 import { printReport, requestTts, runBatches, type SpeechConfig } from './lib/voTts.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -304,7 +306,7 @@ function buildPrompt(batch: BatchSpec): string {
     .map((l, i) => {
       const c = castFor(l.speaker);
       const mood = EMOTE_HINT[l.emote ?? 'neutral'];
-      return `${i + 1}. ${c.label} (${mood})`;
+      return `${i + 1}. ${c.label} (${mood}${l.direction ? `; ${l.direction}` : ''})`;
     })
     .join('\n');
 
@@ -489,7 +491,11 @@ async function main(): Promise<void> {
     for (let k = 0; k < batch.lines.length; k++) {
       const line = batch.lines[k]!;
       const seg = segments[k]!;
-      const dur = encodeClip(wavPath, seg.start, seg.end, join(OUT_DIR, `${line.id}.mp3`));
+      const out = join(OUT_DIR, `${line.id}.mp3`);
+      let dur = encodeClip(wavPath, seg.start, seg.end, out);
+      // Scene lines with pause caps (lib/voPauses.ts) keep them on every new take.
+      const cap = TIGHT_LINES[line.id];
+      if (cap !== undefined) dur = tightenClip(out, cap).after;
       const words = line.text.trim().split(/\s+/).length;
       const expected = Math.max(0.6, words * 0.34);
       const suspect = dur < expected * 0.45 || dur > expected * 3.0;

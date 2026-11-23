@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Rng } from '../core/rng.ts';
 import { yieldFrame, yieldIdle } from '../core/yieldFrame.ts';
+import { Intercom } from './intercom.ts';
 import { occludeVoice, type Occluder } from './occlusion.ts';
 import { DEFAULT_REVERB, REVERB_CROSSFADE, REVERB_SPECS, renderReverbIr, resolveReverb, type ReverbPreset } from './reverb.ts';
 import { SAMPLE_URLS, SOUND_SPECS, type SampleName, type SoundName } from './sounds.ts';
@@ -40,6 +41,8 @@ export interface VoiceOptions {
    * Use it for sounds that already handle occlusion or must play as authored.
    */
   occlude?: boolean;
+  /** `false` keeps a positional one-shot off live intercoms (the medical bay monitor beep: heard through the glass only). */
+  relay?: boolean;
   rate?: number;
   variant?: number;
   /** Play only a slice of the clip: start `offset` s in, for `duration` s (at rate 1), fading out at the end. */
@@ -117,6 +120,9 @@ export class AudioEngine {
   /** Last listener position from `updateListener`, for occlusion checks. */
   private readonly listenerPos = new THREE.Vector3();
   private occluder: Occluder | null = null;
+  /** Room intercoms by id (in-world-audio: A live intercom relays a room). */
+  private readonly intercoms = new Map<string, Intercom>();
+  private lastIntercomTick = 0;
 
   constructor() {
     this.ctx = createAudioContext();
@@ -251,15 +257,19 @@ export class AudioEngine {
     }
     let done = 0;
     for (const name of todo) {
-      const spec = SOUND_SPECS[name];
-      const list: AudioBuffer[] = [];
-      for (let v = 0; v < spec.variants; v++) {
-        const data = spec.make(sr, new Rng(`${name}:${v}`));
-        const buffer = this.ctx.createBuffer(1, data.length, sr);
-        buffer.copyToChannel(data, 0);
-        list.push(buffer);
+      // Samples decode in parallel with this render (session stage 1): a recording that landed since `todo`
+      // was built must win, never be overwritten by its procedural fallback.
+      if (!this.buffers.has(name)) {
+        const spec = SOUND_SPECS[name];
+        const list: AudioBuffer[] = [];
+        for (let v = 0; v < spec.variants; v++) {
+          const data = spec.make(sr, new Rng(`${name}:${v}`));
+          const buffer = this.ctx.createBuffer(1, data.length, sr);
+          buffer.copyToChannel(data, 0);
+          list.push(buffer);
+        }
+        this.buffers.set(name, list);
       }
-      this.buffers.set(name, list);
       done++;
       opts.onProgress?.(done, total);
       if (done % batchSize === 0 && done < total) await yieldFrame();
@@ -453,8 +463,51 @@ export class AudioEngine {
     this.occluder = occluder;
   }
 
+  /** Register a room intercom: a grille at `position` relaying sounds that start where `contains` is true. Off at first. */
+  addIntercom(id: string, position: THREE.Vector3, contains: (p: THREE.Vector3) => boolean, level = 1): Intercom {
+    this.intercoms.get(id)?.dispose();
+    const ic = new Intercom(this.ctx, {
+      id, position, contains, level, out: this.buses.sfx, reverbIn: this.reverbIn,
+      playSample: (name, gain) => {
+        if (!this.hasSample(name)) return false;
+        this.play(name, { bus: 'sfx', position, gain, reverb: 0.15, occlude: false });
+        return true;
+      },
+    });
+    this.intercoms.set(id, ic);
+    return ic;
+  }
+
+  /** Switch an intercom on or off (a click, and static when it goes live). Unknown ids are ignored. */
+  setIntercom(id: string, live: boolean): void {
+    this.intercoms.get(id)?.setLive(live);
+  }
+
+  intercom(id: string): Intercom | undefined {
+    return this.intercoms.get(id);
+  }
+
+  /** The inputs of every live intercom that relays a sound starting at `p` (dialogue taps these too). */
+  intercomInputs(p: THREE.Vector3 | null | undefined): AudioNode[] {
+    const out: AudioNode[] = [];
+    for (const ic of this.intercoms.values()) if (ic.relays(p)) out.push(ic.input);
+    return out;
+  }
+
+  /** Drop every intercom (a session ending). */
+  clearIntercoms(): void {
+    for (const ic of this.intercoms.values()) ic.dispose();
+    this.intercoms.clear();
+  }
+
   /** Follow the camera every frame. */
   updateListener(camera: THREE.Camera): void {
+    if (this.intercoms.size > 0) {
+      const now = this.ctx.currentTime;
+      const dt = Math.min(0.1, Math.max(0, now - this.lastIntercomTick));
+      this.lastIntercomTick = now;
+      for (const ic of this.intercoms.values()) ic.update(dt);
+    }
     const l = this.ctx.listener;
     const p = camera.position;
     this.listenerPos.copy(p);
@@ -633,6 +686,14 @@ export class AudioEngine {
       node = panner;
     }
     node.connect(this.buses[opts.bus ?? 'sfx']);
+    // A live intercom in the sound's room also carries it, dry and unoccluded (the room mic hears it as authored).
+    const taps = opts.position && (opts.bus ?? 'sfx') === 'sfx' && opts.relay !== false ? this.intercomInputs(opts.position) : [];
+    if (taps.length > 0) {
+      const tapGain = new GainNode(this.ctx, { gain: opts.gain ?? 1 });
+      source.connect(tapGain);
+      for (const input of taps) tapGain.connect(input);
+      source.addEventListener?.('ended', () => tapGain.disconnect());
+    }
     if (opts.reverb) {
       const send = new GainNode(this.ctx, { gain: opts.reverb });
       node.connect(send).connect(this.reverbIn);

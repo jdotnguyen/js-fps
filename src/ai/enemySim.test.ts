@@ -130,6 +130,53 @@ test('emerging spawns come out on the floor, not on the ceiling slab within step
   assert.ok(Math.abs(vent.motor.y) < 1e-3, `vent spawn at y ${vent.motor.y}`);
 });
 
+test('a dropping spawn falls from the point to the floor, lands once, gets up and hunts the player', () => {
+  // R06-like: ceiling slab 4.00-4.12, the vent point at 3.3 just under it.
+  const { dir, log } = director(room([{ min: [-10, 4, -10], max: [10, 4.12, 10] }]));
+  const player = stubTarget('player', [0, 0, 6], { grabbable: false });
+  dir.addTarget(player);
+  dir.setSpawns([{ id: 'r06_duct', pos: [-2.6, 3.3, 0], kind: 'ceiling', group: 'r06_cover', active: false, look: 'lab_creature', hp: 90, start: 'drop' }]);
+  dir.spawnGroup('r06_cover');
+  run(dir, 1 / 60);
+  const e = dir.list.find((x) => x.id === 'r06_duct')!;
+  assert.equal(e.state, 'dropping');
+  assert.ok(Math.abs(e.motor.y - 3.3) < 0.05, `first seen at the vent, y ${e.motor.y}`);
+  assert.equal(e.mobile, false, 'falls straight down, no walking');
+  const t = run(dir, 3, () => e.state !== 'dropping');
+  // Free fall from 3.3 m takes sqrt(2h/g) = 0.82 s.
+  assert.ok(t > 0.7 && t < 0.95, `fell for ${t.toFixed(2)} s`);
+  assert.ok(Math.abs(e.motor.y) < 1e-3, `on the floor, not the slab: y ${e.motor.y}`);
+  const landed = log.filter(([n]) => n === 'enemy:landed');
+  assert.equal(landed.length, 1);
+  const l = landed[0]![1] as { id: string; x: number; y: number; z: number; height: number };
+  assert.equal(l.id, 'r06_duct');
+  assert.ok(Math.abs(l.x + 2.6) < 1e-6 && Math.abs(l.y) < 1e-6, 'heard at its feet');
+  assert.ok(Math.abs(l.height - 3.3) < 1e-6);
+  assert.equal(e.target?.id, 'player', 'comes down already hunting Jay');
+  const state = (): string => e.state;
+  run(dir, 4, () => state() === 'chase' || state() === 'windup');
+  assert.ok(state() === 'chase' || state() === 'windup', `then goes for Jay (${state()})`);
+  assert.equal(log.filter(([n]) => n === 'enemy:landed').length, 1, 'lands only once');
+});
+
+test('a spawn point hp replaces the base health and still scales with difficulty; emerge is unchanged', () => {
+  const at = (hp?: number, enemyHp = 1) => {
+    const { dir } = director(room(), { enemyHp });
+    return dir.spawn('shambler', { x: 0, y: 0, z: 0 }, 0, hp === undefined ? {} : { hp }).body.damage.baseHp;
+  };
+  assert.equal(at(90), 90);
+  assert.equal(at(90, 0.75), 67.5);
+  assert.equal(at(), TABLE.shambler.baseHp);
+  const { dir } = director(room());
+  dir.setSpawns([{ id: 'v', pos: [0, 2.7, 0], kind: 'vent', group: 'g', active: false, hp: 90 }]);
+  dir.spawnGroup('g');
+  run(dir, 1 / 60);
+  const e = dir.list[0]!;
+  assert.equal(e.state, 'waking', 'a vent spawn without start: drop still emerges');
+  assert.ok(Math.abs(e.motor.y) < 1e-3);
+  assert.equal(e.body.damage.baseHp, 90);
+});
+
 /** A room roofed by a slab at 4.00-4.12, and a two-enemy group: one on the floor, one standing on the slab. */
 function strandedGroup(opts: { jaySees?: boolean } = {}) {
   const { dir, events } = director(room([{ min: [-10, 4, -10], max: [10, 4.12, 10] }]));
@@ -163,6 +210,24 @@ test('a group enemy stuck on a roof slab is removed after 10 s out of view, and 
   assert.deepEqual(cleared, ['g']);
   assert.equal(dir.groupCleared('g'), true);
   assert.ok(!dir.list.includes(roof), 'the body is gone');
+});
+
+test('the cover fight\'s creature stuck out of reach is removed after 10 s out of view, and r06_cover clears (trim-lab-wing-encounters)', () => {
+  // The one r06_cover enemy, dropped onto the roof slab (a point above it) instead of the floor: no way down.
+  const { dir, events } = director(room([{ min: [-10, 4, -10], max: [10, 4.12, 10] }]));
+  const player = stubTarget('player', [3, 0, 3], { grabbable: false });
+  player.facing.set(1, 0, 0); // looking away from it
+  dir.addTarget(player);
+  dir.setSpawns([{ id: 'r06_duct', pos: [-5, 5, -5], kind: 'ceiling', group: 'r06_cover', active: false, look: 'lab_creature', hp: 90, start: 'drop' }]);
+  const culled: string[] = [];
+  events.on('enemy:culled', (p) => culled.push(p.id));
+  dir.spawnGroup('r06_cover');
+  run(dir, 3);
+  const e = dir.list.find((x) => x.id === 'r06_duct')!;
+  assert.ok(Math.abs(e.motor.y - 4.12) < 1e-3, `landed on the slab (y ${e.motor.y})`);
+  run(dir, 14, () => culled.length > 0);
+  assert.deepEqual(culled, ['r06_duct']);
+  assert.equal(dir.groupCleared('r06_cover'), true, 'cover_me carries on past waitGroup');
 });
 
 test('an unreachable group enemy Jay can see is removed only at 30 s', () => {

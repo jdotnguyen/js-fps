@@ -146,6 +146,18 @@ test('UI-only boot renders only UI sounds, then renderSoundsAsync finishes the r
   assert.equal(steps.at(-1), 1);
 });
 
+test('a recorded sample that decodes mid-render is not overwritten by its procedural fallback', async () => {
+  const engine = new AudioEngine();
+  const ctx = engine.ctx as unknown as FakeAudioContext;
+  const recorded = ctx.createBuffer(1, 64, ctx.sampleRate) as unknown as AudioBuffer;
+  // Start the render first so its to-do list includes pistolShot, then let the sample land while it yields.
+  const render = engine.renderSoundsAsync(undefined, { batchSize: 1 });
+  await engine.loadSamples({ names: ['pistolShot'], fetchSample: async () => recorded });
+  await render;
+  assert.equal(engine.hasSample('pistolShot'), true);
+  assert.equal(engine.variantCount('pistolShot'), 1, 'the one recorded take, not the 4 procedural variants');
+});
+
 test('loadSamples respects bounded concurrency and skips already loaded samples', async () => {
   const engine = new AudioEngine();
   const ctx = engine.ctx as unknown as FakeAudioContext;

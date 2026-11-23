@@ -206,7 +206,8 @@
             },
             {
               "do": "say",
-              "line": "intro_guard_01"
+              "line": "intro_guard_01",
+              "channel": "checkpoint"
             },
             {
               "do": "npcAnim",
@@ -251,7 +252,8 @@
             },
             {
               "do": "say",
-              "line": "intro_guard_02"
+              "line": "intro_guard_02",
+              "channel": "checkpoint"
             },
             {
               "do": "npcAnim",
@@ -274,6 +276,13 @@
               "do": "npcMoveTo",
               "npc": "ruiz",
               "to": "anchor:crew_ruiz_commons"
+            },
+            {
+              "do": "npcMoveTo",
+              "npc": "ruiz",
+              "to": "anchor:dive_crew_lean",
+              "whenUnseen": true,
+              "settle": "lean_counter"
             }
           ]
         },
@@ -373,7 +382,8 @@
             },
             {
               "do": "say",
-              "line": "intro_guard_03"
+              "line": "intro_guard_03",
+              "channel": "checkpoint"
             },
             {
               "do": "npcAnim",
@@ -396,6 +406,13 @@
               "do": "npcMoveTo",
               "npc": "sung",
               "to": "anchor:crew_sung_commons"
+            },
+            {
+              "do": "npcMoveTo",
+              "npc": "sung",
+              "to": "anchor:dive_crew_sit",
+              "whenUnseen": true,
+              "settle": "sit_chair"
             }
           ]
         },
@@ -602,21 +619,17 @@
             {
               "do": "say",
               "line": "intro_giles_02"
+            },
+            {
+              "do": "say",
+              "line": "intro_okafor_02"
+            },
+            {
+              "do": "say",
+              "line": "intro_giles_03"
             }
           ]
-        }
-      ]
-    },
-    {
-      "do": "say",
-      "line": "intro_okafor_02"
-    },
-    {
-      "do": "say",
-      "line": "intro_giles_03"
-    },
-    {
-      "parallel": [
+        },
         {
           "do": "npcMoveTo",
           "npc": "giles",

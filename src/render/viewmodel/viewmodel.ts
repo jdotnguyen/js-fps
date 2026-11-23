@@ -9,6 +9,10 @@ import type { WeaponId } from './rig.ts';
 declare module '../../core/events.ts' {
   interface EventMap {
     'weapon:fired': { weapon: WeaponId };
+    /** Where Jay's shot (its first pellet) struck the level, and the way it was travelling (normalised). */
+    'weapon:impact': { weapon: WeaponId; x: number; y: number; z: number; dx: number; dy: number; dz: number };
+    /** The impact was on armoured glass: chipped, never through (medbay-attack "Shooting the glass"). */
+    'weapon:glass': { weapon: WeaponId; x: number; y: number; z: number };
     'weapon:dryFire': { weapon: WeaponId };
     /** `duration` (s) and `empty` are set for the pistol, whose reload is a fixed-length animation. */
     'weapon:reloadStart': { weapon: WeaponId; duration?: number; empty?: boolean };
@@ -105,10 +109,10 @@ const SPECS: Record<WeaponId, Spec> = {
     startReserve: 36,
     interval: 0.24,
     // The Shoot clip moves the gun a few millimetres (the old Fire clip threw it a third of a metre), so these springs carry the recoil:
-    // about 2.5 cm back and 2 degrees of muzzle lift. Starting values, to be tuned in a playtest.
-    recoilZ: 0.7,
-    recoilRx: 10,
-    kick: 0.7,
+    // about 4 cm back and 3 degrees of muzzle lift (raised by half after the first playtest). Still to be tuned.
+    recoilZ: 1.1,
+    recoilRx: 15,
+    kick: 0.9,
     poses: {
       hip: { p: [0.012, -0.095, -0.126], r: [0, 0, 0] },
       aim: { p: [-0.004, -0.061, -0.126], r: [0, 0, 0] },

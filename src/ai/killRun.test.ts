@@ -351,3 +351,67 @@ test('skipping during a clip beat ends on the last beat\'s pose', () => {
   assert.equal(h.log.at(-1), 'pose idle');
   assert.equal(h.run.over, true);
 });
+
+// overhaul-priya-r08-death D17 (medbay-attack "It reaches her by walking"): a `startWhen: inReach` beat waits for the
+// attacker; the beat before holds, and past its time limit the attacker is walked in, never placed.
+function reachHarness(reachAt: number) {
+  const style = validate(validateKillTable, {
+    s: {
+      kind: 'mauled',
+      beats: [
+        { id: 'plead', poses: ['idle'], convulse: 0, until: 'time', s: 1, max: 2 },
+        { id: 'impale', startWhen: 'inReach', reach: 0.7, poses: ['idle'], convulse: 0, until: 'time', s: 0.5, max: 1 },
+      ],
+    },
+  }, 'k')['s']!;
+  let now = 0;
+  const starts: Record<string, number> = {};
+  const closeIns: number[] = [];
+  const run = new KillRun(style, {}, {
+    beat: (id) => void (starts[id] = now),
+    pose: () => undefined,
+    convulse: () => undefined,
+    bulge: () => undefined,
+    event: () => undefined,
+    facesGlass: () => true,
+    arrived: () => true,
+    creatureReady: () => true,
+    done: () => undefined,
+    inReach: () => now >= reachAt,
+    closeIn: () => void closeIns.push(now),
+  });
+  run.warn = () => undefined;
+  let holding = false;
+  for (let i = 0; i < 60 * 12; i++) {
+    now += 1 / 60;
+    run.update(1 / 60);
+    if (run.beatId === 'plead' && run.holding) holding = true;
+  }
+  return { starts, closeIns, holding };
+}
+
+test('Fixed beat clock: with the attacker already in reach, the beat starts when the one before ends, not earlier', () => {
+  const r = reachHarness(0);
+  assert.ok(Math.abs(r.starts['impale']! - 1) < 1 / 60 + 1e-6, `impale at ${r.starts['impale']!.toFixed(3)} s`);
+  assert.deepEqual(r.closeIns, [], 'nobody is walked in');
+});
+
+test('Late arrival: the plead holds until the attacker reaches her; past its time limit it is walked in, once', () => {
+  const r = reachHarness(3.2);
+  assert.ok(r.holding, 'the plead holds');
+  assert.ok(Math.abs(r.starts['impale']! - 3.2) < 1 / 60 + 1e-6, `impale waits for it (${r.starts['impale']!.toFixed(3)} s)`);
+  assert.equal(r.closeIns.length, 1, 'walked in once');
+  assert.ok(Math.abs(r.closeIns[0]! - 2) < 3 / 60, `from the plead's time limit (${r.closeIns[0]!.toFixed(3)} s)`);
+});
+
+test('an attacker that never arrives does not hang the kill: the beat starts after the close-in limit', () => {
+  const r = reachHarness(Infinity);
+  assert.ok(r.starts['impale']! > 2 && r.starts['impale']! < 2 + 6 + 0.1, `impale at ${r.starts['impale']!.toFixed(2)} s`);
+});
+
+test('startWhen is for mauled kills, never on the first beat, and reach needs it', () => {
+  const beat = { poses: ['idle'], convulse: 0, until: 'time', s: 1, max: 1 };
+  assert.throws(() => validate(validateKillTable, { s: { kind: 'grownInside', beats: [{ id: 'a', ...beat }, { id: 'b', startWhen: 'inReach', ...beat }] } }, 'k'), /only "mauled"/);
+  assert.throws(() => validate(validateKillTable, { s: { kind: 'mauled', beats: [{ id: 'a', startWhen: 'inReach', ...beat }] } }, 'k'), /first beat/);
+  assert.throws(() => validate(validateKillTable, { s: { kind: 'mauled', beats: [{ id: 'a', ...beat }, { id: 'b', reach: 1, ...beat }] } }, 'k'), /"reach" is for/);
+});

@@ -90,6 +90,18 @@
           "hold": 0.99
         }
       },
+      "escapeDark": {
+        "fade": 0.6,
+        "layers": {
+          "drone": 0.86
+        }
+      },
+      "dropHush": {
+        "fade": 0.4,
+        "layers": {
+          "drone": 0.86
+        }
+      },
       "contact": {
         "fade": 1.5,
         "layers": {
@@ -160,7 +172,182 @@
           "contact_done": false
         },
         "cue": "hold"
+      },
+      {
+        "flags": {
+          "contact_done": true,
+          "cover_done": false
+        },
+        "cue": "hold"
       }
     ]
+  },
+  "medbay": {
+    "beat": 0.8,
+    "beatsPerBar": 4,
+    "bars": 8,
+    "level": 4.5,
+    "layers": [
+      "drone",
+      "glass",
+      "priya",
+      "breath",
+      "pulse",
+      "rise",
+      "brutal",
+      "hold"
+    ],
+    "stingers": {
+      "stab": 0.9
+    },
+    "distance": {
+      "target": "anchor:medbay_c_glass",
+      "far": 6.5,
+      "near": 0.9,
+      "layers": {
+        "glass": [
+          0.12,
+          0.85
+        ]
+      }
+    },
+    "duck": {
+      "event": "kill:impact",
+      "db": -14,
+      "hold": 0.18,
+      "recover": 0.35
+    },
+    "cues": {
+      "load": {
+        "fade": 0.5
+      },
+      "enter": {
+        "fade": 3,
+        "distance": true,
+        "layers": {
+          "drone": 0.7
+        }
+      },
+      "door": {
+        "fade": 1.5,
+        "distance": true,
+        "layers": {
+          "drone": 0.78
+        }
+      },
+      "triage": {
+        "fade": 3,
+        "distance": true,
+        "layers": {
+          "drone": 0.6,
+          "priya": 0.8
+        }
+      },
+      "hush": {
+        "cut": true,
+        "distance": false
+      },
+      "dread": {
+        "fade": 1.2,
+        "distance": true,
+        "layers": {
+          "drone": 0.8,
+          "breath": 0.55
+        }
+      },
+      "sit": {
+        "fade": 2.5,
+        "distance": true,
+        "layers": {
+          "drone": 0.6,
+          "priya": 0.7,
+          "breath": 0.35
+        }
+      },
+      "armory": {
+        "fade": 2,
+        "distance": true,
+        "layers": {
+          "drone": 0.65,
+          "priya": 0.75,
+          "breath": 0.5
+        }
+      },
+      "emerge": {
+        "fade": 0.2,
+        "distance": false,
+        "stinger": "stab",
+        "layers": {
+          "drone": 0.9,
+          "breath": 0.8,
+          "glass": 0.25
+        }
+      },
+      "kill:noticed": {
+        "cut": true,
+        "distance": false
+      },
+      "walk": {
+        "fade": 0.3,
+        "distance": false,
+        "layers": {
+          "drone": 0.9,
+          "breath": 0.7,
+          "pulse": 0.8,
+          "rise": 0.7,
+          "glass": 0.2
+        }
+      },
+      "kill:impale": {
+        "fade": 0.15,
+        "distance": false,
+        "layers": {
+          "drone": 1,
+          "breath": 0.8,
+          "pulse": 0.9,
+          "rise": 0.8,
+          "brutal": 1
+        }
+      },
+      "kill:slam": {
+        "fade": 0.1,
+        "distance": false,
+        "layers": {
+          "drone": 1,
+          "pulse": 0.6,
+          "brutal": 0.9
+        }
+      },
+      "kill:throw": {
+        "fade": 0.3,
+        "distance": false,
+        "layers": {
+          "drone": 0.85,
+          "breath": 0.5,
+          "brutal": 0.6
+        }
+      },
+      "kill:still": {
+        "fade": 2.5,
+        "distance": false,
+        "layers": {
+          "drone": 0.55,
+          "glass": 0.25
+        }
+      },
+      "aftermath": {
+        "fade": 3,
+        "distance": false,
+        "layers": {
+          "drone": 0.4,
+          "hold": 1
+        }
+      },
+      "end": {
+        "cut": true,
+        "distance": false,
+        "release": 1
+      }
+    }
   }
 }

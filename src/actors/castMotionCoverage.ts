@@ -175,6 +175,8 @@ export function checkCoverage(
   poseExists: (pose: string) => boolean,
   ownRequired: ReadonlySet<string>,
   sceneVariants: Readonly<Record<string, readonly string[]>> = {},
+  /** Whether a look's body has a captured clip (`npcAnim` with `clip:<id>` plays one once). Without it, any clip request is a problem. */
+  clipExists: (look: string, clip: string) => boolean = () => false,
 ): CoverageProblem[] {
   const problems: CoverageProblem[] = [];
   for (const [look, profile] of Object.entries(named)) {
@@ -188,6 +190,11 @@ export function checkCoverage(
     }
   }
   for (const r of requests) {
+    if (r.pose.startsWith('clip:')) {
+      const clip = r.pose.slice(5);
+      if (!clipExists(r.look, clip)) problems.push({ look: r.look, message: `${r.source} asks "${r.look}" for clip "${clip}", which its body does not have` });
+      continue;
+    }
     if (r.pose !== 'walk' && r.pose !== 'talk' && !poseExists(r.pose)) {
       problems.push({ look: r.look, message: `${r.source} asks "${r.look}" for unknown pose "${r.pose}"` });
       continue;

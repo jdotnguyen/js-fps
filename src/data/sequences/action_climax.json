@@ -147,7 +147,7 @@
    {
     "do": "cameraShake",
     "amount": 0.3,
-    "s": 1.0
+    "s": 1
    },
    {
     "do": "lightState",
@@ -184,7 +184,8 @@
   "trigger": {
    "event": "game:mode",
    "match": {
-    "mode": "playing"
+    "mode": "playing",
+    "from": "title"
    },
    "requires": "climax_done",
    "unless": "reveal_done"
@@ -333,7 +334,7 @@
    },
    {
     "do": "wait",
-    "s": 1.0
+    "s": 1
    },
    {
     "do": "say",
@@ -341,7 +342,7 @@
    },
    {
     "do": "wait",
-    "s": 1.0
+    "s": 1
    },
    {
     "parallel": [
@@ -371,7 +372,7 @@
     "do": "playerLookAt",
     "target": "npc:giles",
     "duration": 1.2,
-    "weight": 1.0
+    "weight": 1
    },
    {
     "do": "wait",
@@ -453,7 +454,7 @@
    },
    {
     "do": "wait",
-    "s": 1.0
+    "s": 1
    },
    {
     "do": "npcFollow",
@@ -482,7 +483,7 @@
   "steps": [
    {
     "do": "wait",
-    "s": 1.0
+    "s": 1
    },
    {
     "do": "titleCard",
@@ -527,7 +528,7 @@
    {
     "do": "npcMoveTo",
     "npc": "priya",
-    "to": "anchor:priya_hide",
+    "to": "anchor:priya_rest",
     "instant": true
    },
    {
@@ -539,11 +540,11 @@
    {
     "do": "cameraFeed",
     "id": "stinger",
-    "from": "anchor:stinger_cam",
-    "lookAt": "anchor:stinger_look",
+    "from": "anchor:cam04_pos",
+    "lookAt": "anchor:cam04_stinger_look",
     "state": "live",
     "fullscreen": true,
-    "label": "CAM 04  SURGERY",
+    "label": "CAM 04  MEDBAY",
     "fov": 70,
     "fps": 30,
     "size": {
@@ -564,7 +565,7 @@
       "npc": "priya",
       "kind": "convertedRise",
       "marks": {
-       "camera": "anchor:stinger_cam"
+       "camera": "anchor:cam04_pos"
       },
       "wait": true
      },

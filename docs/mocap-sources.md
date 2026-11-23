@@ -56,7 +56,7 @@ The core library loads at start and must stay within 2 MB. Every other named cha
 | bram | 8 | 223.4 KB |
 | hale | 5 | 148.4 KB |
 | heins | 4 | 56.2 KB |
-| priya | 7 | 181.1 KB |
+| priya | 9 | 203.6 KB |
 | ruiz | 4 | 95.3 KB |
 | sung | 4 | 67.8 KB |
 | voss | 7 | 190.6 KB |

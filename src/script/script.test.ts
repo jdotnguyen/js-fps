@@ -430,3 +430,33 @@ test('the shipped test_drop sequence runs headless to its checkpoint', async () 
   assert.equal(t.doors.D1, 'sealed');
   assert.equal(t.control.state.move, 'free');
 });
+
+// overhaul-priya-r08-death D25/D28: `intercom` switches a room intercom; `voiceProject` lasts only while its sequence
+// plays (voice-playback "After the scene").
+test('intercom switches the named intercom; voiceProject is cleared when its sequence ends, and a skip keeps none', async () => {
+  const t = makeHost();
+  const known = new Set(['medbay']);
+  t.host.intercom = (id, live) => (t.log.push(`intercom ${id} ${live ? 'on' : 'off'}`), known.has(id));
+  t.host.projectVoice = (npc, at) => void t.log.push(`project ${npc} ${at ?? 'off'}`);
+  const { m } = manager([
+    {
+      id: 'medbay_test',
+      trigger: { event: 'trigger:medbay_test' },
+      steps: [
+        { do: 'voiceProject', npc: 'okafor', at: 3.5 },
+        { do: 'intercom', id: 'medbay', state: 'on' },
+        { do: 'intercom', id: 'nowhere', state: 'on' },
+        { do: 'wait', s: 0.5 },
+        { do: 'intercom', id: 'medbay', state: 'off' },
+      ],
+    },
+  ], t);
+  t.host.events.emit('trigger:fired', { id: 'x', event: 'medbay_test' });
+  assert.deepEqual(t.log.filter((l) => l.startsWith('project') || l.startsWith('intercom')), ['project okafor 3.5', 'intercom medbay on', 'intercom nowhere on']);
+  assert.ok(t.warnings.some((w) => w.includes('intercom "nowhere"')), 'an unknown intercom is reported');
+  tick(m, 0.7);
+  await flush();
+  tick(m, 0.1);
+  assert.ok(!m.isRunning('medbay_test'));
+  assert.deepEqual(t.log.filter((l) => l.startsWith('project') || l.startsWith('intercom')).slice(3), ['intercom medbay off', 'project okafor off']);
+});

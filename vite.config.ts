@@ -1,5 +1,45 @@
+import { existsSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { defineConfig, type Plugin } from 'vite';
+
+const VIRTUAL_VO_FILES = 'virtual:vo-files';
+const RESOLVED_VO_FILES = `\0${VIRTUAL_VO_FILES}`;
+
+/** Dev/debug manifest of every MP3 in public/assets/vo/ and public/assets/audio/zombies/ for voices.html. */
+function voManifestPlugin(): Plugin {
+  const readMp3s = (relDir: string): string[] => {
+    const dir = resolve(process.cwd(), 'public', relDir);
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir)
+      .filter((f) => f.endsWith('.mp3'))
+      .sort()
+      .map((f) => `${relDir}/${f}`);
+  };
+  return {
+    name: 'thalassa-vo-files',
+    resolveId(id) {
+      if (id === VIRTUAL_VO_FILES) return RESOLVED_VO_FILES;
+      return null;
+    },
+    load(id) {
+      if (id !== RESOLVED_VO_FILES) return null;
+      const voFiles = readMp3s('assets/vo');
+      const zombieFiles = readMp3s('assets/audio/zombies');
+      return `export const voFiles = ${JSON.stringify(voFiles)};\nexport const zombieFiles = ${JSON.stringify(zombieFiles)};\n`;
+    },
+    configureServer(server) {
+      const invalidate = (file: string): void => {
+        const norm = file.replace(/\\/g, '/');
+        if (!norm.includes('/public/assets/vo/') && !norm.includes('/public/assets/audio/zombies/')) return;
+        const mod = server.moduleGraph.getModuleById(RESOLVED_VO_FILES);
+        if (mod) server.moduleGraph.invalidateModule(mod);
+      };
+      server.watcher.on('add', invalidate);
+      server.watcher.on('unlink', invalidate);
+    },
+  };
+}
 
 /** Chunk-size limits, minified kB (startup-bundle spec; trim-startup-bundle D6). This plugin is the one place they live. */
 const CHUNK_LIMITS = {
@@ -34,7 +74,7 @@ function chunkBudgets(limits: typeof CHUNK_LIMITS): Plugin {
 }
 
 export default defineConfig({
-  plugins: [chunkBudgets(CHUNK_LIMITS)],
+  plugins: [chunkBudgets(CHUNK_LIMITS), voManifestPlugin()],
   optimizeDeps: {
     // Recast's `./wasm` build finds its `.wasm` with `new URL(..., import.meta.url)`; pre-bundling would move the script
     // away from the file (Vite docs: optimizeDeps.exclude), so the dev server serves it from the package as is.

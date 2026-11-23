@@ -13,6 +13,7 @@ import { Biquad, fadeEdges, makeBuf, normalize, white, type Buf } from '../audio
 import { audioUrls, type DialogueLine, type Emote } from '../data/types/dialogue.ts';
 import type { PlayRequest, VoicePlayback, VoicePlayer } from './speech.ts';
 import { renderUtterance } from './vocalSynth.ts';
+import { MAX_PROJECTION_GAIN } from './projection.ts';
 
 /** Low-pass cutoff for a voice with nothing in the way: effectively open. */
 const OPEN_CUTOFF_HZ = 20000;
@@ -97,6 +98,8 @@ export class WebAudioVoicePlayer implements VoicePlayer {
   private readonly squelch: AudioBuffer;
   private readonly staticBuf: AudioBuffer;
   private disposed = false;
+  /** Live intercom inputs for a speaker position (voice-playback: Voices on a live intercom). */
+  private intercomTap: ((p: { x: number; y: number; z: number }) => AudioNode[]) | null = null;
 
   constructor(out: AudioOut, opts: WebAudioVoiceOptions = {}) {
     this.ctx = out.ctx;
@@ -122,6 +125,11 @@ export class WebAudioVoicePlayer implements VoicePlayer {
 
     this.squelch = this.toBuffer(renderSquelch(ctx.sampleRate, new Rng('squelch')));
     this.staticBuf = this.toBuffer(renderStatic(ctx.sampleRate, new Rng('static')));
+  }
+
+  /** Where live intercoms take local voices from; the game passes the engine's `intercomInputs`. */
+  setIntercomTap(fn: ((p: { x: number; y: number; z: number }) => AudioNode[]) | null): void {
+    this.intercomTap = fn;
   }
 
   /** Pre-render procedural buffers for lines (call during loading, spread over idle time). */
@@ -164,6 +172,11 @@ export class WebAudioVoicePlayer implements VoicePlayer {
   /** True if at least one recorded VO clip for this line is decoded and ready. */
   hasRecorded(line: DialogueLine): boolean {
     return audioUrls(line.audio).some((u) => this.recorded.has(u));
+  }
+
+  /** Decoded AudioBuffer for a loaded VO clip URL, if present (used by debug audition tools). */
+  recordedBuffer(url: string): AudioBuffer | undefined {
+    return this.recorded.get(url);
   }
 
   private pickRecorded(line: DialogueLine): AudioBuffer | undefined {
@@ -271,6 +284,10 @@ export class WebAudioVoicePlayer implements VoicePlayer {
           leadIn = 0.82;
         }
       }
+      if (position && !isPa && this.intercomTap) {
+        // The room mic hears the voice as spoken: dry, before distance, walls or glass.
+        for (const input of this.intercomTap(position)) lineGain.connect(input);
+      }
       if (position) {
         // A local voice keeps falling off with distance (no 40 m floor); propagation fades it to silence (setAudibility).
         panner = new PannerNode(ctx, {
@@ -318,7 +335,8 @@ export class WebAudioVoicePlayer implements VoicePlayer {
         if (!hearGain || !hearLp || stopped) return;
         const t = ctx.currentTime;
         // ~80 ms to settle, so crossing a doorway or a door swinging shut never clicks.
-        hearGain.gain.setTargetAtTime(Math.max(0, Math.min(1, gain)), t, HEAR_RAMP_S);
+        // Above 1 only for a projected voice (voice-playback: A scene can project a voice).
+        hearGain.gain.setTargetAtTime(Math.max(0, Math.min(MAX_PROJECTION_GAIN, gain)), t, HEAR_RAMP_S);
         hearLp.frequency.setTargetAtTime(Math.min(OPEN_CUTOFF_HZ, Number.isFinite(cutoffHz) ? cutoffHz : OPEN_CUTOFF_HZ), t, HEAR_RAMP_S);
       },
       stop: (interrupted) => {

@@ -51,6 +51,8 @@ export interface ActionContext {
   readonly runToken: object;
   /** Is this sequence running or queued right now? (`if` on the flag `running:<id>`.) */
   isRunning(id: string): boolean;
+  /** Stop another running or queued sequence now, as if cancelled (its control layers and scene NPCs are released). */
+  cancelSequence(id: string): void;
   /** Build a nested step list (used by `if` and `loop`). */
   build(steps: Step[]): Running;
   /** Apply the end state of a whole step list without playing it (skipping). */
@@ -150,6 +152,22 @@ function resolve(action: string, ref: TargetRef, ctx: ActionContext): Vec3Like |
   const at = ctx.host.resolve(ref);
   if (!at) ctx.host.warn(`${ctx.seqId}: ${action} cannot resolve target ${JSON.stringify(ref)}; skipped`);
   return at;
+}
+
+/**
+ * Where a `playerWalkTo` goes: `to` itself, or with `distance` that far from where Jay stands toward it, never past it
+ * (a few steps after someone in a cutscene).
+ */
+function walkGoal(to: TargetRef, distance: number | undefined, ctx: ActionContext): Vec3Like | null {
+  const at = resolve('playerWalkTo', to, ctx);
+  if (!at || distance === undefined) return at;
+  const me = ctx.host.resolve('player');
+  if (!me) return at;
+  const dx = at.x - me.x;
+  const dz = at.z - me.z;
+  const len = Math.hypot(dx, dz);
+  if (len <= distance) return at;
+  return { x: me.x + (dx / len) * distance, y: at.y, z: me.z + (dz / len) * distance };
 }
 
 /** Actions delegated to the NPC system (ADR-0006/0011). */
@@ -418,8 +436,8 @@ export const ACTIONS: Record<string, ActionDef> = {
 
   /** `timeout` (with `wait`): if Jay has not arrived by then (blocked), he is placed there (the skip end state). */
   /** `via`: an authored level walk (ADR-0028) to follow on the way, as a smooth curve. */
-  playerWalkTo: act({ to: target, via: optional(str), speed: optional(numRange(0.1, 10)), timeout: optional(numRange(0.5, 120)), wait }, (s, ctx) => {
-    const at = resolve('playerWalkTo', s.to, ctx);
+  playerWalkTo: act({ to: target, via: optional(str), speed: optional(numRange(0.1, 10)), timeout: optional(numRange(0.5, 120)), distance: optional(numRange(0.2, 20)), wait }, (s, ctx) => {
+    const at = walkGoal(s.to, s.distance, ctx);
     if (!at) return;
     if (!ctx.host.walkTo) return ctx.missing('playerWalkTo');
     const p = ctx.host.walkTo(at, s.speed, s.via);
@@ -451,6 +469,24 @@ export const ACTIONS: Record<string, ActionDef> = {
     if (s.wait) return timed(s.s);
   }),
 
+  /** A room intercom (overhaul-priya-r08-death D25): `on` goes live with a click and static, `off` clicks it dead. */
+  intercom: act({ id: str, state: oneOf(['on', 'off'] as const) }, (s, ctx) => {
+    if (!ctx.host.intercom) return ctx.missing('intercom');
+    if (!ctx.host.intercom(s.id, s.state === 'on')) ctx.host.warn(`${ctx.seqId}: intercom "${s.id}" is not in the level`);
+  }),
+
+  /**
+   * Project an NPC's voice for the rest of the sequence (voice-playback: A scene can project a voice): its local lines are
+   * no quieter than at `at` m. Cleared when the sequence ends, or with `at: 0`.
+   */
+  voiceProject: act({ npc: str, at: numRange(0, 30) }, (s, ctx) => {
+    if (!ctx.host.projectVoice) return ctx.missing('voiceProject');
+    const npc = s.npc.startsWith('npc:') ? s.npc.slice(4) : s.npc;
+    if (s.at <= 0) return ctx.host.projectVoice(npc, null);
+    ctx.host.projectVoice(npc, s.at);
+    ctx.onEnd(() => ctx.host.projectVoice?.(npc, null));
+  }),
+
   timeScale: act({ scale: numRange(0.05, 1), s: optional(numRange(0, 60)) }, (s, ctx) => {
     if (!ctx.host.setTimeScale) return ctx.missing('timeScale');
     ctx.host.setTimeScale(s.scale);
@@ -470,13 +506,15 @@ export const ACTIONS: Record<string, ActionDef> = {
   // ---- NPCs (ADR-0006/0011: stubs until those systems exist)
   /** `via`: an authored level walk (ADR-0028) to follow on the way, as a smooth curve. */
   /** `whenUnseen`: move off-stage the moment Jay cannot see the NPC, even mid-walk (skipped: at once). */
-  npcMoveTo: npcAct('npcMoveTo', { npc: str, to: target, via: optional(str), speed: optional(numRange(0.1, 10)), pose: optional(str), whenUnseen: optional(bool) }),
+  /** `settle`: a seated or leaning pose (`sit_chair`, `lean_counter`) to take on arrival, at the target's feet and facing; with `whenUnseen` it is taken the moment the NPC is placed. */
+  npcMoveTo: npcAct('npcMoveTo', { npc: str, to: target, via: optional(str), speed: optional(numRange(0.1, 10)), pose: optional(str), whenUnseen: optional(bool), settle: optional(str) }),
   /** `by` drags the body along on a rope (lying pose, no gait); `stop` lets go. Skipped: let go. */
   npcDrag: npcAct('npcDrag', { npc: str, by: optional(str), pose: optional(str), distance: optional(numRange(0.3, 4)), stop: optional(bool) }),
   npcAnim: npcAct('npcAnim', { npc: str, anim: str }),
   /** Cut limbs off (a door shearing its arms); the pieces fly along `dir`. */
   npcSever: npcAct('npcSever', { npc: str, regions: arr(oneOf(SEVERABLE_REGIONS)), dir: optional(vec3) }),
-  npcLookAt: npcAct('npcLookAt', { npc: str, target }),
+  /** `turn`: swing the whole body to face the target, not just the head. */
+  npcLookAt: npcAct('npcLookAt', { npc: str, target, turn: optional(bool), turnRate: optional(num) }),
   npcTask: npcAct('npcTask', { npc: str, task: str, args: optional(record(scalar)) }),
   /** `stay`: hold a squadmate where he is even after the sequence ends (until a later `npcFollow`). */
   npcFollow: npcAct('npcFollow', { npc: str, target: optional(target), stop: optional(bool), stay: optional(bool) }),
@@ -536,10 +574,10 @@ export const ACTIONS: Record<string, ActionDef> = {
    * Jay inside the room; leaves visible squadmates walking naturally. Instant.
    * Skipped: places any outside squadmates inside the room.
    */
-  squadCatchUpIn: act({ room: str, at: optional(target) }, (s, ctx) => {
+  squadCatchUpIn: act({ room: str, at: optional(target), force: optional(bool) }, (s, ctx) => {
     if (!ctx.host.squadCatchUpIn) return ctx.missing('squadCatchUpIn');
     const entry = s.at !== undefined ? resolve('squadCatchUpIn', s.at, ctx) : null;
-    ctx.host.squadCatchUpIn(s.room, entry);
+    ctx.host.squadCatchUpIn(s.room, entry, s.force === true);
   }),
   /**
    * Wait until Jay and both squadmates are inside `room` (before a scene seals the door behind them).
@@ -565,6 +603,21 @@ export const ACTIONS: Record<string, ActionDef> = {
         return inRoom('player', s.room) && (squadIn || placed);
       },
       skip: place,
+    };
+  }),
+  /**
+   * Wait until Jay is inside `room`, for at most `timeout` s (overhaul-priya-r08-death D23: the creature waits for him to
+   * step out of the armory, but not forever). Skipped: nothing to wait for.
+   */
+  waitPlayerIn: act({ room: str, timeout: numRange(0, 120) }, (s, ctx) => {
+    if (!ctx.host.inRoom) return ctx.missing('waitPlayerIn');
+    const inRoom = ctx.host.inRoom.bind(ctx.host);
+    let left = s.timeout;
+    return {
+      update: (dt) => {
+        left -= dt;
+        return left <= 0 || inRoom('player', s.room);
+      },
     };
   }),
   /** Wait until every enemy of a group is dead (at once if it already is), with an optional timeout. Skipped: nothing to wait for. */
@@ -723,6 +776,15 @@ export const ACTIONS: Record<string, ActionDef> = {
     ctx.host.radio(s.track, at);
   }),
 
+  /**
+   * A `ceiling_vent` grate (trim-lab-wing-encounters): `open` swings it down on its hinge, `fallen` tears it loose to the
+   * floor, `closed` puts it back. `instant` snaps (restores); a skip lands on the state at once.
+   */
+  ventState: act({ id: str, state: oneOf(['closed', 'open', 'fallen'] as const), instant: optional(bool) }, (s, ctx) => {
+    if (!ctx.host.ventState) return ctx.missing('ventState');
+    ctx.host.ventState(s.id, s.state, s.instant ?? false);
+  }),
+
   glass: act({ id: str, state: oneOf(['intact', 'cracked', 'shattered'] as const) }, (s, ctx) => {
     if (!ctx.host.glass) return ctx.missing('glass');
     ctx.host.glass(s.id, s.state);
@@ -752,9 +814,10 @@ export const ACTIONS: Record<string, ActionDef> = {
   }),
 
   /** `beat: true`: land on the score's next beat (adaptive-music spec), or play at once with no score. */
-  sfx: act({ id: str, at: optional(target), beat: optional(bool), gain: optional(numRange(0.05, 12)) }, (s, ctx) => {
+  // `relay: false`: a positioned sound that live intercoms do not carry (the medical bay monitor beep).
+  sfx: act({ id: str, at: optional(target), beat: optional(bool), gain: optional(numRange(0.05, 20)), relay: optional(bool) }, (s, ctx) => {
     if (!ctx.host.sfx) return ctx.missing('sfx');
-    const opts = { ...(s.beat ? { beat: true } : {}), ...(s.gain !== undefined ? { gain: s.gain } : {}) };
+    const opts = { ...(s.beat ? { beat: true } : {}), ...(s.gain !== undefined ? { gain: s.gain } : {}), ...(s.relay === false ? { relay: false } : {}) };
     ctx.host.sfx(s.id, s.at !== undefined ? resolve('sfx', s.at, ctx) : null, Object.keys(opts).length > 0 ? opts : undefined);
   }),
 
@@ -780,16 +843,27 @@ export const ACTIONS: Record<string, ActionDef> = {
    * `speakers` can be heard (none when left out); music and the menu stay. `off` brings it all back. Going to the title
    * or restarting lifts it too. Instant either way.
    */
-  hush: act({ speakers: optional(arr(str)), off: optional(bool), s: optional(numRange(0, 10)) }, (s, ctx) => {
+  // `keep: ["sfx"]` leaves sound effects up, so the scene's own sounds carry in the quiet (the Lab B escape in the dark).
+  /**
+   * Stop another sequence now (cancelled where it stands, nothing more of it plays) and, unless `speech: false`, cut every
+   * line still playing. The R07 scene opens this way: stepping into the room ends the R06 aftermath talk at once.
+   */
+  stopSequence: act({ id: str, speech: optional(bool) }, (s, ctx) => {
+    ctx.cancelSequence(s.id);
+    if (s.speech !== false) ctx.host.stopSpeech?.();
+  }),
+  hush: act({ speakers: optional(arr(str)), off: optional(bool), s: optional(numRange(0, 10)), keep: optional(arr(oneOf(['sfx'] as const))) }, (s, ctx) => {
     if (!ctx.host.hush) return ctx.missing('hush');
-    ctx.host.hush(s.off ? null : (s.speakers ?? []), s.s ?? 0.5);
+    ctx.host.hush(s.off ? null : (s.speakers ?? []), s.s ?? 0.5, s.keep);
   }),
   /** `overlap`: play beside the current line instead of queuing (a PA the squad talks over). */
   /**
    * Say a line. `line` may be a pool: each time the step runs it says the next one in turn. With `cooldown`, a run of
    * the step within that many seconds of its last line says nothing (Jay's shouts as he bangs on the medbay glass).
+   * `channel` names a side conversation inside the sequence (the guard scanning Ruiz while Sung talks with Jay): its
+   * lines keep their own order but never queue behind the sequence's main conversation, or it behind them.
    */
-  say: act({ line: (v, p) => (Array.isArray(v) ? arr(str)(v, p) : str(v, p)), wait, overlap: optional(bool), fixture: optional(str), to: optional(str), cooldown: optional(numRange(0, 60)) }, (s, ctx) => {
+  say: act({ line: (v, p) => (Array.isArray(v) ? arr(str)(v, p) : str(v, p)), wait, overlap: optional(bool), fixture: optional(str), to: optional(str), cooldown: optional(numRange(0, 60)), channel: optional(str) }, (s, ctx) => {
     if (!ctx.host.say) return ctx.missing('say');
     let line: string;
     if (Array.isArray(s.line) || s.cooldown !== undefined) {
@@ -805,7 +879,8 @@ export const ACTIONS: Record<string, ActionDef> = {
       ...(s.fixture !== undefined ? { fixture: s.fixture } : {}),
       ...(s.to !== undefined ? { to: s.to } : {}),
       // A sequence is one conversation (it never runs twice at once): its lines share a channel (dialogue-channels).
-      channel: `seq:${ctx.seqId}`,
+      // A named side conversation gets a channel of its own, scoped to the sequence so no two sequences share one.
+      channel: s.channel !== undefined ? `seq:${ctx.seqId}:${s.channel}` : `seq:${ctx.seqId}`,
     });
     if (h && s.wait !== false) return { ...pending(h.done), skip: () => ctx.host.markLinePlayed?.(line) };
   }),
@@ -859,6 +934,10 @@ const SKIPS: Record<string, SkipFn> = {
     for (let i = 0; i < Math.min(st.count, 10); i++) ctx.skipSteps(st.steps);
   },
   cameraShake: NOOP,
+  // A projection only lasts while its sequence plays; a skipped one has none to keep.
+  voiceProject: NOOP,
+  waitPlayerIn: NOOP,
+  ventState: (s, ctx) => void ctx.host.ventState?.(s['id'] as string, s['state'] as string, true),
   // A pry in progress snaps to its forced opening.
   doorPry: (s, ctx) => void ctx.host.pryDoor?.(s['id'] as string, s['open'] as number, 0),
   timeScale: NOOP,
@@ -891,7 +970,7 @@ const SKIPS: Record<string, SkipFn> = {
     ctx.host.frame?.(null, 0, 0);
   },
   playerWalkTo: (s, ctx) => {
-    const at = resolve('playerWalkTo', s['to'] as TargetRef, ctx);
+    const at = walkGoal(s['to'] as TargetRef, s['distance'] as number | undefined, ctx);
     if (at) ctx.host.placePlayer?.({ x: at.x, y: undefined, z: at.z }, undefined, undefined);
   },
   fade: (s, ctx) => ctx.host.fade?.(s['to'] as number, 0),

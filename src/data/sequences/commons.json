@@ -84,23 +84,6 @@
   ]
  },
  {
-  "id": "commons_sung_to_brief",
-  "trigger": {
-   "event": "trigger:commons_to_gallery",
-   "requires": "commons_free",
-   "unless": "briefingSeen"
-  },
-  "once": true,
-  "steps": [
-   {
-    "do": "npcMoveTo",
-    "npc": "sung",
-    "to": "anchor:brief_sung",
-    "speed": 1.6
-   }
-  ]
- },
- {
   "id": "commons_dawdle",
   "trigger": {
    "event": "commons:dawdle",

@@ -40,6 +40,18 @@ export const REACTION_BATCHES: readonly ReactionBatch[] = [
     ],
   },
   {
+    // overhaul-priya-r08-death D29: her sob as she stumbles in the run (line 4), and her panic after the tray (line 20).
+    name: 'react_priya_panic',
+    speaker: 'nurse',
+    character: 'Priya Anand, 29 female medical nurse (warm female voice, terrified, hiding from something in a dark station)',
+    takes: [
+      { id: 'react_priya_sob_01', direction: 'one sharp frightened sob caught in the throat as she stumbles while running, breathless', vocalization: 'Hnh— hh!' },
+      { id: 'react_priya_sob_02', direction: 'a short choked sob of panic mid-stride, gasping', vocalization: 'Hhuh— nh!' },
+      { id: 'react_priya_breath_01', direction: 'fast shallow panicked breathing close to a microphone, then a small terrified whimper; trying to stay quiet', vocalization: 'Hh— hh— hh— hh— nnh—' },
+      { id: 'react_priya_breath_02', direction: 'hyperventilating, ragged quick breaths through the mouth, whimpering, terrified of being heard', vocalization: 'Hah— hah— hh— hh— mmh—' },
+    ],
+  },
+  {
     // Her panic as the thing crawls up her arm (infection-kills spec, the scratch beat: sound `voss_panic_breath`).
     name: 'react_voss_panic',
     speaker: 'crew_lab',

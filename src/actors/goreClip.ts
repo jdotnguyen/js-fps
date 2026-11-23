@@ -9,6 +9,8 @@ export interface GoreClip {
   at: number;
   /** Which side the gore keeps to: `above` = coordinate >= `at`, `below` = coordinate <= `at`. */
   keep: 'above' | 'below';
+  /** The pane's clear view band: drops that strike the plane inside it leave no mark there (infection-kills "Clear view band"). */
+  band?: ClearBand;
 }
 
 /** Gap kept between a clamped particle and the plane so it does not z-fight the pane. */

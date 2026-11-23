@@ -700,3 +700,16 @@ test('the pistol changes nothing about accuracy, damage or fire rate', () => {
   };
   assert.deepEqual(run(true), run(false));
 });
+
+test('catchUpIn force (a scene on rails): every mate goes to the entry, even one in view or already in the doorway (D41)', () => {
+  // Jay at z=+5 facing -Z, looking at both squadmates at z=-5: a forced catch-up still brings them in.
+  const visible = spread(5, -5);
+  const moved = visible.squad.catchUpIn((p) => p.z > 0, { x: 0, y: 0, z: 1.5 }, true);
+  assert.equal(moved.length, 2);
+  for (const m of visible.squad.mates) assert.ok(m.position.z > 1, `${m.id} placed at the entry (z ${m.position.z.toFixed(2)})`);
+  // One already just inside (a doorway at z 0): forced, it is moved to the entry too, off the threshold.
+  const doorway = spread(5, -5);
+  doorway.squad.mates[0]!.place({ x: 0, y: 0, z: 0.1 }, 0);
+  doorway.squad.catchUpIn((p) => p.z > 0, { x: 0, y: 0, z: 1.5 }, true);
+  assert.ok(doorway.squad.mates[0]!.position.z > 1, 'off the threshold');
+});

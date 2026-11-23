@@ -25,6 +25,13 @@ import { RadioPlayer } from '../audio/radio.ts';
 import { WATER_FLAG, type CameraFeedOptions, type ScriptSpeechOptions, type SequenceHost } from './host.ts';
 import type { TargetRef, Vec3Like } from './types.ts';
 
+declare module '../core/events.ts' {
+  interface EventMap {
+    /** `voiceProject` step: hold an NPC's local voice at the loudness of `at` m, or end that (null). */
+    'voice:project': { npc: string; at: number | null };
+  }
+}
+
 export interface GameHostDeps {
   events: EventBus;
   /** Per-slot record of watched cutscenes (sequence `skippableAfter`). */
@@ -81,9 +88,9 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
   // A scene's hush (`hush` action): the world's ambience and sound effects, and every voice but the scene's own.
   const HUSHED: readonly BusName[] = ['ambience', 'sfx'];
   let hushed = false;
-  const hush = (speakers: readonly string[] | null, seconds: number): void => {
+  const hush = (speakers: readonly string[] | null, seconds: number, keep: readonly BusName[] = []): void => {
     hushed = speakers !== null;
-    d.audio.hush(hushed ? HUSHED : [], seconds);
+    d.audio.hush(hushed ? HUSHED.filter((b) => !keep.includes(b)) : [], seconds);
     d.speech?.onlySpeakers?.(speakers);
   };
   // Back to the title: the radio stops with everything else, and a hush lifts.
@@ -190,6 +197,12 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
     light: (id, pattern, tint) => d.level?.setLight(id, pattern as LightPattern, tint) ?? false,
     setPower: (state) => d.level?.setPower(state),
     cameraShake: (amount, seconds) => d.events.emit('camera:shake', { amount, seconds }),
+    intercom: (id, live) => {
+      if (!d.audio.intercom(id)) return false;
+      d.audio.setIntercom(id, live);
+      return true;
+    },
+    projectVoice: (npc, at) => d.events.emit('voice:project', { npc, at }),
     water: (room, level, seconds) => {
       const body = d.level?.water.room(room);
       if (!body) return false;
@@ -200,6 +213,8 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
     },
     // Glass partitions (`glass_cracks` props listen), ADR-0014 beat 2.
     glass: (id, state) => d.events.emit('glass:set' as EventName, { id, state } as never),
+    // Ceiling vent grates (`ceiling_vent` props listen), trim-lab-wing-encounters.
+    ventState: (id, state, instant) => d.events.emit('ventGrate:set' as EventName, { id, state, instant } as never),
     lightStates: () => d.level?.roomLightPatterns() ?? {},
 
     radio: (track, at) => {
@@ -244,7 +259,8 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
         }
         // Sequence sounds play as authored, never muffled by walls (in-world-audio: World sound occlusion).
         const gain = opts?.gain !== undefined ? { gain: opts.gain } : {};
-        d.audio.play(id as SoundName, at ? { position: v3(at), occlude: false, ...gain } : gain);
+        const relay = opts?.relay === false ? { relay: false } : {};
+        d.audio.play(id as SoundName, at ? { position: v3(at), occlude: false, ...gain, ...relay } : gain);
       };
       // adaptive-music: a step that asks for the beat waits for the score's next one (at most a beat).
       const delay = opts?.beat && d.score ? d.score.untilBeat() : 0;
@@ -314,7 +330,7 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
       ? {
           squadRegroup: (distance?: number) => d.npcs!.regroup(distance),
           squadPlaceIn: (room: string) => d.npcs!.placeSquadIn((p) => roomIs(p, room)),
-          squadCatchUpIn: (room: string, entry?: Vec3Like | null) => d.npcs!.catchUpSquadIn((p) => roomIs(p, room), entry),
+          squadCatchUpIn: (room: string, entry?: Vec3Like | null, force?: boolean) => d.npcs!.catchUpSquadIn((p) => roomIs(p, room), entry, force === true),
           inRoom: (who: 'player' | 'giles' | 'okafor', room: string) => {
             const p = who === 'player' ? { x: d.player.body.x, y: d.player.body.y, z: d.player.body.z } : d.npcs!.squadFeet(who);
             return p ? roomIs(p, room) : true;

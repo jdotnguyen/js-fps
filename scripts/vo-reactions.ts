@@ -33,12 +33,20 @@ const LINE_POOLS: Record<string, string[]> = {
   bark_grab_jay_02: ['assets/vo/react_jay_pain_01.mp3', 'assets/vo/react_jay_pain_02.mp3', 'assets/vo/react_jay_pain_03.mp3'],
   bark_scare_jay_01: ['assets/vo/react_jay_scare_01.mp3', 'assets/vo/react_jay_scare_02.mp3', 'assets/vo/react_jay_scare_03.mp3'],
   bark_scare_jay_02: ['assets/vo/react_jay_scare_03.mp3', 'assets/vo/react_jay_scare_02.mp3', 'assets/vo/react_jay_scare_01.mp3'],
-  sec_giles_05: ['assets/vo/react_giles_cry_01.mp3', 'assets/vo/react_giles_cry_02.mp3', 'assets/vo/react_giles_cry_03.mp3'],
+  cover_priya_run_01: ['assets/vo/react_priya_sob_01.mp3', 'assets/vo/react_priya_sob_02.mp3'],
+  sec_priya_17: ['assets/vo/react_priya_breath_01.mp3', 'assets/vo/react_priya_breath_02.mp3'],
   sec_priya_02: ['assets/vo/react_priya_scream_01.mp3', 'assets/vo/react_priya_scream_02.mp3', 'assets/vo/react_priya_scream_03.mp3'],
   stinger_priya_03: ['assets/vo/react_priya_scream_02.mp3', 'assets/vo/react_priya_scream_03.mp3', 'assets/vo/react_priya_scream_01.mp3'],
   sec_priya_03: ['assets/vo/react_priya_choke_01.mp3', 'assets/vo/react_priya_choke_02.mp3'],
+  sec_priya_06: ['assets/vo/react_priya_scream_01.mp3', 'assets/vo/react_priya_scream_02.mp3', 'assets/vo/react_priya_scream_03.mp3'],
+  // Not generated here: 0.5-0.6 s excerpts cut by hand from the credited OpenGameArt screams above (CREDITS.md).
+  // TTS does not do screams; the next slam cuts this line off anyway (infection-kills, "Silenced by the third slam").
+  sec_priya_07: ['assets/vo/react_priya_cutoff_01.mp3', 'assets/vo/react_priya_cutoff_02.mp3', 'assets/vo/react_priya_cutoff_03.mp3'],
+  // The stinger allows one breath or rattle (slice-stinger spec); reuses her existing choke take.
+  stinger_priya_06: ['assets/vo/react_priya_choke_02.mp3'],
   crew_lab_scream_01: ['assets/vo/react_voss_scream_01.mp3', 'assets/vo/react_voss_scream_02.mp3', 'assets/vo/react_voss_scream_03.mp3'],
-  drop_voss_02: ['assets/vo/react_voss_scream_02.mp3', 'assets/vo/react_voss_scream_03.mp3', 'assets/vo/react_voss_scream_01.mp3'],
+  // One long scream: the first 5 s of a Dragon Studio female zombie screams clip (CREDITS.md), cut by hand with ffmpeg.
+  drop_voss_02: ['assets/vo/react_voss_scream_04.mp3'],
 };
 
 function loadEnvKey(): string {

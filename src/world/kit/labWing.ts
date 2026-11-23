@@ -549,8 +549,14 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     }
     pb.add(slab(1.2, 0.03, 0.6, 1), P.steel(), at(0, y + 0.435, 0));
     for (const s of [-1, 1]) pb.add(slab(1.2, 0.45, 0.02, 1), P.steel(), at(0, y + 0.225, s * 0.29));
-    pb.add(slab(0.5, 0.02, 0.5, 1), P.steel(), at(-0.35, y - 0.2, 0, 0, 0, -1.0));
-    pb.add(slab(0.45, 0.02, 0.5, 1), P.steel(), at(0.4, y - 0.18, 0.05, 0.2, 0, 1.1));
+    if (boolParam(p, 'sealed', false)) {
+      // Still whole (trim-lab-wing-encounters): the middle's underside is closed round a 0.6 m grate opening, where a
+      // `ceiling_vent` with `ceiling` = `y` sits until the creature kicks it out.
+      for (const s of [-1, 1]) pb.add(slab(0.3, 0.02, 0.6, 1), P.steel(), at(s * 0.45, y + 0.01, 0));
+    } else {
+      pb.add(slab(0.5, 0.02, 0.5, 1), P.steel(), at(-0.35, y - 0.2, 0, 0, 0, -1.0));
+      pb.add(slab(0.45, 0.02, 0.5, 1), P.steel(), at(0.4, y - 0.18, 0.05, 0.2, 0, 1.1));
+    }
     pb.add(slab(1.15, 0.01, 0.55, 1), P.trench(), at(0, y + 0.42, 0));
     for (const s of [-1, 1]) pb.add(cylinderBetween(V(s * (half - 0.4), y + 0.45, 0), V(s * (half - 0.4), y + 0.8, 0), 0.01, 6), P.darkSteel());
   },

@@ -151,14 +151,18 @@ test('squadCatchUpIn brings outside squadmates in without blocking, and doorStat
   assert.deepEqual(ok.log, ['catchUpIn R03 at', 'door D_R02_R03 locked']);
 });
 
-test('slice01 data: the gallery seals only after the gather; the squad job beats regroup first', async () => {
+test('slice01 data: the gallery drop catches the squad up during the walk and seals only with everyone inside; the squad job beats regroup first', async () => {
   const { readFileSync } = await import('node:fs');
   const load = (f: string) => JSON.parse(readFileSync(new URL(`../data/sequences/${f}.json`, import.meta.url), 'utf8')) as Array<{ id: string; steps: Array<Record<string, unknown>> }>;
   const drop = load('drop').find((s) => s.id === 'drop')!.steps;
-  const gather = drop.findIndex((s) => s['do'] === 'gatherIn' && s['room'] === 'R03');
-  const seal = drop.findIndex((s) => s['do'] === 'doorState' && s['id'] === 'D_R02_R03');
-  assert.ok(gather >= 0 && seal === gather + 1, 'gatherIn R03 right before the seal');
-  assert.ok(drop.slice(0, gather).filter((s) => s['do'] === 'npcMoveTo').length === 2, 'both squadmates are sent in first');
+  const flat = (steps: Array<Record<string, unknown>>): Array<Record<string, unknown>> => steps.flatMap((s) => (Array.isArray(s['parallel']) ? flat(s['parallel'] as Array<Record<string, unknown>>) : Array.isArray(s['steps']) ? [s, ...flat(s['steps'] as Array<Record<string, unknown>>)] : [s]));
+  const all = flat(drop);
+  assert.ok(!all.some((s) => s['do'] === 'gatherIn' && s['room'] === 'R03'), 'no gather timeout in the gallery drop');
+  const catchUp = all.findIndex((s) => s['do'] === 'squadCatchUpIn' && s['room'] === 'R03');
+  const seal = all.findIndex((s) => s['do'] === 'doorState' && s['id'] === 'D_R02_R03');
+  assert.ok(catchUp >= 0 && seal > catchUp, 'the squad is caught up before the seal');
+  assert.equal(all[seal]!['ifAllIn'], 'R03', 'the seal waits for everyone inside');
+  assert.ok(all.slice(catchUp, seal).filter((s) => s['do'] === 'npcMoveTo').length === 2, 'both squadmates then take their marks');
   for (const [file, id] of [['action_contact', 'cover_me'], ['action_tunnel', 'medlab_door'], ['action_climax', 'climax']] as const) {
     assert.equal(load(file).find((s) => s.id === id)!.steps[0]!['do'], 'squadRegroup', `${id} starts with squadRegroup`);
   }

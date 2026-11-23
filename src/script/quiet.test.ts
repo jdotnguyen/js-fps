@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { ControlStack } from '../actors/control.ts';
+import { sidearmAllowed } from '../game/sidearm.ts';
 import { SAMPLE_URLS, SOUND_SPECS } from '../audio/sounds.ts';
 import { DialogueLibrary } from '../dialogue/library.ts';
 import { isParallel } from './actions.ts';
@@ -152,6 +153,9 @@ function makeGame(only?: string[]) {
     setDoor: (id, state) => (log.push(`door ${id} ${state}`), true),
     setLight: (room, pattern, tint) => (log.push(`light ${room} ${pattern}${tint ? ` ${tint}` : ''}`), true),
     glass: (id, state) => void log.push(`glass ${id} ${state}`),
+    ventState: (id, state, instant) => void log.push(`vent ${id} ${state}${instant ? ' instant' : ''}`),
+    hush: (speakers, _s, keep) => void log.push(speakers ? `hush ${speakers.join(',')}${keep?.length ? ` keep ${keep.join(',')}` : ''}` : 'hush off'),
+    intercom: (id, live) => (log.push(`intercom ${id} ${live ? 'on' : 'off'}`), true),
     cameraFeed: (id, opts) => (feeds.push(opts), void log.push(`feed ${id} ${opts.state}`)),
     // Squad placement steps (unify-checkpoint-restore): everyone counts as in the room.
     squadRegroup: () => [],
@@ -338,25 +342,23 @@ test('the three rounds in any of the six orders: one checkpoint each, objectives
     assert.equal(said(g, 'rounds_giles_radio_01'), 1);
     assert.equal(said(g, 'pa_quarantine_01'), 1, 'the PA repeats once, after the first round only');
     assert.equal(g.host.flags['rounds_done'], true);
-    assert.ok(g.log.includes('npc npcFollow giles stay') && g.log.includes('npc npcFollow okafor stay'), 'the squad is parked at the gallery');
+    assert.ok(!g.log.some((e) => e.startsWith('npc npcFollow') && e.endsWith('stay')), 'the squad is not sent ahead; the drop places it (gallery-drop spec)');
     noWarnings(g);
   }
 });
 
-test('the commons changes as rounds complete: TV and the cook after the first, crew_1 seated after the second', async () => {
+test('the commons changes as rounds complete: TV and the cook after the first, nothing more after the second', async () => {
   const g = makeGame();
   complete.hydro(g);
   await advance(g, 4);
   assert.equal(count(g, 'event screen:set'), 1);
   assert.ok(g.log.includes('npc npcMoveTo cook instant'));
-  assert.ok(!g.log.some((e) => e.startsWith('npc npcMoveTo crew_1')));
   complete.dive(g);
   await advance(g, 4);
-  assert.ok(g.log.includes('npc npcMoveTo crew_1 instant'));
+  assert.ok(!g.log.some((e) => e.startsWith('npc npcMoveTo crew_1')), 'crew_1 is gone from the commons');
   complete.admin(g);
   await advance(g, 4);
   assert.equal(count(g, 'event screen:set'), 1, 'no third change');
-  assert.equal(g.log.filter((e) => e === 'npc npcMoveTo crew_1 instant').length, 1);
 });
 
 test('the hydro storeroom backtrack: denied says the line once; the store moment plays Jay, and no radio plays there', async () => {
@@ -421,7 +423,7 @@ test('the admin glimpse: a figure spawns, the feed goes live then static, the fi
 test('the drop does not start before the rounds are done, nor from the wrong door', async () => {
   const g = makeGame();
   g.host.flags['briefingSeen'] = true;
-  fire(g, 'trigger:gallery_enter');
+  fire(g, 'trigger:gallery_brief_spot');
   assert.equal(g.m.isRunning('drop'), false);
   assert.equal(g.host.flags['drop_started'], undefined);
 });
@@ -432,11 +434,22 @@ test('the drop: seals the door, blinds up, the bloom kills Voss, red lights, the
   for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
   await advance(g, 30);
   assert.equal(g.host.flags['rounds_done'], true);
-  fire(g, 'trigger:gallery_enter');
+  fire(g, 'trigger:gallery_brief_spot');
   assert.equal(g.m.isRunning('drop'), true);
   assert.equal(g.m.skippable, false);
   assert.equal(g.m.skip(), false, 'the drop cannot be skipped');
   assert.equal(g.control.state.weapons, false);
+  assert.equal(g.host.flags['gunDrawn'], undefined);
+  // holster-until-the-drop: through the blackout, the vent rip and the creature's despawn the pistol stays down...
+  await until(g, () => g.log.includes('npc despawn researcher_b_creature'), 120);
+  assert.equal(g.control.state.weapons, false, 'still holstered at the reveal');
+  assert.equal(g.host.flags['gunDrawn'], undefined);
+  assert.equal(count(g, 'sfx ductBang'), 0);
+  // ...and comes up on the first duct bang, before the drop is over.
+  await until(g, () => g.log.includes('sfx ductBang'), 20);
+  assert.equal(g.control.state.weapons, true, 'raised on the first duct bang');
+  assert.equal(g.host.flags['gunDrawn'], true);
+  assert.equal(g.host.flags['drop_done'], undefined);
   await until(g, () => !g.m.isRunning('drop'), 120);
   const at = (e: string): number => g.log.findIndex((x) => x.startsWith(e));
   assert.equal(g.host.flags['drop_done'], true);
@@ -453,8 +466,102 @@ test('the drop: seals the door, blinds up, the bloom kills Voss, red lights, the
   assert.equal(g.control.state.move, 'free');
   assert.equal(g.control.state.weapons, true);
   // And never twice.
+  fire(g, 'trigger:gallery_brief_spot');
+  assert.equal(g.m.isRunning('drop'), false);
+  noWarnings(g);
+});
+
+test('the drop (gallery-drop spec): rails walk to Heins with Voss already distressed, free through the kill without a forced look, a short unbarred hold at the ambush', async () => {
+  const g = makeGame();
+  g.host.flags['briefingSeen'] = true;
+  for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
+  await advance(g, 30);
+  assert.ok(g.log.includes('event blinds:set'), 'the blinds went up when the rounds finished');
+  const before = count(g, 'event blinds:set');
+  fire(g, 'trigger:gallery_brief_spot');
+  assert.equal(g.control.state.move, 'locked', 'rails (bars) for the walk');
+  const kinds: string[] = [];
+  const looksAfterFree: string[] = [];
+  let free = false;
+  walk(byId.get('drop')!.steps, (s) => {
+    kinds.push(String(s['do']));
+    if (s['do'] === 'say' && s['line'] === 'drop_okafor_01') free = true;
+    if (free && s['do'] === 'playerLookAt') looksAfterFree.push(String(s['target']));
+  });
+  assert.ok(kinds.includes('squadCatchUpIn') && !kinds.includes('gatherIn'), 'the squad is caught up during the walk, not gathered');
+  assert.deepEqual(looksAfterFree, [], 'no forced look once Jay is free');
+  assert.equal(g.log.includes('say drop_heins_01'), false, 'Heins does not announce the blinds');
+  // Voss starts at once: her plea comes as the kill's scratch beat begins, before Jay is free.
+  await until(g, () => g.log.some((e) => e.startsWith('npc kill researcher_b')), 30);
+  g.host.events.emit('kill:scratch', { npc: 'researcher_b', beat: 'scratch' });
+  await advance(g, 0.1);
+  assert.ok(g.log.includes('say drop_voss_01'), 'she says it is under her skin as Jay walks in');
+  assert.equal(g.log.includes('say drop_okafor_02'), false, 'Okafor waits for her to run');
+  await until(g, () => g.log.includes('say drop_okafor_01'), 40);
+  await until(g, () => g.control.state.move === 'free', 40);
+  assert.equal(g.control.state.move, 'free', 'free once Okafor has spoken');
+  assert.equal(g.control.state.look, 'free');
+  assert.equal(g.control.state.weapons, false, 'weapons stay off until the ambush');
+  assert.equal(g.control.state.interact, false);
+  assert.ok(g.log.some((e) => e.startsWith('door D_R02_R03')), 'sealed before Okafor speaks');
+  assert.equal(count(g, 'event blinds:set'), before, 'no second blinds event in the drop');
+  g.host.events.emit('kill:panic', { npc: 'researcher_b', beat: 'panic' });
+  await advance(g, 0.1);
+  assert.ok(g.log.includes('say drop_okafor_02'), 'Okafor says she is seizing as she runs');
+  await until(g, () => g.log.includes('npc despawn researcher_b_creature'), 120);
+  assert.equal(g.control.state.look, 'locked', 'the ambush hold');
+  assert.notEqual(g.control.state.move, 'locked', 'held without cutscene bars');
+  await until(g, () => g.log.includes('sfx ductScrape'), 20);
+  assert.equal(g.control.state.look, 'free', 'the hold ends after the first duct bang');
+  assert.equal(g.control.state.weapons, true);
+  await until(g, () => !g.m.isRunning('drop'), 120);
+  noWarnings(g);
+});
+
+test('the drop does not start from the doorway (gallery-drop spec)', async () => {
+  const g = makeGame();
+  g.host.flags['briefingSeen'] = true;
+  for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
+  await advance(g, 30);
   fire(g, 'trigger:gallery_enter');
   assert.equal(g.m.isRunning('drop'), false);
+  fire(g, 'trigger:gallery_brief_spot');
+  assert.equal(g.m.isRunning('drop'), true);
+});
+
+test('holster-until-the-drop: Jay is unarmed on every load until the drop raises the pistol, and armed after', async () => {
+  const armed = (g: Game): boolean => sidearmAllowed(g.host.flags, true);
+  // Only the drop arms Jay: no other sequence sets the flags the rule reads.
+  for (const def of defs.filter((d) => d.id !== 'drop' && !d.id.startsWith('test_'))) {
+    walk(def.steps, (s) => {
+      if (s['do'] === 'setFlag') assert.ok(s['flag'] !== 'gunDrawn' && s['flag'] !== 'drop_done', `${def.id} sets ${String(s['flag'])}`);
+    });
+  }
+  // The Fire / Reload prompt waits for `combat:first`; no sequence may raise it, so it cannot show to an unarmed Jay.
+  for (const def of defs) {
+    walk(def.steps, (s) => {
+      if (s['do'] === 'emit') assert.notEqual(s['event'], 'combat:first', `${def.id} emits combat:first`);
+    });
+  }
+  const g = makeGame();
+  assert.equal(armed(g), false, 'new game');
+  endIntro(g);
+  assert.equal(armed(g), false, 'after the intro (a cp_intro load)');
+  g.host.flags['briefingSeen'] = true;
+  for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
+  await advance(g, 30);
+  assert.equal(g.host.flags['rounds_done'], true);
+  assert.equal(armed(g), false, 'after the rounds (a cp_round_* load)');
+  fire(g, 'trigger:gallery_brief_spot');
+  await until(g, () => g.log.includes('npc despawn researcher_b_creature'), 120);
+  assert.equal(armed(g), false, 'at the reveal, a mid-drop restart returns to a pre-drop checkpoint');
+  await until(g, () => g.log.includes('sfx ductBang'), 20);
+  assert.equal(armed(g), true, 'from the first duct bang');
+  await until(g, () => !g.m.isRunning('drop'), 120);
+  assert.equal(armed(g), true, 'a cp_drop load');
+  const old = { ...g.host.flags };
+  delete old['gunDrawn'];
+  assert.equal(sidearmAllowed(old, true), true, 'a save from after the drop that never had gunDrawn');
   noWarnings(g);
 });
 
@@ -481,7 +588,7 @@ test('the drop follows the kill: each line and light change waits for its beat, 
   g.host.flags['briefingSeen'] = true;
   for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
   await advance(g, 30);
-  fire(g, 'trigger:gallery_enter');
+  fire(g, 'trigger:gallery_brief_spot');
   await until(g, () => g.log.some((e) => e.startsWith('npc kill researcher_b')), 30);
   await advance(g, 0.2);
   const beat = async (id: string): Promise<void> => {
@@ -508,34 +615,90 @@ test('the drop follows the kill: each line and light change waits for its beat, 
   noWarnings(g);
 });
 
+test('the Lab B escape (trim-lab-wing-encounters): it hammers, the lab goes dark, the vent tears, it crawls off, the lights come back on an empty lab', async () => {
+  const g = makeGame();
+  g.host.flags['briefingSeen'] = true;
+  for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
+  await advance(g, 30);
+  fire(g, 'trigger:gallery_brief_spot');
+  await until(g, () => !g.m.isRunning('drop'), 120);
+  const at = (e: string): number => g.log.indexOf(e);
+  const order = [
+    'say contact_giles_01',
+    'say contact_okafor_01',
+    'score labB escapeDark',
+    'light R04 off black',
+    'light R03 off black',
+    'hush engineer,medic keep sfx',
+    'sfx ventCoverRip',
+    'npc despawn researcher_b_creature',
+    'vent labb_vent open',
+    'sfx ductBang',
+    'light R04 steady emergency',
+    'light R03 alarm emergency',
+    'sfx ambushSting',
+    'hush off',
+    'score labB hold',
+    'sfx ductScrape',
+    'event drop:done',
+  ];
+  let pos = at('say contact_giles_01');
+  for (const e of order) {
+    const next = g.log.indexOf(e, pos);
+    assert.ok(next >= pos, `${e} missing or out of order`);
+    pos = next;
+  }
+  // Pitch black at once (no dying flicker), and the creature is gone before the lights return.
+  assert.equal(at('light R04 off black') - at('score labB escapeDark'), 1, 'straight to black');
+  assert.equal(g.log.some((e) => e === 'light R04 dying emergency'), false);
+  assert.ok(g.log.lastIndexOf('light R04 alarm emergency') > at('sfx ambushSting'), 'the alarm resumes after the reveal');
+  // The stinger lands on the lights coming back: the same step.
+  assert.equal(at('sfx ambushSting') - g.log.lastIndexOf('light R03 alarm emergency'), 1, 'the stinger plays with the lights');
+  // Only the rip and one bang in the dark; it is heard crawling away over R05 once the lights are back.
+  assert.equal(count(g, 'sfx ductBang'), 3);
+  assert.equal(g.log.slice(at('score labB escapeDark'), at('sfx ambushSting')).filter((e) => e.startsWith('sfx duct')).length, 1);
+  assert.equal(g.m.isRunning('contact'), false);
+  noWarnings(g);
+});
+
+test('a load after the drop: the creature is gone and the Lab B grate hangs open; nothing of the escape replays', () => {
+  const g = makeGame(['quiet_restore']);
+  Object.assign(g.host.flags, { introSeen: true, drop_started: true, drop_done: true });
+  g.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
+  assert.ok(g.log.indexOf('npc despawn researcher_b_creature') > g.log.indexOf('npc kill researcher_b instant'), 'the kill lays down the end state, then the creature goes');
+  assert.ok(g.log.includes('vent labb_vent open instant'));
+  for (const e of ['sfx ventCoverRip', 'sfx ambushSting', 'say contact_giles_01']) assert.equal(g.log.includes(e), false, e);
+  noWarnings(g);
+});
+
 // ------------------------------------------------------------------------------- restore, walk-by, ruined room
 
 test('quiet_restore on a load: radio, commons changes and the drop aftermath come back from the flags; a fresh game does nothing', async () => {
   const fresh = makeGame(['quiet_restore']);
-  fresh.host.events.emit('game:mode', { mode: 'playing' });
+  fresh.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.equal(fresh.log.filter((e) => e.startsWith('radio') || e.startsWith('npc') || e.startsWith('light') || e.startsWith('glass')).length, 0);
   const g = makeGame(['quiet_restore']);
-  Object.assign(g.host.flags, { introSeen: true, radio_place: 'commons', commons_changed_1: true, commons_changed_2: true, drop_started: true, drop_done: true });
+  Object.assign(g.host.flags, { introSeen: true, radio_place: 'commons', commons_changed_1: true, commons_changed_2: true, rounds_done: true, drop_started: true, drop_done: true });
   g.host.events.emit('game:mode', { mode: 'title' });
   assert.equal(g.log.filter((e) => e.startsWith('radio')).length, 0, 'only on playing');
-  g.host.events.emit('game:mode', { mode: 'playing' });
+  g.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.equal(count(g, 'radio tag_fm_01'), 1);
   assert.ok(g.log.includes('npc npcTask dock_guard return_to_desk instant'), 'post-intro restore seats the dock guard at his desk');
   assert.equal(count(g, 'event screen:set'), 1);
-  assert.ok(g.log.includes('npc npcMoveTo cook instant') && g.log.includes('npc npcMoveTo crew_1 instant') && g.log.includes('npc npcAnim crew_1 idle_mug instant'));
+  assert.ok(g.log.includes('npc npcMoveTo cook instant') && !g.log.some((e) => e.includes('crew_1')));
   // intro-sequence spec "The Commons after the intro": Bram back at his station, Priya off-stage at the medical bay.
   assert.ok(g.log.includes('to cook anchor:cook_stand') && g.log.includes('npc npcAnim cook idle instant'), 'Bram is at his station');
   assert.ok(!g.log.some((e) => e.includes('priya_exit')), 'no one is sent to the old doorway spot');
   assert.ok(!g.log.some((e) => e.startsWith('to priya')), 'no priya_met flag: Priya is left alone');
   const met = makeGame(['quiet_restore']);
   Object.assign(met.host.flags, { introSeen: true, priya_met: true });
-  met.host.events.emit('game:mode', { mode: 'playing' });
+  met.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.ok(met.log.includes('to priya anchor:priya_offstage'), 'Load after the intro: Priya waits off-stage, out of every view');
   const afterR08 = makeGame(['quiet_restore']);
   Object.assign(afterR08.host.flags, { introSeen: true, priya_met: true, sec_done: true });
-  afterR08.host.events.emit('game:mode', { mode: 'playing' });
+  afterR08.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.ok(!afterR08.log.some((e) => e.startsWith('to priya')), 'after R08 the action restore owns her body');
-  assert.ok(g.log.includes('event blinds:set'));
+  assert.ok(g.log.includes('event blinds:set'), 'blinds up from rounds_done');
   assert.ok(g.log.includes('npc kill researcher_b instant'), 'Voss lies dead and torn, the creature stands (infection-kills spec)');
   assert.equal(g.log.includes('npc npcAnim researcher_b shamble instant'), false);
   assert.ok(g.log.includes('light R04 alarm emergency') && g.log.includes('light R03 steady emergency'));
@@ -544,7 +707,7 @@ test('quiet_restore on a load: radio, commons changes and the drop aftermath com
   // Muted stays muted; only the mid-quiet pieces apply before the drop.
   const muted = makeGame(['quiet_restore']);
   Object.assign(muted.host.flags, { radio_place: 'none', radio_muted: true, commons_changed_1: true });
-  muted.host.events.emit('game:mode', { mode: 'playing' });
+  muted.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.equal(count(muted, 'radio tag_fm_01'), 0);
   assert.equal(count(muted, 'event screen:set'), 1);
   assert.ok(!muted.log.some((e) => e.startsWith('light') || e.startsWith('glass')));
@@ -552,7 +715,7 @@ test('quiet_restore on a load: radio, commons changes and the drop aftermath com
   for (const place of ['commons', 'hydro', 'dive', 'ruined']) {
     const r = makeGame(['quiet_restore']);
     r.host.flags['radio_place'] = place;
-    r.host.events.emit('game:mode', { mode: 'playing' });
+    r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
     assert.equal(count(r, 'radio tag_fm_01'), place === 'commons' ? 1 : 0, place);
     if (place !== 'commons') assert.equal(r.host.flags['radio_place'], 'none', place);
     assert.ok(!r.log.some((e) => e.includes('hydro_radio') || e.includes('dive_radio') || e.includes('r05_radio')), place);
@@ -779,14 +942,14 @@ test('dive bay: a load after securing shows the hatch closed at once, with no be
   const states: unknown[] = [];
   g.host.events.on('trunk:state', (p) => void states.push(p));
   g.host.flags['dive_trunk_secured'] = true;
-  g.host.events.emit('game:mode', { mode: 'playing' });
+  g.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   await advance(g, 2);
   assert.deepEqual(states, [{ state: 'closed', instant: true }]);
   assert.equal(count(g, 'sfx trunkChirp') + count(g, 'sfx trunkVent') + count(g, 'event trunk:beacon'), 0);
   const fresh = makeGame(['quiet_restore']);
   const none: unknown[] = [];
   fresh.host.events.on('trunk:state', (p) => void none.push(p));
-  fresh.host.events.emit('game:mode', { mode: 'playing' });
+  fresh.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   await advance(fresh, 1);
   assert.equal(none.length, 0, 'an unsecured trunk is left open');
 });

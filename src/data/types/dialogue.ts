@@ -42,6 +42,8 @@ const lineShape = {
   text: str,
   /** Required unless `audio` is set. */
   emote: nullable(oneOf(EMOTES)),
+  /** Acting direction for VO generation only (never shown or spoken): how this one line is delivered. */
+  direction: optional(str),
   babble: optional(bool),
   /** Play the station's two-tone chime before the announcement. */
   paChime: optional(bool),
@@ -51,7 +53,7 @@ const lineShape = {
   audio: nullable(audioPath),
   minDuration: numRange(0, 30),
   /** Loudness multiplier for this line (a shout across a room over an alarm); default 1. */
-  gain: optional(numRange(0.25, 4)),
+  gain: optional(numRange(0.05, 4)),
   /** Reserved for the dialogue-choice system; must be empty in the slice. */
   choices: arr(str),
 };

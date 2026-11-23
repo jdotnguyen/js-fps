@@ -57,12 +57,14 @@ export function clipSpeedAt(speed: ClipSpeed | undefined, t: number): number {
  * Beat events. The `mauled` ones drive the attacker as well as the victim (medbay-attack spec): `pin` puts the attacker
  * at an offset from her, `grip` closes its hand on one of her joints (or `release`s it), `attackerPose` poses it,
  * `haulTo` walks it to a mark with the grip held, `slam` drives her gripped head onto a mark's surface, `throw` lets go
- * and flies her to a mark on the glass, and `drag` walks it to a mark with her trailing from the grip.
+ * and flies her to a mark on the glass, and `drag` walks it to a mark with her trailing from the grip. `backTo` is hers:
+ * she backs away to a mark, facing the attacker (overhaul-priya-r08-death D16). `walkTo` walks the attacker to a mark with
+ * nothing held, faster than a haul (it leaving, D37), and `attackerLook` turns its head to a mark (none: straight ahead).
  */
-export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'haulTo', 'slam', 'throw', 'drag', 'infect'] as const;
+export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'haulTo', 'slam', 'throw', 'drag', 'infect', 'backTo', 'walkTo', 'attackerLook'] as const;
 
 /** The `mauled` events that need an attacker on the kill step. */
-export const ATTACKER_EVENTS: readonly KillEventKind[] = ['pin', 'grip', 'attackerPose', 'haulTo', 'slam', 'throw', 'drag'];
+export const ATTACKER_EVENTS: readonly KillEventKind[] = ['pin', 'grip', 'attackerPose', 'haulTo', 'slam', 'throw', 'drag', 'walkTo', 'attackerLook'];
 export type KillEventKind = (typeof KILL_EVENTS)[number];
 
 const joint: Validator<JointName> = (v, p) => {
@@ -80,6 +82,8 @@ const eventShape = {
   blend: optional(numRange(0, 5)),
   /** `sfx`: sound names, first one that exists plays (a recording to come, then an existing stand-in); `stinger`: the score stinger. */
   id: optional(arr(str)),
+  /** `sfx`: loudness multiplier (default 1). */
+  gain: optional(numRange(0.1, 4)),
   /** `sfx`/`kick`/`gore`: the joint it comes from. */
   joint: optional(joint),
   /** `kick`: push direction in the victim's own frame (she faces forward); `glass streak`: `pull` runs it along the pane the way she is dragged. */
@@ -97,7 +101,7 @@ const eventShape = {
   radius: optional(numRange(0, 0.5)),
   /** `light`: the kill's key light on the victim. */
   state: optional(oneOf(['on', 'off', 'dip'] as const)),
-  /** `toGlass`/`haulTo`/`drag`: walk speed (m/s). */
+  /** `toGlass`/`haulTo`/`drag`/`walkTo`: walk speed (m/s). `walkTo` is the attacker walking with nothing held (up to 2.2 m/s). */
   speed: optional(numRange(0.1, 6)),
   /** `pin`: metres behind the victim and to her right (her own frame); the attacker faces the way she faces, or `away`. */
   behind: optional(numRange(-2, 2)),
@@ -111,6 +115,8 @@ const eventShape = {
   mark: optional(str),
   /** `haulTo`/`drag`: on arrival the attacker turns to face this mark. */
   faceMark: optional(str),
+  /** `haulTo`/`drag`: marks walked through, in order, on the way to `mark` (along the glass, round the cart). */
+  via: optional(arr(str)),
   /** `throw`: how high (m) her body arcs on the way (over a cart between her and the glass). */
   arc: optional(numRange(0, 2)),
 };
@@ -151,6 +157,13 @@ const beatShape = {
   needsGlass: optional(bool),
   /** `until: impacts`: how many slam impacts end the beat. */
   impacts: optional(numRange(1, 12)),
+  /**
+   * `inReach` (`mauled`, medbay-attack "It reaches her by walking"): the beat only begins once the attacker stands within
+   * `reach` m (default 0.7) of her. Until then the previous beat holds; past its time limit the attacker walks the rest of
+   * the way. It is never placed.
+   */
+  startWhen: optional(oneOf(['inReach'] as const)),
+  reach: optional(numRange(0.2, 2)),
   /**
    * The victim's voice in this beat (`mauled`): `lines[0]` plays as the beat starts, `lines[n]` right after impact n.
    * Each impact cuts whatever she is saying first; an empty string is silence.
@@ -210,6 +223,9 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
       if (b.until === 'clip' && b.clip === undefined) throw new ValidationError(bp, '"until": "clip" needs "clip"');
       if (b.speed !== undefined && b.clip === undefined) throw new ValidationError(`${bp} > speed`, '"speed" is for a "clip" beat');
       if (b.s !== undefined && b.s > b.max) throw new ValidationError(bp, '"s" is longer than the time limit "max"');
+      if (b.startWhen !== undefined && style.kind !== 'mauled') throw new ValidationError(`${bp} > startWhen`, 'only "mauled" kills have an attacker to reach her');
+      if (b.startWhen !== undefined && i === 0) throw new ValidationError(`${bp} > startWhen`, 'the first beat has no beat before it to hold');
+      if (b.reach !== undefined && b.startWhen === undefined) throw new ValidationError(`${bp} > reach`, '"reach" is for a "startWhen" beat');
       for (const [k, e] of (b.events ?? []).entries()) {
         const ep = `${bp} > events[${k}]`;
         if (e.t > b.max) throw new ValidationError(ep, `fires after the beat's time limit (${b.max} s)`);
@@ -221,7 +237,9 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
         if (e.do === 'stinger' && e.id?.length !== 1) throw new ValidationError(ep, 'stinger needs one "id"');
         if ((e.do === 'pose' || e.do === 'die' || e.do === 'attackerPose') && !e.pose) throw new ValidationError(ep, `${e.do} needs "pose"`);
         if (e.do === 'grip' && !e.release && !e.joint) throw new ValidationError(ep, 'grip needs "joint" (or "release": true)');
-        if ((e.do === 'haulTo' || e.do === 'slam' || e.do === 'throw' || e.do === 'drag') && !e.mark) throw new ValidationError(ep, `${e.do} needs "mark"`);
+        if ((e.do === 'haulTo' || e.do === 'walkTo' || e.do === 'slam' || e.do === 'throw' || e.do === 'drag' || e.do === 'backTo') && !e.mark) throw new ValidationError(ep, `${e.do} needs "mark"`);
+        if (e.via !== undefined && e.do !== 'haulTo' && e.do !== 'walkTo' && e.do !== 'drag') throw new ValidationError(`${ep} > via`, '"via" is for a haulTo, walkTo or drag');
+        if (e.do === 'backTo' && style.kind !== 'mauled') throw new ValidationError(ep, 'backTo is only for "mauled" kills');
         if (ATTACKER_EVENTS.includes(e.do) && style.kind !== 'mauled') throw new ValidationError(ep, `${e.do} is only for "mauled" kills`);
       }
     });

@@ -33,6 +33,7 @@ export type EnemyState =
   | 'stagger'
   | 'playDead'
   | 'waking'
+  | 'dropping'
   | 'dead';
 
 export type AttackKind = 'swipe' | 'bite' | 'grab' | 'slam';
@@ -81,6 +82,8 @@ export interface EnemyHost {
   onGrabEnd(e: Enemy, reason: 'escaped' | 'shot' | 'died' | 'cleared'): void;
   onDied(e: Enemy): void;
   onSlam(e: Enemy, at: THREE.Vector3): void;
+  /** A dropping enemy hit the floor after falling `height` m (enemy-encounters: a heard and felt landing). */
+  onLand?(e: Enemy, height: number): void;
 }
 
 export interface EnemyInit {
@@ -92,9 +95,16 @@ export interface EnemyInit {
   pos: P3;
   yaw: number;
   spec: HumanoidSpec;
-  /** Spawn style: lie as a corpse until disturbed, or come out of a vent / ceiling (prone, then up). */
-  start?: 'stand' | 'playDead' | 'emerge';
+  /**
+   * Spawn style: lie as a corpse until disturbed, come out of a vent / ceiling (prone, then up), or drop from the
+   * spawn point to the floor at `dropTo` (world y) and get up from the landing.
+   */
+  start?: 'stand' | 'playDead' | 'emerge' | 'drop';
+  dropTo?: number;
 }
+
+/** Fall acceleration for a dropping enemy (m/s²). */
+const DROP_GRAVITY = 9.81;
 
 /** Perception interval (s). */
 export const THINK = 0.2;
@@ -169,6 +179,9 @@ export class Enemy {
   private stateDur = 0;
   private grabTick = 0;
   private strikeSide: 'L' | 'R' = 'R';
+  /** Floor a dropping enemy lands on, and the height it fell from. */
+  private dropTo = 0;
+  private dropFrom = 0;
 
   constructor(init: EnemyInit, ctx: HumanoidContext, rng: Rng, thinkOffset: number) {
     this.id = init.id;
@@ -194,6 +207,13 @@ export class Enemy {
       this.body.playDead('corpseProne');
       this.body.getUp();
       this.setState('waking');
+    } else if (start === 'drop') {
+      // Out of the vent belly first: falls flat, hits the deck, then gets up from the landing.
+      this.body.playDead('corpseProne');
+      this.dropFrom = init.pos.y;
+      this.dropTo = Math.min(init.dropTo ?? init.pos.y, init.pos.y);
+      this.motor.grounded = false;
+      this.setState('dropping');
     }
   }
 
@@ -219,7 +239,7 @@ export class Enemy {
   /** Moves under its own steering (separation pushes it); play-deads and corpses are immovable. */
   get mobile(): boolean {
     const s = this.body.state;
-    return this.state !== 'dead' && this.state !== 'playDead' && (s === 'alive' || s === 'falling' || s === 'gettingUp');
+    return this.state !== 'dead' && this.state !== 'playDead' && this.state !== 'dropping' && (s === 'alive' || s === 'falling' || s === 'gettingUp');
   }
 
   /** Awake and hunting (counts as "in combat"). */
@@ -251,7 +271,7 @@ export class Enemy {
 
   /** Stagger (shove, shotgun blast, lost limb): stop, no attack, then back to the chase. */
   stagger(seconds: number, host: EnemyHost): void {
-    if (this.state === 'dead' || this.state === 'playDead' || this.state === 'waking') return;
+    if (this.state === 'dead' || this.state === 'playDead' || this.state === 'waking' || this.state === 'dropping') return;
     this.body.stagger(seconds);
     if (this.state === 'grab') this.endGrab(host, 'shot');
     this.setState('stagger', seconds);
@@ -294,6 +314,12 @@ export class Enemy {
     if (this.state !== 'dead' && !body.alive) this.die(host);
     if (this.state === 'dead') {
       this.deadFor += dt;
+      this.planned.copy(body.group.position);
+      body.steer(null, dt);
+      return;
+    }
+    if (this.state === 'dropping') {
+      this.fall(dt, host);
       this.planned.copy(body.group.position);
       body.steer(null, dt);
       return;
@@ -502,9 +528,24 @@ export class Enemy {
 
   // ---------------------------------------------------------------- internals
 
+  /** One step of a drop: fall under gravity, and on reaching the floor land and start getting up. */
+  private fall(dt: number, host: EnemyHost): void {
+    const m = this.motor;
+    m.vy -= DROP_GRAVITY * dt;
+    m.y += m.vy * dt;
+    if (m.y > this.dropTo) return;
+    m.y = this.dropTo;
+    m.vy = 0;
+    m.grounded = true;
+    this.body.group.position.y = m.y;
+    this.body.getUp();
+    this.setState('waking');
+    host.onLand?.(this, this.dropFrom - this.dropTo);
+  }
+
   private think(host: EnemyHost): void {
     const body = this.body;
-    if (this.state === 'dead' || this.state === 'waking') return;
+    if (this.state === 'dead' || this.state === 'waking' || this.state === 'dropping') return;
     const eye = this.eyePos(tmpEye);
     if (this.state === 'playDead') {
       // Wake when a target comes within reach, or walks past close by and looks away (ADR-0007).

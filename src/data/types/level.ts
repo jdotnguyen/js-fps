@@ -53,6 +53,8 @@ export const TRIGGER_KINDS = ['enter', 'exit', 'use'] as const;
 export const SPAWN_KINDS = ['vent', 'floor', 'ceiling', 'door', 'corpse'] as const;
 /** Enemy variants a spawn point can make (ADR-0007, `data/enemies.json`). */
 export const SPAWN_VARIANTS = ['shambler', 'hero', 'playDead'] as const;
+/** How a spawn point's enemies arrive when not the kind's default (enemy-encounters): `drop` falls from the point. */
+export const SPAWN_STARTS = ['drop'] as const;
 export const SPAWN_OUTFITS = ['security', 'engineer', 'medic', 'lab', 'crew'] as const;
 
 export const SLOT_KINDS = ['auto', 'ceiling', 'wall', 'emergency', 'pendant'] as const;
@@ -238,6 +240,10 @@ const spawnShape = {
   model: optional(id),
   /** A cast look (castLooks) for this point's enemies: its body, height and build, e.g. `lab_creature` (infection-kills). */
   look: optional(id),
+  /** Health in place of the variant's base health, before the difficulty multiplier (enemy-encounters). */
+  hp: optional(numRange(1, 5000)),
+  /** `drop`: appear at the point and fall to the floor below, landing hard, instead of emerging on the floor. */
+  start: optional(oneOf(SPAWN_STARTS)),
   on: optional(str),
   /** Floats in standing water (a play-dead corpse face down in the flooded tunnel): exempt from the sunken-floor check. */
   float: optional(bool),

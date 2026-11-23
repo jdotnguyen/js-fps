@@ -2,7 +2,7 @@
  {
   "id": "drop",
   "trigger": {
-   "event": "trigger:gallery_enter",
+   "event": "trigger:gallery_brief_spot",
    "requires": "rounds_done",
    "unless": "drop_done"
   },
@@ -25,64 +25,21 @@
    },
    {
     "do": "playerControl",
-    "move": "slow",
-    "look": "free",
+    "move": "locked",
+    "look": "locked",
     "weapons": false,
     "interact": false
    },
    {
-    "do": "npcMoveTo",
-    "npc": "giles",
-    "to": "anchor:brief_giles"
-   },
-   {
-    "do": "npcMoveTo",
-    "npc": "okafor",
-    "to": "anchor:brief_okafor"
-   },
-   {
-    "do": "gatherIn",
-    "room": "R03"
-   },
-   {
-    "do": "doorState",
-    "id": "D_R02_R03",
-    "state": "sealed"
-   },
-   {
-    "do": "wait",
-    "s": 1.0
-   },
-   {
-    "do": "emit",
-    "event": "blinds:set",
-    "payload": {
-     "id": "labb",
-     "state": "up"
-    }
-   },
-   {
-    "do": "sfx",
-    "id": "click",
-    "at": "anchor:labb_blinds"
-   },
-   {
-    "do": "wait",
-    "s": 2.6
-   },
-   {
-    "do": "say",
-    "line": "drop_heins_01"
-   },
-   {
-    "do": "playerLookAt",
+    "do": "npcLookAt",
+    "npc": "heins",
     "target": "npc:researcher_b",
-    "duration": 1.4,
-    "weight": 0.7
+    "turn": true
    },
    {
-    "do": "say",
-    "line": "drop_okafor_01"
+    "do": "intercom",
+    "id": "labb",
+    "state": "on"
    },
    {
     "parallel": [
@@ -92,10 +49,76 @@
       "kind": "grownInside",
       "glass": "anchor:labb_glass",
       "lines": {
-       "scratch": "drop_voss_01",
+       "scratch": "drop_okafor_01",
        "glass": "drop_voss_02"
       },
       "wait": true
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "parallel": [
+         {
+          "do": "playerLookAt",
+          "target": "npc:researcher_b",
+          "duration": 1.2
+         },
+         {
+          "do": "playerWalkTo",
+          "to": "anchor:drop_jay",
+          "speed": 1.6,
+          "timeout": 6,
+          "wait": true
+         },
+         {
+          "do": "squadCatchUpIn",
+          "room": "R03",
+          "at": "anchor:gallery_enter"
+         }
+        ]
+       },
+       {
+        "do": "playerLookAt",
+        "target": "npc:researcher_b",
+        "duration": 0.6,
+        "wait": true
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "giles",
+        "to": "anchor:brief_giles"
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "okafor",
+        "to": "anchor:brief_okafor"
+       },
+       {
+        "do": "wait",
+        "s": 1.2
+       },
+       {
+        "do": "doorState",
+        "id": "D_R02_R03",
+        "state": "sealed",
+        "ifAllIn": "R03"
+       },
+       {
+        "do": "wait",
+        "s": 0.4
+       },
+       {
+        "do": "say",
+        "line": "drop_okafor_01"
+       },
+       {
+        "do": "playerControl",
+        "move": "free",
+        "look": "free"
+       }
+      ]
      },
      {
       "do": "loop",
@@ -109,6 +132,17 @@
        {
         "do": "say",
         "line": "drop_voss_01"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "waitFor",
+        "event": "kill:panic",
+        "timeout": 9
        },
        {
         "do": "say",
@@ -148,7 +182,8 @@
        },
        {
         "do": "say",
-        "line": "drop_voss_02"
+        "line": "drop_voss_02",
+        "wait": false
        },
        {
         "do": "say",
@@ -226,6 +261,10 @@
        },
        {
         "do": "say",
+        "line": "drop_okafor_04"
+       },
+       {
+        "do": "say",
         "line": "drop_giles_01"
        }
       ]
@@ -252,10 +291,204 @@
     "line": "drop_okafor_03"
    },
    {
+    "do": "say",
+    "line": "contact_giles_01"
+   },
+   {
+    "do": "say",
+    "line": "contact_okafor_01"
+   },
+   {
+    "do": "wait",
+    "s": 0.8
+   },
+   {
+    "parallel": [
+     {
+      "do": "playerControl",
+      "move": "slow",
+      "look": "locked"
+     },
+     {
+      "do": "score",
+      "id": "labB",
+      "cue": "escapeDark"
+     },
+     {
+      "do": "lightState",
+      "room": "R04",
+      "pattern": "off",
+      "tint": "black"
+     },
+     {
+      "do": "lightState",
+      "room": "R03",
+      "pattern": "off",
+      "tint": "black"
+     },
+     {
+      "do": "hush",
+      "speakers": [
+       "engineer",
+       "medic"
+      ],
+      "keep": [
+       "sfx"
+      ],
+      "s": 0.15
+     }
+    ]
+   },
+   {
+    "do": "wait",
+    "s": 0.35
+   },
+   {
+    "parallel": [
+     {
+      "do": "sfx",
+      "id": "ventCoverRip",
+      "at": "anchor:labb_vent",
+      "gain": 16
+     },
+     {
+      "do": "despawn",
+      "npc": "researcher_b_creature"
+     },
+     {
+      "do": "ventState",
+      "id": "labb_vent",
+      "state": "open"
+     }
+    ]
+   },
+   {
+    "do": "wait",
+    "s": 0.9
+   },
+   {
+    "parallel": [
+     {
+      "do": "sfx",
+      "id": "ductBang",
+      "at": "anchor:duct_r04",
+      "gain": 14
+     },
+     {
+      "do": "setFlag",
+      "flag": "gunDrawn",
+      "value": true
+     },
+     {
+      "do": "playerControl",
+      "weapons": true
+     }
+    ]
+   },
+   {
+    "do": "wait",
+    "s": 0.6
+   },
+   {
+    "do": "intercom",
+    "id": "labb",
+    "state": "off"
+   },
+   {
+    "parallel": [
+     {
+      "do": "lightState",
+      "room": "R04",
+      "pattern": "steady",
+      "tint": "emergency"
+     },
+     {
+      "do": "lightState",
+      "room": "R03",
+      "pattern": "alarm",
+      "tint": "emergency"
+     },
+     {
+      "do": "sfx",
+      "id": "ambushSting"
+     },
+     {
+      "do": "hush",
+      "off": true,
+      "s": 0.2
+     },
+     {
+      "do": "score",
+      "id": "labB",
+      "cue": "hold"
+     },
+     {
+      "do": "cameraShake",
+      "amount": 0.12,
+      "s": 0.3
+     }
+    ]
+   },
+   {
+    "do": "wait",
+    "s": 0.6
+   },
+   {
+    "do": "playerControl",
+    "move": "free",
+    "look": "free"
+   },
+   {
+    "do": "sfx",
+    "id": "ductScrape",
+    "at": "anchor:duct_r04",
+    "gain": 10
+   },
+   {
+    "do": "wait",
+    "s": 0.4
+   },
+   {
+    "do": "lightState",
+    "room": "R04",
+    "pattern": "alarm",
+    "tint": "emergency"
+   },
+   {
+    "do": "wait",
+    "s": 0.7
+   },
+   {
+    "do": "sfx",
+    "id": "ductBang",
+    "at": "anchor:duct_r05_1",
+    "gain": 8
+   },
+   {
+    "do": "wait",
+    "s": 1.2
+   },
+   {
+    "do": "sfx",
+    "id": "ductBang",
+    "at": "anchor:duct_r05_2",
+    "gain": 7
+   },
+   {
     "do": "lightState",
     "room": "R03",
     "pattern": "steady",
     "tint": "emergency"
+   },
+   {
+    "do": "npcLookAt",
+    "npc": "heins",
+    "target": "anchor:labb_vent",
+    "turn": true
+   },
+   {
+    "do": "say",
+    "line": "drop_heins_04"
    },
    {
     "do": "emit",

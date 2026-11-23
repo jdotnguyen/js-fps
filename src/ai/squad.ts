@@ -1238,20 +1238,26 @@ export class Squad {
    * the room ONLY when they are out of Jay's view, landing at an unseen spot (preferring `entry`
    * just inside the doorway, or a spot behind Jay inside the room). Never pops visibly in view.
    */
-  catchUpIn(inside: (p: P3) => boolean, entry?: P3 | null): SquadId[] {
+  /**
+   * Bring squadmates outside the room inside it, unseen. `force` (a scene on rails, the view held elsewhere): every
+   * mate goes to the entry spots, wherever he is and whether or not Jay could see him, so none is left in a doorway
+   * that is about to seal (overhaul-priya-r08-death D41).
+   */
+  catchUpIn(inside: (p: P3) => boolean, entry?: P3 | null, force = false): SquadId[] {
     this.readPlayer();
     const moved: SquadId[] = [];
+    const unseen = (p: P3): boolean => force || !this.canSee(tmpA.set(p.x, p.y, p.z));
     for (const m of this.mates) {
-      if (m.downed || inside(m.position) || this.canSee(m.position)) continue;
+      if (m.downed || (!force && (inside(m.position) || this.canSee(m.position)))) continue;
       let spot: P3 | null = null;
-      if (entry && inside(entry) && !this.canSee(tmpA.set(entry.x, entry.y, entry.z)) && this.standable(entry)) {
+      if (entry && inside(entry) && unseen(entry) && this.standable(entry)) {
         const off = m.id === 'engineer' ? -0.45 : 0.45;
         const alt = { x: entry.x, y: entry.y, z: entry.z + off };
-        spot = inside(alt) && this.standable(alt) && !this.canSee(tmpA.set(alt.x, alt.y, alt.z)) ? alt : entry;
+        spot = inside(alt) && this.standable(alt) && unseen(alt) ? alt : entry;
       }
       if (!spot) {
         const behind = this.spawnSpot(m);
-        if (inside(behind) && !this.canSee(tmpA.set(behind.x, behind.y, behind.z))) spot = behind;
+        if (inside(behind) && unseen(behind)) spot = behind;
       }
       if (!spot) continue;
       m.place(spot, this.player.yaw);

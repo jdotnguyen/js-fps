@@ -4,7 +4,8 @@
   "trigger": {
    "event": "game:mode",
    "match": {
-    "mode": "playing"
+    "mode": "playing",
+    "from": "title"
    }
   },
   "steps": [
@@ -128,25 +129,7 @@
    },
    {
     "do": "if",
-    "flag": "commons_changed_2",
-    "then": [
-     {
-      "do": "npcMoveTo",
-      "npc": "crew_1",
-      "to": "anchor:priya_chair",
-      "instant": true
-     },
-     {
-      "do": "npcAnim",
-      "npc": "crew_1",
-      "anim": "idle_mug",
-      "instant": true
-     }
-    ]
-   },
-   {
-    "do": "if",
-    "flag": "drop_started",
+    "flag": "rounds_done",
     "then": [
      {
       "do": "emit",
@@ -171,6 +154,16 @@
       "instant": true
      },
      {
+      "do": "despawn",
+      "npc": "researcher_b_creature"
+     },
+     {
+      "do": "ventState",
+      "id": "labb_vent",
+      "state": "open",
+      "instant": true
+     },
+     {
       "do": "lightState",
       "room": "R04",
       "pattern": "alarm",
@@ -181,16 +174,6 @@
       "room": "R03",
       "pattern": "steady",
       "tint": "emergency"
-     }
-    ]
-   },
-   {
-    "do": "if",
-    "flag": "contact_done",
-    "then": [
-     {
-      "do": "despawn",
-      "npc": "researcher_b_creature"
      }
     ]
    },

@@ -53,7 +53,6 @@ export const STORY_NPCS: ReadonlySet<string> = new Set([
   'ruiz',
   'sung',
   'cook',
-  'crew_1',
   'researcher_b',
   'assistant',
   'dock_guard', // dock-checkpoint: holds his post at the arch

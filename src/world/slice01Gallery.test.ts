@@ -24,6 +24,21 @@ test('R03 uses the dim gallery ambient, and the emergency tint still swaps it an
   assert.equal(room('R03').ambient.intensity, AMBIENT.gallery.intensity);
 });
 
+test('the black tint is a true blackout (the Lab B escape): no ambient, no glow; emergency and none bring it back', () => {
+  for (const id of ['R03', 'R04']) {
+    const before = room(id).ambient.intensity;
+    assert.ok(level.setRoomLights(id, 'off'));
+    assert.ok(level.tintRoomLights(id, 'black'));
+    assert.equal(room(id).ambient.intensity, 0, `${id} ambient`);
+    for (const l of level.roomLights(id)) for (const e of l.light.emissives) assert.equal(e.emissive.getHex(), 0, `${id} ${l.kind} glow`);
+    assert.ok(level.tintRoomLights(id, 'emergency'));
+    assert.equal(room(id).ambient.intensity, AMBIENT.emergency.intensity, `${id} back to the red`);
+    assert.ok(level.tintRoomLights(id, 'none'));
+    assert.equal(room(id).ambient.intensity, before, `${id} authored ambient`);
+    level.setRoomLights(id, 'steady');
+  }
+});
+
 test('R03 has 1 m of bare metal along the Lab B glass: hard footsteps there, carpet behind it', () => {
   const surfaceAt = (x: number, z: number): string | null => level.collision.surfaceAt(x, 0, z);
   for (const x of [4, 8, 12]) {

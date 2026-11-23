@@ -42,6 +42,15 @@ export const MAX_CHUNKS = 64;
 /** Marks on glass panes (hand smears, splats, running streaks), ring-buffered. */
 export const MAX_GLASS_MARKS = 20;
 const MAX_PARTICLES = 1400;
+/** Where drops of blood land (floor, prop tops, glass), ring-buffered in one instanced mesh apart from the authored marks. */
+export const MAX_DROP_MARKS = 160;
+/** One drop in this many leaves a mark where it lands (the rest just stop), so a spray never churns the ring. */
+const DROP_MARK_EVERY = 3;
+/** Droplet sizes (m, across) and how far a fast one stretches along its path. */
+export const DROP_SIZE = { min: 0.004, max: 0.018, stretch: 4 } as const;
+/** Blood from the flesh-dark to the brighter arterial red (infection-kills "Blood reads as liquid"). */
+const DROP_DARK = new THREE.Color(0x5a0605);
+const DROP_BRIGHT = new THREE.Color(0x8a0b08);
 const GRAVITY = 9.8;
 const FADE_TIME = 0.6;
 const MAX_CLIPS = 16;
@@ -75,8 +84,13 @@ interface Pool {
 /** Marks on a glass pane: a palm print, a blood splat, a streak that runs, and an impact crack (a star of fractures). */
 export type GlassMarkKind = 'print' | 'splat' | 'streak' | 'crack';
 
-/** Crack decal variants (drawn once each); a crack picks one and a random rotation. */
-const CRACK_VARIANTS = 3;
+/** How far the crack's far-face copy sits behind the near one (m: a laminated pane's thickness). */
+const CRACK_DEPTH = 0.012;
+/** Crack decal variants (drawn once each at CRACK_SIZE px); a crack picks one and a random rotation. */
+const CRACK_VARIANTS = 2;
+const CRACK_SIZE = 1024;
+/** The crack's normal map is built at this size from its alpha (the fractures catch the light). */
+const CRACK_NORMAL_SIZE = 512;
 
 interface GlassMark {
   mesh: THREE.Mesh;
@@ -120,67 +134,142 @@ function streakTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-/** A soft, irregular pool texture, generated once. */
-/** A star crack radiating from the centre, white on clear: long rays with branches and a few concentric rings. */
-function crackTexture(variant: number): THREE.CanvasTexture {
-  const size = 256;
+/**
+ * Broken safety glass, white on clear (infection-kills "Cracks look like broken safety glass"): a frosted crush disc at the
+ * strike, 20-40 radial fractures that jitter and branch, and 3-5 broken concentric rings. Everything between the lines
+ * stays fully clear. Returns the canvas so the normal map can be built from the same drawing.
+ */
+function drawCrack(variant: number): HTMLCanvasElement {
+  const size = CRACK_SIZE;
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const ctx = c.getContext('2d');
   if (!ctx) throw new Error('2D canvas unavailable');
   const rng = new Rng(`glass-crack-${variant}`);
   const mid = size / 2;
-  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
   ctx.lineCap = 'round';
-  const rays = 9 + Math.floor(rng.range(0, 5));
-  const ends: Array<[number, number, number]> = [];
+  ctx.lineJoin = 'round';
+  // The crushed centre: a frosted disc of tiny chips, densest at the point.
+  const crush = size * rng.range(0.035, 0.05);
+  const g = ctx.createRadialGradient(mid, mid, 0, mid, mid, crush * 1.6);
+  g.addColorStop(0, 'rgba(255,255,255,0.78)');
+  g.addColorStop(0.6, 'rgba(255,255,255,0.45)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(mid, mid, crush * 1.6, 0, Math.PI * 2);
+  ctx.fill();
+  for (let i = 0; i < 260; i++) {
+    const a = rng.range(0, Math.PI * 2);
+    const d = crush * Math.sqrt(rng.next()) * 1.3;
+    ctx.fillStyle = `rgba(255,255,255,${rng.range(0.25, 0.7)})`;
+    ctx.fillRect(mid + Math.cos(a) * d, mid + Math.sin(a) * d, rng.range(1, 3.5), rng.range(1, 3.5));
+  }
+  // Radial fractures: long, thin, jittering, branching; thicker near the strike.
+  const rays = 20 + Math.floor(rng.range(0, 21));
+  const branches: Array<[number, number, number, number]> = [];
   for (let i = 0; i < rays; i++) {
-    let a = (i / rays) * Math.PI * 2 + rng.range(-0.2, 0.2);
-    let x = mid;
-    let y = mid;
-    const len = rng.range(size * 0.28, size * 0.49);
+    let a = (i / rays) * Math.PI * 2 + rng.range(-0.12, 0.12);
+    let x = mid + Math.cos(a) * crush * 0.6;
+    let y = mid + Math.sin(a) * crush * 0.6;
+    const len = rng.range(size * 0.2, size * 0.49);
     let walked = 0;
-    ctx.lineWidth = rng.range(1.4, 2.6);
     ctx.beginPath();
     ctx.moveTo(x, y);
     while (walked < len) {
-      const step = rng.range(8, 18);
-      a += rng.range(-0.25, 0.25);
+      const step = rng.range(10, 30);
+      a += rng.range(-0.09, 0.09);
       x += Math.cos(a) * step;
       y += Math.sin(a) * step;
       walked += step;
       ctx.lineTo(x, y);
-      if (rng.chance(0.18)) ends.push([x, y, a + rng.range(-1.1, 1.1)]);
+      if (rng.chance(0.07)) branches.push([x, y, a + rng.range(-0.9, 0.9), (1 - walked / len) * 0.6]);
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+    ctx.lineWidth = rng.range(1.6, 3.2);
+    ctx.stroke();
+  }
+  for (const [x0, y0, a0, w] of branches) {
+    let a = a0;
+    let x = x0;
+    let y = y0;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    const n = 2 + Math.floor(rng.range(0, 5));
+    for (let k = 0; k < n; k++) {
+      a += rng.range(-0.3, 0.3);
+      x += Math.cos(a) * rng.range(10, 28);
+      y += Math.sin(a) * rng.range(10, 28);
+      ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 1 + w * 2;
+    ctx.stroke();
+  }
+  // Concentric breaks: rings joining the rays, never whole.
+  const rings = 3 + Math.floor(rng.range(0, 3));
+  for (let k = 0; k < rings; k++) {
+    const rr = size * (0.06 + 0.075 * k + rng.range(-0.01, 0.015));
+    ctx.strokeStyle = `rgba(255,255,255,${0.85 - k * 0.12})`;
+    ctx.lineWidth = rng.range(1.2, 2.2);
+    ctx.beginPath();
+    let pen = false;
+    for (let s = 0; s <= 96; s++) {
+      const a = (s / 96) * Math.PI * 2;
+      const px = mid + Math.cos(a) * rr * rng.range(0.94, 1.06);
+      const py = mid + Math.sin(a) * rr * rng.range(0.94, 1.06);
+      if (rng.chance(0.82) && pen) ctx.lineTo(px, py);
+      else ctx.moveTo(px, py);
+      pen = true;
     }
     ctx.stroke();
   }
-  ctx.lineWidth = 1;
-  for (const [x0, y0, a] of ends) {
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x0 + Math.cos(a) * rng.range(8, 26), y0 + Math.sin(a) * rng.range(8, 26));
-    ctx.stroke();
-  }
-  // Concentric breaks near the strike, and a crushed centre.
-  for (const r of [size * 0.08, size * 0.17]) {
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    for (let k = 0; k <= 24; k++) {
-      const a = (k / 24) * Math.PI * 2;
-      const rr = r * rng.range(0.85, 1.15);
-      if (k === 0) ctx.moveTo(mid + Math.cos(a) * rr, mid + Math.sin(a) * rr);
-      else if (rng.chance(0.8)) ctx.lineTo(mid + Math.cos(a) * rr, mid + Math.sin(a) * rr);
-      else ctx.moveTo(mid + Math.cos(a) * rr, mid + Math.sin(a) * rr);
+  return c;
+}
+
+function crackTexture(variant: number): { alpha: THREE.Texture; normal: THREE.Texture | null } {
+  const c = drawCrack(variant);
+  const alpha = new THREE.CanvasTexture(c);
+  alpha.colorSpace = THREE.NoColorSpace;
+  return { alpha, normal: crackNormal(c) };
+}
+
+/**
+ * A tangent-space normal map from the crack's drawing: every fracture is a little ridge, so the lines shade with the room
+ * light and catch speculars as the view moves. Null where the canvas cannot be read back (headless tests).
+ */
+function crackNormal(src: HTMLCanvasElement): THREE.Texture | null {
+  const n = CRACK_NORMAL_SIZE;
+  const c = document.createElement('canvas');
+  c.width = c.height = n;
+  const ctx = c.getContext('2d');
+  if (!ctx || typeof ctx.getImageData !== 'function') return null;
+  ctx.drawImage(src, 0, 0, n, n);
+  const img = ctx.getImageData(0, 0, n, n);
+  if (!img || !img.data || img.data.length < n * n * 4) return null;
+  const h = new Float32Array(n * n);
+  for (let i = 0; i < n * n; i++) h[i] = img.data[i * 4 + 3]! / 255;
+  const out = new Uint8Array(n * n * 4);
+  const at = (x: number, y: number): number => h[Math.min(n - 1, Math.max(0, y)) * n + Math.min(n - 1, Math.max(0, x))]!;
+  const strength = 3;
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const dx = (at(x + 1, y) - at(x - 1, y)) * strength;
+      const dy = (at(x, y + 1) - at(x, y - 1)) * strength;
+      const len = Math.hypot(dx, dy, 1);
+      const i = (y * n + x) * 4;
+      out[i] = Math.round(((-dx / len) * 0.5 + 0.5) * 255);
+      out[i + 1] = Math.round(((dy / len) * 0.5 + 0.5) * 255);
+      out[i + 2] = Math.round(((1 / len) * 0.5 + 0.5) * 255);
+      out[i + 3] = 255;
     }
-    ctx.stroke();
   }
-  const g = ctx.createRadialGradient(mid, mid, 0, mid, mid, size * 0.06);
-  g.addColorStop(0, 'rgba(255,255,255,0.85)');
-  g.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, size, size);
-  const tex = new THREE.CanvasTexture(c);
+  const tex = new THREE.DataTexture(out, n, n);
   tex.colorSpace = THREE.NoColorSpace;
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.needsUpdate = true;
   return tex;
 }
 
@@ -218,6 +307,82 @@ function poolTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+/**
+ * Droplets (infection-kills "Blood reads as liquid"): camera-facing quads, one instance per drop slot, with a soft round
+ * alpha and a darker rim, stretched along their screen-space velocity up to `DROP_SIZE.stretch`:1, premultiplied. Dead
+ * slots have size 0.
+ */
+function dropletMesh(pos: Float32Array, vel: Float32Array, col: Float32Array, size: Float32Array): THREE.Mesh<THREE.InstancedBufferGeometry, THREE.ShaderMaterial> {
+  const geo = new THREE.InstancedBufferGeometry();
+  const quad = new THREE.PlaneGeometry(1, 1);
+  geo.index = quad.index;
+  geo.setAttribute('position', quad.getAttribute('position'));
+  geo.setAttribute('iPos', new THREE.InstancedBufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('iVel', new THREE.InstancedBufferAttribute(vel, 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('iColor', new THREE.InstancedBufferAttribute(col, 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('iSize', new THREE.InstancedBufferAttribute(size, 1).setUsage(THREE.DynamicDrawUsage));
+  geo.instanceCount = size.length;
+  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uStretch: { value: DROP_SIZE.stretch } },
+    vertexShader: /* glsl */ `
+      attribute vec3 iPos;
+      attribute vec3 iVel;
+      attribute vec3 iColor;
+      attribute float iSize;
+      uniform float uStretch;
+      varying vec2 vUv;
+      varying vec3 vColor;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(iPos, 1.0);
+        vec4 ahead = modelViewMatrix * vec4(iPos + iVel * 0.03, 1.0);
+        vec2 d = ahead.xy - mv.xy;
+        float len = length(d);
+        vec2 ax = len > 1e-6 ? d / len : vec2(0.0, 1.0);
+        // The perpendicular that keeps (x -> ay, y -> ax) a rotation, not a mirror: a mirrored quad winds backwards and is culled.
+        vec2 ay = vec2(ax.y, -ax.x);
+        float stretch = clamp(1.0 + length(iVel) * 0.7, 1.0, uStretch);
+        mv.xy += (position.x * ay + position.y * ax * stretch) * iSize;
+        gl_Position = projectionMatrix * mv;
+        vUv = position.xy * 2.0;
+        vColor = iColor;
+      }`,
+    fragmentShader: /* glsl */ `
+      varying vec2 vUv;
+      varying vec3 vColor;
+      void main() {
+        float r = length(vUv);
+        if (r > 1.0) discard;
+        float a = smoothstep(1.0, 0.55, r) * 0.96;
+        vec3 c = vColor * mix(0.5, 1.0, smoothstep(1.0, 0.35, r));
+        gl_FragColor = vec4(c * a, a);
+      }`,
+    transparent: true,
+    premultipliedAlpha: true,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = 'gore-droplets';
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
+/** The mark a landed drop leaves: a small, irregular splat lit like the pools (instance colour carries Full or Reduced). */
+function dropMarkMaterial(): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    alphaMap: typeof document !== 'undefined' ? poolTexture() : null,
+    transparent: true,
+    depthWrite: false,
+    roughness: 0.15,
+    metalness: 0.05,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
+  });
+}
+
 export class GoreSystem {
   mode: GoreMode = 'full';
   /** Something came down on a floor (a piece, a chunk): standing water splashes there (standing-water spec). */
@@ -246,12 +411,18 @@ export class GoreSystem {
   /** The same plane with its top edge at the origin, so a streak grows downward. */
   private readonly streakPlane = new THREE.PlaneGeometry(1, 1).translate(0, -0.5, 0);
 
-  // Particles: one Points object with ring-buffer slots.
-  private readonly points: THREE.Points;
+  // Droplets: one instanced billboard mesh (one draw call) over the same ring-buffer slots the points used.
+  private readonly drops: THREE.Mesh<THREE.InstancedBufferGeometry, THREE.ShaderMaterial>;
   private readonly pPos: Float32Array;
   private readonly pCol: Float32Array;
   private readonly pVel: Float32Array;
   private readonly pLife: Float32Array;
+  private readonly pSize: Float32Array;
+  private dropLanding = 0;
+  // Where drops landed: one instanced mesh, its own ring.
+  private readonly dropMarks: THREE.InstancedMesh;
+  private dropMarkCursor = 0;
+  private dropMarkCount = 0;
   /** Per-particle index into `clips` (-1 none), set by `burst` with a clip. */
   private readonly pClip = new Int8Array(MAX_PARTICLES).fill(-1);
   private readonly clips: GoreClip[] = [];
@@ -273,16 +444,20 @@ export class GoreSystem {
     this.pCol = new Float32Array(MAX_PARTICLES * 3);
     this.pVel = new Float32Array(MAX_PARTICLES * 3);
     this.pLife = new Float32Array(MAX_PARTICLES);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(this.pPos, 3).setUsage(THREE.DynamicDrawUsage));
-    geo.setAttribute('color', new THREE.BufferAttribute(this.pCol, 3).setUsage(THREE.DynamicDrawUsage));
-    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
-    this.points = new THREE.Points(
-      geo,
-      new THREE.PointsMaterial({ size: 0.026, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.95, depthWrite: false }),
-    );
-    this.points.frustumCulled = false;
-    this.group.add(this.points);
+    this.pSize = new Float32Array(MAX_PARTICLES);
+    this.drops = dropletMesh(this.pPos, this.pVel, this.pCol, this.pSize);
+    this.group.add(this.drops);
+    this.dropMarks = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), dropMarkMaterial(), MAX_DROP_MARKS);
+    this.dropMarks.name = 'gore-drop-marks';
+    this.dropMarks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.dropMarks.frustumCulled = false;
+    this.dropMarks.renderOrder = 1;
+    const hide = new THREE.Matrix4().makeScale(0, 0, 0);
+    for (let i = 0; i < MAX_DROP_MARKS; i++) {
+      this.dropMarks.setMatrixAt(i, hide);
+      this.dropMarks.setColorAt(i, DROP_DARK);
+    }
+    this.group.add(this.dropMarks);
 
     const chunkGeo = new THREE.IcosahedronGeometry(0.022, 1);
     const cp = chunkGeo.getAttribute('position') as THREE.BufferAttribute;
@@ -343,6 +518,7 @@ export class GoreSystem {
     for (const m of mats) {
       if (m.map) textures.add(m.map);
       if (m.alphaMap) textures.add(m.alphaMap);
+      if (m.normalMap) textures.add(m.normalMap);
     }
     return [...textures];
   }
@@ -455,7 +631,7 @@ export class GoreSystem {
       streak: mat(0x4a0407, runs, 0.95, 0.12),
       reduced: mat(0x0a0808, blob, 0.85, 0.3),
       reducedStreak: mat(0x0a0808, runs, 0.85, 0.3),
-      crack: mat(0xe9eef0, blob, 0.8, 0.1),
+      crack: mat(0xeef3f5, blob, 0.9, 0.05),
     };
     return this.glassMats;
   }
@@ -466,7 +642,14 @@ export class GoreSystem {
       const base = this.glassMaterials().crack;
       this.crackMats = Array.from({ length: CRACK_VARIANTS }, (_, v) => {
         const m = base.clone();
-        m.alphaMap = crackTexture(v);
+        const tex = crackTexture(v);
+        m.alphaMap = tex.alpha;
+        if (tex.normal) {
+          m.normalMap = tex.normal;
+          m.normalScale.set(1.2, 1.2);
+        }
+        m.roughness = 0.05;
+        m.opacity = 0.9;
         return m;
       });
     }
@@ -521,6 +704,21 @@ export class GoreSystem {
     m.mesh.scale.set(width, kind === 'streak' ? 0.001 : size, 1);
     if (kind !== 'streak') m.mesh.scale.multiplyScalar(0.3);
     m.mesh.userData['full'] = [width, size];
+    // A crack runs through the pane: a second, slightly offset copy on its far face gives it depth.
+    let back = m.mesh.userData['back'] as THREE.Mesh | undefined;
+    if (kind === 'crack') {
+      if (!back) {
+        back = new THREE.Mesh(this.glassPlane, m.mesh.material);
+        back.name = 'gore-crack-back';
+        back.renderOrder = 2;
+        m.mesh.add(back);
+        m.mesh.userData['back'] = back;
+      }
+      back.material = m.mesh.material;
+      back.position.set(0.006, -0.004, -CRACK_DEPTH);
+      back.rotation.set(0, 0, 0.05);
+      back.visible = true;
+    } else if (back) back.visible = false;
   }
 
   /**
@@ -575,7 +773,11 @@ export class GoreSystem {
   private clipIndex(clip: GoreClip | undefined): number {
     if (!clip) return -1;
     const i = this.clips.findIndex((c) => sameClip(c, clip));
-    if (i >= 0) return i;
+    if (i >= 0) {
+      // Same plane: the latest kill's clear band (or none) applies.
+      this.clips[i] = { ...clip };
+      return i;
+    }
     if (this.clips.length < MAX_CLIPS) return this.clips.push({ ...clip }) - 1;
     this.clips[MAX_CLIPS - 1] = { ...clip };
     return MAX_CLIPS - 1;
@@ -607,6 +809,8 @@ export class GoreSystem {
   burst(at: THREE.Vector3, dir: THREE.Vector3, count = 30, dark = this.mode === 'reduced', clip?: GoreClip): void {
     const d = new THREE.Vector3();
     const ci = this.clipIndex(clip);
+    // Reduced gore keeps the shape: dark blood and half the drops.
+    if (this.mode === 'reduced') count = Math.ceil(count / 2);
     for (let i = 0; i < count; i++) {
       d.copy(dir).multiplyScalar(this.rng.range(0.6, 2.2));
       d.x += this.rng.range(-0.9, 0.9);
@@ -723,6 +927,12 @@ export class GoreSystem {
     this.poolCursor = 0;
     this.pPos.fill(-999);
     this.pLife.fill(0);
+    this.pSize.fill(0);
+    const hide = new THREE.Matrix4().makeScale(0, 0, 0);
+    for (let i = 0; i < MAX_DROP_MARKS; i++) this.dropMarks.setMatrixAt(i, hide);
+    this.dropMarks.instanceMatrix.needsUpdate = true;
+    this.dropMarkCursor = 0;
+    this.dropMarkCount = 0;
     const zero = new THREE.Matrix4().makeScale(0, 0, 0);
     this.chunkSlots.forEach((c, i) => {
       c.live = false;
@@ -831,7 +1041,7 @@ export class GoreSystem {
       // Pulsing, weakening spurt.
       const life = 1 - e.age / e.duration;
       const pulse = 0.45 + 0.55 * Math.max(0, Math.sin(e.age * 13));
-      const n = e.rate * dt * life * pulse;
+      const n = e.rate * dt * life * pulse * (this.mode === 'reduced' ? 0.5 : 1);
       const count = Math.floor(n) + (this.rng.chance(n % 1) ? 1 : 0);
       if (count === 0) continue;
       e.anchor.updateWorldMatrix(true, false);
@@ -858,16 +1068,19 @@ export class GoreSystem {
     this.pVel[k] = vel.x;
     this.pVel[k + 1] = vel.y;
     this.pVel[k + 2] = vel.z;
-    const shade = this.rng.range(0.6, 1);
+    const shade = this.rng.next();
     if (dark) {
-      this.pCol[k] = 0.03 * shade;
-      this.pCol[k + 1] = 0.025 * shade;
-      this.pCol[k + 2] = 0.025 * shade;
+      this.pCol[k] = 0.05 + 0.03 * shade;
+      this.pCol[k + 1] = 0.04 + 0.02 * shade;
+      this.pCol[k + 2] = 0.04 + 0.02 * shade;
     } else {
-      this.pCol[k] = 0.32 * shade;
-      this.pCol[k + 1] = 0.015 * shade;
-      this.pCol[k + 2] = 0.02 * shade;
+      this.tmpColor.copy(DROP_DARK).lerp(DROP_BRIGHT, shade);
+      this.pCol[k] = this.tmpColor.r;
+      this.pCol[k + 1] = this.tmpColor.g;
+      this.pCol[k + 2] = this.tmpColor.b;
     }
+    // Mostly fine spray, the odd heavy drop.
+    this.pSize[i] = DROP_SIZE.min + (DROP_SIZE.max - DROP_SIZE.min) * this.rng.next() ** 2.2;
     this.pLife[i] = this.rng.range(1.6, 2.6);
   }
 
@@ -882,6 +1095,7 @@ export class GoreSystem {
       this.pLife[i] = nl;
       if (nl <= 0) {
         this.pPos[k + 1] = -999;
+        this.pSize[i] = 0;
         continue;
       }
       let vy = (this.pVel[k + 1] ?? 0) - GRAVITY * dt;
@@ -894,24 +1108,32 @@ export class GoreSystem {
         // Blood that reaches the plane (the glass) stops on it and runs down instead of passing through.
         const ax = AXIS_INDEX[clip.axis];
         const cur = ax === 0 ? x : ax === 1 ? y : z;
-        const [np, nv] = clipCoord(clip, cur, ax === 1 ? vy : (this.pVel[k + ax] ?? 0));
+        const [np] = clipCoord(clip, cur, ax === 1 ? vy : (this.pVel[k + ax] ?? 0));
         if (np !== cur) {
+          // Where along this step it reached the plane: a long step can also carry it past the floor.
+          const prev = this.pPos[k + ax] ?? cur;
+          const f = cur !== prev ? Math.min(1, Math.max(0, (np - prev) / (cur - prev))) : 1;
+          const px = this.pPos[k] ?? x;
+          const py = this.pPos[k + 1] ?? y;
+          const pz = this.pPos[k + 2] ?? z;
+          const hx = ax === 0 ? np : px + (x - px) * f;
+          const hy = ax === 1 ? np : py + (y - py) * f;
+          const hz = ax === 2 ? np : pz + (z - pz) * f;
+          if (ax === 1 || hy >= this.floorY(hx, hz)) {
+            // A drop reaching the plane (the glass) lands on it: a mark where it struck, and the drop is gone.
+            this.landDrop(i, hx, hy, hz, clip);
+            continue;
+          }
+          // It reached the floor before the glass: it lands on the floor below (the check after this), on its own side.
           if (ax === 0) x = np;
-          else if (ax === 1) y = np;
           else z = np;
-          if (ax === 1) vy = nv;
-          else this.pVel[k + ax] = nv;
         }
       }
       const fy = this.floorY(x, z) + 0.006;
       if (y < fy) {
-        // Stick to the floor.
-        y = fy;
-        vy = 0;
-        this.pVel[k] = 0;
-        this.pVel[k + 2] = 0;
-        x = this.pPos[k] ?? x;
-        z = this.pPos[k + 2] ?? z;
+        // A drop hitting the floor (or a prop top) splats there and is gone.
+        this.landDrop(i, x, fy, z, null);
+        continue;
       }
       this.pPos[k] = x;
       this.pPos[k + 1] = y;
@@ -919,9 +1141,65 @@ export class GoreSystem {
       this.pVel[k + 1] = vy;
     }
     if (any) {
-      this.points.geometry.getAttribute('position').needsUpdate = true;
-      this.points.geometry.getAttribute('color').needsUpdate = true;
+      const g = this.drops.geometry;
+      for (const name of ['iPos', 'iVel', 'iColor', 'iSize']) (g.getAttribute(name) as THREE.InstancedBufferAttribute).needsUpdate = true;
     }
+  }
+
+  /** Retire drop `i` where it landed at (x, y, z), leaving a mark there for one in `DROP_MARK_EVERY` (on `clip`'s plane, else the floor). */
+  private landDrop(i: number, x: number, y: number, z: number, clip: GoreClip | null): void {
+    const k = i * 3;
+    const size = this.pSize[i] ?? DROP_SIZE.min;
+    this.pLife[i] = 0;
+    this.pPos[k + 1] = -999;
+    this.pSize[i] = 0;
+    if (++this.dropLanding % DROP_MARK_EVERY !== 0) return;
+    const m = this.dropMark;
+    const at = this.tmp.set(x, y, z);
+    const s = size * this.rng.range(1.6, 3.2);
+    if (clip) {
+      // Nothing below the floor, and nothing in the pane's clear view band (infection-kills "Clear view band").
+      if (clip.axis !== 'y' && y < this.floorY(x, z)) return;
+      if (clip.band && clip.axis !== 'y' && y + s / 2 > clip.band.min && y - s / 2 < clip.band.max) return;
+      // On the pane's face, facing back toward the side the blood came from.
+      const n = this.dropNormal.set(0, 0, 0);
+      n[clip.axis] = clip.keep === 'above' ? 1 : -1;
+      at[clip.axis] = clip.at;
+      at.addScaledVector(n, 0.003);
+      this.dropQ.setFromUnitVectors(this.zAxis, n);
+    } else {
+      at.y += 0.002;
+      this.dropQ.setFromUnitVectors(this.zAxis, this.yAxis);
+    }
+    this.dropQ.multiply(this.dropSpin.setFromAxisAngle(this.zAxis, this.rng.range(0, Math.PI * 2)));
+    m.compose(at, this.dropQ, this.dropScale.set(s, s * this.rng.range(0.7, 1.3), 1));
+    const slot = this.dropMarkCursor;
+    this.dropMarkCursor = (this.dropMarkCursor + 1) % MAX_DROP_MARKS;
+    this.dropMarkCount = Math.min(MAX_DROP_MARKS, this.dropMarkCount + 1);
+    this.dropMarks.setMatrixAt(slot, m);
+    this.tmpColor.setRGB(this.pCol[k] ?? 0.3, this.pCol[k + 1] ?? 0, this.pCol[k + 2] ?? 0);
+    this.dropMarks.setColorAt(slot, this.tmpColor);
+    this.dropMarks.instanceMatrix.needsUpdate = true;
+    if (this.dropMarks.instanceColor) this.dropMarks.instanceColor.needsUpdate = true;
+  }
+
+  private readonly dropMark = new THREE.Matrix4();
+  private readonly dropQ = new THREE.Quaternion();
+  private readonly dropSpin = new THREE.Quaternion();
+  private readonly dropScale = new THREE.Vector3();
+  private readonly dropNormal = new THREE.Vector3();
+  private readonly zAxis = new THREE.Vector3(0, 0, 1);
+  private readonly yAxis = new THREE.Vector3(0, 1, 0);
+  private readonly tmpColor = new THREE.Color();
+
+  /** Drop marks placed so far (tests), up to MAX_DROP_MARKS. */
+  get dropMarkTotal(): number {
+    return this.dropMarkCount;
+  }
+
+  /** The droplet mesh and how many drops it can hold (tests: one draw call, the old buffer size). */
+  get droplets(): { mesh: THREE.Mesh; capacity: number } {
+    return { mesh: this.drops, capacity: MAX_PARTICLES };
   }
 
   /** Dispose all gore geometries, materials, canvas/data textures, and module-level cloudTex. */
@@ -930,8 +1208,12 @@ export class GoreSystem {
   dispose(): void {
     this.unregisterCaster();
     this.clear();
-    this.points.geometry.dispose();
-    (this.points.material as THREE.Material).dispose();
+    this.drops.geometry.dispose();
+    this.drops.material.dispose();
+    this.dropMarks.geometry.dispose();
+    const dm = this.dropMarks.material as THREE.MeshStandardMaterial;
+    dm.alphaMap?.dispose();
+    dm.dispose();
     this.chunkMesh.geometry.dispose();
     (this.chunkMesh.material as THREE.Material).dispose();
     this.glassPlane.dispose();
@@ -944,6 +1226,7 @@ export class GoreSystem {
     for (const m of mats) {
       if (m.map) textures.add(m.map);
       if (m.alphaMap) textures.add(m.alphaMap);
+      if (m.normalMap) textures.add(m.normalMap);
       m.dispose();
     }
     for (const t of textures) t.dispose();

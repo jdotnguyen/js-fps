@@ -48,16 +48,16 @@ When `briefing_gallery` starts, Giles and Okafor SHALL walk briskly to their bri
 - **WHEN** `briefing_gallery` starts
 - **THEN** neither squadmate pops visibly in front of Jay; they walk briskly toward R03 and only catch up once out of Jay's view or behind the closing door
 
-### Requirement: Sung is present in the gallery for his briefing line
-Sung SHALL be present in R03 for the morning briefing so his spoken line (`brief_sung_01`) originates from his visible body in the room rather than from the Commons. After the intro he SHALL stay at his Commons spot beside Ruiz, and he SHALL only set off for R03 once Jay heads for the gallery door (`trigger:commons_to_gallery`), or when `briefing_gallery` starts if Jay never crossed it.
+### Requirement: Sung and Ruiz wait in the dive pool, not the gallery
+Sung and Ruiz SHALL NOT attend the morning briefing and SHALL NOT enter R03. After the intro they walk out past the Commons and, once Jay cannot see them (`npcMoveTo { whenUnseen, settle }`), are placed in the Launch Hall (R13b) at the pilot console: Sung seated in a pilot chair (`dive_crew_sit`, `sit_chair`) and Ruiz leaning on the console's west end (`dive_crew_lean`, `lean_counter`). The briefing SHALL NOT include `brief_sung_01`, and Sung's `dive_moment` scene still moves him from the console to the diver's spot.
 
 #### Scenario: Free time in the Commons
 - **WHEN** the intro ends and Jay is still in the Commons
-- **THEN** Sung stays in the Commons and does not walk into the gallery ahead of Jay
+- **THEN** Sung and Ruiz are not in the gallery and never walk into it
 
 #### Scenario: Heins clears the divers' sample run
-- **WHEN** Heins says `brief_heins_02` and Sung replies with `brief_sung_01`
-- **THEN** Sung is visibly standing in R03 and his voice plays from his position in the room
+- **WHEN** Heins says `brief_heins_02`
+- **THEN** the briefing goes straight on to `brief_heins_03` with no reply from Sung
 
 ### Requirement: Gallery door locks during the briefing with a spoken cue
 Once Jay, Giles, and Okafor are inside R03 after Heins's opening beat, Heins SHALL speak a voiced line instructing them to lock the door behind them (`brief_heins_door`, recorded on her pinned voice and model), and `D_R02_R03` SHALL close and lock for the remainder of the briefing. If Jay stepped back out into the Commons before the door locks, `D_R02_R03` SHALL NOT lock him outside. When the briefing ends or is skipped, `D_R02_R03` SHALL return to unlocked (`closed`).

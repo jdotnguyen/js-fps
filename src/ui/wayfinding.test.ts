@@ -78,11 +78,21 @@ test('room-adjacency world marker: same room -> target, 1 hop -> nearest connect
   const nearSouth = resolveWorldMarker('obj_briefing', true, 'R02', { x: 20, y: 0, z: 21 }, ['R03'], { x: 8, y: 0, z: 17.4 }, adj);
   assert.equal(nearSouth!.doorId, 'D_R02_R03_south', 'picks nearest connecting door');
 
-  // 2 rooms away (R03 -> R02 -> R14a): hidden.
+  // 2 rooms away (R03 -> R02 -> R14a): marks the first door on the route.
   const far = resolveWorldMarker('round_hydro', true, 'R03', { x: 8, y: 0, z: 17 }, ['R14a'], { x: 38, y: 0, z: 16 }, adj);
-  assert.equal(far, null, '2+ rooms away hides in-world marker');
+  assert.equal(far!.kind, 'door');
+  assert.ok(far!.doorId === 'D_R02_R03' || far!.doorId === 'D_R02_R03_south');
 
-  // 3 rooms away (R03 -> R02 -> R14a -> R14b): hidden.
+  // 3 rooms away (R03 -> R02 -> R14a -> R14b): still the first door on the route.
   const veryFar = resolveWorldMarker('round_hydro', true, 'R03', { x: 8, y: 0, z: 17 }, ['R14b'], { x: 46, y: 0, z: 16 }, adj);
-  assert.equal(veryFar, null);
+  assert.equal(veryFar!.kind, 'door');
+  assert.ok(veryFar!.doorId === 'D_R02_R03' || veryFar!.doorId === 'D_R02_R03_south');
+
+  // From R02 the route to R14b goes through the R14a door, not back toward R03.
+  const mid = resolveWorldMarker('round_hydro', true, 'R02', { x: 20, y: 0, z: 15 }, ['R14b'], { x: 46, y: 0, z: 16 }, adj);
+  assert.equal(mid!.doorId, 'D_R02_R14a');
+
+  // Disconnected target: no marker.
+  const none = resolveWorldMarker('x', true, 'R03', { x: 8, y: 0, z: 17 }, ['R99'], { x: 0, y: 0, z: 0 }, adj);
+  assert.equal(none, null);
 });

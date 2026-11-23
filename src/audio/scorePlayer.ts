@@ -102,9 +102,15 @@ export class ScorePlayer {
     return [...out];
   }
 
-  /** A bus event fired: cue every score that names it, and duck the ones that duck on it. */
+  /**
+   * A bus event fired: cue every live score that names it, and duck the ones that duck on it. Live is loaded (by a
+   * sequence's `score` step) and not released, releasing or fading: an event never loads or restarts a score
+   * (adaptive-music "Bus events cue only live scores"), so a later kill's beats cannot wake an earlier kill's score.
+   */
   onEvent(name: string): void {
     for (const [id, s] of Object.entries(this.table)) {
+      const a = this.active.get(id);
+      if (!a || a.fading || a.releaseAt !== null) continue;
       if (name in s.cues) this.cue(id, name);
       if (s.duck?.event === name) this.duck(id);
     }

@@ -4,7 +4,8 @@
   "trigger": {
    "event": "game:mode",
    "match": {
-    "mode": "playing"
+    "mode": "playing",
+    "from": "title"
    }
   },
   "steps": [
@@ -76,6 +77,12 @@
       "do": "doorState",
       "id": "D_R06_R07",
       "state": "open"
+     },
+     {
+      "do": "ventState",
+      "id": "r06_vent",
+      "state": "fallen",
+      "instant": true
      }
     ]
    },
@@ -141,42 +148,86 @@
    },
    {
     "do": "if",
-    "flag": "sec_done",
+    "flag": "cover_done",
     "then": [
      {
-      "do": "npcMoveTo",
-      "npc": "priya",
-      "to": "anchor:priya_glass",
-      "instant": true
+      "do": "intercom",
+      "id": "medbay",
+      "state": "off"
      },
      {
-      "do": "kill",
-      "npc": "priya",
-      "kind": "mauled",
-      "glass": "anchor:medbay_c_glass",
-      "marks": {
-       "throwAt": "anchor:r08_throw_point",
-       "exit": "anchor:r08_drag_mid"
-      },
-      "instant": true
+      "do": "doorState",
+      "id": "D_R07_R08",
+      "state": "sealed"
      },
      {
-      "do": "npcMoveTo",
-      "npc": "priya",
-      "to": "anchor:priya_hide",
-      "instant": true
-     },
-     {
-      "do": "npcAnim",
-      "npc": "priya",
-      "anim": "corpseProne",
-      "instant": true
-     },
-     {
-      "do": "gore",
-      "at": "anchor:priya_pool",
-      "kind": "pool",
-      "size": 1.2
+      "do": "if",
+      "flag": "sec_done",
+      "then": [
+       {
+        "do": "npcMoveTo",
+        "npc": "priya",
+        "to": "anchor:priya_rest",
+        "instant": true
+       },
+       {
+        "do": "kill",
+        "npc": "priya",
+        "kind": "mauled",
+        "glass": "anchor:medbay_c_glass",
+        "marks": {
+         "along": "anchor:r08_along",
+          "lane": "anchor:r08_lane",
+          "lane2": "anchor:r08_lane2",
+         "cower": "anchor:priya_cower",
+         "impale": "anchor:r08_impale",
+         "around": "anchor:r08_around",
+         "slamSpot": "anchor:r08_slam_spot",
+         "slamFace": "anchor:r08_slam_face",
+         "cart": "anchor:r08_cart_top",
+         "throwAt": "anchor:r08_throw_point",
+         "rest": "anchor:priya_rest",
+         "exit": "anchor:r08_along",
+         "surgery": "anchor:r08_lurk",
+         "surgeryIn": "anchor:r08_surgery_in",
+         "surgeryOut": "anchor:r08_surgery_out",
+         "glassLook": "anchor:medbay_c_glass"
+        },
+        "instant": true
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "priya",
+        "to": "anchor:priya_rest",
+        "instant": true
+       },
+       {
+        "do": "npcAnim",
+        "npc": "priya",
+        "anim": "corpseProne",
+        "instant": true
+       },
+       {
+        "do": "gore",
+        "at": "anchor:priya_rest",
+        "kind": "pool",
+        "size": 1.2
+       }
+      ],
+      "else": [
+       {
+        "do": "npcMoveTo",
+        "npc": "priya",
+        "to": "anchor:priya_r07_hide",
+        "instant": true
+       },
+       {
+        "do": "npcAnim",
+        "npc": "priya",
+        "anim": "priya_crouch",
+        "instant": true
+       }
+      ]
      }
     ]
    }

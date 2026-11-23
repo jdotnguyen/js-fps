@@ -6,8 +6,9 @@ import { director, run, stubTarget } from '../ai/enemyTestKit.ts';
 import { initNavmesh } from '../ai/navmesh.ts';
 import { loadSlice01 } from './headlessSlice.ts';
 
-// lab-wing spec, "The fight still resolves" (openspec rebuild-lab-wing 5.1): the R05 trickle and the R06 cover group,
-// simulated on the real slice01 geometry and navmesh against Jay and Giles standing where the fights put them.
+// lab-wing spec, "The fight still resolves" (openspec rebuild-lab-wing 5.1, trim-lab-wing-encounters): the R06 cover
+// group, the escaped Lab B creature dropping out of the duct, simulated on the real slice01 geometry and navmesh against
+// Jay and Giles standing where the fight puts them.
 
 await initNavmesh();
 const LEVEL = JSON.parse(readFileSync(new URL('../data/levels/slice01.json', import.meta.url), 'utf8')) as { rooms: Array<{ spawns?: SpawnPointData[] }> };
@@ -33,26 +34,14 @@ function fight(group: string, open: string[], targets: Array<{ id: string; at: [
   run(dir, 3, () => dir.groupCleared(group));
   return { spawned, reached, culled, seconds: t, cleared: dir.groupCleared(group) };
 }
-const expected = new Map([['r06_cover', 6], ['r05_trickle', 3]]);
+const expected = new Map([['r06_cover', 1]]);
 
-test('R06 cover-me: all six reach Jay or Giles (or are resolved), and the group completes', () => {
+test('R06 cover-me: the creature drops out of the duct, reaches Jay or Giles, and the group completes', () => {
   const r = fight('r06_cover', ['D_R05_R06'], [
     { id: 'player', at: [-0.5, 0, 29.2], kind: 'player' },
     { id: 'giles', at: [-2.2, 0, 37.0], kind: 'squad' },
   ]);
-  assert.equal(r.spawned.size, 6, `spawned ${[...r.spawned].join(', ')}`);
-  const stuck = [...r.spawned].filter((id) => !r.reached.has(id) && !r.culled.has(id));
-  assert.deepEqual(stuck, [], `unresolved after ${r.seconds.toFixed(0)} s`);
-  assert.ok(r.reached.size >= 5, `${r.reached.size} of 6 reached a target (culled: ${[...r.culled].join(', ') || 'none'})`);
+  assert.deepEqual([...r.spawned], ['r06_duct']);
+  assert.ok(r.reached.has('r06_duct'), `the creature reached a target within ${r.seconds.toFixed(0)} s (culled: ${r.culled.has('r06_duct')})`);
   assert.ok(r.cleared, 'group cleared');
-});
-
-test('R05 trickle: the vent pair and the drain enemy reach the squad and the group completes', () => {
-  const r = fight('r05_trickle', [], [
-    { id: 'player', at: [-1.6, 0, 18.5], kind: 'player' },
-    { id: 'okafor', at: [0.4, 0, 17.0], kind: 'squad' },
-  ]);
-  assert.equal(r.spawned.size, 3);
-  assert.deepEqual([...r.spawned].filter((id) => !r.reached.has(id) && !r.culled.has(id)), []);
-  assert.ok(r.cleared);
 });

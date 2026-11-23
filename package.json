@@ -18,6 +18,7 @@
     "music:preview": "node --experimental-strip-types scripts/music-preview.ts",
     "voice:preview": "node --experimental-strip-types scripts/voice-preview.ts",
     "vo:generate": "node --experimental-strip-types scripts/vo-generate.ts",
+    "vo:tighten": "node --experimental-strip-types scripts/vo-tighten.ts",
     "ambience:generate": "node --experimental-strip-types scripts/ambience-generate.ts",
     "doors:generate": "node --experimental-strip-types scripts/doors-generate.ts",
     "footsteps:generate": "node --experimental-strip-types scripts/footsteps-generate.ts",

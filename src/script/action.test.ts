@@ -7,7 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { ControlStack } from '../actors/control.ts';
 import { SAMPLE_URLS, SOUND_SPECS } from '../audio/sounds.ts';
 import { DialogueLibrary } from '../dialogue/library.ts';
@@ -16,6 +16,7 @@ import type { CameraFeedOptions, SequenceHost } from './host.ts';
 import { SequenceManager } from './runtime.ts';
 import { validateSequences } from './schema.ts';
 import type { Flags, Step } from './types.ts';
+import scores from '../data/scores.json' with { type: 'json' };
 
 const json = (rel: string): any => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
 const dir = new URL('../data/sequences/', import.meta.url);
@@ -55,8 +56,8 @@ function walk(steps: Step[], visit: (s: Record<string, unknown>) => void): void 
 // ------------------------------------------------------------------------------- data checks
 
 test('the action sequences name only things that exist: lines, sounds, anchors, NPCs, doors, rooms, objectives, groups', () => {
-  assert.equal(actionDefs.length, 18);
-  // `researcher_b_creature`: what grows out of Voss in the drop's kill (infection-kills spec), gone through the door at contact.
+  assert.equal(actionDefs.length, 15);
+  // `researcher_b_creature`: what grows out of Voss in the drop's kill (infection-kills spec), escapes through Lab B's ceiling vent at the end of the drop (trim-lab-wing-encounters).
   const npcSet = new Set([...npcIds, 'giles', 'okafor', 'r08_thing', 'researcher_b_creature', 'r09_flood_shambler']);
   for (const def of actionDefs) {
     walk(def.steps, (s) => {
@@ -89,7 +90,7 @@ test('the action sequences name only things that exist: lines, sounds, anchors, 
 });
 
 test('gameplay beats are not skippable and resume after death; the reveal and the stinger can be skipped', () => {
-  for (const id of ['contact', 'cover_me', 'armory_auto', 'sec_glass', 'medlab_door', 'tunnel_enter', 'valve_turn', 'climax']) {
+  for (const id of ['contact', 'cover_me', 'sec_glass', 'medlab_door', 'tunnel_enter', 'valve_turn', 'climax']) {
     assert.notEqual(byId.get(id)?.skippable, true, `${id} stays unskippable`);
     assert.equal(byId.get(id)?.resumeFromCheckpoint, true, `${id} resumes from its checkpoint`);
   }
@@ -106,12 +107,11 @@ test('the checkpoint ladder: data checkpoints on room entry plus one sequence ch
   assert.deepEqual(taken, ['cp_contact_clear', 'cp_cover_done', 'cp_security_done', 'cp_valve', 'cp_climax_won']);
 });
 
-test('slice01 level numbers: 1 + 3 + 6 + 14 enemies, a hero, spawn counts per group', () => {
+test('slice01 level numbers: 0 + 1 + 14 enemies, a hero, spawn counts per group (trim-lab-wing-encounters)', () => {
   const spawns = level.rooms.flatMap((r: any) => r.spawns ?? []);
   const total = (g: string): number => spawns.filter((s: any) => s.group === g).reduce((n: number, s: any) => n + (s.count ?? 1), 0);
-  assert.equal(total('r05_contact'), 1);
-  assert.equal(total('r05_trickle'), 3);
-  assert.equal(total('r06_cover'), 6);
+  for (const g of ['r05_contact', 'r05_trickle', 'r07_playdead']) assert.equal(total(g), 0, g);
+  assert.equal(total('r06_cover'), 1);
   assert.equal(total('r11_climax'), 14);
   assert.ok(spawns.some((s: any) => s.group === 'r11_climax' && s.variant === 'hero'));
 });
@@ -161,6 +161,8 @@ function makeGame(only?: string[], opts: { holdMauled?: boolean } = {}) {
     placePlayer: () => void log.push('place'),
     fade: (level) => void log.push(`fade ${level}`),
     cameraShake: () => void log.push('shake'),
+    intercom: (id, live) => (log.push(`intercom ${id} ${live ? 'on' : 'off'}`), true),
+    projectVoice: (npc, at) => void log.push(`project ${npc} ${at ?? 'off'}`),
     sfx: (id) => void log.push(`sfx ${id}`),
     score: (id, o) => void log.push(`score ${id} ${o.cue ?? (o.stinger ? `stinger ${o.stinger}` : 'load')}`),
     say: (line, opts) => {
@@ -174,6 +176,7 @@ function makeGame(only?: string[], opts: { holdMauled?: boolean } = {}) {
     pryDoor: (id, open) => (log.push(`pry ${id} ${open}`), true),
     setLight: (room, pattern, tint) => (log.push(`light ${room} ${pattern}${tint ? ` ${tint}` : ''}`), true),
     glass: (id, state) => void log.push(`glass ${id} ${state}`),
+    ventState: (id, state, instant) => void log.push(`vent ${id} ${state}${instant ? ' instant' : ''}`),
     water: (room, level, sec) => room === 'R09' && (log.push(`water ${room} ${level} ${sec}`), true),
     light: (id, pattern, tint) => (log.push(`namedLight ${id} ${pattern}${tint ? ` ${tint}` : ''}`), true),
     setPower: (state) => void log.push(`power ${state}`),
@@ -196,10 +199,23 @@ function makeGame(only?: string[], opts: { holdMauled?: boolean } = {}) {
     squadRegroup: () => [],
     inRoom: () => true,
     squadPlaceIn: () => [],
+    squadCatchUpIn: (room, _entry, force) => {
+      log.push(`catchUp ${room}${force ? ' force' : ''}`);
+      return [];
+    },
     npc: (action, step) => {
       log.push(`npc ${action} ${String(step['npc'])}${step['anim'] ? ` ${String(step['anim'])}` : ''}${step['task'] ? ` ${String(step['task'])}` : ''}${step['instant'] ? ' instant' : ''}`);
       if (action === 'npcTask' && step['wait'] !== false) return new Promise<void>((resolve) => tasks.push({ step, resolve }));
       if (opts.holdMauled && action === 'kill' && step['kind'] === 'mauled' && !step['instant']) return new Promise<void>((resolve) => kills.push({ step, resolve }));
+      // Otherwise a mauled kill plays its beats in order, as the kill engine does, then ends (overhaul-priya-r08-death D16).
+      if (action === 'kill' && step['kind'] === 'mauled' && !step['instant']) {
+        return (async () => {
+          for (const beat of ['plead', 'noticed', 'impale', 'carry', 'slam', 'throw', 'still']) {
+            await Promise.resolve();
+            emitRaw(`kill:${beat}`, { npc: step['npc'], beat });
+          }
+        })();
+      }
       return undefined;
     },
   };
@@ -317,6 +333,27 @@ test('gore and titleCard validate, reach the host, and warn (not crash) without 
   assert.throws(() => validateSequences({ 'x.json': { id: 'bad', steps: [{ do: 'titleCard' }] } }));
 });
 
+test('ventState: reaches the host, snaps when skipped or instant, and validates its state', () => {
+  const d = validateSequences({
+    'x.json': [
+      { id: 'burst', skippable: true, steps: [{ do: 'wait', s: 5 }, { do: 'ventState', id: 'r06_vent', state: 'fallen' }] },
+      { id: 'tear', steps: [{ do: 'ventState', id: 'labb_vent', state: 'open' }, { do: 'ventState', id: 'labb_vent', state: 'open', instant: true }] },
+    ],
+  });
+  const g = makeGame();
+  const m = new SequenceManager(g.host, d);
+  m.start('tear');
+  assert.deepEqual(g.log.filter((e) => e.startsWith('vent')), ['vent labb_vent open', 'vent labb_vent open instant']);
+  m.start('burst');
+  assert.equal(m.skip(), true);
+  assert.equal(g.log.filter((e) => e.startsWith('vent')).at(-1), 'vent r06_vent fallen instant', 'a skip lands on the state without the fall');
+  const bare = makeGame();
+  delete (bare.host as { ventState?: unknown }).ventState;
+  new SequenceManager(bare.host, d).start('tear');
+  assert.ok(bare.log.some((e) => e.startsWith('warn')), 'warns without a host');
+  assert.throws(() => validateSequences({ 'x.json': { id: 'bad', steps: [{ do: 'ventState', id: 'v', state: 'broken' }] } }));
+});
+
 test('water: a timed rise reaches the host, an unknown room warns, and a skip lands on the final level', () => {
   const d = validateSequences({
     'x.json': [
@@ -358,16 +395,16 @@ test('a restart puts standing water back at the level the checkpoint save record
 test('R09 never floods: a load past the valve keeps the tunnel at its authored water', () => {
   const g = makeGame();
   g.host.flags['valve_done'] = true;
-  g.host.events.emit('game:mode', { mode: 'playing' });
+  g.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.equal(g.log.some((e) => e.startsWith('water')), false);
   const fresh = makeGame();
-  fresh.host.events.emit('game:mode', { mode: 'playing' });
+  fresh.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.equal(fresh.log.some((e) => e.startsWith('water')), false, 'before the valve the tunnel keeps its authored water');
 });
 
 // ------------------------------------------------------------------------------- beat 3: first contact
 
-test('R05 first contact: knocks, the door gives, legs, the revive rule, the trickle, then the door opens and cp_contact_clear', async () => {
+test('R05 first contact (trim-lab-wing-encounters): no fight; the creature passes overhead toward R06, then the blackout and cp_contact_clear', async () => {
   const g = makeGame();
   fire(g, 'trigger:r05_enter');
   assert.equal(g.m.isRunning('contact'), false, 'needs the drop first');
@@ -375,23 +412,21 @@ test('R05 first contact: knocks, the door gives, legs, the revive rule, the tric
   fire(g, 'trigger:r05_enter');
   assert.equal(g.m.isRunning('contact'), true);
   assert.equal(g.m.skip(), false, 'not skippable');
-  assert.ok(at(g, 'door D_R05_R06 sealed') >= 0, 'the way on stays shut during the fight');
-  await until(g, () => g.groups.get('r05_contact')!.triggered);
-  inOrder(g, ['sfx metalKnock', ...lines('contact_giles_01', 'contact_okafor_01'), 'door D_R04_R05 open', 'group r05_contact']);
-  await until(g, () => said(g, 'contact_okafor_03') === 1);
-  assert.equal(said(g, 'contact_after_01'), 0, 'the legs lesson waits for the kill');
-  g.clear('r05_contact');
-  await until(g, () => g.groups.get('r05_trickle')!.triggered);
-  inOrder(g, [...lines('contact_okafor_03', 'contact_after_01', 'okafor_revive_rule_01'), 'group r05_trickle']);
-  await until(g, () => said(g, 'contact_okafor_02') === 1);
-  assert.equal(g.host.flags['contact_done'], undefined);
-  g.clear('r05_trickle');
+  assert.ok(at(g, 'door D_R05_R06 sealed') >= 0, 'the way on stays shut while it passes');
   await until(g, () => !g.m.isRunning('contact'));
+  assert.equal(g.log.some((e) => e.startsWith('group ')), false, 'no enemy in R05');
+  assert.equal(at(g, 'door D_R04_R05 open'), -1, 'the Lab B door stays sealed');
+  for (const l of ['contact_giles_01', 'contact_okafor_01', 'contact_okafor_02', 'contact_okafor_03', 'contact_after_01']) assert.equal(said(g, l), 0, `${l} is not in R05`);
+  // The bangs walk along the ducts toward R06; Okafor's revive rule as they start.
+  const bangs = g.log.filter((e) => e === 'sfx ductBang' || e === 'sfx ductScrape');
+  assert.ok(bangs.length >= 5, `${bangs.length} duct sounds`);
+  inOrder(g, ['sfx ductBang', ...lines('okafor_revive_rule_01'), 'sfx ductScrape']);
+  // station-power spec: the blackout follows the last bang, then the door closes and the checkpoint saves on backup power.
+  const lastBang = g.log.lastIndexOf('sfx ductBang');
+  assert.ok(lastBang < at(g, 'say blackout_radio_ops_01 overlap'));
+  inOrder(g, [...['blackout_radio_ops_01', 'blackout_radio_dock_01', 'blackout_radio_hydro_01', 'blackout_radio_launch_01', 'blackout_radio_ops_02'].map((l) => `say ${l} overlap`), 'say blackout_okafor_01', 'say blackout_pa_power_01 overlap', 'sfx powerDown', 'power backup', 'door D_R05_R06 closed', 'checkpoint cp_contact_clear']);
   assert.equal(g.host.flags['contact_done'], true);
-  assert.ok(at(g, 'door D_R05_R06 closed') > at(g, 'group r05_trickle'));
   assert.equal(count(g, 'checkpoint cp_contact_clear'), 1);
-  // station-power spec: the blackout follows the trickle, then the door closes and the checkpoint saves on backup power.
-  inOrder(g, ['group r05_trickle', ...['blackout_radio_ops_01', 'blackout_radio_dock_01', 'blackout_radio_hydro_01', 'blackout_radio_launch_01', 'blackout_radio_ops_02'].map((l) => `say ${l} overlap`), 'say blackout_okafor_01', 'say blackout_pa_power_01 overlap', 'sfx powerDown', 'power backup', 'door D_R05_R06 closed', 'checkpoint cp_contact_clear']);
   assert.equal(g.host.flags['station_power'], 'backup');
   assert.equal(at(g, 'radio tag_fm_01'), -1, 'no radio in the Lab Junction any more');
   assert.equal(g.host.flags['radio_place'], undefined);
@@ -401,21 +436,35 @@ test('R05 first contact: knocks, the door gives, legs, the revive rule, the tric
   assert.equal(g.m.isRunning('contact'), false, 'never twice');
 });
 
-test('dying during first contact restarts the beat from its checkpoint; dying after its checkpoint does not', async () => {
+test('the radio chatter starts within 2 s of the last bang over R05 (station-power spec)', async () => {
+  const g = makeGame(['contact']);
+  setFlags(g, { drop_done: true });
+  fire(g, 'trigger:r05_enter');
+  let lastBangAt = -1;
+  let chatterAt = -1;
+  let t = 0;
+  for (let i = 0; i < 60 * 60 && chatterAt < 0; i++) {
+    const n = g.log.length;
+    await advance(g, 1 / 60);
+    t += 1 / 60;
+    for (const e of g.log.slice(n)) {
+      if (e === 'sfx ductBang' || e === 'sfx ductScrape') lastBangAt = t;
+      if (e === 'say blackout_radio_ops_01 overlap') chatterAt = t;
+    }
+  }
+  assert.ok(lastBangAt > 0 && chatterAt > lastBangAt);
+  assert.ok(chatterAt - lastBangAt <= 2, `chatter ${(chatterAt - lastBangAt).toFixed(2)} s after the last bang`);
+});
+
+test('restarting mid first contact replays the beat from its checkpoint; restarting after its checkpoint does not', async () => {
   const g = makeGame();
   setFlags(g, { drop_done: true });
   fire(g, 'trigger:r05_enter');
-  await until(g, () => g.groups.get('r05_contact')!.triggered);
+  await until(g, () => count(g, 'sfx ductBang') >= 1);
   g.host.events.emit('player:died', {});
   assert.equal(g.m.isRunning('contact'), false);
-  g.groups.get('r05_contact')!.triggered = false;
   g.host.events.emit('game:restarted', { checkpoint: 'cp_first_contact' });
   assert.equal(g.m.isRunning('contact'), true, 'replayed from step 0');
-  await until(g, () => g.groups.get('r05_contact')!.triggered);
-  assert.equal(count(g, 'group r05_contact'), 2);
-  g.clear('r05_contact');
-  await until(g, () => g.groups.get('r05_trickle')!.triggered);
-  g.clear('r05_trickle');
   await until(g, () => !g.m.isRunning('contact'));
   g.host.events.emit('player:died', {});
   g.host.events.emit('game:restarted', { checkpoint: 'cp_contact_clear' });
@@ -424,7 +473,7 @@ test('dying during first contact restarts the beat from its checkpoint; dying af
 
 // ------------------------------------------------------------------------------- beat 4: cover me
 
-test('R06 cover me: Giles bypasses for 20 s, 6 come, the door opens at the bypass, the stage-1 tell after the last one dies', async () => {
+test('R06 cover me: Giles bypasses for 20 s, the escaped creature crawls in and drops, the door opens at the bypass, the legs lesson after it dies', async () => {
   const g = makeGame();
   fire(g, 'trigger:r06_door');
   assert.equal(g.m.isRunning('cover_me'), false, 'needs first contact done');
@@ -435,20 +484,31 @@ test('R06 cover me: Giles bypasses for 20 s, 6 come, the door opens at the bypas
   await until(g, () => g.tasks.length === 1);
   assert.equal(g.tasks[0]!.step['task'], 'bypass');
   assert.deepEqual(g.tasks[0]!.step['args'], { at: 'anchor:r06_panel', panel: 'D_R06_R07', duration: 20 });
-  inOrder(g, [...lines('giles_cover_01'), 'group r06_cover']);
+  assert.equal(at(g, 'group r06_cover'), -1, 'heard in the ducts first');
+  await until(g, () => at(g, 'group r06_cover') >= 0, 20);
+  // trim-lab-wing-encounters: bangs nearer and nearer, a hush, then the grate bursts as it drops; "Legs!" on landing.
+  inOrder(g, [...lines('giles_cover_01'), 'sfx ductBang', 'sfx ductScrape', 'score labB dropHush', 'sfx ventCoverBurst', 'vent r06_vent fallen', 'group r06_cover', 'score labB door']);
+  await until(g, () => said(g, 'contact_okafor_03') === 1, 5);
   assert.equal(g.host.flags['obj:obj_hold_door'], 'active');
   assert.equal(at(g, 'door D_R06_R07 open'), -1, 'locked until Giles is done');
   g.finishTask();
   await advance(g, 0.2);
   assert.ok(at(g, 'door D_R06_R07 open') >= 0);
-  assert.equal(g.host.flags['giles.infectionStage'], undefined, 'the tell waits for the fight to end');
   await advance(g, 3);
-  assert.equal(said(g, 'cover_giles_03'), 0);
+  assert.equal(said(g, 'contact_after_01'), 0, 'the legs lesson waits for the kill');
   g.clear('r06_cover');
   await until(g, () => !g.m.isRunning('cover_me'));
-  inOrder(g, [...lines('cover_giles_02', 'cover_giles_03', 'cover_okafor_01', 'cover_giles_04'), 'checkpoint cp_cover_done']);
-  assert.ok(at(g, 'npc npcAnim giles flex_hand') >= 0 && at(g, 'npc npcAnim okafor glance') >= 0);
-  assert.equal(g.host.flags['giles.infectionStage'], 1);
+  // The win sets cover_done and takes the checkpoint at once; the talk follows (so stepping into R07 can cut it).
+  inOrder(g, [...lines('cover_giles_02'), 'checkpoint cp_cover_done', 'score labB end', ...lines('contact_after_01')]);
+  // overhaul-priya-r08-death D14 (2026-11-23 amendment): she hides behind the desk through the fight; her run is the
+  // cutscene that opens the R07 scene, so cover_me ends without it and cp_cover_done records her still hidden.
+  inOrder(g, ['npc npcMoveTo priya instant', 'npc npcAnim priya priya_crouch instant', 'checkpoint cp_cover_done', ...lines('contact_after_01')]);
+  assert.equal(said(g, 'cover_okafor_run_01'), 0, 'no run in R06');
+  assert.equal(at(g, 'door D_R07_R08 open'), -1, 'the medical bay door stays shut');
+  // overhaul-priya-r08-death decision 22: Giles is not infected; no arm beat in R06.
+  for (const id of ['cover_giles_03', 'cover_okafor_01', 'cover_giles_04']) assert.equal(said(g, id), 0, id);
+  assert.equal(at(g, 'npc npcAnim giles flex_hand'), -1);
+  assert.equal(g.host.flags['giles.infectionStage'], undefined);
   assert.equal(g.host.flags['cover_done'], true);
   assert.equal(g.host.flags['obj:obj_hold_door'], 'done');
   noWarnings(g);
@@ -469,165 +529,360 @@ test('cover me survives the last enemy dying before the bypass finishes', async 
 
 // ------------------------------------------------------------------------------- beat 5: security, armory, Priya
 
-const COVER_DONE = { drop_done: true, contact_done: true, cover_done: true, 'giles.infectionStage': 1 };
+const COVER_DONE = { drop_done: true, contact_done: true, cover_done: true };
 
-test('R07 armory: Priya is placed in the medical bay, Giles bypasses the armory door on his own and opens it', async () => {
-  const g = makeGame();
-  fire(g, 'trigger:r07_enter');
-  assert.equal(g.m.isRunning('armory_auto'), false, 'needs cover me done');
+/** Into the security office after the cover fight: the R07 scene starts (overhaul-priya-r08-death D23). */
+function toScene(g: Game): void {
   setFlags(g, COVER_DONE);
   fire(g, 'trigger:r07_enter');
-  assert.ok(at(g, 'npc npcMoveTo priya instant') >= 0, 'Priya is in R08 for the player to see through the glass');
-  assert.equal(g.host.flags['obj:obj_armory'], 'active');
-  await until(g, () => g.tasks.length === 1);
-  assert.equal(g.tasks[0]!.step['task'], 'bypass_short');
-  assert.equal(at(g, 'door D_R07_R07a open'), -1);
-  g.finishTask();
-  await until(g, () => !g.m.isRunning('armory_auto'));
-  inOrder(g, [...lines('sec_giles_01', 'sec_giles_02')]);
-  assert.ok(at(g, 'door D_R07_R07a open') >= 0);
-  assert.equal(g.host.flags['armory_open'], true);
-  assert.equal(g.m.isRunning('sec_glass'), false, 'no glass scene before the player is at the glass');
-  noWarnings(g);
-});
-
-async function armoryThenGlass(g: Game): Promise<void> {
-  setFlags(g, COVER_DONE);
-  fire(g, 'trigger:r07_enter');
-  await until(g, () => g.tasks.length === 1);
-  g.finishTask();
-  await until(g, () => !g.m.isRunning('armory_auto'));
 }
 
-test('the glass scene starts when BOTH the armory is open and Jay is at the glass, in either order', async () => {
-  const a = makeGame();
-  await armoryThenGlass(a);
-  fire(a, 'trigger:r08_glass');
-  assert.equal(a.m.isRunning('sec_glass'), true, 'armory first, then the glass');
-  const b = makeGame();
-  setFlags(b, COVER_DONE);
-  fire(b, 'trigger:r07_enter');
-  fire(b, 'trigger:r08_glass');
-  assert.equal(b.m.isRunning('sec_glass'), false, 'the glass first: the scene waits for the armory');
-  assert.equal(b.host.flags['glass_near'], true);
-  await until(b, () => b.tasks.length === 1);
-  b.finishTask();
-  await advance(b, 0.5);
-  assert.equal(b.m.isRunning('sec_glass'), true, 'and starts the moment the door is open');
+/** Through the rescue to the armory bypass, finished. */
+async function toArmoryDone(g: Game): Promise<void> {
+  toScene(g);
+  await until(g, () => g.tasks.length === 1, 120);
+  assert.equal(g.tasks[0]!.step['task'], 'bypass_short');
+  g.finishTask();
+}
+
+test('R07: entering the security office after the cover fight starts the scene: gather, seal, slow free walk, Okafor projected', async () => {
+  const g = makeGame();
+  fire(g, 'trigger:r07_enter');
+  assert.equal(g.m.isRunning('sec_glass'), false, 'needs the cover fight done');
+  toScene(g);
+  assert.equal(g.m.isRunning('sec_glass'), true);
+  // medbay-attack "She runs" / "The door seals behind her" / "Jay sees her go" (D14, 2026-11-23): the scene opens on a
+  // cutscene of her run. Jay is held (letterbox bars), the squad is brought in behind him, and the door seals right after her.
+  await advance(g, 0.1);
+  assert.equal(g.control.state.move, 'locked', 'on rails: the bars show');
+  assert.equal(g.control.state.interact, false);
+  await until(g, () => at(g, 'score medbay enter') >= 0);
+  inOrder(g, [
+    'npc npcMoveTo priya instant', 'npc npcAnim priya priya_crouch instant', 'door D_R07_R08 sealed', 'catchUp R07',
+    'say cover_okafor_run_01 overlap', 'npc npcAnim priya clip:priya_stumble', 'door D_R07_R08 open', 'door D_R07_R08 sealed',
+    'project okafor 3.5', 'score medbay enter',
+  ]);
+  // D41: while the bars are up and Jay has walked in after her, the squad is put just behind him and the bulkhead seals,
+  // so neither squadmate can be left on the R06 side of it.
+  inOrder(g, ['catchUp R07', 'catchUp R07 force', 'door D_R06_R07 sealed', 'project okafor 3.5']);
+  assert.equal(count(g, 'door D_R06_R07 sealed'), 1, 'sealed once, during the bars');
+  assert.ok(!/Priya/.test(library.line('cover_okafor_run_01').text), 'the call does not use her name');
+  assert.equal(said(g, 'cover_priya_run_01'), 1, 'she sobs as she stumbles');
+  assert.equal(g.control.state.move, 'slow');
+  assert.equal(g.control.state.look, 'free');
+  assert.equal(g.control.state.weapons, true, 'medbay-attack "Weapons with the bars" (D34): the glass is armoured');
+  assert.equal(g.control.state.interact, true, 'the bang prompt is offered from the start');
+  assert.equal(g.m.skip(), false, 'Priya cannot be skipped');
+  assert.equal(g.log.some((e) => e.includes('r07_playdead')), false, 'no play-dead ambush (trim-lab-wing-encounters)');
 });
 
-test('walking into Security before the cover fight ends: the armory bypass and the glass scene still play once each', async () => {
+test('medbay-attack "Shooting the glass" (D34): a round on the glass counts as a bang for the creature, with no shout', async () => {
   const g = makeGame();
+  toScene(g);
+  await until(g, () => g.control.state.move === 'slow');
+  const shouts = (): number => ['sec_jay_bang_01', 'sec_jay_bang_02', 'sec_jay_bang_03', 'sec_jay_bang_04'].reduce((n, l) => n + said(g, l), 0);
+  g.host.events.emit('weapon:glass', { weapon: 'pistol', x: 1, y: 1.5, z: 45.7 });
+  await advance(g, 0.2);
+  assert.equal(count(g, 'event kill:notice'), 0, 'nothing to notice before the creature is in');
+  g.host.flags['r08_thing_in'] = true;
+  g.host.events.emit('weapon:glass', { weapon: 'pistol', x: 1, y: 1.5, z: 45.7 });
+  await advance(g, 0.2);
+  assert.equal(count(g, 'event kill:notice'), 1);
+  assert.equal(shouts(), 0, 'a shot is not a shout');
+});
+
+test('R07 straight after the fight: stepping in ends the R06 talk at once and the run cutscene starts (D14, 2026-11-23)', async () => {
+  const g = makeGame(['cover_me', 'sec_glass']);
   setFlags(g, { drop_done: true, contact_done: true });
   fire(g, 'trigger:r06_door');
   await until(g, () => g.tasks.length === 1);
   g.finishTask();
-  await advance(g, 0.2);
-  assert.ok(at(g, 'door D_R06_R07 open') >= 0, 'the pressure door is open mid-fight');
-  // Jay goes straight through while r06_cover is still alive: both one-shot triggers fire before cover_done.
-  fire(g, 'trigger:r07_enter');
-  fire(g, 'trigger:r08_glass');
-  assert.equal(g.m.isRunning('armory_auto'), false);
-  assert.equal(g.host.flags['cover_done'], undefined);
   g.clear('r06_cover');
-  await until(g, () => !g.m.isRunning('cover_me'));
-  assert.equal(g.host.flags['cover_done'], true);
-  await until(g, () => g.tasks.length === 1);
-  assert.equal(g.tasks[0]!.step['task'], 'bypass_short', 'Giles goes to the armory panel');
-  g.finishTask();
-  await until(g, () => g.m.isRunning('sec_glass'));
-  g.clear('r07_playdead');
-  await until(g, () => !g.m.isRunning('sec_glass'), 120);
-  assert.equal(g.host.flags['sec_done'], true);
-  assert.equal(count(g, 'checkpoint cp_security_done'), 1);
-  assert.equal(count(g, 'say sec_giles_01'), 1, 'the armory beat ran once');
-  noWarnings(g);
-});
-
-test('trying the biometric door early starts the glass scene anyway (a latched trigger cannot strand the player)', async () => {
-  const g = makeGame();
-  setFlags(g, COVER_DONE);
-  g.host.events.emit('door:denied', { id: 'D_R07_R09', reason: 'x' });
+  await until(g, () => g.host.flags['cover_done'] === true);
+  assert.ok(at(g, 'checkpoint cp_cover_done') >= 0, 'the checkpoint comes with the win, before the talk');
+  fire(g, 'trigger:r07_enter');
+  await advance(g, 0.1);
+  assert.equal(g.m.isRunning('cover_me'), false, 'the R06 aftermath is stopped');
   assert.equal(g.m.isRunning('sec_glass'), true);
-  assert.ok(at(g, 'door D_R07_R07a open') >= 0);
-  const other = makeGame();
-  setFlags(other, COVER_DONE);
-  other.host.events.emit('door:denied', { id: 'D_R06_R07', reason: 'x' });
-  assert.equal(other.m.isRunning('sec_glass'), false, 'only that door');
+  assert.ok(at(g, 'stopSpeech') >= 0, 'every line still playing is cut');
+  await advance(g, 3);
+  assert.equal(said(g, 'contact_after_01'), 0, 'its lines never play');
 });
 
-test('the glass scene waits for the play-dead (or 20 s), then locks Jay in, plays Priya and ends with the bandage and cp_security_done', async () => {
+test('playerWalkTo with distance: a few steps from where Jay stands toward the target, never past it', async () => {
+  const g = makeGame();
+  const goals: Array<{ x: number; z: number }> = [];
+  g.host.resolve = (ref) => (ref === 'player' ? { x: 0, y: 0, z: 39 } : { x: 4, y: 0, z: 45 });
+  g.host.walkTo = (at) => (goals.push({ x: at.x, z: at.z }), Promise.resolve());
+  const d = validateSequences({ 'x.json': { id: 'w', steps: [{ do: 'playerWalkTo', to: 'anchor:r07_medbay_door', distance: 2.8, wait: true }, { do: 'playerWalkTo', to: 'anchor:r07_medbay_door', distance: 20 }] } });
+  const m = new SequenceManager(g.host, d);
+  m.start('w');
+  for (let i = 0; i < 6; i++) {
+    m.update(1 / 60);
+    await Promise.resolve();
+  }
+  assert.equal(goals.length, 2);
+  assert.ok(Math.abs(Math.hypot(goals[0]!.x, goals[0]!.z - 39) - 2.8) < 1e-6, 'walks 2.8 m');
+  assert.ok(goals[0]!.x > 0 && goals[0]!.z > 39, 'toward the door');
+  assert.deepEqual(goals[1], { x: 4, z: 45 }, 'a distance past the target stops at it');
+  const sec = actionDefs.find((s) => s.id === 'sec_glass')!;
+  let follow: Record<string, unknown> | null = null;
+  walk(sec.steps, (st) => void (st['do'] === 'playerWalkTo' && (follow = st)));
+  assert.ok(follow && (follow['distance'] as number) >= 2.4 && (follow['distance'] as number) <= 3.2, 'Jay takes 3-4 steps after her');
+});
+
+test('medbay-attack rescue: denied on arrival, Giles reads the order and opens the intercom, triage, the tray, "Sit.", then the armory', async () => {
   const g = makeGame(undefined, { holdMauled: true });
-  await armoryThenGlass(g);
-  g.groups.get('r07_playdead')!.triggered = true;
-  fire(g, 'trigger:r08_glass');
-  await advance(g, 10);
-  assert.equal(g.control.state.move, 'free', 'a live play-dead is dealt with first');
-  g.clear('r07_playdead');
-  await advance(g, 0.5);
-  assert.equal(g.control.state.move, 'locked');
-  assert.equal(g.control.state.weapons, false);
-  assert.equal(g.m.skip(), false, 'Priya cannot be skipped');
-  await until(g, () => g.kills.length === 1, 30);
-  // medbay-attack: one kill step does the attack, with the creature as its attacker, on the centre pane.
+  await toArmoryDone(g);
+  await until(g, () => g.kills.length === 1, 120);
+  // Denied on arrival / Giles reads the order / Before and after the switch.
+  inOrder(g, [
+    ...lines('sec_priya_10', 'sec_okafor_10', 'sec_priya_11'),
+    'say sec_okafor_11 overlap',
+    'event door:denied',
+    ...lines('sec_priya_12', 'sec_giles_10', 'sec_giles_11'),
+    'intercom medbay on',
+    ...lines('sec_priya_13'),
+    'say sec_okafor_12 overlap',
+    // Triage.
+    'score medbay triage',
+    ...lines('sec_okafor_13', 'sec_okafor_14', 'sec_priya_14', 'sec_okafor_15'),
+    // The surgery and the tray (the music cuts to the monitor).
+    ...lines('sec_priya_15', 'sec_priya_16'),
+    'sfx surgery_tray_fall',
+    'score medbay hush',
+    ...lines('sec_priya_17'),
+    // Her own words back.
+    ...lines('sec_okafor_16', 'sec_okafor_17', 'sec_priya_18'),
+    // The armory opens before the creature comes out.
+    'door D_R07_R07a open',
+    'sfx surgery_latch',
+    'npc spawn r08_thing',
+    'score medbay emerge',
+    'door D_R08_R08b open',
+  ]);
+  assert.ok(at(g, 'npc npcMoveTo priya') >= 0 && g.log.includes('npc npcAnim priya priya_sit_wall'), 'she sits against the wall');
+  assert.ok(g.log.indexOf('intercom medbay on') > g.log.indexOf('event door:denied'), 'the intercom after the first refusal');
+  // She is alive and talking first: at least eight Priya/Okafor lines before the surgery door opens.
+  const opened = at(g, 'door D_R08_R08b open');
+  const talk = g.log.slice(0, opened).filter((e) => /^say sec_(priya|okafor)_/.test(e)).length;
+  assert.ok(talk >= 8, `${talk} lines between them before the door`);
+  assert.equal(g.host.flags['armory_open'], true);
+  assert.equal(g.host.flags['obj:obj_armory'], 'active', 'the armory objective comes with the open door');
+  // The coffee, over the intercom, while Giles works the panel.
+  for (const id of ['sec_priya_19', 'sec_okafor_18', 'sec_priya_20', 'sec_okafor_19', 'sec_giles_12', 'sec_giles_13']) assert.equal(said(g, id), 1, id);
+  // The surgery is heard before the creature is seen.
+  for (const s of ['sfx drip', 'sfx surgery_rattle', 'sfx surgery_breath', 'sfx surgery_scrape']) assert.ok(at(g, s) >= 0 && at(g, s) < at(g, 'npc spawn r08_thing'), s);
+});
+
+test('medbay-attack "She turns around" (D35): hands up, a slow turn to the surgery door, a freeze, a quicker turn back as Okafor asks on', async () => {
+  const g = makeGame(undefined, { holdMauled: true });
+  await toArmoryDone(g);
+  inOrder(g, [
+    'say sec_okafor_13',
+    'npc npcAnim priya priya_hands_show',
+    'npc npcLookAt priya',
+    'npc npcLookAt priya',
+    'npc npcAnim priya priya_hands_back_freeze',
+    'npc npcAnim priya priya_hands_turn_back',
+    'npc npcLookAt priya',
+    'say sec_okafor_14',
+    'npc npcAnim priya idle',
+    'say sec_priya_14',
+  ]);
+  const sec = actionDefs.find((d) => d.id === 'sec_glass')!;
+  const turns: Array<Record<string, unknown>> = [];
+  walk(sec.steps, (st) => void (st['do'] === 'npcLookAt' && st['npc'] === 'priya' && st['turn'] === true && turns.push(st)));
+  assert.equal(turns.length, 2, 'away and back');
+  assert.equal(turns[0]!['target'], 'anchor:priya_turn_away', 'her back to the glass, facing the surgery door');
+  assert.ok((turns[0]!['turnRate'] as number) < (turns[1]!['turnRate'] as number), 'slow away, quicker back');
+  assert.ok((turns[0]!['turnRate'] as number) < 3.2, 'slower than the default turn');
+  assert.equal(turns[1]!['target'], 'npc:okafor');
+});
+
+test('medbay-attack "The rescue is tight" (D36): from her first line to the armory opening in at most 80 s, lines timed by their clips', async () => {
+  const g = makeGame(undefined, { holdMauled: true });
+  // The clips are 64 kbps CBR mp3s: their length is their size.
+  const clipS = (line: string): number => {
+    try {
+      return (statSync(new URL(`../../public/assets/vo/${line}.mp3`, import.meta.url)).size * 8) / 64000;
+    } catch {
+      return 1;
+    }
+  };
+  let t = 0;
+  const pending: Array<{ end: number; res: () => void }> = [];
+  let first = -1;
+  g.host.say = (line, opts) => {
+    g.log.push(`say ${line}${opts?.overlap ? ' overlap' : ''}`);
+    if (line === 'sec_priya_10' && first < 0) first = t;
+    return { done: new Promise<void>((res) => pending.push({ end: t + clipS(line) + 0.15, res })) };
+  };
+  toScene(g);
+  for (let i = 0; i < 200 * 60 && g.tasks.length === 0; i++) {
+    t += 1 / 60;
+    g.m.update(1 / 60);
+    for (let k = pending.length - 1; k >= 0; k--) if (pending[k]!.end <= t) pending.splice(k, 1)[0]!.res();
+    if (i % 3 === 0) await Promise.resolve();
+  }
+  assert.equal(g.tasks.length, 1, 'Giles starts the armory bypass');
+  // The bypass itself takes its 8 s (squadBrain bypass_short) before the door opens.
+  const span = t - first + 8;
+  assert.ok(first >= 0 && span <= 80, `first line to the armory opening: ${span.toFixed(1)} s`);
+});
+
+test('medbay-attack "Jay is in the armory": the creature waits for him to step out, for at most 10 s', async () => {
+  const g = makeGame(undefined, { holdMauled: true });
+  let inArmory = false;
+  g.host.inRoom = (who, room) => !(who === 'player' && room === 'R07' && inArmory);
+  await toArmoryDone(g);
+  inArmory = true;
+  await until(g, () => said(g, 'sec_okafor_19') === 1, 60);
+  await advance(g, 3);
+  assert.equal(at(g, 'npc spawn r08_thing'), -1, 'still waiting while he is in the armory');
+  inArmory = false;
+  await advance(g, 3);
+  assert.ok(at(g, 'npc spawn r08_thing') >= 0, 'he stepped out: it comes');
+  // And never longer than 10 s.
+  const h = makeGame(undefined, { holdMauled: true });
+  let away = false;
+  h.host.inRoom = (who, room) => !(who === 'player' && room === 'R07' && away);
+  await toArmoryDone(h);
+  away = true;
+  await until(h, () => said(h, 'sec_okafor_19') === 1, 60);
+  await advance(h, 12.5);
+  assert.ok(at(h, 'npc spawn r08_thing') >= 0, 'after 10 s it comes anyway');
+});
+
+/** Into the R08 attack with the kill held open, at its plead beat. */
+async function toPlead(): Promise<Game> {
+  const g = makeGame(undefined, { holdMauled: true });
+  await toArmoryDone(g);
+  await until(g, () => g.kills.length === 1, 120);
+  g.host.events.emit('kill:plead', { npc: 'priya', beat: 'plead' });
+  return g;
+}
+
+test('medbay-attack: the kill step is the creature on Priya at the centre pane, with the new marks', async () => {
+  const g = await toPlead();
   const k = g.kills[0]!.step;
   assert.deepEqual([k['npc'], k['kind'], k['attacker'], k['glass']], ['priya', 'mauled', 'r08_thing', 'anchor:medbay_c_glass']);
-  assert.ok(g.log.includes('npc spawn r08_thing'));
-  assert.equal(g.control.state.interact, true, 'the bang prompt is offered while she pleads');
-  for (const beat of ['plead', 'grab', 'haul', 'slam', 'throw', 'reach', 'drag', 'still']) {
+  const marks = k['marks'] as Record<string, string>;
+  for (const m of ['along', 'cower', 'impale', 'cart', 'throwAt', 'rest', 'surgery']) assert.ok(marks[m]?.startsWith('anchor:'), m);
+});
+
+test('medbay-attack: banging on the glass thuds and shakes each time, shouts at most every 2.5 s, and changes nothing else', async () => {
+  const g = await toPlead();
+  await advance(g, 0.2);
+  const before = g.log.length;
+  for (let i = 0; i < 5; i++) {
+    fire(g, 'interact:medbay_bang');
+    await advance(g, 0.35);
+  }
+  const during = g.log.slice(before);
+  assert.equal(during.filter((e) => e === 'sfx glassThud').length, 5, 'five thuds');
+  assert.equal(during.filter((e) => e === 'shake').length, 5, 'five shakes');
+  const shouts = during.filter((e) => e.startsWith('say sec_jay_bang_'));
+  assert.equal(shouts.length, 1, `shouts do not pile up (${shouts.join(', ')})`);
+  assert.equal(g.kills.length, 1, 'the kill is unchanged');
+  assert.ok(!during.some((e) => e.startsWith('glass ') || e.startsWith('gore ')), 'the glass does not crack');
+});
+
+test('medbay-attack: a bang brings the stare forward only once the creature is in the medical bay', async () => {
+  const g = await toPlead();
+  fire(g, 'interact:medbay_bang');
+  await advance(g, 0.3);
+  assert.equal(count(g, 'event kill:notice'), 0, 'still in the doorway: no notice');
+  await advance(g, 1.5);
+  fire(g, 'interact:medbay_bang');
+  await advance(g, 0.1);
+  assert.ok(count(g, 'event kill:notice') >= 1, 'in the room: the bang reaches it');
+});
+
+test('medbay-attack: the attack lines ride the kill beats; the prompt goes with the impale; the music follows', async () => {
+  const g = await toPlead();
+  await advance(g, 2);
+  // Okafor tries the door again and the lockdown refuses him; Giles cannot override it.
+  inOrder(g, [...lines('sec_priya_01').map((l) => `${l} overlap`), 'say sec_priya_05 overlap', 'say sec_okafor_02 overlap', 'event door:denied', 'say sec_giles_06 overlap']);
+  g.host.events.emit('kill:noticed', { npc: 'priya', attacker: 'r08_thing' });
+  await advance(g, 2);
+  assert.ok(g.log.includes('say sec_priya_04 overlap'));
+  assert.ok(g.log.includes('score medbay walk'), 'the walk music after the stare');
+  for (const beat of ['impale', 'carry', 'slam', 'throw', 'still']) {
     g.host.events.emit(`kill:${beat}`, { npc: 'priya', beat });
     await advance(g, 2);
-    if (beat === 'grab') assert.equal(g.control.state.interact, false, 'the prompt goes with the grab');
+    if (beat === 'impale') assert.equal(g.control.state.interact, false, 'the prompt goes with the impale');
   }
+  inOrder(g, ['say sec_okafor_03 overlap', 'say sec_jay_01 overlap', 'say sec_okafor_08 overlap', 'say sec_giles_07 overlap', 'say sec_jay_02 overlap']);
+  for (const id of ['sec_okafor_03', 'sec_jay_01', 'sec_okafor_08', 'sec_giles_07', 'sec_jay_02']) assert.equal(said(g, id), 1, id);
+  // Okafor (medic), Giles (engineer), Jay (player) and Priya (nurse) are all heard.
+  const speakers = new Set(g.log.filter((e) => e.startsWith('say ')).map((e) => library.line(e.split(' ')[1]!).speaker));
+  for (const sp of ['medic', 'engineer', 'player', 'nurse']) assert.ok(speakers.has(sp), sp);
+});
+
+test('medbay-attack aftermath: silence, the intercom off, the notebook, "I told her she was fine.", a pause, "Med lab\'s through there."', async () => {
+  const g = await toPlead();
+  await advance(g, 2);
+  for (const beat of ['impale', 'carry', 'slam', 'throw', 'still']) {
+    g.host.events.emit(`kill:${beat}`, { npc: 'priya', beat });
+    await advance(g, 1);
+  }
+  // D39: while it walks back to the surgery, Okafor goes to the glass, puts his hand on it and speaks to her.
+  await advance(g, 5);
+  inOrder(g, ['event kill:still', 'say sec_jay_02 overlap', 'npc npcMoveTo okafor', 'npc npcAnim okafor okafor_hand_glass', 'say sec_okafor_22']);
+  const n = g.log.length;
   g.kills[0]!.resolve();
-  await until(g, () => !g.m.isRunning('sec_glass'), 120);
-  inOrder(g, [
-    ...lines('sec_okafor_01'),
-    'say sec_okafor_02 overlap',
-    'say sec_okafor_03 overlap',
-    ...lines('sec_okafor_04', 'sec_okafor_05', 'sec_giles_03', 'sec_giles_05', 'sec_okafor_07', 'giles_cut_01', 'sec_okafor_06', 'sec_giles_04'),
-    'checkpoint cp_security_done',
-  ]);
-  // No hand-placed gore or whole-pane blood any more: the kill puts every mark where she touches the glass. The one
-  // placed mark is the pool she lies in, in the surgery (stinger-feed-and-rise).
-  assert.equal(g.log.filter((e) => (e.startsWith('gore ') && e !== 'gore pool') || e.startsWith('event glass:blood') || e.startsWith('glass medbay')).length, 0);
-  assert.equal(g.log.filter((e) => e === 'gore pool').length, 1, 'one pool where she lies');
-  // She is dead in the surgery: the creature gone, the door shut on her.
-  assert.ok(g.log.indexOf('npc despawn r08_thing') > g.log.indexOf('npc spawn r08_thing'));
-  assert.ok(g.log.lastIndexOf('door D_R08_R08b closed') > g.log.lastIndexOf('door D_R08_R08b open'));
-  // Foreshadow 2 and the stage.
-  assert.equal(g.host.flags['giles.infectionStage'], 2);
-  assert.ok(at(g, 'npc npcAnim giles rub_forearm') > at(g, 'say sec_okafor_07'));
-  assert.equal(g.control.state.move, 'free');
-  assert.equal(g.control.state.weapons, true);
+  await advance(g, 1);
+  const after = (): string[] => g.log.slice(n);
+  assert.ok(after().includes('door D_R08_R08b closed') && after().includes('npc despawn r08_thing'));
+  assert.ok(!after().some((e) => e.startsWith('say ')), 'a short hold at the glass after his line, then the console');
+  await until(g, () => !g.m.isRunning('sec_glass'), 60);
+  inOrder(g, ['say sec_okafor_22', 'score medbay aftermath', 'intercom medbay off', 'score medbay end', 'npc npcAnim okafor okafor_notebook', 'say sec_okafor_20', 'say sec_okafor_21', 'door D_R06_R07 open', 'checkpoint cp_security_done']);
+  const sayLines = after().filter((e) => e.startsWith('say '));
+  assert.deepEqual(sayLines, ['say sec_okafor_20', 'say sec_okafor_21'], 'Priya and Okafor only: no other line in the aftermath');
   assert.equal(g.host.flags['sec_done'], true);
   assert.equal(g.host.flags['obj:obj_medlab'], 'active');
+  assert.equal(g.control.state.move, 'free');
+  assert.equal(g.control.state.weapons, true);
+  assert.ok(g.log.includes('project okafor off'), 'the projection ends with the scene');
+  // Giles says nothing in the aftermath and has no infection beats (decision 22).
+  for (const id of ['sec_okafor_04', 'sec_okafor_05', 'sec_giles_03', 'sec_giles_05', 'sec_okafor_07', 'giles_cut_01', 'sec_okafor_06', 'sec_giles_04']) assert.equal(said(g, id), 0, id);
+  assert.equal(at(g, 'npc npcAnim giles rub_forearm'), -1);
+  assert.equal(g.host.flags['giles.infectionStage'], undefined);
+  assert.equal(g.host.flags['giles.bandaged'], undefined);
   noWarnings(g);
 });
 
-test('a play-dead that never rises is removed after 20 s so it cannot attack Jay while he is locked in', async () => {
-  const g = makeGame();
-  await armoryThenGlass(g);
-  g.groups.get('r07_playdead')!.triggered = true;
-  fire(g, 'trigger:r08_glass');
-  await advance(g, 19);
-  assert.equal(count(g, 'despawnGroup r07_playdead'), 0);
-  await advance(g, 2);
-  assert.equal(count(g, 'despawnGroup r07_playdead'), 1);
-  assert.equal(g.control.state.move, 'locked');
+test('medbay-attack: the vitals monitor beeps every 0.8 s on the score grid all through the scene ("The monitor does not race")', async () => {
+  const g = makeGame(undefined, { holdMauled: true });
+  toScene(g);
+  // The run cutscene comes first; the monitor starts with the scene's score.
+  await until(g, () => at(g, 'score medbay enter') >= 0);
+  const before = g.log.filter((e) => e === 'sfx monitorBeep').length;
+  await advance(g, 8.05);
+  const beeps = g.log.filter((e) => e === 'sfx monitorBeep').length - before;
+  assert.ok(beeps >= 10 && beeps <= 11, `${beeps} beeps in 8 s`);
+  const sec = actionDefs.find((d) => d.id === 'sec_glass')!;
+  let beat: Record<string, unknown> | null = null;
+  walk(sec.steps, (s) => void (s['do'] === 'sfx' && s['id'] === 'monitorBeep' && (beat = s)));
+  assert.equal(beat!['beat'], true, 'on the score grid');
+  assert.equal(scores.medbay.beat, 0.8);
 });
 
 test('dying during the Priya scene replays it from the start; the control stack always comes back', async () => {
   const g = makeGame();
-  await armoryThenGlass(g);
-  fire(g, 'trigger:r08_glass');
-  await advance(g, 26);
-  assert.equal(g.control.state.move, 'locked');
+  toScene(g);
+  await advance(g, 6);
+  assert.equal(g.control.state.move, 'slow');
   g.host.events.emit('player:died', {});
   assert.equal(g.control.state.move, 'free', 'control released on death');
   g.host.events.emit('game:restarted', { checkpoint: 'cp_security' });
   assert.equal(g.m.isRunning('sec_glass'), true);
-  await until(g, () => !g.m.isRunning('sec_glass'), 120);
+  for (let i = 0; i < 200 * 60 && g.m.isRunning('sec_glass'); i++) {
+    g.m.update(1 / 60);
+    if (i % 3 === 0) await Promise.resolve();
+    if (g.tasks.length) g.finishTask();
+  }
   assert.equal(g.host.flags['sec_done'], true);
   assert.equal(g.control.state.move, 'free');
 });
@@ -789,7 +1044,7 @@ test('once watched, skipping the flood cutscene at any point lands on the full e
 test('after the valve, every load brings the alarm back: sealed door, beacons, klaxon', () => {
   const g = makeGame();
   g.host.flags['valve_done'] = true;
-  g.host.events.emit('game:mode', { mode: 'playing' });
+  g.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   for (const e of ['door D_R09_R10 sealed', 'namedLight r10_beacon alarm emergency', 'namedLight r10_beacon_n alarm emergency', 'event flood:klaxon']) assert.ok(g.log.includes(e), e);
 });
 
@@ -998,8 +1253,9 @@ async function playThrough(g: Game, events: string[]): Promise<void> {
   fire(g, 'trigger:r06_enter');
   fire(g, 'trigger:r06_door');
   await settle('cover_done');
+  // A player who lets the R06 talk finish (stepping in early cuts it: D14, 2026-11-23).
+  await until(g, () => !g.m.isRunning('cover_me'));
   fire(g, 'trigger:r07_enter');
-  fire(g, 'trigger:r08_glass');
   await settle('sec_done');
   g.host.events.emit('door:denied', { id: 'D_R07_R09', reason: 'x' });
   await settle('medlab_open');
@@ -1029,9 +1285,10 @@ test('the whole action half runs from drop:done to endSlice with every checkpoin
   assert.equal(g.control.state.move, 'free');
   assert.equal(g.control.state.weapons, true);
   assert.equal(g.m.running().length, 0, 'nothing left running');
-  // Tell ladder (ADR-0022) in the order it was raised.
-  const tellOrder = ['npc npcAnim giles flex_hand', 'npc npcAnim giles rub_forearm', 'npc npcAnim giles cough'].map((e) => at(g, e));
-  assert.ok(tellOrder[0]! < tellOrder[1]! && tellOrder[1]! < tellOrder[2]!);
+  // overhaul-priya-r08-death decision 22: no arm tells before the tunnel; the tunnel's cough is left for the cliffhanger rewrite.
+  assert.equal(at(g, 'npc npcAnim giles flex_hand'), -1);
+  assert.equal(at(g, 'npc npcAnim giles rub_forearm'), -1);
+  assert.ok(at(g, 'npc npcAnim giles cough') >= 0);
   noWarnings(g);
 });
 
@@ -1045,26 +1302,51 @@ test('every dialogue line of the action half is played at least once on the way 
   for (const l of used) if (l !== 'climax_okafor_02') assert.ok(said(g, l) >= 1, `${l} was said`);
   assert.ok(used.has('climax_okafor_02'));
   // And the action half has a voice for every beat of ADR-0014: Okafor's legs, revive rule, "Stay back, Tomas."
-  for (const l of ['contact_okafor_03', 'okafor_revive_rule_01', 'end_giles_06', 'giles_cut_01']) assert.ok(used.has(l), l);
+  for (const l of ['contact_okafor_03', 'okafor_revive_rule_01', 'end_giles_06']) assert.ok(used.has(l), l);
 });
 
 // ------------------------------------------------------------------------------- loads and restarts
 
+test('a load after cover me lays the R06 grate on the floor; before it, the grate stays up for the fight to replay', () => {
+  const during = makeGame(['action_restore']);
+  setFlags(during, { drop_done: true, contact_done: true });
+  during.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
+  assert.equal(during.log.some((e) => e.startsWith('vent r06_vent')), false, 'restoring at cp_contact_clear: the creature has not come yet');
+  const after = makeGame(['action_restore']);
+  setFlags(after, COVER_DONE);
+  after.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
+  assert.ok(after.log.includes('vent r06_vent fallen instant'));
+  assert.equal(after.log.includes('sfx grateClatter'), false);
+});
+
 test('a load or restart puts the doors the finished beats opened back, from the saved flags, and does nothing on a fresh game', () => {
   const fresh = makeGame(['action_restore']);
-  fresh.host.events.emit('game:mode', { mode: 'playing' });
+  fresh.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.equal(fresh.log.filter((e) => e.startsWith('door ')).length, 0);
   const g = makeGame(['action_restore']);
   setFlags(g, { ...COVER_DONE, drop_started: true, armory_open: true, sec_done: true, medlab_open: true, valve_done: true });
   g.host.events.emit('game:mode', { mode: 'title' });
   assert.equal(g.log.filter((e) => e.startsWith('door ')).length, 0, 'only on playing');
-  g.host.events.emit('game:mode', { mode: 'playing' });
+  g.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   for (const d of ['D_R03_R05 closed', 'D_R05_R06 closed', 'D_R06_R07 open', 'D_R07_R07a open', 'D_R07_R09 open', 'D_R10_R11 closed']) assert.ok(at(g, `door ${d}`) >= 0, d);
   assert.equal(at(g, 'door D_R10_R11 sealed'), -1);
   setFlags(g, { climax_done: true });
-  g.host.events.emit('game:mode', { mode: 'playing' });
+  g.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.ok(at(g, 'door D_R10_R11 sealed') >= 0 && at(g, 'door D_R13d_R11 sealed') >= 0);
   noWarnings(g);
+});
+
+test('checkpoint-restore "Resume after a pause": returning from pause mid-scene restores nothing; a death restart still does', () => {
+  const g = makeGame(['action_restore', 'quiet_restore', 'action_tunnel', 'action_climax']);
+  setFlags(g, COVER_DONE);
+  const before = g.log.length;
+  g.host.events.emit('game:mode', { mode: 'paused', from: 'playing' });
+  g.host.events.emit('game:mode', { mode: 'playing', from: 'paused' });
+  for (let i = 0; i < 30; i++) g.m.update(1 / 30);
+  assert.deepEqual(g.log.slice(before).filter((e) => e !== 'event game:mode'), [], 'Priya, the intercom and the doors are left as the scene put them');
+  g.host.events.emit('game:restarted', { checkpoint: 'cp_cover_done' });
+  for (let i = 0; i < 30; i++) g.m.update(1 / 30);
+  assert.ok(at(g, 'door D_R06_R07 open') >= 0, 'death restart: the restore runs');
 });
 
 test('station-power "Panicked radio chatter": the calls come one after another, each letting the next start about 1 s before it ends', () => {
@@ -1080,7 +1362,7 @@ test('station-power "Panicked radio chatter": the calls come one after another, 
 });
 
 test('station-power: every sequence after the contact fight debug-starts under backup power', () => {
-  for (const id of ['cover_me', 'armory_auto', 'sec_glass', 'medlab_door', 'tunnel_enter', 'valve_turn', 'climax', 'cliffhanger']) {
+  for (const id of ['cover_me', 'sec_glass', 'medlab_door', 'tunnel_enter', 'valve_turn', 'climax', 'cliffhanger']) {
     const g = makeGame([id]);
     g.m.start(id, { debug: true });
     assert.ok(at(g, 'power backup') >= 0, `${id} starts on backup power`);
@@ -1093,29 +1375,41 @@ test('station-power: every sequence after the contact fight debug-starts under b
 test('station-power "Power state survives checkpoints": a load after the blackout is on backup power, one before it is not', () => {
   const before = makeGame(['action_restore']);
   setFlags(before, { drop_started: true, drop_done: true });
-  before.host.events.emit('game:mode', { mode: 'playing' });
+  before.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.equal(at(before, 'power backup'), -1, 'cp_drop loads on main power');
   const after = makeGame(['action_restore']);
   setFlags(after, { drop_started: true, drop_done: true, contact_done: true, station_power: 'backup' });
-  after.host.events.emit('game:mode', { mode: 'playing' });
+  after.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.ok(at(after, 'power backup') >= 0);
   // A save made after the contact fight but before this change has no station_power flag.
   const old = makeGame(['action_restore']);
   setFlags(old, { drop_started: true, drop_done: true, contact_done: true });
-  old.host.events.emit('game:mode', { mode: 'playing' });
+  old.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.ok(at(old, 'power backup') >= 0, 'an older save loads dark too');
   noWarnings(after);
 });
 
-test('medbay-attack "Restore after R08": Priya is put back dead in the surgery, with the centre pane\'s marks, and the attack does not replay', () => {
+test('medbay-attack "Restore after R08": Priya is put back dead where she was thrown, with the centre pane\'s marks, and the attack does not replay', () => {
   const g = makeGame(['action_restore']);
   setFlags(g, { ...COVER_DONE, armory_open: true, sec_done: true });
-  g.host.events.emit('game:mode', { mode: 'playing' });
+  g.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   const kill = at(g, 'npc kill priya instant');
   assert.ok(at(g, 'npc npcMoveTo priya instant') >= 0 && kill > at(g, 'npc npcMoveTo priya instant'), 'at the glass, then the kill played to its end at once');
-  assert.ok(g.log.lastIndexOf('npc npcMoveTo priya instant') > kill, 'then laid in the surgery');
+  assert.ok(g.log.lastIndexOf('npc npcMoveTo priya instant') > kill, 'then laid at her resting spot by the pane');
+  assert.ok(g.log.includes('intercom medbay off') && g.log.includes('door D_R07_R08 sealed'), 'the intercom is dead and the door still sealed');
+  assert.ok(g.log.includes('gore pool'), 'in her pool');
   assert.ok(at(g, 'npc npcAnim priya corpseProne instant') > kill, 'dead, lying prone');
   assert.equal(at(g, 'npc spawn r08_thing'), -1, 'no attacker comes back');
+  noWarnings(g);
+});
+
+test('medbay-attack "Restore before the attack": from cp_cover_done Priya is hiding in the security office, the bay sealed, and the run waits for Jay to enter', () => {
+  const g = makeGame(['action_restore']);
+  setFlags(g, COVER_DONE);
+  g.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
+  inOrder(g, ['intercom medbay off', 'door D_R07_R08 sealed', 'npc npcMoveTo priya instant', 'npc npcAnim priya priya_crouch instant']);
+  assert.equal(at(g, 'npc kill priya instant'), -1, 'she is alive');
+  assert.equal(g.log.some((e) => e.startsWith('say ')), false, 'no run call');
   noWarnings(g);
 });
 
@@ -1129,82 +1423,6 @@ test('a counted loop inside a skipped sequence applies its body (a block, not an
   assert.equal(m.skip(), true);
   assert.equal(g.host.flags['blockDone'], true);
   assert.ok(g.log.includes('played end_giles_06'));
-});
-
-/** Into the R08 attack with the kill held open, at its plead beat. */
-async function toPlead(): Promise<Game> {
-  const g = makeGame(undefined, { holdMauled: true });
-  await armoryThenGlass(g);
-  g.clear('r07_playdead');
-  fire(g, 'trigger:r08_glass');
-  await until(g, () => g.kills.length === 1, 30);
-  g.host.events.emit('kill:plead', { npc: 'priya', beat: 'plead' });
-  return g;
-}
-
-test('medbay-attack: banging on the glass thuds and shakes each time, shouts at most every 2.5 s, and changes nothing else', async () => {
-  const g = await toPlead();
-  await advance(g, 0.2);
-  const before = g.log.length;
-  for (let i = 0; i < 5; i++) {
-    fire(g, 'interact:medbay_bang');
-    await advance(g, 0.35);
-  }
-  const during = g.log.slice(before);
-  assert.equal(during.filter((e) => e === 'sfx glassThud').length, 5, 'five thuds');
-  assert.equal(during.filter((e) => e === 'shake').length, 5, 'five shakes');
-  const shouts = during.filter((e) => e.startsWith('say sec_jay_bang_'));
-  assert.equal(shouts.length, 1, `shouts do not pile up (${shouts.join(', ')})`);
-  assert.equal(g.kills.length, 1, 'the kill is unchanged');
-  assert.ok(!during.some((e) => e.startsWith('glass ') || e.startsWith('gore ')), 'the glass does not crack');
-  // A later bang, past the cooldown, shouts the next line in the pool.
-  await advance(g, 2.5);
-  fire(g, 'interact:medbay_bang');
-  await advance(g, 0.1);
-  assert.deepEqual(g.log.filter((e) => e.startsWith('say sec_jay_bang_')), ['say sec_jay_bang_01 overlap', 'say sec_jay_bang_02 overlap']);
-});
-
-test('medbay-attack: a bang brings the stare forward only once the creature is in the medical bay', async () => {
-  const g = await toPlead();
-  fire(g, 'interact:medbay_bang');
-  await advance(g, 0.3);
-  assert.equal(count(g, 'event kill:notice'), 0, 'still in the surgery: no notice');
-  await advance(g, 1.5);
-  fire(g, 'interact:medbay_bang');
-  await advance(g, 0.1);
-  assert.ok(count(g, 'event kill:notice') >= 1, 'in the room: the bang reaches it');
-});
-
-test('medbay-attack: Okafor tries the medical bay door and the lockdown refuses him; Giles cannot override it', async () => {
-  const g = await toPlead();
-  await advance(g, 3);
-  assert.ok(at(g, 'npc npcMoveTo okafor') >= 0);
-  assert.equal(count(g, 'event door:denied'), 1, 'the door refuses (its denied buzzer plays at it)');
-  assert.ok(at(g, 'say sec_giles_06 overlap') > at(g, 'event door:denied'));
-});
-
-test('medbay-attack: every voice is heard; the prompt goes with the grab; silence, then "...Work. We work."', async () => {
-  const g = await toPlead();
-  await advance(g, 2);
-  for (const beat of ['grab', 'haul', 'slam', 'throw', 'reach', 'drag', 'still']) {
-    g.host.events.emit(`kill:${beat}`, { npc: 'priya', beat });
-    await advance(g, 2);
-  }
-  // Okafor (medic), Giles (engineer), Jay (player) from the scene; Priya (nurse) from her kill's beat lines.
-  const speakers = new Set(g.log.filter((e) => e.startsWith('say ')).map((e) => library.line(e.split(' ')[1]!).speaker));
-  for (const sp of ['medic', 'engineer', 'player']) assert.ok(speakers.has(sp), sp);
-  const kills = json('../data/kills.json');
-  const hers = (kills.mauled.beats as Array<{ lines?: string[] }>).flatMap((b) => b.lines ?? []).filter(Boolean);
-  assert.ok(hers.length >= 4 && hers.every((l) => library.line(l).speaker === 'nurse'), 'her lines are hers');
-  assert.ok(said(g, 'sec_okafor_03') === 1 && said(g, 'sec_jay_01') === 1 && said(g, 'sec_jay_02') === 1 && said(g, 'sec_giles_07') === 1);
-  // The aftermath: the kill ends; the surgery door shuts; at least 2 s with no voice; then Okafor.
-  const n = g.log.length;
-  g.kills[0]!.resolve();
-  await advance(g, 2.0);
-  assert.ok(g.log.slice(n).includes('door D_R08_R08b closed'));
-  assert.ok(!g.log.slice(n).some((e) => e.startsWith('say ')), 'no voice for 2 s');
-  await advance(g, 1.0);
-  assert.ok(g.log.slice(n).includes('say sec_okafor_04'));
 });
 
 test('Priya\'s scene has no hand-placed gore (the kill clips its own at the pane), and a gore step\'s clip still reaches the host', () => {
@@ -1235,7 +1453,7 @@ test('the climax takes cp_climax_won before the reveal; a reload there replays t
   const saved = { ...VALVE_DONE, climax_started: true, climax_done: true, 'group:r11_climax': 'cleared', 'cp:cp_climax_won': true };
   const r = makeGame(['reveal_restore', 'cliffhanger']);
   setFlags(r, saved);
-  r.host.events.emit('game:mode', { mode: 'playing' });
+  r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   await until(r, () => r.m.isRunning('cliffhanger'));
   assert.equal(count(r, 'group r11_climax'), 0, 'the fight does not replay');
   assert.equal(r.host.flags['giles.infectionStage'], 3);
@@ -1244,7 +1462,7 @@ test('the climax takes cp_climax_won before the reveal; a reload there replays t
   // Pause and resume mid-reveal must not start a second one.
   const before = count(r, 'event sequence:started');
   r.host.events.emit('game:mode', { mode: 'paused' });
-  r.host.events.emit('game:mode', { mode: 'playing' });
+  r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.equal(count(r, 'event sequence:started') - before, 1, 'only the restore itself, no second cliffhanger');
   assert.equal(r.log.filter((e) => e === 'event climax:won').length, 1);
 });
@@ -1252,10 +1470,10 @@ test('the climax takes cp_climax_won before the reveal; a reload there replays t
 test('after the slice ends (reveal_done) a load does not replay the reveal; a fresh game never does', () => {
   const done = makeGame(['reveal_restore', 'cliffhanger']);
   setFlags(done, { climax_done: true, reveal_done: true });
-  done.host.events.emit('game:mode', { mode: 'playing' });
+  done.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.equal(done.m.isRunning('cliffhanger'), false);
   const fresh = makeGame(['reveal_restore', 'cliffhanger']);
-  fresh.host.events.emit('game:mode', { mode: 'playing' });
+  fresh.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.equal(fresh.log.filter((e) => e === 'event climax:won').length, 0);
 });
 
@@ -1264,7 +1482,7 @@ test('a manual save taken mid-reveal replays the reveal on load, and never twice
   const saved = { ...VALVE_DONE, climax_started: true, climax_done: true, 'group:r11_climax': 'cleared', 'seq:cliffhanger': true, 'cp:cp_climax_won': true };
   const r = makeGame(['reveal_restore', 'cliffhanger', 'title_card', 'stinger_priya']);
   setFlags(r, saved);
-  r.host.events.emit('game:mode', { mode: 'playing' });
+  r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   await until(r, () => r.m.isRunning('cliffhanger'));
   assert.equal(count(r, 'group r11_climax'), 0, 'no fight');
   assert.equal(r.host.flags['giles.infectionStage'], 3);
@@ -1273,13 +1491,13 @@ test('a manual save taken mid-reveal replays the reveal on load, and never twice
   // Pause and resume while it plays: nothing restarts.
   const before = count(r, 'event sequence:started');
   r.host.events.emit('game:mode', { mode: 'paused' });
-  r.host.events.emit('game:mode', { mode: 'playing' });
+  r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.equal(count(r, 'event sequence:started') - before, 1, 'only the (idempotent) restore itself');
   assert.equal(count(r, 'event climax:won'), 1, 'the reveal was not started again');
   // A save taken during the title card or the stinger replays the reveal too, but pausing there does not.
   const t = makeGame(['reveal_restore', 'cliffhanger', 'title_card', 'stinger_priya']);
   setFlags(t, { ...saved, 'seq:title_card': true });
-  t.host.events.emit('game:mode', { mode: 'playing' });
+  t.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   await until(t, () => t.m.isRunning('cliffhanger'));
   assert.equal(t.host.flags['seq:title_card'], false, 'the later beats may play again');
 });
@@ -1289,7 +1507,7 @@ test('a death restart into cp_climax_won replays the reveal (the restore is not 
   const r = makeGame(['reveal_restore', 'cliffhanger']);
   setFlags(r, saved);
   // What the game does: load the autosave (game:mode playing), then announce the restart.
-  r.host.events.emit('game:mode', { mode: 'playing' });
+  r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   r.host.events.emit('game:restarted', { checkpoint: 'cp_climax_won' });
   await until(r, () => r.m.isRunning('cliffhanger'));
   assert.equal(r.m.isRunning('cliffhanger'), true);
@@ -1299,7 +1517,7 @@ test('a death restart into cp_climax_won replays the reveal (the restore is not 
   // A finished slice does not replay on a restart either.
   const done = makeGame(['reveal_restore', 'cliffhanger']);
   setFlags(done, { climax_done: true, reveal_done: true });
-  done.host.events.emit('game:mode', { mode: 'playing' });
+  done.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   done.host.events.emit('game:restarted', { checkpoint: 'cp_climax_won' });
   assert.equal(done.m.isRunning('cliffhanger'), false);
   assert.equal(count(done, 'event climax:won'), 0);
@@ -1400,17 +1618,20 @@ test('speaker shot: skipping or ending the sequence releases the view', () => {
 });
 
 // infection-kills "The fight is the creature" and adaptive-music "The Lab B score follows the incident".
-test('first contact releases the creature from the glass as the enemy, and the score rises, slams and ends on its death', () => {
-  const contact = byId.get('contact')!;
-  const steps: Array<Record<string, unknown>> = [];
-  walk(contact.steps, (s) => steps.push(s));
-  const release = steps.find((s) => s['do'] === 'spawnGroup' && s['group'] === 'r05_contact');
-  assert.equal(release?.['from'], 'npc:researcher_b_creature', 'the creature itself comes through the door');
-  assert.ok(!steps.some((s) => s['do'] === 'despawn' && s['npc'] === 'researcher_b_creature'), 'no stand-in swap');
-  const spawn = level.rooms.flatMap((r: any) => r.spawns ?? []).find((s: any) => s.id === 'r05_door');
-  assert.equal(spawn.look, 'lab_creature', "the enemy wears the creature's body");
-  const order = steps.filter((s) => s['do'] === 'score' || (s['do'] === 'waitGroup' && s['group'] === 'r05_contact')).map((s) => String(s['cue'] ?? s['stinger'] ?? s['do']));
-  assert.deepEqual(order, ['contact', 'rise', 'door', 'waitGroup', 'end']);
+test('the creature escapes in the drop and is the R06 enemy; the score holds through R05, slams as it drops and ends on its death', () => {
+  const all = (id: string): Array<Record<string, unknown>> => {
+    const out: Array<Record<string, unknown>> = [];
+    walk(byId.get(id)!.steps, (s) => out.push(s));
+    return out;
+  };
+  const cover = all('cover_me');
+  assert.ok(!all('contact').some((s) => s['do'] === 'spawnGroup'), 'no fight in R05');
+  assert.ok(!cover.some((s) => s['do'] === 'despawn' && s['npc'] === 'researcher_b_creature'), 'no stand-in swap in R06');
+  const spawn = level.rooms.flatMap((r: any) => r.spawns ?? []).find((s: any) => s.id === 'r06_duct');
+  assert.deepEqual([spawn.group, spawn.look, spawn.hp, spawn.start], ['r06_cover', 'lab_creature', 90, 'drop'], "the enemy wears the creature's body");
+  const cues = (steps: Array<Record<string, unknown>>) => steps.filter((s) => s['do'] === 'score' || (s['do'] === 'waitGroup' && s['group'] === 'r06_cover')).map((s) => String(s['cue'] ?? s['stinger'] ?? s['do']));
+  assert.deepEqual(cues(all('contact')), ['contact']);
+  assert.deepEqual(cues(cover), ['dropHush', 'door', 'waitGroup', 'end']);
 });
 
 // flooded-tunnel spec "The flood cutscene can be skipped once seen" (overhaul-flooded-tunnel D9).

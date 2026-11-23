@@ -395,23 +395,6 @@ export function glassThud(sr: number, rng: Rng): Buf {
   return fadeEdges(normalize(b, 0.9), sr, 0, 0.08);
 }
 
-/** A body dragged over deck plate: low scraping noise with the jerks of each pull. */
-export function bodyDrag(sr: number, rng: Rng): Buf {
-  const dur = 2.6;
-  const b = makeBuf(sr, dur);
-  const br = brown(rng);
-  const n = white(rng.fork('grit'));
-  const bp = new Biquad('bandpass', 420, 1.1, sr);
-  const lp = new Biquad('lowpass', 1800, 0.7, sr);
-  const pull = rng.range(1.3, 1.8);
-  for (let i = 0; i < b.length; i++) {
-    const t = i / sr;
-    const jerk = 0.35 + 0.65 * Math.max(0, Math.sin(TAU * pull * t)) ** 2;
-    b[i] = (bp.process(br()) * 1.2 + lp.process(n()) * 0.18) * jerk * clamp01(t / 0.08) * clamp01((dur - t) / 0.4);
-  }
-  return fadeEdges(normalize(b, 0.8), sr, 0.01, 0.1);
-}
-
 /**
  * A bank of damped band-pass resonators at log-random frequencies. Excited by a noise
  * burst it sounds like a struck plate: metallic but not pitched (no single "clank" tone).
@@ -735,7 +718,6 @@ export const SOUND_SPECS = {
   distantMoan: { make: distantMoan, loop: false, variants: 2 },
   fleshTear: { make: fleshTear, loop: false, variants: 3 },
   glassThud: { make: glassThud, loop: false, variants: 3 },
-  bodyDrag: { make: bodyDrag, loop: false, variants: 2 },
   footConcrete: { make: footConcrete, loop: false, variants: 6 },
   footRubber: { make: footRubber, loop: false, variants: 6 },
   footPlate: { make: footPlate, loop: false, variants: 6 },
@@ -825,6 +807,17 @@ export const SAMPLE_URLS = {
   // One hit on the valve cutscene's slam (impact at 0.9 s, the door's slide), and the elite prying the door at R11.
   floodSlamHit: 'assets/audio/ambience/oneshot-flood-slam-hit.mp3',
   doorPry: 'assets/audio/ambience/oneshot-door-pry.mp3',
+  // The Lab B creature's escape through the vents (trim-lab-wing-encounters; ElevenLabs, scripts/ambience-generate.ts).
+  ventCoverRip: 'assets/audio/ambience/oneshot-vent-cover-rip.mp3',
+  ventCoverBurst: 'assets/audio/ambience/oneshot-vent-cover-burst.mp3',
+  ductBang: [1, 2, 3, 4].map((i) => `assets/audio/ambience/oneshot-duct-bang-${i}.mp3`),
+  ductScrape: [1, 2].map((i) => `assets/audio/ambience/oneshot-duct-scrape-${i}.mp3`),
+  creatureLand: [1, 2].map((i) => `assets/audio/ambience/oneshot-creature-land-${i}.mp3`),
+  grateClatter: 'assets/audio/ambience/oneshot-grate-clatter.mp3',
+  // The station blackout (station-power spec; ElevenLabs, scripts/ambience-generate.ts). Recorded only, no procedural fallback.
+  lockdownAlarm: 'assets/audio/ambience/oneshot-lockdown-alarm.mp3',
+  powerDown: 'assets/audio/ambience/oneshot-power-down.mp3',
+  backupHum: 'assets/audio/ambience/emitter-backup-hum.mp3',
 
   // Infected-kill body sounds (ElevenLabs, scripts/gore-generate.ts; infection-kills spec, data/kills.json).
   kill_crunch: ['assets/audio/gore/kill-crunch-1.mp3', 'assets/audio/gore/kill-crunch-2.mp3', 'assets/audio/gore/kill-crunch-3.mp3', 'assets/audio/gore/kill-crunch-4.mp3'],
@@ -833,6 +826,24 @@ export const SAMPLE_URLS = {
   blood_splat_glass: ['assets/audio/gore/blood-splat-glass-1.mp3', 'assets/audio/gore/blood-splat-glass-2.mp3', 'assets/audio/gore/blood-splat-glass-3.mp3'],
   blood_drip: 'assets/audio/gore/blood-drip.mp3',
   creature_clicks: 'assets/audio/gore/creature-clicks.mp3',
+  // The R08 kill (medbay-attack spec): three head-impact crunches with names of their own, so the slams can play them in
+  // turn (never the same one twice running); the recorded kill crunches stand in until head-impact takes are made.
+  head_crunch_1: 'assets/audio/gore/kill-crunch-2.mp3',
+  head_crunch_2: 'assets/audio/gore/kill-crunch-4.mp3',
+  head_crunch_3: 'assets/audio/gore/kill-crunch-1.mp3',
+  // Not generated yet (`npm run gore:generate -- --id <name>`): until they exist the kill plays the next id it names.
+  cart_impact: 'assets/audio/gore/cart-impact.mp3',
+  body_glass_hit: 'assets/audio/gore/body-glass-hit.mp3',
+  // overhaul-priya-r08-death D26: the dark surgery, heard through the rescue.
+  surgery_rattle: 'assets/audio/gore/surgery-rattle.mp3',
+  surgery_tray_fall: 'assets/audio/gore/surgery-tray-fall.mp3',
+  surgery_breath: 'assets/audio/gore/surgery-breath.mp3',
+  surgery_scrape: 'assets/audio/gore/surgery-scrape.mp3',
+  surgery_latch: 'assets/audio/gore/surgery-latch.mp3',
+  // overhaul-priya-r08-death 9.4: the impale (data/kills.json mauled), two variants each.
+  impale_stab: ['assets/audio/gore/impale-stab-1.mp3', 'assets/audio/gore/impale-stab-2.mp3'],
+  impale_wet: ['assets/audio/gore/impale-wet-1.mp3', 'assets/audio/gore/impale-wet-2.mp3'],
+  glass_squeak: 'assets/audio/gore/glass-squeak.mp3',
   // The creature hammering on the Lab B glass, and Voss's palms on it (ElevenLabs, scripts/gore-generate.ts).
   creature_glass_hit: [1, 2, 3, 4].map((i) => `assets/audio/gore/creature-glass-hit-${i}.mp3`),
   palm_glass_hit: [1, 2, 3].map((i) => `assets/audio/gore/palm-glass-hit-${i}.mp3`),
@@ -878,6 +889,10 @@ export const SAMPLE_URLS = {
   pressurePing: 'assets/audio/ambience/oneshot-pressure-ping.mp3',
   distantMoan: 'assets/audio/ambience/oneshot-distant-moan.mp3',
   medBeep: 'assets/audio/ambience/oneshot-med-beep.mp3',
+  // overhaul-priya-r08-death D25/D31: the medbay intercom's switch and static; the vitals monitor's steady single beep.
+  intercomClick: 'assets/audio/ambience/oneshot-intercom-click.mp3',
+  intercomStatic: 'assets/audio/ambience/oneshot-intercom-static.mp3',
+  monitorBeep: 'assets/audio/ambience/oneshot-monitor-beep.mp3',
   // Dock checkpoint (dock-checkpoint spec): the walk-through arch and the guard's hand wand. Generate with
   // `npm run ambience:generate -- --id archPass` (and archAlarm, wandBeep). Until the files exist, scans play with light only.
   archPass: 'assets/audio/ambience/oneshot-arch-pass.mp3',
@@ -894,10 +909,6 @@ export const SAMPLE_URLS = {
   // Supply sub docking (intro-sequence spec, fix-supply-sub-docking): muffled underwater ElevenLabs SFX.
   subPass: 'assets/audio/ambience/oneshot-sub-pass.mp3',
   subClamp: 'assets/audio/ambience/oneshot-sub-clamp.mp3',
-  // The station blackout (station-power spec; ElevenLabs, scripts/ambience-generate.ts). Recorded only, no procedural fallback.
-  lockdownAlarm: 'assets/audio/ambience/oneshot-lockdown-alarm.mp3',
-  powerDown: 'assets/audio/ambience/oneshot-power-down.mp3',
-  backupHum: 'assets/audio/ambience/emitter-backup-hum.mp3',
 
   // Door motion and access feedback (ElevenLabs, scripts/doors-generate.ts).
   doorPressureOpen: 'assets/audio/doors/door-pressure-open.mp3',

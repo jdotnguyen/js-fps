@@ -64,7 +64,7 @@ Reaction batches live in `scripts/lib/voReactionBatches.ts`. Each names a speake
 | Batch | Character | Voice / model | TTS clips (`public/assets/vo/`) | Credited recordings (not TTS) | Dialogue lines wired |
 | --- | --- | --- | --- | --- | --- |
 | `react_jay_pain` | Jay (`player`) | `Orus` / 3.1 | `react_jay_pain_01`–`03.mp3` | `react_jay_scare_01`–`03.mp3` | `bark_grab_jay_01`, `bark_grab_jay_02`, `bark_scare_jay_01`, `bark_scare_jay_02` |
-| — (no TTS batch) | Giles (`engineer`) | — | — | `react_giles_cry_01`–`03.mp3` (megaboots `3yell2`, `3yell6`, `3yell1`; a different performer from Jay's shouts) | `sec_giles_05` |
+| — (no TTS batch) | Giles (`engineer`) | — | — | `react_giles_cry_01`–`03.mp3` (megaboots `3yell2`, `3yell6`, `3yell1`; a different performer from Jay's shouts) | none (`sec_giles_05` was cut by `overhaul-priya-r08-death`) |
 | `react_priya_choke` | Priya (`nurse`) | `Sulafat` / 3.1 | `react_priya_choke_01`–`03.mp3` | `react_priya_scream_01`–`03.mp3`, `react_priya_cutoff_01`–`03.mp3` | `sec_priya_02`, `stinger_priya_03`, `sec_priya_03`, `sec_priya_06`, `sec_priya_07`, `stinger_priya_06` |
 | `react_voss_panic` | Voss (`crew_lab`) | `Leda` / 3.8 | `react_voss_panic_01`–`03.mp3` | `react_voss_scream_01`–`03.mp3` | `crew_lab_scream_01`, `drop_voss_02` (screams); `voss_panic_breath` sound (panic) |
 

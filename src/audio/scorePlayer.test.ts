@@ -196,8 +196,19 @@ test('restoring after the drop, before contact, resumes in the hold', async () =
   assert.equal(player.inspect('labB').levels['brutal'], 0);
 });
 
-test('no resume before the drop or after contact', () => {
-  for (const flags of [{}, { drop_done: true, contact_done: true }]) {
+test('restoring after contact, before the cover-me fight ends, resumes in the hold (trim-lab-wing-encounters)', async () => {
+  const { player, land } = setup();
+  player.resume({ drop_done: true, contact_done: true });
+  await land();
+  assert.equal(player.inspect('labB').cue, 'hold');
+});
+
+test('the escape and the drop-in hush play the drone alone', () => {
+  for (const cue of ['escapeDark', 'dropHush']) assert.deepEqual(Object.keys(TABLE['labB']!.cues[cue]!.layers ?? {}), ['drone'], cue);
+});
+
+test('no resume before the drop or after the cover-me fight', () => {
+  for (const flags of [{}, { drop_done: true, contact_done: true, cover_done: true }]) {
     const { player } = setup();
     player.resume(flags);
     assert.equal(player.inspect('labB').state, 'idle', JSON.stringify(flags));
@@ -257,4 +268,37 @@ test('fadeOutAll fades the score on the audio clock and frees it after; a cue du
   again.player.cue('labB', 'hold');
   t.mock.timers.tick(3000);
   assert.equal(again.player.playing, true, 'cued again during the fade: a fresh score, not released by the old fade');
+});
+
+test('adaptive-music "A released score stays quiet": a kill event after the Lab B score ended does not restart it', async () => {
+  const { player, land } = setup();
+  player.cue('labB', 'contact');
+  await land();
+  player.cue('labB', 'end');
+  player.update(10, null, () => null);
+  assert.equal(player.playing, false, 'released after its end cue');
+  // Priya's kill reaches its still beat: Lab B names "kill:still" too.
+  player.onEvent('kill:still');
+  await land();
+  assert.equal(player.playing, false, 'the event did not load or restart it');
+});
+
+test('adaptive-music "Voss\'s kill still drives Lab B": loaded up front, its kill beats cue it', async () => {
+  const { player, land } = setup();
+  player.load('labB');
+  await land();
+  player.onEvent('kill:panic');
+  await land();
+  assert.equal(player.inspect('labB').cue, 'kill:panic');
+  player.onEvent('kill:still');
+  assert.equal(player.inspect('labB').cue, 'kill:still');
+});
+
+test('adaptive-music: a score that is releasing ignores events', async () => {
+  const { player, land } = setup();
+  player.cue('labB', 'contact');
+  await land();
+  player.cue('labB', 'end');
+  player.onEvent('kill:still');
+  assert.equal(player.inspect('labB').cue, 'end', 'its end cue stands until the release');
 });

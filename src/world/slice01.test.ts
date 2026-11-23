@@ -77,9 +77,10 @@ test('slice01 validates: every ADR-0014/0023 room, areas, map stations, checkpoi
   assert.equal(data.pickups?.find((p) => p.item === 'card_l2')?.room, 'R14c');
   // Nothing hostile in the quiet half: every spawn waits for its group.
   const spawns = data.rooms.flatMap((r) => r.spawns ?? []);
-  assert.ok(spawns.length > 10);
+  assert.ok(spawns.length >= 5);
   for (const s of spawns) assert.equal(s.active, false, s.id);
-  assert.deepEqual(new Set(spawns.map((s) => s.group)), new Set(['r05_contact', 'r05_trickle', 'r06_cover', 'r07_playdead', 'r09_tunnel', 'r11_climax']));
+  // trim-lab-wing-encounters: no fight in R05 or R07; R06 is the escaped creature alone.
+  assert.deepEqual(new Set(spawns.map((s) => s.group)), new Set(['r06_cover', 'r09_tunnel', 'r11_climax']));
 });
 
 test('slice01 builds headlessly; every anchor the draft sequences use exists; NPCs are placed', () => {
@@ -164,9 +165,12 @@ test('slice01 Part A: the drop, the glimpse and the rounds have what they need i
   const npcs = new Map(level.npcSpawns().map((n) => [n.id, n]));
   assert.equal(npcs.get('researcher_b')?.transformable, true, 'Voss can transform behind the glass');
   assert.equal(npcs.get('researcher_b')?.look, 'voss', 'the Lab B researcher is Dr. Voss, a named cast member (infection-kills spec)');
-  const breakout = data.rooms.flatMap((r) => r.spawns ?? []).find((sp) => sp.id === 'r05_door');
-  assert.equal(breakout?.look, 'lab_creature', 'the contact fight is the creature that came out of Voss, in its own body');
-  assert.ok(breakout && Math.abs(breakout.pos[2] - 22.5) < 0.3, 'it breaks out from where it stood pounding the glass');
+  // trim-lab-wing-encounters: the creature escapes Lab B through its ceiling vent and drops into R06 in its own body.
+  const spawns = data.rooms.flatMap((r) => r.spawns ?? []);
+  assert.ok(!spawns.some((sp) => sp.id === 'r05_door'), 'it no longer breaks out through the Lab B door');
+  const creature = spawns.filter((sp) => sp.look === 'lab_creature');
+  assert.deepEqual(creature.map((sp) => sp.id), ['r06_duct'], 'the only creature spawn is its drop into R06');
+  assert.ok(data.rooms.find((r) => r.id === 'R04')!.props?.some((p) => p.kit === 'ceiling_vent' && p.params?.['id'] === 'labb_vent'), 'Lab B has the vent it escapes through');
   const emits = new Set(data.rooms.flatMap((r) => (r.triggers ?? []).map((t) => t.emit)));
   for (const e of ['trigger:commons_to_gallery', 'trigger:gallery_brief_spot', 'trigger:gallery_enter', 'round:hydro_log', 'round:dive_case', 'trigger:hale_office', 'trigger:security_booth', 'trigger:hydro_store_enter', 'trigger:dive_lockers_enter', 'commons:radio']) assert.ok(emits.has(e), `trigger ${e}`);
   for (const a of ['cam04_pos', 'cam04_look', 'cam04_figure', 'dawdle_call', 'gallery_door', 'brief_giles', 'brief_okafor']) assert.ok(level.anchor(a), `anchor ${a}`);
@@ -354,6 +358,10 @@ test('slice01 props react to their events (sub, briefing screen, Lab B blinds)',
   assert.ok(mat.emissiveIntensity < 0.5);
   (events.emit as (n: string, p: unknown) => void)('briefing:screen', { state: 'on', who: 'hale' });
   assert.ok(mat.emissiveIntensity > 1);
+  // Hale's lines drive the feed's mouth (no image in node, so this only checks the wiring runs).
+  (events.emit as (n: string, p: unknown) => void)('speech:started', { id: 'brief_hale_01', speaker: 'director', text: 'Good morning, Thalassa.', emote: 'neutral', duration: 3 });
+  run(0.3);
+  (events.emit as (n: string, p: unknown) => void)('speech:ended', { id: 'brief_hale_01', speaker: 'director', reason: 'finished' });
   (events.emit as (n: string, p: unknown) => void)('blinds:set', { id: 'labb', state: 'up', instant: true });
   (events.emit as (n: string, p: unknown) => void)('briefing:screen', { state: 'off' });
   assert.ok(mat.emissiveIntensity < 0.5);
@@ -372,9 +380,7 @@ test('slice01 Part B: the action sequences find their anchors, doors, groups and
   // Spawn groups: the counts ADR-0014 asks for.
   const spawns = data.rooms.flatMap((r) => r.spawns ?? []);
   const total = (g: string): number => spawns.filter((s) => s.group === g).reduce((n, s) => n + (s.count ?? 1), 0);
-  assert.equal(total('r05_contact'), 1, 'one shambler breaks through the door');
-  assert.ok(total('r05_trickle') >= 2 && total('r05_trickle') <= 3, 'two to three trickle in');
-  assert.equal(total('r06_cover'), 6);
+  assert.equal(total('r06_cover'), 1, 'the escaped creature alone');
   assert.equal(total('r11_climax'), 14);
   assert.ok(spawns.some((s) => s.group === 'r11_climax' && s.variant === 'hero'), 'a hero in the climax');
   // The glass wall into the medical bay takes cracks and blood; the control room hides the bloom's trail.
@@ -904,8 +910,9 @@ test('medbay staging: clear spine, viewing strip, stage and lane; the shotgun fa
     const d = Math.hypot(Math.max(0, box.min.x - 2, -2 - box.max.x), Math.max(0, box.min.z - 46.0));
     assert.ok(d >= 2.5, `R08 ${kit} is ${d.toFixed(2)} m from the centre pane`);
   }
-  // "Clear lane": the route surgery door -> turn -> along the glass -> plead spot keeps 0.6 m from every R08 collider.
-  const route = ['r08_drag_exit', 'r08_drag_turn', 'r08_drag_mid', 'r08_grab'].map(anchor);
+  // "Clear lane": the creature's route surgery door -> along the glass -> the impale spot keeps 0.6 m from every R08 collider.
+  // (Along the glass, between the pane and the cart, then in to the corner.)
+  const route: Array<[number, number, number]> = ['r08_lurk', 'r08_along', 'r08_lane', 'r08_lane2', 'r08_impale'].map(anchor);
   for (let i = 0; i + 1 < route.length; i++) {
     const [a, b] = [route[i]!, route[i + 1]!];
     for (let t = 0; t <= 1.0001; t += 0.05) {
@@ -914,18 +921,15 @@ test('medbay staging: clear spine, viewing strip, stage and lane; the shotgun fa
       for (const { kit, box } of r08) assert.ok(dist2d(box, x, z) >= 0.6, `lane point (${x.toFixed(2)}, ${z.toFixed(2)}) is ${dist2d(box, x, z).toFixed(2)} m from ${kit}`);
     }
   }
-  // Priya's walk from her work spot to the glass clears the cart (the current sec_glass walks it straight).
-  const [w0, w1] = [anchor('priya_r08'), anchor('priya_glass')];
-  const cart = r08.find((b) => b.kit === 'instrument_cart')!.box;
-  for (let t = 0; t <= 1.0001; t += 0.05) assert.ok(dist2d(cart, w0[0] + (w1[0] - w0[0]) * t, w0[2] + (w1[2] - w0[2]) * t) >= 0.35, 'Priya walks around the cart');
+  // Priya's walks (beds -> door -> wall) are navmesh routes round the cart; 'medbay rescue staging' checks they reach.
 
-  // R08b: the stinger camera still sees the bed and her end spot (no collider on either line of sight).
-  const cam = new THREE.Vector3(...anchor('stinger_cam'));
-  for (const target of ['stinger_look', 'priya_hide']) {
+  // R08: the stinger's CAM 04 sees her resting spot (no collider on the line of sight).
+  const cam = new THREE.Vector3(...anchor('cam04_pos'));
+  for (const target of ['cam04_stinger_look', 'priya_rest']) {
     const to = new THREE.Vector3(...anchor(target)).setY(Math.max(0.3, anchor(target)[1]));
     const ray = new THREE.Ray(cam, to.clone().sub(cam).normalize());
     const len = cam.distanceTo(to);
-    for (const { kit, box } of boxesOf('R08b')) {
+    for (const { kit, box } of r08) {
       if (kit === 'med_bed') continue;
       const hit = ray.intersectBox(box, new THREE.Vector3());
       assert.ok(!hit || hit.distanceTo(cam) > len, `stinger view to ${target} blocked by ${kit}`);
@@ -933,7 +937,7 @@ test('medbay staging: clear spine, viewing strip, stage and lane; the shotgun fa
   }
 
   // Everyone who stands on a spot in these rooms stands clear of the furniture (capsule 0.3 m).
-  const spots = ['r07_glass_jay', 'r07_glass_giles', 'r07_glass_okafor', 'r07_medbay_door', 'r07_armory_panel', 'okafor_biometric', 'r07_regroup', 'r07_panel', 'priya_r08', 'priya_glass', 'r08_grab', 'r08_reach', 'cam04_figure', 'r08_lurk', 'r08_approach', 'r08_around', 'r08_slam_spot', 'r08_feet', 'r08_drag_end'];
+  const spots = ['r07_glass_jay', 'r07_glass_giles', 'r07_glass_okafor', 'r07_medbay_door', 'r07_armory_panel', 'okafor_biometric', 'r07_regroup', 'r07_panel', 'priya_wait', 'priya_door', 'priya_sit', 'priya_cower', 'r08_impale', 'r08_along', 'priya_rest', 'r07_console', 'cam04_figure', 'r08_lurk', 'r08_slam_spot'];
   const furniture = [...boxesOf('R07'), ...boxesOf('R07a'), ...r08, ...boxesOf('R08b')].filter((b) => floor(b.box));
   for (const id of spots) {
     const a = anchor(id);
@@ -1194,4 +1198,50 @@ test('an auto door opened by a script holds open with nobody near it', () => {
   assert.equal(level.doorStates()['D_R09_R10'], 'open');
   level.setDoor('D_R09_R10', 'sealed');
   assert.equal(level.doorStates()['D_R09_R10'], 'sealed');
+});
+
+// overhaul-priya-r08-death D23-D30 (medbay-attack "On the screen", "Her cardigan"): the rescue's marks are reachable,
+// the console shows administration's lockdown order, the intercom grille carries R08 and the surgery, and her
+// cardigan is in the medical bay.
+test('medbay rescue staging: Priya\'s marks are reachable, the lockdown order is on screen, the intercom and cardigan are placed', async () => {
+  const { initNavmesh } = await import('../ai/navmesh.ts');
+  await initNavmesh();
+  const { level } = build();
+  const nav = level.navGraph();
+  const from = level.anchor('priya_wait')!.pos;
+  for (const id of ['priya_door', 'priya_sit', 'priya_cower']) {
+    const a = level.anchor(id);
+    if (!a) continue; // priya_cower lands with task 11.1
+    const path = nav.findPath({ x: from.x, y: 0, z: from.z }, { x: a.pos.x, y: 0, z: a.pos.z });
+    assert.ok(path && path.length >= 1, `priya_wait -> ${id} reachable on navmesh`);
+  }
+  const room = (id: string) => data.rooms.find((r) => r.id === id)!;
+  const bank = room('R07').props!.find((p) => p.kit === 'console_bank')!;
+  const notice = String(bank.params?.['notice'] ?? '');
+  assert.match(notice, /STATION ADMINISTRATION/);
+  assert.match(notice, /ROUTINE/);
+  assert.match(notice, /NOT AVAILABLE/);
+  const grille = room('R07').props!.find((p) => p.kit === 'pa_speaker' && p.params?.['intercom'] === 'medbay');
+  assert.ok(grille, 'the intercom grille is in the security office');
+  assert.equal(grille.params?.['sources'], 'R08|R08b');
+  assert.equal(grille.params?.['id'], undefined, 'not a Station PA speaker');
+  assert.ok(level.anchor('r07_intercom'));
+  assert.ok(room('R08').props!.some((p) => p.kit === 'cardigan'), 'her cardigan is in the medical bay');
+});
+
+// overhaul-priya-r08-death D20 (task 12.1, slice-stinger "Opening frame"): the stinger's CAM 04 feed looks from cam04_pos at
+// her body by the centre pane; the admin booth glimpse keeps its own look point.
+test('the stinger feed frames her resting spot from CAM 04', () => {
+  const anchors = new Map(data.rooms.flatMap((r) => (r.anchors ?? []).map((a) => [a.id, a.pos as [number, number, number]] as const)));
+  const from = anchors.get('cam04_pos')!;
+  const to = anchors.get('cam04_stinger_look')!;
+  const rest = anchors.get('priya_rest')!;
+  const ax = new THREE.Vector3(to[0] - from[0], to[1] - from[1], to[2] - from[2]).normalize();
+  const toRest = new THREE.Vector3(rest[0] - from[0], rest[1] + 0.2 - from[1], rest[2] - from[2]).normalize();
+  const off = THREE.MathUtils.radToDeg(ax.angleTo(toRest));
+  assert.ok(off < 20, `priya_rest is ${off.toFixed(0)} degrees off the stinger axis (70 degree feed)`);
+  assert.ok(new THREE.Vector3(...from).distanceTo(new THREE.Vector3(...rest)) < 6, 'close enough to read her body');
+  const stinger = JSON.parse(readFileSync(new URL('../data/sequences/action_climax.json', import.meta.url), 'utf8')).find((s: { id: string }) => s.id === 'stinger_priya');
+  const text = JSON.stringify(stinger);
+  assert.ok(text.includes('anchor:cam04_stinger_look') && text.includes('CAM 04  MEDBAY') && !text.includes('stinger_cam'), 'the stinger films from CAM 04 in the medical bay');
 });

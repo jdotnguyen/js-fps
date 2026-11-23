@@ -109,7 +109,7 @@ export function buildRoomAdjacency(doors: readonly MapDoor[]): RoomAdjacency {
 export interface WorldMarkerResult {
   id: string;
   required: boolean;
-  /** 'target' when Jay is in the objective's room; 'door' when in an adjacent room. */
+  /** 'target' when Jay is in the objective's room; 'door' (next door on the route) otherwise. */
   kind: 'target' | 'door';
   doorId?: string;
   pos: P3;
@@ -119,8 +119,9 @@ export interface WorldMarkerResult {
 /**
  * Resolve an in-world marker for an objective (hud-wayfinding spec):
  * - Same room: points directly at the objective target position (lifted to chest height if floor-level).
- * - Adjacent room (1 door hop): points at the nearest connecting door between Jay's room and the target room.
- * - 2+ rooms away (or unknown room): returns null so no marker clutters the screen.
+ * - Any other room: points at the door that starts the shortest door route to the target room
+ *   (the nearest such door when several tie).
+ * - Unknown room or no route: returns null.
  */
 export function resolveWorldMarker(
   id: string,
@@ -146,14 +147,31 @@ export function resolveWorldMarker(
   }
   const doors = adjacency.get(playerRoom);
   if (!doors?.length) return null;
-  const targetSet = new Set(targetRooms);
+  // Door hops from every room to the nearest target room (multi-source BFS), so the marker
+  // leads through the door that starts the shortest route, however many rooms away.
+  const hops = new Map<string, number>(targetRooms.map((r) => [r, 0]));
+  const queue = [...targetRooms];
+  for (let i = 0; i < queue.length; i++) {
+    const room = queue[i]!;
+    const next = hops.get(room)! + 1;
+    for (const d of adjacency.get(room) ?? []) {
+      const other = d.rooms[0] === room ? d.rooms[1] : d.rooms[0];
+      if (hops.has(other)) continue;
+      hops.set(other, next);
+      queue.push(other);
+    }
+  }
+  const here = hops.get(playerRoom);
   let best: MapDoor | null = null;
   let bestDist = Infinity;
+  let bestHops = Infinity;
   for (const d of doors) {
     const other = d.rooms[0] === playerRoom ? d.rooms[1] : d.rooms[0];
-    if (!targetSet.has(other)) continue;
+    const h = hops.get(other);
+    if (h === undefined || (here !== undefined && h >= here)) continue;
     const dist = Math.hypot(d.center[0] - playerPos.x, d.center[1] - playerPos.z);
-    if (dist < bestDist) {
+    if (h < bestHops || (h === bestHops && dist < bestDist)) {
+      bestHops = h;
       bestDist = dist;
       best = d;
     }

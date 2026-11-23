@@ -485,6 +485,11 @@ export class SequenceManager {
       },
       runToken: run,
       isRunning: (id) => this.isRunning(id) || this.queue.includes(id),
+      cancelSequence: (id) => {
+        if (id === run.def.id) return;
+        this.queue = this.queue.filter((q) => q !== id);
+        this.cancel(id);
+      },
       build: (steps) =>
         new Serial(
           steps,

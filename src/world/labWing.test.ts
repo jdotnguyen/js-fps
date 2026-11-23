@@ -145,13 +145,34 @@ test('The coolant line is continuous: each room\'s part starts where the previou
   assert.ok(Math.abs(ends[2]!.last[0]! - panel.pos[0]!) < 0.01, 'it ends at Giles\'s panel');
 });
 
-test('Floor spawn has a source: R05\'s floor enemy rises from the drain grate; three sources in all', () => {
-  const r05 = room('R05');
-  const drain = r05.props!.find((p) => p.kit === 'floor_drain')!;
-  const sp = r05.spawns!.find((s) => s.id === 'r05_drain')!;
-  assert.equal(sp.kind, 'floor');
-  assert.ok(Math.hypot(sp.pos[0]! - drain.pos[0]!, sp.pos[2]! - drain.pos[2]!) < 0.3);
-  assert.deepEqual(r05.spawns!.map((s) => s.id).sort(), ['r05_door', 'r05_drain', 'r05_vent']);
+// trim-lab-wing-encounters: R05 has no fight; the escaped creature is heard above it, heading for R06's duct.
+test('Floor spawn has a source: no enemy spawns in R05; the duct trail runs above it toward R06', () => {
+  assert.equal(room('R05').spawns, undefined, 'no spawn points in R05');
+  const vent = room('R06').anchors!.find((a) => a.id === 'r06_vent')!.pos;
+  const trail = ['duct_r04', 'duct_r05_1', 'duct_r05_2', 'duct_r05_3', 'duct_r06_0', 'duct_r06_1', 'duct_r06_2', 'duct_r06_3'];
+  const at = new Map(WING.flatMap((id) => (room(id).anchors ?? []).map((a) => [a.id, { pos: a.pos, room: id }] as const)));
+  for (const id of trail) {
+    const a = at.get(id);
+    assert.ok(a, `anchor ${id}`);
+    const r = room(a.room);
+    // Above the ceiling slab (in the plenum), except the last, which is inside R06's hanging duct.
+    if (id !== 'duct_r06_3') assert.ok(a.pos[1]! > (r.height ?? 3.2) + 0.12, `${id} sits above ${a.room}'s ceiling slab`);
+  }
+  const d = (id: string) => Math.hypot(at.get(id)!.pos[0]! - vent[0]!, at.get(id)!.pos[2]! - vent[2]!);
+  for (let i = 1; i < 5; i++) assert.ok(d(trail[i]!) < d(trail[i - 1]!), `${trail[i]} is nearer R06's duct than ${trail[i - 1]}`);
+});
+
+test('Lab B\'s vent from the gallery: the ceiling grate is in sight through the glass, clear of Voss\'s sight line', () => {
+  const r04 = room('R04');
+  const v = r04.props!.find((p) => p.kit === 'ceiling_vent')!;
+  assert.equal(v.params?.['id'], 'labb_vent');
+  assert.equal(v.params?.['ceiling'], r04.height, 'flush under Lab B\'s ceiling');
+  // From the drop spot in the gallery at eye height, the line to the grate clears the top of the glass (2.6 m).
+  const eye = [8, 1.62, 19.6];
+  const t = (22 - eye[2]!) / (v.pos[2]! - eye[2]!);
+  assert.ok(eye[1]! + t * ((r04.height ?? 3.2) - eye[1]!) < 2.6, 'seen under the glass head');
+  const victim = r04.anchors!.find((a) => a.id === 'labb_victim')!.pos;
+  assert.ok(Math.abs(v.pos[0]! - victim[0]!) > 0.6 || v.pos[2]! > victim[2]!, 'not over Voss');
 });
 
 // ---------------------------------------------------------------- built-level checks (headless slice01)
@@ -230,7 +251,7 @@ test('door unlock device resolver: resolves R06 power_box and R07 jamb status sc
   }
 });
 
-test('Every source in view but one: from the hold point facing south, duct, trench and vent are in view and unblocked', () => {
+test('Every source in view but one: from the hold point facing south, the duct\'s vent grate is in view and unblocked; one enemy', () => {
   const r06 = room('R06');
   const hold = r06.anchors!.find((a) => a.id === 'r06_hold')!;
   const eye = [hold.pos[0]!, 1.62, hold.pos[2]!];
@@ -241,14 +262,16 @@ test('Every source in view but one: from the hold point facing south, duct, tren
     const dz = p[2]! - eye[2]!;
     return (Math.acos((dx * fwd[0]! + dz * fwd[1]!) / Math.hypot(dx, dz)) * 180) / Math.PI;
   };
-  for (const id of ['r06_duct', 'r06_trench', 'r06_vent_e']) {
-    const sp = r06.spawns!.find((s) => s.id === id)!;
-    assert.ok(angleTo(sp.pos) <= 75, `${id} is ${angleTo(sp.pos).toFixed(0)} deg off the facing`);
-    const target = [sp.pos[0]!, Math.max(1.2, sp.pos[1]!), sp.pos[2]!];
-    const blocker = roomColliders('R06').find((c) => segmentHits(eye, target, c) && !(target[0]! >= c.minX && target[0]! <= c.maxX && target[2]! >= c.minZ && target[2]! <= c.maxZ));
-    assert.ok(!blocker, `${id} hidden by ${JSON.stringify(blocker)}`);
-  }
-  const corridor = r06.spawns!.find((s) => s.id === 'r06_corridor')!;
-  assert.ok(angleTo(corridor.pos) > 120, 'the corridor source comes from behind');
-  assert.equal(r06.spawns!.reduce((n, s) => n + ((s as { count?: number }).count ?? 1), 0), 6, 'six enemies');
+  const grate = r06.props!.find((p) => p.kit === 'ceiling_vent')!;
+  assert.equal(grate.params?.['id'], 'r06_vent');
+  const ceiling = grate.params?.['ceiling'] as number;
+  const target = [grate.pos[0]!, ceiling - 0.05, grate.pos[2]!];
+  assert.ok(angleTo(target) <= 75, `the grate is ${angleTo(target).toFixed(0)} deg off the facing`);
+  const blocker = roomColliders('R06').find((c) => segmentHits(eye, target, c) && !(target[0]! >= c.minX && target[0]! <= c.maxX && target[2]! >= c.minZ && target[2]! <= c.maxZ));
+  assert.ok(!blocker, `the grate is hidden by ${JSON.stringify(blocker)}`);
+  // The one source: the escaped creature drops out of that grate.
+  assert.equal(r06.spawns!.length, 1);
+  const sp = r06.spawns![0]! as { id: string; pos: number[]; look?: string; hp?: number; start?: string; count?: number };
+  assert.deepEqual([sp.id, sp.look, sp.hp, sp.start, sp.count ?? 1], ['r06_duct', 'lab_creature', 90, 'drop', 1]);
+  assert.ok(Math.hypot(sp.pos[0]! - grate.pos[0]!, sp.pos[2]! - grate.pos[2]!) < 0.05 && sp.pos[1]! < ceiling, 'it drops out of the grate');
 });

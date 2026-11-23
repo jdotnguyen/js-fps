@@ -83,7 +83,8 @@ export interface NpcDirectorDeps {
   /** Subscribe to a bus event (a kill listens for its lines ending); returns the unsubscriber. */
   listen?: (name: string, fn: (payload: unknown) => void) => () => void;
   /** Play the first of `ids` that exists, at a world point; false when none does. */
-  sfx?: (ids: readonly string[], at: Vec3Like) => boolean;
+  sfx?: (ids: readonly string[], at: Vec3Like, gain?: number) => boolean;
+  growl?: (at: Vec3Like) => void;
   /** Controllable level props (dock_chair, dock_wand) driven by scripted NPC routines. */
   setPropTransform?: (id: string, pos: { x: number; y: number; z: number }, yaw: number) => boolean;
   setPropVisible?: (id: string, visible: boolean) => boolean;
@@ -128,7 +129,7 @@ export class NpcDirector {
   private readonly offers = new Map<string, () => void>();
   private timers: Array<{ left: number; fn: () => void }> = [];
   /** `npcMoveTo { whenUnseen }`: moves made the moment Jay cannot see the NPC, even while it is walking. */
-  private readonly unseenMoves = new Map<string, { pos: P3; yaw: number | undefined }>();
+  private readonly unseenMoves = new Map<string, { pos: P3; yaw: number | undefined; settle: string | undefined }>();
   private resolver: ((ref: TargetRef) => ResolvedTarget | null) | null = null;
   private readonly env: NpcEnv;
   private readonly warned = new Set<string>();
@@ -178,6 +179,7 @@ export class NpcDirector {
         emit: (n, p) => deps.emit?.(n, p),
         listen: deps.listen,
         sfx: deps.sfx,
+        growl: deps.growl,
         warn: (m) => this.warnOnce(m),
         resolve: (ref) => this.resolver?.(ref) ?? (Array.isArray(ref) ? { pos: { x: ref[0] as number, y: ref[1] as number, z: ref[2] as number } } : null),
         spawn: (id, look, at, yaw, pose) => {
@@ -304,8 +306,8 @@ export class NpcDirector {
   }
 
   /** Scene step `squadCatchUpIn` (morning-briefing spec): bring unseen stragglers outside the room inside. */
-  catchUpSquadIn(inside: (p: { x: number; y: number; z: number }) => boolean, entry?: Vec3Like | null): SquadId[] {
-    const moved = this.deps.squad?.catchUpIn(inside, entry) ?? [];
+  catchUpSquadIn(inside: (p: { x: number; y: number; z: number }) => boolean, entry?: Vec3Like | null, force = false): SquadId[] {
+    const moved = this.deps.squad?.catchUpIn(inside, entry, force) ?? [];
     for (const id of moved) this.actor(id === 'engineer' ? 'giles' : 'okafor', false)?.stopMove();
     return moved;
   }
@@ -626,9 +628,19 @@ export class NpcDirector {
       const inCone = !forward || (dx * forward.x + dz * forward.z) / (len * fl) > cone;
       const seen = inCone && clear({ x: eye.x, y: eye.y - 1.25, z: eye.z }, p);
       if (seen) continue;
-      a.place(to.pos, to.yaw);
+      if (to.settle) this.settle(npc, to.pos, to.yaw, to.settle, 0.01);
+      else a.place(to.pos, to.yaw);
       this.unseenMoves.delete(npc);
     }
+  }
+
+  /** Stop the NPC's walk and put it into a seated or leaning pose at `pos` (`npcMoveTo { settle }`). */
+  private settle(npc: string, pos: P3, yaw: number | undefined, pose: string, blend: number): void {
+    const a = this.actor(npc);
+    if (!a) return;
+    a.stopMove();
+    const resolved = this.deps.ctx.poses.has(pose) ? pose : 'idle';
+    a.settleAt(pos, yaw ?? a.body.heading, resolved, blend);
   }
 
   /** `SequenceHost.npc`: run one NPC action. Resolves when it is done. */
@@ -670,8 +682,9 @@ export class NpcDirector {
         this.hold(npc);
         // Off-stage move: it happens the moment Jay cannot see the NPC, even mid-walk, so no one pops out of
         // view (intro-sequence spec "She walks out"). Skipped or restored (`instant`), it happens now.
+        const settle = typeof step['settle'] === 'string' ? step['settle'] : undefined;
         if (step['whenUnseen'] === true && !instant) {
-          this.unseenMoves.set(npc, { pos: { x: at.pos.x, y: at.pos.y, z: at.pos.z }, yaw: at.yaw });
+          this.unseenMoves.set(npc, { pos: { x: at.pos.x, y: at.pos.y, z: at.pos.z }, yaw: at.yaw, settle });
           return Promise.resolve();
         }
         const via = typeof step['via'] === 'string' ? step['via'] : undefined;
@@ -679,7 +692,13 @@ export class NpcDirector {
         if (via && !walk) this.warnOnce(`npcMoveTo: no walk "${via}"`);
         const speed = typeof step['speed'] === 'number' ? step['speed'] : walk?.speed;
         const pose = typeof step['pose'] === 'string' ? step['pose'] : undefined;
-        return a.moveTo(at.pos, { ...(speed !== undefined ? { speed } : {}), ...(at.yaw !== undefined ? { yaw: at.yaw } : {}), ...(pose ? { pose } : {}), ...(walk ? { curve: walk.points } : {}), instant });
+        const moved = a.moveTo(at.pos, { ...(speed !== undefined ? { speed } : {}), ...(at.yaw !== undefined ? { yaw: at.yaw } : {}), ...(pose ? { pose } : {}), ...(walk ? { curve: walk.points } : {}), instant });
+        if (!settle) return moved;
+        // A walk cut short by a later command also resolves: only settle if the body actually got there.
+        return moved.then(() => {
+          const now = this.actor(npc)?.position;
+          if (now && Math.hypot(now.x - at.pos.x, now.z - at.pos.z) < 0.6) this.settle(npc, at.pos, at.yaw, settle, instant ? 0.01 : 0.75);
+        });
       }
       case 'npcDrag': {
         // `by` pulls the body along on a rope (ADR-0014 beat 7, Priya); `stop` or a skip lets go.
@@ -714,6 +733,11 @@ export class NpcDirector {
       case 'npcLookAt':
         this.hold(npc);
         a.lookAt(this.getter(step['target']));
+        if (step['turn'] === true) {
+          const at = this.getter(step['target'])?.() ?? null;
+          const rate = typeof step['turnRate'] === 'number' ? step['turnRate'] : null;
+          if (at) a.turnTo(Math.atan2(-(at.x - a.position.x), -(at.z - a.position.z)), rate);
+        }
         return Promise.resolve();
       case 'npcFollow': {
         const tgt = step['target'];

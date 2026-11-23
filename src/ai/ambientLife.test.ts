@@ -128,7 +128,6 @@ test('isAmbientEligible protects story NPCs and desk workers', () => {
   assert.equal(isAmbientEligible('hale', 'idle_hips'), false);
   assert.equal(isAmbientEligible('cook', 'idle'), false);
   assert.equal(isAmbientEligible('dock_guard', 'idle_wand'), false, 'the dock guard holds his post (dock-checkpoint)');
-  assert.equal(isAmbientEligible('crew_1', 'idle_mug'), false);
   assert.equal(isAmbientEligible('assistant', 'sit_typing'), false);
   assert.equal(isAmbientEligible('exec_2', 'sit_typing'), false);
   assert.equal(isAmbientEligible('diner_1', 'sit_chair'), true);

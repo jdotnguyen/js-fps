@@ -19,6 +19,9 @@ import { GoreSystem } from '../actors/gore.ts';
 import { Humanoid } from '../actors/humanoid.ts';
 import { PoseLibrary } from '../actors/poses.ts';
 import { castSpec } from '../actors/castLooks.ts';
+import { loadSharedMocapLibrary } from '../actors/mocap.ts';
+import { loadMocapPacks } from '../actors/mocapPacks.ts';
+import { sharedMotionProfiles } from '../actors/motionProfiles.ts';
 import { SLICE_PROPS } from '../world/kit/slice.ts';
 import { transformBox, type SpotSlot } from '../world/kit/types.ts';
 import { at } from '../world/kit/geom.ts';
@@ -82,7 +85,11 @@ async function boot(): Promise<void> {
   const gore = new GoreSystem(new Rng('bench-gore'));
   scene.add(gore.group);
   const bodyModels = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/body-models.json'));
-  await bodyModels.load(import.meta.env.BASE_URL);
+  const motionProfiles = sharedMotionProfiles();
+  await Promise.all([
+    bodyModels.load(import.meta.env.BASE_URL),
+    loadSharedMocapLibrary().then((lib) => loadMocapPacks(lib, Object.keys(motionProfiles.profiles))),
+  ]);
 
   const colliders = new CollisionWorld();
   colliders.add({ min: [-8, 0, -3.25], max: [-4, 3, -3.0] }, 'bench:wall', 'concrete');

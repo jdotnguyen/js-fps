@@ -125,3 +125,23 @@ test('a light with backupScale stays lit at that strength on backup power', () =
   level.setPower('backup');
   assert.deepEqual(powers(level, 'A'), [1, 0]);
 });
+
+// overhaul-priya-r08-death D24 (station-power "Medical bay on its own circuit", render-lighting "A light on its own
+// circuit"): the medical bay's front row is on the medical circuit; the security office and the surgery are not.
+test('slice01: the medical bay front row stays lit on backup power, the security office and surgery go to backup', async () => {
+  const { readFileSync } = await import('node:fs');
+  const data = JSON.parse(readFileSync(new URL('../data/levels/slice01.json', import.meta.url), 'utf8')) as LevelData;
+  const lights = (id: string) => data.rooms.find((r) => r.id === id)!.lights ?? [];
+  const front = lights('R08').filter((l) => l.slot === 0 || l.slot === 1 || l.slot === 2);
+  assert.equal(front.length, 3);
+  for (const l of front) {
+    assert.equal(l.backupScale, 1, `R08 slot ${String(l.slot)}`);
+    assert.equal(l.ownColor, true, `R08 slot ${String(l.slot)}`);
+  }
+  for (const id of ['R07', 'R07a', 'R08b']) assert.ok(lights(id).every((l) => l.backupScale === undefined), id);
+  const r08 = data.rooms.find((r) => r.id === 'R08')!;
+  const level = build([{ ...r08, id: 'M', props: [], pieces: room('M', 0, []).pieces, lights: lights('R08') }]);
+  level.setPower('backup');
+  const on = level.roomLights('M').filter((l) => l.light.power === 1);
+  assert.ok(on.length >= 3, `${on.length} lights at full strength`);
+});

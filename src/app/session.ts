@@ -114,6 +114,7 @@ import { Guidance } from '../game/guidance.ts';
 import { sidearmAllowed } from '../game/sidearm.ts';
 import { loadDialogueLibrary } from '../dialogue/load.ts';
 import { SpeechManager, type Hearing, type SayOptions } from '../dialogue/speech.ts';
+import { projectionGain } from '../dialogue/projection.ts';
 import type { DialogueLine } from '../data/types/dialogue.ts';
 import type { ScriptSpeechOptions } from '../script/host.ts';
 import { WebAudioVoicePlayer } from '../dialogue/voicePlayer.ts';
@@ -334,6 +335,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     voicePlayer = null;
     audio.releaseGameplayBuffers();
     audio.setOccluder(null);
+    audio.clearIntercoms();
     motionScene.reset();
     motionScene.flags = EMPTY_FLAGS;
     const g = globalThis as Record<string, unknown>;
@@ -731,6 +733,41 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         if (!e.strong && audio.hasSound('tubeStrike')) audio.play('tubeStrike', { bus: 'ambience', position: new THREE.Vector3(e.x, e.y, e.z), gain: 0.45, reverb: 0.3 });
       });
     }
+    if (level) {
+      // Warm a room's shaders ahead of its door (D40): reveal it for the compile's synchronous pass only; with
+      // KHR_parallel_shader_compile the links finish off the main thread while the scene plays. The scene is drawn into
+      // the post chain's linear target, so compile with a render target bound: against the canvas, three keys the
+      // programs as sRGB output and the door still compiles the linear ones in the frame it opens.
+      const warmTarget = new THREE.WebGLRenderTarget(1, 1);
+      events.on('render:warm', ({ room }) => {
+        const g = level!.roomGroup(room);
+        if (!g || !renderer) return;
+        const wasVisible = g.visible;
+        const prevTarget = renderer.getRenderTarget();
+        g.visible = true;
+        renderer.setRenderTarget(warmTarget);
+        try {
+          void renderer.compileAsync(g, camera, scene).catch(() => undefined);
+        } finally {
+          renderer.setRenderTarget(prevTarget);
+          g.visible = wasVisible;
+        }
+      });
+      // Armoured glass (medbay-attack "Shooting the glass"): a round chips the face it struck, sparks and thunks, and stops.
+      const glassHit = new THREE.Vector3();
+      const glassFace = new THREE.Vector3();
+      events.on('weapon:impact', (e) => {
+        if (!level!.glassAt(e)) return;
+        glassHit.set(e.x, e.y, e.z);
+        // The panes are axis-aligned: the struck face looks back along the shot's dominant horizontal axis.
+        if (Math.abs(e.dx) >= Math.abs(e.dz)) glassFace.set(-Math.sign(e.dx), 0, 0);
+        else glassFace.set(0, 0, -Math.sign(e.dz));
+        gore?.glassMark(glassHit.clone().addScaledVector(glassFace, 0.01), glassFace, 'crack', 0.14);
+        sparks?.burst(e.x, e.y, e.z, false);
+        audio.play('glassThud', { bus: 'sfx', position: glassHit.clone(), gain: 0.9, rate: 0.7, reverb: 0.25 });
+        events.emit('weapon:glass', { weapon: e.weapon, x: e.x, y: e.y, z: e.z });
+      });
+    }
     splashes = waterFx ? new WaterSplashes() : null;
     if (waterFx && splashes) {
       scene.add(splashes.points);
@@ -884,11 +921,20 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       panelDevice: (panel, near) => level?.panelDevice(panel, near) ?? null,
       kills: validate(validateKillTable, killsJson, 'data/kills.json'),
       listen: (name, fn) => events.on(name as never, fn as never),
-      sfx: (ids, at) => {
+      sfx: (ids, at, gain) => {
         const id = ids.find((n) => audio.hasSound(n as SoundName));
         if (!id) return false;
-        audio.play(id as SoundName, { position: new THREE.Vector3(at.x, at.y, at.z), occlude: false });
+        audio.play(id as SoundName, { position: new THREE.Vector3(at.x, at.y, at.z), occlude: false, ...(gain !== undefined ? { gain } : {}) });
         return true;
+      },
+      growl: (at) => {
+        if (!audio.hasSound('zombieVoice')) return;
+        // A slice of the two long groan clips, pitched down: a low growl, never the same one twice.
+        audio.play('zombieVoice', {
+          bus: 'sfx', gain: 1.2, rate: 0.7 + Math.random() * 0.2, variant: Math.random() < 0.5 ? 0 : 1,
+          offset: Math.random() * 5, duration: 1.4 + Math.random() * 1.4,
+          position: new THREE.Vector3(at.x, at.y, at.z), reverb: 0.2, occlude: false,
+        });
       },
     });
     scene.add(npcs.group, npcs.fx);
@@ -943,6 +989,33 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       audioBytes: () => audio.decodedBytes() + (voicePlayer?.decodedBytes() ?? 0),
     });
 
+    // Room intercoms (overhaul-priya-r08-death D25): each grille relays its source rooms while live.
+    audio.clearIntercoms();
+    const intercomGrilles = level?.intercoms() ?? [];
+    for (const g of intercomGrilles) {
+      const sources = new Set(g.sources);
+      audio.addIntercom(g.id, g.position, (p) => sources.has(level!.roomAt(p)?.data.id ?? ''), g.level);
+    }
+    const tapAt = new THREE.Vector3();
+    voicePlayer.setIntercomTap((p) => audio.intercomInputs(tapAt.set(p.x, p.y, p.z)));
+    /** Whether the player hears a live grille relaying `from`: in the grille's room or a room opening onto it. */
+    const relayedToPlayer = (from: THREE.Vector3): boolean => {
+      if (!level || intercomGrilles.length === 0) return false;
+      const here = level.roomAt(camera.position)?.data.id;
+      if (!here) return false;
+      for (const g of intercomGrilles) {
+        if (!audio.intercom(g.id)?.relays(from)) continue;
+        if (here === g.room || level.neighbours(g.room).includes(here)) return true;
+      }
+      return false;
+    };
+    // voiceProject steps (voice-playback: A scene can project a voice), by NPC id.
+    const projectedVoices = new Map<string, number>();
+    events.on('voice:project', ({ npc, at }) => {
+      if (at === null) projectedVoices.delete(npc);
+      else projectedVoices.set(npc, at);
+    });
+
     const voiceFrom = new THREE.Vector3();
     const hearing = (line: DialogueLine, at: SayOptions['at']): Hearing => {
       if (line.channel !== 'local' || !at || !level) return 'everywhere';
@@ -950,7 +1023,11 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       if (!p) return 'everywhere';
       voiceFrom.set(p.x, p.y, p.z);
       const a = voiceAudibility(level.voicePath(voiceFrom, camera.position));
-      return { gain: a.gain, cutoffHz: a.cutoffHz, distance: voiceFrom.distanceTo(camera.position), audible: a.level >= EARSHOT_LEVEL };
+      const distance = voiceFrom.distanceTo(camera.position);
+      const projectAt = projectedVoices.size > 0 ? projectedVoices.get(speakerNpcId(line.speaker) ?? '') : undefined;
+      const gain = projectAt !== undefined ? a.gain * projectionGain(distance, projectAt) : a.gain;
+      const relayed = relayedToPlayer(voiceFrom);
+      return { gain, cutoffHz: a.cutoffHz, distance, audible: a.level >= EARSHOT_LEVEL, ...(relayed ? { relayed } : {}) };
     };
     speech = new SpeechManager(events, dialogue, voicePlayer, { hearing });
     const speakerHead = new THREE.Vector3();
@@ -1026,6 +1103,13 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     events.on('kill:say', ({ npc, line }) => {
       if (say(line, { overlap: true })) killLines.set(npc, line);
     });
+    // Whatever she is still saying ends the moment she splits open (a scream longer than the beats before it is cut, not finished).
+    events.on('kill:burst' as never, (({ npc }: { npc: string }) => {
+      const line = killLines.get(npc);
+      if (line === undefined) return;
+      killLines.delete(npc);
+      speech!.stop(line);
+    }) as never);
     events.on('kill:cut', ({ npc }) => {
       const line = killLines.get(npc);
       if (line === undefined) return;
@@ -1098,12 +1182,12 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     setWayfindingSpotlight = (on) => guidance!.setSpotlight(on);
 
     // Bridge session game modes & menu overlays to AppShell (`title` disposal is registered last, after all session listeners).
-    events.on('game:mode', ({ mode }) => {
+    events.on('game:mode', ({ mode, from }) => {
       menuMusic.setMode(mode);
       ambience?.setMode(mode);
       propAudio?.setMode(mode);
       if (mode !== 'title') {
-        shellEvents.emit('game:mode', { mode });
+        shellEvents.emit('game:mode', from === undefined ? { mode } : { mode, from });
       }
     });
     events.on('game:saveStation', () => shellEvents.emit('game:saveStation', {}));
@@ -1413,10 +1497,12 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
             setTimeout(() => {
               sequences?.cancelAll();
               Object.assign(game.flags, { introSeen: true, briefingSeen: true, rounds_done: true });
+              // The rounds sequence raises the Lab B blinds as it ends; the jump skips it.
+              events.emit('blinds:set' as never, { id: 'labb', state: 'up', instant: true } as never);
               hud.setFade(0, 0.4);
               const at = level!.anchor('gallery_enter');
               if (!at) return console.warn('[debug] jump=drop: no anchor gallery_enter');
-              player.placeAtEye(new THREE.Vector3(at.pos.x - 1, at.pos.y + PLAYER_TUNING.eyeHeight, at.pos.z + 1), Math.PI / 4);
+              player.placeAtEye(new THREE.Vector3(at.pos.x - 3, at.pos.y + PLAYER_TUNING.eyeHeight, at.pos.z + 1), Math.PI / 4);
             }, 400),
           );
         });
@@ -1442,8 +1528,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         const steps: Array<[string, string, Record<string, boolean | number>]> = [
           ['r05', 'cp_first_contact', {}],
           ['r06', 'cp_cover_me', { contact_done: true }],
-          ['r07', 'cp_security', { cover_done: true, 'giles.infectionStage': 1 }],
-          ['r09', 'cp_flooded', { armory_open: true, glass_near: true, sec_done: true, medlab_open: true, 'giles.infectionStage': 3, 'giles.bandaged': true, 'weapon:shotgun': true }],
+          ['r07', 'cp_security', { cover_done: true }],
+          ['r09', 'cp_flooded', { armory_open: true, glass_near: true, sec_done: true, medlab_open: true, 'giles.infectionStage': 3, 'weapon:shotgun': true }],
           // Just before the valve and the flood cutscene (overhaul-flooded-tunnel): an anchor, not a checkpoint.
           ['r10_flood', 'anchor:r10_valve_stand', { tunnel_started: true }],
           ['r11', 'cp_climax', { tunnel_started: true, valve_done: true, 'giles.infectionStage': 3, 'giles.bandaged': true, 'weapon:shotgun': true }],

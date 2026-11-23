@@ -713,7 +713,8 @@ export class Animator {
     let targetW = 0;
     let mode: 'loco' | 'shamble' | 'heavy' | 'pistol' | 'kneel' | 'crouch' | 'none' = 'none';
 
-    if (this.useMocap && !this.seq && this.convulse <= 0.01) {
+    // A one-shot clip owns the body while it plays, even on the move (overhaul-priya-r08-death: Priya's stumble mid-run).
+    if (this.useMocap && !this.seq && !this.oneShot && this.convulse <= 0.01) {
       if (this.twitchy) {
         if (this.gait === 'shamble' || this.gait === 'flail') {
           mode = 'shamble';
@@ -1275,7 +1276,8 @@ export class Animator {
     // Pivoting crawlers pull themselves around: the turn speed drives the limbs as if it were ground speed.
     const pivot = style === 'crawl' ? PIVOT_DRIVE_CRAWL : style === 'drag' ? PIVOT_DRIVE_DRAG : 0;
     const drive = style === 'none' ? 0 : Math.max(this.speed, pivot * Math.abs(this.turnRate));
-    const targetAmp = style === 'none' ? 0 : Math.min(1.25, drive / REF_SPEED[style]);
+    // No procedural stride under a one-shot clip: the clip has its own legs.
+    const targetAmp = style === 'none' || this.oneShot ? 0 : Math.min(1.25, drive / REF_SPEED[style]);
     this.amp += (targetAmp - this.amp) * Math.min(1, dt * 5);
     if (style !== 'none') this.phase += (drive / STRIDE[style]) * Math.PI * 2 * dt;
     const A = this.amp;

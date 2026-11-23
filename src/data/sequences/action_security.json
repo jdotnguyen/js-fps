@@ -1,11 +1,12 @@
 [
  {
-  "id": "armory_auto",
+  "id": "sec_glass",
   "trigger": {
    "event": "trigger:r07_enter",
    "requires": "cover_done",
-   "unless": "armory_open"
+   "unless": "sec_done"
   },
+  "exclusive": "rails",
   "resumeFromCheckpoint": true,
   "debugSetup": {
    "flags": {
@@ -17,174 +18,35 @@
   },
   "steps": [
    {
-    "do": "squadRegroup"
+    "do": "stopSequence",
+    "id": "cover_me"
+   },
+   {
+    "do": "setFlag",
+    "flag": "r08_over",
+    "value": false
+   },
+   {
+    "do": "intercom",
+    "id": "medbay",
+    "state": "off"
    },
    {
     "do": "npcMoveTo",
     "npc": "priya",
-    "to": "anchor:priya_r08",
+    "to": "anchor:priya_r07_hide",
     "instant": true
    },
    {
     "do": "npcAnim",
     "npc": "priya",
-    "anim": "typing",
+    "anim": "priya_crouch",
     "instant": true
-   },
-   {
-    "do": "setObjective",
-    "id": "obj_armory"
-   },
-   {
-    "do": "wait",
-    "s": 1.5
-   },
-   {
-    "do": "npcMoveTo",
-    "npc": "giles",
-    "to": "anchor:r07_armory_panel"
-   },
-   {
-    "do": "say",
-    "line": "sec_giles_01"
-   },
-   {
-    "do": "npcTask",
-    "npc": "giles",
-    "task": "bypass_short",
-    "args": {
-     "at": "anchor:r07_armory_panel",
-     "panel": "D_R07_R07a"
-    },
-    "wait": true
    },
    {
     "do": "doorState",
-    "id": "D_R07_R07a",
-    "state": "open"
-   },
-   {
-    "do": "sfx",
-    "id": "click",
-    "at": "anchor:r07_armory_panel"
-   },
-   {
-    "do": "say",
-    "line": "sec_giles_02",
-    "wait": false
-   },
-   {
-    "do": "setFlag",
-    "flag": "armory_open",
-    "value": true
-   },
-   {
-    "do": "if",
-    "flag": "glass_near",
-    "then": [
-     {
-      "do": "emit",
-      "event": "sec:glass_go"
-     }
-    ]
-   }
-  ]
- },
- {
-  "id": "sec_glass_near",
-  "trigger": {
-   "event": "trigger:r08_glass",
-   "requires": "cover_done",
-   "unless": "sec_done"
-  },
-  "steps": [
-   {
-    "do": "setFlag",
-    "flag": "glass_near",
-    "value": true
-   },
-   {
-    "do": "if",
-    "flag": "armory_open",
-    "then": [
-     {
-      "do": "emit",
-      "event": "sec:glass_go"
-     }
-    ]
-   }
-  ]
- },
- {
-  "id": "sec_rescue",
-  "trigger": {
-   "event": "door:denied",
-   "match": {
-    "id": "D_R07_R09"
-   },
-   "requires": "cover_done",
-   "unless": "sec_done"
-  },
-  "steps": [
-   {
-    "do": "setFlag",
-    "flag": "glass_near",
-    "value": true
-   },
-   {
-    "do": "setFlag",
-    "flag": "armory_open",
-    "value": true
-   },
-   {
-    "do": "doorState",
-    "id": "D_R07_R07a",
-    "state": "open"
-   },
-   {
-    "do": "emit",
-    "event": "sec:glass_go"
-   }
-  ]
- },
- {
-  "id": "sec_glass",
-  "trigger": {
-   "event": "sec:glass_go",
-   "unless": "sec_done"
-  },
-  "exclusive": "rails",
-  "resumeFromCheckpoint": true,
-  "debugSetup": {
-   "flags": {
-    "station_power": "backup",
-    "drop_done": true,
-    "contact_done": true,
-    "cover_done": true,
-    "armory_open": true
-   }
-  },
-  "steps": [
-   {
-    "do": "npcMoveTo",
-    "npc": "priya",
-    "to": "anchor:priya_r08",
-    "instant": true
-   },
-   {
-    "do": "npcAnim",
-    "npc": "priya",
-    "anim": "typing",
-    "instant": true
-   },
-   {
-    "do": "waitGroup",
-    "group": "r07_playdead",
-    "timeout": 20
-   },
-   {
-    "do": "despawnGroup",
-    "group": "r07_playdead"
+    "id": "D_R07_R08",
+    "state": "sealed"
    },
    {
     "do": "playerControl",
@@ -194,39 +56,23 @@
     "interact": false
    },
    {
-    "parallel": [
-     {
-      "do": "playerWalkTo",
-      "to": "anchor:r07_glass_jay",
-      "speed": 1.2,
-      "timeout": 3,
-      "wait": true
-     },
-     {
-      "do": "npcMoveTo",
-      "npc": "giles",
-      "to": "anchor:r07_glass_giles"
-     },
-     {
-      "do": "npcMoveTo",
-      "npc": "okafor",
-      "to": "anchor:r07_glass_okafor"
-     }
+    "do": "squadCatchUpIn",
+    "room": "R07",
+    "at": [
+     -1,
+     0,
+     38.9
     ]
    },
    {
-    "do": "wait",
-    "s": 1.0
-   },
-   {
-    "do": "playerLookAt",
+    "do": "playerFrame",
     "target": "npc:priya",
-    "duration": 1.0,
-    "weight": 0.8
+    "duration": 0.7,
+    "give": 6
    },
    {
-    "do": "say",
-    "line": "sec_okafor_01"
+    "do": "wait",
+    "s": 0.5
    },
    {
     "do": "npcAnim",
@@ -234,56 +80,23 @@
     "anim": "idle"
    },
    {
-    "do": "npcMoveTo",
-    "npc": "priya",
-    "to": "anchor:priya_glass",
-    "speed": 2.2
-   },
-   {
-    "do": "spawn",
-    "npc": "r08_thing",
-    "kind": "lab_creature",
-    "at": "anchor:r08_lurk"
-   },
-   {
-    "do": "doorState",
-    "id": "D_R08_R08b",
-    "state": "open"
-   },
-   {
-    "do": "playerControl",
-    "interact": true
-   },
-   {
     "parallel": [
+     {
+      "do": "say",
+      "line": "cover_okafor_run_01",
+      "wait": false,
+      "overlap": true
+     },
      {
       "do": "loop",
       "count": 1,
       "steps": [
        {
-        "do": "kill",
+        "do": "npcMoveTo",
         "npc": "priya",
-        "kind": "mauled",
-        "attacker": "r08_thing",
-        "glass": "anchor:medbay_c_glass",
-        "marks": {
-         "approach": "anchor:r08_approach",
-         "around": "anchor:r08_around",
-         "slamSpot": "anchor:r08_slam_spot",
-         "slamFace": "anchor:r08_slam_face",
-         "cart": "anchor:r08_cart_top",
-         "throwAt": "anchor:r08_throw_point",
-         "feet": "anchor:r08_feet",
-         "exit": "anchor:r08_drag_mid",
-         "turn": "anchor:r08_drag_turn",
-         "door": "anchor:r08_drag_exit",
-         "surgery": "anchor:r08_drag_end"
-        },
+        "to": "anchor:r07_medbay_door",
+        "speed": 3.6,
         "wait": true
-       },
-       {
-        "do": "emit",
-        "event": "medbay:over"
        }
       ]
      },
@@ -292,21 +105,169 @@
       "count": 1,
       "steps": [
        {
-        "do": "waitFor",
-        "event": [
-         "kill:plead",
-         "medbay:over"
+        "do": "wait",
+        "s": 0.9
+       },
+       {
+        "do": "say",
+        "line": "cover_priya_run_01",
+        "wait": false,
+        "overlap": true
+       },
+       {
+        "do": "npcAnim",
+        "npc": "priya",
+        "anim": "clip:priya_stumble"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 3
+       },
+       {
+        "do": "doorState",
+        "id": "D_R07_R08",
+        "state": "open"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 0.4
+       },
+       {
+        "do": "playerWalkTo",
+        "to": "anchor:r07_medbay_door",
+        "distance": 2.8,
+        "speed": 3.4,
+        "wait": true
+       },
+       {
+        "do": "squadCatchUpIn",
+        "room": "R07",
+        "at": [
+         -1,
+         0,
+         39.4
         ],
-        "timeout": 5
+        "force": true
+       },
+       {
+        "do": "doorState",
+        "id": "D_R06_R07",
+        "state": "sealed"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "do": "doorState",
+    "id": "D_R07_R08",
+    "state": "open"
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "priya",
+    "to": "anchor:priya_door",
+    "speed": 3,
+    "wait": true
+   },
+   {
+    "do": "doorState",
+    "id": "D_R07_R08",
+    "state": "sealed"
+   },
+   {
+    "parallel": [
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "npcMoveTo",
+        "npc": "priya",
+        "to": "anchor:priya_wait",
+        "speed": 3,
+        "wait": true
+       },
+       {
+        "do": "npcAnim",
+        "npc": "priya",
+        "anim": "priya_crouch"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 0.9
+       },
+       {
+        "do": "playerFrame",
+        "clear": true
+       },
+       {
+        "do": "playerControl",
+        "reset": true
+       },
+       {
+        "do": "squadRegroup"
+       },
+       {
+        "do": "gatherIn",
+        "room": "R07",
+        "timeout": 2
+       },
+       {
+        "do": "playerControl",
+        "move": "slow",
+        "look": "free",
+        "weapons": true,
+        "interact": true
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "do": "voiceProject",
+    "npc": "okafor",
+    "at": 3.5
+   },
+   {
+    "do": "score",
+    "id": "medbay",
+    "cue": "enter"
+   },
+   {
+    "parallel": [
+     {
+      "do": "loop",
+      "until": "medbay:silent",
+      "steps": [
+       {
+        "do": "sfx",
+        "id": "monitorBeep",
+        "at": "anchor:r08_monitor",
+        "beat": true,
+        "relay": false
        },
        {
         "do": "wait",
-        "s": 1.5
-       },
-       {
-        "do": "setFlag",
-        "flag": "r08_thing_in",
-        "value": true
+        "s": 0.8
        }
       ]
      },
@@ -316,8 +277,7 @@
       "steps": [
        {
         "do": "waitFor",
-        "event": "interact:medbay_bang",
-        "timeout": 30
+        "event": "interact:medbay_bang"
        },
        {
         "do": "sfx",
@@ -358,27 +318,102 @@
      },
      {
       "do": "loop",
-      "count": 1,
+      "until": "medbay:over",
       "steps": [
        {
         "do": "waitFor",
-        "event": [
-         "kill:plead",
-         "medbay:over"
-        ],
-        "timeout": 5
+        "event": "weapon:glass"
        },
        {
-        "do": "say",
-        "line": "sec_okafor_02",
-        "wait": false,
-        "overlap": true
-       },
+        "do": "if",
+        "flag": "r08_thing_in",
+        "then": [
+         {
+          "do": "emit",
+          "event": "kill:notice",
+          "payload": {
+           "npc": "priya"
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
        {
         "do": "npcMoveTo",
         "npc": "okafor",
         "to": "anchor:r07_medbay_door",
-        "speed": 2.4
+        "speed": 2.2
+       },
+       {
+        "do": "sfx",
+        "id": "drip",
+        "at": "anchor:r08_lurk"
+       },
+       {
+        "do": "say",
+        "line": "sec_priya_10"
+       },
+       {
+        "do": "npcAnim",
+        "npc": "priya",
+        "anim": "idle"
+       },
+       {
+        "parallel": [
+         {
+          "do": "say",
+          "line": "sec_okafor_10"
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "wait",
+            "s": 0.4
+           },
+           {
+            "do": "npcMoveTo",
+            "npc": "priya",
+            "to": "anchor:priya_door",
+            "speed": 1.3
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "parallel": [
+         {
+          "do": "say",
+          "line": "sec_priya_11"
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "wait",
+            "s": 3.25
+           },
+           {
+            "do": "say",
+            "line": "sec_okafor_11",
+            "overlap": true
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "do": "score",
+        "id": "medbay",
+        "cue": "door"
        },
        {
         "do": "emit",
@@ -389,110 +424,862 @@
         }
        },
        {
+        "parallel": [
+         {
+          "do": "say",
+          "line": "sec_priya_12"
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "wait",
+            "s": 0.8
+           },
+           {
+            "do": "npcMoveTo",
+            "npc": "giles",
+            "to": "anchor:r07_console",
+            "speed": 1.8,
+            "wait": true
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "do": "npcAnim",
+        "npc": "giles",
+        "anim": "typing"
+       },
+       {
+        "do": "say",
+        "line": "sec_giles_10"
+       },
+       {
+        "do": "say",
+        "line": "sec_giles_11"
+       },
+       {
+        "do": "intercom",
+        "id": "medbay",
+        "state": "on"
+       },
+       {
         "do": "wait",
-        "s": 0.6
+        "s": 0.3
+       },
+       {
+        "parallel": [
+         {
+          "do": "say",
+          "line": "sec_priya_13"
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "wait",
+            "s": 1.65
+           },
+           {
+            "do": "say",
+            "line": "sec_okafor_12",
+            "overlap": true
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "do": "score",
+        "id": "medbay",
+        "cue": "triage"
+       },
+       {
+        "do": "npcAnim",
+        "npc": "giles",
+        "anim": "idle"
+       },
+       {
+        "do": "sfx",
+        "id": "surgery_rattle",
+        "at": "anchor:r08_lurk"
+       },
+       {
+        "parallel": [
+         {
+          "do": "say",
+          "line": "sec_okafor_13"
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "wait",
+            "s": 0.6
+           },
+           {
+            "do": "npcAnim",
+            "npc": "priya",
+            "anim": "priya_hands_show"
+           },
+           {
+            "do": "wait",
+            "s": 1.6
+           },
+           {
+            "do": "npcLookAt",
+            "npc": "priya",
+            "target": "npc:okafor"
+           },
+           {
+            "do": "wait",
+            "s": 0.3
+           },
+           {
+            "do": "npcLookAt",
+            "npc": "priya",
+            "target": "anchor:priya_turn_away",
+            "turn": true,
+            "turnRate": 1.3
+           },
+           {
+            "do": "wait",
+            "s": 2.4
+           },
+           {
+            "do": "npcAnim",
+            "npc": "priya",
+            "anim": "priya_hands_back_freeze"
+           },
+           {
+            "do": "wait",
+            "s": 0.6
+           },
+           {
+            "do": "npcAnim",
+            "npc": "priya",
+            "anim": "priya_hands_turn_back"
+           },
+           {
+            "do": "npcLookAt",
+            "npc": "priya",
+            "target": "npc:okafor",
+            "turn": true,
+            "turnRate": 2.4
+           },
+           {
+            "do": "wait",
+            "s": 0.5
+           },
+           {
+            "do": "say",
+            "line": "sec_okafor_14"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "do": "npcAnim",
+        "npc": "priya",
+        "anim": "idle"
        },
        {
         "do": "say",
-        "line": "sec_giles_06",
-        "wait": false,
-        "overlap": true
-       }
-      ]
-     },
-     {
-      "do": "loop",
-      "count": 1,
-      "steps": [
-       {
-        "do": "waitFor",
-        "event": [
-         "kill:grab",
-         "medbay:over"
-        ],
-        "timeout": 60
-       },
-       {
-        "do": "playerControl",
-        "interact": false
+        "line": "sec_priya_14"
        },
        {
         "do": "say",
-        "line": "sec_okafor_03",
-        "wait": false,
-        "overlap": true
-       }
-      ]
-     },
-     {
-      "do": "loop",
-      "count": 1,
-      "steps": [
+        "line": "sec_okafor_15"
+       },
        {
-        "do": "waitFor",
-        "event": [
-         "kill:grab",
-         "medbay:over"
-        ],
-        "timeout": 60
+        "do": "say",
+        "line": "sec_priya_15"
+       },
+       {
+        "do": "say",
+        "line": "sec_priya_16"
        },
        {
         "do": "wait",
         "s": 0.5
        },
        {
-        "do": "say",
-        "line": "sec_jay_01",
-        "wait": false,
-        "overlap": true
-       }
-      ]
-     },
-     {
-      "do": "loop",
-      "count": 1,
-      "steps": [
+        "parallel": [
+         {
+          "do": "sfx",
+          "id": "surgery_tray_fall",
+          "at": "anchor:r08_lurk"
+         },
+         {
+          "do": "score",
+          "id": "medbay",
+          "cue": "hush"
+         },
+         {
+          "do": "npcAnim",
+          "npc": "priya",
+          "anim": "priya_flinch"
+         }
+        ]
+       },
        {
-        "do": "waitFor",
-        "event": [
-         "kill:haul",
-         "medbay:over"
-        ],
-        "timeout": 30
+        "do": "say",
+        "line": "sec_priya_17"
        },
        {
         "do": "wait",
-        "s": 1.2
+        "s": 0.6
+       },
+       {
+        "do": "score",
+        "id": "medbay",
+        "cue": "dread"
        },
        {
         "do": "say",
-        "line": "sec_okafor_08",
-        "wait": false,
-        "overlap": true
-       }
-      ]
-     },
-     {
-      "do": "loop",
-      "count": 1,
-      "steps": [
+        "line": "sec_okafor_16"
+       },
        {
-        "do": "waitFor",
-        "event": [
-         "kill:throw",
-         "medbay:over"
-        ],
-        "timeout": 40
+        "do": "say",
+        "line": "sec_okafor_17"
+       },
+       {
+        "do": "emit",
+        "event": "medbay:sit"
+       },
+       {
+        "do": "say",
+        "line": "sec_priya_18"
+       },
+       {
+        "do": "score",
+        "id": "medbay",
+        "cue": "sit"
+       },
+       {
+        "do": "score",
+        "id": "medbay",
+        "cue": "armory"
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "giles",
+        "to": "anchor:r07_armory_panel",
+        "speed": 1.8
+       },
+       {
+        "do": "say",
+        "line": "sec_giles_12"
+       },
+       {
+        "parallel": [
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "npcTask",
+            "npc": "giles",
+            "task": "bypass_short",
+            "args": {
+             "at": "anchor:r07_armory_panel",
+             "panel": "D_R07_R07a"
+            },
+            "wait": true
+           },
+           {
+            "do": "doorState",
+            "id": "D_R07_R07a",
+            "state": "open"
+           },
+           {
+            "do": "sfx",
+            "id": "click",
+            "at": "anchor:r07_armory_panel"
+           },
+           {
+            "do": "setFlag",
+            "flag": "armory_open",
+            "value": true
+           },
+           {
+            "do": "setObjective",
+            "id": "obj_armory"
+           },
+           {
+            "do": "say",
+            "line": "sec_giles_13"
+           },
+           {
+            "do": "npcMoveTo",
+            "npc": "giles",
+            "to": "anchor:r07_glass_giles"
+           }
+          ]
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "wait",
+            "s": 1
+           },
+           {
+            "do": "sfx",
+            "id": "surgery_breath",
+            "at": "anchor:r08_lurk"
+           },
+           {
+            "do": "say",
+            "line": "sec_priya_19"
+           },
+           {
+            "do": "say",
+            "line": "sec_okafor_18"
+           },
+           {
+            "do": "say",
+            "line": "sec_priya_20"
+           },
+           {
+            "do": "sfx",
+            "id": "surgery_scrape",
+            "at": "anchor:r08_lurk"
+           },
+           {
+            "do": "say",
+            "line": "sec_okafor_19"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "do": "waitPlayerIn",
+        "room": "R07",
+        "timeout": 10
        },
        {
         "do": "wait",
         "s": 0.8
        },
        {
+        "do": "sfx",
+        "id": "surgery_latch",
+        "at": "anchor:r08_lurk"
+       },
+       {
         "do": "say",
-        "line": "sec_giles_07",
+        "line": "sec_priya_01",
         "wait": false,
         "overlap": true
+       },
+       {
+        "do": "wait",
+        "s": 1.2
+       },
+       {
+        "do": "spawn",
+        "npc": "r08_thing",
+        "kind": "lab_creature",
+        "at": "anchor:r08_lurk"
+       },
+       {
+        "do": "score",
+        "id": "medbay",
+        "cue": "emerge"
+       },
+       {
+        "do": "doorState",
+        "id": "D_R08_R08b",
+        "state": "open"
+       },
+       {
+        "parallel": [
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "kill",
+            "npc": "priya",
+            "kind": "mauled",
+            "attacker": "r08_thing",
+            "glass": "anchor:medbay_c_glass",
+            "marks": {
+             "along": "anchor:r08_along",
+             "lane": "anchor:r08_lane",
+             "lane2": "anchor:r08_lane2",
+             "cower": "anchor:priya_cower",
+             "impale": "anchor:r08_impale",
+             "around": "anchor:r08_around",
+             "slamSpot": "anchor:r08_slam_spot",
+             "slamFace": "anchor:r08_slam_face",
+             "cart": "anchor:r08_cart_top",
+             "throwAt": "anchor:r08_throw_point",
+             "rest": "anchor:priya_rest",
+             "exit": "anchor:r08_along",
+             "surgery": "anchor:r08_lurk",
+             "surgeryIn": "anchor:r08_surgery_in",
+             "surgeryOut": "anchor:r08_surgery_out",
+             "glassLook": "anchor:medbay_c_glass"
+            },
+            "wait": true
+           },
+           {
+            "do": "setFlag",
+            "flag": "r08_over",
+            "value": true
+           },
+           {
+            "do": "emit",
+            "event": "medbay:over"
+           }
+          ]
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "waitFor",
+            "event": [
+             "kill:plead",
+             "medbay:over"
+            ],
+            "timeout": 10
+           },
+           {
+            "do": "if",
+            "flag": "r08_over",
+            "then": [],
+            "else": [
+             {
+              "do": "wait",
+              "s": 1.5
+             },
+             {
+              "do": "setFlag",
+              "flag": "r08_thing_in",
+              "value": true
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "waitFor",
+            "event": [
+             "kill:noticed",
+             "kill:impale",
+             "medbay:over"
+            ],
+            "timeout": 40
+           },
+           {
+            "do": "wait",
+            "s": 1.5
+           },
+           {
+            "do": "score",
+            "id": "medbay",
+            "cue": "walk"
+           }
+          ]
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "waitFor",
+            "event": [
+             "kill:plead",
+             "medbay:over"
+            ],
+            "timeout": 10
+           },
+           {
+            "do": "if",
+            "flag": "r08_over",
+            "then": [],
+            "else": [
+             {
+              "do": "say",
+              "line": "sec_priya_05",
+              "wait": false,
+              "overlap": true
+             },
+             {
+              "do": "wait",
+              "s": 0.4
+             },
+             {
+              "do": "say",
+              "line": "sec_okafor_02",
+              "wait": false,
+              "overlap": true
+             },
+             {
+              "do": "emit",
+              "event": "door:denied",
+              "payload": {
+               "id": "D_R07_R08",
+               "reason": "Sealed. Lockdown."
+              }
+             },
+             {
+              "do": "wait",
+              "s": 0.8
+             },
+             {
+              "do": "say",
+              "line": "sec_giles_06",
+              "wait": false,
+              "overlap": true
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "waitFor",
+            "event": [
+             "kill:noticed",
+             "medbay:over"
+            ],
+            "timeout": 40
+           },
+           {
+            "do": "if",
+            "flag": "r08_over",
+            "then": [],
+            "else": [
+             {
+              "do": "wait",
+              "s": 1.6
+             },
+             {
+              "do": "say",
+              "line": "sec_priya_04",
+              "wait": false,
+              "overlap": true
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "waitFor",
+            "event": [
+             "kill:impale",
+             "medbay:over"
+            ],
+            "timeout": 60
+           },
+           {
+            "do": "if",
+            "flag": "r08_over",
+            "then": [],
+            "else": [
+             {
+              "do": "playerControl",
+              "interact": false
+             },
+             {
+              "do": "say",
+              "line": "sec_okafor_03",
+              "wait": false,
+              "overlap": true
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "waitFor",
+            "event": [
+             "kill:impale",
+             "medbay:over"
+            ],
+            "timeout": 60
+           },
+           {
+            "do": "if",
+            "flag": "r08_over",
+            "then": [],
+            "else": [
+             {
+              "do": "wait",
+              "s": 0.6
+             },
+             {
+              "do": "say",
+              "line": "sec_jay_01",
+              "wait": false,
+              "overlap": true
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "waitFor",
+            "event": [
+             "kill:carry",
+             "medbay:over"
+            ],
+            "timeout": 40
+           },
+           {
+            "do": "if",
+            "flag": "r08_over",
+            "then": [],
+            "else": [
+             {
+              "do": "wait",
+              "s": 1
+             },
+             {
+              "do": "say",
+              "line": "sec_okafor_08",
+              "wait": false,
+              "overlap": true
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "waitFor",
+            "event": [
+             "kill:throw",
+             "medbay:over"
+            ],
+            "timeout": 40
+           },
+           {
+            "do": "if",
+            "flag": "r08_over",
+            "then": [],
+            "else": [
+             {
+              "do": "wait",
+              "s": 0.8
+             },
+             {
+              "do": "say",
+              "line": "sec_giles_07",
+              "wait": false,
+              "overlap": true
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "waitFor",
+            "event": [
+             "kill:still",
+             "medbay:over"
+            ],
+            "timeout": 60
+           },
+           {
+            "do": "if",
+            "flag": "r08_over",
+            "then": [],
+            "else": [
+             {
+              "do": "wait",
+              "s": 0.9
+             },
+             {
+              "do": "say",
+              "line": "sec_jay_02",
+              "wait": false,
+              "overlap": true
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "waitFor",
+            "event": [
+             "kill:still",
+             "medbay:over"
+            ],
+            "timeout": 60
+           },
+           {
+            "do": "if",
+            "flag": "r08_over",
+            "then": [],
+            "else": [
+             {
+              "do": "wait",
+              "s": 2.4
+             },
+             {
+              "do": "npcMoveTo",
+              "npc": "okafor",
+              "to": "anchor:r07_medbay_door",
+              "speed": 1.2,
+              "wait": true
+             },
+             {
+              "do": "npcAnim",
+              "npc": "okafor",
+              "anim": "okafor_hand_glass"
+             },
+             {
+              "do": "wait",
+              "s": 0.8
+             },
+             {
+              "do": "say",
+              "line": "sec_okafor_22"
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "do": "doorState",
+        "id": "D_R08_R08b",
+        "state": "closed"
+       },
+       {
+        "do": "despawn",
+        "npc": "r08_thing"
+       },
+       {
+        "do": "score",
+        "id": "medbay",
+        "cue": "aftermath"
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "okafor",
+        "to": "anchor:r07_medbay_door",
+        "speed": 1.2,
+        "wait": true
+       },
+       {
+        "do": "npcAnim",
+        "npc": "okafor",
+        "anim": "okafor_hand_glass"
+       },
+       {
+        "do": "wait",
+        "s": 1.2
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "okafor",
+        "to": "anchor:r07_console",
+        "speed": 1,
+        "wait": true
+       },
+       {
+        "do": "intercom",
+        "id": "medbay",
+        "state": "off"
+       },
+       {
+        "do": "score",
+        "id": "medbay",
+        "cue": "end"
+       },
+       {
+        "do": "npcAnim",
+        "npc": "okafor",
+        "anim": "okafor_notebook"
+       },
+       {
+        "do": "wait",
+        "s": 4
+       },
+       {
+        "do": "say",
+        "line": "sec_okafor_20"
+       },
+       {
+        "do": "wait",
+        "s": 3.2
+       },
+       {
+        "do": "npcAnim",
+        "npc": "okafor",
+        "anim": "idle"
+       },
+       {
+        "do": "say",
+        "line": "sec_okafor_21"
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "okafor",
+        "to": "anchor:r07_regroup",
+        "speed": 1.2
+       },
+       {
+        "do": "emit",
+        "event": "medbay:silent"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "npcMoveTo",
+        "npc": "giles",
+        "to": "anchor:r07_glass_giles",
+        "speed": 1.6
        }
       ]
      },
@@ -502,21 +1289,23 @@
       "steps": [
        {
         "do": "waitFor",
-        "event": [
-         "kill:reach",
-         "medbay:over"
-        ],
-        "timeout": 40
+        "event": "medbay:sit"
        },
        {
         "do": "wait",
-        "s": 0.7
+        "s": 0.5
        },
        {
-        "do": "say",
-        "line": "sec_jay_02",
-        "wait": false,
-        "overlap": true
+        "do": "npcMoveTo",
+        "npc": "priya",
+        "to": "anchor:priya_sit",
+        "speed": 1.1,
+        "wait": true
+       },
+       {
+        "do": "npcAnim",
+        "npc": "priya",
+        "anim": "priya_sit_wall"
        }
       ]
      }
@@ -524,110 +1313,8 @@
    },
    {
     "do": "doorState",
-    "id": "D_R08_R08b",
-    "state": "closed"
-   },
-   {
-    "do": "despawn",
-    "npc": "r08_thing"
-   },
-   {
-    "do": "npcMoveTo",
-    "npc": "priya",
-    "to": "anchor:priya_hide",
-    "instant": true
-   },
-   {
-    "do": "npcAnim",
-    "npc": "priya",
-    "anim": "corpseProne",
-    "instant": true
-   },
-   {
-    "do": "gore",
-    "at": "anchor:priya_pool",
-    "kind": "pool",
-    "size": 1.2
-   },
-   {
-    "do": "wait",
-    "s": 2.5
-   },
-   {
-    "do": "say",
-    "line": "sec_okafor_04"
-   },
-   {
-    "do": "playerLookAt",
-    "target": "npc:okafor",
-    "duration": 0.8,
-    "weight": 0.6
-   },
-   {
-    "do": "say",
-    "line": "sec_okafor_05"
-   },
-   {
-    "do": "say",
-    "line": "sec_giles_03"
-   },
-   {
-    "do": "npcMoveTo",
-    "npc": "giles",
-    "to": "anchor:r07_panel"
-   },
-   {
-    "do": "wait",
-    "s": 3.0
-   },
-   {
-    "do": "say",
-    "line": "sec_giles_05"
-   },
-   {
-    "do": "setFlag",
-    "flag": "giles.infectionStage",
-    "value": 2
-   },
-   {
-    "do": "say",
-    "line": "sec_okafor_07"
-   },
-   {
-    "do": "npcMoveTo",
-    "npc": "giles",
-    "to": "anchor:r07_regroup"
-   },
-   {
-    "do": "wait",
-    "s": 2.5
-   },
-   {
-    "do": "setFlag",
-    "flag": "giles.bandaged",
-    "value": true
-   },
-   {
-    "do": "npcAnim",
-    "npc": "giles",
-    "anim": "rub_forearm"
-   },
-   {
-    "do": "say",
-    "line": "giles_cut_01"
-   },
-   {
-    "do": "npcMoveTo",
-    "npc": "okafor",
-    "to": "anchor:r07_glass_okafor"
-   },
-   {
-    "do": "say",
-    "line": "sec_okafor_06"
-   },
-   {
-    "do": "say",
-    "line": "sec_giles_04"
+    "id": "D_R06_R07",
+    "state": "open"
    },
    {
     "do": "playerControl",

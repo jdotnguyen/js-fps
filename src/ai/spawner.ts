@@ -27,6 +27,10 @@ export interface SpawnPointData {
   model?: string | undefined;
   /** Cast look (castLooks) whose body the enemy uses. */
   look?: string | undefined;
+  /** Health in place of the variant's base health (before difficulty). */
+  hp?: number | undefined;
+  /** `drop`: fall from the point to the floor below. */
+  start?: 'drop' | undefined;
   on?: string | undefined;
 }
 

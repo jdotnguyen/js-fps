@@ -127,7 +127,7 @@ reveal; the player is **Jay**, silent, with **no written backstory with anyone**
 ### Surfaces as
 - Intro: "It's not a diagnosis. It's an observation." "Arm bothering you?"
 - R05: "Legs! Take its legs!" — the surgeon finding the practical answer before anyone else.
-- R08: watches Priya dragged away through the glass; says her name once, then works.
+- R08: talks Priya down over the intercom and tells her she is fine; watches her killed through the glass, says her name once, and writes it in his notebook. "I told her she was fine."
 - Biometric door (R09): his specialist moment; he hesitates before badging into the med lab.
 - Reveal: steps toward Giles ("August-"); his guilt is that he never once doubted him.
 
@@ -172,7 +172,7 @@ reveal; the player is **Jay**, silent, with **no written backstory with anyone**
 | Character | Who they are | Where they appear | Detail that surfaces |
 |---|---|---|---|
 | **Dr. Lena Voss** | Lab B microbiologist, the bloom's lead researcher. Brilliant, ambitious, scared for three days. | R04: the researcher killed behind the glass when the bloom grows out of her chest (infection-kills spec, `grownInside`). NPC `researcher_b`, look `voss` (a fixed female body; stand-in `office3` until a lab-coat model is licensed); speaker `crew_lab`, whose lines move her jaw and play from her head. | Her name badge on the floor of R05 afterwards; her voice log on a terminal ("It's not an infection. It's a *conversion*."). |
-| **Priya Anand** | Okafor's nurse, 29, two years on station. Cheerful, competent, the one person who calls him "Tomas". | R08: dragged away through the glass. | Okafor says her name once. Her cardigan on the sickbay chair. |
+| **Priya Anand** | Okafor's nurse, 29, two years on station. Cheerful, competent, the one person who calls him "Tomas". | R08: killed behind the glass after Okafor talks her down over the intercom; she lies by the pane. | Okafor says her name once. Her cardigan on the sickbay chair. |
 | **Bram** (cook, `crew_cook`) | Contractor like Giles; runs the kitchen; dry, gossipy, knows everything through the pipes. | Intro kitchen. | "Nobody tells the kitchen anything. We just hear the pipes." His fixed kettle (Giles fixed it). |
 | **Ines Ruiz** (tech, `crew_tech`) | Comms technician; curious, asks the question nobody else will. | Intro kitchen. | "Third quarantine this month. Anyone know what's actually in Lab B?" Later found in R09. |
 | **Mess crew** (`crew_mess`) | Generic crew, seeded faces. | R02. | Morning greetings; they call Jay "officer". |
@@ -217,10 +217,8 @@ reveal; the player is **Jay**, silent, with **no written backstory with anyone**
 - **Jay** speaks (see ADR-0022 amendment): steady, attentive, remembers details. A man.
 - **Priya Anand** [Decided]: likeable, same weight as Giles and Okafor. In the intro she covers
   the medical bay so Okafor can sit down and hands Jay his coffee (his first interaction in the
-  game). In R08 she is attacked and dragged off and appears dead, but **survives**; she is killed
-  slowly on a security feed in the post-title stinger (ADR-0014 amendment). This replaces "dragged
-  away through the glass" as her end. Her relationship line "Her death in R08" now reads "her
-  apparent death in R08".
+  game). ~~In R08 she is attacked and dragged off and appears dead, but survives; she is killed
+  slowly on a security feed in the post-title stinger.~~ Superseded 2026-11-20 (below).
 - **Katie Heins** [Decided]: Jay's security chief. Short purple hair. Runs the morning briefing
   in person; didn't know about the Lab B quarantine and is annoyed by it.
 - **Director Hale** [Assumed]: now **seen**. He is the station administrator who cuts into the
@@ -232,3 +230,25 @@ reveal; the player is **Jay**, silent, with **no written backstory with anyone**
   in the intro [Assumed]. Her "Third quarantine" line is cut.
 - **New crew** on the rounds: botanists (hydroponics), maintenance and divers (dive bay), execs
   and an assistant (admin office). Names to come.
+
+## Amendment (2026-11-22, overhaul-priya-r08-death, R07 rework)
+- **Priya Anand** [Decided]: she hides in the security office, bolts from the squad into the medical bay and seals
+  herself in. Before the creature comes out, Okafor talks to her through the glass and the medbay intercom: he checks
+  her over and tells her she is fine, and talks her down with her own words from the intro ("Sit. That's medical
+  advice." / "That's my line."). The creature impales her, slams her on the cart and throws her into the pane; she
+  lies where she lands, by the glass. No drag. The stinger is the medical bay feed (CAM 04) on her body there.
+- **Okafor** [Decided]: after her death he switches off the intercom, writes her name in his notebook, and says
+  "I told her she was fine." and "Med lab's through there." Nobody mentions TAG in the aftermath; the lockdown order
+  (administration, "routine") is on the security console, read by Giles during the rescue.
+- **Giles** [Decided]: he is **not infected** any more. The R06 and R07 infection beats are cut; the intro's arm line
+  stays. The cliffhanger reveal will be rewritten around another character (not yet written); the write-up of his
+  infection above and the climax are stale until then.
+
+## Amendment (2026-11-20, overhaul-priya-r08-death)
+*Superseded where it differs by the 2026-11-22 amendment above: there is no drag, she lies by the glass, and the stinger is the CAM 04 medical bay feed.*
+- **Priya Anand** [Decided]: she **dies on screen in R08**. The creature grabs her by the hair at the glass,
+  slams her head on an instrument cart three times in Jay's full view, throws her into the pane and drags her
+  into the surgery by the ankle. Okafor says her name once, at the grab. This replaces the 2026-11-16 survival
+  note: in the post-title stinger the surgery feed shows her **corpse**, and the bloom raises it - it gets up the
+  wrong way and turns its face to the camera. She says nothing in the stinger. Her relationship line is again
+  "Her death in R08 is the moment his calm cracks for the first time."

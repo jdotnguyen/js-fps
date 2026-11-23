@@ -34,6 +34,8 @@ declare module '../core/events.ts' {
     'enemy:grab': { id: string; target: string };
     'enemy:grabReleased': { id: string; reason: 'escaped' | 'shot' | 'died' | 'cleared' };
     'enemy:slam': { id: string; x: number; y: number; z: number };
+    /** A dropping enemy hit the floor after falling `height` m (enemy-encounters). */
+    'enemy:landed': { id: string; x: number; y: number; z: number; height: number };
     /** A weapon hit an enemy (`by`: 'player' or a squad id). */
     'enemy:hit': { id: string; region: string; amount: number; severed: string | null; killed: boolean; weakSpot: boolean; by: string };
     /** Every enemy a spawn group produced is dead (sequences `waitFor` it; also `group:cleared:<group>`). */
@@ -187,7 +189,7 @@ export class EnemyDirector implements EnemyHost {
   }
 
   /** Spawn one enemy now (debug, scripts). Feet position. */
-  spawn(variant: EnemyVariantId, pos: P3, yaw = 0, opts: { group?: string | null; outfit?: string; infection?: number; start?: 'stand' | 'playDead' | 'emerge'; id?: string; model?: string | null; look?: string } = {}): Enemy {
+  spawn(variant: EnemyVariantId, pos: P3, yaw = 0, opts: { group?: string | null; outfit?: string; infection?: number; start?: 'stand' | 'playDead' | 'emerge' | 'drop'; id?: string; model?: string | null; look?: string; hp?: number } = {}): Enemy {
     const table = this.d.table;
     const tuning = table[variant];
     const id = opts.id ?? `${variant}-${++this.counter}`;
@@ -199,7 +201,8 @@ export class EnemyDirector implements EnemyHost {
       outfit,
       role: 'enemy',
       infection: opts.infection ?? (hero ? 2 : rng.range(1.2, 3)),
-      baseHp: tuning.baseHp * this.d.difficulty().enemyHp,
+      // A spawn point's `hp` stands in for the variant's base health (enemy-encounters); difficulty still scales it.
+      baseHp: (opts.hp ?? tuning.baseHp) * this.d.difficulty().enemyHp,
       ...(hero ? { hero: true, height: 2.15, build: 1.25, pose: 'hulk' } : {}),
     };
     // Imported bodies for the crowd only (ADR-0026). Own rng fork, so procedural spawns stay as they were.
@@ -217,10 +220,16 @@ export class EnemyDirector implements EnemyHost {
       const floor = floorBelow({ x: pos.x, y: pos.y, z: pos.z, vy: 0, grounded: true }, this.d.colliders);
       if (Number.isFinite(floor)) pos = { x: pos.x, y: floor, z: pos.z };
     }
-    const e = new Enemy({ id, variant, tuning, group: opts.group ?? null, pos, yaw, spec, start }, this.d.ctx, rng, (this.list.length * 0.037) % 0.2);
+    // A drop starts at the point itself and falls to the same floor an emerge would come out on.
+    let dropTo: number | undefined;
+    if (start === 'drop') {
+      const floor = floorBelow({ x: pos.x, y: pos.y, z: pos.z, vy: 0, grounded: true }, this.d.colliders);
+      dropTo = Number.isFinite(floor) ? floor : pos.y;
+    }
+    const e = new Enemy({ id, variant, tuning, group: opts.group ?? null, pos, yaw, spec, start, ...(dropTo !== undefined ? { dropTo } : {}) }, this.d.ctx, rng, (this.list.length * 0.037) % 0.2);
     this.list.push(e);
     this.group.add(e.body.group);
-    if (start === 'emerge') {
+    if (start === 'emerge' || start === 'drop') {
       // Out of a vent or through the ceiling: it comes out already hunting the player.
       const p = this.targets.find((t) => t.kind === 'player');
       if (p) {
@@ -486,6 +495,11 @@ export class EnemyDirector implements EnemyHost {
   }
 
   /** Hero slam landed: falloff damage and knockback to every target, and crowd bodies stagger (ADR-0021). */
+  onLand(e: Enemy, height: number): void {
+    const p = e.motor;
+    this.d.events.emit('enemy:landed', { id: e.id, x: p.x, y: p.y, z: p.z, height });
+  }
+
   onSlam(e: Enemy, at: THREE.Vector3): void {
     this.d.events.emit('enemy:slam', { id: e.id, x: at.x, y: at.y, z: at.z });
     const knock = e.tuning.knockback ?? 0;
@@ -533,7 +547,7 @@ export class EnemyDirector implements EnemyHost {
     const a = r.index * 2.4;
     let pos = { x: p.pos[0] + Math.sin(a) * off, y: p.pos[1], z: p.pos[2] + Math.cos(a) * off };
     let yaw = ((p.yaw ?? 0) * Math.PI) / 180;
-    const start = r.variant === 'playDead' ? 'playDead' : p.kind === 'vent' || p.kind === 'ceiling' ? 'emerge' : 'stand';
+    const start = r.variant === 'playDead' ? 'playDead' : p.start === 'drop' ? 'drop' : p.kind === 'vent' || p.kind === 'ceiling' ? 'emerge' : 'stand';
     const opts: Parameters<EnemyDirector['spawn']>[3] = { group: r.group, start, id: r.index === 0 ? p.id : `${p.id}.${r.index}` };
     const from = r.group ? this.groupFrom.get(r.group) : undefined;
     if (from) {
@@ -544,6 +558,7 @@ export class EnemyDirector implements EnemyHost {
     if (p.outfit !== undefined) opts.outfit = p.outfit;
     if (p.infection !== undefined) opts.infection = p.infection;
     if (p.model !== undefined) opts.model = p.model;
+    if (p.hp !== undefined) opts.hp = p.hp;
     const e = this.spawn(r.variant, pos, yaw, opts);
     // Door and vent spawns arrive hunting; floor and corpse spawns wait to notice someone.
     if (p.kind === 'door' && e.state === 'dormant') {

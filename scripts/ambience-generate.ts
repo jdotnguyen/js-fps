@@ -798,6 +798,149 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     prompt:
       'seamless close-up loop of a low electrical mains ballast hum from an emergency backup lamp, steady 50 hertz buzz with a faint transformer whine, quiet, constant, no music, no voice, no clicks',
   },
+  // The Lab B creature escaping through the vents (trim-lab-wing-encounters design D6): heard tearing off Lab B's grate
+  // in the blackout, crawling along the ducts over R05 and R06, then kicking out R06's grate and landing.
+  {
+    id: 'ventCoverRip',
+    file: 'oneshot-vent-cover-rip.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2,
+    promptInfluence: 0.65,
+    prompt:
+      'a metal ceiling ventilation grate violently torn off its frame by a monster in the dark, screws shearing, sheet metal bending and screeching, the grate swinging and clanging on one hinge, close, horror, no music, no voice',
+  },
+  {
+    id: 'ventCoverBurst',
+    file: 'oneshot-vent-cover-burst.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.5,
+    promptInfluence: 0.7,
+    prompt:
+      'a ceiling vent grate violently kicked out from inside the duct by a heavy monster, a single huge metal bang and a shriek of bending sheet metal, close, industrial, horror, no music, no voice',
+  },
+  {
+    id: 'ductBang_1',
+    file: 'oneshot-duct-bang-1.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2,
+    promptInfluence: 0.65,
+    prompt:
+      'a heavy creature crawling inside a sheet-metal ventilation duct above a ceiling, two slow heavy body-weight bangs, hollow metallic thuds and the duct flexing and booming, muffled through the ceiling, close, horror, no music, no voice',
+  },
+  {
+    id: 'ductBang_2',
+    file: 'oneshot-duct-bang-2.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2,
+    promptInfluence: 0.65,
+    prompt:
+      'a heavy creature crawling inside a sheet-metal ventilation duct above a ceiling, a single hard knock and a dent popping, hollow metallic thuds and the duct flexing and booming, muffled through the ceiling, close, horror, no music, no voice',
+  },
+  {
+    id: 'ductBang_3',
+    file: 'oneshot-duct-bang-3.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2,
+    promptInfluence: 0.65,
+    prompt:
+      'a heavy creature crawling inside a sheet-metal ventilation duct above a ceiling, three fast scrambling bangs moving along, hollow metallic thuds and the duct flexing and booming, muffled through the ceiling, close, horror, no music, no voice',
+  },
+  {
+    id: 'ductBang_4',
+    file: 'oneshot-duct-bang-4.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2,
+    promptInfluence: 0.65,
+    prompt:
+      'a heavy creature crawling inside a sheet-metal ventilation duct above a ceiling, a heavy lurching thump and a long metal groan, hollow metallic thuds and the duct flexing and booming, muffled through the ceiling, close, horror, no music, no voice',
+  },
+  {
+    id: 'ductScrape_1',
+    file: 'oneshot-duct-scrape-1.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2.5,
+    promptInfluence: 0.65,
+    prompt:
+      'claws and a body dragging along the inside of a sheet-metal air duct, long metallic scraping and squealing, muffled through a ceiling, horror, no music, no voice',
+  },
+  {
+    id: 'ductScrape_2',
+    file: 'oneshot-duct-scrape-2.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2,
+    promptInfluence: 0.65,
+    prompt:
+      'quick skittering claws scratching inside a metal ventilation duct overhead, short scrape and a hollow knock, muffled, horror, no music, no voice',
+  },
+  {
+    id: 'creatureLand_1',
+    file: 'oneshot-creature-land-1.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.5,
+    promptInfluence: 0.7,
+    prompt:
+      'a heavy wet monster body dropping from a ceiling and slamming flat onto a steel deck plate floor, a deep thud with a flesh slap and metal ring, close, horror, no music, no voice',
+  },
+  {
+    id: 'creatureLand_2',
+    file: 'oneshot-creature-land-2.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.5,
+    promptInfluence: 0.7,
+    prompt:
+      'a large creature landing hard on a metal floor from a height, heavy body impact, bones cracking, deck plating booming, close, horror, no music, no voice',
+  },
+  {
+    id: 'grateClatter',
+    file: 'oneshot-grate-clatter.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.5,
+    promptInfluence: 0.7,
+    prompt:
+      'a metal ventilation grate falling from a ceiling and clattering onto a steel floor, bouncing twice and rattling to a stop, close, industrial, no music, no voice',
+  },
+  // overhaul-priya-r08-death D25/D31: the medbay intercom's switch and static, and the vitals monitor's steady beep.
+  {
+    id: 'intercomClick',
+    file: 'oneshot-intercom-click.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 0.5,
+    promptInfluence: 0.7,
+    prompt:
+      'a single hard click of an old intercom push-to-talk switch through a small wall loudspeaker, tiny speaker pop, dry, no music, no voice',
+  },
+  {
+    id: 'intercomStatic',
+    file: 'oneshot-intercom-static.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.2,
+    promptInfluence: 0.65,
+    prompt:
+      'a short burst of loudspeaker static as a room intercom channel opens, harsh crackle and hiss that settles to a faint hum, small wall speaker, dry, no music, no voice',
+  },
+  {
+    id: 'monitorBeep',
+    file: 'oneshot-monitor-beep.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 0.5,
+    promptInfluence: 0.75,
+    prompt:
+      'one single short clean electronic heart monitor beep, a pure soft sine tone, hospital vital signs monitor, one beep only, dry, no music, no voice',
+  },
 ];
 
 function loadApiKey(): string {

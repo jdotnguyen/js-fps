@@ -105,6 +105,10 @@ export interface SequenceHost {
   /** Teleport the player, cancelling any forced walk (skipped scenes, `playerPlace`). */
   placePlayer?(at: PlaceTarget, yaw: number | undefined, pitch: number | undefined): void;
   cameraShake?(amount: number, seconds: number): void;
+  /** A room intercom on or off (in-world-audio: A live intercom relays a room). False for an unknown id. */
+  intercom?(id: string, live: boolean): boolean;
+  /** Hold an NPC's local voice at the loudness of `at` m, or end that with null (voice-playback: A scene can project a voice). */
+  projectVoice?(npc: string, at: number | null): void;
   setTimeScale?(scale: number): void;
 
   setDoor?(id: string, state: string): boolean;
@@ -117,6 +121,8 @@ export interface SequenceHost {
   joltLights?(room: string, strength: number): boolean;
   lightStates?(): Record<string, string>;
   glass?(id: string, state: string): void;
+  /** A `ceiling_vent` grate's state (closed | open | fallen); `instant` snaps without the swing or fall. */
+  ventState?(id: string, state: string, instant: boolean): void;
   /** Security camera feed (render-to-texture, `render/cameraFeed.ts`). */
   cameraFeed?(id: string, opts: CameraFeedOptions): void;
   /** Cosmetic gore at a point (`gore` action): `dir` is the point it is thrown toward. */
@@ -133,7 +139,7 @@ export interface SequenceHost {
   /** Station power (station-power spec): every room on main or backup lights. */
   setPower?(state: 'mains' | 'backup'): void;
   /** `beat`: wait for the score's next beat (adaptive-music spec). */
-  sfx?(id: string, at: Vec3Like | null, opts?: { beat?: boolean; gain?: number }): void;
+  sfx?(id: string, at: Vec3Like | null, opts?: { beat?: boolean; gain?: number; relay?: boolean }): void;
   /** Adaptive score: load it, set a cue, or play a stinger. */
   score?(id: string, opts: { cue?: string; stinger?: string; load?: boolean }): void;
   music?(id: string | null): void;
@@ -155,7 +161,7 @@ export interface SequenceHost {
    * `hush` action: silence the world's ambience and sound effects and every voice but `speakers` (a fullscreen
    * feed that should carry only its own sound), over about `seconds`; `null` brings it all back.
    */
-  hush?(speakers: readonly string[] | null, seconds: number): void;
+  hush?(speakers: readonly string[] | null, seconds: number, keep?: readonly 'sfx'[]): void;
   /** Give a key item (ADR-0024). False if unknown or already held. */
   giveItem?(id: string): boolean;
   /** Record a checkpoint in the game (autosave, toast). */
@@ -173,14 +179,14 @@ export interface SequenceHost {
   groupCleared?(group: string): boolean;
   /** `squadRegroup` (squad-tasks spec): bring far, unseen squadmates near Jay; returns the ids moved. */
   squadRegroup?(distance?: number): string[];
+  /** `gatherIn` (scene-gathering spec): is Jay or a squadmate inside the room? Unknown rooms count as inside. */
   /** Is this a room of the loaded level? Absent when there is no level (a sequence `room` is then not checked). */
   hasRoom?(room: string): boolean;
-  /** `gatherIn` (scene-gathering spec): is Jay or a squadmate inside the room? Unknown rooms count as inside. */
   inRoom?(who: 'player' | 'giles' | 'okafor', room: string): boolean;
   /** `gatherIn` timed out or skipped: put squadmates still outside the room near Jay; returns the ids moved. */
   squadPlaceIn?(room: string): string[];
   /** `squadCatchUpIn` (morning-briefing spec): move unseen squadmates outside the room inside it without popping in view. */
-  squadCatchUpIn?(room: string, entry?: Vec3Like | null): string[];
+  squadCatchUpIn?(room: string, entry?: Vec3Like | null, force?: boolean): string[];
 }
 
 export type { Scalar };

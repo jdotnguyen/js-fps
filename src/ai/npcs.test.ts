@@ -340,6 +340,35 @@ test('npcMoveTo whenUnseen: taken off-stage mid-walk the moment she leaves Jay\'
   assert.ok(last.distanceTo(goal) > 0.5, 'mid-walk, not at the end of it');
 });
 
+test('npcMoveTo settle: whenUnseen places the NPC straight into a seated pose, a walk settles on arrival, a cut-short walk does not', async () => {
+  const { npcs, player } = setup();
+  const eye = player.eyePosition(new THREE.Vector3());
+  const away = { x: 0, z: 1 };
+  await npcs.command('spawn', { npc: 'nurse', kind: 'lab', at: [0, 0, 2] });
+  await npcs.command('npcMoveTo', { npc: 'nurse', to: 'anchor:a', whenUnseen: true, settle: 'sit_chair' });
+  assert.notEqual(npcs.actor('nurse')!.basePose, 'sit_chair', 'still standing while she waits to be unseen');
+  npcs.update(1 / 60, eye, away);
+  const nurse = npcs.actor('nurse')!;
+  assert.ok(nurse.position.distanceTo(new THREE.Vector3(0, 0, 4)) < 0.05, 'placed at the anchor');
+  assert.equal(nurse.basePose, 'sit_chair');
+  assert.equal(nurse.moving, false, 'no walk left to drag her off the seat');
+
+  // A walk with settle sits down on arrival.
+  await npcs.command('npcMoveTo', { npc: 'nurse', to: [0, 0, 2], instant: true });
+  const walk = npcs.command('npcMoveTo', { npc: 'nurse', to: [0, 0, 3], settle: 'lean_counter' });
+  for (let i = 0; i < 60 * 8 && nurse.moving; i++) npcs.update(1 / 60, eye, null);
+  await walk;
+  assert.equal(nurse.basePose, 'lean_counter');
+
+  // A walk another command cuts short must not sit her down where she stands.
+  await npcs.command('npcMoveTo', { npc: 'nurse', to: [0, 0, -6], instant: true });
+  const cut = npcs.command('npcMoveTo', { npc: 'nurse', to: [0, 0, 6], settle: 'sit_chair' });
+  npcs.update(1 / 60, eye, null);
+  await npcs.command('npcMoveTo', { npc: 'nurse', to: [0, 0, -5], instant: true });
+  await cut;
+  assert.notEqual(nurse.basePose, 'sit_chair');
+});
+
 test('spawn and despawn by script', async () => {
   const { npcs } = setup();
   await npcs.command('spawn', { npc: 'lab_researcher_01', kind: 'lab', at: [0, 0, -2] });
@@ -528,4 +557,22 @@ test('endScene (scene-presence): a gesture in flight and a scripted look stop, a
   assert.equal(a.body.idlePose, base, 'back to the pose she held before');
   for (let i = 0; i < 30; i++) npcs.update(1 / 60, null);
   assert.equal(a.body.lookTarget, null, 'she no longer looks at Jay');
+});
+
+test('npcLookAt turn with turnRate: a slow scripted turn takes longer than the default (medbay-attack "She turns around when asked")', () => {
+  const turned = (rate?: number): number => {
+    const { npcs } = setup();
+    npcs.spawnFromLevel([{ id: 'priya', look: 'priya', pos: new THREE.Vector3(0, 0, 2), yaw: 0 }]);
+    const a = npcs.actor('priya')!;
+    const start = a.body.heading;
+    // Turn to face something behind her (yaw 0 faces -z; the target is at +z).
+    void npcs.command('npcLookAt', { npc: 'priya', target: [0, 1.5, 6], turn: true, ...(rate !== undefined ? { turnRate: rate } : {}) });
+    for (let i = 0; i < 30; i++) npcs.update(1 / 60, null);
+    return Math.abs(Math.atan2(Math.sin(a.body.heading - start), Math.cos(a.body.heading - start)));
+  };
+  const slow = turned(1.3);
+  const normal = turned();
+  assert.ok(slow > 0.2, `she turns (${slow.toFixed(2)} rad in 0.5 s)`);
+  assert.ok(slow < normal * 0.6, `slower than the default (${slow.toFixed(2)} vs ${normal.toFixed(2)} rad in 0.5 s)`);
+  assert.ok(slow <= 1.3 * 0.5 + 0.1, 'about 1.3 rad/s');
 });

@@ -667,18 +667,6 @@
       "then": [],
       "else": [
        {
-        "do": "npcMoveTo",
-        "npc": "crew_1",
-        "to": "anchor:priya_chair",
-        "instant": true
-       },
-       {
-        "do": "npcAnim",
-        "npc": "crew_1",
-        "anim": "idle_mug",
-        "instant": true
-       },
-       {
         "do": "setFlag",
         "flag": "commons_changed_2",
         "value": true
@@ -752,6 +740,15 @@
     "load": true
    },
    {
+    "do": "emit",
+    "event": "blinds:set",
+    "payload": {
+     "id": "labb",
+     "state": "up",
+     "instant": true
+    }
+   },
+   {
     "do": "wait",
     "s": 2.0
    },
@@ -771,18 +768,6 @@
    {
     "do": "setObjective",
     "id": "round_return"
-   },
-   {
-    "do": "npcFollow",
-    "npc": "giles",
-    "target": "anchor:brief_giles",
-    "stay": true
-   },
-   {
-    "do": "npcFollow",
-    "npc": "okafor",
-    "target": "anchor:brief_okafor",
-    "stay": true
    }
   ]
  },

@@ -106,7 +106,14 @@ export interface SpeechHandle {
  * Otherwise the propagation gain and tone for the voice, the straight-line metres to the speaker, and whether it is
  * within earshot.
  */
-export type Hearing = 'everywhere' | { gain: number; cutoffHz: number; distance: number; audible: boolean };
+export type Hearing = 'everywhere' | {
+  gain: number;
+  cutoffHz: number;
+  distance: number;
+  audible: boolean;
+  /** Also heard from a live intercom grille near the player (voice-playback: Voices on a live intercom). */
+  relayed?: boolean;
+};
 
 /** Local subtitles show only within this many metres of the speaker (voice-playback: Subtitles follow the player's earshot). */
 export const SUBTITLE_RANGE_M = 20;
@@ -513,6 +520,6 @@ export class SpeechManager {
   }
 }
 
-const audibleIn = (h: Hearing): boolean => h === 'everywhere' || h.audible;
-const subtitleIn = (h: Hearing): boolean => h === 'everywhere' || (h.audible && h.distance <= SUBTITLE_RANGE_M);
+const audibleIn = (h: Hearing): boolean => h === 'everywhere' || h.audible || h.relayed === true;
+const subtitleIn = (h: Hearing): boolean => h === 'everywhere' || h.relayed === true || (h.audible && h.distance <= SUBTITLE_RANGE_M);
 const headRank = (lane: Lane): number => (lane.queue[0] ? priorityRank(lane.queue[0].line.priority) : -1);

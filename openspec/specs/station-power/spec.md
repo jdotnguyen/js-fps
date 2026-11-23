@@ -52,11 +52,11 @@ After the chatter, one squad member SHALL react in a single local line. The Stat
 - **THEN** it comes from the PA speaker nearest the player, in the Station PA voice, with the room's reverb
 
 ### Requirement: Backup power
-When the PA notice ends, the station SHALL switch to backup power with a power-down sound. In backup power every room's main lights SHALL be out and only its backup lights SHALL glow, dimmer than its main lights were. Rooms SHALL be visibly darker than under the drop's red emergency lighting.
+When the PA notice ends, the station SHALL switch to backup power with a power-down sound. In backup power every room's main lights SHALL be out and only its backup lights SHALL glow, dimmer than its main lights were. Rooms SHALL be visibly darker than under the drop's red emergency lighting. A room whose level data puts lights on their own circuit, such as the medical bay or the pump room, SHALL keep those lights at their authored strength and colour.
 
 #### Scenario: Station goes dark
 - **WHEN** the switch to backup power happens
-- **THEN** the power-down sound plays and, within 3 s, every room on the station has its main lights off and only its backup lights on
+- **THEN** the power-down sound plays and, within 3 s, every room on the station has its main lights off and only its backup lights on, apart from lights on their own circuit
 
 #### Scenario: Darker than the drop
 - **WHEN** the Observation Gallery is seen under backup power
@@ -65,6 +65,10 @@ When the PA notice ends, the station SHALL switch to backup power with a power-d
 #### Scenario: Backup lamps hum
 - **WHEN** the player stands near a lit backup lamp under backup power
 - **THEN** a low electrical hum comes from it
+
+#### Scenario: Medical bay on its own circuit
+- **WHEN** the station is under backup power
+- **THEN** the medical bay's front-row lights glow and light the room at their main-power strength and colour, while the security office and the surgery are on backup lighting
 
 ### Requirement: Every room keeps some light
 Under backup power every room SHALL have at least one backup light, so that no room on the critical path is fully black without the flashlight.

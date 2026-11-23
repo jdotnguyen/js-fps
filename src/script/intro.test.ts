@@ -81,10 +81,12 @@ test('Ruiz and Sung come in at once: Sung queues, each badges in at the counter,
     'ruiz>anchor:arch_scan',
     'ruiz>anchor:arch_exit',
     'ruiz>anchor:crew_ruiz_commons',
+    'ruiz>anchor:dive_crew_lean',
     'sung>anchor:walkby_stop',
     'sung>anchor:arch_scan',
     'sung>anchor:arch_exit',
     'sung>anchor:crew_sung_commons',
+    'sung>anchor:dive_crew_sit',
   ]);
 });
 
@@ -254,14 +256,30 @@ test('the walk to the kitchen is one banter walk, no window stop', () => {
   assert.equal(typeof walks.find((w) => w['to'] === 'anchor:kitchen_stand')!['timeout'], 'number', 'a blocked walk times out instead of hanging the intro');
 });
 
-test('Ruiz and Sung walk to their own Commons spots, never the kitchen_door aim point', () => {
+test('Ruiz and Sung walk off toward their own Commons spots, never the kitchen_door aim point, then slip to the dive pool unseen: Sung sits at the pilot console, Ruiz leans on it', () => {
   const dests: Record<string, string> = {};
+  const commons: Record<string, string> = {};
+  const settled: Record<string, { to: string; whenUnseen: unknown; settle: unknown }> = {};
   walk(intro.steps, (s) => {
     if (s['do'] !== 'npcMoveTo') return;
     assert.notEqual(s['to'], 'anchor:kitchen_door', `${String(s['npc'])} must not park in the doorway`);
-    if (s['npc'] === 'ruiz' || s['npc'] === 'sung') dests[s['npc']] = String(s['to']);
+    if (s['npc'] !== 'ruiz' && s['npc'] !== 'sung') return;
+    dests[s['npc']] = String(s['to']);
+    if (String(s['to']).endsWith('_commons')) commons[s['npc']] = String(s['to']);
+    if (s['settle'] !== undefined) settled[s['npc']] = { to: String(s['to']), whenUnseen: s['whenUnseen'], settle: s['settle'] };
   });
-  assert.deepEqual(dests, { ruiz: 'anchor:crew_ruiz_commons', sung: 'anchor:crew_sung_commons' }, 'the last move of each decides where they end up');
+  assert.deepEqual(commons, { ruiz: 'anchor:crew_ruiz_commons', sung: 'anchor:crew_sung_commons' }, 'they walk out past the Commons first');
+  assert.deepEqual(dests, { ruiz: 'anchor:dive_crew_lean', sung: 'anchor:dive_crew_sit' }, 'the last move of each decides where they end up');
+  assert.deepEqual(settled, {
+    ruiz: { to: 'anchor:dive_crew_lean', whenUnseen: true, settle: 'lean_counter' },
+    sung: { to: 'anchor:dive_crew_sit', whenUnseen: true, settle: 'sit_chair' },
+  });
+  const r13b = level.rooms.find((r) => r.id === 'R13b')!;
+  for (const id of ['dive_crew_sit', 'dive_crew_lean']) {
+    const a = r13b.anchors!.find((x) => x.id === id);
+    assert.ok(a, `anchor ${id} exists in R13b`);
+    assert.equal(a.pos[1], 0, 'on the floor');
+  }
   const r02 = level.rooms.find((r) => r.id === 'R02')!;
   for (const id of ['crew_ruiz_commons', 'crew_sung_commons']) {
     const a = r02.anchors!.find((x) => x.id === id);
@@ -374,6 +392,7 @@ function makeHost() {
   const log: string[] = [];
   const control = new ControlStack();
   const handlers = new Map<string, Set<(p: unknown) => void>>();
+  const channels = new Map<string, string | undefined>();
   const host: SequenceHost = {
     events: {
       on(name, fn) {
@@ -401,8 +420,9 @@ function makeHost() {
     fade: (level, s) => log.push(`fade ${level} ${s}`),
     placePlayer: () => log.push('place'),
     sfx: () => undefined,
-    say: (line) => {
+    say: (line, opts) => {
       log.push(`say ${line}`);
+      channels.set(line, opts?.channel);
       return { done: Promise.resolve() };
     },
     markLinePlayed: (line) => log.push(`played ${line}`),
@@ -413,8 +433,23 @@ function makeHost() {
       log.push(`npc ${action}`);
     },
   };
-  return { host, log, control };
+  return { host, log, control, channels };
 }
+
+test('the guard scans Ruiz and Sung on a side channel, so the Sung exchange never waits on his lines', async () => {
+  const { host, channels } = makeHost();
+  const m = new SequenceManager(host, [intro]);
+  m.start('intro_shift_change');
+  for (let i = 0; i < 60 * 400 && m.running().length > 0; i++) {
+    m.update(1 / 60);
+    if (i % 4 === 0) await Promise.resolve();
+  }
+  const main = 'seq:intro_shift_change';
+  for (const line of ['intro_guard_01', 'intro_guard_02', 'intro_guard_03']) assert.equal(channels.get(line), `${main}:checkpoint`, line);
+  for (const line of ['intro_sung_01', 'intro_jay_02', 'intro_sung_02', 'intro_ruiz_01', 'intro_guard_04', 'intro_guard_05']) {
+    assert.equal(channels.get(line), main, `${line} stays on the main conversation`);
+  }
+});
 
 test('watched to the end, the intro sets its flags, hands back control and takes cp_intro', async () => {
   const { host, log, control } = makeHost();
@@ -679,7 +714,7 @@ test('R01 intro watch, skips during scan/walk/pull/sit and post-intro restore al
     return npcs.command(action, step);
   };
   const rm = new SequenceManager(host, restoreDefs);
-  host.events.emit('game:mode', { mode: 'playing' });
+  host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   rm.update(1 / 60);
   const cam = new THREE.Vector3(6.95, 1.62, 4.3);
   for (let i = 0; i < 60; i++) npcs.update(1 / 60, cam);
@@ -764,4 +799,15 @@ test('Bram serves Okafor then walks to Giles far side in parallel with kitchen b
   for (const [id, who] of Object.entries(expectedTo)) {
     assert.equal(library.line(id).to, who, `${id} addresses ${who}`);
   }
+});
+
+test('intro voice mix lowers the guard scanning Ruiz during Sung talk and boosts Okafor and Priya walking in', () => {
+  for (const id of ['intro_guard_01', 'intro_guard_02'] as const) {
+    const g = library.line(id).gain ?? 1;
+    assert.ok(g <= 0.5, `${id} gain (${g}) should sit quietly under Jay and Sung`);
+  }
+  const okaforFirst = library.line('intro_okafor_01').gain ?? 1;
+  const priyaFirst = library.line('intro_priya_01').gain ?? 1;
+  assert.ok(okaforFirst >= 3, `intro_okafor_01 gain (${okaforFirst}) should boost Okafor calling out from the airlock`);
+  assert.ok(priyaFirst >= 2.5, `intro_priya_01 gain (${priyaFirst}) should boost Priya calling out across the Commons`);
 });

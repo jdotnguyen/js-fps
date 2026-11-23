@@ -3,6 +3,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { Rng } from '../../core/rng.ts';
 import { fixtureMaterial, type Materials } from '../../render/materials.ts';
 import { CanvasScreen, SCREEN_FONT } from '../../render/screens.ts';
+import { mouthCues, mouthOpenAt, type MouthCue } from '../../actors/speechActing.ts';
+import type { SpeechInfo } from '../../dialogue/speech.ts';
 import { paintedDecal, stencilDecal } from '../../render/decals.ts';
 import { drawTagBanner, drawTagLockup, drawTagMark } from '../../render/logo.ts';
 import { NOISE_GLSL } from '../../render/fx/glsl.ts';
@@ -40,6 +42,7 @@ import { MOONPOOL_WIDTH, PieceBuilder, TRUNK_DEPTH, WALL_T, boolParam, newJolt, 
  *   metal_detector `detector:scan` { id, result: pass|alarm }
  *   glass_cracks   `glass:set` { id, state: intact|cracked|shattered }
  *   glass_blood    `glass:blood` { id, level: 0..3 }
+ *   ceiling_vent   `ventGrate:set` { id, state: closed|open|fallen, instant? } (`ventState` step)
  *   fluid_trail    `reveal:trail`
  */
 
@@ -140,6 +143,7 @@ const MAT = {
   blanketNavy: () => plain('blanketNavy', 0x2a3b4e, 0.95),
   sackBurlap: () => plain('sackBurlap', 0xa68d68, 0.94),
   labCoat: () => plain('labCoat', 0xeceee8, 0.85),
+  cardiganKnit: () => plain('cardiganKnit', 0x5b7a72, 0.97),
   bootYellow: () => plain('bootYellow', 0xc49520, 0.45),
   ductLight: () => plain('ductLight', 0x8e999e, 0.45, 0.5),
   book: (i: number) => plain(`book${i}`, [0x6b2a22, 0x22405a, 0x2f4a2a, 0x8a7a50, 0x3a2a4a][i % 5]!, 0.8),
@@ -874,12 +878,15 @@ const GEN: Record<string, Gen> = {
     const initial = strParam(p, 'state', 'off');
     let state = initial;
     let who = 'hale';
+    // Hale's mouth on the feed follows his line: the same syllable cues his body uses in person (speechActing).
+    let talk: { cues: MouthCue[]; start: number } | null = null;
+    let now = 0;
     const draw = (ctx: CanvasRenderingContext2D, t: number, cw: number, ch: number): void => {
       if (state === 'on' && channel === 'boardroom') return drawBoardroomDeck(ctx, t, cw, ch);
       if (state === 'on' && channel === 'commons') return drawCommonsBoard(ctx, t, cw, ch);
-      drawBroadcast(ctx, t, cw, ch, state, who);
+      drawBroadcast(ctx, t, cw, ch, state, who, talk ? mouthOpenAt(talk.cues, t - talk.start) : 0);
     };
-    const screen = new CanvasScreen(640, 360, draw, 1.4, channel === 'boardroom' || channel === 'commons' ? 4 : 10);
+    const screen = new CanvasScreen(640, 360, draw, 1.4, channel === 'boardroom' || channel === 'commons' ? 4 : channel === 'briefing' ? 15 : 10);
     pb.add(rounded(w + 0.12, h + 0.12, 0.08, 0.02), m.paintDark, at(0, y, -0.04));
     pb.add(slab(0.3, 0.2, 0.06), m.steel, at(0, y, -0.01));
     const display = screenPlane(screen.material, w, h, 0, y, -0.082);
@@ -891,17 +898,31 @@ const GEN: Record<string, Gen> = {
       screen.material.emissiveIntensity = s === 'off' ? 0.25 : channel === 'boardroom' || channel === 'commons' ? 1.15 : 1.5;
     };
     apply(state);
-    pb.tick((t) => screen.update(t));
+    pb.tick((t) => {
+      now = t;
+      screen.update(t);
+    });
     pb.on('screen:set', (e) => {
       const ev = e as { id?: string; state?: string } | undefined;
       if (ev?.id === id) apply(ev.state);
     });
-    pb.on('level:reset', () => apply(initial));
+    pb.on('level:reset', () => {
+      talk = null;
+      apply(initial);
+    });
     if (channel === 'briefing') {
       pb.on('briefing:screen', (e) => {
         const ev = e as { state?: string; who?: string } | undefined;
         if (typeof ev?.who === 'string') who = ev.who;
         apply(ev?.state ?? 'on');
+      });
+      pb.on('speech:started', (e) => {
+        const ev = e as Partial<SpeechInfo> | undefined;
+        if (!ev || ev.speaker !== BROADCAST_SPEAKER[who] || typeof ev.text !== 'string' || typeof ev.duration !== 'number') return;
+        talk = { cues: mouthCues(ev.text, ev.duration, ev.emote ?? null, ev.id ?? ev.text), start: now };
+      });
+      pb.on('speech:ended', (e) => {
+        if ((e as { speaker?: string } | undefined)?.speaker === BROADCAST_SPEAKER[who]) talk = null;
       });
     }
   },
@@ -984,6 +1005,100 @@ const GEN: Record<string, Gen> = {
       if (ev?.id === id) set(ev.state);
     });
     pb.on('level:reset', () => set('intact'));
+  },
+
+  /**
+   * A ceiling vent the Lab B creature uses (trim-lab-wing-encounters design D5). Origin on the floor; the framed grate
+   * sits flush under the ceiling at `ceiling` m over a black duct mouth, `size` m square. `ventGrate:set` { id, state }:
+   * `open` swings the grate down on its -X hinge and leaves it swaying; `fallen` tears it loose to drop to the floor,
+   * bounce once and clatter (`grateClatter`). `instant` snaps to the state (restores, skips). No colliders: a fallen
+   * grate is flat on the deck and walked over.
+   */
+  ceiling_vent(p, _rng, m, pb) {
+    const s = numParam(p, 'size', 0.9);
+    const ceiling = numParam(p, 'ceiling', 4);
+    const id = strParam(p, 'id', 'vent');
+    const y = ceiling - 0.012;
+    // The frame and the duct mouth stay put.
+    for (const dz of [-s / 2, s / 2]) pb.add(rounded(s + 0.1, 0.04, 0.05, 0.01), m.steel, at(0, y - 0.01, dz));
+    for (const dx of [-s / 2, s / 2]) pb.add(rounded(0.05, 0.04, s, 0.01), m.steel, at(dx, y - 0.01, 0));
+    pb.add(slab(s - 0.02, 0.004, s - 0.02), m.black, at(0, ceiling - 0.004, 0));
+    // The grate swings about its hinge on the -X edge: the pivot sits there, the panel hangs off it toward +X.
+    const pivot = new THREE.Group();
+    pivot.name = 'vent-grate';
+    pivot.position.set(-s / 2, y, 0);
+    const panel = new THREE.Group();
+    const part = (g: THREE.BufferGeometry, mat: THREE.Material, mx: THREE.Matrix4): THREE.Mesh => {
+      const mesh = new THREE.Mesh(g, mat);
+      mesh.applyMatrix4(mx);
+      return mesh;
+    };
+    const slats = Math.round(s / 0.06);
+    for (let i = 0; i <= slats; i++) {
+      const z = -s / 2 + 0.03 + (i / slats) * (s - 0.06);
+      panel.add(part(slab(s - 0.04, 0.012, 0.018), m.grating, at(s / 2, -0.012, z)));
+    }
+    for (const dz of [-s / 2 + 0.02, s / 2 - 0.02]) panel.add(part(slab(s - 0.02, 0.02, 0.03), m.steel, at(s / 2, -0.01, dz)));
+    pivot.add(panel);
+    pb.dynamic(pivot);
+    type State = 'closed' | 'open' | 'fallen';
+    let state: State = 'closed';
+    let t = 0;
+    let vy = 0;
+    let landed = 0;
+    const OPEN = (PI / 2) * 0.96;
+    const reset = (): void => {
+      pivot.position.set(-s / 2, y, 0);
+      pivot.rotation.set(0, 0, 0);
+      panel.position.set(0, 0, 0);
+      panel.rotation.set(0, 0, 0);
+    };
+    const settle = (): void => {
+      reset();
+      if (state === 'open') pivot.rotation.z = -OPEN;
+      if (state === 'fallen') {
+        // Flat on the floor where it fell, a little skewed.
+        pivot.position.set(-s / 2, 0.012, 0.05);
+        panel.rotation.set(0, 0.35, 0);
+      }
+    };
+    const set = (next: unknown, instant: boolean): void => {
+      if (next !== 'closed' && next !== 'open' && next !== 'fallen') return;
+      if (next === state && !instant) return;
+      state = next;
+      t = 0;
+      vy = 0;
+      landed = 0;
+      if (instant || state === 'closed') settle();
+    };
+    pb.on('ventGrate:set', (e) => {
+      const ev = e as { id?: string; state?: string; instant?: boolean } | undefined;
+      if (ev?.id === id) set(ev.state, ev.instant === true);
+    });
+    pb.on('level:reset', () => set('closed', true));
+    pb.tick((_time, dt) => {
+      if (state === 'closed') return;
+      t += dt;
+      if (state === 'open') {
+        // Swings down in 0.3 s, then sways on the hinge and settles.
+        const swing = Math.min(1, t / 0.3);
+        const sway = t > 0.3 ? Math.sin((t - 0.3) * 7) * 0.22 * Math.exp(-(t - 0.3) * 1.6) : 0;
+        pivot.rotation.z = -(OPEN * swing * swing) + sway;
+        return;
+      }
+      // Fallen: torn loose, it tips as it drops, hits the deck, bounces once, then lies flat.
+      if (landed >= 2) return;
+      vy -= 9.81 * dt;
+      pivot.position.y += vy * dt;
+      pivot.rotation.z = Math.max(-0.9, pivot.rotation.z - dt * 2.4) * (landed === 0 ? 1 : 0.4);
+      if (pivot.position.y <= 0.012) {
+        pivot.position.y = 0.012;
+        if (landed === 0) pb.soundAt('grateClatter', [pivot.position.x + s / 2, 0.05, 0], { gain: 1 });
+        landed++;
+        vy = landed === 1 ? 1.1 : 0;
+        if (landed >= 2) settle();
+      }
+    });
   },
 
   /**
@@ -1145,6 +1260,21 @@ const GEN: Record<string, Gen> = {
     const sign = screenPlane(bioSignMat(), 0.72, 0.42, 0, 1.72, d / 2 - 0.02);
     pb.dynamic(sign);
     pb.solid(-w / 2, 0, -d / 2, w / 2, h + 0.02, d / 2, 'metal');
+  },
+
+  /**
+   * Priya's cardigan draped over a chair back (overhaul-priya-r08-death D30). Place it at the same pos and rot as a
+   * `fixed` `chair`: the back is at local +Z 0.22, its top at about 1.07 m. Soft knit, no collider.
+   */
+  cardigan(_p, _rng, _m, pb) {
+    const knit = MAT.cardiganKnit();
+    pb.add(rounded(0.44, 0.36, 0.035, 0.015), knit, at(0, 0.9, 0.17, -0.12, 0, 0));
+    pb.add(rounded(0.44, 0.3, 0.035, 0.015), knit, at(0, 0.93, 0.29, 0.1, 0, 0));
+    pb.add(rounded(0.46, 0.05, 0.14, 0.02), knit, at(0, 1.08, 0.23));
+    for (const s of [-1, 1]) {
+      pb.add(cylinderBetween(new THREE.Vector3(s * 0.2, 1.05, 0.28), new THREE.Vector3(s * 0.25, 0.6, 0.33), 0.045), knit);
+      pb.add(rounded(0.08, 0.05, 0.08, 0.02), knit, at(s * 0.25, 0.58, 0.33));
+    }
   },
 
   /** Wall-mounted garment rail with hanging botanical lab coats and waterproof boots underneath (back on +Z). */
@@ -2399,6 +2529,8 @@ const GEN: Record<string, Gen> = {
   console_bank(p, _rng, m, pb) {
     const w = numParam(p, 'width', 3);
     const mode = strParam(p, 'mode', 'control');
+    // A notice on the first panel, lines split by '|' (overhaul-priya-r08-death D27, the medical deck lockdown order).
+    const notice = strParam(p, 'notice', '').split('|').filter((s) => s !== '');
     const pal = resolvePalette(p, m);
     const clean = pal.doorPanel !== m.paintDark;
     const bodyMat = clean ? pal.doorPanel : m.paintDark;
@@ -2407,7 +2539,7 @@ const GEN: Record<string, Gen> = {
     pb.add(rounded(w + 0.1, 0.05, 0.9, 0.015), trimMat, at(0, 0.875, -0.05));
     for (let i = 0; i < Math.floor(w / 0.5); i++) pb.add(slab(0.03, 0.012, 0.03), glow('bank-amber', 0xffa21a, 2.2), at(-w / 2 + 0.25 + i * 0.5, 0.906, -0.25));
     pb.add(rounded(w - 0.2, 0.04, 0.28, 0.01), m.rubber, at(0, 0.92, -0.18));
-    const screen = new CanvasScreen(1024, 192, (ctx, t, cw, ch) => drawBank(ctx, t, cw, ch, mode), 1.3, 6);
+    const screen = new CanvasScreen(1024, 192, (ctx, t, cw, ch) => drawBank(ctx, t, cw, ch, mode, notice), 1.3, 6);
     pb.add(rounded(w - 0.1, 0.6, 0.1, 0.02), bodyMat, at(0, 1.4, 0.28, 0.2, 0, 0));
     const disp = screenPlane(screen.material, w - 0.2, 0.5, 0, 1.4, 0.225);
     disp.rotation.x = 0.2;
@@ -3353,7 +3485,32 @@ function drawCommonsBoard(ctx: CanvasRenderingContext2D, t: number, w: number, h
   ctx.fillText(ticker + ticker, w * 0.04 - off, h * 0.95);
 }
 
-function drawBroadcast(ctx: CanvasRenderingContext2D, t: number, w: number, h: number, state: string, who: string): void {
+/** Who says the broadcast presenter's lines (data/dialogue/speakers.json), by presenter. */
+const BROADCAST_SPEAKER: Readonly<Record<string, string>> = { hale: 'director' };
+
+/**
+ * Director Hale's broadcast portrait: his real body model, head and shoulders, at three jaw openings side by side
+ * (closed, half, open; 320x360 each). Baked by /sandbox/hale-portrait.html (src/sandbox/halePortrait.ts).
+ */
+const HALE_PORTRAIT = { url: 'assets/brand/hale_broadcast.png', frameW: 320, frameH: 360, frames: 3 };
+let halePortrait: HTMLImageElement | null = null;
+
+/** The portrait sheet once it has loaded, or null (still loading, or no DOM in node tests). Loads on first use. */
+function halePortraitSheet(): HTMLImageElement | null {
+  if (!halePortrait) {
+    if (typeof Image === 'undefined') return null;
+    halePortrait = new Image();
+    halePortrait.src = `${import.meta.env?.BASE_URL ?? '/'}${HALE_PORTRAIT.url}`;
+  }
+  return halePortrait.complete && halePortrait.naturalWidth > 0 ? halePortrait : null;
+}
+
+/** The portrait frame for a jaw opening of 0..1. */
+export function portraitFrame(mouth: number): number {
+  return mouth < 0.22 ? 0 : mouth < 0.6 ? 1 : 2;
+}
+
+function drawBroadcast(ctx: CanvasRenderingContext2D, t: number, w: number, h: number, state: string, who: string, mouth = 0): void {
   if (state === 'off') {
     ctx.fillStyle = '#020405';
     ctx.fillRect(0, 0, w, h);
@@ -3373,9 +3530,24 @@ function drawBroadcast(ctx: CanvasRenderingContext2D, t: number, w: number, h: n
   g.addColorStop(1, '#0a161a');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
-  drawTagBanner(ctx, w * 0.06, h * 0.06, w * 0.4);
-  // Presenter silhouette, gently moving as he talks.
+  // The presenter: Hale's portrait with his mouth following the line, breathing gently; a silhouette until it loads.
   const bob = Math.sin(t * 2.3) * 2;
+  const sheet = who === 'hale' ? halePortraitSheet() : null;
+  if (sheet) {
+    const { frameW, frameH } = HALE_PORTRAIT;
+    // Anchor framing: head and shoulders fill the frame above the lower third.
+    const dh = h * 1.5;
+    const dw = (dh * frameW) / frameH;
+    const breathe = Math.sin(t * 1.1) * h * 0.004;
+    ctx.drawImage(sheet, portraitFrame(mouth) * frameW, 0, frameW, frameH, w * 0.5 - dw / 2, -h * 0.02 + breathe, dw, dh);
+  } else {
+    drawPresenterSilhouette(ctx, w, h, bob);
+  }
+  drawTagBanner(ctx, w * 0.06, h * 0.06, w * 0.4); // over the presenter's shoulder, like a channel bug
+  drawBroadcastLowerThird(ctx, t, w, h, who);
+}
+
+function drawPresenterSilhouette(ctx: CanvasRenderingContext2D, w: number, h: number, bob: number): void {
   ctx.fillStyle = '#c9b8a6';
   ctx.beginPath();
   ctx.ellipse(w * 0.5, h * 0.38 + bob, h * 0.1, h * 0.13, 0, 0, Math.PI * 2);
@@ -3388,7 +3560,9 @@ function drawBroadcast(ctx: CanvasRenderingContext2D, t: number, w: number, h: n
   ctx.fill();
   ctx.fillStyle = '#e6e9ea';
   ctx.fillRect(w * 0.49, h * 0.58 + bob, w * 0.02, h * 0.2);
-  // Lower third.
+}
+
+function drawBroadcastLowerThird(ctx: CanvasRenderingContext2D, t: number, w: number, h: number, who: string): void {
   ctx.fillStyle = 'rgba(4,12,14,0.85)';
   ctx.fillRect(0, h * 0.76, w, h * 0.24);
   ctx.fillStyle = '#4fd6d0';
@@ -3490,7 +3664,7 @@ function drawMapStation(ctx: CanvasRenderingContext2D, t: number, w: number, h: 
   ctx.fillText('[E] DOWNLOAD MAP', 14, h - 16);
 }
 
-function drawBank(ctx: CanvasRenderingContext2D, t: number, w: number, h: number, mode: string): void {
+function drawBank(ctx: CanvasRenderingContext2D, t: number, w: number, h: number, mode: string, notice: readonly string[] = []): void {
   ctx.fillStyle = '#020a0c';
   ctx.fillRect(0, 0, w, h);
   const panels = 3;
@@ -3498,10 +3672,22 @@ function drawBank(ctx: CanvasRenderingContext2D, t: number, w: number, h: number
   ctx.font = `600 18px ${SCREEN_FONT}`;
   for (let i = 0; i < panels; i++) {
     const x = i * pw;
+    // A notice takes the first two panels.
+    if (i === 1 && notice.length > 0) continue;
     ctx.strokeStyle = '#1f4a44';
-    ctx.strokeRect(x + 6, 6, pw - 12, h - 12);
+    ctx.strokeRect(x + 6, 6, (i === 0 && notice.length > 0 ? 2 * pw : pw) - 12, h - 12);
     ctx.fillStyle = '#7fe3d0';
     const titles = mode === 'security' ? ['DOORS', 'CAMERAS', 'ALARMS'] : mode === 'lab' ? ['SAMPLES', 'CONTAINMENT', 'LOG'] : ['POWER', 'PRESSURE', 'LIFE SUPPORT'];
+    if (i === 0 && notice.length > 0) {
+      // The first line blinks red, like a live alarm; the rest is steady.
+      ctx.fillStyle = Math.floor(t * 1.6) % 2 === 0 ? '#ff5a4a' : '#7a2620';
+      ctx.fillText(notice[0]!, x + 18, 32);
+      ctx.fillStyle = '#e8d8b0';
+      ctx.font = `500 15px ${SCREEN_FONT}`;
+      for (let k = 1; k < notice.length; k++) ctx.fillText(notice[k]!, x + 18, 32 + k * 30);
+      ctx.font = `600 18px ${SCREEN_FONT}`;
+      continue;
+    }
     ctx.fillText(titles[i]!, x + 18, 32);
     ctx.strokeStyle = '#5fb8a8';
     ctx.beginPath();

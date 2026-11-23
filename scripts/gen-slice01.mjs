@@ -473,7 +473,7 @@ anchor(R02, 'kitchen_stand', [25.6, 0, 13.4], face([25.6, 0, 13.4], [28, 0, 11.5
 anchor(R02, 'priya_enter', [24, 0, 24.6], 0);
 anchor(R02, 'priya_stand', [27.4, 0, 13.6], face([27.4, 0, 13.6], [25.6, 0, 13.4]));
 anchor(R02, 'priya_offer', [26.5, 0, 13.0], face([26.5, 0, 13], [25.6, 0, 13.4]));
-anchor(R02, 'priya_chair', [26.1, 0, 18.6], 0); // a standing spot beside the east tables (crew_1 moves here)
+anchor(R02, 'priya_chair', [26.1, 0, 18.6], 0); // a standing spot beside the east tables
 anchor(R02, 'gallery_door', [14, 1.2, 16]);
 anchor(R02, 'cp_intro', [25.6, 0, 13.4], face([25.6, 0, 13.4], [28, 0, 11.5]));
 anchor(R02, 'commons_tv', [33.6, 1.75, 23.6]);
@@ -482,7 +482,6 @@ anchor(R02, 'dawdle_call', [16.2, 0, 15.2], 270);
 anchor(R02, 'crew_ruiz_commons', [19.6, 0, 12.0], face([19.6, 0, 12], [21.6, 0, 12.6]));
 anchor(R02, 'crew_sung_commons', [21.6, 0, 12.6], face([21.6, 0, 12.6], [19.6, 0, 12]));
 npc(R02, 'cook', 'cook', 'cook_stand', 'idle');
-npc(R02, 'crew_1', 'crew', [19.4, 0, 15.6], 'idle_mug', { model: 'scientist1' });
 // ADR-0029 ambient life: most of the room sits, a few talk, one leans. `spot` takes the nearest free seat of that kind
 // to `at` (seats come from the tables, the bar and the sofas); `chat` groups talk to each other. Lanes stay clear.
 // `model` spreads the imported crew bodies so nobody sits beside their twin (and no named character's body is reused).
@@ -590,7 +589,7 @@ anchor(R03, 'brief_okafor', [9.7, 0, 17.8], 200);
 anchor(R03, 'brief_sung', [5.2, 0, 18.8], 135);
 anchor(R03, 'brief_heins', [8, 0, 20.4], 0);
 anchor(R03, 'gallery_enter', [13, 0, 16], 90);
-anchor(R03, 'drop_jay', [8, 0, 19.6], 180);
+anchor(R03, 'drop_jay', [8, 0, 18.6], 180);
 anchor(R03, 'cp_briefing', [8, 0, 17.4], 180);
 // After the coffee hand-off Priya leaves for the medical bay by the gallery, the way to it, and is taken off-stage
 // from here once Jay can't see her (intro-sequence spec "She walks out"). Clear of the doors and the briefing spots.
@@ -627,7 +626,7 @@ const R06 = room('R06', 'Pressure Door Hall', rect(-1, 0, 7, 9), {
 });
 
 // R05 (rebuild-lab-wing D5): the lab wing's decon junction, an hour after the evacuation. Cover against the walls and
-// corners; the middle stays open so the three sources read: the Lab B bulkhead (east), the west vent, the floor drain.
+// corners; the middle stays open. No fight here any more (trim-lab-wing-encounters): the vent and drain are dressing.
 door('D_R05_R06', 'R05', 'R06', 0, 6, 's');
 door('D_R06_R07', 'R06', 'R07', 0, 9, 's', { kit: 'bulkhead', state: 'locked', unlockBy: 'engineer', task: 'bypass_short' });
 prop(R05, 'emergency_shower', [-5.15, 0, 14.85]);
@@ -645,8 +644,8 @@ anchor(R05, 'r05_entry', [-1.6, 0, 16.2], 180);
 anchor(R05, 'ammo_r05', [-5.3, 0.84, 18.0]);
 
 // R06 (rebuild-lab-wing D6): a compartment boundary, built around the cover-me fight. Giles works the bypass panel on the
-// coolant line beside the south bulkhead, back to the hall; four sources: the ruptured duct (bloom), the service trench,
-// the east vent near him, and the corridor behind. Cover: pump skid (1.2 m), cylinder cage (1.4 m), switchgear (2.1 m),
+// coolant line beside the south bulkhead, back to the hall; one source (trim-lab-wing-encounters): the escaped creature
+// kicks the grate out of the ruptured duct (bloom). The trench and east vent are dressing. Cover: pump skid (1.2 m), cylinder cage (1.4 m), switchgear (2.1 m),
 // and the cable drum (1.0 m), a deliberate perch far from Giles.
 wallKit(R06, 0, 9, 'e', 'wall_vent');
 prop(R06, 'pump_skid', [-3.9, 0, 32.6], 90);
@@ -655,7 +654,7 @@ for (const z of [27.15, 27.6, 28.05]) prop(R06, 'gas_cylinder', [1.45, 0.04, z],
 prop(R06, 'electrical_box_02', [1.25, 0, 31.6]); // switchgear, its door swung open toward the hall
 prop(R06, 'cable_drum', [-5.0, 0, 27.4]);
 prop(R06, 'trench_grate', [-5.15, 0, 35.4], 90, { length: 2.4 });
-prop(R06, 'ruptured_duct', [-3.4, 0, 30.3], 0, { length: 4, y: 3.3 });
+prop(R06, 'ruptured_duct', [-3.4, 0, 30.3], 0, { length: 4, y: 3.3, sealed: true });
 prop(R06, 'emergency_beacon', [1.7, 2.8, 36], 270, { wall: true });
 prop(R06, 'emergency_beacon', [-5.7, 2.8, 30], 90, { wall: true });
 prop(R06, 'sign_danger', [-1.66, 0, 26.25], 180); // beside the doors in and out of the hall
@@ -668,16 +667,23 @@ prop(R06, 'power_box', [-2.6, 1.1, 37.5]); // imported (import-lab-props): Giles
 // Giles's bypass panel (the imported power box) on the coolant line, on the south wall west of the bulkhead (rebuild-lab-wing D6).
 anchor(R06, 'r06_panel', [-2.6, 0, 36.85], 180);
 anchor(R06, 'r06_hold', [-0.5, 0, 29.2], 180);
-// The creature that burst out of Voss (infection-kills spec): it spawns where it stands pounding the Lab B glass and breaks out at contact.
-spawn(R05, 'r05_door', [8, 0, 22.51], 'door', 'r05_contact', { yaw: 180, look: 'lab_creature' });
-// The first one breaks through the sealed Lab B door (group r05_contact); two to three more trickle in
-// after it dies (group r05_trickle, ADR-0014 beat 3): two from the west vent, one up out of the floor drain.
-spawn(R05, 'r05_vent', [-5.2, 2.7, 22], 'vent', 'r05_trickle', { count: 2, interval: 6 });
-spawn(R05, 'r05_drain', [-4.6, 0, 24.6], 'floor', 'r05_trickle', { count: 1, interval: 8, outfit: 'crew' });
-spawn(R06, 'r06_duct', [-2.6, 3.3, 30.3], 'ceiling', 'r06_cover', { count: 1 });
-spawn(R06, 'r06_trench', [-5.15, 0, 35.4], 'floor', 'r06_cover', { count: 2, interval: 4 });
-spawn(R06, 'r06_vent_e', [1.6, 1.0, 36], 'vent', 'r06_cover', { count: 2, interval: 5 });
-spawn(R06, 'r06_corridor', [-0.5, 0, 22], 'door', 'r06_cover', { count: 1, yaw: 180 });
+// The creature that burst out of Voss (infection-kills spec) escapes Lab B through its ceiling vent in the drop's blackout
+// and is heard crawling the ducts along the coolant line (trim-lab-wing-encounters). R05 has no fight; in R06 it kicks
+// the grate out of the ruptured duct and drops on the squad while Giles works the bypass: the one enemy of cover me.
+prop(R04, 'ceiling_vent', [10, 0, 24.6], 0, { id: 'labb_vent', ceiling: 3.6, size: 0.8 });
+anchor(R04, 'labb_vent', [10, 3.5, 24.6]);
+// Duct sound points, 0.35 m above each ceiling slab, from Lab B along the coolant line toward the R06 duct.
+anchor(R04, 'duct_r04', [5, 3.95, 27]);
+anchor(R05, 'duct_r05_1', [1, 3.55, 24.6]);
+anchor(R05, 'duct_r05_2', [-1.5, 3.55, 25.2]);
+anchor(R05, 'duct_r05_3', [-3.5, 3.55, 25.6]);
+anchor(R06, 'duct_r06_0', [-3.5, 4.35, 26.4]);
+anchor(R06, 'duct_r06_1', [-5, 4.35, 27.6]);
+anchor(R06, 'duct_r06_2', [-4.6, 4.35, 29]);
+anchor(R06, 'duct_r06_3', [-3.6, 3.6, 30.3]); // inside the duct, just above the grate
+prop(R06, 'ceiling_vent', [-3.4, 0, 30.3], 0, { id: 'r06_vent', ceiling: 3.3, size: 0.56 });
+anchor(R06, 'r06_vent', [-3.4, 3.25, 30.3]);
+spawn(R06, 'r06_duct', [-3.4, 3.2, 30.3], 'ceiling', 'r06_cover', { count: 1, look: 'lab_creature', hp: 90, start: 'drop' });
 trigger(R05, 'trig_r05_enter', cellBox(-1, 0, 4, 4), 'trigger:r05_enter');
 trigger(R06, 'trig_r06_enter', cellBox(-1, 0, 7, 7), 'trigger:r06_enter');
 trigger(R06, 'trig_r06_door', cellBox(-1, 0, 9, 9), 'trigger:r06_door');
@@ -734,10 +740,12 @@ const R08 = room('R08', 'Medical Bay', rect(-1, 1, 12, 13), {
   walls: ['wall_tiles'],
   // medbay-attack staging: 3 pooled on the front row (steady key over the cart at cell 0,12, flicker over the door and
   // lane, soft fill over beds) + 3 low-emissive glow-only back-row fixtures so the ceiling has no dark diffusers.
+  // overhaul-priya-r08-death D24: the front row is on the medical circuit, so it stays fully lit on backup power (the
+  // pump room's pattern) and the lit medical bay is the stage seen from the dark security office.
   lights: [
-    L(0, 'steady', '#eef8ff', 6, 10),
-    L(1, 'steady', '#f2faff', 11, 11, { shaft: 0.035, emissive: 2.8 }),
-    L(2, 'flicker', '#eef8ff', 7.5, 10),
+    L(0, 'steady', '#eef8ff', 6, 10, { backupScale: 1, ownColor: true }),
+    L(1, 'steady', '#f2faff', 11, 11, { shaft: 0.035, emissive: 2.8, backupScale: 1, ownColor: true }),
+    L(2, 'flicker', '#eef8ff', 7.5, 10, { backupScale: 1, ownColor: true }),
     L(3, 'steady', '#eef8ff', undefined, undefined, { pool: false, emissive: 1.4, shaft: 0 }),
     L(4, 'steady', '#eef8ff', undefined, undefined, { pool: false, emissive: 1.4, shaft: 0 }),
     L(5, 'steady', '#eef8ff', undefined, undefined, { pool: false, emissive: 1.4, shaft: 0 }),
@@ -765,7 +773,9 @@ door('D_R07_R08', 'R07', 'R08', 1, 11, 's', { kit: 'glass_slide', state: 'closed
 // Staging (medbay-attack spec, design decision 12): R07 is three clusters with the spine (x -1.5..1.5) and the
 // viewing strip along the glass (z 44.6-45.7) kept clear; rot is the way a kit's front faces (0 N, 90 W, 180 S, 270 E).
 // Watch desk on the north wall, west of the entry: the bank, the camera wall above it, the post left in a hurry.
-prop(R07, 'console_bank', [-3.6, 0, 38.7], 180, { width: 3, mode: 'security' });
+prop(R07, 'console_bank', [-3.6, 0, 38.7], 180, { width: 3, mode: 'security', notice: 'MEDICAL DECK - LOCKDOWN IN EFFECT|Seal applied remotely: STATION ADMINISTRATION|Classification: CONTAINMENT (ROUTINE)|Local override: NOT AVAILABLE' });
+// overhaul-priya-r08-death D25: the medbay intercom's grille, beside the CCTV wall; it carries R08 and the surgery.
+wallProp(R07, 'pa_speaker', 0, 10, 'n', -1.4, { intercom: 'medbay', sources: 'R08|R08b' }, 0.012);
 prop(R07, 'cctv_wall', [-3.6, 0, 38.27], 180, { id: 'sec_cctv', width: 1.6, y: 1.69, live: 1, camera: 'CAM 04  MEDBAY', labels: 'CAM 01  SECURITY|CAM 04  MEDBAY|CAM 05  LAB B CORRIDOR|CAM 07  PRESSURE HALL|CAM 08  TUNNEL|CAM 03  RING WALK' });
 prop(R07, 'chair', [-3.6, 0, 39.75]);
 prop(R07, 'chair', [-2.3, 0, 40.9], 150); // shoved back from the bank
@@ -792,6 +802,9 @@ prop(R08, 'instrument_cart', [0, 0, 47.4], 0);
 prop(R08, 'med_bed', [-4.7, 0, 48.6], 90);
 prop(R08, 'console', [-5.3, 0, 50.1], 270, { screen: 'status' });
 prop(R08, 'med_bed', [-4.7, 0, 51.6], 90);
+// overhaul-priya-r08-death D30: Priya's cardigan on a chair past the second bed, in view from the viewing strip.
+prop(R08, 'chair', [-4.4, 0, 52.65], 90, { fixed: true });
+prop(R08, 'cardigan', [-4.4, 0, 52.65], 90);
 prop(R08, 'storage_shelf', [-4.9, 0, 53.45], 0, { width: 1.6 });
 prop(R08, 'lab_cabinet', [-3.4, 0, 53.48], 0);
 prop(R08, 'lab_bench', [-1.45, 0, 53.35], 0, { width: 2.4 });
@@ -816,16 +829,36 @@ anchor(R07, 'r07_glass_okafor', [3.1, 0, 45.1], 180);
 anchor(R07, 'r07_glass_giles', [-1.8, 0, 45.0], 170);
 anchor(R07, 'r07_glass_jay', [0.3, 0, 45.25], 180);
 anchor(R07, 'r07_medbay_door', [4.0, 0, 45.35], 180);
+anchor(R07, 'r07_intercom', [-1.4, 1.9, 38.3]);
+// overhaul-priya-r08-death D23/D30: Giles reads the lockdown order here, and Okafor switches the intercom off here.
+anchor(R07, 'r07_console', [-2.6, 0, 39.55], 0);
 anchor(R07, 'r07_regroup', [3.4, 0, 42.4], 200);
 // The admin security-booth glimpse (ADR-0023): CAM 04 high in the north-east corner, a figure facing the west wall.
 anchor(R08, 'cam04_pos', [5.4, 2.9, 47.0]);
 anchor(R08, 'cam04_look', [-3.6, 1.0, 50.2]);
 anchor(R08, 'cam04_figure', [-4.3, 0, 50.1], 90); // at the vitals console between the beds, facing the west wall
 anchor(R08, 'priya_r08', [2.2, 0, 49.4], 0); // her work spot, with a clear walk to the glass around the cart
-anchor(R08, 'r08_drag_exit', [5.6, 0, 52], 270);
-anchor(R08, 'priya_glass', [1.0, 0, 46.35], 0); // the plead spot, 0.35 m off the partition (R08 face z 46.0), east of the cart
-anchor(R08, 'r08_drag_mid', [3.8, 0, 46.7]); // along the glass, right behind the door Okafor is pressed against
-anchor(R08, 'r08_drag_turn', [4.4, 0, 48.6]);
+// overhaul-priya-r08-death D23: crouched by the west beds when the squad comes in (and on restore), at the glass in
+// front of the medbay door for the triage, then sitting against the west wall between the pane and the first bed.
+anchor(R08, 'priya_wait', [-3.9, 0, 49.5], 0);
+anchor(R08, 'priya_door', [3.6, 0, 46.3], 0);
+// D35: what she turns to face when Okafor says "Turn around.": the surgery door behind her, so her back is to the glass.
+anchor(R08, 'priya_turn_away', [4.9, 0, 51.4]);
+anchor(R08, 'priya_sit', [-5.3, 0, 47.4], 270);
+// overhaul-priya-r08-death D14/D16 (task 11.1): her R07 hiding spot before the run; the west-end corner she backs into;
+// where the creature stands to impale her; its first point on the glass past the door; where she lies after the throw.
+anchor(R07, 'priya_r07_hide', [-4.8, 0, 43.4], 200);
+anchor(R08, 'priya_cower', [-4.9, 0, 47.1], 270);
+anchor(R08, 'r08_impale', [-4.3, 0, 47.15], 90);
+anchor(R08, 'r08_along', [3.8, 0, 46.7], 90);
+// Its walk along the glass passes here, between the pane and the cart, clear of both (medbay-attack "Clear lane").
+anchor(R08, 'r08_lane', [-1.0, 0, 46.32], 90);
+anchor(R08, 'r08_lane2', [-3.3, 0, 47.1], 90);
+anchor(R08, 'priya_rest', [1.0, 0, 46.33], 0);
+// D20 (task 12.1): the stinger's CAM 04 feed looks from cam04_pos at her body by the centre pane.
+anchor(R08, 'cam04_stinger_look', [1.0, 0.35, 46.55]);
+// D31: the vitals monitor's steady beep (the medbay score's clock) comes from the console between the beds.
+anchor(R08, 'r08_monitor', [-5.2, 1.2, 50.1]);
 // The kill's stage (design decision 10): plead/grab at the glass, slams on the cart top, thrown back into the centre
 // pane at head height, the reach in the gap between the pane and the cart.
 anchor(R08, 'r08_grab', [1.0, 0, 46.35], 0);
@@ -843,22 +876,17 @@ anchor(R08, 'r08_slam_spot', [-0.32, 0, 48.01], 0);
 anchor(R08, 'r08_slam_face', [-0.32, 0, 46.5]);
 anchor(R08, 'r08_feet', [1.25, 0, 47.95], 0); // 1.6 m out from her at the pane: she lies at full length when dragged
 anchor(R08b, 'r08_lurk', [7.0, 0, 51.35], 90); // just inside the surgery door, clear of the bed
-anchor(R08b, 'r08_drag_end', [7.1, 0, 53.0], 90); // where the drag leaves her, between the bed and the door
-anchor(R08b, 'stinger_cam', [9.65, 2.85, 50.35]);
-anchor(R08b, 'stinger_look', [8.1, 0.55, 52.9]);
-anchor(R08b, 'priya_hide', [9.2, 0, 53.45], 0);
-anchor(R08b, 'priya_pool', [9.2, 0, 52.55]);
+// D37: either side of D_R08_R08b (R08's east wall at x 6, the door centred on z 52), so the creature's walks in and out
+// go through the doorway instead of cutting across the wall south of it.
+anchor(R08, 'r08_surgery_in', [5.0, 0, 52.0], 90);
+anchor(R08b, 'r08_surgery_out', [7.0, 0, 52.0], 90);
 // Where Priya waits off-stage between the intro and the security wing (priya-commons-exit): she "went to the medbay",
 // but the medbay itself is on the admin booth's CAM 04 feed, so she waits in the shut surgery, out of every view.
 anchor(R08b, 'priya_offstage', [9.3, 0, 50.9], 0);
-anchor(R08b, 'stinger_enter', [6.7, 0, 52], 270);
-anchor(R08b, 'stinger_kill', [8.0, 0, 52.6], 225);
-// One play-dead in R07 (gets up as the player passes, ADR-0014 beat 5); the other bodies are dressing.
-spawn(R07, 'r07_playdead', [2.6, 0, 42.6], 'corpse', 'r07_playdead', { variant: 'playDead', outfit: 'security', yaw: 120, on: 'trigger:r07_enter' });
+// The bodies in R07 are dressing; none gets up (trim-lab-wing-encounters removed the play-dead ambush).
 anchor(R07, 'body_r07_1', [-2.4, 0, 39.9], 30); // slumped at the post
 anchor(R07, 'body_r07_2', [-4.2, 0, 42.3], 250); // the last stand, out of the viewing strip
 trigger(R07, 'trig_r07_enter', cellBox(-1, 1, 10, 10), 'trigger:r07_enter');
-trigger(R07, 'trig_r07_playdead', [[1, 0, 40.6], [4, 2.2, 44.4]], 'trigger:r07_playdead');
 trigger(R07, 'trig_r08_glass', [[-5.6, 0, 43.4], [5.6, 2.4, 45.6]], 'trigger:r08_glass');
 // Jay bangs on the centre pane while Priya pleads (medbay-attack spec): only offered while the scene allows interact.
 trigger(R07, 'medbay_bang', [[-1.2, 0, 44.7], [1.8, 2.2, 45.75]], 'interact:medbay_bang', { on: 'use', prompt: 'Bang on the glass', once: false });
@@ -1308,6 +1336,8 @@ npc(R13a, 'priya', 'priya', 'priya_start', 'idle');
 anchor(R13b, 'moon_pool', [24, 0, 36]);
 anchor(R13b, 'cp_round_dive', [24, 0, 33], 180);
 anchor(R13b, 'diver_1_spot', [21.4, 0, 36], 270); // Sung (he walks in from the commons on dive_enter)
+anchor(R13b, 'dive_crew_sit', [27.4, 0, 31.5], 0); // Sung in a pilot_console chair after the intro (Ruiz leans on the console's west end)
+anchor(R13b, 'dive_crew_lean', [26.24, 0, 30.75], 270);
 anchor(R13b, 'dive_case_pickup', [21.4, 0, 37.2], 270);
 anchor(R13e, 'dive_case_locker', [15, 1.0, 40]);
 anchor(R13d, 'dark_corridor', [32, 0, 32], 270);
@@ -1480,6 +1510,8 @@ wallProp(R01, 'pa_speaker', 0, 0, 'w', 1, { id: 'pa_dock', serves: 'R01a' }, 0.0
 wallProp(R01w, 'pa_speaker', 5, 0, 's', -0.9, { id: 'pa_walk' }, 0.012);
 wallProp(R02, 'pa_speaker', 7, 3, 'n', 1, { id: 'pa_commons' }, 0.012);
 wallProp(R03, 'pa_speaker', 1, 4, 'n', 1, { id: 'pa_gallery' }, 0.012);
+// The Lab B drop's mic: this grille in the gallery relays Lab B (R04) while the drop's intercom is live (drop.json).
+wallProp(R03, 'pa_speaker', 1, 4, 'n', 7, { intercom: 'labb', sources: 'R04', level: 2.2 }, 0.012);
 // The lab wing's PA (station-power spec: the power-failure notice is heard in the Lab Junction and Lab B).
 wallProp(R05, 'pa_speaker', 0, 4, 'n', 1.4, { id: 'pa_lab_junction', serves: 'R04' }, 0.012);
 wallProp(R12b, 'pa_speaker', 10, 4, 'w', -1, { id: 'pa_grow', serves: 'R12a' }, 0.012);
@@ -1506,7 +1538,7 @@ async function detectSpawnFields() {
   const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/data/types/level.ts'), 'utf8');
   const m = src.match(/spawnShape\s*=\s*\{([\s\S]*?)\n\};/) ?? src.match(/spawns:\s*optional\(arr\(obj\(\{([^}]*)\}/);
   const body = m ? m[1] : '';
-  return new Set(['group', 'active', 'variant', 'count', 'interval', 'yaw', 'outfit', 'infection', 'model', 'look', 'on', 'float'].filter((f) => new RegExp(`\\b${f}\\b`).test(body)));
+  return new Set(['group', 'active', 'variant', 'count', 'interval', 'yaw', 'outfit', 'infection', 'model', 'look', 'hp', 'start', 'on', 'float'].filter((f) => new RegExp(`\\b${f}\\b`).test(body)));
 }
 
 function build() {

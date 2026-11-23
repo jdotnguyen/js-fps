@@ -2810,17 +2810,6 @@
      "pose": "idle"
     },
     {
-     "id": "crew_1",
-     "look": "crew",
-     "at": [
-      19.4,
-      0,
-      15.6
-     ],
-     "model": "scientist1",
-     "pose": "idle_mug"
-    },
-    {
      "id": "crew_2",
      "look": "lab",
      "at": [
@@ -3354,6 +3343,20 @@
      "params": {
       "id": "pa_gallery"
      }
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      11,
+      0,
+      14.26
+     ],
+     "rot": 180,
+     "params": {
+      "intercom": "labb",
+      "sources": "R04",
+      "level": 2.2
+     }
     }
    ],
    "lights": [
@@ -3548,7 +3551,7 @@
      "pos": [
       8,
       0,
-      19.6
+      18.6
      ],
      "yaw": 180
     },
@@ -3913,6 +3916,19 @@
      }
     },
     {
+     "kit": "ceiling_vent",
+     "pos": [
+      10,
+      0,
+      24.6
+     ],
+     "params": {
+      "id": "labb_vent",
+      "ceiling": 3.6,
+      "size": 0.8
+     }
+    },
+    {
      "kit": "coolant_line",
      "pos": [
       0,
@@ -4038,6 +4054,22 @@
       26.5
      ],
      "yaw": 0
+    },
+    {
+     "id": "labb_vent",
+     "pos": [
+      10,
+      3.5,
+      24.6
+     ]
+    },
+    {
+     "id": "duct_r04",
+     "pos": [
+      5,
+      3.95,
+      27
+     ]
     }
    ],
    "npcs": [
@@ -4452,48 +4484,6 @@
      "emit": "trigger:r05_enter"
     }
    ],
-   "spawns": [
-    {
-     "id": "r05_door",
-     "pos": [
-      8,
-      0,
-      22.51
-     ],
-     "kind": "door",
-     "group": "r05_contact",
-     "active": false,
-     "yaw": 180,
-     "look": "lab_creature"
-    },
-    {
-     "id": "r05_vent",
-     "pos": [
-      -5.2,
-      2.7,
-      22
-     ],
-     "kind": "vent",
-     "group": "r05_trickle",
-     "active": false,
-     "count": 2,
-     "interval": 6
-    },
-    {
-     "id": "r05_drain",
-     "pos": [
-      -4.6,
-      0,
-      24.6
-     ],
-     "kind": "floor",
-     "group": "r05_trickle",
-     "active": false,
-     "count": 1,
-     "interval": 8,
-     "outfit": "crew"
-    }
-   ],
    "anchors": [
     {
      "id": "r05_entry",
@@ -4510,6 +4500,30 @@
       -5.3,
       0.84,
       18
+     ]
+    },
+    {
+     "id": "duct_r05_1",
+     "pos": [
+      1,
+      3.55,
+      24.6
+     ]
+    },
+    {
+     "id": "duct_r05_2",
+     "pos": [
+      -1.5,
+      3.55,
+      25.2
+     ]
+    },
+    {
+     "id": "duct_r05_3",
+     "pos": [
+      -3.5,
+      3.55,
+      25.6
      ]
     }
    ]
@@ -4783,7 +4797,8 @@
      ],
      "params": {
       "length": 4,
-      "y": 3.3
+      "y": 3.3,
+      "sealed": true
      }
     },
     {
@@ -4868,6 +4883,19 @@
       1.1,
       37.5
      ]
+    },
+    {
+     "kit": "ceiling_vent",
+     "pos": [
+      -3.4,
+      0,
+      30.3
+     ],
+     "params": {
+      "id": "r06_vent",
+      "ceiling": 3.3,
+      "size": 0.56
+     }
     },
     {
      "kit": "coolant_line",
@@ -4996,53 +5024,17 @@
     {
      "id": "r06_duct",
      "pos": [
-      -2.6,
-      3.3,
+      -3.4,
+      3.2,
       30.3
      ],
      "kind": "ceiling",
      "group": "r06_cover",
      "active": false,
-     "count": 1
-    },
-    {
-     "id": "r06_trench",
-     "pos": [
-      -5.15,
-      0,
-      35.4
-     ],
-     "kind": "floor",
-     "group": "r06_cover",
-     "active": false,
-     "count": 2,
-     "interval": 4
-    },
-    {
-     "id": "r06_vent_e",
-     "pos": [
-      1.6,
-      1,
-      36
-     ],
-     "kind": "vent",
-     "group": "r06_cover",
-     "active": false,
-     "count": 2,
-     "interval": 5
-    },
-    {
-     "id": "r06_corridor",
-     "pos": [
-      -0.5,
-      0,
-      22
-     ],
-     "kind": "door",
-     "group": "r06_cover",
-     "active": false,
      "count": 1,
-     "yaw": 180
+     "look": "lab_creature",
+     "hp": 90,
+     "start": "drop"
     }
    ],
    "anchors": [
@@ -5063,6 +5055,46 @@
       29.2
      ],
      "yaw": 180
+    },
+    {
+     "id": "duct_r06_0",
+     "pos": [
+      -3.5,
+      4.35,
+      26.4
+     ]
+    },
+    {
+     "id": "duct_r06_1",
+     "pos": [
+      -5,
+      4.35,
+      27.6
+     ]
+    },
+    {
+     "id": "duct_r06_2",
+     "pos": [
+      -4.6,
+      4.35,
+      29
+     ]
+    },
+    {
+     "id": "duct_r06_3",
+     "pos": [
+      -3.6,
+      3.6,
+      30.3
+     ]
+    },
+    {
+     "id": "r06_vent",
+     "pos": [
+      -3.4,
+      3.25,
+      30.3
+     ]
     }
    ]
   },
@@ -5246,7 +5278,21 @@
      "rot": 180,
      "params": {
       "width": 3,
-      "mode": "security"
+      "mode": "security",
+      "notice": "MEDICAL DECK - LOCKDOWN IN EFFECT|Seal applied remotely: STATION ADMINISTRATION|Classification: CONTAINMENT (ROUTINE)|Local override: NOT AVAILABLE"
+     }
+    },
+    {
+     "kit": "pa_speaker",
+     "pos": [
+      -1.4,
+      0,
+      38.26
+     ],
+     "rot": 180,
+     "params": {
+      "intercom": "medbay",
+      "sources": "R08|R08b"
      }
     },
     {
@@ -5449,23 +5495,6 @@
      "emit": "trigger:r07_enter"
     },
     {
-     "id": "trig_r07_playdead",
-     "box": [
-      [
-       1,
-       0,
-       40.6
-      ],
-      [
-       4,
-       2.2,
-       44.4
-      ]
-     ],
-     "on": "enter",
-     "emit": "trigger:r07_playdead"
-    },
-    {
      "id": "trig_r08_glass",
      "box": [
       [
@@ -5500,23 +5529,6 @@
      "emit": "interact:medbay_bang",
      "once": false,
      "prompt": "Bang on the glass"
-    }
-   ],
-   "spawns": [
-    {
-     "id": "r07_playdead",
-     "pos": [
-      2.6,
-      0,
-      42.6
-     ],
-     "kind": "corpse",
-     "group": "r07_playdead",
-     "active": false,
-     "variant": "playDead",
-     "yaw": 120,
-     "outfit": "security",
-     "on": "trigger:r07_enter"
     }
    ],
    "anchors": [
@@ -5591,11 +5603,37 @@
      "yaw": 180
     },
     {
+     "id": "r07_intercom",
+     "pos": [
+      -1.4,
+      1.9,
+      38.3
+     ]
+    },
+    {
+     "id": "r07_console",
+     "pos": [
+      -2.6,
+      0,
+      39.55
+     ],
+     "yaw": 0
+    },
+    {
      "id": "r07_regroup",
      "pos": [
       3.4,
       0,
       42.4
+     ],
+     "yaw": 200
+    },
+    {
+     "id": "priya_r07_hide",
+     "pos": [
+      -4.8,
+      0,
+      43.4
      ],
      "yaw": 200
     },
@@ -5994,6 +6032,27 @@
      "rot": 90
     },
     {
+     "kit": "chair",
+     "pos": [
+      -4.4,
+      0,
+      52.65
+     ],
+     "rot": 90,
+     "params": {
+      "fixed": true
+     }
+    },
+    {
+     "kit": "cardigan",
+     "pos": [
+      -4.4,
+      0,
+      52.65
+     ],
+     "rot": 90
+    },
+    {
      "kit": "storage_shelf",
      "pos": [
       -4.9,
@@ -6070,7 +6129,9 @@
      "pattern": "steady",
      "color": "#eef8ff",
      "intensity": 6,
-     "range": 10
+     "range": 10,
+     "backupScale": 1,
+     "ownColor": true
     },
     {
      "slot": 1,
@@ -6079,14 +6140,18 @@
      "intensity": 11,
      "range": 11,
      "shaft": 0.035,
-     "emissive": 2.8
+     "emissive": 2.8,
+     "backupScale": 1,
+     "ownColor": true
     },
     {
      "slot": 2,
      "pattern": "flicker",
      "color": "#eef8ff",
      "intensity": 7.5,
-     "range": 10
+     "range": 10,
+     "backupScale": 1,
+     "ownColor": true
     },
     {
      "slot": 3,
@@ -6153,37 +6218,108 @@
      "yaw": 0
     },
     {
-     "id": "r08_drag_exit",
+     "id": "priya_wait",
      "pos": [
-      5.6,
+      -3.9,
       0,
-      52
-     ],
-     "yaw": 270
-    },
-    {
-     "id": "priya_glass",
-     "pos": [
-      1,
-      0,
-      46.35
+      49.5
      ],
      "yaw": 0
     },
     {
-     "id": "r08_drag_mid",
+     "id": "priya_door",
+     "pos": [
+      3.6,
+      0,
+      46.3
+     ],
+     "yaw": 0
+    },
+    {
+     "id": "priya_turn_away",
+     "pos": [
+      4.9,
+      0,
+      51.4
+     ]
+    },
+    {
+     "id": "priya_sit",
+     "pos": [
+      -5.3,
+      0,
+      47.4
+     ],
+     "yaw": 270
+    },
+    {
+     "id": "priya_cower",
+     "pos": [
+      -4.9,
+      0,
+      47.1
+     ],
+     "yaw": 270
+    },
+    {
+     "id": "r08_impale",
+     "pos": [
+      -4.3,
+      0,
+      47.15
+     ],
+     "yaw": 90
+    },
+    {
+     "id": "r08_along",
      "pos": [
       3.8,
       0,
       46.7
+     ],
+     "yaw": 90
+    },
+    {
+     "id": "r08_lane",
+     "pos": [
+      -1,
+      0,
+      46.32
+     ],
+     "yaw": 90
+    },
+    {
+     "id": "r08_lane2",
+     "pos": [
+      -3.3,
+      0,
+      47.1
+     ],
+     "yaw": 90
+    },
+    {
+     "id": "priya_rest",
+     "pos": [
+      1,
+      0,
+      46.33
+     ],
+     "yaw": 0
+    },
+    {
+     "id": "cam04_stinger_look",
+     "pos": [
+      1,
+      0.35,
+      46.55
      ]
     },
     {
-     "id": "r08_drag_turn",
+     "id": "r08_monitor",
      "pos": [
-      4.4,
-      0,
-      48.6
+      -5.2,
+      1.2,
+      50.1
      ]
     },
     {
@@ -6270,6 +6406,15 @@
       47.95
      ],
      "yaw": 0
+    },
+    {
+     "id": "r08_surgery_in",
+     "pos": [
+      5,
+      0,
+      52
+     ],
+     "yaw": 90
     }
    ]
   },
@@ -6377,46 +6522,13 @@
      "yaw": 90
     },
     {
-     "id": "r08_drag_end",
+     "id": "r08_surgery_out",
      "pos": [
-      7.1,
+      7,
       0,
-      53
+      52
      ],
      "yaw": 90
-    },
-    {
-     "id": "stinger_cam",
-     "pos": [
-      9.65,
-      2.85,
-      50.35
-     ]
-    },
-    {
-     "id": "stinger_look",
-     "pos": [
-      8.1,
-      0.55,
-      52.9
-     ]
-    },
-    {
-     "id": "priya_hide",
-     "pos": [
-      9.2,
-      0,
-      53.45
-     ],
-     "yaw": 0
-    },
-    {
-     "id": "priya_pool",
-     "pos": [
-      9.2,
-      0,
-      52.55
-     ]
     },
     {
      "id": "priya_offstage",
@@ -6426,24 +6538,6 @@
       50.9
      ],
      "yaw": 0
-    },
-    {
-     "id": "stinger_enter",
-     "pos": [
-      6.7,
-      0,
-      52
-     ],
-     "yaw": 270
-    },
-    {
-     "id": "stinger_kill",
-     "pos": [
-      8,
-      0,
-      52.6
-     ],
-     "yaw": 225
     }
    ]
   },
@@ -10574,6 +10668,24 @@
       21.4,
       0,
       36
+     ],
+     "yaw": 270
+    },
+    {
+     "id": "dive_crew_sit",
+     "pos": [
+      27.4,
+      0,
+      31.5
+     ],
+     "yaw": 0
+    },
+    {
+     "id": "dive_crew_lean",
+     "pos": [
+      26.24,
+      0,
+      30.75
      ],
      "yaw": 270
     },

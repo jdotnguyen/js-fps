@@ -33,10 +33,19 @@ export interface KillHooks {
   say?(line: string): void;
   /** `mauled`: whatever the victim is saying stops now (an impact). */
   cutVoice?(): void;
+  /** `startWhen: inReach`: is the attacker within `reach` m of her now (and free to take hold)? */
+  inReach?(beat: KillBeat): boolean;
+  /** `startWhen: inReach`: the beat before ran out of time; walk the attacker the rest of the way (never place it). */
+  closeIn?(beat: KillBeat): void;
 }
 
 /** Bulge slots a kill uses; matches the body shader's lump count. */
 const BULGE_SLOTS = 4;
+/**
+ * `startWhen: inReach`: after the beat before has run out of time, the attacker is walked in for at most this long
+ * before the beat starts anyway (a body stuck behind furniture must not hang the scene).
+ */
+export const CLOSE_IN_MAX_S = 6;
 
 export class KillRun {
   readonly style: KillStyle;
@@ -61,6 +70,9 @@ export class KillRun {
   warn: (message: string) => void = (m) => console.warn(`[kill] ${m}`);
   /** The beats that ran, in order (tests, debug). */
   readonly played: string[] = [];
+  /** The current beat is over but the next waits for the attacker to reach her (`startWhen: inReach`). */
+  private waiting = false;
+  private closing = false;
 
   constructor(style: KillStyle, cues: Readonly<Record<string, string>>, hooks: KillHooks) {
     this.style = style;
@@ -89,6 +101,11 @@ export class KillRun {
   /** The current beat (null before the first update and after the last). */
   get beat(): KillBeat | null {
     return this.style.beats[this.index] ?? null;
+  }
+
+  /** The current beat has ended and holds until the attacker is in reach (tests, debug). */
+  get holding(): boolean {
+    return this.waiting;
   }
 
   /** Impacts landed in the current beat. */
@@ -130,7 +147,30 @@ export class KillRun {
     if (this.clip) this.advanceClip(beat, dt);
     else this.loopPoses(beat);
     this.moveBulges(beat);
-    if (this.ended(beat)) this.enter(this.index + 1);
+    if (this.ended(beat) && this.reached(beat)) this.enter(this.index + 1);
+  }
+
+  /** The next beat may start: it does not wait for the attacker, or the attacker has reached her (design D17). */
+  private reached(beat: KillBeat): boolean {
+    const next = this.style.beats[this.index + 1];
+    if (!next || next.startWhen !== 'inReach' || !this.hooks.inReach || this.hooks.inReach(next)) {
+      this.waiting = false;
+      return true;
+    }
+    this.waiting = true;
+    // Out of time and still not there: walk it in (once), and give up waiting after CLOSE_IN_MAX_S.
+    if (this.t >= beat.max) {
+      if (!this.closing) {
+        this.closing = true;
+        this.hooks.closeIn?.(next);
+      }
+      if (this.t >= beat.max + CLOSE_IN_MAX_S) {
+        this.warn(`beat "${next.id}": the attacker never reached her; starting anyway`);
+        this.waiting = false;
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Jump to the end state at once (a skipped or restored scene): every remaining event that changes the end state runs. */
@@ -164,6 +204,8 @@ export class KillRun {
     this.index = i;
     this.t = 0;
     this.fired = 0;
+    this.waiting = false;
+    this.closing = false;
     this.poseIndex = 0;
     this.impacts = 0;
     this.clip = null;

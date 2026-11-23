@@ -27,7 +27,8 @@ export type GameMode = 'title' | 'playing' | 'paused';
 
 declare module '../core/events.ts' {
   interface EventMap {
-    'game:mode': { mode: GameMode };
+    /** `from`: the mode left (the shell's own title event has none). A restore keys on `from: 'title'` so a resume from pause restores nothing (checkpoint-restore). */
+    'game:mode': { mode: GameMode; from?: GameMode };
     'game:saveStation': Record<string, never>;
     'game:restarted': { checkpoint: string | null };
     /** The map overlay opened (ADR-0024): the game is paused, the pause menu stays hidden. */
@@ -351,8 +352,9 @@ export class Game {
   }
 
   private setMode(mode: GameMode): void {
+    const from = this.mode;
     this.mode = mode;
     this.applyVolume();
-    this.d.events.emit('game:mode', { mode });
+    this.d.events.emit('game:mode', { mode, from });
   }
 }

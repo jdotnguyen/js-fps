@@ -35,6 +35,13 @@
     "anim": "glance"
    },
    {
+    "do": "emit",
+    "event": "render:warm",
+    "payload": {
+     "room": "R09"
+    }
+   },
+   {
     "do": "say",
     "line": "tunnel_okafor_01"
    },
@@ -435,7 +442,8 @@
   "trigger": {
    "event": "game:mode",
    "match": {
-    "mode": "playing"
+    "mode": "playing",
+    "from": "title"
    },
    "requires": "valve_done"
   },

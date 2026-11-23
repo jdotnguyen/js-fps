@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { HumanoidContext } from '../actors/humanoid.ts';
 import type { ClearBand, GoreClip } from '../actors/goreClip.ts';
-import type { JointName } from '../actors/skeleton.ts';
+import { JOINT_NAMES, type JointName } from '../actors/skeleton.ts';
 import type { KillEvent, KillStyle, KillTable } from '../data/types/kills.ts';
 import type { TargetRef, Vec3Like } from '../script/types.ts';
 import { KillRun } from './killRun.ts';
@@ -33,7 +33,9 @@ export interface KillWorld {
   /** Subscribe to a bus event; returns the unsubscriber. */
   listen: ((name: string, fn: (payload: unknown) => void) => () => void) | undefined;
   /** Play the first of `ids` that exists at `at`; false when none does. */
-  sfx: ((ids: readonly string[], at: Vec3Like) => boolean) | undefined;
+  sfx: ((ids: readonly string[], at: Vec3Like, gain?: number) => boolean) | undefined;
+  /** A low creature growl or groan (a short slice of a recorded one) from `at`. */
+  growl?: ((at: Vec3Like) => void) | undefined;
   warn: (m: string) => void;
   resolve: (ref: TargetRef) => { pos: Vec3Like; yaw?: number | undefined } | null;
   /** Spawn the creature body (a scripted spawn, removed on reset). */
@@ -117,10 +119,18 @@ interface ActiveKill {
   floorY: number;
   slam: Slam | null;
   thrown: Throw | null;
+  /** The throw has landed: from now on her body is kept on her side of the pane (infection-kills "The body stays on her side"). */
+  landed: boolean;
   /** The attacker's held pose (its last `attackerPose`), which it returns to after each slam. */
   attackerPose: string;
   /** The approach in the first beat (`haulTo` there): where it is going, how fast, and whether it has stared yet. */
-  approach: { to: THREE.Vector3; speed: number; face: number | undefined } | null;
+  approach: { to: THREE.Vector3; speed: number; face: number | undefined; via: THREE.Vector3[] } | null;
+  /** A `pin` being walked to during play (design D17): the grip waits until the attacker is there. */
+  pinning: boolean;
+  /** The grip has drawn her into the hand once; until then she is pulled in at most `MAUL.gripDraw` m a frame. */
+  gripDrawn: boolean;
+  /** `backTo`: she backs away to a mark, facing the attacker. */
+  backing: { to: THREE.Vector3; speed: number } | null;
   stare: { t: number; done: boolean; active: boolean };
   /** Where the current `drag` is taking her (a streak from her hand runs that way). */
   dragTo: THREE.Vector3 | null;
@@ -143,10 +153,12 @@ const LYING_KILL_POSE = /^(corpse|writhing)/;
  * teleport her), the attacker hauls and drags at most `haulMax` m/s, a slam winds up for `windup` s and holds her head on
  * the surface for `hold` s, and her root stays within `lift` m of the floor while held.
  */
-export const MAUL = { gripStep: 0.5, haulMax: 1.4, windup: 0.32, strike: 0.1, hold: 0.08, lift: [-0.55, 0.15] as const, arc: 0.35, slideS: 0.9 };
+export const MAUL = { gripStep: 0.5, gripDraw: 0.03, liftCarried: 0.5, haulMax: 1.4, walkMax: 2.2, windup: 0.32, strike: 0.1, hold: 0.08, lift: [-0.55, 0.15] as const, arc: 0.35, slideS: 0.9, reach: 0.7, inFront: 0.55, arriveSpare: 0.8, easeAllowance: 1.2 };
 /** Crunch variants, rotated so two impacts in a row never use the same one (stand-ins until the recordings exist). */
 const CRUNCHES = ['head_crunch_1', 'head_crunch_2', 'head_crunch_3'];
 const tmpA = new THREE.Vector3();
+/** A landed body's joints stay at least this far in front of `Glass.at` (itself 6 cm off the pane), clearing limb thickness. */
+const SIDE_MARGIN = 0;
 const tmpB = new THREE.Vector3();
 const tmpQ = new THREE.Quaternion();
 const tmpQv = new THREE.Vector3();
@@ -232,7 +244,8 @@ export class KillDirector {
       attacker.body.beginKill();
     }
     const marks = step['marks'] && typeof step['marks'] === 'object' ? (step['marks'] as Record<string, unknown>) : {};
-    const glass = this.glassFor(actor, step['glass'], style);
+    const onGlass = step['marks'] && typeof step['marks'] === 'object' ? (step['marks'] as Record<string, unknown>)['throwAt'] : undefined;
+    const glass = this.glassFor(actor, step['glass'], style, onGlass, marks);
     let resolve!: () => void;
     const done = new Promise<void>((r) => (resolve = r));
     const k: ActiveKill = {
@@ -255,10 +268,14 @@ export class KillDirector {
       floorY: actor.position.y,
       slam: null,
       thrown: null,
+      landed: false,
       attackerPose: 'maul_grip',
       approach: null,
       stare: { t: 0, done: false, active: false },
       dragTo: null,
+      pinning: false,
+      gripDrawn: false,
+      backing: null,
     };
     k.run = new KillRun(style, cues, {
       beat: (id, index) => this.w.emit(`kill:${id}`, { npc, beat: id, index }),
@@ -291,6 +308,8 @@ export class KillDirector {
         if (!k.instant) this.w.emit('kill:say', { npc, line });
       },
       cutVoice: () => this.w.emit('kill:cut', { npc }),
+      inReach: (beat) => this.inReach(k, beat.reach ?? MAUL.reach),
+      closeIn: () => this.closeIn(k),
     });
     k.run.warn = (m) => this.w.warn(`kill ${npc}: ${m}`);
     const listen = this.w.listen;
@@ -303,6 +322,9 @@ export class KillDirector {
     this.active.set(npc, k);
     if (instant) {
       if (glass) actor.place(glass.stand, glass.yaw);
+      // A mauled kill ends with her lying where she was thrown (medbay-attack "She lies where she was thrown").
+      const rest = style.kind === 'mauled' && marks['rest'] !== undefined ? this.mark(k, 'rest') : null;
+      if (rest) actor.place({ x: rest.x, y: actor.position.y, z: rest.z });
       if (style.kind === 'mauled') this.endMarks(k);
       k.run.finishNow();
     }
@@ -314,6 +336,10 @@ export class KillDirector {
       k.run.update(dt);
       if (k.slam) this.updateSlam(k, dt);
       this.updateStare(k, dt);
+      if (k.backing) this.updateBacking(k, dt);
+      if (k.pinning && k.attacker && !k.attacker.busy) k.pinning = false;
+      const ap = k.approach;
+      if (ap && ap.via.length > 0 && k.attacker && Math.hypot(ap.via[0]!.x - k.attacker.position.x, ap.via[0]!.z - k.attacker.position.z) < 0.6) ap.via.shift();
       // At the glass she leans the last few centimetres in, so her palms meet the pane (walks stop a little short).
       const g = k.glass;
       // (Not while a mauled attacker holds her, throws her or drags her: then the grip or the flight places her.)
@@ -347,7 +373,8 @@ export class KillDirector {
   lateUpdate(dt: number): void {
     for (const k of this.active.values()) {
       if (k.thrown) this.updateThrow(k, dt);
-      else if (k.grip && k.attacker) this.applyGrip(k);
+      else if (k.grip && k.attacker && !k.pinning) this.applyGrip(k);
+      if (k.landed) this.keepOnSide(k);
       if (k.slam?.pending) {
         k.slam.pending = false;
         this.impact(k, k.slam);
@@ -379,14 +406,18 @@ export class KillDirector {
       dh = Math.atan2(Math.sin(dh), Math.cos(dh));
       if (Math.abs(dh) > 0.02) v.body.setHeading(v.body.heading + Math.sign(dh) * Math.min(Math.abs(dh), 0.25));
     }
+    // A new grip draws her into the hand over a few frames (never a snap), then holds her there.
+    const cap = k.gripDrawn ? MAUL.gripStep : MAUL.gripDraw;
     for (let i = 0; i < 2; i++) {
       const j = v.body.jointWorld(g.joint, tmpB);
       const d = tmpQv.copy(target).sub(j);
       const len = d.length();
+      if (len < 0.08) k.gripDrawn = true;
       if (len < 1e-4) break;
-      if (len > MAUL.gripStep) d.multiplyScalar(MAUL.gripStep / len);
+      if (len > cap) d.multiplyScalar(cap / len);
       const p = v.position;
-      const y = Math.min(k.floorY + MAUL.lift[1], Math.max(k.floorY + MAUL.lift[0], p.y + d.y));
+      const top = g.joint === 'chest' ? MAUL.liftCarried : MAUL.lift[1];
+      const y = Math.min(k.floorY + top, Math.max(k.floorY + MAUL.lift[0], p.y + d.y));
       v.place({ x: p.x + d.x, y, z: p.z + d.z });
     }
   }
@@ -403,6 +434,51 @@ export class KillDirector {
 
   private release(k: ActiveKill): void {
     k.grip = null;
+    k.gripDrawn = false;
+  }
+
+  /** `startWhen: inReach`: the attacker stands within `reach` m of her, and is not stopped staring. */
+  private inReach(k: ActiveKill, reach: number): boolean {
+    const a = k.attacker;
+    if (!a || k.instant) return true;
+    if (k.stare.active) return false;
+    const v = k.actor.position;
+    return Math.hypot(a.position.x - v.x, a.position.z - v.z) <= reach;
+  }
+
+  /** The beat before ran out of time: walk the attacker in to just in front of her, at the haul cap. */
+  private closeIn(k: ActiveKill): void {
+    const a = k.attacker;
+    if (!a) return;
+    const v = k.actor.position;
+    const d = new THREE.Vector3(a.position.x - v.x, 0, a.position.z - v.z);
+    if (d.lengthSq() < 1e-6) d.set(0, 0, -1);
+    d.normalize().multiplyScalar(MAUL.inFront);
+    // Facing her: looking back along d.
+    const yaw = Math.atan2(d.x, d.z);
+    void a.moveTo({ x: v.x + d.x, y: a.position.y, z: v.z + d.z }, { speed: MAUL.haulMax, yaw });
+  }
+
+  /** `backTo`: she backs away toward the mark, facing the attacker; her beat's poses step (not a walk cycle). */
+  private updateBacking(k: ActiveKill, dt: number): void {
+    const b = k.backing!;
+    const v = k.actor;
+    if (!v.body.alive || k.grip) {
+      k.backing = null;
+      return;
+    }
+    const p = v.position;
+    const dx = b.to.x - p.x;
+    const dz = b.to.z - p.z;
+    const len = Math.hypot(dx, dz);
+    const step = Math.min(len, b.speed * dt);
+    const a = k.attacker;
+    const yaw = a ? Math.atan2(-(a.position.x - p.x), -(a.position.z - p.z)) : v.body.heading;
+    v.place({ x: p.x + (len > 1e-6 ? (dx / len) * step : 0), y: p.y, z: p.z + (len > 1e-6 ? (dz / len) * step : 0) });
+    let dh = yaw - v.body.heading;
+    dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+    v.body.setHeading(v.body.heading + Math.sign(dh) * Math.min(Math.abs(dh), 4 * dt));
+    if (len - step < 0.02) k.backing = null;
   }
 
   /** Is the attacker stopped and staring at Jay right now (tests, debug)? */
@@ -447,10 +523,17 @@ export class KillDirector {
     // Back to her, making up the hold so the grab still starts on time (at most MAUL.haulMax).
     const ap = k.approach;
     if (!ap || k.run.beat !== first) return;
-    const left = (first.s ?? first.max) - k.run.beatTime - 0.25;
-    const dist = Math.hypot(ap.to.x - a.position.x, ap.to.z - a.position.z);
-    const speed = Math.min(MAUL.haulMax, Math.max(ap.speed, left > 0.05 ? dist / left : MAUL.haulMax));
-    void a.moveTo({ x: ap.to.x, y: a.position.y, z: ap.to.z }, { speed, ...(ap.face !== undefined ? { yaw: ap.face } : {}) });
+    // Arrive with time to spare: a walk eases into its turns and its stop, so it runs slower than its nominal speed.
+    const left = (first.s ?? first.max) - k.run.beatTime - MAUL.arriveSpare;
+    let dist = 0;
+    let from: { x: number; z: number } = a.position;
+    for (const p of [...ap.via, ap.to]) {
+      dist += Math.hypot(p.x - from.x, p.z - from.z);
+      from = p;
+    }
+    const speed = Math.min(MAUL.haulMax, Math.max(ap.speed, left > 0.05 ? (dist / left) * MAUL.easeAllowance : MAUL.haulMax));
+    const track = ap.via.length > 0 ? { track: [...ap.via.map((p) => ({ x: p.x, y: a.position.y, z: p.z })), { x: ap.to.x, y: a.position.y, z: ap.to.z }] } : {};
+    void a.moveTo({ x: ap.to.x, y: a.position.y, z: ap.to.z }, { speed, ...track, ...(ap.face !== undefined ? { yaw: ap.face } : {}) });
   }
 
   private updateSlam(k: ActiveKill, dt: number): void {
@@ -508,7 +591,22 @@ export class KillDirector {
     if (k.instant) {
       v.place(rest);
       k.thrown = null;
+      k.landed = true;
     }
+  }
+
+  /**
+   * After the throw lands: no joint of her body may be past the pane (infection-kills "The body stays on her side"). The
+   * slide and corpse poses lie her out from a root only 0.6 m off the glass, so a long pose can reach back through it.
+   */
+  private keepOnSide(k: ActiveKill): void {
+    const g = k.glass;
+    if (!g) return;
+    let least = Infinity;
+    for (const j of JOINT_NAMES) least = Math.min(least, k.actor.body.jointWorld(j, tmpA).sub(g.at).dot(g.n));
+    if (least >= SIDE_MARGIN) return;
+    const p = k.actor.position.clone().addScaledVector(g.n, SIDE_MARGIN - least);
+    k.actor.place({ x: p.x, y: k.actor.position.y, z: p.z });
   }
 
   private updateThrow(k: ActiveKill, dt: number): void {
@@ -539,6 +637,7 @@ export class KillDirector {
     if (th.slide >= 1) {
       v.place({ x: p.x, y: k.floorY, z: p.z });
       k.thrown = null;
+      k.landed = true;
     }
   }
 
@@ -551,46 +650,63 @@ export class KillDirector {
     body.killKick('chest', localDir('fwd', tmpA), 1.2);
     body.killKick('head', localDir('fwd', tmpA), 0.9);
     const n = k.glass?.n ?? new THREE.Vector3(0, 0, 1);
-    const band = k.glass?.band;
-    // One crack centred where her head struck, and the blood from it (medbay-attack "Crack centred on the impact").
+    // One crack centred where her head struck, and the splatter from it (medbay-attack "Crack centred on the impact",
+    // infection-kills "Splatter at the impact").
     const at = th.point.clone();
     if (k.glass) {
       if (k.glass.clip.axis === 'z') at.z = k.glass.at.z;
       else at.x = k.glass.at.x;
     }
-    this.w.ctx.gore.glassMark(at, n, 'crack', 0.7);
-    this.w.ctx.gore.glassMark(at.clone(), n, 'splat', 0.42, band ? { band } : {});
+    this.impactMarks(at, n, MAUL.slideS, () => Math.random());
     this.w.sfx?.(['body_glass_hit', 'creature_glass_hit', 'glassThud'], th.point);
     this.w.sfx?.(['blood_splat_glass', 'glassThud'], th.point);
   }
 
   /**
    * A mauled kill's marks as it leaves them (a restore or a skip, medbay-attack "Skip and restore give the end state"):
-   * an authored set on its pane, from its marks - her two palm prints where she pleaded, the crack and splat where her
-   * head struck (`throwAt`), and the streak her hand left as she was dragged off toward `exit`. Nothing on other panes.
+   * the throw's marks where her head struck (`throwAt`), as the live kill leaves them, in a fixed pattern. Nothing on
+   * other panes.
    */
   private endMarks(k: ActiveKill): void {
     const g = k.glass;
     if (!g) return;
-    const gore = this.w.ctx.gore;
     const onPane = (p: THREE.Vector3): THREE.Vector3 => {
       const q = p.clone();
       if (g.clip.axis === 'z') q.z = g.at.z;
       else q.x = g.at.x;
       return q;
     };
-    const side = new THREE.Vector3(-g.n.z, 0, g.n.x);
-    for (const s of [-0.22, 0.24]) gore.glassMark(onPane(g.at.clone().addScaledVector(side, s).setY(k.floorY + 1.3)), g.n, 'print', 0.22);
     const hit = this.mark(k, 'throwAt');
-    if (hit) {
-      gore.glassMark(onPane(hit), g.n, 'crack', 0.7);
-      gore.glassMark(onPane(hit), g.n, 'splat', 0.42, g.band ? { band: g.band } : {});
+    let seed = 0;
+    if (hit) this.impactMarks(onPane(hit), g.n, 0.05, () => ((seed = (seed * 9301 + 49297) % 233280) / 233280));
+  }
+
+  /**
+   * Where her head struck the pane (infection-kills "Splatter at the impact"): one safety-glass crack and a splat on the
+   * point itself (no jitter, no clear band: after the slams the view no longer needs it), a ring of small splats within
+   * 0.3 m, two or three runs starting under them, and the smear her body leaves sliding down over `run` s.
+   */
+  private impactMarks(at: THREE.Vector3, n: THREE.Vector3, run: number, rand: () => number): void {
+    const gore = this.w.ctx.gore;
+    gore.glassMark(at.clone(), n, 'crack', 0.7);
+    gore.glassMark(at.clone(), n, 'splat', 0.42);
+    const side = new THREE.Vector3(-n.z, 0, n.x);
+    const ring = 6 + Math.floor(rand() * 5);
+    const drops: THREE.Vector3[] = [];
+    for (let i = 0; i < ring; i++) {
+      const a = (i / ring) * Math.PI * 2 + rand() * 0.6;
+      const d = 0.12 + rand() * 0.17;
+      const p = at.clone().addScaledVector(side, Math.cos(a) * d);
+      p.y += Math.sin(a) * d;
+      drops.push(p);
+      gore.glassMark(p, n, 'splat', 0.06 + rand() * 0.07);
     }
-    const exit = k.marks['exit'] !== undefined ? this.mark(k, 'exit') : null;
-    const from = onPane(g.at.clone().setY(k.floorY + 1.1));
-    const along = exit ? exit.clone().sub(from).setY(0) : side.clone();
-    along.addScaledVector(g.n, -along.dot(g.n));
-    gore.glassMark(from, g.n, 'streak', 1.1, { along, run: 0.05 });
+    // Runs from the lowest drops, down the pane.
+    const low = [...drops].sort((p, q) => p.y - q.y).slice(0, 2 + Math.floor(rand() * 2));
+    for (const p of low) gore.glassMark(p.clone(), n, 'streak', 0.35 + rand() * 0.45, { run: Math.max(run, 0.05) * 4 + 2 });
+    // The smear down to the floor as she slides.
+    const smear = Math.max(0.2, at.y - 0.4);
+    gore.glassMark(at.clone(), n, 'streak', smear, { run: Math.max(0.05, run) });
   }
 
   /** New game or load: every kill stops where it is (the director rebuilds the bodies). */
@@ -631,7 +747,7 @@ export class KillDirector {
     k.resolve();
   }
 
-  private glassFor(actor: NpcActor, ref: unknown, style: KillStyle): Glass | null {
+  private glassFor(actor: NpcActor, ref: unknown, style: KillStyle, onGlass?: unknown, marks: Readonly<Record<string, unknown>> = {}): Glass | null {
     if (ref === undefined || ref === null) return null;
     const r = this.w.resolve(ref as TargetRef);
     if (!r) {
@@ -641,17 +757,29 @@ export class KillDirector {
     const me = actor.position;
     const dx = me.x - r.pos.x;
     const dz = me.z - r.pos.z;
-    // The pane is axis-aligned: its normal is the dominant axis toward the victim.
-    const alongZ = Math.abs(dz) >= Math.abs(dx);
-    const sign = (alongZ ? dz : dx) >= 0 ? 1 : -1;
+    // The pane is axis-aligned. A second point on it (the throw's aim) gives its plane: the axis it barely moves along is
+    // the normal. Otherwise the normal is the dominant axis toward the victim (she starts in front of it, as in Lab B).
+    const other = onGlass !== undefined ? this.w.resolve(onGlass as TargetRef) : null;
+    const alongZ = other ? Math.abs(other.pos.z - r.pos.z) <= Math.abs(other.pos.x - r.pos.x) : Math.abs(dz) >= Math.abs(dx);
+    // The side is her room's (infection-kills "Thrown from the wrong side"): the kill's floor marks are authored in it, so
+    // they outvote wherever she happens to stand. With no marks off the pane, her own side, as before.
+    let vote = 0;
+    for (const [name, m] of Object.entries(marks)) {
+      if (name === 'throwAt') continue;
+      const p = this.w.resolve(m as TargetRef)?.pos;
+      const off = p ? (alongZ ? p.z - r.pos.z : p.x - r.pos.x) : 0;
+      if (Math.abs(off) > 0.15) vote += Math.sign(off);
+    }
+    const sign = (vote !== 0 ? vote : alongZ ? dz : dx) >= 0 ? 1 : -1;
     const n = alongZ ? new THREE.Vector3(0, 0, sign) : new THREE.Vector3(sign, 0, 0);
     const at = new THREE.Vector3(r.pos.x, r.pos.y, r.pos.z).addScaledVector(n, 0.06);
-    const clip: GoreClip = { axis: alongZ ? 'z' : 'x', at: alongZ ? at.z : at.x, keep: sign > 0 ? 'above' : 'below' };
+    const band = style.clearBand ? { min: me.y + style.clearBand.min, max: me.y + style.clearBand.max } : undefined;
+    // The clip carries the band too, so drops striking the pane keep it clear like the authored marks do.
+    const clip: GoreClip = { axis: alongZ ? 'z' : 'x', at: alongZ ? at.z : at.x, keep: sign > 0 ? 'above' : 'below', ...(band ? { band } : {}) };
     const standOff = style.glassStand ?? 0.5;
     const stand = at.clone().addScaledVector(n, standOff).setY(me.y);
     // Facing the pane: looking along -n.
     const yaw = Math.atan2(n.x, n.z);
-    const band = style.clearBand ? { min: me.y + style.clearBand.min, max: me.y + style.clearBand.max } : undefined;
     return { n, at, clip, stand, yaw, band };
   }
 
@@ -681,7 +809,7 @@ export class KillDirector {
       case 'sfx': {
         if (k.instant || !e.id) return;
         const at = body.jointWorld(e.joint ?? 'head', tmpA);
-        if (this.w.sfx && !this.w.sfx(e.id, at)) this.w.warn(`kill ${k.npc}: no sound "${e.id.join('" or "')}" yet`);
+        if (this.w.sfx && !this.w.sfx(e.id, at, e.gain)) this.w.warn(`kill ${k.npc}: no sound "${e.id.join('" or "')}" yet`);
         return;
       }
       case 'kick':
@@ -755,7 +883,14 @@ export class KillDirector {
         const side = e.side ?? 0;
         a.stopMove();
         // `away`: its back to her (it drags her by the ankle, its hand trailing behind it).
-        a.place({ x: v.x + Math.sin(h) * behind + Math.cos(h) * side, y: v.y, z: v.z + Math.cos(h) * behind - Math.sin(h) * side }, e.facing === 'away' ? h + Math.PI : h);
+        const spot = { x: v.x + Math.sin(h) * behind + Math.cos(h) * side, y: v.y, z: v.z + Math.cos(h) * behind - Math.sin(h) * side };
+        const yaw = e.facing === 'away' ? h + Math.PI : h;
+        // Placed only for a skip or a restore; in play it walks there (design D17), and the grip waits for it.
+        if (k.instant) a.place(spot, yaw);
+        else {
+          k.pinning = true;
+          void a.moveTo(spot, { speed: MAUL.haulMax, yaw });
+        }
         return;
       }
       case 'attackerPose':
@@ -772,11 +907,21 @@ export class KillDirector {
           k.actor.stopMove();
         }
         return;
+      case 'attackerLook': {
+        const a = k.attacker;
+        if (!a) return;
+        const at = e.mark ? this.mark(k, e.mark) : null;
+        a.lookAt(at ? () => at : null);
+        return;
+      }
       case 'haulTo':
+      case 'walkTo':
       case 'drag': {
         const a = k.attacker;
         const at = this.mark(k, e.mark);
         if (!a || !at) return;
+        // Hauling (or dragging) her is slow; walking away with nothing held is not (D37).
+        const cap = e.do === 'walkTo' ? MAUL.walkMax : MAUL.haulMax;
         // Dragged along the floor: she holds the beat's lying pose, her legs never step.
         if (e.do === 'drag') {
           k.actor.body.carried = k.run.style.beats.find((b) => b.id === k.run.beatId)?.poses[0] ?? 'corpseProne';
@@ -786,9 +931,12 @@ export class KillDirector {
         const face = e.faceMark ? this.mark(k, e.faceMark) : null;
         const yaw = face ? Math.atan2(-(face.x - at.x), -(face.z - at.z)) : Math.atan2(-(at.x - a.position.x), -(at.z - a.position.z));
         // In the first beat this is the approach: a stare can interrupt it, and the walk then makes up the time.
-        if (k.run.beat === k.run.style.beats[0]) k.approach = { to: at.clone(), speed: Math.min(e.speed ?? 1.0, MAUL.haulMax), face: face ? yaw : undefined };
+        k.pinning = false;
+        const via = (e.via ?? []).map((m) => this.mark(k, m)).filter((p): p is THREE.Vector3 => p !== null);
+        if (k.run.beat === k.run.style.beats[0]) k.approach = { to: at.clone(), speed: Math.min(e.speed ?? 1.0, cap), face: face ? yaw : undefined, via: via.map((p) => p.clone()) };
+        const track = via.length > 0 ? { track: [...via.map((p) => ({ x: p.x, y: a.position.y, z: p.z })), { x: at.x, y: a.position.y, z: at.z }] } : {};
         if (k.instant) a.place(at.setY(a.position.y), yaw);
-        else if (!k.stare.active) void a.moveTo({ x: at.x, y: a.position.y, z: at.z }, { speed: Math.min(e.speed ?? 1.0, MAUL.haulMax), ...(face ? { yaw } : {}) });
+        else if (!k.stare.active) void a.moveTo({ x: at.x, y: a.position.y, z: at.z }, { speed: Math.min(e.speed ?? 1.0, cap), ...track, ...(face ? { yaw } : {}) });
         return;
       }
       case 'slam': {
@@ -801,6 +949,14 @@ export class KillDirector {
       case 'throw':
         this.startThrow(k, e);
         return;
+      case 'backTo': {
+        const at = this.mark(k, e.mark);
+        if (!at) return;
+        k.actor.stopMove();
+        if (k.instant) k.actor.place({ x: at.x, y: k.actor.position.y, z: at.z });
+        else k.backing = { to: at, speed: Math.min(e.speed ?? 0.6, 1.2) };
+        return;
+      }
     }
   }
 
@@ -914,11 +1070,16 @@ export class KillDirector {
       const at = body.jointWorld(Math.random() < 0.5 ? 'hand_L' : 'hand_R', tmpB).clone();
       if (p.glass.clip.axis === 'z') at.z = p.glass.at.z;
       else at.x = p.glass.at.x;
-      this.w.sfx?.(['creature_glass_hit', 'glassThud'], at);
+      // The blow's sound sits just on the creature's side of the pane, so a room mic on that side hears it.
+      const axis = p.glass.clip.axis;
+      const side = Math.sign(p.actor.position[axis] - p.glass.at[axis]) || 1;
+      at[axis] = p.glass.at[axis] + side * 0.15;
+      this.w.sfx?.(['creature_glass_hit', 'glassThud'], at, 1.8);
       p.hits--;
       if (p.hits <= 0) {
         p.rest = POUND.rest[0] + Math.random() * (POUND.rest[1] - POUND.rest[0]);
         if (Math.random() < 0.6) this.w.sfx?.(['creature_clicks', 'zombieVoice'], body.jointWorld('head', tmpB));
+        if (Math.random() < 0.85) this.w.growl?.(body.jointWorld('head', tmpB));
       }
     }
   }
@@ -940,5 +1101,6 @@ export class KillDirector {
     c.body.group.scale.setScalar(0.6);
     c.body.playDead(e.pose ?? 'getUp_0');
     c.body.getUp();
+    this.w.growl?.(c.body.jointWorld('head', tmpB));
   }
 }

@@ -179,9 +179,13 @@ export class NpcActor {
   /** The current move set `body.carried` (cleared when it ends). */
   private moveCarried = false;
   private anim: { pose: string; left: number; resolve: () => void } | null = null;
+  /** A captured clip played once over whatever the body is doing (`npcAnim` with `clip:<id>`), and how far through it is. */
+  private clipAnim: { t: number; duration: number; resolve: () => void } | null = null;
   /** Placed pose (lean_ or sit_) waiting for arrival facing (`faceYaw`) to line up before leaning/sitting. */
   private pendingPlaced: { pose: string; blend: number } | null = null;
   private faceYaw: number | null = null;
+  /** Turn speed (rad/s) for a scripted `turnTo`; null is the default settle rate. A hesitant turn is slower (medbay-attack). */
+  private faceRate: number | null = null;
   private lookGet: (() => THREE.Vector3 | null) | null = null;
   private follow: { get: () => THREE.Vector3 | null; distance: number } | null = null;
   private readonly rng: Rng;
@@ -370,6 +374,17 @@ export class NpcActor {
 
   /** Play a named gesture (NPC_ANIMS) or any pose by name. Resolves when it ends (held poses resolve at once). */
   playAnim(name: string, opts: { instant?: boolean; has?: (pose: string) => boolean } = {}): Promise<void> {
+    // `clip:<id>` plays a captured one-shot clip from this body's library or character pack once, without stopping a
+    // move in progress (overhaul-priya-r08-death task 11.2: Priya stumbles mid-run). Skipped or missing: nothing.
+    if (name.startsWith('clip:')) {
+      if (opts.instant) return Promise.resolve();
+      const duration = this.body.playKillClip(name.slice(5), 0.12);
+      if (duration === null || duration <= 0) return Promise.resolve();
+      this.clipAnim?.resolve();
+      return new Promise<void>((resolve) => {
+        this.clipAnim = { t: 0, duration, resolve };
+      });
+    }
     const base = NPC_ANIMS[name] ?? (opts.has?.(name) ? { pose: name, hold: Infinity } : null);
     if (!base) return Promise.resolve();
     // A timed gesture on a seated or leaning body uses that base's own version (`drink` on `lean_back_mug` is
@@ -449,9 +464,10 @@ export class NpcActor {
     this.follow = get ? { get, distance } : null;
   }
 
-  turnTo(yaw: number | null): void {
+  turnTo(yaw: number | null, rate: number | null = null): void {
     this.cancelWay();
     this.faceYaw = yaw;
+    this.faceRate = yaw === null ? null : rate;
   }
 
   update(dt: number, env: NpcEnv): void {
@@ -506,7 +522,10 @@ export class NpcActor {
       // Arrived: on the spot, or as close as the body gets to one in a nook or by furniture (ADR-0028).
       if ((toEnd <= NPC_TUNING.arrive && st.remaining < 0.35) || (st.done && toEnd < 1.6) || (m.stuckT > 0.6 && st.remaining < 1 && toEnd < 1.6)) {
         this.move = null;
-        if (m.yaw !== undefined) this.faceYaw = m.yaw;
+        if (m.yaw !== undefined) {
+          this.faceYaw = m.yaw;
+          this.faceRate = null;
+        }
         m.resolve();
       } else {
         desired.set(st.tx - me.x, 0, st.tz - me.z);
@@ -565,7 +584,7 @@ export class NpcActor {
     } else {
       // Settle: decelerate crisply in place, then turn to the scripted facing.
       const face = this.faceYaw !== null ? dirOf(this.faceYaw, tmpA) : null;
-      const vel = this.body.steer(face, dt, { maxSpeed: 0, turnRate: 3.4, accel: 7 });
+      const vel = this.body.steer(face, dt, { maxSpeed: 0, turnRate: this.faceRate ?? 3.4, accel: 7 });
       if (vel.lengthSq() > 1e-6 && env.colliders) {
         moveBody(this.motor, vel.x * dt, vel.z * dt, dt, MOTOR, env.colliders);
         this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
@@ -576,10 +595,25 @@ export class NpcActor {
           this.body.setPose(this.pendingPlaced.pose, this.pendingPlaced.blend);
           this.pendingPlaced = null;
         }
-        if (diff < 0.03) this.faceYaw = null;
+        if (diff < 0.03) {
+          this.faceYaw = null;
+          this.faceRate = null;
+        }
       } else if (this.pendingPlaced) {
         this.body.setPose(this.pendingPlaced.pose, this.pendingPlaced.blend);
         this.pendingPlaced = null;
+      }
+    }
+
+    // A one-shot clip: move it on, then hand the body back to its base pose (and its locomotion).
+    if (this.clipAnim) {
+      const c = this.clipAnim;
+      c.t += dt;
+      this.body.killClipPhase(Math.min(1, c.t / c.duration));
+      if (c.t >= c.duration) {
+        this.clipAnim = null;
+        this.body.setPose(this.basePose, 0.25);
+        c.resolve();
       }
     }
 

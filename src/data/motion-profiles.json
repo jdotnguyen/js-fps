@@ -161,6 +161,7 @@
         "headPitch": -2
       },
       "variants": {
+        "run": { "when": { "sequence": "sec_glass" }, "clips": { "jog": "priya_run" } },
         "intro": {
           "when": { "sequence": "intro_shift_change" },
           "style": { "tempo": 1.2, "armCarry": 1.25, "headPitch": -4 }

@@ -77,6 +77,12 @@ declare module '../core/events.ts' {
     /** A level trigger fired; `event` is its "emit" name, e.g. "trigger:r06_enter". */
     'trigger:fired': { id: string; event: string };
     /**
+     * Compile this room's shaders now, under the current lighting, before a door shows them (a sequence `emit`). The
+     * load warm-up compiles under main power; after the blackout a room never yet drawn would compile in the frame its
+     * door opens (overhaul-priya-r08-death D40).
+     */
+    'render:warm': { room: string };
+    /**
      * ADR-0024: the player tried a gated door or vent without what it needs. `hint` is the
      * text to show, with the item name marked for highlighting. The map uses id/requires/sealed.
      */
@@ -417,6 +423,10 @@ export class Level implements World, CaptureHost {
   private readonly deps: LevelDeps;
   private readonly rooms: RoomRuntime[] = [];
   private readonly paSpeakers: PaSpeaker[] = [];
+  /** Glass panes (glass partition edges and see-through doors), for `glassAt`: armoured glass stops rounds (medbay-attack). */
+  private readonly glassPanes: THREE.Box3[] = [];
+  /** Room intercom grilles (`pa_speaker` props with an `intercom` id): in-world-audio "A live intercom relays a room". */
+  private readonly intercomGrilles: Array<{ id: string; room: string; sources: string[]; position: THREE.Vector3; level: number }> = [];
   private readonly roomById = new Map<string, RoomRuntime>();
   private readonly doors: DoorRuntime[] = [];
   private portalCuller!: PortalCuller;
@@ -750,12 +760,14 @@ export class Level implements World, CaptureHost {
         new THREE.Vector3(cb.max[0], cb.max[1], zMid).applyMatrix4(matrix),
         new THREE.Vector3(cb.min[0], cb.max[1], zMid).applyMatrix4(matrix),
       ];
+      const box = quadBox(verts);
       portals.push({
         rooms: [d.rooms[0].data.id, d.rooms[1].data.id],
         verts,
-        box: quadBox(verts),
+        box,
         passable: () => d.open > 0.001 || d.visual.seeThrough || d.visual.porthole,
       });
+      if (d.visual.seeThrough) this.glassPanes.push(box);
     }
 
     // 2. Glass partition portals (`wall_glass_partition` cell edges).
@@ -780,12 +792,14 @@ export class Level implements World, CaptureHost {
           const ex = cell[0] * CELL + dx * (CELL / 2);
           const ez = cell[2] * CELL + dz * (CELL / 2);
           const verts = makeVerticalQuad(ex, ez, dx, dz, 3.9 / 2, baseY + 0.35, baseY + 2.54);
+          const box = quadBox(verts);
           portals.push({
             rooms: [r.data.id, other.data.id],
             verts,
-            box: quadBox(verts),
+            box,
             passable: ALWAYS_OPEN,
           });
+          this.glassPanes.push(box);
           alwaysLinked.add(pairKey(r.data.id, other.data.id));
         }
       }
@@ -988,6 +1002,10 @@ export class Level implements World, CaptureHost {
     for (const [pi, prop] of (r.props ?? []).entries()) {
       const ry = deg(prop.rot ?? 0);
       const matrix = at(prop.pos[0], prop.pos[1], prop.pos[2], 0, ry, 0);
+      if (prop.kit === 'pa_speaker' && typeof prop.params?.intercom === 'string') {
+        const sources = typeof prop.params.sources === 'string' ? prop.params.sources.split('|').filter((s) => s !== '') : [];
+        this.intercomGrilles.push({ id: prop.params.intercom, room: r.id, sources, position: grillePosition(matrix), level: typeof prop.params.level === 'number' ? prop.params.level : 1 });
+      }
       if (prop.kit === 'pa_speaker' && typeof prop.params?.id === 'string') {
         const adjacentRoom = prop.params.serves;
         this.paSpeakers.push({ id: prop.params.id, room: r.id, position: grillePosition(matrix),
@@ -1597,6 +1615,16 @@ export class Level implements World, CaptureHost {
     return this.roomById.has(id);
   }
 
+  /** A room's scene group (its geometry, props, water and junk), for warming its shaders before it is first seen. */
+  roomGroup(id: string): THREE.Group | null {
+    return this.roomById.get(id)?.group ?? null;
+  }
+
+  /** Is `p` (a shot's wall impact) on a glass pane, within `tol` of it? The pane's collider face sits up to 0.3 m off the portal plane these boxes are built on. Armoured glass stops rounds (medbay-attack). */
+  glassAt(p: { x: number; y: number; z: number }, tol = 0.4): boolean {
+    return this.glassPanes.some((b) => p.x >= b.min.x - tol && p.x <= b.max.x + tol && p.y >= b.min.y - tol && p.y <= b.max.y + tol && p.z >= b.min.z - tol && p.z <= b.max.z + tol);
+  }
+
   roomAt(p: THREE.Vector3): RoomRuntime | null {
     if (this.current && this.current.cells.some((c) => c.containsPoint(p))) return this.current;
     for (const r of this.rooms) if (r.cells.some((c) => c.containsPoint(p))) return r;
@@ -1638,6 +1666,11 @@ export class Level implements World, CaptureHost {
     }
     this.voiceGraphCache = new VoiceGraph(portals);
     return this.voiceGraphCache;
+  }
+
+  /** Every room intercom grille in the level: its id, the room it is in, the rooms it hears, and the grille's position. */
+  intercoms(): ReadonlyArray<{ readonly id: string; readonly room: string; readonly sources: readonly string[]; readonly position: THREE.Vector3; readonly level: number }> {
+    return this.intercomGrilles;
   }
 
   paSpeakerAt(listener: THREE.Vector3, fixture?: string): THREE.Vector3 | null {
@@ -2102,7 +2135,9 @@ export class Level implements World, CaptureHost {
       this.tinted.set(roomId, saved);
     }
     const emergency = tint === 'emergency';
-    const color = new THREE.Color(emergency ? '#ff2a1a' : tint);
+    // "black": a true blackout (the Lab B escape): fixtures, their glow and the room's ambient all go to nothing.
+    const black = tint === 'black';
+    const color = new THREE.Color(emergency ? '#ff2a1a' : black ? '#000000' : tint);
     for (const s of room.slots) s.color.copy(color);
     for (const c of glowsOf()) c.copy(color);
     if (emergency) {
@@ -2110,6 +2145,7 @@ export class Level implements World, CaptureHost {
       room.ambient.ground.set(AMBIENT.emergency.ground);
       room.ambient.intensity = AMBIENT.emergency.intensity;
     }
+    if (black) room.ambient.intensity = 0;
     this.bumpLighting(roomId);
     return true;
   }

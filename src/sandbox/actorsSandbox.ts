@@ -26,6 +26,9 @@ import { separate, type SepBody } from '../actors/separation.ts';
 import { SLAM, slamFalloff } from '../actors/slam.ts';
 import { CAST } from '../actors/castLooks.ts';
 import { GILES, OKAFOR } from '../actors/squadLooks.ts';
+import { loadSharedMocapLibrary } from '../actors/mocap.ts';
+import { loadMocapPacks } from '../actors/mocapPacks.ts';
+import { sharedMotionProfiles } from '../actors/motionProfiles.ts';
 
 /**
  * ADR-0006 test room: /sandbox/actors.html (dev server only, not part of the game build).
@@ -156,7 +159,11 @@ async function boot(): Promise<void> {
   // High-fidelity imported models are used by default everywhere; `?bodyModel=<id>` forces one model on crowd enemies.
   const modelParam = new URLSearchParams(location.search).get('bodyModel');
   const bodyModels = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/body-models.json'));
-  await bodyModels.load(import.meta.env.BASE_URL);
+  const motionProfiles = sharedMotionProfiles();
+  await Promise.all([
+    bodyModels.load(import.meta.env.BASE_URL),
+    loadSharedMocapLibrary().then((lib) => loadMocapPacks(lib, Object.keys(motionProfiles.profiles))),
+  ]);
   const CROWD_MODELS = ['zombieWalk', 'necromorphCrowd', 'gameChar'] as const;
   let crowdIdx = 0;
   const resolveModel = (spec: HumanoidSpec): HumanoidSpec => {
@@ -327,6 +334,8 @@ async function boot(): Promise<void> {
   events.on('input:pointerLock', ({ locked }) => {
     prompt.hidden = locked;
   });
+  // Console handle for gore checks (drops, glass marks, the safety-glass crack) without a kill to drive them.
+  (window as unknown as { actorsBench: unknown }).actorsBench = { THREE, gore, scene, camera, freeCam };
   addEventListener('keydown', (e) => {
     if (e.repeat) return;
     if (trial?.key(e.code, camera)) return;

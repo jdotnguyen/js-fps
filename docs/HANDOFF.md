@@ -52,12 +52,13 @@ A. Quiet half (ADR-0023, openspec/specs/intro-sequence): New game loads slice01 
    with a CCTV look, throttled; the admin glimpse; the PA call back; the drop in R03/R04
    (Voss transforms behind glass, red lights, klaxon, glass cracks, lockdown, `drop:done`).
 B. Action half (ADR-0014 beats 3-8): shotgun as a weapon pickup in R07a (pistol only before);
-   R05 first contact; R06 cover-me (Giles bypass task, 6 enemies); R07/R08 armory, play-dead,
-   Priya's attack through clear glass (extremely gruesome, reads as death, but she survives;
-   Justin will iterate), Giles's panel + bandage; R09 biometric door, wading slowdown, valve
+   R05 first contact (no fight since trim-lab-wing-encounters: the Voss creature escapes Lab B in the drop's
+   blackout and is heard in the ducts); R06 cover-me (Giles bypass task, the escaped creature drops out of the duct,
+   90 HP); R07/R08 armory (no play-dead any more),
+   Priya's attack through clear glass (she dies on screen; reworked 2026-11-21 as the `mauled` kill), Giles's panel + bandage; R09 biometric door, wading slowdown, valve
    (Mara moment); R11 climax (30 s task, 14 enemies, max 8, a hero); cliffhanger reveal
-   (fluid trail, Okafor steps toward Giles, "Stay back, Tomas."), title card, then Priya's
-   stinger on a fullscreen camera feed, then endSlice. Raise `giles.infectionStage` 1/2/3/4
+   (fluid trail, Okafor steps toward Giles, "Stay back, Tomas."), title card, then the
+   stinger on a fullscreen camera feed (the bloom raises Priya's corpse), then endSlice. Raise `giles.infectionStage` 1/2/3/4
    at the beats in ADR-0022.
 Then: headless tests for every beat chain + skips, ADR progress notes, and a playtest checklist
 for Justin.
@@ -74,6 +75,14 @@ Done since: Giles bandage/veins/sweat (`castTells.ts`), gore clip plane, `cp_cli
 - Commons palette is now concrete / concretePainted / labTile: every paint photo slot (paintBone = labPanel, paintTeal, paintDark) is peeling and rusty.
 - Engine: flat-colour and static-glow merging in `kit/merge.ts` (see surface-dressing-standard section 6). R01 went 60 -> 51 calls, R02 59 -> 52 with far more dressing.
 - `gen-slice01.mjs` now carries the hand edits that had been made straight to `slice01.json` (R01 security post, steel walls and ceilings, R04/R06 danger signs, R12d washroom tiles) via new room options `wallMaterial` / `ceilingMaterial`. Edit the generator, not the JSON. Other sessions were editing the JSON at the same time, so only R02 was spliced in this pass. A full regen would drop JSON-only edits (e.g. ADR-0028 walks) unless they are ported first.
+
+## Update (2026-11-21, overhaul-priya-r08-death: room and kill engine)
+- R07 reworked (change `overhaul-priya-r08-death`, design decisions 22-31): one scene from entering the security office to the aftermath (`sec_glass`; `armory_auto`, `sec_glass_near` and `sec_rescue` are gone). R08 is lit on backup power (its own circuit). A room intercom (`src/audio/intercom.ts`, a `pa_speaker` prop with `intercom: 'medbay'` in R07) relays R08 and R08b; the `intercom` and `voiceProject` sequence steps switch it and hold Okafor's voice at 3.5 m. New `medbay` score (`src/audio/scores/medbay.ts`) on the vitals monitor's 0.8 s beat. Dialogue lines can carry a `direction` (VO acting note only). Giles is no longer infected in R06/R07; the cliffhanger still transforms him until it is rewritten.
+- R07/R07a/R08/R08b re-staged (change `overhaul-priya-r08-death`, design decisions 10-12): props out of the walls and off the doors, the glass door `D_R07_R08` (sealed) replaces the east medbay pane, the new `instrument_cart` kit piece is the slam stage, Jay's glass spot is 2.28 m from the cart top. `slice01.test.ts` checks placement, the clear stage and lane, the shotgun facing the armory door, and Jay's sightline. `gen-slice01.mjs` now also emits the `look: 'lab_creature'` contact spawn, so a regen keeps it.
+- Kill kinds are now three: `grownInside`, `converted` and `mauled` (`src/data/types/kills.ts`, `src/ai/npcKills.ts`). A `mauled` kill has an `attacker` (an NPC id on the `kill` step) and named `marks` (level refs). Its beat events drive both bodies: `pin`, `grip` (hand on a victim joint, or `release`), `attackerPose`, `haulTo` (`faceMark` on arrival), `slam` (windup, strike, head held on the mark, then `kill:impact {n}`), `throw` (into a glass mark, then a slide to the floor) and `drag`. Beats can end `until: 'impacts'`, and `lines` give the victim's voice per impact (`kill:say` / `kill:cut`, wired to speech in `main.ts`). The grip is kinematic: after every body has moved (`KillDirector.lateUpdate`), her gripped joint goes back into the hand (at most 0.5 m a frame).
+- `noticed: { kind: 'stare', at, hold, target: 'player' }` on a `mauled` style: once, during the first beat's approach, the attacker stops and stares at Jay; `kill:notice` brings it forward; the walk makes up the time, so the grab never moves.
+- New poses: attacker `maul_grip`, `maul_haul`, `maul_windup`, `maul_impact`, `maul_drag`, `stare`; victim `kill_grabbed`, `kill_hauled`, `kill_slammed`, `kill_thrown`, `kill_slide`, `kill_reach`, `kill_dragged`. Tuned headlessly against the procedural bodies; not yet seen in a browser.
+- Flaky, not from this change: `npcKills.test.ts` "each flurry on the glass reports one pound event" (random flurry sizes) fails now and then in full runs.
 
 ## Update (2026-11-22, swap-viewmodels-to-just-models: first-person weapons)
 - Jay's pistol and shotgun are now JUST's "AnimatedPistol" and "Animated Shotgun" (CC BY 4.0), built by `scripts/fix-just-weapons-glb.mjs` from the Sketchfab glTF and the author's FBX (the sources stay outside the repo). The glTF's gun meshes are out of step with its skin (17x or more away from the hands), so the script rebuilds the gun from the FBX; the arms, skeleton and clips come from the glTF.

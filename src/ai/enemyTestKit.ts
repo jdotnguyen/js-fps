@@ -96,7 +96,7 @@ export function stubTarget(id = 'player', at: [number, number, number] = [0, 0, 
 export function director(world = room(), opts: { enemyHp?: number; seed?: string } = {}): { dir: EnemyDirector; events: EventBus; log: Array<[string, unknown]> } {
   const events = new EventBus();
   const log: Array<[string, unknown]> = [];
-  for (const name of ['enemy:spawned', 'enemy:alerted', 'enemy:died', 'enemy:attack', 'enemy:grab', 'enemy:grabReleased', 'enemy:slam', 'combat:first', 'group:cleared'] as const) {
+  for (const name of ['enemy:spawned', 'enemy:alerted', 'enemy:died', 'enemy:attack', 'enemy:grab', 'enemy:grabReleased', 'enemy:slam', 'enemy:landed', 'combat:first', 'group:cleared'] as const) {
     events.on(name, (p: unknown) => log.push([name, p]));
   }
   const dir = new EnemyDirector({

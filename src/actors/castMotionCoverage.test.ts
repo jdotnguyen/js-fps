@@ -35,6 +35,16 @@ function sequences(): Record<string, unknown> {
 const poses = (posesJson as { poses: Record<string, unknown> }).poses;
 const poseExists = (p: string): boolean => p in poses;
 
+/** Captured clips a look's body can play: the shared core library plus its own character pack (mocap-library spec). */
+const coreClips = new Set<string>(Object.keys((JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '../data/mocap-core.json'), 'utf8')) as { clips: Record<string, unknown> }).clips));
+function packClips(look: string): Set<string> {
+  const p = path.resolve(import.meta.dirname, `../data/mocap/${look}.json`);
+  if (!fs.existsSync(p)) return new Set();
+  const clips = (JSON.parse(fs.readFileSync(p, 'utf8')) as { clips: Record<string, unknown> | Array<{ id: string }> }).clips;
+  return new Set(Array.isArray(clips) ? clips.map((c) => c.id) : Object.keys(clips));
+}
+const clipExists = (look: string, clip: string): boolean => coreClips.has(clip) || packClips(look).has(clip);
+
 /** Dialogue line id -> the named look that speaks it (speaker "Director Hale" -> profile `hale` -> look `hale`). */
 function speakerLooks(): Map<string, string> {
   const lookOfProfile = new Map<string, string>();
@@ -82,14 +92,11 @@ const D11_ROWS: readonly (readonly [look: string, source: string, poses: readonl
   ['giles', 'task:bypass', ['panel_work']],
   ['giles', 'task:bypass_short', ['panel_work']],
   ['giles', 'task:power_restore', ['typing']],
-  ['giles', 'sequence:action_contact', ['flex_hand']],
-  ['giles', 'sequence:action_security', ['rub_forearm']],
   ['giles', 'sequence:action_tunnel', ['cough']],
   ['okafor', 'sequence:intro_shift_change', ['lean_back', 'lean_back_mug', 'drink']],
   ['okafor', 'task:biometric', ['biometric_scan']],
   ['okafor', `task:${REVIVE_TASK}`, ['kneel_revive']],
   ['okafor', 'sequence:briefing_gallery', ['glance']],
-  ['okafor', 'sequence:action_contact', ['glance']],
   ['okafor', 'sequence:action_tunnel', ['glance']],
   ['priya', 'sequence:intro_shift_change', ['walk', 'offer_mug']],
   // Priya's R08 rows (action_security, action_restore, action_climax) are pinned with task 6.4, once her death scene is rewritten.
@@ -112,8 +119,23 @@ function requests(): MotionRequest[] {
 }
 
 test('cast motion coverage: every named character has a profile and every request names a real pose', () => {
-  const problems = checkCoverage(sharedMotionProfiles(), NAMED, requests(), poseExists, OWN_MOTION_LANDED, SCENE_VARIANTS);
+  const problems = checkCoverage(sharedMotionProfiles(), NAMED, requests(), poseExists, OWN_MOTION_LANDED, SCENE_VARIANTS, clipExists);
   assert.deepEqual(problems, []);
+});
+
+// overhaul-priya-r08-death task 11.2: Priya's panicked run (her `jog` during `sec_glass`, whose opening cutscene is her run
+// since task 20.1) and her one-shot stumble.
+test('Priya has her own panicked run for the R06 run and a one-shot stumble clip', () => {
+  const file = sharedMotionProfiles();
+  const priya = file.profiles['priya']!;
+  assert.equal(priya.variants?.['run']?.clips?.jog, 'priya_run');
+  assert.deepEqual(priya.variants?.['run']?.when, { sequence: 'sec_glass' });
+  assert.ok(clipExists('priya', 'priya_run'), 'the run is in her pack');
+  assert.ok(clipExists('priya', 'priya_stumble'), 'the stumble is in her pack');
+  const req = requests().filter((r) => r.look === 'priya' && r.pose === 'clip:priya_stumble');
+  assert.ok(req.length >= 1 && req.every((r) => r.source === 'sequence:action_security'), 'the sec_glass run asks for the stumble');
+  assert.equal(checkCoverage(file, NAMED, req, poseExists, OWN_MOTION_LANDED, {}, clipExists).length, 0);
+  assert.equal(checkCoverage(file, NAMED, [{ ...req[0]!, pose: 'clip:nope' }], poseExists, OWN_MOTION_LANDED, {}, clipExists).length, 1, 'a missing clip is reported');
 });
 
 test('cast motion coverage: every pose a profile or scene variant swaps in is an authored pose', () => {
@@ -180,7 +202,7 @@ test('cast motion coverage: a landed character must cover every request with its
   const file = sharedMotionProfiles();
   const { clips: _c, holds: _h, style: _s, variants: _v, ...plain } = file.profiles['hale']!;
   const bare: MotionProfileFile = { ...file, profiles: { ...file.profiles, hale: plain } };
-  const problems = checkCoverage(bare, NAMED, requests(), poseExists, new Set(['hale']));
+  const problems = checkCoverage(bare, NAMED, requests(), poseExists, new Set(['hale']), undefined, clipExists);
   assert.ok(problems.length > 0 && problems.every((p) => p.look === 'hale'), 'with no clips of his own, Hale\'s requests fall through');
   assert.deepEqual(needFor('lean_back_mug_drink'), { kind: 'activity', activity: 'drink' });
   assert.deepEqual(needFor('sit_chair_glance'), { kind: 'hold', family: 'sit_chair' });

@@ -100,7 +100,8 @@ export function setupEnemies(d: EnemyGameDeps): EnemyGame {
   ev.on('weapon:fired', ({ weapon }) => {
     d.camera.getWorldPosition(tmp);
     d.camera.getWorldDirection(view);
-    director.playerShot(weapon, tmp, view, d.player.aimBlend);
+    const { wall } = director.playerShot(weapon, tmp, view, d.player.aimBlend);
+    if (wall) ev.emit('weapon:impact', { weapon, x: wall.x, y: wall.y, z: wall.z, dx: view.x, dy: view.y, dz: view.z });
   });
   ev.on('player:footstep', (f) => director.noise(f.sprint ? 'sprint' : 'footstep', f, 'player'));
   ev.on('player:shove', (s) => {
@@ -129,6 +130,11 @@ export function setupEnemies(d: EnemyGameDeps): EnemyGame {
     });
     ev.on('enemy:slam', (s) => audio.play('metalKnock', { bus: 'sfx', gain: 1, rate: 0.45, position: new THREE.Vector3(s.x, s.y, s.z), reverb: 0.5 }));
   }
+  // A drop lands hard: heard at its feet and felt, more the further it fell (enemy-encounters).
+  ev.on('enemy:landed', (l) => {
+    audio?.play('creatureLand', { bus: 'sfx', gain: 1.2, position: new THREE.Vector3(l.x, l.y, l.z), reverb: 0.4 });
+    ev.emit('camera:shake', { amount: Math.min(0.35, 0.08 * l.height), seconds: 0.4 });
+  });
 
   const spawnAhead = (variant: EnemyVariantId, distance = 6, model?: string | null): void => {
     const p = findSpotNear(director, d.player, distance);
