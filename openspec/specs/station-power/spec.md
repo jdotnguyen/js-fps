@@ -7,10 +7,12 @@ Defines the station-wide power state and the blackout beat that changes it: when
 ## Requirements
 
 ### Requirement: The blackout follows the contact fight
-The blackout beat SHALL start once every enemy of `r05_contact` (the Voss creature) and of `r05_trickle` has been resolved, and before door `D_R05_R06` closes and the `cp_contact_clear` checkpoint saves. It SHALL run once per playthrough. Jay keeps full control during it.
+The blackout beat SHALL start once the creature's passage above R05 has been heard moving off toward R06, and before
+door `D_R05_R06` closes and the `cp_contact_clear` checkpoint saves. It SHALL run once per playthrough. Jay keeps full
+control during it.
 
 #### Scenario: Last trickle monster dies
-- **WHEN** the player kills the last `r05_trickle` enemy
+- **WHEN** the last bang above R05 has played, on the R06 side of the room
 - **THEN** the radio chatter starts within 2 s and the player can still move, look and use weapons
 
 #### Scenario: Not twice

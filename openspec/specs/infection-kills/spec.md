@@ -125,17 +125,22 @@ floor, and the creature. Each sound SHALL be played by name, and crunches and gl
 
 ### Requirement: The creature stays behind the glass until it breaks out
 After a `grownInside` kill behind a glass partition, the creature SHALL hammer on the glass beside the victim's body, in
-flurries of blows that are heard on the glass, until the level releases it. When it is released, the enemy the player
-fights SHALL be that creature (the same body, coming from where it stood), not a different infected.
+flurries of blows that are heard on the glass, until the level makes it escape. The escape SHALL happen in the dark: the
+room's lights die, the creature is gone when they come back, and the room's ceiling vent is left open. The enemy the
+player later fights SHALL be that creature (the same body), not a different infected.
 
 #### Scenario: Pounding on the glass
 - **WHEN** the Lab B kill has ended and the player watches from the gallery
 - **THEN** the creature stands at the glass beside Voss's body and hits it again and again, each blow sounding on the glass
 
+#### Scenario: Gone when the lights come back
+- **WHEN** the Lab B escape plays and Lab B's lights come back on
+- **THEN** no creature is in Lab B, Voss's body is still beside the glass, and Lab B's ceiling vent grate hangs open
+
 #### Scenario: The fight is the creature
-- **WHEN** the contact scene opens the Lab B door
-- **THEN** the enemy that comes through it has the creature's body and starts from where the creature stood at the glass
-- **AND** no other body is left standing behind the glass
+- **WHEN** the creature drops into R06 during the cover-me fight
+- **THEN** it has the creature's body
+- **AND** no other body is left in Lab B
 
 ### Requirement: Voss looks and sounds like Voss
 The Lab B researcher SHALL be Dr. Lena Voss on every run: one fixed female body. Lines spoken by her speaker SHALL move
