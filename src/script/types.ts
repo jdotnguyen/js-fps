@@ -51,6 +51,11 @@ export interface SequenceDef {
   skippableAfter?: string;
   /** Run at most once per playthrough (remembered in the flag `seq:<id>`). */
   once?: boolean;
+  /**
+   * A scene that belongs to this level room (scene-presence spec): the moment the player is outside it, the scene
+   * ends for everyone: its voice and subtitles stop, its queued lines are dropped, and its speakers return to idle.
+   */
+  room?: string;
   /** Sequences in one group never overlap; a later one waits its turn. */
   exclusive?: string;
   /** Restart from step 0 after death if it was running and had not reached a checkpoint. */

@@ -509,3 +509,23 @@ test('two people walking head-on pass each other without bumping, and both arriv
   assert.ok(minGap > 0.05, `kept apart while passing (closest gap ${minGap.toFixed(2)} m)`);
   assert.ok(Math.hypot(a.position.x, a.position.z - 5) < 0.4 && Math.hypot(b.position.x - 0.1, b.position.z + 5) < 0.4, 'each at its spot');
 });
+
+test('endScene (scene-presence): a gesture in flight and a scripted look stop, and the NPC stands in his base pose', async () => {
+  const { npcs } = setup();
+  npcs.spawnFromLevel([{ id: 'priya', look: 'priya', pos: new THREE.Vector3(0, 0, 2), yaw: 0 }]);
+  const a = npcs.actor('priya')!;
+  await npcs.command('npcAnim', { npc: 'priya', anim: 'idle_hips' });
+  const base = a.basePose;
+  let done = false;
+  void npcs.command('npcAnim', { npc: 'priya', anim: 'glance' }).then(() => (done = true));
+  void npcs.command('npcLookAt', { npc: 'priya', target: 'player' });
+  npcs.update(1 / 60, null);
+  assert.equal(a.body.idlePose, 'glance');
+  assert.ok(a.body.lookTarget, 'she looks at Jay');
+  npcs.endScene(['priya', 'nobody_here']);
+  await Promise.resolve();
+  assert.equal(done, true, 'the gesture ends at once');
+  assert.equal(a.body.idlePose, base, 'back to the pose she held before');
+  for (let i = 0; i < 30; i++) npcs.update(1 / 60, null);
+  assert.equal(a.body.lookTarget, null, 'she no longer looks at Jay');
+});

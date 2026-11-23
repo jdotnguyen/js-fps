@@ -159,3 +159,23 @@ test('stopAll and onlySpeakers act on every channel', async () => {
   assert.equal(await a.done, 'stopped');
   assert.equal(sm.speaking(), null);
 });
+
+test('stopChannel ends a conversation on the spot: the line stops, its subtitle hides, the queue is dropped, other scenes play on', async () => {
+  const { sm, log, subs } = setup({ director: { distance: 3, audible: true }, crew_sung: { distance: 3, audible: true } });
+  sm.say('hale_1', { channel: 'admin' });
+  const jay = sm.say('jay_hale', { channel: 'admin' });
+  const next = sm.say('hale_2', { channel: 'admin' });
+  sm.say('sung_1', { channel: 'dive' });
+  run(sm, 0.5);
+  assert.ok(subs.has('hale_1'));
+  sm.stopChannel('admin');
+  assert.ok(!subs.has('hale_1'), 'the subtitle hides');
+  assert.ok(log.includes('end hale_1 stopped'));
+  assert.equal(await jay.done, 'stopped');
+  assert.equal(await next.done, 'stopped');
+  run(sm, 6);
+  assert.ok(!log.includes('start jay_hale') && !log.includes('start hale_2'), 'nothing of the scene plays afterwards');
+  assert.ok(log.includes('end sung_1 finished'), 'the other conversation carries on');
+  sm.stopChannel('admin');
+  sm.stopChannel('never_used');
+});

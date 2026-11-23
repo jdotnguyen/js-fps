@@ -5,7 +5,8 @@
  * line at a time, in order, with a short gap; separate channels play at the same time. Within a channel the
  * priorities are story > hint > combat > idle: a higher priority interrupts, equal or lower waits. Across channels:
  * - a speaker never talks over themself: their line waits for the one they are saying elsewhere;
- * - Jay's line is dropped when the rest of its conversation is out of earshot (he answers the scene he can hear);
+ * - Jay's line is dropped when the rest of its conversation is out of earshot (he answers the scene he can hear).
+ *   A scene tied to a room does not rely on this: it ends whole when the player leaves (`stopChannel`, scene-presence);
  * - barks and hints wait while a story line the player can hear is playing, and a story line starting in earshot cuts
  *   off a bark or hint the player can hear.
  * `overlap: true` lines (a PA the squad talks over, a victim's voice) get a channel of their own and start at once.
@@ -286,6 +287,24 @@ export class SpeechManager {
       if (lane.current) this.finish(lane, 'stopped');
     }
     this.lanes.clear();
+  }
+
+  /**
+   * End a conversation on the spot (scene-presence: the player left its room): the line it is saying stops with its
+   * subtitle, the lines queued behind it are dropped as stopped, and the channel is forgotten. Unknown channel: nothing.
+   */
+  stopChannel(channel: string): void {
+    this.stopChannels((key) => key === channel);
+  }
+
+  /** `stopChannel` for every channel `match` accepts (a scene's own channel and its named side conversations). */
+  stopChannels(match: (channel: string) => boolean): void {
+    for (const lane of [...this.lanes.values()]) {
+      if (!match(lane.key)) continue;
+      for (const e of lane.queue.splice(0)) this.end(e, 'stopped');
+      if (lane.current) this.finish(lane, 'stopped');
+      this.lanes.delete(lane.key);
+    }
   }
 
   /** Stop one line if it is playing or queued. */

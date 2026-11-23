@@ -104,6 +104,15 @@ class Parallel implements Running {
   }
 }
 
+/** Every NPC id a sequence's steps name (they get released when the scene ends early). */
+function sceneNpcs(steps: readonly Step[], out = new Set<string>()): string[] {
+  for (const step of steps) {
+    if (isParallel(step)) sceneNpcs(step.parallel, out);
+    else if (typeof step['npc'] === 'string') out.add(step['npc']);
+  }
+  return [...out];
+}
+
 function describe(step: Step): string {
   if (isParallel(step)) return `parallel x${step.parallel.length}`;
   const bits = Object.entries(step)
@@ -132,7 +141,11 @@ export class SequenceManager {
 
   constructor(host: SequenceHost, defs: SequenceDef[]) {
     this.host = host;
-    for (const d of defs) this.defs.set(d.id, d);
+    for (const d of defs) {
+      this.defs.set(d.id, d);
+      // A scene tied to a room that does not exist could never end (an unknown room counts as inside): say so at load.
+      if (d.room !== undefined && host.hasRoom && !host.hasRoom(d.room)) host.warn(`sequence "${d.id}": room "${d.room}" is not a room of this level, so the scene never ends when the player leaves`);
+    }
     this.wireTriggers();
     this.subs.push(
       host.events.on('player:died', () => this.onDeath()),
@@ -221,6 +234,10 @@ export class SequenceManager {
     if (this.held.size) this.releaseHeld();
     for (const run of [...this.runs]) {
       if (!this.runs.includes(run)) continue;
+      if (this.playerLeft(run.def)) {
+        this.endScene(run);
+        continue;
+      }
       try {
         run.elapsed += dt;
         if (run.root.update(dt)) this.end(run, false);
@@ -229,6 +246,28 @@ export class SequenceManager {
         this.end(run, true);
       }
     }
+  }
+
+  /** The sequence belongs to a room (scene-presence) and the player is outside it. A host that cannot tell counts as inside. */
+  private playerLeft(def: SequenceDef): boolean {
+    return def.room !== undefined && this.host.inRoom !== undefined && !this.host.inRoom('player', def.room);
+  }
+
+  /**
+   * The player left a room-bound scene's room: the scene ends for everyone (scene-presence). Its voice and subtitles stop
+   * and its queued lines are dropped first. What is left of the scene then lands on its end state, as a skip does (a
+   * walk-by researcher is despawned, a flag the scene sets is set; lines are marked heard, not said), the run ends as
+   * cancelled, and the NPCs it directed go back to idle.
+   */
+  private endScene(run: Run): void {
+    this.host.stopSceneSpeech?.(run.def.id);
+    try {
+      run.root.skip?.();
+    } catch (err) {
+      this.host.warn(`sequence "${run.def.id}" failed while ending early (${run.label}): ${String(err)}`);
+    }
+    this.end(run, true);
+    this.host.releaseNpcs?.(sceneNpcs(run.def.steps));
   }
 
   cancel(id: string): void {
@@ -317,6 +356,8 @@ export class SequenceManager {
 
   private begin(def: SequenceDef, forced: boolean): boolean {
     if (!forced && def.once && this.host.flags[`seq:${def.id}`]) return false;
+    // A room scene an event reaches while the player is outside its room does not start, and keeps its `once`.
+    if (!forced && this.playerLeft(def)) return false;
     if (this.isRunning(def.id) || this.queue.includes(def.id)) return false;
     if (def.exclusive && this.runs.some((r) => r.def.exclusive === def.exclusive)) {
       this.queue.push(def.id);

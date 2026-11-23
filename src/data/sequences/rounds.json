@@ -388,6 +388,7 @@
    "requires": "briefingSeen"
   },
   "once": true,
+  "room": "R14c",
   "steps": [
    {
     "do": "npcAnim",
@@ -783,6 +784,7 @@
    "unless": "drop_started"
   },
   "once": true,
+  "room": "R02",
   "steps": [
    {
     "do": "spawn",

@@ -1660,7 +1660,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         reducedMotion: () => settings.get().reducedMotion,
       })),
       showCredits: shell.showCredits,
-      speech: { say, stopAll: () => speech!.stopAll(), onlySpeakers: (who) => speech!.onlySpeakers(who) },
+      speech: { say, stopAll: () => speech!.stopAll(), stopChannels: (match) => speech!.stopChannels(match), onlySpeakers: (who) => speech!.onlySpeakers(who) },
       anchors: room ? { door: room.anchors.door, window: room.anchors.window, vent: room.anchors.vent, console: room.anchors.console, abyss: room.anchors.abyss } : undefined,
       setTimeScale: (scale) => {
         loop!.clock.scale = scale;

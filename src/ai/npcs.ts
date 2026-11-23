@@ -274,6 +274,21 @@ export class NpcDirector {
     for (const id of [...this.held]) this.release(id === 'engineer' ? 'giles' : 'okafor');
   }
 
+  /**
+   * A room scene ended early because Jay left (scene-presence): each NPC it directed drops its scripted look and any
+   * gesture in flight, and stands in its base pose. Squadmates also go back to their own AI.
+   */
+  endScene(ids: readonly string[]): void {
+    for (const id of ids) {
+      if (this.isSquad(id)) this.release(id);
+      const a = this.actor(id, false);
+      if (!a) continue;
+      a.lookAt(null);
+      a.talkLook = null;
+      a.resetPose(a.basePose);
+    }
+  }
+
   /** Scene step `squadRegroup` (squad-tasks spec). A moved squadmate drops the walk he was on. */
   regroup(distance?: number): SquadId[] {
     const moved = this.deps.squad?.regroup(distance) ?? [];

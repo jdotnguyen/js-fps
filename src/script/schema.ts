@@ -15,6 +15,7 @@ export const sequenceV = obj({
   skippable: optional(bool),
   skippableAfter: optional(id),
   once: optional(bool),
+  room: optional(id),
   exclusive: optional(str),
   resumeFromCheckpoint: optional(bool),
   debugSetup: optional(obj({ flags: optional(record(scalar)) })),

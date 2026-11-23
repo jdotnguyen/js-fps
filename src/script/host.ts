@@ -147,6 +147,10 @@ export interface SequenceHost {
   markLinePlayed?(line: string): void;
   /** Cut off every line still playing (a scene was skipped). */
   stopSpeech?(): void;
+  /** Stop every line a sequence is saying or has queued, on its own channel and its named side channels (scene-presence). */
+  stopSceneSpeech?(sequenceId: string): void;
+  /** A room scene ended early (scene-presence): these NPCs drop their scripted look and gesture and go back to idle. */
+  releaseNpcs?(npcIds: readonly string[]): void;
   /**
    * `hush` action: silence the world's ambience and sound effects and every voice but `speakers` (a fullscreen
    * feed that should carry only its own sound), over about `seconds`; `null` brings it all back.
@@ -169,6 +173,8 @@ export interface SequenceHost {
   groupCleared?(group: string): boolean;
   /** `squadRegroup` (squad-tasks spec): bring far, unseen squadmates near Jay; returns the ids moved. */
   squadRegroup?(distance?: number): string[];
+  /** Is this a room of the loaded level? Absent when there is no level (a sequence `room` is then not checked). */
+  hasRoom?(room: string): boolean;
   /** `gatherIn` (scene-gathering spec): is Jay or a squadmate inside the room? Unknown rooms count as inside. */
   inRoom?(who: 'player' | 'giles' | 'okafor', room: string): boolean;
   /** `gatherIn` timed out or skipped: put squadmates still outside the room near Jay; returns the ids moved. */

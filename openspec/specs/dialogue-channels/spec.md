@@ -36,11 +36,15 @@ A speaker SHALL say at most one line at a time. A line from a speaker who is alr
 - **THEN** "Locker's signed" starts right after his current line ends, and the rest of his conversation continues after it
 
 ### Requirement: Jay answers the conversation he can hear
-When Jay's line is due on a channel whose other speakers are all out of earshot, it SHALL be dropped, and that conversation SHALL continue without it. A Jay line due while he is already speaking SHALL wait for his current line, as for any speaker.
+When Jay's line is due on a channel whose other speakers are all out of earshot, it SHALL be dropped, and that conversation SHALL continue without it. A Jay line due while he is already speaking SHALL wait for his current line, as for any speaker. A scene tied to a room ends instead when the player leaves it, as scene-presence defines.
+
+#### Scenario: Leaving a conversation that is not tied to a room
+- **WHEN** a scene that names no room reaches Jay's line after the player has walked out of earshot of the other speaker
+- **THEN** Jay does not say it, and the other speaker's next line follows on cue
 
 #### Scenario: Leaving Hale's office mid-scene
-- **WHEN** Hale's scene reaches Jay's "Everything all right, Director?" after the player has walked out of earshot
-- **THEN** Jay does not say it, and Hale's next line follows on cue in his office
+- **WHEN** the player leaves Hale's office before Jay's "Everything all right, Director?"
+- **THEN** the scene ends for everyone, as scene-presence defines
 
 ### Requirement: Barks and hints give way to audible story
 Barks, combat callouts and hints SHALL NOT start while a story line the player can hear is playing. A story line that starts within earshot SHALL cut off a bark or hint the player can hear. Story lines out of earshot SHALL NOT hold barks or hints back. Combat and idle barks that cannot start within 2 s SHALL be dropped, as today.
