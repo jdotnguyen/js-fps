@@ -26,6 +26,8 @@ export const NPC_ANIMS: Readonly<Record<string, { pose: string; hold: number; bl
   typing: { pose: 'typing', hold: Infinity },
   sit_idle: { pose: 'sit_idle', hold: Infinity },
   sit_typing: { pose: 'sit_typing', hold: Infinity },
+  panel_work: { pose: 'panel_work', hold: Infinity },
+  biometric_scan: { pose: 'biometric_scan', hold: Infinity },
   crouchWork: { pose: 'crouchWork', hold: Infinity },
   kneel: { pose: 'kneel_revive', hold: Infinity },
   idle: { pose: 'idle', hold: 0 },
@@ -77,7 +79,7 @@ export const NPC_TUNING = {
 } as const;
 
 /** Base poses of someone working or seated in place: never shoved off their station. */
-const WORK_POSES: ReadonlySet<string> = new Set(['typing', 'sit_idle', 'sit_typing', 'sit_typing_cctv', 'crouchWork', 'kneel_revive', 'wand_place', 'chair_pull']);
+const WORK_POSES: ReadonlySet<string> = new Set(['typing', 'sit_idle', 'sit_typing', 'sit_typing_cctv', 'panel_work', 'biometric_scan', 'crouchWork', 'kneel_revive', 'wand_place', 'chair_pull']);
 
 const MOTOR: MotorConfig = { ...DEFAULT_MOTOR, radius: 0.3 };
 

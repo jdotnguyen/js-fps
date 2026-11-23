@@ -17,6 +17,9 @@
   },
   "steps": [
    {
+    "do": "squadRegroup"
+   },
+   {
     "do": "npcMoveTo",
     "npc": "priya",
     "to": "anchor:priya_r08",

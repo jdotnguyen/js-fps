@@ -37,7 +37,7 @@ test('same seed, same body', () => {
 test('shipped poses.json is valid and compiles', () => {
   const raw: unknown = JSON.parse(readFileSync(new URL('../data/poses.json', import.meta.url), 'utf8'));
   const lib = new PoseLibrary(loadPoseFile(raw));
-  for (const name of ['idle', 'shamble', 'crawl', 'dragging', 'corpseProne', 'corpseSupine', 'corpseSide', 'blindFlail', 'typing', 'crouchWork', 'corpseSlumped']) {
+  for (const name of ['idle', 'shamble', 'crawl', 'dragging', 'corpseProne', 'corpseSupine', 'corpseSide', 'blindFlail', 'typing', 'panel_work', 'biometric_scan', 'crouchWork', 'corpseSlumped']) {
     assert.ok(lib.has(name), `missing pose ${name}`);
   }
   assert.ok(lib.sequence('getUp').length >= 3);

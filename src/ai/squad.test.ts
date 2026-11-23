@@ -397,12 +397,144 @@ test('task arrival: a spot he cannot get to is worked from where he stands after
   const dt = 1 / 60;
   squad.update(dt, null);
   // Beyond the demo room's east wall: there is no way to it.
-  const task = squad.startTask('engineer', 'bypass_short', { at: { x: 8, y: 0, z: 2 }, panel: 'D2' });
+  const device = { pos: { x: 8.5, y: 1.5, z: 2 }, normal: { x: -1, y: 0, z: 0 }, width: 0.2, height: 0.25 };
+  const task = squad.startTask('engineer', 'bypass_short', { at: { x: 8, y: 0, z: 2 }, panel: 'D2', device });
   let t = 0;
   for (; t < 30 && task.state === 'walking'; t += dt) squad.update(dt, null);
   assert.notEqual(task.state, 'walking', 'still walking after 30 s');
   assert.ok(t < 15, `took ${t.toFixed(1)} s to give up`);
-  for (let k = 0; k < 60 * 12 && !task.done; k++) squad.update(dt, null);
+  const giles = squad.mate('engineer');
+  for (let k = 0; k < 60 * 12 && !task.done; k++) {
+    squad.update(dt, null);
+    // Out of arm reach: never stretch hand IK across the room.
+    assert.equal(giles.body.handTargets.L, null);
+    assert.equal(giles.body.handTargets.R, null);
+  }
+  assert.equal(task.done, true);
+});
+
+test('door unlock arrival: walks within 0.30 m, turns smoothly without snapping, engages wall IK/gaze, resists Jay separation, and clears on pause/resume', () => {
+  const { list, source } = horde([[0, -30]]);
+  const { squad, player } = setup({ enemies: source });
+  const dt = 1 / 60;
+  player.body.x = 0;
+  player.body.z = 5;
+  squad.update(dt, null);
+  const giles = squad.mate('engineer');
+  giles.place({ x: 0, y: 0, z: 1 }, 0);
+  const anchor = { x: 0, y: 0, z: -3.5 };
+  const device = { pos: { x: -0.5, y: 1.35, z: -3.5 }, normal: { x: 1, y: 0, z: 0 }, width: 0.36, height: 0.38 };
+  const task = squad.startTask('engineer', 'bypass', { at: anchor, yaw: Math.PI / 2, panel: 'D_R06_R07', device });
+
+  let arrivalDist: number | null = null;
+  let maxHeadingJump = 0;
+  let prevHeading = giles.body.heading;
+  for (let i = 0; i < 60 * 8 && task.state === 'walking'; i++) {
+    squad.update(dt, null);
+    prevHeading = giles.body.heading;
+  }
+  assert.equal(task.state, 'working', 'arrived and working');
+  arrivalDist = Math.hypot(giles.position.x - anchor.x, giles.position.z - anchor.z);
+  assert.ok(arrivalDist <= 0.3 + 1e-3, `unobstructed arrival reached ${arrivalDist.toFixed(2)} m (<= 0.30 m)`);
+
+  // Step through smooth turn-in and verify no single-frame snap.
+  for (let i = 0; i < 60; i++) {
+    squad.update(dt, null);
+    const jump = Math.abs(Math.atan2(Math.sin(giles.body.heading - prevHeading), Math.cos(giles.body.heading - prevHeading)));
+    maxHeadingJump = Math.max(maxHeadingJump, jump);
+    prevHeading = giles.body.heading;
+  }
+  assert.ok(maxHeadingJump < 0.25, `smooth turn-in without snap (max step ${maxHeadingJump.toFixed(3)} rad)`);
+  assert.equal(giles.body.idlePose, 'panel_work');
+  assert.equal(giles.body.plantFeet, true);
+  assert.ok(giles.body.lookTarget && giles.body.lookTarget.distanceTo(new THREE.Vector3(-0.5, 1.35, -3.5)) < 0.05, 'looking at device');
+  assert.ok(giles.body.handTargets.L && giles.body.handTargets.R, 'both hands on wall panel');
+  assert.ok(giles.body.handTargetNormals.L && giles.body.handTargetNormals.R, 'wall normals supplied');
+
+  // Jay walks right beside Giles to watch (step smoothly so we don't trigger the >4 m checkpoint-teleport guard):
+  // soft separation must NOT slide Giles off the panel.
+  const workPos = giles.position.clone();
+  for (let i = 0; i < 60; i++) {
+    player.body.x = THREE.MathUtils.lerp(player.body.x, workPos.x + 0.65, 0.12);
+    player.body.z = THREE.MathUtils.lerp(player.body.z, workPos.z, 0.12);
+    squad.update(dt, null);
+  }
+  player.body.x = workPos.x + 0.65;
+  player.body.z = workPos.z;
+  for (let i = 0; i < 120; i++) squad.update(dt, null);
+  assert.ok(giles.position.distanceTo(workPos) < 0.05, `worker stayed planted (${giles.position.distanceTo(workPos).toFixed(3)} m drift)`);
+  assert.equal(giles.body.idlePose, 'panel_work');
+
+  // Enemy threat pauses task and clears IK/gaze; leaving resumes and re-engages IK.
+  const e = list[0]!;
+  e.hp = 1e9;
+  e.position.x = workPos.x + 1.5;
+  e.position.z = workPos.z;
+  for (let i = 0; i < 30; i++) squad.update(dt, null);
+  assert.equal(task.state, 'paused');
+  assert.equal(giles.body.handTargets.L, null);
+  assert.equal(giles.body.handTargets.R, null);
+  assert.equal(giles.body.plantFeet, false);
+  assert.equal(giles.body.idlePose, 'aim_pistol');
+
+  e.position.z = -30;
+  for (let i = 0; i < 90; i++) squad.update(dt, null);
+  assert.equal(task.state, 'working');
+  assert.equal(giles.body.idlePose, 'panel_work');
+  assert.ok(giles.body.handTargets.L && giles.body.handTargets.R, 'hand IK restored on resume');
+  assert.ok(giles.body.lookTarget !== null, 'device gaze restored on resume');
+});
+
+test('Okafor biometric door unlock uses biometric_scan with right palm IK on the vertical jamb screen and left hand free', () => {
+  const { squad, player } = setup();
+  const dt = 1 / 60;
+  player.body.x = 0;
+  player.body.z = 5;
+  squad.update(dt, null);
+  const okafor = squad.mate('medic');
+  okafor.place({ x: 0, y: 0, z: 0 }, 0);
+  const anchor = { x: 0, y: 0, z: -2 };
+  const device = { pos: { x: 0.52, y: 1.5, z: -2 }, normal: { x: -1, y: 0, z: 0 }, width: 0.18, height: 0.22 };
+  const task = squad.startTask('medic', 'biometric', { at: anchor, yaw: -Math.PI / 2, panel: 'D_R07_R09', device });
+  for (let i = 0; i < 60 * 5 && task.state === 'walking'; i++) squad.update(dt, null);
+  assert.equal(task.state, 'working');
+  for (let i = 0; i < 90; i++) squad.update(dt, null);
+  assert.equal(okafor.body.idlePose, 'biometric_scan');
+  assert.equal(okafor.body.handTargets.L, null, 'left arm relaxed at side');
+  assert.ok(okafor.body.handTargets.R !== null, 'right palm pressed onto jamb screen');
+  assert.ok(okafor.body.handTargetNormals.R && okafor.body.handTargetNormals.R.x < -0.99, 'vertical wall normal supplied');
+  for (let i = 0; i < 60 * 6 && !task.done; i++) squad.update(dt, null);
+  assert.equal(task.done, true);
+  assert.equal(okafor.body.handTargets.R, null, 'IK cleared when done');
+  assert.equal(okafor.body.plantFeet, false, 'feet released when done');
+});
+
+test('task arrival: Jay physically blocking the anchor still allows starting within 1.5 m without Jay moving', () => {
+  const { squad, player } = setup();
+  const dt = 1 / 60;
+  player.body.x = 0;
+  player.body.z = -2;
+  squad.update(dt, null);
+  const giles = squad.mate('engineer');
+  giles.place({ x: 0, y: 0, z: 2 }, 0);
+  const task = squad.startTask('engineer', 'bypass_short', { at: { x: 0, y: 0, z: -2 }, panel: 'D2' });
+  let startedAt: number | null = null;
+  for (let i = 0; i < 60 * 15 && !task.done; i++) {
+    squad.update(dt, null);
+    // Simulate physical capsule contact with Jay standing squarely on the anchor (0.65 m combined radius).
+    const dx = giles.motor.x - player.body.x;
+    const dz = giles.motor.z - player.body.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.72 && d > 1e-4) {
+      giles.motor.x = player.body.x + (dx / d) * 0.72;
+      giles.motor.z = player.body.z + (dz / d) * 0.72;
+      giles.body.group.position.set(giles.motor.x, giles.motor.y, giles.motor.z);
+    }
+    if (startedAt === null && task.state !== 'walking') {
+      startedAt = Math.hypot(giles.position.x - 0, giles.position.z - -2);
+    }
+  }
+  assert.ok(startedAt !== null && startedAt <= 1.5, `started at ${startedAt?.toFixed(2)} m despite Jay blocking the anchor`);
   assert.equal(task.done, true);
 });
 

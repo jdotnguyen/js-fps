@@ -269,6 +269,28 @@ test('body-models.json enables handRig on Phase 1 main cast (mechanic, doctor, p
   }
 });
 
+test('vertical wall IK normal aligns Okafor biometric palm flush against -normal and picks panel_work/biometric_scan shapes', async () => {
+  const doctor = await loadMainCast('doctor');
+  const bodyModels = makeLib({ doctor });
+  const baseCtx = { ...enemyCtx(), bodyModels };
+  const okafor = new Humanoid({ ...OKAFOR, role: 'npc' }, baseCtx);
+  assert.equal(chooseHandShape('R', 'biometric_scan', null, 0, 'R', true, 0, false, true, false), 'surface');
+  assert.equal(chooseHandShape('L', 'biometric_scan', null, 0, 'R', false, 0, false, true, false), 'relaxed');
+  assert.equal(chooseHandShape('R', 'panel_work', null, 0, 'R', true, 0, false, true, false), 'pinch');
+  const wallNormal = new THREE.Vector3(0, 0, 1); // wall in front of body (-Z) with outward normal +Z
+  okafor.setPose('biometric_scan', 0.01);
+  okafor.handTargets.R = new THREE.Vector3(0.12, 1.48, -0.5);
+  okafor.handTargetNormals.R = wallNormal;
+  for (let i = 0; i < 45; i++) okafor.update(1 / 60);
+  assert.ok(okafor.fingerCurl('R', 'index') < 0.45, 'biometric scan opens right palm fingers flat onto vertical screen');
+  const palmLocal = (okafor['handPhysics'] as unknown as { sides: { R: { palmNormal: THREE.Vector3 } } }).sides.R.palmNormal;
+  const handQ = okafor.bones.hand_R.getWorldQuaternion(new THREE.Quaternion());
+  const palmWorld = palmLocal.clone().applyQuaternion(handQ).normalize();
+  const wantPalm = wallNormal.clone().negate().normalize();
+  assert.ok(palmWorld.dot(wantPalm) > 0.65, `vertical wall normal aligns right palm toward -normal (dot=${palmWorld.dot(wantPalm).toFixed(2)})`);
+  okafor.dispose();
+});
+
 test('finger tracks and grips: a clip\'s finger motion moves the fingers; a thinner grip wraps tighter; empty hands rest loosely', async () => {
   const { MocapLibrary } = await import('./mocap.ts');
   const { wrapCurl } = await import('./handPhysics.ts');

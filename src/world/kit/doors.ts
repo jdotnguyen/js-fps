@@ -44,6 +44,9 @@ export interface DoorVisual {
 const Z = -2;
 const PI = Math.PI;
 
+/** Door-piece-space geometry of the right-jamb status screens mounted on both faces. */
+export const DOOR_JAMB_SCREEN = { x: 1.16, y: 1.5, z: Z, offset: 0.316, width: 0.2, height: 0.25 } as const;
+
 export const DOOR_COLORS: Record<DoorState, string> = {
   open: '#39ff9e',
   closed: '#4fd6d0',
@@ -183,8 +186,8 @@ export function buildDoor(kit: DoorKit, height: number, state: () => DoorState, 
   // Status screen on both faces of the right jamb.
   const screen = new CanvasScreen(160, 200, (ctx, t, w, h) => drawDoorStatus(ctx, t, w, h, state(), kit), 1.6, 4);
   for (const fz of [-1, 1]) {
-    const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.25), screen.material);
-    panel.position.set(1.16, 1.5, Z + fz * 0.316);
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(DOOR_JAMB_SCREEN.width, DOOR_JAMB_SCREEN.height), screen.material);
+    panel.position.set(DOOR_JAMB_SCREEN.x, DOOR_JAMB_SCREEN.y, DOOR_JAMB_SCREEN.z + fz * DOOR_JAMB_SCREEN.offset);
     panel.rotation.y = fz > 0 ? 0 : PI;
     leaves.add(panel);
   }

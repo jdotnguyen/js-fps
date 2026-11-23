@@ -666,7 +666,7 @@ wallProp(R06, 'pressure_manifold', -1, 9, 's', 0.2, { y: 1.15 });
 wallProp(R06, 'status_board', 0, 9, 's', 0, { y: 3.0, door: 'D_R06_R07' });
 prop(R06, 'power_box', [-2.6, 1.1, 37.5]); // imported (import-lab-props): Giles's bypass panel, door open
 // Giles's bypass panel (the imported power box) on the coolant line, on the south wall west of the bulkhead (rebuild-lab-wing D6).
-anchor(R06, 'r06_panel', [-2.6, 0, 37.0], 180);
+anchor(R06, 'r06_panel', [-2.6, 0, 36.85], 180);
 anchor(R06, 'r06_hold', [-0.5, 0, 29.2], 180);
 // The creature that burst out of Voss (infection-kills spec): it spawns where it stands pounding the Lab B glass and breaks out at contact.
 spawn(R05, 'r05_door', [8, 0, 22.51], 'door', 'r05_contact', { yaw: 180, look: 'lab_creature' });
@@ -806,10 +806,10 @@ anchor(R07a, 'r07_panel', [6.9, 0, 38.9], 0);
 anchor(R07a, 'ammo_r07a', [7.9, 0.78, 41.4]);
 anchor(R07, 'r07_glass', [0, 1.5, 45.8]);
 anchor(R07, 'health_r07', [-5.3, 0.8, 42.6]);
-anchor(R07, 'okafor_biometric', [4.4, 0, 44], 270);
+anchor(R07, 'okafor_biometric', [5.15, 0, 45.16], 270);
 // Action half set pieces (ADR-0014 beat 5): Giles at the armory door, the squad at the glass, Priya's run,
 // the thing waiting in R08b, and the stinger's camera in the surgery (ADR-0014 amendment).
-anchor(R07, 'r07_armory_panel', [5.15, 0, 41.4], 270);
+anchor(R07, 'r07_armory_panel', [5.15, 0, 41.16], 270);
 // At the glass (design decision 10): Jay against the centre pane, Giles west of him, Okafor east by the door, both off
 // Jay's line to the cart. Jay stands 0.15 m clear of the partition's collider (face z 45.75, capsule 0.35).
 anchor(R07, 'r07_glass_okafor', [3.1, 0, 45.1], 180);

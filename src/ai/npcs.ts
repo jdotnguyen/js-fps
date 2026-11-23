@@ -88,6 +88,8 @@ export interface NpcDirectorDeps {
   setPropTransform?: (id: string, pos: { x: number; y: number; z: number }, yaw: number) => boolean;
   setPropVisible?: (id: string, visible: boolean) => boolean;
   propState?: (id: string) => { pos: THREE.Vector3; yaw: number; visible: boolean } | null;
+  /** Resolve the physical wall device surface for a squad panel/door job (hand IK + gaze). */
+  panelDevice?: (panel: string | null, near?: P3 | null) => { pos: P3; normal: P3; width: number; height: number } | null;
 }
 
 /** Names a sequence may use for the squad. */
@@ -815,14 +817,15 @@ export class NpcDirector {
     if (mate && squad) {
       // The squad AI runs tasks (so threats pause them); the sequence lets go of him.
       this.release(npc);
+      const device = this.deps.panelDevice?.(panel, at?.pos ?? null) ?? null;
       if (instant) {
         if (at) a.place(at.pos, at.yaw);
-        const t = squad.startTask(mate.id, kind, { at: at?.pos ?? null, ...(at?.yaw !== undefined ? { yaw: at.yaw } : {}), panel, ...(duration !== undefined ? { duration } : {}) });
+        const t = squad.startTask(mate.id, kind, { at: at?.pos ?? null, ...(at?.yaw !== undefined ? { yaw: at.yaw } : {}), panel, ...(device ? { device } : {}), ...(duration !== undefined ? { duration } : {}) });
         t.finish();
         mate.task = null;
         return Promise.resolve();
       }
-      const t = squad.startTask(mate.id, kind, { at: at?.pos ?? null, ...(at?.yaw !== undefined ? { yaw: at.yaw } : {}), panel, ...(duration !== undefined ? { duration } : {}) });
+      const t = squad.startTask(mate.id, kind, { at: at?.pos ?? null, ...(at?.yaw !== undefined ? { yaw: at.yaw } : {}), panel, ...(device ? { device } : {}), ...(duration !== undefined ? { duration } : {}) });
       return new Promise((resolve) => t.whenDone(resolve));
     }
     // Crew: walk over, work for the duration, done.
@@ -1064,7 +1067,7 @@ export class NpcDirector {
       const mate = this.mateOf(a.id);
       const fp = a.body.footprint;
       const m = a.motor;
-      if (a.separationExempt || mate?.downed) {
+      if (a.separationExempt || mate?.downed || mate?.working) {
         // Still a solid thing others keep out of, unless it is being carried.
         if (!a.towed && !a.gripped && a.body.carried === null) put(m.x, m.z, fp.r, Infinity, null);
         continue;
@@ -1082,7 +1085,7 @@ export class NpcDirector {
       for (const mate of this.deps.squad.mates) {
         if (seen.has(this.actors.get(mate.id === 'engineer' ? 'giles' : 'okafor') as NpcActor)) continue;
         if (!mate.body.group.visible) continue;
-        put(mate.motor.x, mate.motor.z, mate.body.footprint.r, Infinity, null, mate);
+        put(mate.motor.x, mate.motor.z, mate.body.footprint.r, Infinity, null, mate.working || mate.downed ? null : mate);
       }
     }
     const extra = this.deps.obstacles?.();

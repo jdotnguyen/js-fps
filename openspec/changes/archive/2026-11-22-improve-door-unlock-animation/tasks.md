@@ -1,0 +1,23 @@
+# Tasks
+
+## 1. Standing Wall-Device Poses & Vertical-Wall Hand IK
+
+- [x] 1.1 Add `panel_work` and `biometric_scan` standing authored poses to `src/data/poses.json` (and `NPC_ANIMS` in `src/ai/npcActor.ts`) while keeping `crouchWork` intact; verify `npm test -- src/actors/bodyGeometry.test.ts` passes.
+- [x] 1.2 Route `panel_work` to Giles's `giles_panel` hold and `biometric_scan` to Okafor's `okafor_console` treatment in `src/actors/motionProfiles.ts`, `src/data/motion-profiles.json`, and `src/actors/animator.ts` (including both poses in `ARMS_BUSY` so `handsOnSomething()` keeps Giles's `guardArm` active), and update `src/actors/motionProfiles.test.ts`, `src/actors/castMotionCoverage.test.ts`, and `src/actors/injury.test.ts` to cover `panel_work` / `biometric_scan` and verify Giles's left-arm guarding differential; verify `npm test -- src/actors/motionProfiles.test.ts src/actors/castMotionCoverage.test.ts src/actors/injury.test.ts` passes.
+- [x] 1.3 Add optional per-hand `handTargetNormals` to `Humanoid` (`src/actors/humanoid.ts`) and extend `HandPhysicsSolver` (`src/actors/handPhysics.ts`) so vertical surface normals orient the palm flush against `-normal` within anatomical ROM (while preserving horizontal-console fallback when no normal is given) and choose appropriate finger shapes (`surface` for `biometric_scan`, `pinch` for `panel_work`); add unit tests in `src/actors/handPhysics.test.ts` verifying vertical-wall palm alignment and verify `npm test -- src/actors/handPhysics.test.ts` passes.
+
+## 2. Level Anchors & Door Device Surface Targets
+
+- [x] 2.1 Align `r06_panel` (`[-2.6, 0, 36.85]`, `yaw: 180`), `r07_armory_panel` (`[5.15, 0, 41.16]`, `yaw: 270`), and `okafor_biometric` (`[5.15, 0, 45.16]`, `yaw: 270`) in `src/data/levels/slice01.json` so each sits 0.45–0.53 m centered in front of its wall device and clear of sliding door leaves; verify `npm test -- src/world/labWing.test.ts src/world/slice01.test.ts` passes.
+- [x] 2.2 Expose a door/panel device surface resolver on `Level` (`src/world/level.ts`) returning `{ pos, normal, width, height }` for R06's `power_box` (`D_R06_R07`) and door jamb status screens (`D_R07_R07a`, `D_R07_R09`) on the worker's room side, and wire it through `src/script/gameHost.ts` and `src/ai/npcs.ts` into `Squad.startTask`; add a focused test verifying resolved world positions and outward normals for all three doors and verify `npm test -- src/world/kit/doors.test.ts src/world/labWing.test.ts` passes.
+
+## 3. Squad Task Approach, Turn-In, Separation & Hand Choreography
+
+- [x] 3.1 Update `TASKS` and arrival constants in `src/ai/squadBrain.ts` (`bypass`/`bypass_short`/`bypass_long`/`unlock_locker` -> `panel_work`, `biometric` -> `biometric_scan`, `TASK_ARRIVE_CLOSE = 0.30` alongside `TASK_ARRIVE = 1.5` and `TASK_GIVE_UP = 3`, plus optional `device` surface metadata on `SquadTask`) and verify `npm test -- src/ai/squadBrain.test.ts` passes.
+- [x] 3.2 Update `SquadMate` in `src/ai/squad.ts` to skip soft `personalPlayer`/`personalMate` repulsion while `behaviour === 'task'`, walk to `<= 0.30` m when unobstructed (keeping the Jay-on-anchor `<= 1.5` m and 3 s stall fallbacks), smoothly turn toward the device heading instead of snapping `setHeading`, set `plantFeet` and `lookTarget` on the device while working, and drive animated `handTargets` + `handTargetNormals` choreography for Giles (`panel_work` two-hand bypass) and Tomas (`biometric_scan` right-palm press) when within arm reach (`<= 0.95` m), releasing cleanly on pause/done and smoothly re-engaging on resume.
+- [x] 3.3 Update and expand `src/ai/squad.test.ts` to verify: unobstructed arrival reaches `<= 0.30` m without single-frame heading snap, Jay standing beside an active worker does not slide him off the panel, Jay standing directly on the anchor still allows starting within `1.5` m and finishing, 3 s blocked stall fallback still finishes without stretching hand IK across the room, and pause/resume clears and restores hand IK and gaze; verify `npm test -- src/ai/squad.test.ts src/ai/npcs.test.ts src/script/action.test.ts` passes.
+
+## 4. End-to-End Verification
+
+- [x] 4.1 Run `npm run typecheck` and `npm run build` and verify zero errors.
+- [x] 4.2 Exercise all three door-unlock beats in the browser (`cover_me` at R06 `D_R06_R07`, `armory_auto` at R07 `D_R07_R07a`, and `medlab_door` at R07 `D_R07_R09` via `?debug&seq=...` or playtest path), visually verifying close standing proximity, smooth turn-in, palm/hand contact on the `power_box` and jamb screens, Giles's guarded left arm, pause/resume under threat, and zero softlock when standing on the anchor.

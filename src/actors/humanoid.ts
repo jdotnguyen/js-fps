@@ -188,6 +188,8 @@ export class Humanoid {
   lookTarget: THREE.Vector3 | null = null;
   /** World points the hands reach for (consoles, panels), or null. */
   readonly handTargets: { L: THREE.Vector3 | null; R: THREE.Vector3 | null } = { L: null, R: null };
+  /** Optional outward world surface normals for `handTargets` (vertical wall panels/scanners), or null for default tabletop tilt. */
+  readonly handTargetNormals: { L: THREE.Vector3 | null; R: THREE.Vector3 | null } = { L: null, R: null };
   /** 0..1 blend weights for `handTargets` two-bone IK (1 = full reach). */
   readonly handTargetWeights: { L: number; R: number } = { L: 1, R: 1 };
   /** Keep feet planted on the floor (crouching, kneeling work poses). */
@@ -1053,6 +1055,8 @@ export class Humanoid {
       limpR: !this.limbAttached('R', true) || this.animator.limp.has(JOINT_INDEX.hand_R),
       ikTargetL,
       ikTargetR,
+      ikNormalL: ikTargetL ? this.handTargetNormals.L : null,
+      ikNormalR: ikTargetR ? this.handTargetNormals.R : null,
       contactL: this.limbContact.contactOf('L'),
       contactR: this.limbContact.contactOf('R'),
       cameraDist,

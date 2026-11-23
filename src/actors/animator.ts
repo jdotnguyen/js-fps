@@ -1633,7 +1633,7 @@ export class Animator {
   private static readonly PLACED = /^(sit_|lean_)/;
 
   /** Poses where the arms are doing a job: their idle fidgets shrink. */
-  private static readonly ARMS_BUSY: ReadonlySet<string> = new Set(['aim_pistol', 'typing', 'sit_typing', 'sit_typing_cctv', 'clipboard', 'crouchWork', 'kneel_revive', 'drink', 'offer_mug']);
+  private static readonly ARMS_BUSY: ReadonlySet<string> = new Set(['aim_pistol', 'typing', 'sit_typing', 'sit_typing_cctv', 'panel_work', 'biometric_scan', 'clipboard', 'crouchWork', 'kneel_revive', 'drink', 'offer_mug']);
 
   /**
    * Ambient life for standing bodies: slow breathing with clavicle lift, lateral weight shift

@@ -172,7 +172,8 @@ test('Giles\'s scene variants: each applies only in its own scene, task or stage
   assert.equal(everyday.holds.crouch, 'giles_hold');
   assert.equal(at({ sequences: ['intro_shift_change'] }).holds.lean_back, 'giles_coffee', 'intro: the kitchen coffee hold');
   for (const task of ['bypass', 'bypass_short', 'bypass_long', 'unlock_locker']) {
-    assert.equal(at({ task }).holds.crouch, 'giles_panel', `${task}: panel work`);
+    assert.equal(at({ task }).clips.work, 'giles_panel', `${task}: standing panel work`);
+    assert.equal(at({ task }).holds.crouch, 'giles_panel', `${task}: panel work hold`);
   }
   assert.equal(at({ task: 'power_restore' }).style.headPitch, 10, 'console: head down over the console');
   assert.equal(at({ task: 'reroute' }).variants[0], 'console');

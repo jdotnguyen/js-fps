@@ -14,7 +14,7 @@ import { createDebugCheckerMaterial, disposeTexture, fixtureMaterial, type Mater
 import { CollisionWorld, type Collider, type ColliderSurface } from './collision.ts';
 import { at } from './kit/geom.ts';
 import { grillePosition, selectPaSpeaker, type PaSpeaker } from './paSpeakers.ts';
-import { buildDoor, type DoorVisual } from './kit/doors.ts';
+import { buildDoor, DOOR_JAMB_SCREEN, type DoorVisual } from './kit/doors.ts';
 import { edgeDir, GridOccupancy, sharedEdgeKey } from './kit/grid.ts';
 import {
   PortalCuller,
@@ -1954,6 +1954,53 @@ export class Level implements World, CaptureHost {
   /** How far each door's leaves are open (0..1), by id: for tests and the debug overlay. */
   doorOpenness(id: string): number | null {
     return this.doors.find((x) => x.data.id === id)?.open ?? null;
+  }
+
+  /**
+   * Resolve the physical wall device surface (world-space center, outward unit normal, and active face
+   * dimensions) for a squad panel/door job: prefers a nearby `power_box` wall prop (e.g. R06 bypass),
+   * otherwise uses the door's right-jamb status screen on the side closest to `near`.
+   */
+  panelDevice(panelId: string | null, near?: { x: number; y: number; z: number } | null): { pos: { x: number; y: number; z: number }; normal: { x: number; y: number; z: number }; width: number; height: number } | null {
+    if (near) {
+      let best: { d: number; pos: { x: number; y: number; z: number }; normal: { x: number; y: number; z: number } } | null = null;
+      for (const r of this.source.rooms) {
+        for (const p of r.props ?? []) {
+          if (p.kit !== 'power_box') continue;
+          const d = Math.hypot(p.pos[0] - near.x, p.pos[2] - near.z);
+          if (d > 1.2 || (best && d >= best.d)) continue;
+          const ry = deg(p.rot ?? 0);
+          // Imported power_box faces -Z in prop space (size ~0.46 x 0.50 x 0.40 m).
+          const nx = -Math.sin(ry);
+          const nz = -Math.cos(ry);
+          best = {
+            d,
+            pos: { x: p.pos[0] + nx * 0.2, y: p.pos[1] + 0.22, z: p.pos[2] + nz * 0.2 },
+            normal: { x: nx, y: 0, z: nz },
+          };
+        }
+      }
+      if (best) return { pos: best.pos, normal: best.normal, width: 0.36, height: 0.38 };
+    }
+    if (!panelId) return null;
+    const door = this.doors.find((x) => x.data.id === panelId);
+    if (!door) return null;
+    const mat = cellMatrix(door.data.cell, door.data.rot);
+    const ry = deg(door.data.rot ?? 0);
+    const face = (fz: 1 | -1) => {
+      const p = new THREE.Vector3(DOOR_JAMB_SCREEN.x, DOOR_JAMB_SCREEN.y, DOOR_JAMB_SCREEN.z + fz * DOOR_JAMB_SCREEN.offset).applyMatrix4(mat);
+      const nx = Math.sin(ry) * fz;
+      const nz = Math.cos(ry) * fz;
+      return {
+        pos: { x: p.x, y: p.y, z: p.z },
+        normal: { x: nx, y: 0, z: nz },
+        dist: near ? Math.hypot(p.x - near.x, p.z - near.z) : fz > 0 ? 0 : 1,
+      };
+    };
+    const a = face(1);
+    const b = face(-1);
+    const pick = a.dist <= b.dist ? a : b;
+    return { pos: pick.pos, normal: pick.normal, width: DOOR_JAMB_SCREEN.width * 0.9, height: DOOR_JAMB_SCREEN.height * 0.9 };
   }
 
   /**

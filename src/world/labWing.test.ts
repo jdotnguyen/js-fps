@@ -210,6 +210,26 @@ test('R06 lane: a 1.2 m clear lane from the north door to Giles\'s spot', () => 
   }
 });
 
+test('door unlock device resolver: resolves R06 power_box and R07 jamb status screens within natural arm reach', () => {
+  const r06Anchor = built.level.anchor('r06_panel')!;
+  const r06Dev = built.level.panelDevice('D_R06_R07', r06Anchor.pos)!;
+  assert.ok(r06Dev, 'R06 power_box device resolved');
+  assert.ok(Math.abs(r06Dev.pos.x - -2.6) < 0.02 && Math.abs(r06Dev.pos.y - 1.32) < 0.05 && Math.abs(r06Dev.pos.z - 37.3) < 0.05);
+  assert.ok(r06Dev.normal.z < -0.99, `R06 normal points into R06 (${JSON.stringify(r06Dev.normal)})`);
+  const d06 = Math.hypot(r06Dev.pos.x - r06Anchor.pos.x, r06Dev.pos.z - r06Anchor.pos.z);
+  assert.ok(d06 >= 0.42 && d06 <= 0.58, `r06_panel reach ${d06.toFixed(2)} m`);
+
+  for (const [anchorId, doorId, expectZ] of [['r07_armory_panel', 'D_R07_R07a', 41.16], ['okafor_biometric', 'D_R07_R09', 45.16]] as const) {
+    const a = built.level.anchor(anchorId)!;
+    const dev = built.level.panelDevice(doorId, a.pos)!;
+    assert.ok(dev, `${doorId} jamb device resolved`);
+    assert.ok(Math.abs(dev.pos.x - 5.684) < 0.02 && Math.abs(dev.pos.y - 1.5) < 0.02 && Math.abs(dev.pos.z - expectZ) < 0.02);
+    assert.ok(dev.normal.x < -0.99, `${doorId} normal points into R07 (${JSON.stringify(dev.normal)})`);
+    const d = Math.hypot(dev.pos.x - a.pos.x, dev.pos.z - a.pos.z);
+    assert.ok(d >= 0.45 && d <= 0.58, `${anchorId} reach ${d.toFixed(2)} m`);
+  }
+});
+
 test('Every source in view but one: from the hold point facing south, duct, trench and vent are in view and unblocked', () => {
   const r06 = room('R06');
   const hold = r06.anchors!.find((a) => a.id === 'r06_hold')!;

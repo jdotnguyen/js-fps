@@ -38,6 +38,7 @@
         },
         "panel": {
           "when": { "task": ["bypass", "bypass_short", "bypass_long", "unlock_locker"] },
+          "clips": { "work": "giles_panel" },
           "holds": { "crouch": "giles_panel" }
         },
         "console": {

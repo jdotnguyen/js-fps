@@ -186,6 +186,94 @@
     ]
    }
   },
+  "panel_work": {
+   "joints": {
+    "spine": [
+     -7,
+     0,
+     0
+    ],
+    "chest": [
+     -4,
+     0,
+     0
+    ],
+    "neck": [
+     -2,
+     0,
+     0
+    ],
+    "head": [
+     -4,
+     0,
+     0
+    ],
+    "upperArm_L": [
+     46,
+     0,
+     -10
+    ],
+    "foreArm_L": [
+     68,
+     -12,
+     0
+    ],
+    "upperArm_R": [
+     54,
+     0,
+     10
+    ],
+    "foreArm_R": [
+     62,
+     12,
+     0
+    ]
+   }
+  },
+  "biometric_scan": {
+   "joints": {
+    "spine": [
+     -2,
+     0,
+     0
+    ],
+    "chest": [
+     -2,
+     0,
+     0
+    ],
+    "neck": [
+     -1,
+     0,
+     0
+    ],
+    "head": [
+     -2,
+     0,
+     0
+    ],
+    "upperArm_L": [
+     4,
+     0,
+     -4
+    ],
+    "foreArm_L": [
+     10,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     68,
+     0,
+     8
+    ],
+    "foreArm_R": [
+     58,
+     10,
+     0
+    ]
+   }
+  },
   "crouchWork": {
    "pelvis": [
     0,

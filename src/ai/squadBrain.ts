@@ -151,23 +151,47 @@ export function aimFor(role: SquadId, e: SquadEnemy): SquadAim {
 
 /** Task durations in seconds (ADR-0011; brief: bypass 20 s, power 30 s; biometric 5 s). */
 export const TASKS: Readonly<Record<string, { duration: number; who: SquadId; pose: string }>> = {
-  bypass_short: { duration: 8, who: 'engineer', pose: 'crouchWork' },
-  bypass_long: { duration: 20, who: 'engineer', pose: 'crouchWork' },
-  bypass: { duration: 20, who: 'engineer', pose: 'crouchWork' },
+  bypass_short: { duration: 8, who: 'engineer', pose: 'panel_work' },
+  bypass_long: { duration: 20, who: 'engineer', pose: 'panel_work' },
+  bypass: { duration: 20, who: 'engineer', pose: 'panel_work' },
   power_restore: { duration: 30, who: 'engineer', pose: 'typing' },
   reroute: { duration: 12, who: 'engineer', pose: 'typing' },
-  unlock_locker: { duration: 6, who: 'engineer', pose: 'crouchWork' },
-  biometric: { duration: 5, who: 'medic', pose: 'typing' },
+  unlock_locker: { duration: 6, who: 'engineer', pose: 'panel_work' },
+  biometric: { duration: 5, who: 'medic', pose: 'biometric_scan' },
 };
 
 /** An enemy within this of the worker pauses the task (he calls for help and defends). */
 export const TASK_THREAT = 3;
 
-/** A worker starts the job within this of its spot: beyond the room he keeps from Jay, so Jay on the spot can't hold him off. */
+/** Unobstructed arrival radius (m): walk right up to the anchor before turning into the device. */
+export const TASK_ARRIVE_CLOSE = 0.3;
+
+/** Blocked-by-Jay arrival radius (m): when Jay occupies the spot, start within this without Jay moving. */
 export const TASK_ARRIVE = 1.5;
+
+/** Jay within this of the anchor counts as occupying the panel spot. */
+export const TASK_JAY_BLOCK = 0.75;
+
+/** Seconds without progress when Jay occupies the spot before starting within TASK_ARRIVE. */
+export const TASK_JAY_STALL = 0.8;
 
 /** Seconds without getting 0.1 m closer to the spot before he starts the job where he stands. */
 export const TASK_GIVE_UP = 3;
+
+/** Max horizontal distance (m) from the worker to the device surface to engage hand IK. */
+export const TASK_DEVICE_REACH = 0.95;
+
+/** Physical wall/device surface a panel job contacts (world space). */
+export interface TaskDevice {
+  /** Center of the active device surface in world space. */
+  pos: P3;
+  /** Outward unit normal pointing from the wall/device face into the room. */
+  normal: P3;
+  /** Usable horizontal width of the active surface (m). */
+  width: number;
+  /** Usable vertical height of the active surface (m). */
+  height: number;
+}
 
 export type TaskState = 'walking' | 'working' | 'paused' | 'done';
 
@@ -189,21 +213,24 @@ export class SquadTask {
   readonly yaw: number | undefined;
   /** Panel or door id the HUD/level shows progress on. */
   readonly panel: string | null;
+  /** Physical wall/device surface for hand IK and gaze, or null. */
+  readonly device: TaskDevice | null;
   progress = 0;
   state: TaskState = 'walking';
   private reported = 0;
   private readonly ev: Partial<TaskEvents>;
   private readonly finished: Array<() => void> = [];
 
-  constructor(kind: string, opts: { at?: P3 | null; yaw?: number; panel?: string | null; duration?: number; who?: SquadId }, ev: Partial<TaskEvents> = {}) {
+  constructor(kind: string, opts: { at?: P3 | null; yaw?: number; panel?: string | null; device?: TaskDevice | null; duration?: number; who?: SquadId }, ev: Partial<TaskEvents> = {}) {
     const def = TASKS[kind];
     this.kind = kind;
     this.who = opts.who ?? def?.who ?? 'engineer';
     this.duration = opts.duration ?? def?.duration ?? 10;
-    this.pose = def?.pose ?? 'crouchWork';
+    this.pose = def?.pose ?? 'panel_work';
     this.at = opts.at ?? null;
     this.yaw = opts.yaw;
     this.panel = opts.panel ?? null;
+    this.device = opts.device ?? null;
     this.ev = ev;
   }
 

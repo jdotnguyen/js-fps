@@ -66,7 +66,7 @@ test('injury at the panel: favouring, Giles works mostly with his right hand and
   const { motionScene } = await import('./motionScene.ts');
   motionScene.setTask('giles', 'bypass_short');
   const run = (w: number): { L: number; R: number; jerkL: number } => {
-    const h = new Humanoid({ ...GILES, role: 'npc', pose: 'crouchWork' }, ctx());
+    const h = new Humanoid({ ...GILES, role: 'npc', pose: 'panel_work' }, ctx());
     h.setInjury(w);
     const bones = h['bones'] as Record<string, THREE.Object3D>;
     const path = { L: 0, R: 0, jerkL: 0 };

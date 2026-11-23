@@ -16,7 +16,11 @@ import {
   ReviveJob,
   SquadTask,
   TASK_ARRIVE,
+  TASK_ARRIVE_CLOSE,
+  TASK_DEVICE_REACH,
   TASK_GIVE_UP,
+  TASK_JAY_BLOCK,
+  TASK_JAY_STALL,
   TASK_THREAT,
   aimFor,
   enemyWeight,
@@ -26,6 +30,7 @@ import {
   type SquadEnemy,
   type SquadEnemySource,
   type SquadId,
+  type TaskDevice,
   type TaskEvents,
 } from './squadBrain.ts';
 import { Rng } from '../core/rng.ts';
@@ -165,6 +170,15 @@ export class SquadMate {
   task: SquadTask | null = null;
   /** Walking to a task's spot: the task watched, the closest he has got and how long since he got closer. */
   private approach: { task: SquadTask | null; best: number; stall: number } = { task: null, best: Infinity, stall: 0 };
+  /** Smooth turn-in toward the panel/device heading on arrival or resume (no single-frame snap). */
+  private taskTurn: { yaw: number; t: number } | null = null;
+  /** Seconds actively working with hand IK engaged on the current device. */
+  private taskWorkT = 0;
+  private readonly taskLook = new THREE.Vector3();
+  private readonly taskHandL = new THREE.Vector3();
+  private readonly taskHandR = new THREE.Vector3();
+  private readonly taskNormal = new THREE.Vector3();
+  private readonly taskRight = new THREE.Vector3();
   /** Okafor's revive in progress. */
   revive: ReviveJob | null = null;
   /** Combat target id. */
@@ -235,6 +249,139 @@ export class SquadMate {
   /** Working a panel right now (not walking to it, not finished). */
   get working(): boolean {
     return this.task !== null && (this.task.state === 'working' || this.task.state === 'paused');
+  }
+
+  /** Release panel hand IK, surface normals, foot pinning, and turn-in state. */
+  clearTaskRig(): void {
+    this.body.handTargets.L = null;
+    this.body.handTargets.R = null;
+    this.body.handTargetNormals.L = null;
+    this.body.handTargetNormals.R = null;
+    this.body.handTargetWeights.L = 1;
+    this.body.handTargetWeights.R = 1;
+    this.body.plantFeet = false;
+    this.taskTurn = null;
+    this.taskWorkT = 0;
+  }
+
+  /** Desired facing angle when working a task: aim directly at the physical device if present, else anchor yaw or spot. */
+  private taskFacingYaw(t: SquadTask, me: THREE.Vector3, useSpotDirection: boolean): number {
+    if (t.device) {
+      const dx = t.device.pos.x - me.x;
+      const dz = t.device.pos.z - me.z;
+      if (Math.hypot(dx, dz) > 0.05) return Math.atan2(-dx, -dz);
+    }
+    if (!useSpotDirection && t.yaw !== undefined) return t.yaw;
+    if (t.at) {
+      const dx = t.at.x - me.x;
+      const dz = t.at.z - me.z;
+      if (Math.hypot(dx, dz) > 1e-3) return Math.atan2(-dx, -dz);
+    }
+    return t.yaw ?? this.body.heading;
+  }
+
+  /** Drive device gaze and animated vertical-wall hand IK while working a door/panel job within arm reach. */
+  private updateTaskHands(dt: number, t: SquadTask, me: THREE.Vector3, aligned: boolean): void {
+    const dev = t.device;
+    if (!dev) {
+      this.body.handTargets.L = null;
+      this.body.handTargets.R = null;
+      this.body.handTargetNormals.L = null;
+      this.body.handTargetNormals.R = null;
+      return;
+    }
+    this.body.lookTarget = this.taskLook.set(dev.pos.x, dev.pos.y, dev.pos.z);
+    const reach = Math.hypot(dev.pos.x - me.x, dev.pos.z - me.z);
+    if (!aligned || reach > TASK_DEVICE_REACH) {
+      this.body.handTargets.L = null;
+      this.body.handTargets.R = null;
+      this.body.handTargetNormals.L = null;
+      this.body.handTargetNormals.R = null;
+      return;
+    }
+    this.taskWorkT += dt;
+    const n = this.taskNormal.set(dev.normal.x, dev.normal.y, dev.normal.z).normalize();
+    // Character facing -n into the wall: character's right along the wall plane is (-n) x UP = (n.z, 0, -n.x).
+    const right = this.taskRight.set(n.z, 0, -n.x);
+    if (right.lengthSq() > 1e-6) right.normalize();
+    else right.set(1, 0, 0);
+
+    const smooth01 = (x: number): number => {
+      const c = THREE.MathUtils.clamp(x, 0, 1);
+      return c * c * (3 - 2 * c);
+    };
+    const surfaceOff = 0.025;
+
+    if (t.pose === 'biometric_scan') {
+      // Tomas: left arm relaxed at his side; right hand taps the lower bezel briefly, then presses flat on the scanner.
+      const fadeIn = smooth01(this.taskWorkT / 0.42);
+      const fadeOut = 1 - smooth01((t.progress - 0.91) / 0.09);
+      const w = fadeIn * fadeOut;
+      const tapPhase = this.taskWorkT < 0.7;
+      const tapU = tapPhase ? smooth01(this.taskWorkT / 0.35) : 1;
+      const dy = tapPhase ? THREE.MathUtils.lerp(-0.055, 0, smooth01((this.taskWorkT - 0.35) / 0.35)) : Math.sin(this.taskWorkT * 1.4) * 0.004;
+      const dx = tapPhase ? 0.015 * (1 - smooth01((this.taskWorkT - 0.35) / 0.35)) : Math.cos(this.taskWorkT * 0.9) * 0.004;
+      const push = tapPhase ? surfaceOff + 0.025 * (1 - tapU) : surfaceOff;
+      this.taskHandR.set(
+        dev.pos.x + right.x * dx + n.x * push,
+        dev.pos.y + dy,
+        dev.pos.z + right.z * dx + n.z * push,
+      );
+      this.body.handTargets.L = null;
+      this.body.handTargetNormals.L = null;
+      this.body.handTargetWeights.L = 1;
+      this.body.handTargets.R = this.taskHandR;
+      this.body.handTargetNormals.R = n;
+      this.body.handTargetWeights.R = w;
+      return;
+    }
+
+    if (t.pose === 'panel_work') {
+      // Giles: left hand steadies near the left/lower frame (damped by guardArm when injured); right hand works across points.
+      const fadeIn = smooth01(this.taskWorkT / 0.36);
+      const fadeOut = 1 - smooth01((t.progress - 0.95) / 0.05);
+      const w = fadeIn * fadeOut;
+      const hx = Math.min(dev.width * 0.38, 0.13);
+      const hy = Math.min(dev.height * 0.34, 0.12);
+
+      // Left hand: steadies on the left edge with gentle small shifts.
+      const lx = -hx * 0.85 + Math.sin(this.taskWorkT * 0.8) * 0.014;
+      const ly = -hy * 0.35 + Math.cos(this.taskWorkT * 0.65) * 0.016;
+      this.taskHandL.set(
+        dev.pos.x + right.x * lx + n.x * (surfaceOff + 0.008),
+        dev.pos.y + ly,
+        dev.pos.z + right.z * lx + n.z * (surfaceOff + 0.008),
+      );
+
+      // Right hand: cycles smoothly through 4 wiring/probe targets across the panel with tactile press pulses.
+      const pts: readonly [number, number][] = [
+        [hx * 0.7, hy * 0.55],
+        [hx * 0.15, -hy * 0.15],
+        [hx * 0.8, -hy * 0.5],
+        [hx * 0.25, hy * 0.4],
+      ];
+      const seg = this.taskWorkT / 1.15;
+      const i0 = Math.floor(seg) % pts.length;
+      const i1 = (i0 + 1) % pts.length;
+      const u = smooth01(seg - Math.floor(seg));
+      const p0 = pts[i0]!;
+      const p1 = pts[i1]!;
+      const rx = THREE.MathUtils.lerp(p0[0], p1[0], u);
+      const ry = THREE.MathUtils.lerp(p0[1], p1[1], u);
+      const press = surfaceOff + 0.018 * (0.5 + 0.5 * Math.sin(this.taskWorkT * 5.2));
+      this.taskHandR.set(
+        dev.pos.x + right.x * rx + n.x * press,
+        dev.pos.y + ry,
+        dev.pos.z + right.z * rx + n.z * press,
+      );
+
+      this.body.handTargets.L = this.taskHandL;
+      this.body.handTargets.R = this.taskHandR;
+      this.body.handTargetNormals.L = n;
+      this.body.handTargetNormals.R = n;
+      this.body.handTargetWeights.L = w;
+      this.body.handTargetWeights.R = w;
+    }
   }
 
   /**
@@ -345,7 +492,7 @@ export class SquadMate {
     const t = this.task;
     if (t && !t.done) {
       if (t.state === 'walking') {
-        // Start close to the spot, or, after TASK_GIVE_UP s without getting closer (blocked, crowded), where he stands.
+        // Walk all the way up to the panel when clear; fall back when Jay occupies the spot or after TASK_GIVE_UP s stalled.
         const ap = this.approach;
         if (ap.task !== t) {
           ap.task = t;
@@ -357,20 +504,51 @@ export class SquadMate {
           ap.best = d;
           ap.stall = 0;
         } else ap.stall += dt;
+        const jayOnSpot = t.at !== null && Math.hypot(squad.playerFeet.x - t.at.x, squad.playerFeet.z - t.at.z) <= TASK_JAY_BLOCK;
+        const blockedByJay = jayOnSpot && d <= TASK_ARRIVE && ap.stall >= TASK_JAY_STALL;
         const gaveUp = ap.stall >= TASK_GIVE_UP;
-        if (d <= TASK_ARRIVE || gaveUp) {
+        if (d <= TASK_ARRIVE_CLOSE || blockedByJay || gaveUp) {
           t.arrive();
-          if (gaveUp && t.at && d > 1e-3) this.body.setHeading(Math.atan2(-(t.at.x - me.x), -(t.at.z - me.z)));
-          else if (t.yaw !== undefined) this.body.setHeading(t.yaw);
-          this.body.setPose(t.pose, 0.5);
+          this.target.copy(me);
+          this.path = null;
+          const wantYaw = this.taskFacingYaw(t, me, blockedByJay || gaveUp);
+          this.taskTurn = { yaw: wantYaw, t: 0 };
+          this.taskWorkT = 0;
         }
       }
       const threat = enemies.some((e) => e.alive && Math.hypot(e.position.x - me.x, e.position.z - me.z) < TASK_THREAT && Math.abs(e.position.y - me.y) <= REACH_DY);
       const before = t.state;
       t.update(dt, threat, true);
-      if (before === 'working' && t.state === 'paused') this.body.setPose('aim_pistol', 0.3);
-      if (before === 'paused' && t.state === 'working') this.body.setPose(t.pose, 0.5);
+      if (before === 'working' && t.state === 'paused') {
+        this.clearTaskRig();
+        this.body.lookTarget = null;
+        this.body.setPose('aim_pistol', 0.3);
+      }
+      if (before === 'paused' && t.state === 'working') {
+        const wantYaw = this.taskFacingYaw(t, me, false);
+        this.taskTurn = { yaw: wantYaw, t: 0 };
+        this.taskWorkT = 0;
+      }
+      if (t.state === 'working') {
+        this.body.plantFeet = true;
+        let aligned = true;
+        if (this.taskTurn) {
+          this.taskTurn.t += dt;
+          const diff = Math.atan2(Math.sin(this.taskTurn.yaw - this.body.heading), Math.cos(this.taskTurn.yaw - this.body.heading));
+          if (Math.abs(diff) > 0.04 && this.taskTurn.t < 0.7) {
+            tmpE.set(-Math.sin(this.taskTurn.yaw), 0, -Math.cos(this.taskTurn.yaw));
+            this.body.steer(tmpE, dt, { maxSpeed: 0, turnRate: 5.2 });
+          } else {
+            this.taskTurn = null;
+          }
+          aligned = Math.abs(diff) <= 0.3 || this.taskTurn === null;
+        }
+        if (aligned && this.body.idlePose !== t.pose) this.body.setPose(t.pose, 0.45);
+        this.updateTaskHands(dt, t, me, aligned);
+      }
       if (t.done) {
+        this.clearTaskRig();
+        this.body.lookTarget = null;
         this.body.setPose('idle', 0.5);
         this.task = null;
       }
@@ -431,6 +609,7 @@ export class SquadMate {
     this.hp = 0;
     this.behaviour = 'downed';
     this.revive = null;
+    this.clearTaskRig();
     this.downedT = this.id === 'medic' ? squad.difficulty().medicDownedTime : REVIVE.engineerDowned;
     this.body.setPose('squad_downed', 0.25);
     this.path = null;
@@ -609,7 +788,10 @@ export class SquadMate {
   update(dt: number, squad: Squad, player: SquadPlayer, cameraPos: THREE.Vector3 | null): void {
     this.publishRevive(squad);
     // A sequence is driving this body (npc actions): the NPC director moves and animates it.
-    if (this.scripted) return;
+    if (this.scripted) {
+      if (this.body.handTargets.L || this.body.handTargets.R || this.body.plantFeet) this.clearTaskRig();
+      return;
+    }
     if (this.downed) {
       this.downedT -= dt;
       if (this.downedT <= 0) this.getUp(squad, false);
@@ -631,7 +813,7 @@ export class SquadMate {
 
     // Dodges are short hops, so they need to land precisely.
     const errand = this.mode === 'task' || this.mode === 'revive' || this.mode === 'backoff';
-    const arrive = this.mode === 'aimDodge' ? 0.15 : this.mode === 'revive' ? REVIVE.reach * 0.8 : this.mode === 'task' ? 0.2 : SQUAD_TUNING.arrive;
+    const arrive = this.mode === 'aimDodge' ? 0.15 : this.mode === 'revive' ? REVIVE.reach * 0.8 : this.mode === 'task' ? 0.12 : SQUAD_TUNING.arrive;
     // Reaching the spot near Jay counts as stopping, even if it is just beyond 10 ft.
     if (!errand && this.following && toTarget <= arrive && Math.hypot(me.x - squad.playerFeet.x, me.z - squad.playerFeet.z) <= SQUAD_TUNING.resumeDistance) {
       this.following = false;
@@ -657,9 +839,10 @@ export class SquadMate {
       speed = behind < 6 ? SQUAD_TUNING.walk : behind < 12 ? THREE.MathUtils.lerp(SQUAD_TUNING.walk, SQUAD_TUNING.brisk, (behind - 6) / 6) : SQUAD_TUNING.jog;
       // Stepping out of the line of fire: a purposeful step, not a scramble.
       if (this.mode === 'aimDodge') speed = Math.max(speed, 1.8);
-      // Errands: a jog to a downed teammate, a brisk walk to a panel or out of reach.
+      // Errands: a jog to a downed teammate, a brisk walk to a panel (easing into the wall) or out of reach.
       if (this.mode === 'revive') speed = SQUAD_TUNING.jog;
-      else if (this.mode === 'task' || this.mode === 'backoff') speed = Math.max(speed, SQUAD_TUNING.brisk);
+      else if (this.mode === 'task') speed = toTarget < 1.2 ? Math.max(0.65, Math.min(SQUAD_TUNING.brisk, toTarget * 1.9)) : Math.max(speed, SQUAD_TUNING.brisk);
+      else if (this.mode === 'backoff') speed = Math.max(speed, SQUAD_TUNING.brisk);
       // Moving again: drop a work or aim pose so the walk cycle shows.
       if (this.body.idlePose !== 'idle' && this.gestureLeft <= 0) this.body.setPose('idle', 0.3);
     }
@@ -706,23 +889,27 @@ export class SquadMate {
     }
 
     // Keep apart from Jay and each other (a softer shove than the give-way above).
-    const sep = tmpE.set(0, 0, 0);
-    const push = (o: P3, radius: number): void => {
-      const dx = me.x - o.x;
-      const dz = me.z - o.z;
-      const d = Math.hypot(dx, dz);
-      if (d >= radius || d < 1e-4) return;
-      const k = (radius - d) / radius / d;
-      sep.x += dx * k;
-      sep.z += dz * k;
-    };
-    if (!yielding) push(squad.playerFeet, SQUAD_TUNING.personalPlayer);
-    for (const m of squad.mates) if (m !== this) push(m.position, SQUAD_TUNING.personalMate);
-    if (sep.lengthSq() > 1e-6) {
-      desired.addScaledVector(sep, 2.2);
-      speed = Math.max(speed, 1.0);
+    // Skip during panel tasks so Jay watching nearby never blocks the approach or slides a worker off the device.
+    if (this.behaviour !== 'task') {
+      const sep = tmpE.set(0, 0, 0);
+      const push = (o: P3, radius: number): void => {
+        const dx = me.x - o.x;
+        const dz = me.z - o.z;
+        const d = Math.hypot(dx, dz);
+        if (d >= radius || d < 1e-4) return;
+        const k = (radius - d) / radius / d;
+        sep.x += dx * k;
+        sep.z += dz * k;
+      };
+      if (!yielding) push(squad.playerFeet, SQUAD_TUNING.personalPlayer);
+      for (const m of squad.mates) if (m !== this) push(m.position, SQUAD_TUNING.personalMate);
+      if (sep.lengthSq() > 1e-6) {
+        desired.addScaledVector(sep, 2.2);
+        speed = Math.max(speed, 1.0);
+      }
     }
 
+    if (this.working && desired.lengthSq() < 1e-6) accel = 7;
     const vel = this.body.steer(desired.lengthSq() > 1e-6 ? desired : null, dt, { maxSpeed: speed, turnRate, accel });
     moveBody(this.motor, vel.x * dt, vel.z * dt, dt, MOTOR, squad.colliders);
     this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
@@ -894,8 +1081,9 @@ export class Squad {
    * Start a panel job (sequence `npcTask`): Giles's bypass/power, Okafor's biometric lock.
    * Replaces any job the mate had. The returned task resolves `whenDone`.
    */
-  startTask(id: SquadId, kind: string, opts: { at?: P3 | null; yaw?: number; panel?: string | null; duration?: number } = {}): SquadTask {
+  startTask(id: SquadId, kind: string, opts: { at?: P3 | null; yaw?: number; panel?: string | null; device?: TaskDevice | null; duration?: number } = {}): SquadTask {
     const m = this.mate(id);
+    m.clearTaskRig();
     const payload = (t: SquadTask): SquadEvents['squad:taskProgress'] => ({ id, task: t.kind, panel: t.panel, progress: t.progress });
     const ev: TaskEvents = {
       progress: (t) => this.emit('squad:taskProgress', payload(t)),

@@ -370,7 +370,7 @@ export function locomotionSet(r: ResolvedMotion): MotionSet {
  * is an additive clip, is layered over the pose like a posture hold, with the hands kept on the keyboard or the mug.
  */
 export function poseTreatment(pose: string): Activity | null {
-  if (pose === 'typing' || pose === 'sit_typing' || pose.startsWith('sit_typing_')) return 'work';
+  if (pose === 'typing' || pose === 'sit_typing' || pose.startsWith('sit_typing_') || pose === 'panel_work' || pose === 'biometric_scan') return 'work';
   if (pose === 'drink' || pose.endsWith('_drink')) return 'drink';
   return null;
 }

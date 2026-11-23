@@ -209,6 +209,9 @@ export interface HandPhysicsInput {
   /** Per-side world-space IK targets (non-null when handTargets IK is active). */
   ikTargetL: THREE.Vector3 | null;
   ikTargetR: THREE.Vector3 | null;
+  /** Optional outward world surface normals for `handTargets` IK (e.g. vertical wall screens/panels). */
+  ikNormalL?: THREE.Vector3 | null;
+  ikNormalR?: THREE.Vector3 | null;
   /** Per-side smoothed contact surface info from LimbContactSolver (lap, tabletop, counter, wall). */
   contactL?: Readonly<HandContact> | null;
   contactR?: Readonly<HandContact> | null;
@@ -294,6 +297,13 @@ const vVel = new THREE.Vector3();
 const vAcc = new THREE.Vector3();
 const vOmega = new THREE.Vector3();
 const vDown = new THREE.Vector3();
+const vPalmLocal = new THREE.Vector3();
+const vSideLocal = new THREE.Vector3();
+const vFingersW = new THREE.Vector3();
+const vSideW = new THREE.Vector3();
+const mLocalBasis = new THREE.Matrix4();
+const mWorldBasis = new THREE.Matrix4();
+const mRotBasis = new THREE.Matrix4();
 const vPalmW = new THREE.Vector3();
 const vWantPalmW = new THREE.Vector3();
 const qAlign = new THREE.Quaternion();
@@ -365,6 +375,8 @@ export function chooseHandShape(
     return 'claw';
   }
   if (poseName === 'typing' || poseName === 'sit_typing' || poseName.startsWith('sit_typing_')) return 'typing';
+  if (poseName === 'biometric_scan') return side === 'R' ? 'surface' : 'relaxed';
+  if (poseName === 'panel_work') return 'pinch';
   if (ikActive) return 'surface';
   if (poseName === 'flex_hand') return side === 'R' ? 'flex' : 'relaxed';
   if (poseName === 'aim_pistol') return side === 'R' ? 'grip' : 'cup';
@@ -634,6 +646,7 @@ export class HandPhysicsSolver {
       const hand = input.bones[`hand_${side}`];
       const limp = side === 'L' ? input.limpL : input.limpR;
       const ikTarget = side === 'L' ? input.ikTargetL : input.ikTargetR;
+      const ikNormal = side === 'L' ? (input.ikNormalL ?? null) : (input.ikNormalR ?? null);
       const contact = side === 'L' ? input.contactL : input.contactR;
       const contactW = contact && input.alive && !limp ? contact.weight : 0;
 
@@ -737,13 +750,35 @@ export class HandPhysicsSolver {
       //    - LimbContactSolver surface contacts (tabletops, counters, laps, walls) align the
       //      calibrated palmNormal smoothly toward -contact.normal so the palm rests flush.
       if (st.ikAlignW > 0.01 && hand.parent) {
-        const sign = side === 'R' ? 1 : -1;
-        eScratch.set(0.35, -sign * 0.55, sign * 0.12, 'XYZ');
-        qIkWant.copy(input.group.quaternion).multiply(qDelta.setFromEuler(eScratch));
-        hand.parent.getWorldQuaternion(qInv).invert();
-        qIkLocal.copy(qInv).multiply(qIkWant);
-        hand.quaternion.slerp(qIkLocal, st.ikAlignW * 0.65);
-        dirty = true;
+        if (ikNormal && ikNormal.lengthSq() > 1e-6) {
+          // Align palm flush into the wall (-ikNormal) with fingers pointing up along the vertical surface.
+          vWantPalmW.copy(ikNormal).negate().normalize();
+          vFingersW.copy(UP).addScaledVector(vWantPalmW, -UP.dot(vWantPalmW));
+          if (vFingersW.lengthSq() < 1e-4) vFingersW.set(0, 0, -1).applyQuaternion(input.group.quaternion);
+          vFingersW.normalize();
+          vSideW.crossVectors(vFingersW, vWantPalmW).normalize();
+          vFingersW.crossVectors(vWantPalmW, vSideW).normalize();
+
+          vPalmLocal.copy(st.palmNormal).addScaledVector(DOWN, -st.palmNormal.dot(DOWN)).normalize();
+          vSideLocal.crossVectors(DOWN, vPalmLocal).normalize();
+          mLocalBasis.makeBasis(DOWN, vPalmLocal, vSideLocal).transpose();
+          mWorldBasis.makeBasis(vFingersW, vWantPalmW, vSideW);
+          mRotBasis.multiplyMatrices(mWorldBasis, mLocalBasis);
+          qIkWant.setFromRotationMatrix(mRotBasis);
+
+          hand.parent.getWorldQuaternion(qInv).invert();
+          qIkLocal.copy(qInv).multiply(qIkWant);
+          hand.quaternion.slerp(qIkLocal, st.ikAlignW * 0.92);
+          dirty = true;
+        } else {
+          const sign = side === 'R' ? 1 : -1;
+          eScratch.set(0.35, -sign * 0.55, sign * 0.12, 'XYZ');
+          qIkWant.copy(input.group.quaternion).multiply(qDelta.setFromEuler(eScratch));
+          hand.parent.getWorldQuaternion(qInv).invert();
+          qIkLocal.copy(qInv).multiply(qIkWant);
+          hand.quaternion.slerp(qIkLocal, st.ikAlignW * 0.65);
+          dirty = true;
+        }
       } else if (contact && contactW > 0.02 && hand.parent) {
         hand.getWorldQuaternion(qHandWorld);
         vPalmW.copy(st.palmNormal).applyQuaternion(qHandWorld).normalize();

@@ -79,14 +79,14 @@ const SCENE_VARIANTS: Record<string, readonly string[]> = {
 /** Design D11's table, row by row: what each scene, task or placement asks of each named character. */
 const D11_ROWS: readonly (readonly [look: string, source: string, poses: readonly string[]])[] = [
   ['giles', 'sequence:intro_shift_change', ['walk', 'rub_forearm', 'lean_back', 'lean_back_mug', 'drink']],
-  ['giles', 'task:bypass', ['crouchWork']],
-  ['giles', 'task:bypass_short', ['crouchWork']],
+  ['giles', 'task:bypass', ['panel_work']],
+  ['giles', 'task:bypass_short', ['panel_work']],
   ['giles', 'task:power_restore', ['typing']],
   ['giles', 'sequence:action_contact', ['flex_hand']],
   ['giles', 'sequence:action_security', ['rub_forearm']],
   ['giles', 'sequence:action_tunnel', ['cough']],
   ['okafor', 'sequence:intro_shift_change', ['lean_back', 'lean_back_mug', 'drink']],
-  ['okafor', 'task:biometric', ['typing']],
+  ['okafor', 'task:biometric', ['biometric_scan']],
   ['okafor', `task:${REVIVE_TASK}`, ['kneel_revive']],
   ['okafor', 'sequence:briefing_gallery', ['glance']],
   ['okafor', 'sequence:action_contact', ['glance']],
@@ -165,7 +165,7 @@ test('cast motion coverage: the slice asks something of every named character', 
     assert.ok(asked.has(look), `${look} is asked to do something`);
   }
   const giles = requests().filter((r) => r.look === 'giles').map((r) => r.pose);
-  for (const p of ['rub_forearm', 'lean_back_mug', 'crouchWork', 'typing', 'walk']) assert.ok(giles.includes(p), `Giles is asked for ${p}`);
+  for (const p of ['rub_forearm', 'lean_back_mug', 'panel_work', 'typing', 'walk']) assert.ok(giles.includes(p), `Giles is asked for ${p}`);
 });
 
 test('cast motion coverage: a named character without a profile fails and is named', () => {

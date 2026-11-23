@@ -822,6 +822,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       setPropTransform: (id, pos, yaw) => level?.setPropTransform(id, pos, yaw) ?? false,
       setPropVisible: (id, visible) => level?.setPropVisible(id, visible) ?? false,
       propState: (id) => level?.propState(id) ?? null,
+      panelDevice: (panel, near) => level?.panelDevice(panel, near) ?? null,
       kills: validate(validateKillTable, killsJson, 'data/kills.json'),
       listen: (name, fn) => events.on(name as never, fn as never),
       sfx: (ids, at) => {
