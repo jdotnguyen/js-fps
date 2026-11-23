@@ -74,3 +74,15 @@ test('the grade effect uses the uniform objects post.grade hands out', () => {
   assert.equal(effect.uniforms.get('uGrain')!.value, 0);
   assert.equal(effect.uniforms.get('uDamage')!.value, 0.8);
 });
+
+test('eye adaptation: the grade reads the adaptation uniforms, and the setting switches only the uniform', () => {
+  const { effect, grade } = createGradeEffect();
+  for (const name of ['uAdaptState', 'uAdaptKey', 'uAdaptOn'] as const) assert.equal(effect.uniforms.get(name), grade[name], name);
+  assert.equal(grade.uAdaptOn.value, 1, 'on by default');
+  assert.match(effect.getFragmentShader(), /col \*= mix\(1\.0, adaptMul, uAdaptOn\)/, 'off forces a multiplier of 1.0');
+  assert.match(effect.getFragmentShader(), /clamp\(uAdaptKey \/ exp2\(texture2D\(uAdaptState, vec2\(0\.5\)\)\.r\), 0\.7, 1\.6\)/, 'capped 0.7 to 1.6');
+  const before = effect.getFragmentShader();
+  grade.uAdaptOn.value = 0;
+  assert.equal(effect.uniforms.get('uAdaptOn')!.value, 0);
+  assert.equal(effect.getFragmentShader(), before, 'no shader change, so no rebuild');
+});

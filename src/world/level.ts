@@ -49,6 +49,8 @@ import { WaterBodies, WaterBody } from './water.ts';
 import { WaterSurface } from '../render/water/surface.ts';
 import { addMurkTo } from '../render/water/murk.ts';
 import { FloatingJunk } from '../render/water/junk.ts';
+import { applySteadyLights, CAPTURE_LAYER, steadyPatternValue, type CaptureHost } from '../render/roomCaptures.ts';
+import { BOUNCE_SHARE, lerpSh, normaliseProbe } from '../render/roomLightProbe.ts';
 
 const EYE_HEIGHT = PLAYER_TUNING.eyeHeight;
 /** Seconds an auto door stays open after reaching fully open while nobody is nearby. */
@@ -373,7 +375,7 @@ export async function loadLevel(data: LevelData, deps: LevelDeps, opts?: LevelLo
  * material with baked AO, doors and triggers that emit events, portal-by-adjacency
  * culling and a fixed light pool shared by the visible rooms.
  */
-export class Level implements World {
+export class Level implements World, CaptureHost {
   readonly id: string;
   /** The validated level data (the map, ADR-0024, and supply pickups read it). */
   readonly source: LevelData;
@@ -445,6 +447,19 @@ export class Level implements World {
   private readonly walks = new Map<string, NonNullable<LevelData['rooms'][number]['walks']>[number]>();
   private readonly hemi: THREE.HemisphereLight;
   private readonly keyFill: THREE.DirectionalLight;
+  /**
+   * Room-coloured bounce light (environment-lighting spec, room-light-response D5): one probe, added at build so the
+   * program count never changes. It follows the camera room's capture, normalised to the active ambient preset.
+   */
+  readonly probe = new THREE.LightProbe();
+  /** Share of the ambient the probe carries once the camera's room has a capture (design D5). */
+  bounceShare = BOUNCE_SHARE;
+  /** Each room's bounce light from its capture (raw radiance coefficients). */
+  private readonly roomSh = new Map<string, THREE.SphericalHarmonics3>();
+  private readonly probeTarget = new THREE.SphericalHarmonics3();
+  /** Room lighting state versions (design D2): bumped by power, tints and lights switching off or on. */
+  private readonly lightVersions = new Map<string, number>();
+  private readonly neighbourScratch: string[] = [];
   private readonly dust: Particulates;
   private readonly visibleSlots: PooledSlot[] = [];
   private readonly fillSlots: PooledSlot[] = [];
@@ -505,6 +520,8 @@ export class Level implements World {
     this.keyFill.position.set(12, 24, 16);
     this.keyFill.castShadow = false;
     this.group.add(this.keyFill);
+    this.probe.name = 'level-bounce-probe';
+    this.group.add(this.probe);
 
     const start = data.playerStart;
     this.spawn = { position: new THREE.Vector3(start.pos[0], start.pos[1] + EYE_HEIGHT, start.pos[2]), yaw: deg(start.yaw) };
@@ -1962,6 +1979,8 @@ export class Level implements World {
     this.lights.items.forEach((it, i) => {
       it.pattern = this.initialPatterns[i] ?? it.pattern;
     });
+    // Authored patterns are back: every room's capture is retaken as the player comes near (room-light-response D2).
+    for (const r of this.rooms) this.bumpLighting(r.data.id);
     for (const room of [...this.tinted.keys()]) this.tintRoomLights(room, 'none');
     for (const id of this.namedLights.keys()) this.setLight(id, this.namedLights.get(id)!.slot.item.pattern, 'none');
     for (const v of this.vents) {
@@ -1985,6 +2004,7 @@ export class Level implements World {
     let saved = this.tinted.get(roomId);
     if (tint === 'none') {
       if (!saved) return true;
+      this.bumpLighting(roomId);
       room.slots.forEach((s, i) => s.color.copy(saved!.slots[i] ?? s.color));
       glowsOf().forEach((c, i) => c.copy(saved!.glows[i] ?? c));
       room.ambient.sky.copy(saved.sky);
@@ -2012,7 +2032,88 @@ export class Level implements World {
       room.ambient.ground.set(AMBIENT.emergency.ground);
       room.ambient.intensity = AMBIENT.emergency.intensity;
     }
+    this.bumpLighting(roomId);
     return true;
+  }
+
+  // ---------------------------------------------------------------- room light response (room-light-response)
+
+  /** The room's lighting state version (design D2): a capture that saw an older one is stale. */
+  lightingVersion(roomId: string): number {
+    return this.lightVersions.get(roomId) ?? 0;
+  }
+
+  /** Mark a room's lighting as changed, so its capture is retaken when the player is near. */
+  private bumpLighting(roomId: string): void {
+    this.lightVersions.set(roomId, this.lightingVersion(roomId) + 1);
+  }
+
+  /** The camera's room (as of the last `update`). */
+  currentRoom(): string | null {
+    return this.current?.data.id ?? null;
+  }
+
+  /** Rooms joined to `roomId` through portals passable right now. The array is reused. */
+  neighbours(roomId: string): readonly string[] {
+    return this.portalCuller.neighbours(roomId, this.neighbourScratch);
+  }
+
+  /** Where a room is captured from: its `atmosphere.capture`, else the centre of its area 1.6 m above its deck (design D1). */
+  capturePoint(roomId: string, out: THREE.Vector3): THREE.Vector3 {
+    const room = this.roomById.get(roomId);
+    const authored = room?.data.atmosphere?.capture;
+    if (authored) return out.set(authored[0], authored[1], authored[2]);
+    if (!room || room.cells.length === 0) return out.set(0, EYE_HEIGHT, 0);
+    const box = new THREE.Box3();
+    for (const c of room.cells) box.union(c);
+    const deck = Math.min(...room.cells.map((c) => c.min.y + 0.5));
+    box.getCenter(out).setY(deck + 1.6);
+    // An L-shaped room's centre can fall outside it: use the nearest cell centre then.
+    if (!room.cells.some((c) => c.containsPoint(out))) {
+      let best = Infinity;
+      const p = out.clone();
+      for (const c of room.cells) {
+        const cc = c.getCenter(new THREE.Vector3()).setY(c.min.y + 0.5 + 1.6);
+        const d = cc.distanceToSquared(p);
+        if (d < best) {
+          best = d;
+          out.copy(cc);
+        }
+      }
+    }
+    return out;
+  }
+
+  /** Put the level's objects on the capture layer; particles (dust) stay off it (design D1). */
+  prepareCapture(): void {
+    this.group.traverse((o) => o.layers.enable(CAPTURE_LAYER));
+    this.dust.points.layers.disable(CAPTURE_LAYER);
+  }
+
+  /**
+   * Render a room capture face from `eye` (design D1): rooms culled for the face camera, lights bound around the eye
+   * unshadowed and at their steady pattern values, and the bounce probe off so a capture never feeds on itself.
+   * The player's own view is set up again by the next `update`.
+   */
+  captureFromEye(eye: THREE.Vector3, draw: () => void, camera: THREE.Camera): void {
+    const room = this.roomAt(eye);
+    this.cull(room, undefined, camera);
+    this.bindLights(room, eye, false);
+    applySteadyLights(this.lights.items);
+    this.pool.finish();
+    this.shadowPool.finish();
+    const probe = this.probe.intensity;
+    this.probe.intensity = 0;
+    try {
+      draw();
+    } finally {
+      this.probe.intensity = probe;
+    }
+  }
+
+  /** A room's bounce light landed from its capture (raw radiance coefficients). */
+  setRoomIrradiance(roomId: string, sh: THREE.SphericalHarmonics3): void {
+    this.roomSh.set(roomId, sh);
   }
 
   doorStates(): Record<string, DoorState> {
@@ -2027,6 +2128,11 @@ export class Level implements World {
   setLight(id: string, pattern: LightPattern, tint?: string): boolean {
     const named = this.namedLights.get(id);
     if (!named) return false;
+    // A light switching off or on (or recoloured) changes its room's captured look; a flicker does not (design D2).
+    if (tint !== undefined || steadyPatternValue(named.slot.item.pattern) !== steadyPatternValue(pattern)) {
+      const room = this.rooms.find((r) => r.slots.some((s) => s.item === named.slot.item));
+      if (room) this.bumpLighting(room.data.id);
+    }
     named.slot.item.pattern = pattern;
     if (tint !== undefined) {
       const color = tint === 'none' ? named.color : new THREE.Color(tint === 'emergency' ? '#ff2a1a' : tint);
@@ -2050,6 +2156,7 @@ export class Level implements World {
     if (state === this.powerState) return;
     this.powerState = state;
     for (const room of this.rooms) {
+      this.bumpLighting(room.data.id);
       const marked = room.slots.filter((s) => s.kind === 'emergency' || s.backup === true);
       const backups = new Set(marked.length > 0 ? marked : room.slots.slice(0, 1));
       for (const s of room.slots) {
@@ -2084,11 +2191,14 @@ export class Level implements World {
 
   setRoomLights(room: string, pattern: LightPattern): boolean {
     let any = false;
+    let changed = false;
     for (const it of this.lights.items) {
       if (!it.name.startsWith(`${room} `)) continue;
+      if (steadyPatternValue(it.pattern) !== steadyPatternValue(pattern)) changed = true;
       it.pattern = pattern;
       any = true;
     }
+    if (changed) this.bumpLighting(room);
     return any;
   }
 
@@ -2364,9 +2474,15 @@ export class Level implements World {
         if (scene.background instanceof THREE.Color) scene.background.copy(fog.color);
       }
       const amb = this.powerState === 'backup' ? this.backupAmbient : cur.ambient;
+      // Bounce light (room-light-response D5): with a capture, the probe carries `w` of the preset and the hemisphere the rest.
+      const sh = this.roomSh.get(cur.data.id);
+      const w = sh ? this.bounceShare : 0;
+      if (sh) normaliseProbe(sh, amb, w, this.probeTarget);
+      else for (const v of this.probeTarget.coefficients) v.set(0, 0, 0);
+      lerpSh(this.probe.sh, this.probeTarget, k);
       this.hemi.color.lerp(amb.sky, k);
       this.hemi.groundColor.lerp(amb.ground, k);
-      this.hemi.intensity += (amb.intensity - this.hemi.intensity) * k;
+      this.hemi.intensity += (amb.intensity * (1 - w) - this.hemi.intensity) * k;
       this.keyFill.color.lerp(amb.keyColor, k);
       this.keyFill.intensity += (amb.keyIntensity - this.keyFill.intensity) * k;
     }
@@ -2493,6 +2609,8 @@ export class Level implements World {
     this.shadowPool.resize(0);
     this.hemi.dispose();
     this.keyFill.dispose();
+    this.probe.dispose();
+    this.roomSh.clear();
     this.dust.dispose();
     for (const surface of this.waterSurfaces.values()) surface.dispose();
     this.waterSurfaces.clear();

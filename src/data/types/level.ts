@@ -276,6 +276,11 @@ const roomShape = {
       ambient: optional(oneOf(AMBIENT_PRESETS)),
       reverb: optional(str),
       ambience: optional(str),
+      /**
+       * Where the room's reflections and bounce light are captured from (environment-lighting spec), world metres.
+       * Must lie inside the room. Default: the centre of the room's area, 1.6 m above its deck.
+       */
+      capture: optional(vec3),
     }),
   ),
   visibleFrom: optional(arr(id)),
@@ -385,6 +390,24 @@ const levelShape = {
 
 export type LevelData = Infer<typeof levelShape>;
 export type RoomData = LevelData['rooms'][number];
+
+/**
+ * Whether world point `p` lies inside one of the room's cells: the same boxes the level builds for `roomAt`
+ * (4 m cells and decks, from 0.5 m under the floor to the room's height, at least the 3.2 m corridor height).
+ */
+export function roomContains(room: Pick<RoomData, 'pieces' | 'height' | 'floorY'>, p: readonly [number, number, number]): boolean {
+  const height = Math.max(room.height ?? 3.2, 3.2);
+  const floorY = room.floorY ?? 0;
+  for (const piece of room.pieces) {
+    for (const [cx, deck, cz] of piece.cells ?? (piece.cell ? [piece.cell] : [])) {
+      const x = cx * 4;
+      const y = deck * 4;
+      const z = cz * 4;
+      if (Math.abs(p[0] - x) <= 2 && Math.abs(p[2] - z) <= 2 && p[1] >= y + floorY - 0.5 && p[1] <= y + height) return true;
+    }
+  }
+  return false;
+}
 export type PieceData = RoomData['pieces'][number];
 export type PropData = NonNullable<RoomData['props']>[number];
 export type LightData = NonNullable<RoomData['lights']>[number];
@@ -537,6 +560,8 @@ export function levelValidator(kits: KitIds, refs: LevelRefs = {}): Validator<Le
       (r.triggers ?? []).forEach((t, k) => {
         if (t.on === 'use' && !t.prompt) throw new ValidationError(`${rp} > triggers[${k}]`, '"use" triggers need a "prompt"');
       });
+      const capture = r.atmosphere?.capture;
+      if (capture && !roomContains(r, capture)) throw new ValidationError(`${rp} > atmosphere > capture`, `[${capture.join(', ')}] is outside the room's cells`);
     });
     return level;
   };

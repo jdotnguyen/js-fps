@@ -230,6 +230,17 @@ export class PortalCuller {
     for (const id of this.oceanSnapshot) visibleOut.add(id);
   }
 
+  /**
+   * Rooms one hop from `room` through portals that are passable right now (open or see-through doors, glass,
+   * open boundaries) and passable fallback links. Room captures queue these after the camera's room.
+   */
+  neighbours(room: string, out: string[] = []): string[] {
+    out.length = 0;
+    for (const e of this.outgoing.get(room) ?? []) if (e.portal.passable() && !out.includes(e.to)) out.push(e.to);
+    for (const fb of this.fallbacksByRoom.get(room) ?? []) if ((!fb.passable || fb.passable()) && !out.includes(fb.to)) out.push(fb.to);
+    return out;
+  }
+
   private computeHeadlessBfs(curRoom: string, visibleOut: Set<string>): void {
     const q = this.bfsQueue;
     q.length = 0;

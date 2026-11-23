@@ -44,3 +44,12 @@ test('physics switches survive a save round trip', () => {
   const saved = JSON.parse(JSON.stringify({ ...DEFAULT_SETTINGS, physics: { debris: true, ragdoll: true, powered: false, interact: false } }));
   assert.deepEqual(mergeSettings(saved).physics, { debris: true, ragdoll: true, powered: false, interact: false });
 });
+
+test('eye adaptation defaults on, and settings saved before it existed load with it on (post-processing spec)', () => {
+  assert.equal(DEFAULT_SETTINGS.eyeAdaptation, true);
+  const old = mergeSettings({ fov: 90, filmGrain: false });
+  assert.equal(old.eyeAdaptation, true);
+  assert.equal(old.filmGrain, false);
+  assert.equal(mergeSettings({ eyeAdaptation: false }).eyeAdaptation, false);
+  assert.equal(mergeSettings({ eyeAdaptation: 'off' }).eyeAdaptation, true, 'a wrong type falls back to on');
+});

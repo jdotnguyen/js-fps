@@ -211,6 +211,7 @@ export function createMenus(root: HTMLElement, deps: MenuDeps): Menu {
       h('h2', { text: 'Graphics' }),
       quality(),
       toggle('Film grain', 'filmGrain'),
+      toggle('Eye adaptation', 'eyeAdaptation', 'Exposure adjusts slowly when you move between dark and bright rooms.'),
       h('h2', { text: 'Audio' }),
       range('Master volume', 'masterVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)}%`),
       range('Music volume', 'musicVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)}%`),

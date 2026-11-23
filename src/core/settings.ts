@@ -25,6 +25,8 @@ export interface Settings {
   sfxVolume: number;
   voiceVolume: number;
   filmGrain: boolean;
+  /** Exposure follows how bright the view is (post-processing spec "Eye adaptation"); off keeps it fixed. */
+  eyeAdaptation: boolean;
   /** Seconds the skip key is held to skip a cutscene (intro-sequence spec). */
   skipHoldSeconds: number;
   /** One press starts the skip countdown instead of holding the key (intro-sequence spec). */
@@ -48,6 +50,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   sfxVolume: 1,
   voiceVolume: 1,
   filmGrain: true,
+  eyeAdaptation: true,
   skipHoldSeconds: 3,
   skipAssist: false,
   tutorialPrompts: 'first',

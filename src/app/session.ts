@@ -30,6 +30,7 @@ import { applyQuality, createRenderer } from '../render/renderer.ts';
 import { createMaterialsAsync, disposeMaterials, type Materials } from '../render/materials.ts';
 import { collectTextures } from '../render/textures.ts';
 import { createPost, type Post } from '../render/post.ts';
+import type { RoomCaptures } from '../render/roomCaptures.ts';
 import { anisotropyFor, clampTier, materialTextureUnits, RENDER_TIERS, type GpuLimits, type RenderTier } from '../render/tiers.ts';
 import { clearTrackedAnisotropy, currentAnisotropy, setAnisotropy } from '../render/anisotropy.ts';
 import { Humanoid, setCharacterShadowDistance, type FootstepEvent } from '../actors/humanoid.ts';
@@ -206,6 +207,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
   // Resources tracked for deterministic teardown (both on Quit to title and on mid-load error).
   let renderer: THREE.WebGLRenderer | null = null;
   let envTexture: THREE.Texture | null = null;
+  /** Per-room reflections and bounce light, station level only (room-light-response). */
+  let roomCaptures: RoomCaptures | null = null;
   let post: Post | null = null;
   let materials: Materials | null = null;
   let registry: KitRegistry | null = null;
@@ -332,6 +335,10 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     bodyModels?.dispose();
     bodyModels = null;
     clearSharedMocapLibrary();
+    roomCaptures?.dispose();
+    roomCaptures = null;
+    delete (globalThis as { __roomCaptures?: unknown }).__roomCaptures;
+    delete (globalThis as { __post?: unknown }).__post;
     level?.dispose();
     if (!level) world?.dispose?.();
     level = null;
@@ -497,6 +504,24 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       world = demoRoomWorld(room);
     }
 
+    // The station's rooms reflect and bounce their own light once captured; the generic environment holds until then,
+    // and the lab world and sandboxes keep it (room-light-response D7).
+    const { RoomCaptures: Captures, isCaptureWorld } = await import('../render/roomCaptures.ts');
+    if (isCaptureWorld(world)) {
+      const host = world;
+      const capturePmrem = new THREE.PMREMGenerator(renderer);
+      roomCaptures = new Captures({
+        renderer,
+        scene,
+        host,
+        generic: envTexture,
+        filter: (cube, target) => capturePmrem.fromCubemap(cube, target),
+        onIrradiance: (room, sh) => host.setRoomIrradiance(room, sh),
+        onDispose: () => capturePmrem.dispose(),
+      });
+      if (launch.debug.enabled) (globalThis as { __roomCaptures?: unknown }).__roomCaptures = roomCaptures;
+    }
+
     scene.add(world.group);
     const worldMaterials = new Set<THREE.Material>();
     world.group.traverse((o) => {
@@ -569,6 +594,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       world: world.playerWorld,
     });
     post = createPost(renderer, scene, camera, settings.get().quality);
+    if (launch.debug.enabled) (globalThis as { __post?: unknown }).__post = post;
     waterSystem = level ? new WaterSystem(level) : null;
     const splashSize = new THREE.Vector2();
 
@@ -1234,6 +1260,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       setAnisotropy(anisotropyFor(tier, maxAnisotropy));
       setCharacterShadowDistance(tier.characterShadowDistance);
       post.grade.uGrain.value = s.filmGrain ? GRAIN : 0;
+      post.setEyeAdaptation(s.eyeAdaptation);
       game.applyVolume();
     };
     applySettings();
@@ -1492,6 +1519,11 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       render: (_alpha, frameDt) => {
         debug?.beginFrame();
         if (game.mode === 'playing') cameraFeeds!.update(frameDt, simTime);
+        // One room capture face (or filter) per frame, before the level binds the player's view (room-light-response D1).
+        if (roomCaptures) {
+          roomCaptures.step(frameDt);
+          scene.environment = roomCaptures.texture;
+        }
         tutorials.render();
         game.render(frameDt);
         // Optional screenshot view pinning (`window.__view`).

@@ -15,9 +15,10 @@ import {
 import { N8AOPostPass } from 'n8ao';
 import type { Settings } from '../core/settings.ts';
 import { RENDER_TIERS } from './tiers.ts';
+import { createAdaptUniforms, EyeAdaptationPass, type AdaptUniforms } from './eyeAdaptation.ts';
 
-/** Final grade (ADR-0002): chromatic aberration, lift/gain, vignette, film grain, damage tint. */
-export interface GradeUniforms {
+/** Final grade (ADR-0002): eye adaptation, chromatic aberration, lift/gain, vignette, film grain, damage tint. */
+export interface GradeUniforms extends AdaptUniforms {
   uTime: THREE.Uniform<number>;
   uResolution: THREE.Uniform<THREE.Vector2>;
   uGrain: THREE.Uniform<number>;
@@ -42,6 +43,9 @@ uniform float uAberration;
 uniform vec3 uLift;
 uniform vec3 uGain;
 uniform float uDamage;
+uniform sampler2D uAdaptState;
+uniform float uAdaptKey;
+uniform float uAdaptOn;
 
 float gradeHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
@@ -51,6 +55,10 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   vec3 base = texture2D(inputBuffer, uv).rgb;
   vec3 col = vec3(texture2D(inputBuffer, uv + off).r, base.g, texture2D(inputBuffer, uv - off).b);
   col += inputColor.rgb - base;
+
+  // Eye adaptation (post-processing spec, room-light-response D6): exposure follows the adapted luminance, capped.
+  float adaptMul = clamp(uAdaptKey / exp2(texture2D(uAdaptState, vec2(0.5)).r), 0.7, 1.6);
+  col *= mix(1.0, adaptMul, uAdaptOn);
 
   col = col * uGain + uLift;
 
@@ -72,8 +80,9 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
  * `post.grade.uGrain.value` changes the effect. It is not flagged as a convolution: `EffectPass` sorts
  * convolution effects first, which would put the grade before bloom.
  */
-export function createGradeEffect(): { effect: Effect; grade: GradeUniforms } {
+export function createGradeEffect(adapt: AdaptUniforms = createAdaptUniforms()): { effect: Effect; grade: GradeUniforms } {
   const grade: GradeUniforms = {
+    ...adapt,
     uTime: new THREE.Uniform(0),
     uResolution: new THREE.Uniform(new THREE.Vector2(1, 1)),
     uGrain: new THREE.Uniform(0.035),
@@ -247,6 +256,10 @@ export interface Post {
   bloom: BloomEffect;
   smaa: EffectPass;
   grade: GradeUniforms;
+  /** Eye adaptation's measurement (room-light-response D6). */
+  adaptation: EyeAdaptationPass;
+  /** Settings "Eye adaptation": off forces the multiplier to 1.0 through the uniform alone, never rebuilding the chain. */
+  setEyeAdaptation(on: boolean): void;
   setSize(width: number, height: number, pixelRatio: number): void;
   setQuality(quality: Settings['quality']): void;
   render(time: number): void;
@@ -280,6 +293,8 @@ export function createPost(
   // Matched to UnrealBloomPass (strength 0.55, radius 0.45, threshold 0.85) by frame comparison (design.md, 3.6).
   const bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.85, intensity: 4, radius: 0.85 });
   const { effect: gradeEffect, grade } = createGradeEffect();
+  const adaptation = new EyeAdaptationPass(grade);
+  let lastTime: number | null = null;
   const toneMapping = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
   const main = new GradePass(camera, bloom, gradeEffect, toneMapping);
   main.bloomOn = true;
@@ -290,6 +305,7 @@ export function createPost(
   composer.addPass(ao);
   composer.addPass(depthCopy);
   composer.addPass(afterAo);
+  composer.addPass(adaptation);
   composer.addPass(main);
   composer.addPass(smaa);
 
@@ -299,6 +315,11 @@ export function createPost(
     bloom,
     smaa,
     grade,
+    adaptation,
+    setEyeAdaptation(on) {
+      if (on && grade.uAdaptOn.value === 0) adaptation.reset();
+      grade.uAdaptOn.value = on ? 1 : 0;
+    },
     setSize(width, height, pixelRatio) {
       composer.setSize(width, height);
       grade.uResolution.value.set(width * pixelRatio, height * pixelRatio);
@@ -308,6 +329,8 @@ export function createPost(
     },
     render(time) {
       grade.uTime.value = time;
+      adaptation.dt = lastTime === null ? 1 / 60 : time - lastTime;
+      lastTime = time;
       // The chain tone-maps in ToneMappingEffect (which still applies renderer.toneMappingExposure), so the
       // renderer must not tone-map the final draw too. Other screen renders (camera feeds) keep ACES.
       const toneMappingMode = renderer.toneMapping;
