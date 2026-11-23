@@ -109,6 +109,7 @@ import { PoseLibrary } from '../actors/poses.ts';
 import { Inventory } from '../game/inventory.ts';
 import { buildMapModel, MapState, type MapModel } from '../ui/mapModel.ts';
 import { Guidance } from '../game/guidance.ts';
+import { sidearmAllowed } from '../game/sidearm.ts';
 import { loadDialogueLibrary } from '../dialogue/load.ts';
 import { SpeechManager, type Hearing, type SayOptions } from '../dialogue/speech.ts';
 import type { DialogueLine } from '../data/types/dialogue.ts';
@@ -907,6 +908,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       squad!.requestPlacement();
     });
 
+    const sidearmUp = (): boolean => sidearmAllowed(game.flags, level?.anchor('duct_r04') != null);
     viewmodel = new Viewmodel({
       scene,
       camera,
@@ -914,8 +916,10 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       player,
       events,
       models: weaponModels,
-      enabled: () => game.mode === 'playing' && !game.flying && player.alive && player.control.state.weapons && !tutorials.blocking,
+      enabled: () => game.mode === 'playing' && !game.flying && player.alive && player.control.state.weapons && !tutorials.blocking && sidearmUp(),
       visible: () => game.mode !== 'title' && !game.flying,
+      // Before the drop's first duct bang the pistol is not in view at all (the flashlight is); it is drawn when it comes up.
+      armed: sidearmUp,
       reducedMotion: () => settings.get().reducedMotion,
       owns: (id) => id === 'pistol' || !(level?.source.pickups ?? []).some((p) => p.kind === 'weapon_shotgun') || game.flags['weapon:shotgun'] === true,
       flashlightOn: () => flashlight.on,

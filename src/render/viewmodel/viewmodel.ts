@@ -152,6 +152,8 @@ export interface ViewmodelDeps {
   enabled: () => boolean;
   /** The viewmodel should be drawn at all (hidden on the title screen and in fly mode). */
   visible: () => boolean;
+  /** Jay has a pistol in hand. While false no gun is shown (the flashlight still is); it is drawn when this turns true. Default: true. */
+  armed?: () => boolean;
   reducedMotion: () => boolean;
   /** Weapons Jay carries (ADR-0005: the shotgun comes from the R07a armory). Default: all. */
   owns?: (id: WeaponId) => boolean;
@@ -213,6 +215,8 @@ export class Viewmodel {
   /** What the incoming weapon plays: Unhide on a plain switch, Weild when picked up or first drawn. */
   private drawClip: 'Unhide' | 'Weild' = 'Unhide';
   private holster = 1;
+  /** The gun is shown (see `ViewmodelDeps.armed`). */
+  private gunOut = true;
   private sprintBlend = 0;
   private aimBlend = 0;
   private cooldown = 0;
@@ -393,10 +397,21 @@ export class Viewmodel {
     this.time += dt;
     this.group.position.copy(camera.position);
     this.group.quaternion.copy(camera.quaternion);
+    // Unarmed (holster-until-the-drop): the gun is out of view, and drawn the moment Jay is armed.
+    let drew = false;
+    const armed = this.d.armed?.() ?? true;
+    if (armed !== this.gunOut) {
+      this.gunOut = armed;
+      this.rigs[this.current].root.visible = armed;
+      if (armed && this.phase === 'idle') {
+        this.startDraw(this.current, 'Weild');
+        drew = true;
+      }
+    }
     // First frame on screen (new game, back from the title or fly mode): the weapon is drawn.
     if (!this.wasVisible) {
       this.wasVisible = true;
-      if (this.phase === 'idle') this.startDraw(this.current, 'Weild');
+      if (this.phase === 'idle' && this.gunOut && !drew) this.startDraw(this.current, 'Weild');
     }
 
     const active = this.d.enabled();
