@@ -15,6 +15,7 @@ import {
   type Validator,
 } from '../../core/validate.ts';
 import { LIGHT_PATTERNS } from '../../render/lights.ts';
+import { COOKIE_KINDS } from '../../render/cookies.ts';
 
 /**
  * Level JSON (ADR-0003). All positions are world metres; `cell` values are grid indices
@@ -147,6 +148,11 @@ const lightShape = {
   pool: optional(bool),
   /** true: casts shadows as a downward cone while the tier's shadow pool has room; otherwise lights the room unshadowed (render-lighting spec). */
   shadow: optional(bool),
+  /**
+   * A pattern this shadow light projects while it holds one of the tier's patterned shadow spots: a grille, a turning
+   * vent fan or a cracked lens (render-lighting "Light patterns"). Without a patterned spot it lights evenly.
+   */
+  cookie: optional(oneOf(COOKIE_KINDS)),
   /** A broken fixture: it throws sparks each time its tube cuts out or strikes back on (flooded-tunnel spec). */
   sparks: optional(bool),
   /** true: stays lit, dimmed, under backup power (render-lighting spec "Backup lights"). `emergency` slots always do. */

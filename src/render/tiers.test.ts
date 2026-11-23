@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import * as THREE from 'three';
 import assert from 'node:assert/strict';
 import { RENDER_TIERS, anisotropyFor, clampTier, materialTextureUnits } from './tiers.ts';
 import { tierPixelRatio, applyQuality } from './renderer.ts';
@@ -36,21 +37,34 @@ test('anisotropy is the GPU maximum on High and at most 8 elsewhere', () => {
 });
 
 test('a roomy GPU keeps the tier as written, with no warnings', () => {
-  const { tier, warnings } = clampTier(RENDER_TIERS.high, { maxTextures: 16, maxFragmentUniforms: 1024, materialUnits: 7 });
+  const { tier, warnings } = clampTier(RENDER_TIERS.high, { maxTextures: 16, maxFragmentUniforms: 1024, materialUnits: 6 });
   assert.equal(tier.shadowLights, 6);
+  assert.equal(tier.cookieSpots, 2);
   assert.equal(tier.fillLights, 32);
   assert.deepEqual(warnings, []);
 });
 
-test('low GPU limits cut the shadow and fill pools and warn about each', () => {
-  const { tier, warnings } = clampTier(RENDER_TIERS.high, { maxTextures: 8, maxFragmentUniforms: 224, materialUnits: 5 });
-  assert.equal(tier.shadowLights, 2, '8 units - 5 for materials - 1 for the flashlight');
+test('low GPU limits cut the patterns, shadow and fill pools and warn about each', () => {
+  const { tier, warnings } = clampTier(RENDER_TIERS.high, { maxTextures: 9, maxFragmentUniforms: 224, materialUnits: 5 });
+  assert.equal(tier.shadowLights, 2, '9 units - 5 for materials - 2 for the flashlight (shadow and lens)');
+  assert.equal(tier.cookieSpots, 0, 'patterns go first');
   // 224 - 128 reserved - (2 + 1) spots x 7 = 75 vectors -> 25 point lights.
   assert.equal(tier.fillLights, 25);
-  assert.equal(warnings.length, 2);
-  assert.match(warnings[0]!, /shadow lights 6 -> 2/);
-  assert.match(warnings[1]!, /fill lights 32 -> 25/);
+  assert.equal(warnings.length, 3);
+  assert.match(warnings[0]!, /light patterns 2 -> 0/);
+  assert.match(warnings[1]!, /shadow lights 6 -> 2/);
+  assert.match(warnings[2]!, /fill lights 32 -> 25/);
   assert.equal(RENDER_TIERS.high.shadowLights, 6, 'the table itself is untouched');
+});
+
+test('light patterns are cut before shadow lights when texture units run short', () => {
+  // 16 units, 7 for the heaviest material, 2 for the flashlight: 7 left for 6 shadow lights and their patterns.
+  const { tier, warnings } = clampTier(RENDER_TIERS.high, { maxTextures: 16, maxFragmentUniforms: 1024, materialUnits: 7 });
+  assert.equal(tier.shadowLights, 6);
+  assert.equal(tier.cookieSpots, 1);
+  assert.deepEqual(warnings.map((w) => w.split(':')[0]), ['light patterns 2 -> 1']);
+  assert.equal(RENDER_TIERS.medium.cookieSpots, 1);
+  assert.equal(RENDER_TIERS.low.cookieSpots, 0);
 });
 
 test('material units count the maps a material binds, plus the scene environment', () => {
@@ -58,6 +72,20 @@ test('material units count the maps a material binds, plus the scene environment
   assert.equal(materialTextureUnits({ map: tex, normalMap: tex, roughnessMap: tex, metalnessMap: tex, envMapIntensity: 1 }, true), 5);
   assert.equal(materialTextureUnits({ map: tex, envMapIntensity: 1 }, false), 1);
   assert.equal(materialTextureUnits({ map: tex }, true), 1, 'an unlit material samples no environment');
+});
+
+test('a standard material also binds the DFG lookup table (r187), as the linked program shows', () => {
+  const m = new THREE.MeshStandardMaterial({ map: new THREE.Texture(), normalMap: new THREE.Texture(), roughnessMap: new THREE.Texture(), metalnessMap: new THREE.Texture(), aoMap: new THREE.Texture() });
+  // map, aoMap, normal, roughness, metalness, the scene environment and dfgLUT: 7, as steelBrushed links in the game.
+  assert.equal(materialTextureUnits(m, true), 7);
+  assert.equal(materialTextureUnits(new THREE.MeshBasicMaterial({ map: new THREE.Texture() }), true), 1);
+  // The game's heaviest materials (hull plates, lab decals) then reach 8: High on a 16-unit GPU keeps 6 shadow lights
+  // and 2 units for the flashlight, with no room left for a patterned spot.
+  const { tier, warnings } = clampTier(RENDER_TIERS.high, { maxTextures: 16, maxFragmentUniforms: 1024, materialUnits: 8 });
+  assert.equal(tier.shadowLights + tier.cookieSpots + 8 + 2, 16);
+  assert.equal(tier.shadowLights, 6);
+  assert.equal(tier.cookieSpots, 0);
+  assert.equal(warnings.length, 1);
 });
 
 test('post passes follow the tier: AO on High, bloom and SMAA on Medium and High, off on Low', () => {

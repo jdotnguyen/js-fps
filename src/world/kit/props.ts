@@ -10,7 +10,7 @@ import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { lathe, slab } from './shapes.ts';
 import { bolts, cableTray, inFrame, pipeRun } from './detail.ts';
 import { resolvePalette } from './palettes.ts';
-import { PieceBuilder, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams, swingAngle } from './types.ts';
+import { PieceBuilder, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams, newJolt, swingAngle } from './types.ts';
 
 /**
  * Prop kit (ADR-0003). Placed freely in metres; origin on the floor, front faces -Z.
@@ -288,7 +288,7 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     tube.add(cable);
     pivot.add(tube);
     pb.dynamic(pivot);
-    const swing = { pivot: [0, ceiling - 0.05, 0] as [number, number, number], amp, period };
+    const swing = { pivot: [0, ceiling - 0.05, 0] as [number, number, number], amp, period, jolt: newJolt() };
     pb.tick((t) => {
       pivot.rotation.x = swingAngle(swing, t);
     });

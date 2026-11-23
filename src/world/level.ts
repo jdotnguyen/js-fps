@@ -28,9 +28,10 @@ import {
 import { HullBuilder, type ExteriorHull } from './kit/exteriorHull.ts';
 import { AoMergeBuilder, applyWorldMeterUvs, withVertexColors, type AoFn } from './kit/merge.ts';
 import { snapModelToSocket, type SnapOptions } from './kit/modelSnap.ts';
-import { CELL, CORRIDOR_H, DECK_H, ROOM_H, WALL_MOUNTED_PROPS, swingAngle, transformBox, type BoxSpec, type LightSlotKind, type PieceOutput, type PieceParams, type Socket, type SocketKind } from './kit/types.ts';
+import { CELL, CORRIDOR_H, DECK_H, ROOM_H, WALL_MOUNTED_PROPS, joltSwing, swingAngle, transformBox, type BoxSpec, type SwingJolt, type LightSlotKind, type PieceOutput, type PieceParams, type Socket, type SocketKind } from './kit/types.ts';
 import { LightPool, type PooledSlot } from './lightPool.ts';
 import { ShadowPool } from './shadowPool.ts';
+import { doorCaster, RigidCaster, shadowCasters, type ShadowCasterSet } from '../render/shadowCasters.ts';
 import type { LightBudget } from './world.ts';
 import { flashingState } from '../render/flashing.ts';
 import type { KitRegistry } from './registry.ts';
@@ -103,6 +104,8 @@ export interface LevelDeps {
   debugChecker?: boolean;
   /** Light pool sizes for the active quality tier (render-lighting spec). Default: 8 fill lights, no shadow lights. */
   lightBudget?: LightBudget;
+  /** Moving shadow casters the shadow pool watches (shadow-rich-rooms D4). Default: the shared set. */
+  shadowCasters?: ShadowCasterSet;
 }
 
 export const AMBIENT: Record<AmbientPreset, { sky: number; ground: number; intensity: number; keyColor: number; keyIntensity: number }> = {
@@ -339,7 +342,7 @@ interface RawSlot {
   pos: THREE.Vector3;
   kind: LightSlotKind;
   ry: number;
-  swing?: { pivot: THREE.Vector3; amp: number; period: number };
+  swing?: { pivot: THREE.Vector3; amp: number; period: number; jolt?: SwingJolt };
 }
 
 /** Placement matrix for a grid cell and a rotation in degrees. */
@@ -445,6 +448,16 @@ export class Level implements World {
   private readonly dust: Particulates;
   private readonly visibleSlots: PooledSlot[] = [];
   private readonly fillSlots: PooledSlot[] = [];
+  /** The player camera's frustum this frame, for ranking shadow lights by view (null without a camera). */
+  private readonly viewFrustum = new THREE.Frustum();
+  private readonly viewProj = new THREE.Matrix4();
+  /** Swinging fixtures that knocks can set swinging harder (shadow-rich-rooms D6). */
+  private readonly swingers: Array<{ room: string; swing: { amp: number; period: number; jolt?: SwingJolt }; rest: THREE.Vector3; along: THREE.Vector3 }> = [];
+
+  /** Moving shadow casters the shadow pool watches. */
+  get casters(): ShadowCasterSet {
+    return this.deps.shadowCasters ?? shadowCasters;
+  }
   private current: RoomRuntime | null = null;
   /** Light patterns as authored (resetToData), and the colours a tint replaced (tintRoomLights). */
   private initialPatterns: LightPattern[] = [];
@@ -484,7 +497,7 @@ export class Level implements World {
     this.debug = { sockets: [], slots: [], nav: [], rooms: [], triggers: [], bounds: new THREE.Box3(), keepouts: [], wallProps: [] };
     const budget = deps.lightBudget ?? { fillLights: 8, shadowLights: 0, shadowMapSize: 1024 };
     this.pool = new LightPool(this.group, budget.fillLights);
-    this.shadowPool = new ShadowPool(this.group, budget.shadowLights, budget.shadowMapSize);
+    this.shadowPool = new ShadowPool(this.group, budget.shadowLights, budget.shadowMapSize, budget.cookieSpots ?? 0);
     this.hemi = new THREE.HemisphereLight(AMBIENT.normal.sky, AMBIENT.normal.ground, AMBIENT.normal.intensity);
     this.group.add(this.hemi);
     this.keyFill = new THREE.DirectionalLight(AMBIENT.normal.keyColor, AMBIENT.normal.keyIntensity);
@@ -967,6 +980,7 @@ export class Level implements World {
         for (const child of [...out.object.children]) grp.add(child);
         out.object.add(grp);
         this.dynamicProps.set(id, { mass: prop.dynamic.mass, room: r.id });
+        this.offs.push(this.casters.add(new RigidCaster(grp)));
       }
       this.integrate(room, out, matrix, ry, rawSlots);
     }
@@ -1013,6 +1027,8 @@ export class Level implements World {
           if (swingSlot.ref) mesh.getWorldPosition(swingSlot.ref.position).y -= drop;
         });
         swingRefs.push(swingSlot);
+        // Knockable (shadow-rich-rooms D6): its rest point, and the direction a positive knock swings it.
+        if (sw.jolt) this.swingers.push({ room: r.id, swing: sw, rest: slot.pos.clone(), along: new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), slot.ry) });
       }
       const shafts: ShaftUniforms[] = [];
       if (slot.kind === 'ceiling' && shaftBase > 0) {
@@ -1047,6 +1063,7 @@ export class Level implements World {
         kind: slot.kind,
         ...(light.pool === false ? { pooled: false } : {}),
         ...(light.shadow === true ? { shadow: true } : {}),
+        ...(light.cookie ? { cookie: light.cookie } : {}),
         ...(light.backup === true ? { backup: true } : {}),
         ...(light.ownColor === true ? { ownColor: true } : {}),
         ...(light.backupScale !== undefined ? { backupScale: light.backupScale, backup: true } : {}),
@@ -1463,6 +1480,9 @@ export class Level implements World {
     };
     ref = door;
     this.doors.push(door);
+    // A moving door leaf redraws the cached shadow maps it falls in (shadow-rich-rooms D4); the version follows the
+    // leaves' pose, so every way a door moves (auto, scripted, pried) counts.
+    this.offs.push(this.casters.add(doorCaster(visual.leaves, group, center)));
     if (d.unlockOn) {
       const name = d.unlockOn;
       this.onNamed(name, () => this.unlockDoor(door, 'script'));
@@ -2146,6 +2166,67 @@ export class Level implements World {
     return box.getCenter(new THREE.Vector3());
   }
 
+  /**
+   * What lights each claimed slot of the visible rooms this frame, for the ?debug lighting overlay (shadow-rich-rooms D9):
+   * a shadow spot, a fill light, or nothing (the pool was full, or the light is out).
+   */
+  lightingState(): {
+    slots: Array<{ slot: PooledSlot; by: 'shadow' | 'fill' | 'none' }>;
+    claimed: number;
+    room: string | null;
+  } {
+    const slots: Array<{ slot: PooledSlot; by: 'shadow' | 'fill' | 'none' }> = [];
+    for (const r of this.rooms) {
+      if (!r.visible) continue;
+      for (const s of r.slots) {
+        const l = s.item.light;
+        slots.push({ slot: s, by: l instanceof THREE.SpotLight ? 'shadow' : l ? 'fill' : 'none' });
+      }
+    }
+    return { slots, claimed: slots.length, room: this.current?.data.id ?? null };
+  }
+
+  /**
+   * Knock swinging lamps within `radius` of `at` (a shotgun blast): each gains up to `strength` rad/s of swing, less
+   * with distance, away from the blast. Returns how many were knocked (render-lighting "Swaying lights").
+   */
+  joltLightsNear(at: THREE.Vector3, radius: number, strength: number): number {
+    let n = 0;
+    for (const s of this.swingers) {
+      const d = s.rest.distanceTo(at);
+      if (d > radius) continue;
+      const side = Math.sign(this.scratch2.copy(s.rest).sub(at).dot(s.along)) || 1;
+      joltSwing(s.swing.jolt!, side * strength * (1 - d / radius));
+      n++;
+    }
+    return n;
+  }
+
+  /** Knock swinging lamps whose bulb a shot's ray (from `from` along `dir`, `length` m) passes within `reach` m of. */
+  joltLightsAlong(from: THREE.Vector3, dir: THREE.Vector3, length: number, strength: number, reach = 0.3): number {
+    let n = 0;
+    for (const s of this.swingers) {
+      const t = this.scratch2.copy(s.rest).sub(from).dot(dir);
+      if (t < 0 || t > length) continue;
+      const closest = this.scratch2.copy(from).addScaledVector(dir, t);
+      if (closest.distanceTo(s.rest) > reach) continue;
+      joltSwing(s.swing.jolt!, (Math.sign(dir.dot(s.along)) || 1) * strength);
+      n++;
+    }
+    return n;
+  }
+
+  /** Knock every swinging lamp in a room (the `lightJolt` sequence action). False when the room has none. */
+  joltRoomLights(roomId: string, strength: number): boolean {
+    let any = false;
+    for (const s of this.swingers) {
+      if (s.room !== roomId) continue;
+      joltSwing(s.swing.jolt!, strength);
+      any = true;
+    }
+    return any;
+  }
+
   /** Controlled light fixtures in a room (for positional fluorescent buzz and flicker arcs), with their slot kind. */
   roomLights(roomId: string): ReadonlyArray<{ position: THREE.Vector3; light: ControlledLight; kind: LightSlotKind }> {
     const room = this.rooms.find((r) => r.data.id === roomId);
@@ -2290,8 +2371,14 @@ export class Level implements World {
       this.keyFill.intensity += (amb.keyIntensity - this.keyFill.intensity) * k;
     }
 
-    // Light pool: slots of visible rooms, current room first.
-    this.bindLights(cur, eye);
+    // Light pool: slots of visible rooms, current room first; shadow lights to what is in view.
+    let frustum: THREE.Frustum | null = null;
+    if (camera) {
+      camera.updateMatrixWorld();
+      this.viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+      frustum = this.viewFrustum.setFromProjectionMatrix(this.viewProj);
+    }
+    this.bindLights(cur, eye, true, dt, frustum);
     this.lastTime = t;
     this.lastFlashing = reducedFlashing;
     flashingState.reduced = reducedFlashing;
@@ -2340,9 +2427,10 @@ export class Level implements World {
 
   /**
    * Give the visible rooms' light slots to the pooled lights, nearest `eye` first, `cur` first of all.
-   * Opted-in slots take the shadow spots first (unless `shadows` is false); the rest share the fill pool.
+   * Opted-in slots take the shadow spots first, ranked by `frustum` and held across frames (render-lighting); the
+   * rest share the fill pool. With `shadows` false (a side view) the shadow pool is suspended, not re-bound.
    */
-  private bindLights(cur: RoomRuntime | null, eye: THREE.Vector3, shadows = true): void {
+  private bindLights(cur: RoomRuntime | null, eye: THREE.Vector3, shadows = true, dt = 0, frustum: THREE.Frustum | null = null): void {
     const slots = this.visibleSlots;
     const fill = this.fillSlots;
     slots.length = 0;
@@ -2362,7 +2450,8 @@ export class Level implements World {
         slots.push(s);
       }
     }
-    this.shadowPool.assign(shadows ? slots : [], eye);
+    if (shadows) this.shadowPool.assign(slots, eye, { dt, frustum, casters: this.casters });
+    else this.shadowPool.suspend();
     for (const s of slots) if (!this.shadowPool.holds(s)) fill.push(s);
     this.pool.assign(fill, eye);
   }
@@ -2370,7 +2459,7 @@ export class Level implements World {
   /** Resize the light pools for a quality tier (render-lighting spec). Materials recompile once, on the next frame. */
   setLightBudget(budget: LightBudget): void {
     this.pool.resize(budget.fillLights);
-    this.shadowPool.resize(budget.shadowLights, budget.shadowMapSize);
+    this.shadowPool.resize(budget.shadowLights, budget.shadowMapSize, budget.cookieSpots ?? 0);
   }
 
   /**

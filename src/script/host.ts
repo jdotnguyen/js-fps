@@ -113,6 +113,8 @@ export interface SequenceHost {
   pryDoor?(id: string, open: number, seconds: number): boolean;
   /** `tint`: "emergency", "none" (level colours) or "#rrggbb"; omitted keeps the current colour. */
   setLight?(room: string, pattern: string, tint?: string): boolean;
+  /** Knock a room's swinging lamps (render-lighting "Swaying lights"); false when it has none. */
+  joltLights?(room: string, strength: number): boolean;
   lightStates?(): Record<string, string>;
   glass?(id: string, state: string): void;
   /** Security camera feed (render-to-texture, `render/cameraFeed.ts`). */

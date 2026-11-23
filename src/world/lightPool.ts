@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { ControlledLight } from '../render/lights.ts';
 import type { LightSlotKind } from './kit/types.ts';
+import type { CookieKind } from '../render/cookies.ts';
 
 /** A claimed light slot that can borrow one of the pooled lights. */
 export interface PooledSlot {
@@ -14,6 +15,8 @@ export interface PooledSlot {
   pooled?: boolean;
   /** true: the level data opted this light in to shadows; it takes a shadow spot when one is free (render-lighting spec). */
   shadow?: boolean;
+  /** A light pattern it projects while it holds a patterned shadow spot (shadow-rich-rooms D7). */
+  cookie?: CookieKind;
   /** Fixture kind, for the shadow spot's cone and bias. */
   kind?: LightSlotKind;
   /** Scratch: score used while sorting. */

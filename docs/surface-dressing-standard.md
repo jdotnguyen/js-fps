@@ -76,3 +76,21 @@ The level tests report each room's draw calls and triangles but no longer fail o
 2. Screenshot from each entry door at eye height (1.62 m), with and without post-processing (`?nopost`).
 3. Decal and cluster counts are inside the §4 and §5 budgets.
 4. `npm test` and `npm run typecheck` pass.
+
+## 8. Shadow lights, sway and patterns
+
+Shadow lights are the room's most expensive light and its strongest mood (`render-lighting` spec). The pool holds 0 on Low, 2 on Medium and 6 on High, of which 1 on Medium and 2 on High can project a pattern. Spend them on lights the player looks at and on pools where people and furniture throw shadows.
+
+| Field | Where | Values | What it costs |
+| --- | --- | --- | --- |
+| `shadow: true` | a room's `lights` entry | boolean | Takes a shadow spot while it ranks high enough: its lit area in view first, then the current room, then nearest. It keeps its spot for 0.5 s after being outranked, then the shadow fades over. A cached shadow redraws only while something moving is under it. |
+| `cookie` | a room's `lights` entry (with `shadow: true`) | `grille`, `fan` (turns), `cracked` | Shows only while it holds a patterned spot; otherwise the light casts a plain shadow or lights evenly. A `fan` redraws its shadow every frame. |
+| `sway` | `pendant_light` params | `true` (0.06 rad) or an amplitude in radians, up to 0.4 | Each swaying bulb's cable and shade are one unmerged group: about 3 more draw calls per bulb. Its shadow redraws every frame while it swings. Shots nearby, shots passing the shade and the `lightJolt` sequence action knock it harder. |
+
+Rules:
+
+- Opt in at most two or three lights per room. A room with more opted-in lights than Medium's 2 hand shadows over as the player moves, and only High shows them all.
+- Put opted-in lights where the floor under them is busy: a sofa, a table, a stage where people stand. A shadow light over an empty corridor costs a spot and shows nothing.
+- Give a pattern to a light whose pool the player sees from far away (the grille over R03's stage). Keep patterns off lights that hand over often.
+- Sway is for hanging lamps in calm rooms and for lamps the story knocks. Do not sway every lamp in a room: one or two moving pools read as alive, a whole row reads as an earthquake.
+- Check a room with the `?debug` lighting overlay (Level folder): green cones hold a shadow, yellow ones are fading, blue rings are fill lights, red crosses got no light. The HUD line shows how many shadows were redrawn this frame.

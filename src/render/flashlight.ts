@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { pauseShadow } from './shadowMapKeep.ts';
+import { cookieTexture } from './cookies.ts';
 
 /** Flashlight shadow biases and soft-PCF radius in texels (`PCFShadowMap` since r183). */
 export const FLASHLIGHT_SHADOW = { bias: -0.0004, normalBias: 0.02, radius: 2 } as const;
@@ -34,6 +35,8 @@ export class Flashlight {
     this.light.shadow.normalBias = FLASHLIGHT_SHADOW.normalBias;
     this.light.shadow.radius = FLASHLIGHT_SHADOW.radius;
     this.light.shadow.camera.near = 0.1;
+    // A faint lens pattern on every tier: hot spot, ring, smudges (player-flashlight "The beam has a lens pattern").
+    this.light.map = cookieTexture('lens');
     scene.add(this.light, this.light.target);
     camera.getWorldDirection(this.dir);
   }

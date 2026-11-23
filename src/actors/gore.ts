@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Rng } from '../core/rng.ts';
 import { clearOfBand, clipCoord, sameClip, type ClearBand, type GoreClip } from './goreClip.ts';
 import { floorDebris, type DebrisBackend, type DebrisImpact, type DebrisPiece } from './debrisBackend.ts';
+import { ManualCaster, RigidCaster, shadowCasters } from '../render/shadowCasters.ts';
 
 /**
  * Severing effects (ADR-0006): rigid debris, fluid spurts and floor pools. One instance per
@@ -309,6 +310,7 @@ export class GoreSystem {
       this.chunkSlots.push({ pos: new THREE.Vector3(), vel: new THREE.Vector3(), rot: new THREE.Quaternion(), spin: new THREE.Vector3(), scale: 1, live: false, resting: false, clip: -1 });
     }
     this.group.add(this.chunkMesh);
+    this.unregisterCaster = shadowCasters.add(this.shadowCaster);
 
     const tex = poolTexture();
     const pool = (color: number): THREE.MeshStandardMaterial =>
@@ -529,6 +531,13 @@ export class GoreSystem {
     this.group.attach(object);
     // Reduced gore never detaches anything (the humanoid keeps the limb), and never makes a physical piece either.
     const backend = this.mode === 'reduced' ? this.floorBackend : this.debrisBackend;
+    // A flying limb is a moving shadow caster until it is gone (shadow-rich-rooms D4).
+    const unregister = shadowCasters.add(new RigidCaster(object));
+    const disposeObject = dispose;
+    dispose = () => {
+      unregister();
+      disposeObject();
+    };
     const piece: DebrisPiece = {
       object,
       velocity: velocity.clone(),
@@ -734,11 +743,22 @@ export class GoreSystem {
     c.vel[clip.axis] = nv;
   }
 
+  /** Flying chunks as one moving shadow caster (shadow-rich-rooms D4): their bounds while any fly, none once all rest. */
+  readonly shadowCaster = new ManualCaster((out) => {
+    if (this.flying.isEmpty()) return false;
+    this.flying.getBoundingSphere(out);
+    out.radius += 0.05;
+    return true;
+  });
+  private readonly flying = new THREE.Box3();
+
   private updateChunks(dt: number): void {
     let dirty = false;
+    this.flying.makeEmpty();
     this.chunkSlots.forEach((c, i) => {
       if (!c.live || c.resting) return;
       dirty = true;
+      this.flying.expandByPoint(c.pos);
       c.vel.y -= GRAVITY * dt;
       c.pos.addScaledVector(c.vel, dt);
       const a = c.spin.length() * dt;
@@ -757,7 +777,10 @@ export class GoreSystem {
       this.cm.compose(c.pos, c.rot, this.cs.setScalar(c.scale));
       this.chunkMesh.setMatrixAt(i, this.cm);
     });
-    if (dirty) this.chunkMesh.instanceMatrix.needsUpdate = true;
+    if (dirty) {
+      this.chunkMesh.instanceMatrix.needsUpdate = true;
+      this.shadowCaster.bump();
+    }
   }
 
   // ---------------------------------------------------------------- internals
@@ -902,7 +925,10 @@ export class GoreSystem {
   }
 
   /** Dispose all gore geometries, materials, canvas/data textures, and module-level cloudTex. */
+  private readonly unregisterCaster: () => void;
+
   dispose(): void {
+    this.unregisterCaster();
     this.clear();
     this.points.geometry.dispose();
     (this.points.material as THREE.Material).dispose();

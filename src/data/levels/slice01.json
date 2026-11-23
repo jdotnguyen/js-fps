@@ -3339,7 +3339,8 @@
       "drop": 1.55,
       "count": 2,
       "spacing": 0.9,
-      "slots": true
+      "slots": true,
+      "sway": true
      }
     },
     {
@@ -3398,7 +3399,8 @@
      "color": "#eef1f4",
      "intensity": 5,
      "range": 8,
-     "shadow": true
+     "shadow": true,
+     "cookie": "grille"
     },
     {
      "slot": 6,

@@ -20,13 +20,13 @@ const mats = new Proxy({} as Record<string, THREE.Material>, {
   get: (t, k: string) => (t[k] ??= k === 'glass' ? new THREE.MeshPhysicalMaterial({ transparent: true }) : Object.assign(new THREE.MeshStandardMaterial(), { name: k })),
 }) as unknown as Materials;
 
-const budget = (q: keyof typeof RENDER_TIERS): LightBudget => ({ fillLights: RENDER_TIERS[q].fillLights, shadowLights: RENDER_TIERS[q].shadowLights, shadowMapSize: RENDER_TIERS[q].shadowMapSize });
+const budget = (q: keyof typeof RENDER_TIERS): LightBudget => ({ fillLights: RENDER_TIERS[q].fillLights, shadowLights: RENDER_TIERS[q].shadowLights, shadowMapSize: RENDER_TIERS[q].shadowMapSize, cookieSpots: RENDER_TIERS[q].cookieSpots });
 
 /**
  * Room A: 6 ceiling cells in a row (x 0..5), all lit; `shadowSlots` opt in to shadows.
  * Room B (x 7..8) is visible from A, both its lights opted in.
  */
-function build(shadowSlots: number[], q: keyof typeof RENDER_TIERS): Level {
+function build(shadowSlots: number[], q: keyof typeof RENDER_TIERS, cookies: Record<number, 'grille' | 'fan' | 'cracked'> = {}): Level {
   const aCells = Array.from({ length: 6 }, (_, x) => [x, 0, 0] as [number, number, number]);
   const data: LevelData = {
     id: 'shadow_test',
@@ -37,7 +37,7 @@ function build(shadowSlots: number[], q: keyof typeof RENDER_TIERS): Level {
         id: 'A',
         name: 'A',
         pieces: [...aCells.map((cell) => ({ kit: 'ceiling', cell })), { kit: 'floor', cells: aCells }],
-        lights: aCells.map((_, i) => ({ slot: i, pattern: 'steady' as const, ...(shadowSlots.includes(i) ? { shadow: true } : {}) })),
+        lights: aCells.map((_, i) => ({ slot: i, pattern: 'steady' as const, ...(shadowSlots.includes(i) ? { shadow: true } : {}), ...(cookies[i] ? { cookie: cookies[i] } : {}) })),
       },
       {
         id: 'B',
@@ -194,4 +194,46 @@ test('an unbound pool spot stays paused but gets one shadow pass to allocate its
   assert.ok(unbound, 'High leaves pool spots unbound');
   assert.equal(unbound.shadow.autoUpdate, false);
   assert.equal(unbound.shadow.needsUpdate, true);
+});
+
+test('a camera feed drawn every frame causes no hand-overs, no fade restarts and no extra redraws (shadow-rich-rooms D2a)', () => {
+  const level = build([0, 3], 'medium');
+  const eye = new THREE.Vector3(0, 1.62, 0);
+  for (let i = 1; i < 30; i++) level.update(i / 60, 1 / 60, eye, false);
+  const before = level.shadowPool.states().map((s) => [s.slot, s.phase, s.fade]);
+  for (let i = 30; i < 120; i++) {
+    let lit = -1;
+    level.renderFromEye(new THREE.Vector3(4, 1.62, 0), () => void (lit = level.shadowPool.lights.filter((l) => l.intensity > 0).length));
+    assert.equal(lit, 0, 'no shadow spot lights the feed');
+    level.update(i / 60, 1 / 60, eye, false);
+    assert.equal(level.shadowPool.redraws, 0, `frame ${i}: nothing redrawn`);
+  }
+  assert.deepEqual(level.shadowPool.states().map((s) => [s.slot, s.phase, s.fade]), before);
+  assert.ok(level.shadowPool.lights.every((l) => l.intensity > 0), 'the player view is lit by both spots again');
+});
+
+test('level data accepts a known light pattern and rejects an unknown one', () => {
+  const kits: KitIds = { structure: new Set(['ceiling', 'floor']), prop: new Set() };
+  const raw = (cookie: unknown): unknown => ({
+    id: 'v',
+    seed: 1,
+    playerStart: { room: 'A', pos: [0, 0, 0], yaw: 0 },
+    rooms: [{ id: 'A', name: 'A', pieces: [{ kit: 'ceiling', cell: [0, 0, 0] }], lights: [{ slot: 0, pattern: 'steady', shadow: true, cookie }] }],
+    doors: [],
+    checkpoints: [],
+  });
+  for (const kind of ['grille', 'fan', 'cracked']) assert.equal(validate(levelValidator(kits), raw(kind), 'v').rooms[0]!.lights![0]!.cookie, kind);
+  assert.throws(() => validate(levelValidator(kits), raw('disco'), 'v'), /cookie/);
+  assert.throws(() => validate(levelValidator(kits), raw('lens'), 'v'), /cookie/, "the flashlight's lens is not a room pattern");
+});
+
+test('a level light with a cookie offers it to the pool, and a patterned spot projects it', () => {
+  const level = build([0, 3], 'medium', { 3: 'grille' });
+  const a = level.roomLights('A');
+  const patterned = a[3]!.light.light as THREE.SpotLight;
+  assert.ok(patterned instanceof THREE.SpotLight);
+  assert.equal(patterned.map?.name, 'cookie:grille', "Medium's one patterned spot goes to the patterned light");
+  const plain = a[0]!.light.light as THREE.SpotLight;
+  assert.ok(plain instanceof THREE.SpotLight);
+  assert.equal(plain.map, null);
 });

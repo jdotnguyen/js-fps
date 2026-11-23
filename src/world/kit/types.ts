@@ -77,11 +77,61 @@ export interface SlotSwing {
   pivot: Vec3;
   amp: number;
   period: number;
+  /**
+   * Extra swing from knocks (a shot nearby, a scripted jolt; shadow-rich-rooms D6). The piece and the level share
+   * this object (the level copies the swing with a spread), so both see the same knock.
+   */
+  jolt?: SwingJolt;
+}
+
+/** A damped pendulum added on top of the authored swing: angle (rad), angular velocity (rad/s), last advanced time (s). */
+export interface SwingJolt {
+  angle: number;
+  vel: number;
+  t: number;
+}
+
+/** A knock decays to a third in about this long (s). */
+export const JOLT_DECAY = 1.6;
+/** Largest extra swing a knock can build up (rad). */
+export const JOLT_MAX = 0.5;
+
+export function newJolt(): SwingJolt {
+  return { angle: 0, vel: 0, t: -Infinity };
+}
+
+/** Knock a swing: add angular velocity (rad/s). */
+export function joltSwing(j: SwingJolt, vel: number): void {
+  j.vel += vel;
+}
+
+/** Advance a jolt to time t and return its angle. Calling it again at the same t changes nothing. */
+export function advanceJolt(j: SwingJolt, t: number, period: number): number {
+  if (!Number.isFinite(j.t) || t < j.t) {
+    j.t = t;
+    return j.angle;
+  }
+  let dt = Math.min(t - j.t, 0.25);
+  j.t = t;
+  const w = (2 * Math.PI) / period;
+  const damp = 1 / JOLT_DECAY;
+  while (dt > 1e-6) {
+    const h = Math.min(dt, 1 / 120);
+    j.vel += (-w * w * j.angle - 2 * damp * j.vel) * h;
+    j.angle += j.vel * h;
+    dt -= h;
+  }
+  if (Math.abs(j.angle) > JOLT_MAX) {
+    j.angle = Math.sign(j.angle) * JOLT_MAX;
+    j.vel = 0;
+  }
+  return j.angle;
 }
 
 /** Angle of a swinging slot at time t (the prop and the level both use it, so housing and glow stay together). */
-export function swingAngle(s: Pick<SlotSwing, 'amp' | 'period'>, t: number): number {
-  return s.amp * Math.sin((2 * Math.PI * t) / s.period) + s.amp * 0.18 * Math.sin((2 * Math.PI * t) / (s.period * 2.7) + 1.1);
+export function swingAngle(s: Pick<SlotSwing, 'amp' | 'period' | 'jolt'>, t: number): number {
+  const base = s.amp * Math.sin((2 * Math.PI * t) / s.period) + s.amp * 0.18 * Math.sin((2 * Math.PI * t) / (s.period * 2.7) + 1.1);
+  return s.jolt ? base + advanceJolt(s.jolt, t, s.period) : base;
 }
 
 /** Positional looping sound declared by a kit prop (in piece space). */

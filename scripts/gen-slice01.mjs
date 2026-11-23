@@ -520,7 +520,7 @@ const R03 = room('R03', 'Observation Gallery', rect(1, 3, 4, 5), {
   lights: [
     ...[0, 2, 3, 5].map((i) => L(i, 'steady', '#eef1f4', 3, 6)),
     L(1, 'steady', '#eef1f4', 5, 8, { shadow: true }),
-    L(4, 'steady', '#eef1f4', 5, 8, { shadow: true }),
+    L(4, 'steady', '#eef1f4', 5, 8, { shadow: true, cookie: 'grille' }), // a louvred fitting: its grille lands on the stage (shadow-rich-rooms)
     L(6, 'steady', '#ffcf99', 20, 6, { shadow: true }),
     L(7, 'steady', '#ffcf99', 20, 6, { shadow: true }),
     L(8, 'steady', '#ffcf99', 20, 6),
@@ -561,7 +561,7 @@ prop(R03, 'coffee_table', [12, 0, 19.9], 0, { width: 1.2, depth: 0.6 });
 prop(R03, 'potted_plant', [13.35, 0, 21.3], 0, { kind: 'tall', pot: 'white' });
 // Low warm lamps (real light slots, claimed above): one over the observation station, a pair over the coffee table.
 prop(R03, 'pendant_light', [3.9, 0, 20.35], 0, { drop: 1.55, slots: true });
-prop(R03, 'pendant_light', [12, 0, 19.9], 0, { drop: 1.55, count: 2, spacing: 0.9, slots: true });
+prop(R03, 'pendant_light', [12, 0, 19.9], 0, { drop: 1.55, count: 2, spacing: 0.9, slots: true, sway: true }); // swaying gently: their shadows drift over the sofa
 // Lab B (rebuild-lab-wing D4): Voss's culture lab, composed for the gallery glass. Voss's spot (labb_victim), her benches,
 // the gurney, chair and desk console stay where voss-burst-death expects them; the culture column takes the specimen
 // tank's place behind her; the rest of the equipment stands against the east and south walls, out of the glass sight lines.

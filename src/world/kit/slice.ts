@@ -17,7 +17,7 @@ import { inFrame, panelWall, wallFrame } from './detail.ts';
 import { AoMergeBuilder } from './merge.ts';
 import { TILE_FLOOR_KEYS, paletteFor, resolvePalette } from './palettes.ts';
 import { evaluateMisterCycle } from './misterCycle.ts';
-import { MOONPOOL_WIDTH, PieceBuilder, TRUNK_DEPTH, WALL_T, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams, type SoundLoopSlot } from './types.ts';
+import { MOONPOOL_WIDTH, PieceBuilder, TRUNK_DEPTH, WALL_T, boolParam, newJolt, numParam, strParam, swingAngle, type PieceDef, type PieceOutput, type PieceParams, type SoundLoopSlot } from './types.ts';
 
 /**
  * Slice-01 kit additions (ADR-0014, ADR-0023, intro-sequence spec): the kitchen, the supply sub, the
@@ -2789,9 +2789,40 @@ const GEN: Record<string, Gen> = {
     const gap = numParam(p, 'spacing', 1);
     const shadeMat = strParam(p, 'shade', 'dark') === 'brass' ? MAT.shadeBrass() : MAT.shade();
     const slotted = boolParam(p, 'slots', false);
+    // `sway`: true (0.06 rad) or an amplitude; each bulb swings on its cable at a pendulum's period (shadow-rich-rooms D6).
+    const swayAmp = p['sway'] === true ? 0.06 : typeof p['sway'] === 'number' ? Math.min(0.4, Math.max(0, p['sway'])) : 0;
+    const period = 2 * Math.PI * Math.sqrt(Math.max(0.2, drop) / 9.81);
     const y = ceil - drop;
     for (let i = 0; i < n; i++) {
       const x = (i - (n - 1) / 2) * gap;
+      if (swayAmp > 0) {
+        // The mount stays on the ceiling; cable, cap, shade (and a static bulb) hang from a pivot at its foot.
+        const top = ceil - 0.04;
+        pb.add(new THREE.CylinderGeometry(0.04, 0.04, 0.04, 10), m.steel, at(x, ceil - 0.02, 0));
+        const pivot = new THREE.Group();
+        pivot.name = 'pendant-sway';
+        pivot.position.set(x, top, 0);
+        const hang = (geo: THREE.BufferGeometry, mat: THREE.Material, yAt: number): void => {
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.position.y = yAt - top;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          pivot.add(mesh);
+        };
+        hang(new THREE.CylinderGeometry(0.005, 0.005, top - (y + 0.22), 5), m.cable, (top + y + 0.22) / 2);
+        hang(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 10), m.steel, y + 0.21);
+        hang(new THREE.ConeGeometry(0.21, 0.22, 20, 1, true), shadeMat, y + 0.11);
+        if (!slotted) hang(new THREE.SphereGeometry(0.06, 12, 8), glow('pendant-bulb', 0xffdca8, 3.0), y + 0.055);
+        pb.dynamic(pivot);
+        // A slightly different period per bulb, so a row of lamps does not swing in lockstep. The piece and the level
+        // both turn this swing at the same time (its jolt is shared and advanced once per time).
+        const swing = { pivot: [x, top, 0] as [number, number, number], amp: swayAmp, period: period * (1 + 0.07 * i), jolt: newJolt() };
+        pb.tick((t) => {
+          pivot.rotation.x = swingAngle(swing, t);
+        });
+        if (slotted) pb.light([x, y + 0.055, 0], 'pendant', 0, swing);
+        continue;
+      }
       pb.add(cylinderBetween(V(x, ceil, 0), V(x, y + 0.22, 0), 0.005, 5), m.cable);
       pb.add(new THREE.CylinderGeometry(0.04, 0.04, 0.04, 10), m.steel, at(x, ceil - 0.02, 0));
       pb.add(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 10), m.steel, at(x, y + 0.21, 0));

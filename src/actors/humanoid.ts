@@ -27,6 +27,8 @@ import { hasMocapPack, loadMocapPacks } from './mocapPacks.ts';
 import type { PoseLibrary } from './poses.ts';
 import { footprintOf } from './separation.ts';
 import { heldGripFor, type HeldGrip } from './heldGrip.ts';
+import { ManualCaster, shadowCasters, type ShadowCasterSet } from '../render/shadowCasters.ts';
+import { contactBodies, type ContactSample } from '../render/contactShadows.ts';
 import { HELD_GRIP_RADIUS, heldItemFor, heldTiltFor, levelHeld, makeHeld, MOUTH_IN_HEAD, mouthFromJaw, MUG_RIM, type HeldItem } from './heldProps.ts';
 import { settleUprightTurn, Spring1D, stepUprightTurn, type UprightTurnState } from './springs.ts';
 import { CRAWL_TURN, DRAG_TURN, newTurnState, settleTurn, stepTurn, type TurnState } from './turning.ts';
@@ -116,6 +118,8 @@ export interface HumanoidContext {
   motionProfiles?: MotionProfileFile;
   /** Load a character's clip pack into the library (tests); defaults to the bundled packs (mocapPacks.ts). */
   loadMocapPack?: (lib: MocapLibrary, name: string) => Promise<void>;
+  /** Moving shadow casters the body joins (tests); defaults to the shared set (shadow-rich-rooms D4). */
+  shadowCasters?: ShadowCasterSet;
   /** World static/furniture colliders for general hand-vs-surface contact resolution. */
   colliders?: ColliderQuery | null;
   /** Optional world-space footstep callback fired on foot plants (audio / perception). */
@@ -277,7 +281,24 @@ export class Humanoid {
     this.applyBoneScales();
     this.group.updateMatrixWorld(true);
     this.prevWorldPos.copy(this.group.position);
+    // A body deforms every animated frame, so cached shadow maps in its reach redraw while it moves (shadow-rich-rooms D4).
+    this.shadowCaster = new ManualCaster((out) => {
+      if (!this.castsShadow || !this.group.visible || !this.group.parent || this.bodyDisposed) return false;
+      const s = this.geo.scale.y;
+      out.center.copy(this.group.position);
+      out.center.y += 0.9 * s;
+      out.radius = 1.3 * s;
+      return true;
+    });
+    this.unregisterCaster = (ctx.shadowCasters ?? shadowCasters).add(this.shadowCaster);
+    this.unregisterContact = contactBodies.add(this);
   }
+
+  private readonly shadowCaster: ManualCaster;
+  private readonly unregisterCaster: () => void;
+  private readonly unregisterContact: () => void;
+  private readonly casterPos = new THREE.Vector3(Infinity, 0, 0);
+  private readonly casterQuat = new THREE.Quaternion();
 
   // ---------------------------------------------------------------- queries
 
@@ -296,6 +317,16 @@ export class Humanoid {
   /** Ground footprint circle and mass for body-vs-body separation (ADR-0018). */
   get footprint(): { r: number; mass: number } {
     return footprintOf(this.spec.hero === true, this.geo.scale.w);
+  }
+
+  /** The soft contact shadow under the body (render-lighting "Characters are grounded", shadow-rich-rooms D8). */
+  contactShadow(out: ContactSample): boolean {
+    if (this.bodyDisposed || !this.group.visible || !this.group.parent) return false;
+    out.at.copy(this.group.position);
+    const lying = Humanoid.LYING_POSE.test(this.idlePose) || this.state === 'dead' || this.state === 'playingDead';
+    out.radius = lying ? 0.85 * this.geo.scale.y : this.footprint.r * 1.7;
+    out.real = this.castsShadow;
+    return true;
   }
 
   get poseName(): string {
@@ -965,6 +996,13 @@ export class Humanoid {
     this.applyBoneScales();
     this.updateTendrils();
     this.updateCloth(dt);
+    // Living, falling or rising bodies animate every frame; a settled corpse only when it is moved.
+    const moved = !this.casterPos.equals(this.group.position) || !this.casterQuat.equals(this.group.quaternion);
+    if (this.state !== 'dead' || moved || this.animator.clipPlaying) {
+      this.shadowCaster.bump();
+      this.casterPos.copy(this.group.position);
+      this.casterQuat.copy(this.group.quaternion);
+    }
     const pulse = 0.7 + 0.3 * Math.sin(this.time * 2.3 + this.glowPhase) * Math.sin(this.time * 0.7 + this.glowPhase);
     this.materials.uniforms.uGlow.value = smooth(0.8, 3, this.infectionLevel) * pulse * (this.state === 'dead' ? 0.3 : 1) * 0.9;
     this.solveIk(dt);
@@ -1433,6 +1471,8 @@ export class Humanoid {
 
   dispose(): void {
     this.bodyDisposed = true;
+    this.unregisterCaster();
+    this.unregisterContact();
     if (this.mocapPack) {
       this.animator.mocapLibrary.releasePack(this.mocapPack);
       this.mocapPack = null;

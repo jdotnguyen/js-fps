@@ -52,4 +52,6 @@ export interface LightBudget {
   fillLights: number;
   shadowLights: number;
   shadowMapSize: number;
+  /** Shadow spots that can project a light pattern (shadow-rich-rooms D7). Default 0. */
+  cookieSpots?: number;
 }

@@ -662,6 +662,12 @@ export const ACTIONS: Record<string, ActionDef> = {
     if (!ctx.host.pryDoor(s.id, s.open, s.s ?? 0.6)) ctx.host.warn(`${ctx.seqId}: doorPry: no door "${s.id}"`);
   }),
 
+  /** Knock a room's swinging lamps (a blast, the hull taking a hit): `strength` rad/s of swing, default 1.2. */
+  lightJolt: act({ room: str, strength: optional(numRange(0, 4)) }, (s, ctx) => {
+    if (!ctx.host.joltLights) return ctx.missing('lightJolt');
+    if (!ctx.host.joltLights(s.room, s.strength ?? 1.2)) ctx.host.warn(`${ctx.seqId}: lightJolt: no swinging lamps in room "${s.room}"`);
+  }),
+
   /**
    * `tint`: "emergency" turns the room's lights and ambient emergency red, "none" restores the
    * level's colours, or a "#rrggbb" colour (ADR-0014 beat 2).

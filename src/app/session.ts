@@ -111,6 +111,7 @@ import { StoryDucker } from '../audio/storyDuck.ts';
 import { Subtitles } from '../ui/hud/subtitles.ts';
 import type { LoadingScreen } from '../ui/loadingScreen.ts';
 import type { AutoLoadPlan, LaunchPlan } from './launch.ts';
+import { ContactShadows, contactBodies } from '../render/contactShadows.ts';
 
 const DEFAULT_LEVEL = 'slice01';
 const LEVEL_FILES = import.meta.glob<unknown>('../data/levels/*.json', { import: 'default' });
@@ -385,7 +386,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         }
       return tier;
     };
-    const lightBudgetOf = (t: RenderTier): LightBudget => ({ fillLights: t.fillLights, shadowLights: t.shadowLights, shadowMapSize: t.shadowMapSize });
+    const lightBudgetOf = (t: RenderTier): LightBudget => ({ fillLights: t.fillLights, shadowLights: t.shadowLights, shadowMapSize: t.shadowMapSize, cookieSpots: t.cookieSpots });
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(FOG_COLOR);
     scene.fog = new THREE.FogExp2(FOG_COLOR, 0.05);
@@ -661,6 +662,10 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       };
     }
     scene.add(gore.group);
+    // Soft contact shadows under every character, on every tier (render-lighting "Characters are grounded").
+    const contactShadows = new ContactShadows();
+    scene.add(contactShadows.mesh);
+    cleanups.push(() => contactShadows.dispose());
 
     // Initialize Rapier physics during loading (when enabled) so mirroring never pops in mid-game.
     const collisionWorld = world.playerWorld.colliders instanceof CollisionWorld ? world.playerWorld.colliders : null;
@@ -1079,6 +1084,15 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       }
     });
     events.on('weapon:shellInsert', () => audio.play('shotgunShell', { bus: 'sfx', gain: 0.8, reverb: 0.2, rate: 0.96 + Math.random() * 0.08 }));
+    // Shots knock swinging lamps (render-lighting "Swaying lights"): a shotgun blast within 3 m, any shot passing a shade.
+    events.on('weapon:fired', ({ weapon }) => {
+      if (!level) return;
+      const o = camera.getWorldPosition(new THREE.Vector3());
+      const dir = camera.getWorldDirection(new THREE.Vector3());
+      const hit = collisionWorld?.raycast(o.x, o.y, o.z, dir.x, dir.y, dir.z, 60) ?? null;
+      level.joltLightsAlong(o, dir, hit ? hit.distance : 60, weapon === 'shotgun' ? 1.6 : 1.1);
+      if (weapon === 'shotgun') level.joltLightsNear(o, 3, 1.4);
+    });
     events.on('weapon:fired', ({ weapon }) => {
       if (waterFx && collisionWorld) {
         const o = camera.getWorldPosition(new THREE.Vector3());
@@ -1226,6 +1240,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     cleanups.push(shellEvents.on('settings:changed', applySettings));
 
     let levelStats: { drawCalls: number; pool: number } | null = null;
+    let lightingOverlay: { update(): void } | null = null;
     const physicsStats = { engine: 'not loaded', stepAvgMs: 0, stepPeakMs: 0 };
     if (launch.debug.enabled) {
       debug = await createDebugTools();
@@ -1390,6 +1405,13 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         levelStats = { drawCalls: 0, pool: 0 };
         lf.add(levelStats, 'drawCalls').name('visible draw calls').listen().disable();
         lf.add(levelStats, 'pool').name('pooled lights bound').listen().disable();
+        // Shadow and fill pools at a glance (shadow-rich-rooms D9).
+        const { LightingOverlay } = await import('../world/lightingOverlay.ts');
+        const lights = new LightingOverlay(level);
+        lightingOverlay = lights;
+        scene.add(lights.group);
+        cleanups.push(() => lights.dispose());
+        lf.add(lights, 'visible').name('lighting overlay');
       }
       enemies.addDebug(gui);
       const { PhysicsDebugView } = await import('../physics/debugView.ts');
@@ -1488,6 +1510,12 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           levelStats.drawCalls = level.visibleDrawCalls();
           levelStats.pool = level.pool.boundCount();
         }
+        lightingOverlay?.update();
+        const lvl = level;
+        contactShadows.update(contactBodies, {
+          camera: camera.position,
+          ...(lvl ? { floorY: (x: number, z: number) => lvl.floorAt(x, z), shadowed: (p: THREE.Vector3) => lvl.shadowPool.covers(p) } : {}),
+        });
         audio.updateListener(camera);
         if (physicsView) {
           physicsView.update(physicsWorld?.engine ?? null);
