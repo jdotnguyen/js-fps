@@ -1,10 +1,9 @@
-# Spec Delta
+# speech-acting Specification
 
 ## Purpose
-
 Defines what a body does while it speaks a line: which arm gestures and how much, how the line's emote sets the size of the gesture, and how speech gestures combine with talk captures, locomotion and held props.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Calm lines gesture from the elbow down
 While a standing character speaks a calm line (emote `neutral`, `question`, `relieved`, `whisper` or `laugh`), its speech gesture SHALL move the right forearm and right hand only. The elbow SHALL hold a raised forearm and flex further on the line's stresses. The wrist SHALL bend on those stresses. The right upper arm SHALL stay within 6° of where the character's idle puts it.
