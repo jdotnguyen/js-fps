@@ -324,7 +324,7 @@ test('drawing the shotgun, dry fire, reload cues and shell inserts eject nothing
   b.send('weapon:cue', { weapon: 'shotgun', cue: 'pump' });
   b.send('weapon:dryFire', { weapon: 'pistol' });
   b.send('weapon:shellInsert', { weapon: 'shotgun' });
-  for (const cue of ['magOut', 'magIn', 'slide', 'slideSoft', 'cockBack'] as const) b.send('weapon:cue', { weapon: 'pistol', cue });
+  for (const cue of ['magOut', 'magIn', 'slide'] as const) b.send('weapon:cue', { weapon: 'pistol', cue });
   assert.deepEqual(b.ejected, []);
 });
 

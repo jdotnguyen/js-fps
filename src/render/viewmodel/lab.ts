@@ -10,6 +10,8 @@ import type { WeaponId } from './rig.ts';
  */
 export interface Lab {
   show(id: WeaponId): GlbWeapon;
+  /** Show a weapon built elsewhere (e.g. from a GLB under inspection) in place of the current one. */
+  use(weapon: GlbWeapon): GlbWeapon;
   play(clip: ClipName, opts?: PlayOptions): void;
   cam(px: number, py: number, pz: number, tx?: number, ty?: number, tz?: number, fov?: number): void;
   weapon: GlbWeapon | null;
@@ -50,6 +52,13 @@ export async function runLab(renderer: THREE.WebGLRenderer): Promise<void> {
     show(id) {
       if (active) scene.remove(active.root);
       active = weapons[id];
+      scene.add(active.root);
+      lab.weapon = active;
+      return active;
+    },
+    use(weapon) {
+      if (active) scene.remove(active.root);
+      active = weapon;
       scene.add(active.root);
       lab.weapon = active;
       return active;

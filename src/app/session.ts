@@ -95,7 +95,6 @@ import { TutorialPrompts } from '../ui/tutorialPrompts.ts';
 import { TutorialProfile } from '../ui/tutorials.ts';
 import { loadWeaponModels } from '../render/viewmodel/glbWeapons.ts';
 import { Viewmodel } from '../render/viewmodel/viewmodel.ts';
-import { FLASHLIGHT_URL } from '../render/viewmodel/flashlightProp.ts';
 import { Squad } from '../ai/squad.ts';
 import { REVIVE_TASK } from '../ai/squadBrain.ts';
 import { NpcDirector } from '../ai/npcs.ts';
@@ -922,20 +921,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       armed: sidearmUp,
       reducedMotion: () => settings.get().reducedMotion,
       owns: (id) => id === 'pistol' || !(level?.source.pickups ?? []).some((p) => p.kind === 'weapon_shotgun') || game.flags['weapon:shotgun'] === true,
-      flashlightOn: () => flashlight.on,
-      flashlightLevel: () => flashlight.brightness,
     });
-    void (async () => {
-      try {
-        const { createGltfLoader } = await import('../render/gltf.ts');
-        const gltf = await (await createGltfLoader()).loadAsync(FLASHLIGHT_URL);
-        if (!disposed) viewmodel?.setFlashlightModel(gltf.scene);
-      } catch (err) {
-        console.warn('[flashlight] model failed to load; the beam stays at the chest', err);
-      }
-    })();
-    const flashlightLens = new THREE.Vector3();
-    const flashlightAhead = new THREE.Vector3();
     if (waterSystem) waterSystem.hideFromReflection = () => viewmodel!.group.children.filter((c) => !(c instanceof THREE.Light));
     hud.setAmmoSource(() => {
       const id = viewmodel!.weapon;
@@ -1154,12 +1140,6 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           break;
         case 'slide':
           audio.play('pistolReloadSlide', { bus: 'sfx', gain: 0.8, reverb: 0.2 });
-          break;
-        case 'slideSoft':
-          audio.play('pistolReloadSlide', { bus: 'sfx', gain: 0.45, reverb: 0.2, rate: 1.04 });
-          break;
-        case 'cockBack':
-          audio.play('pistolCock', { bus: 'sfx', gain: 0.8, reverb: 0.2 });
           break;
         case 'pump':
           audio.play('shotgunPump', { bus: 'sfx', gain: 0.8, reverb: 0.2 });
@@ -1591,8 +1571,6 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         }
         guidance!.render(frameDt);
         viewmodel!.update(frameDt);
-        const lens = viewmodel!.flashlightLens(flashlightLens);
-        flashlight.origin = lens ? lens.addScaledVector(camera.getWorldDirection(flashlightAhead), 0.03) : null;
         flashlight.update(frameDt);
         world!.update(simTime, frameDt, camera.position, settings.get().reducedFlashing, camera);
         if (level && levelStats) {

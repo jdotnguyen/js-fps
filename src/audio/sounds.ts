@@ -761,9 +761,8 @@ export const SAMPLE_URLS = {
   pistolReloadOut: 'assets/audio/weapons/pistol-reload-out.mp3',
   pistolReloadIn: 'assets/audio/weapons/pistol-reload-in.mp3',
   pistolReloadSlide: 'assets/audio/weapons/pistol-reload-slide.mp3',
-  pistolCock: 'assets/audio/weapons/pistol-cock-fit.mp3', // pull-back + slide-home, gap trimmed to the Weild clip (scripts/fit-pistol-cock.mjs)
   shotgunShot: 'assets/audio/weapons/shotgun-shot.mp3',
-  shotgunPump: 'assets/audio/weapons/shotgun-pump-fit.mp3', // stretched x1.1 to match the PostFire clip (scripts/fit-weapon-audio.mjs)
+  shotgunPump: 'assets/audio/weapons/shotgun-pump-fit.mp3', // stretched x1.1 to match the old PostFire clip (scripts/fit-weapon-audio.mjs); the new Shoot racks quicker, see swap-viewmodels-to-just-models
   shotgunShell: 'assets/audio/weapons/shotgun-shell.mp3',
   dryFire: 'assets/audio/weapons/dry-fire.mp3',
   // Spent casings landing (in-world-audio spec: Spent casings; src/audio/casings.ts). Built by scripts/casings-generate.ts:

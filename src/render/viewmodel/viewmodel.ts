@@ -4,7 +4,6 @@ import type { EventBus } from '../../core/events.ts';
 import type { Input } from '../../core/input.ts';
 import { disposeTexture } from '../materials.ts';
 import type { ClipName, GlbWeapon, PlayOptions } from './glbWeapons.ts';
-import { FlashlightProp } from './flashlightProp.ts';
 import type { WeaponId } from './rig.ts';
 
 declare module '../../core/events.ts' {
@@ -23,7 +22,7 @@ declare module '../../core/events.ts' {
 }
 
 /** Sound moments, each emitted at a fixed point of a GLB clip (seconds into it, see CUES). */
-export type WeaponCue = 'magOut' | 'magIn' | 'slide' | 'slideSoft' | 'cockBack' | 'pump';
+export type WeaponCue = 'magOut' | 'magIn' | 'slide' | 'pump';
 
 /**
  * First-person weapon viewmodels (ADR-0005): the animated pistol and shotgun GLBs (skinned arms + gun,
@@ -33,30 +32,26 @@ export type WeaponCue = 'magOut' | 'magIn' | 'slide' | 'slideSoft' | 'cockBack' 
  * state machine and weapons.json land.
  */
 
-/** Seconds into the named clip at which a sound lands (read off the clips' bone tracks at 30 fps). */
+/** Seconds into the named clip at which a sound lands (read off the clips' bone tracks, swap-viewmodels-to-just-models design D5 to D7). */
 export const CUES = {
   pistol: {
-    /** Magazine leaves the grip (ReloadClip / EmptyClipReload). */
-    magOut: 0.22,
+    /** Magazine leaves the grip (Reload). */
+    magOut: 0.62,
     /** Fresh magazine seats. */
-    magIn: 0.58,
-    /** Slide drops forward after an empty reload (EmptyClipReload). */
-    slide: 1.29,
-    /** The same slide move in a normal reload (ReloadClip), played softly. */
-    slideSoft: 0.7,
-    /** Real seconds after Weild starts at which the rack sound starts (the pull-back click is 0.06 s into the sample, the slide moves back at ~0.34 s). */
-    cockBack: 0.28,
+    magIn: 2.15,
+    /** Slide drops forward at the end of the reload. */
+    slide: 3.1,
   },
   shotgun: {
-    /** Delay from the shot to PostFire starting; PostFire racks the pump. */
-    pumpAfterShot: 0.3,
-    /** Pump sound start, into PostFire (rack back begins ~0.1 s in). */
-    pump: 0.11,
-    /** Shell-in sound / ammo tick, into ReloadOne: the seat lands ~0.07 s later (that is where the sample's transient is). */
-    shell: 0.27,
-    /** Pump sound start, into Unhide / Weild, when the forend slides home. */
-    pumpDraw: 0.05,
-    pumpWield: 0.18,
+    /** Pump sound start, into Shoot: the rack back begins about 0.6 s in. */
+    pump: 0.58,
+    /** The pump is home and the next shot may fire, into Shoot. */
+    ready: 0.85,
+    /** Pump sound start, into Take (the forend slides home as the gun comes up) and into ReloadEnd. */
+    pumpDraw: 0.22,
+    pumpEnd: 0.08,
+    /** Shell-in sound / ammo tick, into each Reload: the shell seats in the tube about 0.07 s later, which is where the sample's transient is. */
+    shell: 0.38,
   },
 } as const;
 
@@ -97,45 +92,45 @@ interface Spec {
   recoilZ: number;
   recoilRx: number;
   kick: number;
-  /** Share of the Fire / PostFire clips' backward throw that is cancelled (hip, aimed). */
-  recoilCancel: [number, number];
   poses: PoseSet;
 }
 
 const SPECS: Record<WeaponId, Spec> = {
-  // Pose positions place the model's reference point (glbWeapons.ts) in camera space; rotations pivot about it.
+  // Pose positions place the model's reference point (glbWeapons.ts: the grip) in camera space, metres; rotations pivot about it.
+  // The hip pose is the authored framing seen from a forward eye (design D2); aim puts the sights on the view axis. Sprint and
+  // lowered pitch the muzzle DOWN (negative x): the old poses pitched it up, which swings a 1 m shotgun barrel across the view.
   pistol: {
     feel: { swayPos: 1, swayRot: 1, weight: 0, idle: 1, bob: 1, strafe: 0, twist: 0, soft: false },
     mag: 12,
     startReserve: 36,
     interval: 0.24,
-    // The Fire clip already kicks the slide and arm; these springs only add a little on top.
-    recoilZ: 0.12,
-    recoilRx: 1.2,
+    // The Shoot clip moves the gun a few millimetres (the old Fire clip threw it a third of a metre), so these springs carry the recoil:
+    // about 2.5 cm back and 2 degrees of muzzle lift. Starting values, to be tuned in a playtest.
+    recoilZ: 0.7,
+    recoilRx: 10,
     kick: 0.7,
-    recoilCancel: [0.35, 0.6],
     poses: {
-      hip: { p: [0.09, -0.14, -0.44], r: [0.02, 0.06, 0] },
-      aim: { p: [0.0, -0.092, -0.38], r: [0, 0, 0] },
-      sprint: { p: [0.07, -0.2, -0.3], r: [0.5, 0.45, -0.2] },
-      lowered: { p: [0.06, -0.34, -0.24], r: [0.7, 0.3, 0] },
+      hip: { p: [0.012, -0.095, -0.126], r: [0, 0, 0] },
+      aim: { p: [-0.004, -0.061, -0.126], r: [0, 0, 0] },
+      sprint: { p: [0, -0.1, -0.1], r: [-0.3, 0.45, -0.2] },
+      lowered: { p: [-0.018, -0.3, -0.1], r: [-0.7, 0.3, 0] },
     },
   },
   shotgun: {
     feel: { swayPos: -1.2, swayRot: 1.2, weight: 0.5, idle: 1, bob: 1.3, strafe: 0.6, twist: 2, soft: true },
     mag: 6,
     startReserve: 18,
-    // Fire (recoil) runs for CUES.shotgun.pumpAfterShot, then PostFire (the pump, 0.6 s) until the gun is ready.
-    interval: CUES.shotgun.pumpAfterShot + 0.6,
-    recoilZ: 0.3,
-    recoilRx: 2.5,
+    // Shoot is the recoil and then the pump; the next shot waits for the pump to be home.
+    interval: CUES.shotgun.ready,
+    // About 6 cm back and 4.5 degrees of lift (see the pistol's note).
+    recoilZ: 1.6,
+    recoilRx: 24,
     kick: 2.4,
-    recoilCancel: [0.85, 0.9],
     poses: {
-      hip: { p: [0.13, -0.21, -0.28], r: [0.03, 0.1, 0] },
-      aim: { p: [0.05, -0.14, -0.32], r: [0, 0.02, 0] },
-      sprint: { p: [0.16, -0.3, -0.22], r: [0.65, 0.5, -0.25] },
-      lowered: { p: [0.14, -0.5, -0.18], r: [0.8, 0.3, 0] },
+      hip: { p: [0.019, -0.064, -0.112], r: [0, 0, 0] },
+      aim: { p: [-0.036, -0.055, -0.115], r: [0, 0, 0] },
+      sprint: { p: [0.07, -0.1, -0.06], r: [-0.3, 0.55, -0.2] },
+      lowered: { p: [0.029, -0.45, -0.06], r: [-0.9, 0.3, 0] },
     },
   },
 };
@@ -152,16 +147,15 @@ export interface ViewmodelDeps {
   enabled: () => boolean;
   /** The viewmodel should be drawn at all (hidden on the title screen and in fly mode). */
   visible: () => boolean;
-  /** Jay has a pistol in hand. While false no gun is shown (the flashlight still is); it is drawn when this turns true. Default: true. */
+  /** Jay has a pistol in hand. While false no gun is shown; it is drawn when this turns true. Default: true. */
   armed?: () => boolean;
   reducedMotion: () => boolean;
   /** Weapons Jay carries (ADR-0005: the shotgun comes from the R07a armory). Default: all. */
   owns?: (id: WeaponId) => boolean;
-  /** The flashlight is switched on (player-flashlight spec: its model shows with the pistol). */
-  flashlightOn?: () => boolean;
-  /** The beam's current brightness, 0..1, for the lens glow. */
-  flashlightLevel?: () => number;
 }
+
+/** Breathing: one slow cycle every 4.2 s (the new weapon models have no idle clip). */
+const BREATH_RATE = (Math.PI * 2) / 4.2;
 
 const ease = (t: number): number => t * t * (3 - 2 * t);
 const approach = (v: number, goal: number, step: number): number => (v < goal ? Math.min(goal, v + step) : Math.max(goal, v - step));
@@ -190,12 +184,8 @@ class Spring {
 type Phase = 'idle' | 'lowering' | 'raising';
 type Reload =
   | { kind: 'pistol'; t: number; total: number; empty: boolean }
-  | { kind: 'shotgun'; stage: 'enter' | 'shell' | 'exit'; t: number; shell: number; inserted: boolean; stop: boolean }
+  | { kind: 'shotgun'; stage: 'enter' | 'shell' | 'exit'; t: number; shell: number; inserted: boolean }
   | null;
-
-/** Hide / Unhide / Weild are authored slow for a showcase; speed them up for play. */
-const SWITCH_SPEED = 1.6;
-const WIELD_SPEED = 1.3;
 
 interface PendingCue {
   at: number;
@@ -212,8 +202,6 @@ export class Viewmodel {
   private pending: WeaponId | null = null;
   private phase: Phase = 'idle';
   private phaseT = 0;
-  /** What the incoming weapon plays: Unhide on a plain switch, Weild when picked up or first drawn. */
-  private drawClip: 'Unhide' | 'Weild' = 'Unhide';
   private holster = 1;
   /** The gun is shown (see `ViewmodelDeps.armed`). */
   private gunOut = true;
@@ -228,6 +216,7 @@ export class Viewmodel {
   private lastYaw = 0;
   private lastPitch = 0;
   private bobPhase = 0;
+  private breathPhase = 0;
   private bobAmp = 0;
   private time = 0;
   private wasVisible = false;
@@ -235,8 +224,6 @@ export class Viewmodel {
   private busyUntil = 0;
   /** After a one-shot clip, go back to the rest pose at this time. */
   private restAt = Infinity;
-  /** Shotgun: start the PostFire (pump) clip at this time. */
-  private pumpAt = Infinity;
   private cues: PendingCue[] = [];
   private readonly recZ = new Spring(420, 26);
   private readonly recRx = new Spring(380, 24);
@@ -258,10 +245,6 @@ export class Viewmodel {
   private flashT = 0;
   private readonly fill: THREE.PointLight;
   private readonly tmp = new THREE.Vector3();
-  private readonly recoilVec = new THREE.Vector3();
-  private recoilW = 0;
-  /** The held flashlight (player-flashlight spec), shown with the pistol while the light is on. */
-  readonly flashlight = new FlashlightProp();
   private readonly offFootstep: () => void;
 
   constructor(deps: ViewmodelDeps) {
@@ -309,12 +292,12 @@ export class Viewmodel {
     this.flashLight.castShadow = false;
     this.group.add(this.flashLight);
 
-    // Soft fill so hands read in dark rooms (the flashlight cone rarely reaches them).
+    // Soft fill so hands read in dark rooms (the flashlight cone rarely reaches them). It sits about 0.45 m from the grip, behind
+    // and above the camera: the new models are held ~0.13 m from the eye, and with the light as close as it used to be (10 cm
+    // from the gun) inverse-square falloff blew the gloves out and exaggerated their normal maps into streaks.
     this.fill = new THREE.PointLight(0xffe2cc, 0.55, 1.6, 2);
-    this.fill.position.set(0.05, 0.12, -0.05);
+    this.fill.position.set(0.05, 0.22, 0.2);
     this.group.add(this.fill);
-
-    this.group.add(this.flashlight.group);
 
     this.limitSpotNearField();
     deps.scene.add(this.group);
@@ -323,7 +306,7 @@ export class Viewmodel {
   }
 
   /**
-   * The flashlight sits a hand's width from the gun, so inverse-square falloff blows the viewmodel out.
+   * The flashlight is carried at the chest, a hand's width from the gun, so inverse-square falloff blows the viewmodel out.
    * Clamp spot-light distance in the viewmodel materials' shaders to a "typical wall" distance.
    */
   private limitSpotNearField(): void {
@@ -363,7 +346,6 @@ export class Viewmodel {
   /** Switch to a weapon now (picked up, or a restart took the current one away). */
   equip(id: WeaponId): void {
     if (!this.owns(id)) return;
-    if (id !== this.current) this.drawClip = 'Weild';
     this.requestSwitch(id);
   }
 
@@ -404,14 +386,14 @@ export class Viewmodel {
       this.gunOut = armed;
       this.rigs[this.current].root.visible = armed;
       if (armed && this.phase === 'idle') {
-        this.startDraw(this.current, 'Weild');
+        this.startDraw(this.current);
         drew = true;
       }
     }
     // First frame on screen (new game, back from the title or fly mode): the weapon is drawn.
     if (!this.wasVisible) {
       this.wasVisible = true;
-      if (this.phase === 'idle' && this.gunOut && !drew) this.startDraw(this.current, 'Weild');
+      if (this.phase === 'idle' && this.gunOut && !drew) this.startDraw(this.current);
     }
 
     const active = this.d.enabled();
@@ -446,36 +428,7 @@ export class Viewmodel {
     this.updateTimeline();
     this.rigs[this.current].update(dt);
     this.updatePose(dt);
-    this.updateFlashlight(dt);
     this.updateFlash(dt);
-  }
-
-  /** Attach the flashlight GLB once it has loaded; its materials get the same near-field spot clamp as the guns. */
-  setFlashlightModel(scene: THREE.Object3D): void {
-    this.flashlight.setModel(scene);
-    this.limitSpotNearField();
-  }
-
-  /** player-flashlight spec: up while the light is on with the pistol (or no weapon) out, put away for the shotgun. */
-  private updateFlashlight(dt: number): void {
-    const next = this.pending ?? this.current;
-    const wanted = (this.d.flashlightOn?.() ?? false) && next !== 'shotgun' && this.current !== 'shotgun';
-    const reduced = this.d.reducedMotion() ? 0 : 1;
-    // A share of the weapon's sway and bob, so the light moves with the view like something held.
-    const sway = {
-      x: (this.swayX.x * 0.04 + this.wX.x * 0.05 + Math.sin(this.bobPhase) * 0.003 * this.bobAmp) * reduced,
-      y: (this.swayY.x * 0.035 + this.wY.x * 0.05 + Math.abs(Math.cos(this.bobPhase)) * -0.003 * this.bobAmp) * reduced,
-      rx: (this.swayY.x * 0.3 + this.wY.x * 0.4) * reduced,
-      ry: (this.swayX.x * 0.3 - this.wX.x * 0.4) * reduced,
-    };
-    this.flashlight.update(dt, wanted, this.d.camera, sway, this.d.flashlightLevel?.() ?? 0);
-  }
-
-  /** World position of the lens while the flashlight model is up, else null (the beam then comes from the chest). */
-  flashlightLens(out: THREE.Vector3): THREE.Vector3 | null {
-    if (!this.group.visible || !this.flashlight.shown) return null;
-    this.flashlight.lens.updateWorldMatrix(true, false);
-    return this.flashlight.lens.getWorldPosition(out);
   }
 
   // ---- clip timeline (cues, pump, return to rest) ----------------------------------------
@@ -486,7 +439,6 @@ export class Viewmodel {
 
   private clearTimeline(): void {
     this.cues.length = 0;
-    this.pumpAt = Infinity;
     this.restAt = Infinity;
   }
 
@@ -507,13 +459,6 @@ export class Viewmodel {
       this.cues.splice(i, 1);
       this.d.events.emit('weapon:cue', { weapon: c.weapon, cue: c.cue });
     }
-    if (this.time >= this.pumpAt) {
-      this.pumpAt = Infinity;
-      if (!this.reload && this.phase === 'idle') {
-        this.playOnce('PostFire', { fade: 0.15 });
-        this.schedule(CUES.shotgun.pump, 'shotgun', 'pump');
-      }
-    }
     if (this.time >= this.restAt && !this.reload && this.phase === 'idle') {
       this.restAt = Infinity;
       rig.playRest(0.12);
@@ -533,41 +478,37 @@ export class Viewmodel {
       this.phaseT = 0;
       this.cancelReload();
       this.clearTimeline();
-      this.playOnce('Hide', { fade: 0.04, speed: SWITCH_SPEED, thenRest: false });
+      this.playOnce('Hide', { fade: 0.04, thenRest: false });
     }
   }
 
-  /** Bring a weapon up with its Unhide / Weild clip. */
-  private startDraw(id: WeaponId, clip: 'Unhide' | 'Weild'): void {
+  /** Bring a weapon up with its Take clip (the shotgun's racks the pump as it comes up). */
+  private startDraw(id: WeaponId): void {
     this.cancelReload();
     this.clearTimeline();
-    const speed = clip === 'Weild' ? WIELD_SPEED : SWITCH_SPEED;
     const rig = this.rigs[id];
-    rig.play(clip, { fade: 0, speed });
-    const len = rig.duration(clip) / speed;
+    rig.play('Take', { fade: 0 });
+    const len = rig.duration('Take');
     this.restAt = this.time + len;
     this.busyUntil = this.time + Math.min(len, 0.5);
-    if (id === 'pistol' && clip === 'Weild') this.schedule(CUES.pistol.cockBack, 'pistol', 'cockBack');
-    if (id === 'shotgun') this.schedule(clip === 'Weild' ? CUES.shotgun.pumpWield : CUES.shotgun.pumpDraw, 'shotgun', 'pump');
+    if (id === 'shotgun') this.schedule(CUES.shotgun.pumpDraw, 'shotgun', 'pump');
   }
 
   private updateSwitch(dt: number): void {
     if (this.phase === 'idle') return;
     if (this.phase === 'lowering') {
-      this.phaseT += dt / (this.rigs[this.current].duration('Hide') / SWITCH_SPEED);
+      this.phaseT += dt / this.rigs[this.current].duration('Hide');
       if (this.phaseT >= 1) {
         if (this.pending) {
           this.rigs[this.current].root.visible = false;
           this.current = this.pending;
           this.pending = null;
           this.rigs[this.current].root.visible = true;
-          const clip = this.drawClip;
-          this.drawClip = 'Unhide';
-          this.startDraw(this.current, clip);
+          this.startDraw(this.current);
           this.d.events.emit('weapon:equipped', { weapon: this.current });
           this.phaseT = 0;
           this.phase = 'raising';
-          this.raiseLen = this.rigs[this.current].duration(clip) / (clip === 'Weild' ? WIELD_SPEED : SWITCH_SPEED);
+          this.raiseLen = this.rigs[this.current].duration('Take');
         } else {
           this.phase = 'idle';
         }
@@ -612,14 +553,10 @@ export class Viewmodel {
     this.cooldown = spec.interval;
     this.dryTrigger = 0.1;
     this.clearTimeline();
-    const fireLen = rig.duration('Fire');
-    rig.play('Fire', { fade: 0.02 });
-    if (id === 'shotgun') {
-      // Recoil, then the pump racks (PostFire). Ready again when the pump is home.
-      this.pumpAt = this.time + CUES.shotgun.pumpAfterShot;
-    } else {
-      this.restAt = this.time + fireLen;
-    }
+    rig.play('Shoot', { fade: 0.02 });
+    this.restAt = this.time + rig.duration('Shoot');
+    // The shotgun's Shoot racks the pump about 0.6 s in: the sound, and the spent hull, come with it.
+    if (id === 'shotgun') this.schedule(CUES.shotgun.pump, 'shotgun', 'pump');
     const aimDamp = 1 - 0.45 * this.aimBlend;
     this.recZ.kick(spec.recoilZ * aimDamp);
     this.recRx.kick(spec.recoilRx * aimDamp);
@@ -647,17 +584,17 @@ export class Viewmodel {
     const rig = this.rigs[id];
     this.clearTimeline();
     if (id === 'pistol') {
+      // One reload for a part-full and an empty magazine, at its authored speed.
       const empty = st.loaded === 0;
-      const clip = empty ? 'EmptyClipReload' : 'ReloadClip';
-      this.reload = { kind: 'pistol', t: 0, total: rig.duration(clip), empty };
-      rig.play(clip, { fade: 0.08 });
+      this.reload = { kind: 'pistol', t: 0, total: rig.duration('Reload'), empty };
+      rig.play('Reload', { fade: 0.08 });
       this.schedule(CUES.pistol.magOut, 'pistol', 'magOut');
       this.schedule(CUES.pistol.magIn, 'pistol', 'magIn');
-      this.schedule(empty ? CUES.pistol.slide : CUES.pistol.slideSoft, 'pistol', empty ? 'slide' : 'slideSoft');
+      this.schedule(CUES.pistol.slide, 'pistol', 'slide');
       this.d.events.emit('weapon:reloadStart', { weapon: id, duration: this.reload.total, empty });
     } else {
-      this.reload = { kind: 'shotgun', stage: 'enter', t: 0, shell: 0, inserted: false, stop: false };
-      rig.play('PriorToReload', { fade: 0.1 });
+      this.reload = { kind: 'shotgun', stage: 'enter', t: 0, shell: 0, inserted: false };
+      rig.play('ReloadStart', { fade: 0.1 });
       this.d.events.emit('weapon:reloadStart', { weapon: id });
     }
   }
@@ -698,16 +635,16 @@ export class Viewmodel {
     this.d.events.emit('weapon:reloaded', { weapon: 'pistol', loaded: st.loaded, reserve: st.reserve });
   }
 
-  /** PriorToReload, then ReloadOne per shell (shell seats at CUES.shotgun.shell), then ReloadLastOne. */
+  /** ReloadStart, then Reload per shell (the shell seats at CUES.shotgun.shell), then ReloadEnd, which racks the pump. */
   private updateShotgunReload(r: Extract<NonNullable<Reload>, { kind: 'shotgun' }>): void {
     const st = this.ammo.shotgun;
     const rig = this.rigs.shotgun;
     if (r.stage === 'enter') {
-      if (r.t >= rig.duration('PriorToReload')) {
+      if (r.t >= rig.duration('ReloadStart')) {
         r.stage = 'shell';
         r.t = 0;
         r.inserted = false;
-        rig.play('ReloadOne', { fade: 0.05 });
+        rig.play('Reload', { fade: 0.05 });
       }
     } else if (r.stage === 'shell') {
       if (!r.inserted && r.t >= CUES.shotgun.shell) {
@@ -717,17 +654,18 @@ export class Viewmodel {
         r.shell++;
         this.d.events.emit('weapon:shellInsert', { weapon: 'shotgun' });
       }
-      if (r.t >= rig.duration('ReloadOne')) {
+      if (r.t >= rig.duration('Reload')) {
         r.t = 0;
         r.inserted = false;
-        if (st.loaded >= SPECS.shotgun.mag || st.reserve <= 0 || r.stop) {
+        if (st.loaded >= SPECS.shotgun.mag || st.reserve <= 0) {
           r.stage = 'exit';
-          rig.play('ReloadLastOne', { fade: 0.05 });
+          rig.play('ReloadEnd', { fade: 0.05 });
+          this.schedule(CUES.shotgun.pumpEnd, 'shotgun', 'pump');
         } else {
-          rig.play('ReloadOne', { fade: 0 });
+          rig.play('Reload', { fade: 0 });
         }
       }
-    } else if (r.t >= rig.duration('ReloadLastOne')) {
+    } else if (r.t >= rig.duration('ReloadEnd')) {
       this.reload = null;
       rig.playRest(0.1);
       this.d.events.emit('weapon:reloaded', { weapon: 'shotgun', loaded: st.loaded, reserve: st.reserve });
@@ -818,14 +756,14 @@ export class Viewmodel {
       rot[2] + this.swayX.x * -0.2 * feel.swayRot + this.recRz.x * 0.08 + Math.sin(this.bobPhase) * 0.006 * bob * (B - 1) - this.lean * 0.045,
     ];
 
-    // Fire / PostFire throw the whole rig back ~0.35 m: cancel a share of it, more when aimed.
-    const inRecoil = rig.clip === 'Fire' || rig.clip === 'PostFire';
-    this.recoilW = approach(this.recoilW, inRecoil ? 1 : 0, dt / (inRecoil ? 0.04 : 0.15));
-    if (this.recoilW > 0) {
-      const [hipCut, aimCut] = SPECS[this.current].recoilCancel;
-      const cut = lerp(hipCut, aimCut, aimE) * this.recoilW;
-      rig.recoilDelta(this.recoilVec);
-      pos = [pos[0] - this.recoilVec.x * cut, pos[1] - this.recoilVec.y * cut, pos[2] - this.recoilVec.z * cut];
+    // Breathing (weapon-viewmodels, "The rest pose is never frozen"): the whole weapon drifts about 1.6 mm and 0.15 degrees, calmer
+    // when aimed, and not at all with reduced motion.
+    if (!reduced) {
+      this.breathPhase += dt * BREATH_RATE;
+      const b = this.breathPhase;
+      const k = feel.idle * (1 - 0.6 * aimE);
+      pos = [pos[0] + Math.sin(b * 0.7) * 0.0008 * k, pos[1] + Math.sin(b) * 0.0016 * k, pos[2]];
+      rot = [rot[0] + Math.sin(b + 0.8) * 0.0025 * k, rot[1] + Math.sin(b * 0.6) * 0.0012 * k, rot[2] + Math.sin(b * 0.8 + 1.7) * 0.0016 * k];
     }
 
     rig.root.position.set(pos[0], pos[1], pos[2]);
@@ -850,7 +788,7 @@ export class Viewmodel {
     }
   }
 
-  /** Detach listeners, remove from scene, and dispose weapon/flashlight/muzzle GPU resources. */
+  /** Detach listeners, remove from scene, and dispose weapon/muzzle GPU resources. */
   dispose(): void {
     this.offFootstep();
     this.group.removeFromParent();

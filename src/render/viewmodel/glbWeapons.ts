@@ -3,31 +3,35 @@ import type { WeaponId } from './rig.ts';
 
 /**
  * First-person weapon viewmodels loaded from the animated GLBs in public/assets/models/weapons/
- * (skinned arms + gun, one clip per action). The models face +Z with Y up and sit about the origin of
- * their own "camera"; `GlbWeapon.model` is turned half a circle so the gun points down -Z like the rest
- * of the game, and `root` is the node the Viewmodel poses (sway, aim, sprint) in camera space.
- *
- * The shotgun file ships with a gun mesh 10,000x too large, facing backwards and upside down; run
- * `node scripts/fix-weapon-glb.mjs` once on a fresh export (the committed file is already fixed).
+ * (skinned arms + gun, one clip per action): "AnimatedPistol" and "Animated Shotgun" by JUST, CC BY 4.0, rebuilt by
+ * `node scripts/fix-just-weapons-glb.mjs` (the Sketchfab gun meshes are out of step with their skin; the script takes the
+ * gun from the author's FBX). The models face +Z with Y up and are authored about 0.024 m per unit (a hand is 8 units
+ * long); `GlbWeapon.model` is scaled to metres and turned half a circle so the gun points down -Z like the rest of the
+ * game, and `root` is the node the Viewmodel poses (sway, aim, sprint) in camera space.
  */
 
 export interface WeaponModelSpec {
   url: string;
-  /** Point of the model (model space, metres) that pose positions refer to; also the pivot for pose rotations. */
+  /** Metres per model unit. One value for both weapons, so the gloves are the same size in each. */
+  scale: number;
+  /** Point of the model (model space, rest pose, model units) that pose positions refer to; also the pivot for pose rotations. The grip. */
   ref: [number, number, number];
-  /** Muzzle in the local space of the `weapon_039` bone, so it follows the recoil animation. */
+  /** The bone the gun's recoil and the muzzle follow. */
+  bone: string;
+  /** The muzzle (model space, rest pose, model units), carried by `bone` so it follows the recoil animation. */
   muzzle: [number, number, number];
-  /** Looping clip played while nothing else is; null = hold the first frame of the Fire clip. */
-  idle: string | null;
 }
 
+/** Metres per model unit: a gloved hand is 8 units (0.19 m), the shotgun 42 (1.0 m), the Colt 11 (0.26 m). */
+export const MODEL_SCALE = 0.024;
+
 export const WEAPON_MODELS: Record<WeaponId, WeaponModelSpec> = {
-  pistol: { url: 'assets/models/weapons/pistol.glb', ref: [0, 0.1, 0.35], muzzle: [0, 0.181, 0.285], idle: 'Idle' },
-  shotgun: { url: 'assets/models/weapons/shotgun.glb', ref: [0, 0, 0], muzzle: [0, 1.119, 0.027], idle: null },
+  pistol: { url: 'assets/models/weapons/pistol.glb', scale: MODEL_SCALE, ref: [-0.487, 29.433, 10.256], bone: 'Base', muzzle: [-0.66, 31.1, 18.3] },
+  shotgun: { url: 'assets/models/weapons/shotgun.glb', scale: MODEL_SCALE, ref: [-0.776, 31.123, 6.167], bone: 'Base', muzzle: [-2.26, 31.4, 33.0] },
 };
 
-/** Clip names, with the "Armature|" prefix the export adds stripped. */
-export type ClipName = 'Fire' | 'PostFire' | 'Hide' | 'Unhide' | 'Weild' | 'Idle' | 'ReloadClip' | 'EmptyClipReload' | 'PriorToReload' | 'ReloadOne' | 'ReloadLastOne' | 'Rest';
+/** Clip names, with the "Armature|" prefix the export adds stripped. `Rest` is made here (see GlbWeapon). */
+export type ClipName = 'Take' | 'Hide' | 'Shoot' | 'Reload' | 'ReloadStart' | 'ReloadEnd' | 'Watch' | 'Rest';
 
 export interface PlayOptions {
   /** Cross-fade seconds from whatever is playing (0 = hard cut). */
@@ -39,13 +43,17 @@ export interface PlayOptions {
   loop?: boolean;
 }
 
-/** A clip that holds the first frame of `clip` (a two-key loop of identical poses, so nothing moves). */
-function holdFirstFrame(clip: THREE.AnimationClip, name: string): THREE.AnimationClip {
+/**
+ * A clip that holds one frame of `clip` (a two-key loop of identical poses, so nothing moves). Every clip of these models
+ * starts and ends on the same pose, which is `Take`'s last frame; `Take` keys every bone, the others only some.
+ */
+function holdFrame(clip: THREE.AnimationClip, name: string, which: 'first' | 'last'): THREE.AnimationClip {
   const tracks = clip.tracks.map((tr) => {
     const n = tr.getValueSize();
-    const first = Array.from(tr.values.slice(0, n));
+    const at = which === 'first' ? 0 : tr.values.length - n;
+    const held = Array.from(tr.values.slice(at, at + n));
     const Ctor = tr.constructor as new (name: string, times: number[], values: number[]) => THREE.KeyframeTrack;
-    return new Ctor(tr.name, [0, 0.1], [...first, ...first]);
+    return new Ctor(tr.name, [0, 0.1], [...held, ...held]);
   });
   return new THREE.AnimationClip(name, 0.1, tracks);
 }
@@ -54,7 +62,7 @@ export class GlbWeapon {
   readonly id: WeaponId;
   /** Posed by the Viewmodel each frame (position + rotation about the reference point). */
   readonly root = new THREE.Group();
-  /** The loaded scene, turned to face -Z and shifted so the reference point is the root's origin. */
+  /** The loaded scene, scaled to metres, turned to face -Z and shifted so the reference point is the root's origin. */
   readonly model: THREE.Object3D;
   /** Follows the gun's muzzle through the animation. */
   readonly muzzle = new THREE.Object3D();
@@ -64,15 +72,15 @@ export class GlbWeapon {
   private current: THREE.AnimationAction | null = null;
   private currentName: ClipName | null = null;
   private readonly bone: THREE.Object3D;
-  private readonly restPos = new THREE.Vector3();
-  private readonly scratch = new THREE.Vector3();
 
   constructor(id: WeaponId, gltf: { scene: THREE.Group; animations: THREE.AnimationClip[] }, spec: WeaponModelSpec) {
     this.id = id;
     this.model = gltf.scene;
-    // Half turn about Y (model +Z -> game -Z), then move the reference point to the origin: v' = (-x + rx, y - ry, -z + rz).
+    // Scale to metres, half turn about Y (model +Z -> game -Z), then move the reference point to the origin:
+    // v' = s * (-x + rx, y - ry, -z + rz).
+    this.model.scale.setScalar(spec.scale);
     this.model.rotation.y = Math.PI;
-    this.model.position.set(spec.ref[0], -spec.ref[1], spec.ref[2]);
+    this.model.position.set(spec.ref[0] * spec.scale, -spec.ref[1] * spec.scale, spec.ref[2] * spec.scale);
     this.root.add(this.model);
     this.root.rotation.order = 'YXZ';
     this.model.traverse((o) => {
@@ -82,6 +90,9 @@ export class GlbWeapon {
       if (mesh.isMesh) {
         mesh.castShadow = false;
         mesh.receiveShadow = false;
+        // Screen-space AO is tuned for the level (1 m radius); a gun 0.13-0.3 m from the lens sits inside it and came out
+        // streaked. Flagged meshes are drawn after the AO pass and neither shaded by it nor read by it (post.ts skipsAo).
+        mesh.userData['skipGtao'] = true;
       }
     });
     this.mixer = new THREE.AnimationMixer(this.model);
@@ -90,42 +101,26 @@ export class GlbWeapon {
       this.actions.set(name, this.mixer.clipAction(clip));
       this.durations.set(name, clip.duration);
     }
-    // Rest pose: the looping idle if the model has one, otherwise the first frame of Fire held still.
-    const idleClip = spec.idle ? gltf.animations.find((c) => c.name.endsWith(`|${spec.idle}`)) : undefined;
-    const fire = gltf.animations.find((c) => c.name.endsWith('|Fire'));
-    const rest = idleClip ?? (fire ? holdFirstFrame(fire, 'Rest') : undefined);
-    if (rest) {
+    // Rest pose: `Take`'s last frame (the hands on the gun), held.
+    const take = gltf.animations.find((c) => c.name.endsWith('|Take'));
+    if (take) {
+      const rest = holdFrame(take, 'Rest', 'last');
       this.actions.set('Rest', this.mixer.clipAction(rest));
       this.durations.set('Rest', rest.duration);
     }
-    this.bone = this.model.getObjectByName('weapon_039') ?? this.model;
-    this.muzzle.position.set(...spec.muzzle);
-    this.bone.add(this.muzzle);
+    this.bone = this.model.getObjectByName(spec.bone) ?? this.model;
     this.playRest(0);
     this.mixer.update(0);
     this.model.updateMatrixWorld(true);
-    this.restPos.copy(this.bone.getWorldPosition(this.scratch));
-    this.model.worldToLocal(this.restPos);
+    // The muzzle is given in rest-pose model space; carry it in the bone's own space (the bone is scaled and turned).
+    const muzzleWorld = this.model.localToWorld(new THREE.Vector3(...spec.muzzle));
+    this.muzzle.position.copy(this.bone.worldToLocal(muzzleWorld));
+    this.bone.add(this.muzzle);
   }
 
   /** The clip last started (null before the first). */
   get clip(): ClipName | null {
     return this.currentName;
-  }
-
-  /**
-   * How far the gun bone has moved from its rest pose, in game camera axes (X right, Y up, -Z forward).
-   * Fire and PostFire throw the whole rig back by a third of a metre; the Viewmodel cancels part of that
-   * so the gun does not fly into the player's face.
-   */
-  recoilDelta(out: THREE.Vector3): THREE.Vector3 {
-    this.model.updateMatrixWorld(true);
-    this.bone.getWorldPosition(out);
-    this.model.worldToLocal(out);
-    out.sub(this.restPos);
-    // Model space faces +Z; the root turns it half a circle about Y.
-    out.set(-out.x, out.y, -out.z);
-    return out;
   }
 
   has(name: ClipName): boolean {
@@ -166,6 +161,29 @@ export class GlbWeapon {
   }
 }
 
+/** The two models are one author's, with one pair of gloves, so the shotgun uses the pistol's glove textures. */
+function shareGloveTextures(from: GlbWeapon, to: GlbWeapon): void {
+  const gloveOf = (w: GlbWeapon): THREE.MeshStandardMaterial | null => {
+    let found: THREE.MeshStandardMaterial | null = null;
+    w.model.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+      if (m?.name === 'glove_hardknuckle') found = m;
+    });
+    return found;
+  };
+  const a = gloveOf(from);
+  const b = gloveOf(to);
+  if (!a || !b) return;
+  for (const slot of ['map', 'normalMap', 'roughnessMap', 'metalnessMap'] as const) {
+    if (!a[slot] || !b[slot] || a[slot] === b[slot]) continue;
+    const spare = b[slot];
+    b[slot] = a[slot];
+    // roughnessMap and metalnessMap are one texture in glTF: dispose it once, after both slots are swapped.
+    if (slot !== 'roughnessMap' || b.metalnessMap !== spare) spare?.dispose();
+  }
+  b.needsUpdate = true;
+}
+
 /** Load both weapon models (the GLTF loader is split out of the main bundle). */
 export async function loadWeaponModels(): Promise<Record<WeaponId, GlbWeapon>> {
   const { createGltfLoader } = await import('../gltf.ts');
@@ -176,5 +194,6 @@ export async function loadWeaponModels(): Promise<Record<WeaponId, GlbWeapon>> {
   ids.forEach((id, i) => {
     out[id] = new GlbWeapon(id, gltfs[i]!, WEAPON_MODELS[id]);
   });
+  shareGloveTextures(out.pistol, out.shotgun);
   return out;
 }

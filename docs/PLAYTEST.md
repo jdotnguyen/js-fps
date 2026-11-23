@@ -28,10 +28,20 @@ data checkpoints `cp_first_contact`, `cp_cover_me`, `cp_security`, `cp_flooded`,
 - **Blackout** (openspec station-blackout): kill the last trickle monster. Within 2 s the radio chatter starts: four voices (Station Ops, Docking Ring, Hydroponics, Launch Hall) one after another, each starting about 1 s before the last ends, two cut off mid-word, all with subtitles. Okafor: "That's the whole station." The PA announces the power failure from the Lab Junction speaker (also heard in Lab B), then the power-down sound and every room drops to dim, warm backup lights (darker than the drop's red), beacons on the walls, tubes silent, beacons humming. With the flashlight off, the "Flashlight" prompt shows. The door to R06 closes and `cp_contact_clear` saves. Reload it: still dark, and the chatter does not replay.
 - No radio music in the Lab Junction any more; the kitchen radio in the Commons is the only one.
 
-**Flashlight** (openspec station-blackout, player-flashlight spec)
-- Press F with the pistol out: the flashlight rises into the lower left within a quarter second, lens forward, its back end running off the screen edge (no floating end, no hand). The lens glows and the beam comes from it. F again lowers it.
-- Switch to the shotgun with the light on: the flashlight lowers away, the beam stays (from the chest). Back to the pistol: it rises again.
-- Aim, sprint, jump and reload with the light on: it sways with the view and its back end never shows. Try a 21:9 window and the lowest and highest field of view.
+**Flashlight** (openspec station-blackout, player-flashlight spec; no model since swap-viewmodels-to-just-models)
+- Press F with the pistol out: the beam fades in within about a quarter second from low and to the left of the view (the chest). No flashlight model or hand appears. F again fades it out.
+- Switch to the shotgun and holster with the light on: the beam stays and comes from the same point each time.
+- Spin the mouse fast, look up and down, land from a jump: the lit spot is on the crosshair on every frame (no lag, no overshoot, no drifting on after you stop).
+
+**Weapon viewmodels** (openspec swap-viewmodels-to-just-models; models by JUST, rebuilt by `scripts/fix-just-weapons-glb.mjs`)
+- Draw the pistol and the shotgun: the same gloves on both, both arms leaving through the bottom or side edge, no loose hand or forearm end. Try 16:9, 4:3 and 21:9 windows, and the field of view slider at 70 and 95 (the menu range), at rest, aiming, sprinting, reloading and switching.
+- The pistol reload is one 3.7 s motion, empty or not: the magazine sound as it leaves the grip (about 0.6 s), the seat (about 2.2 s) and the slide (about 3.1 s) line up with what you see, and the pistol is full when it ends.
+- The shotgun fires and pumps in one motion (the pump sound and the hull about 0.6 s after the shot), and the next shot is ready at 0.85 s. Reload from empty: opening, one motion per shell with the shell sound as it seats, then the closing rack. Fire mid-reload: it shoots at once and keeps the shells already in.
+- On High (the tier with ambient occlusion), turn slowly in a dark or red-lit room with a weapon out: no streaks or repeating pattern slides across the gun or gloves, and it looks the same on Medium. To compare live, start with `&debug` in the URL (the handles `__post` and `__water` only exist then) and run `__post.setQuality('medium')` or `'high'` in the console. The weapons are flagged `skipGtao`, so AO neither shades nor reads them.
+- Look at the gun in a dark room and under a red emergency light: the gloves and slide are lit evenly, not blown out, and show no streaks or repeated stripes (the viewmodel fill light must stay about 0.45 m from the grip).
+- Sprint with each weapon: the gun is carried low across the body with the muzzle down, the view stays clear, and both arms leave through the bottom edge. Holster or open a menu: the gun drops fully out of view.
+- Stand still with a weapon out: it drifts slowly and slightly (breathing). With reduced motion on, it stays still.
+- Recoil is now carried by springs, since the new `Shoot` clips barely move the gun (starting values, pistol about 2.5 cm back and 2 degrees of lift, shotgun about 6 cm and 4.5 degrees): say if it feels weak or too much.
 
 **Hale's office** (openspec end-scene-when-player-leaves, scene-presence spec). The scene `admin_hale` is bound to the Director's Office (`R14c`) by its `room` field. Walk in with the briefing done, then try these on a scratch slot (`?slot=scratch`):
 - Stay put: Hale, Jay ("Everything all right, Director?") and Hale's last two lines all play.

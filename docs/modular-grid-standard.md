@@ -77,8 +77,8 @@ Measured from glTF scene-graph transforms and dequantized `POSITION` accessors (
 | `infected/gamechar.glb` | `0.030 × 0.051 × 0.010` | `-0.025 .. 0.025` | **Sub-meter (~1/35×)**; relies on `bodyModel.ts` normalization. |
 | `infected/necromorph_crowd.glb` | `0.012 × 0.020 × 0.006` | `-0.010 .. 0.010` | **Sub-meter (~1/90×)**; relies on `bodyModel.ts` normalization. |
 | `infected/necromorph_slasher.glb` | `0.057 × 0.015 × 0.033` | `-0.008 .. 0.008` | **Sub-meter (~1/100×)**; relies on `bodyModel.ts` normalization. |
-| `weapons/pistol.glb` | `2.000 × 2.000 × 1.050` | `-1.000 .. 1.000` | Quantized `[-1, 1]` viewmodel; positioned via `WEAPON_MODELS.pistol.ref`. |
-| `weapons/shotgun.glb` | `2.000 × 2.000 × 0.775` | `-1.000 .. 1.000` | Quantized `[-1, 1]` viewmodel; positioned via `WEAPON_MODELS.shotgun.ref`. |
+| `weapons/pistol.glb` | skinned, authored in 0.024 m units | the camera bone at `y = 34` | Viewmodel with a 1142x Armature node; scaled to metres and positioned via `WEAPON_MODELS.pistol.scale` and `.ref` (`glbWeapons.ts`). |
+| `weapons/shotgun.glb` | skinned, authored in 0.024 m units | the camera bone at `y = 34` | Same rig and glove as the pistol; scaled and positioned via `WEAPON_MODELS.shotgun.scale` and `.ref`. |
 | `lab/underground_lab.glb` | `73.843 × 9.325 × 52.537` | `-5.641 .. 3.684` | `223,504` tris, `0` empties; standalone sandbox (`?level=lab`), not `4 m`-snapped. |
 | `seabed/ocean_floor_scene.glb` | `12.172 × 4.287 × 12.762` | `-1.426 .. 2.861` | Re-framed & instanced in [seabed.ts](../src/render/fx/seabed.ts). |
 | `vehicles/kilo_submarine.glb` | `13.512 × 18.931 × 71.228` | `min.x = 78.871` | Off-center pivot (`+85.6 m` X); re-centered & scaled (`SUB_SCALE = 1`, `14.5 m` dock fit) in [subModel.ts](../src/render/fx/subModel.ts). |
