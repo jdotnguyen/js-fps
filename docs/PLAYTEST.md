@@ -91,3 +91,52 @@ Giles opens the armory himself; Jay is locked (no moving, no weapons) during Pri
 - TAG FM in the ruined junction: the radio on the R05 console starts when the first fight ends and stops on entering R06 (`trigger:r06_enter`). Check it is audible but not overpowering, and its position on the console.
 - Performance: R07 has 6 extra overlay meshes (glass), R11 one (trail); check frame rate in R11 with 8 enemies and the hero, and in the tunnel.
 - The `loop` skip change (counted loops apply their body) touches the earlier skippable scenes too; re-skip the intro and the briefing once to be sure.
+
+## Session load timings
+The session logs one line when a load finishes: `[session] ready in N ms (total ... | stage ms | ...)`. A stage marked `(prepared)` took its inputs from the title preload (openspec `preload-during-title`).
+
+Baseline before the title preload (2026-11-23, desktop PC with the RX 7900 XTX, Vite dev server, High, `/?level=slice01&slot=scratch&nosplash&memprobe`; stage times are wall clock from the session's own timer, not frame times):
+
+| Stage | Cold GPU shader cache | Warm (reload) |
+|---|---|---|
+| renderer | 40 ms | 30 ms |
+| textures+audio | 2211 ms | 2242 ms |
+| level (build, body models in parallel) | 5693 ms | 5549 ms |
+| navmesh+cast | 136 ms | 137 ms |
+| simulation | 362 ms | 363 ms |
+| texture-upload | 808 ms | 808 ms |
+| shaders+warm | 15771 ms | 918 ms |
+| **total** | **25021 ms** | **10048 ms** |
+
+The cold run was the first load after the shader code changed, so the GPU driver's shader cache was empty. Every later load of the same shaders is warm. Both runs also overlapped the title music render (about 10 s here, because `?nosplash` skips the title window it normally renders in).
+
+## Title preload (openspec `preload-during-title`)
+While the splash and the title menu show, the game prepares the first load in the background: the session and engine chunks, models, mocap packs, sounds and samples, the textures, and the default level (`slice01`) built in memory with its navmesh. It makes no renderer; the only GL context is a probe that reads the GPU's limits and is released at once. The splash can't be skipped any more (the audio-unlock click stays), so the work has time to run.
+
+- Check: open the game, wait for the title, then New game and Continue. The console line `[session] ready in N ms (total ... | stage ms (prepared) | ...)` marks every stage that used the title's work. Compare with the baseline above.
+- Edge cases to try by hand: change the graphics quality on the title, then start (the textures and world rebuild for the new quality); Load a save on another level (that level builds in the loading screen, the shared work is still used); click New game before the title has finished preparing (the load waits for work already running instead of starting it again); Quit to title and start again.
+- Watch the splash: while the level builds in slices behind it, the splash animation should not visibly stutter. The build holds while you move the mouse or press a key in the menu.
+- URLs that skip the title (`?level=`, `&debug&jump=`, `?enemies=`, `?vmlab`) don't prepare anything; `?nosplash` alone still shows the title and does.
+
+### Title preload: measured result (2026-11-23, same machine and URL style as the baseline above)
+New game on `slice01` at High, started from the title after the splash (Playwright, one tab, fresh profile for the cold column):
+
+| Stage | Baseline (warm) | With title preload (warm) | Title preload (cold GPU cache) |
+|---|---|---|---|
+| renderer | 30 ms | 45 ms | 55 ms |
+| textures+audio | 2242 ms | 3 ms (prepared) | 9 ms (prepared) |
+| level | 5549 ms | 10 ms (prepared) | 10 ms (prepared) |
+| navmesh+cast | 137 ms | 7 ms | 7 ms |
+| simulation | 363 ms | 525 ms | 460 ms |
+| texture-upload | 808 ms | 808 ms | 807 ms |
+| shaders+warm | 918 ms | 1144 ms | 12455 ms |
+| **total** | **10048 ms** | **2542 ms** | **13802 ms** |
+
+Quit to title and start again: 2019 ms, every prepared stage hit again. Changing quality to Medium on the title, then New game: textures and level adopted (prepared); the 8.3 s shader stage is Medium's own programs compiling on a cold cache.
+
+What it costs: the preparation runs behind the splash and loader, and the main thread is busy for about 6 s of it in chunks of 80-690 ms (32 long tasks in the first 9 s). With a click at 0.3 s the splash cards showed 36 frames over 50 ms (worst 450 ms). With a click after the preparation finished, the splash held 60 fps with no frame over 33 ms.
+
+### Title preload: keeping the splash smooth (2026-11-23)
+The preparation works in 6 ms slices (`TITLE_SLICE_MS`) and the body models wait for the splash to end. Measured with an immediate click (a Playwright tab, the splash's whole 9 s): frames over 50 ms 36 to 9, over 100 ms 19 to 3, worst frame 450 ms to 217 ms; tasks of 100 ms or more in a Chrome trace 24 to 5. The preparation now finishes about 11 s after load instead of 8.8 s. A New game after a few seconds on the menu still adopts everything (textures, level, navmesh and cast all prepared; the stages outside shader compile add up to about 1.3 s).
+
+What is left to see: a few short stalls from single room-geometry builds and single sounds. If they bother you, the next steps are cutting the room build into steps the way the merge now is, and synthesizing the sounds in a worker.

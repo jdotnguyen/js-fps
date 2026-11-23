@@ -37,6 +37,18 @@ export function setAnisotropy(value: number): void {
   }
 }
 
+/**
+ * Bring every tracked texture to the current value. Textures made before the GPU's maximum was known (the title's
+ * prepared materials) can have been created at an older value; `setAnisotropy` skips them when the value is unchanged.
+ */
+export function applyAnisotropy(): void {
+  for (const t of tracked) {
+    if (t.anisotropy === level) continue;
+    t.anisotropy = level;
+    t.needsUpdate = true;
+  }
+}
+
 export function currentAnisotropy(): number {
   return level;
 }

@@ -125,3 +125,60 @@ test('SessionCoordinator manages title -> load -> play -> quit-to-title disposal
   assert.equal(coordinator.active, null);
   assert.ok(log.some((e) => e.startsWith('loading:error:missing level')));
 });
+
+test('SessionCoordinator hands each title its own preload and never reuses one a session consumed', async () => {
+  const { TitlePreload } = await import('./titlePreload.ts');
+  const key = { levelId: 'slice01', quality: 'high', gpu: 'g' };
+  const made: InstanceType<typeof TitlePreload>[] = [];
+  const handed: Array<InstanceType<typeof TitlePreload> | null> = [];
+  const released: string[] = [];
+  let fail = false;
+
+  const host: SessionLifecycleHost = {
+    showTitleBackdrop: () => undefined,
+    hideTitleBackdrop: () => undefined,
+    showTitleMenu: () => undefined,
+    hideMenu: () => undefined,
+    showLoading: () => undefined,
+    hideLoading: async () => undefined,
+    showLoadError: (_msg, onBack) => onBack(),
+    setTitleMusic: () => undefined,
+    createPreload: () => {
+      const p = new TitlePreload(key, { warn: () => undefined });
+      p.start('leftover', 'shared', async () => 'x', (v) => released.push(`${made.length}:${v}`));
+      made.push(p);
+      return p;
+    },
+    createSession: async (_intent, preload) => {
+      handed.push(preload);
+      if (fail) throw new Error('boom');
+      return { levelId: 'slice01', game: { quitToTitle: () => undefined } as unknown as PlaySession['game'], resetTutorials: () => undefined, dispose: () => undefined };
+    },
+  };
+  const coordinator = new SessionCoordinator(host);
+
+  coordinator.enterTitle();
+  assert.equal(made.length, 1);
+  await coordinator.start({ kind: 'newGame', slot: 0, difficulty: 'standard' });
+  assert.equal(handed[0], made[0], 'the session gets the holder the title prepared');
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(released, ['1:x'], 'what the session did not adopt is released after the load');
+
+  // Quit to title makes a new holder; the consumed one is not offered again.
+  coordinator.enterTitle();
+  assert.equal(made.length, 2);
+  assert.notEqual(made[1], made[0]);
+
+  // A failed load disposes the holder and the way back to the title makes a fresh one.
+  fail = true;
+  await coordinator.start({ kind: 'newGame', slot: 0, difficulty: 'standard' });
+  assert.equal(handed[1], made[1]);
+  assert.equal(made.length, 3, 'the error back-to-title path prepares again');
+
+  // An auto-load (no title shown first) has no holder and loads as before.
+  fail = false;
+  const { createPreload: _unused, ...noPreload } = host;
+  const auto = new SessionCoordinator(noPreload);
+  await auto.start({ kind: 'newGame', slot: 0, difficulty: 'standard' });
+  assert.equal(handed[handed.length - 1], null);
+});

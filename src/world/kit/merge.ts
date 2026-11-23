@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { applyWorldUvs } from '../../render/uvTiling.ts';
+import { runSteps, runStepsSliced, type TimeSlicer } from '../../core/timeSlice.ts';
 
 /** Ambient occlusion in [0, 1] (1 = fully lit) at a world point with its normal. */
 export type AoFn = (p: THREE.Vector3, n: THREE.Vector3) => number;
@@ -178,7 +179,18 @@ export class AoMergeBuilder {
     this.add(mesh.geometry, material, mesh.matrixWorld);
   }
 
+  /** Merge everything added so far into one group, all at once. */
   build(name: string, ao: AoFn | null): THREE.Group {
+    return runSteps(this.buildSteps(name, ao));
+  }
+
+  /** The same merge in small steps, handing the thread back through `slicer` between them (the title's preload). */
+  buildAsync(name: string, ao: AoFn | null, slicer: TimeSlicer): Promise<THREE.Group> {
+    return runStepsSliced(this.buildSteps(name, ao), slicer);
+  }
+
+  /** One path for both: a step ends after each geometry's AO bake and each merge, the points a caller may pause at. */
+  *buildSteps(name: string, ao: AoFn | null): Generator<void, THREE.Group, void> {
     const group = new THREE.Group();
     group.name = name;
     for (const [material, list] of this.parts) {
@@ -189,12 +201,15 @@ export class AoMergeBuilder {
         if (worldTile) applyWorldMeterUvs(g, worldTileMeters(material));
         if (bake || flat) this.bakeAo(g, bake ? ao : null, this.tints.get(g));
         else g.deleteAttribute('color');
+        yield;
       }
       const merged = mergeGeometries(list, false);
+      yield;
       let indexed: THREE.BufferGeometry | null = null;
       if (merged) {
         indexed = mergeVertices(merged);
         merged.dispose();
+        yield;
       }
       const meshes = indexed ? [indexed] : list;
       for (const g of meshes) {

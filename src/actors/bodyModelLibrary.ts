@@ -39,19 +39,35 @@ export class BodyModelLibrary {
     this.table = table;
   }
 
-  /** Load and prepare every model. Never throws: failures are warned about and the model is left out. */
-  async load(baseUrl: string): Promise<void> {
+  /**
+   * Load and prepare every model. Never throws: failures are warned about and the model is left out.
+   * With `yieldTo`, preparing runs one model at a time with a hand-back before each, so a page that is animating
+   * (the title behind the splash) is not stalled by several finishing together.
+   */
+  async load(baseUrl: string, yieldTo?: () => Promise<void>): Promise<void> {
     const { createGltfLoader } = await import('../render/gltf.ts');
     const loader = await createGltfLoader();
+    let turn: Promise<void> = Promise.resolve();
     await Promise.all(
       Object.entries(this.table).map(async ([id, def]) => {
         try {
           const t0 = performance.now();
           const gltf = await loader.loadAsync(baseUrl + def.url);
-          const model = prepareBodyModel(gltf.scene, {
-            ...(def.sickTint === undefined ? {} : { sickTint: def.sickTint }),
-            ...(def.handRig ? { detailHands: true } : {}),
-          });
+          let model: PreparedBodyModel;
+          if (yieldTo) {
+            const mine = turn;
+            let done!: () => void;
+            turn = new Promise<void>((resolve) => (done = resolve));
+            await mine;
+            await yieldTo();
+            try {
+              model = prepareBodyModel(gltf.scene, { ...(def.sickTint === undefined ? {} : { sickTint: def.sickTint }), ...(def.handRig ? { detailHands: true } : {}) });
+            } finally {
+              done();
+            }
+          } else {
+            model = prepareBodyModel(gltf.scene, { ...(def.sickTint === undefined ? {} : { sickTint: def.sickTint }), ...(def.handRig ? { detailHands: true } : {}) });
+          }
           this.loaded.set(id, model);
           console.info(`[body-models] ${id}: ${model.triangles} triangles, ${model.parts.length} pieces in ${(performance.now() - t0).toFixed(0)} ms`);
         } catch (err) {

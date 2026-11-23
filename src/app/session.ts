@@ -3,7 +3,6 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { Keymap } from '../data/types/keymap.ts';
 import type { DifficultyId, DifficultyTable } from '../data/types/difficulty.ts';
 import type { ItemTable } from '../data/types/items.ts';
-import { levelValidator } from '../data/types/level.ts';
 import type { UiText } from '../data/types/uiText.ts';
 import type { ScoreTable } from '../data/types/scores.ts';
 import killsJson from '../data/kills.json';
@@ -27,12 +26,12 @@ import { validate } from '../core/validate.ts';
 import { yieldFrame } from '../core/yieldFrame.ts';
 import type { SoundName } from '../audio/sounds.ts';
 import { applyQuality, createRenderer } from '../render/renderer.ts';
-import { createMaterialsAsync, disposeMaterials, type Materials } from '../render/materials.ts';
+import { createMaterialsAsync, disposeMaterials, textureSizeFor, type Materials } from '../render/materials.ts';
 import { collectTextures } from '../render/textures.ts';
 import { createPost, type Post } from '../render/post.ts';
 import type { RoomCaptures } from '../render/roomCaptures.ts';
 import { anisotropyFor, clampTier, materialTextureUnits, RENDER_TIERS, type GpuLimits, type RenderTier } from '../render/tiers.ts';
-import { clearTrackedAnisotropy, currentAnisotropy, setAnisotropy } from '../render/anisotropy.ts';
+import { applyAnisotropy, clearTrackedAnisotropy, currentAnisotropy, setAnisotropy } from '../render/anisotropy.ts';
 import { Humanoid, setCharacterShadowDistance, type FootstepEvent } from '../actors/humanoid.ts';
 import { Flashlight } from '../render/flashlight.ts';
 import { LIGHT_PATTERNS } from '../render/lights.ts';
@@ -55,6 +54,13 @@ import { DoorAudio } from '../audio/doorAudio.ts';
 import type { AudioEngine } from '../audio/engine.ts';
 import { CasingAudio, ejectOnWeaponEvents } from '../audio/casings.ts';
 import { FootstepAudio } from '../audio/footsteps.ts';
+import { StageTimer } from './stageTimer.ts';
+import { levelFileLoader } from './levelFiles.ts';
+import { buildStationWorld, createStationScene, type WorldBundle } from './worldBundle.ts';
+import { cachedGpuLimits, gpuKey } from '../render/gpuProbe.ts';
+import type { LevelData } from '../data/types/level.ts';
+import { ITEMS } from './titlePrepare.ts';
+import type { TitlePreload } from './titlePreload.ts';
 import type { MenuMusic } from '../audio/menuMusic.ts';
 import { PropAudioController } from '../audio/propAudio.ts';
 import { EARSHOT_LEVEL, voiceAudibility, wallOccluder } from '../audio/occlusion.ts';
@@ -111,13 +117,9 @@ import { WebAudioVoicePlayer } from '../dialogue/voicePlayer.ts';
 import { StoryDucker } from '../audio/storyDuck.ts';
 import { Subtitles } from '../ui/hud/subtitles.ts';
 import type { LoadingScreen } from '../ui/loadingScreen.ts';
-import type { AutoLoadPlan, LaunchPlan } from './launch.ts';
+import { DEFAULT_LEVEL, type AutoLoadPlan, type LaunchPlan } from './launch.ts';
 import { ContactShadows, contactBodies } from '../render/contactShadows.ts';
 
-const DEFAULT_LEVEL = 'slice01';
-const LEVEL_FILES = import.meta.glob<unknown>('../data/levels/*.json', { import: 'default' });
-const TEXTURE_SIZE = 512;
-const FOG_COLOR = 0x04080a;
 const GRAIN = 0.035;
 const TEXTURE_UPLOAD_BATCH = 8;
 
@@ -194,13 +196,38 @@ function clearSessionUi(uiRoot: HTMLElement): void {
  * Create, asynchronously load, GPU pre-warm, and start a full 3D `PlaySession`.
  * If any step fails, partially allocated resources are disposed before rethrowing.
  */
-export async function createPlaySession(shell: SessionShellDeps, intent: SessionIntent): Promise<PlaySession> {
+export async function createPlaySession(shell: SessionShellDeps, intent: SessionIntent, preload: TitlePreload | null = null): Promise<PlaySession> {
   const { settings, saves, keymap, difficulties, itemTable, uiText, scores, audio, menuMusic, shellEvents, memProbe, launch, loading } = shell;
   const canvas = el<HTMLCanvasElement>('#game');
   const uiRoot = el<HTMLElement>('#ui');
   const prompt = el<HTMLElement>('#prompt');
 
-  const events = new EventBus();
+  const stages = new StageTimer();
+  /** A prepared item when the title made one (title-preload spec), otherwise the session's own load. Shared items ignore the key. */
+  const adopt = <T>(item: string, own: () => Promise<T>): Promise<T> => {
+    if (!preload) return own();
+    const key = { levelId: '', quality: settings.get().quality, gpu: '' };
+    if (preload.available(item, key)) stages.markPrepared();
+    return preload.take(item, key, own);
+  };
+
+  // The level this load targets, from the intent.
+  const levelParam =
+    intent.kind === 'autoLoad' ? intent.plan.levelParam : intent.kind === 'newGame' ? (intent.levelParam ?? null) : intent.save.level;
+  const levelId = levelParam === 'demo' || levelParam === 'lab' || levelParam === 'corner' ? null : (levelParam ?? DEFAULT_LEVEL);
+
+  // A world built at the title is adopted whole, with the bus, inventory, scene and materials it was built against
+  // (title-preload design D9); a miss, a mismatch or a failure gives null and the normal load runs.
+  const probe = cachedGpuLimits();
+  let bundle: WorldBundle | null = null;
+  if (preload && levelId && probe && !launch.checker) {
+    // (The UV checker debug material is applied at build time, so a checker load always builds its own world.)
+    const key = { levelId, quality: settings.get().quality, gpu: gpuKey(probe) };
+    if (preload.available(ITEMS.world, key)) loading.setProgress(0.02, 'Finishing the station…');
+    bundle = await preload.take<WorldBundle | null>(ITEMS.world, key, async () => null);
+  }
+
+  const events = bundle?.events ?? new EventBus();
   const cleanups: Array<() => void> = [];
   let disposed = false;
 
@@ -215,6 +242,12 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
   let level: Level | null = null;
   let world: World | null = null;
   let bodyModels: BodyModelLibrary | null = null;
+  if (bundle) {
+    // Owned by this session from here, so an early failure disposes them like any other.
+    materials = bundle.materials;
+    registry = bundle.registry;
+    level = bundle.level;
+  }
   let squad: Squad | null = null;
   let npcs: NpcDirector | null = null;
   let enemies: ReturnType<typeof setupEnemies> | null = null;
@@ -371,6 +404,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
 
   try {
     const t0 = performance.now();
+    stages.begin('renderer');
     // The shared clip library is its own chunk (startup-bundle spec); fetch it alongside every other stage.
     const mocapPromise = loadSharedMocapLibrary();
     mocapPromise.catch(() => undefined); // awaited with the cast assets below; avoids an unhandled rejection if an earlier stage throws
@@ -382,6 +416,9 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
 
     renderer = createRenderer(canvas, settings.get());
     const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+    if (bundle && probe && gpuKey({ maxTextures: renderer.capabilities.maxTextures, maxFragmentUniforms: renderer.capabilities.maxFragmentUniforms, maxAnisotropy }) !== gpuKey(probe)) {
+      console.warn('[session] the renderer reports other GPU limits than the title probe; the light pools are re-checked below');
+    }
     const gpu: GpuLimits = { maxTextures: renderer.capabilities.maxTextures, maxFragmentUniforms: renderer.capabilities.maxFragmentUniforms, materialUnits: 0 };
     const tierWarnings = new Set<string>();
     const activeTier = (quality: Settings['quality']): RenderTier => {
@@ -394,9 +431,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       return tier;
     };
     const lightBudgetOf = (t: RenderTier): LightBudget => ({ fillLights: t.fillLights, shadowLights: t.shadowLights, shadowMapSize: t.shadowMapSize, cookieSpots: t.cookieSpots });
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(FOG_COLOR);
-    scene.fog = new THREE.FogExp2(FOG_COLOR, 0.05);
+    const scene = bundle?.scene ?? createStationScene();
     const pmrem = new THREE.PMREMGenerator(renderer);
     const roomEnv = new RoomEnvironment();
     envTexture = pmrem.fromScene(roomEnv, 0.04).texture;
@@ -412,78 +447,92 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
 
     const camera = new THREE.PerspectiveCamera(settings.get().fov, innerWidth / innerHeight, 0.05, 120);
 
-    // Determine target level id from intent.
-    const levelParam =
-      intent.kind === 'autoLoad'
-        ? intent.plan.levelParam
-        : intent.kind === 'newGame'
-          ? (intent.levelParam ?? null)
-          : intent.save.level;
-    const levelId = levelParam === 'demo' || levelParam === 'lab' || levelParam === 'corner' ? null : (levelParam ?? DEFAULT_LEVEL);
-
+    stages.begin('textures+audio');
     loading.setProgress(0.06, 'Preparing textures and audio…');
     await yieldFrame();
 
-    const texSize = settings.get().quality === 'low' ? 256 : TEXTURE_SIZE;
-    const inventory = new Inventory(itemTable, events);
+    const texSize = textureSizeFor(settings.get().quality);
+    const inventory = bundle?.inventory ?? new Inventory(itemTable, events);
 
     // Stage 1 (0.06..0.24): Materials, exterior models, chunked procedural SFX & priority gameplay audio in parallel.
     const [loadedMaterials, , , , gameplayAudio] = await Promise.all([
-      createMaterialsAsync(texSize, currentAnisotropy()),
+      adopt(ITEMS.materials, () => createMaterialsAsync(texSize, currentAnisotropy())),
       preloadSeabed(import.meta.env.BASE_URL),
       preloadSubModel(import.meta.env.BASE_URL),
-      audio.renderSoundsAsync(undefined, { batchSize: 4 }),
-      audio.loadGameplaySamples({
-        onProgress: (done, total) => {
-          loading.setProgress(0.06 + (done / Math.max(1, total)) * 0.16, 'Preparing audio and textures…');
-        },
-      }),
+      adopt(ITEMS.audioSounds, () => audio.renderSoundsAsync(undefined, { batchSize: 4 })),
+      adopt(ITEMS.audioSamples, () =>
+        audio.loadGameplaySamples({
+          onProgress: (done, total) => {
+            loading.setProgress(0.06 + (done / Math.max(1, total)) * 0.16, 'Preparing audio and textures…');
+          },
+        }),
+      ),
     ]);
     void gameplayAudio.background;
     materials = loadedMaterials;
+    applyAnisotropy(); // prepared materials may predate the GPU's maximum
     measureMaterialUnits(Object.values(materials).filter((m): m is THREE.Material => m instanceof THREE.Material));
     loading.setProgress(0.24, 'Loading station assets…');
     await yieldFrame();
 
     // Start downloading body models, mocap packs, weapon GLBs, and physics WASM concurrently with level build.
-    bodyModels = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/body-models.json'));
-    if (launch.bodyModels === 'all') bodyModels.forceShare = 1;
-    if (launch.bodyModels === 'off') bodyModels.forceShare = 0;
+    const bodyModelsReady = adopt(ITEMS.bodyModels, async () => {
+      const lib = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/body-models.json'));
+      await lib.load(import.meta.env.BASE_URL);
+      return lib;
+    }).then((lib) => {
+      if (disposed) lib.dispose(); // the load failed elsewhere while this was in flight
+      if (launch.bodyModels === 'all') lib.forceShare = 1;
+      if (launch.bodyModels === 'off') lib.forceShare = 0;
+      return lib;
+    });
 
     const physicsPromise = levelId && anyPhysics(physics.switches) ? loadPhysics(physics.switches) : Promise.resolve(null);
     const castAssetsPromise = Promise.all([
-      bodyModels.load(import.meta.env.BASE_URL),
-      mocapPromise.then((lib) => loadMocapPacks(lib, Object.keys(sharedMotionProfiles().profiles))),
-      loadWeaponModels(),
+      bodyModelsReady,
+      adopt(ITEMS.mocap, () => mocapPromise.then((lib) => loadMocapPacks(lib, Object.keys(sharedMotionProfiles().profiles)))),
+      adopt(ITEMS.weapons, loadWeaponModels),
     ]);
 
     // Stage 2 (0.24..0.60): Load & chunk-build the level.
+    stages.begin('level');
     let room: DemoRoom | null = null;
     let levelSpawns: SpawnPointData[] = [];
     let mapModel: MapModel | null = null;
     let mapState: MapState | null = null;
 
     if (levelId) {
-      const file = Object.entries(LEVEL_FILES).find(([path]) => path.endsWith(`/${levelId}.json`));
-      if (!file) throw new Error(`No level '${levelId}'. Known: ${Object.keys(LEVEL_FILES).map((f) => f.replace(/^.*\/|\.json$/g, '')).join(', ')}`);
-      const [levelJson, { loadLevel }, { KitRegistry: KitReg, validateKitManifest }, { default: kitManifestJson }] = await Promise.all([
-        file[1](),
-        import('../world/level.ts'),
-        import('../world/registry.ts'),
-        import('../data/kit-manifest.json'),
-      ]);
-      registry = new KitReg(validate(validateKitManifest, kitManifestJson, 'data/kit-manifest.json'), undefined);
-      const refs = { items: new Set(Object.keys(itemTable)), uiText: new Set(Object.keys(uiText)) };
-      const data = validate(levelValidator(registry.ids(), refs), levelJson, `data/levels/${levelId}.json`);
-      level = await loadLevel(
-        data,
-        { materials, registry, events, scene, inventory, uiText, debugChecker: launch.checker, lightBudget: lightBudgetOf(activeTier(settings.get().quality)) },
-        {
+      let loaded: { registry: KitRegistry; level: Level; data: LevelData };
+      if (bundle) {
+        // Built at the title: nothing to load or build here, only the light pools to confirm for this renderer.
+        stages.markPrepared();
+        loaded = bundle;
+        loading.setProgress(0.6, 'Station ready…');
+        const actual = lightBudgetOf(activeTier(settings.get().quality));
+        if (JSON.stringify(actual) !== JSON.stringify(bundle.lightBudget)) {
+          console.warn('[session] the prepared world used other light pools than this renderer allows; resizing', bundle.lightBudget, actual);
+          bundle.level.setLightBudget(actual);
+        }
+      } else {
+        loaded = await buildStationWorld({
+          levelId,
+          loadLevelJson: levelFileLoader(levelId),
+          materials,
+          events,
+          scene,
+          inventory,
+          itemTable,
+          uiText,
+          debugChecker: launch.checker,
+          lightBudget: lightBudgetOf(activeTier(settings.get().quality)),
           onProgress: (f, label) => {
             loading.setProgress(0.24 + f * 0.36, label);
           },
-        },
-      );
+        });
+      }
+      registry = loaded.registry;
+      level = loaded.level;
+      const data = loaded.data;
       levelSpawns = spawnPointsOf(data);
       world = level;
       mapModel = buildMapModel(level.source);
@@ -530,11 +579,14 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     measureMaterialUnits(worldMaterials);
     renderer.shadowMap.autoUpdate = false;
 
+    stages.begin('navmesh+cast');
     // Stage 3 (0.60..0.72): Build Recast NavMesh in Web Worker + await cast assets & Rapier physics.
     loading.setProgress(0.62, 'Generating navigation mesh…');
     await yieldFrame();
     const navPromise = level ? level.buildNavAsync() : Promise.resolve(world.navGraph());
-    const [, [, , weaponModels], physicsFactory] = await Promise.all([navPromise, castAssetsPromise, physicsPromise]);
+    const [, [bodyLibrary, , weaponModels], physicsFactory] = await Promise.all([navPromise, castAssetsPromise, physicsPromise]);
+    bodyModels = bodyLibrary;
+    stages.begin('simulation');
     loading.setProgress(0.7, 'Initializing simulation…');
     await yieldFrame();
 
@@ -1629,6 +1681,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     }
 
     // Stage 5 (0.83..0.93): Apply starting game state + chunked GPU texture pre-upload.
+    stages.begin('texture-upload');
     loading.setProgress(0.84, 'Uploading textures to GPU…');
     await yieldFrame();
     if (intent.kind === 'load') {
@@ -1664,6 +1717,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     }
 
     // Stage 6 (0.93..1.00): Pre-warm shaders & render targets across all rooms, cast, enemies, water & CCTV.
+    stages.begin('shaders+warm');
     loading.setProgress(0.93, 'Compiling shaders…');
     await yieldFrame();
     waterSystem?.warm(renderer);
@@ -1728,7 +1782,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     loading.setProgress(1, 'Ready');
     updatePrompt();
     events.emit('game:booted', { at: performance.now() });
-    console.info(`[session] ready in ${(performance.now() - t0).toFixed(0)} ms`);
+    console.info(`[session] ready in ${(performance.now() - t0).toFixed(0)} ms (${stages.summary()})`);
 
     // Start throttled background VO decoding (prioritizing intro lines first) after session is ready.
     void voicePlayer

@@ -7,7 +7,8 @@
  *   2. Developer splash (`#splash-dev`): "J00K80" with visor + volumetric lighting + flicker
  *      (or the legacy zombie act with `?zombiesplash`).
  *
- * Escape, Enter, Space or a click advances/skips the active splash stage once loading is done.
+ * The splash cannot be skipped: it is the window the title uses to prepare the first session (title-preload spec).
+ * Only the audio-unlock prompt in stage 0 takes a click or key press, because browsers require one for sound.
  * Add `?nosplash` to the URL to skip the splash while developing.
  */
 import type { AudioEngine } from '../audio/engine.ts';
@@ -73,15 +74,6 @@ export function startSplash(root: HTMLElement | null, search = location.search):
   let audio: AudioEngine | null = null;
   let musicReady: Promise<void> = Promise.resolve();
   let activeAct: Act | null = null;
-  let skipStage: (() => void) | null = null;
-
-  const onSkipInput = (e: Event): void => {
-    if (!skipStage) return;
-    if (e instanceof KeyboardEvent && (e.repeat || !['Escape', 'Enter', ' '].includes(e.key))) return;
-    skipStage();
-  };
-  addEventListener('keydown', onSkipInput, { capture: true });
-  root.addEventListener('pointerdown', onSkipInput);
 
   // Mirror the loading prompt ("Generating textures…") during Stage 0.
   const prompt = document.querySelector<HTMLElement>('#prompt');
@@ -110,8 +102,6 @@ export function startSplash(root: HTMLElement | null, search = location.search):
 
   const cleanup = (): void => {
     observer.disconnect();
-    removeEventListener('keydown', onSkipInput, { capture: true });
-    root.removeEventListener('pointerdown', onSkipInput);
   };
 
   const runCard = async (el: HTMLElement | null, target: HTMLElement | null, sec: number): Promise<void> => {
@@ -121,12 +111,10 @@ export function startSplash(root: HTMLElement | null, search = location.search):
       let timer = 0;
       const done = (): void => {
         clearTimeout(timer);
-        skipStage = null;
         activeAct?.stop();
         activeAct = null;
         resolve();
       };
-      skipStage = done;
       if (!reduceMotion && target) {
         activeAct = playVisorSplash(root, target, sec);
         void activeAct.finished.then(done);
@@ -169,12 +157,10 @@ export function startSplash(root: HTMLElement | null, search = location.search):
         devEl.hidden = false;
         await new Promise<void>((resolve) => {
           const done = (): void => {
-            skipStage = null;
             activeAct?.stop();
             activeAct = null;
             resolve();
           };
-          skipStage = done;
           try {
             activeAct = playAct(root, logo, zombieSounds);
             void activeAct.finished.then(done);
@@ -194,7 +180,6 @@ export function startSplash(root: HTMLElement | null, search = location.search):
       root.remove();
     },
     abort() {
-      skipStage = null;
       activeAct?.stop();
       cleanup();
       root.remove();

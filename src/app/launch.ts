@@ -1,6 +1,9 @@
 import { readDebugFlags, type DebugFlags } from '../core/debug.ts';
 import { isScratchSession } from '../core/storage.ts';
 
+/** The level a New game starts on, and the one the title prepares. */
+export const DEFAULT_LEVEL = 'slice01';
+
 export interface AutoLoadPlan {
   levelParam: string | null;
   jump: string | null;

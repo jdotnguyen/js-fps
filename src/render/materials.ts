@@ -180,6 +180,11 @@ export function createProceduralBrickMaterial(anisotropy = 4): THREE.MeshStandar
   return m;
 }
 
+/** Procedural texture size for a graphics quality (the Low tier halves it). */
+export function textureSizeFor(quality: string): number {
+  return quality === 'low' ? 256 : 512;
+}
+
 export function createMaterials(textureSize: number, anisotropy: number): Materials {
   const sets = {} as Record<TextureKey, TexSet>;
   for (const key of TEXTURE_KEYS) sets[key] = TEXTURE_SPECS[key](textureSize);

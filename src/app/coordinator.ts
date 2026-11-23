@@ -2,6 +2,7 @@ import type { DifficultyId } from '../data/types/difficulty.ts';
 import type { SaveData } from '../game/save.ts';
 import type { MenuGameAdapter } from '../ui/menus/screens.ts';
 import type { PlaySession, SessionIntent } from './session.ts';
+import type { TitlePreload } from './titlePreload.ts';
 
 export interface SessionLifecycleHost {
   showTitleBackdrop(): void;
@@ -12,7 +13,10 @@ export interface SessionLifecycleHost {
   hideLoading(): Promise<void>;
   showLoadError(message: string, onBack: () => void): void;
   setTitleMusic(): void;
-  createSession(intent: SessionIntent): Promise<PlaySession>;
+  /** `preload` is what the title prepared for this load, or null (auto-load URLs, or no preparation). The session adopts what matches. */
+  createSession(intent: SessionIntent, preload: TitlePreload | null): Promise<PlaySession>;
+  /** A fresh holder for the title being entered, with its preparation started; null when nothing should be prepared. */
+  createPreload?(): TitlePreload | null;
 }
 
 /**
@@ -22,6 +26,7 @@ export interface SessionLifecycleHost {
 export class SessionCoordinator {
   private session: PlaySession | null = null;
   private loading = false;
+  private preload: TitlePreload | null = null;
   private readonly host: SessionLifecycleHost;
 
   constructor(host: SessionLifecycleHost) {
@@ -30,6 +35,11 @@ export class SessionCoordinator {
 
   get active(): PlaySession | null {
     return this.session;
+  }
+
+  /** What the title currently holds for the next load; null while a session has it or none was made. */
+  get currentPreload(): TitlePreload | null {
+    return this.preload;
   }
 
   get isLoading(): boolean {
@@ -43,6 +53,9 @@ export class SessionCoordinator {
       this.session = null;
       s.dispose();
     }
+    // A new holder per title: nothing a disposed session adopted is ever reused (title-preload spec).
+    this.preload?.dispose();
+    this.preload = this.host.createPreload?.() ?? null;
     this.host.setTitleMusic();
     this.host.showTitleBackdrop();
     this.host.showTitleMenu();
@@ -64,6 +77,8 @@ export class SessionCoordinator {
       prev.dispose();
     }
 
+    const preload = this.preload;
+    this.preload = null;
     this.host.hideMenu();
     this.host.hideTitleBackdrop();
     const title =
@@ -75,13 +90,15 @@ export class SessionCoordinator {
     this.host.showLoading(title);
 
     try {
-      const next = await this.host.createSession(intent);
+      const next = await this.host.createSession(intent, preload);
       this.session = next;
       this.loading = false;
+      preload?.dispose(); // releases whatever the session did not adopt; adopted items are the session's now
       await this.host.hideLoading();
       return true;
     } catch (err) {
       this.loading = false;
+      preload?.dispose();
       console.error('[session] failed to load', err);
       const message = err instanceof Error ? err.message : String(err);
       this.host.showLoadError(message, () => {

@@ -79,6 +79,8 @@ export class KitRegistry {
     ids: Iterable<string>,
     load?: (url: string) => Promise<{ scene: THREE.Group }>,
     onProgress?: (done: number, total: number, id: string) => void,
+    /** Between parses; the title passes one that waits for the menu to go idle. Defaults to the next frame. */
+    yieldTo: () => Promise<void> = yieldFrame,
   ): Promise<void> {
     const wanted = [...new Set(ids)].filter((id) => this.manifest.glb[id] && !this.glbs.has(id));
     if (!wanted.length) return;
@@ -136,7 +138,7 @@ export class KitRegistry {
       }
       done++;
       onProgress?.(done, total, item.id);
-      await yieldFrame();
+      await yieldTo();
     }
   }
 

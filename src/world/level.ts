@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { EventBus, EventName } from '../core/events.ts';
 import { Rng } from '../core/rng.ts';
 import { yieldFrame } from '../core/yieldFrame.ts';
+import { TimeSlicer, runSteps, runStepsSliced } from '../core/timeSlice.ts';
 import { isKeyPickup, type SpotKind, type AmbientPreset, type DoorData, type DoorKit, type DoorState, type KeyPickupData, type LevelData, type RoomData, type TriggerData, type UnlockSource, type VentData } from '../data/types/level.ts';
 import type { UiText } from '../data/types/uiText.ts';
 import type { Inventory } from '../game/inventory.ts';
@@ -355,18 +356,29 @@ function cellMatrix(cell: [number, number, number], rot: number): THREE.Matrix4 
 export interface LevelLoadOptions {
   /** Progress callback spanning GLB preload (0..0.35), room building (0.35..0.65), and AO/merge (0.65..1). */
   onProgress?: (fraction: number, label: string) => void;
+  /** Awaited between build chunks. Defaults to the next animation frame; the title passes one that waits for the menu to be idle. */
+  yieldTo?: () => Promise<void>;
+  /** Work at most this long between yields while merging rooms (the title uses it to keep the splash smooth). */
+  sliceMs?: number;
 }
 
 /** Load every GLB the level needs, then build it asynchronously with frame yields between rooms and merges. */
 export async function loadLevel(data: LevelData, deps: LevelDeps, opts?: LevelLoadOptions): Promise<Level> {
   const ids = data.rooms.flatMap((r) => [...r.pieces.map((p) => p.kit), ...(r.props ?? []).map((p) => p.kit)]);
-  await deps.registry.preload(ids, undefined, (done, total) => {
-    opts?.onProgress?.((done / Math.max(1, total)) * 0.35, `Loading station models (${done}/${total})…`);
-  });
+  await deps.registry.preload(
+    ids,
+    undefined,
+    (done, total) => {
+      opts?.onProgress?.((done / Math.max(1, total)) * 0.35, `Loading station models (${done}/${total})…`);
+    },
+    opts?.yieldTo,
+  );
   return Level.buildAsync(data, deps, {
     onProgress: opts?.onProgress
       ? (f, label) => opts.onProgress!(0.35 + f * 0.65, label)
       : undefined,
+    ...(opts?.yieldTo ? { yieldTo: opts.yieldTo } : {}),
+    ...(opts?.sliceMs ? { sliceMs: opts.sliceMs } : {}),
   });
 }
 
@@ -542,13 +554,14 @@ export class Level implements World, CaptureHost {
   static async buildAsync(
     data: LevelData,
     deps: LevelDeps,
-    opts?: { onProgress?: ((fraction: number, label: string) => void) | undefined },
+    opts?: { onProgress?: ((fraction: number, label: string) => void) | undefined; yieldTo?: () => Promise<void>; sliceMs?: number },
   ): Promise<Level> {
     const level = new Level(data, deps, true);
     const rng = new Rng(`${data.id}:${data.seed}`);
     // Advance rng fork identically to constructor's dust fork so procedural seeds match sync builds.
     rng.fork('dust');
-    await level.buildAllAsync(data, deps, rng, opts?.onProgress);
+    const slicer = opts?.sliceMs ? new TimeSlicer(opts.yieldTo ?? yieldFrame, opts.sliceMs) : undefined;
+    await level.buildAllAsync(data, deps, rng, opts?.onProgress, opts?.yieldTo, slicer);
     return level;
   }
 
@@ -577,10 +590,23 @@ export class Level implements World, CaptureHost {
   }
 
   private mergeRoom(room: RoomRuntime, ao: AoFn): void {
-    for (const mesh of room.staticMeshes) room.merger.addMesh(mesh);
+    runSteps(this.mergeRoomSteps(room, ao));
+  }
+
+  /** The same merge in small steps with the thread handed back between them (the title's preload). */
+  private mergeRoomAsync(room: RoomRuntime, ao: AoFn, slicer: TimeSlicer): Promise<void> {
+    return runStepsSliced(this.mergeRoomSteps(room, ao), slicer);
+  }
+
+  /** One path for both: a step ends after each mesh is added and at the merge's own pause points. */
+  private *mergeRoomSteps(room: RoomRuntime, ao: AoFn): Generator<void, void, void> {
+    for (const mesh of room.staticMeshes) {
+      room.merger.addMesh(mesh);
+      yield;
+    }
     room.staticMeshes.length = 0;
     room.stats.materials = room.merger.materialCount;
-    room.group.add(room.merger.build(`room:${room.data.id}`, ao));
+    room.group.add(yield* room.merger.buildSteps(`room:${room.data.id}`, ao));
     // What stands in standing water fades into it with depth (standing-water spec, D5).
     if (room.data.water) addMurkTo(room.group);
     room.group.traverse((o) => {
@@ -844,6 +870,8 @@ export class Level implements World, CaptureHost {
     deps: LevelDeps,
     rng: Rng,
     onProgress?: (fraction: number, label: string) => void,
+    yieldTo: () => Promise<void> = yieldFrame,
+    slicer?: TimeSlicer,
   ): Promise<void> {
     const occupancy = this.prepareOccupancy(data);
     const hull = new HullBuilder();
@@ -851,17 +879,20 @@ export class Level implements World, CaptureHost {
     for (const [index, r] of data.rooms.entries()) {
       onProgress?.((index / totalRooms) * 0.45, `Building ${r.name}…`);
       this.buildRoom(r, index, rng, occupancy, hull);
-      await yieldFrame();
+      await yieldTo();
     }
     onProgress?.(0.48, 'Building exterior hull and doors…');
     this.buildExteriorAndDoors(data, deps, rng, hull);
-    await yieldFrame();
+    await yieldTo();
     const ao = colliderAo(this.collision);
     for (let i = 0; i < this.rooms.length; i++) {
       const room = this.rooms[i]!;
       onProgress?.(0.5 + (i / totalRooms) * 0.45, `Baking lighting: ${room.data.name}…`);
-      this.mergeRoom(room, ao);
-      await yieldFrame();
+      if (slicer) await this.mergeRoomAsync(room, ao, slicer);
+      else {
+        this.mergeRoom(room, ao);
+        await yieldTo();
+      }
     }
     onProgress?.(0.97, 'Finalizing station layout…');
     this.finalizeBuild(data, deps, ao);

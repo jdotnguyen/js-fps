@@ -10,7 +10,7 @@ import { validateUiText } from '../data/types/uiText.ts';
 import { validateScoreTable } from '../data/types/scores.ts';
 import { EventBus } from '../core/events.ts';
 import type { MemProbe } from '../core/memProbe.ts';
-import { SettingsStore } from '../core/settings.ts';
+import { SettingsStore, type Settings } from '../core/settings.ts';
 import { persistentStore } from '../core/storage.ts';
 import { validate } from '../core/validate.ts';
 import { readDetailFlag } from '../actors/detailPass.ts';
@@ -25,7 +25,11 @@ import { LoadingScreen } from '../ui/loadingScreen.ts';
 import type { EndCredits } from '../ui/credits.ts';
 import { startSplash } from '../ui/splash.ts';
 import { SessionCoordinator } from './coordinator.ts';
-import { parseLaunchPlan } from './launch.ts';
+import { DEFAULT_LEVEL, parseLaunchPlan } from './launch.ts';
+import { IdleGate, TITLE_SLICE_MS } from './titleIdle.ts';
+import { TitleArming } from './titleArming.ts';
+import { ITEMS, realSharedLoaders } from './titlePrepare.ts';
+import { probeGpuLimits } from '../render/gpuProbe.ts';
 
 /** Seconds the last scene's score takes to fade under the menu theme when the end credits close. */
 const CREDITS_SCORE_FADE = 3;
@@ -120,6 +124,7 @@ export async function bootApp(): Promise<void> {
     shellEvents.on('settings:changed', () => {
       if (!coordinator.active) applyShellVolume();
       backdrop.refresh();
+      arming.qualityChanged(); // a new graphics quality discards what the title made for the old one
     });
 
     // End credits (lazy chunk).
@@ -164,6 +169,47 @@ export async function bootApp(): Promise<void> {
     };
 
     let coordinator!: SessionCoordinator;
+
+    // What the title prepares for the first load (title-preload spec): armed on each title, held off the menu's back.
+    const idle = new IdleGate();
+    // Work that cannot be cut into small steps (preparing the cast's body models) waits for the splash to end: nothing
+    // animates on the title after it, so those stalls land where they are not seen.
+    let splashOver!: () => void;
+    const afterSplash = new Promise<void>((resolve) => (splashOver = resolve));
+    const idleAfterSplash = async (): Promise<void> => {
+      await afterSplash;
+      await idle.wait();
+    };
+    for (const type of ['pointermove', 'pointerdown', 'keydown', 'wheel'] as const) menuRoot.addEventListener(type, () => idle.touch(), { capture: true, passive: true });
+    const arming = new TitleArming({
+      defaultLevel: DEFAULT_LEVEL,
+      quality: () => settings.get().quality,
+      probe: () => probeGpuLimits(),
+      worldAllowed: !launch.checker,
+      current: () => coordinator.currentPreload,
+      loaders: (preload, limits) =>
+        realSharedLoaders({
+          baseUrl: import.meta.env.BASE_URL,
+          physicsSetting: () => settings.get().physics,
+          search: location.search,
+          audio,
+          yieldTo: idleAfterSplash,
+          quality: () => preload.current.quality,
+          world: () =>
+            limits
+              ? {
+                  levelId: preload.current.levelId,
+                  quality: preload.current.quality as Settings['quality'],
+                  caps: { maxTextures: limits.maxTextures, maxFragmentUniforms: limits.maxFragmentUniforms },
+                  itemTable,
+                  uiText,
+                  materials: () => preload.peek(ITEMS.materials),
+                  yieldTo: idle.wait,
+                  sliceMs: TITLE_SLICE_MS,
+                }
+              : null,
+        }),
+    });
     const menu = createMenus(menuRoot, {
       game: {
         get slot() {
@@ -208,11 +254,12 @@ export async function bootApp(): Promise<void> {
       showLoading: (title) => loadingScreen.show(title),
       hideLoading: () => loadingScreen.hide(),
       showLoadError: (msg, onBack) => loadingScreen.showError(msg, onBack),
+      createPreload: () => arming.create(),
       setTitleMusic: () => {
         if (!creditsScore) activeScore?.stopAll();
         menuMusic.setMode('title');
       },
-      createSession: async (intent) => {
+      createSession: async (intent, preload) => {
         const { createPlaySession } = await import('./session.ts');
         return createPlaySession(
           {
@@ -236,6 +283,7 @@ export async function bootApp(): Promise<void> {
             },
           },
           intent,
+          preload,
         );
       },
     });
@@ -294,11 +342,13 @@ export async function bootApp(): Promise<void> {
     if (launch.autoLoad) {
       // Dev/sandbox URL: bypass title menu and launch session loading immediately after splash.
       await splash.finish();
+      splashOver();
       await coordinator.start({ kind: 'autoLoad', plan: launch.autoLoad });
     } else {
       coordinator.enterTitle();
       shellEvents.emit('game:booted', { at: performance.now() });
       await splash.finish();
+      splashOver();
     }
   } catch (err: unknown) {
     splash.abort();

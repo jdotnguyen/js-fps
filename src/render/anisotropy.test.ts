@@ -85,3 +85,16 @@ test('disposeMaterials, disposeMergeCaches and clearTrackedAnisotropy release re
   clearTrackedAnisotropy();
   assert.equal(trackedTextureCount(), 0);
 });
+
+test('applyAnisotropy catches up a texture made at an older value without a tier switch', async () => {
+  const { trackAnisotropy, applyAnisotropy, setAnisotropy: set } = await import('./anisotropy.ts');
+  set(16);
+  const early = trackAnisotropy(new THREE.Texture(), 4); // made at the title, before the GPU maximum was known
+  assert.equal(early.anisotropy, 4);
+  const v = early.version;
+  applyAnisotropy();
+  assert.equal(early.anisotropy, 16);
+  assert.ok(early.version > v, 're-uploaded so the GPU sees the new filtering');
+  applyAnisotropy(); // nothing left to change
+  assert.equal(early.anisotropy, 16);
+});
