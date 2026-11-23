@@ -2,22 +2,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   AUDIO_CREDITS,
-  DEVELOPMENT_CREDITS,
   HEADLINE_CREDITS,
   LIKENESS_CREDITS,
   MODEL_CREDITS,
   TEXTURE_CREDITS,
 } from './credits.ts';
 
-test('headline and development credits attribute all roles to Justin Nguyen', () => {
+test('only the opening headline cards credit Justin Nguyen', () => {
   assert.ok(HEADLINE_CREDITS.length >= 2);
   const nonTitleHeadlines = HEADLINE_CREDITS.slice(1);
   for (const card of nonTitleHeadlines) {
     assert.equal(card.title, 'JUSTIN NGUYEN');
-  }
-  assert.ok(DEVELOPMENT_CREDITS.length > 0);
-  for (const entry of DEVELOPMENT_CREDITS) {
-    assert.equal(entry.name, 'Justin Nguyen');
   }
 });
 

@@ -52,19 +52,6 @@ export const HEADLINE_CREDITS: readonly HeadlineCredit[] = [
   },
 ];
 
-/** Phase 2: scrolling development credits (all to Justin Nguyen). */
-export const DEVELOPMENT_CREDITS: readonly CreditEntry[] = [
-  { role: 'Game Direction', name: 'Justin Nguyen' },
-  { role: 'Game Design', name: 'Justin Nguyen' },
-  { role: 'Level Architecture', name: 'Justin Nguyen' },
-  { role: 'Gameplay & AI Systems', name: 'Justin Nguyen' },
-  { role: 'Graphics, Lighting & Shaders', name: 'Justin Nguyen' },
-  { role: 'Procedural Animation & Rigging', name: 'Justin Nguyen' },
-  { role: 'Narrative & Dialogue', name: 'Justin Nguyen' },
-  { role: 'Music & Sound Design', name: 'Justin Nguyen' },
-  { role: 'UI & Visor Systems', name: 'Justin Nguyen' },
-];
-
 /** Friends whose likenesses are used for squad characters. */
 export const LIKENESS_CREDITS: readonly CreditEntry[] = [
   { role: 'Chief Engineer Katie Heins', name: 'Katie Heins' },
@@ -394,7 +381,6 @@ export class EndCredits {
     const track = h(
       'div',
       { class: 'credits-scroll-track' },
-      section('Development', DEVELOPMENT_CREDITS),
       section('Likeness', LIKENESS_CREDITS),
       modelsSection,
       section('Motion Capture', ANIMATION_CREDITS),

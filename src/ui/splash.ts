@@ -23,9 +23,7 @@ const FADE_OUT_MS = 700;
 export interface Splash {
   /** Give the splash the audio engine once it exists. */
   attachAudio(audio: AudioEngine): void;
-  /** Give the splash a promise that resolves when the menu theme has rendered. */
-  attachMusicReady(ready: Promise<void>): void;
-  /** Boot succeeded: wait for music + audio unlock, play engine & dev splashes, then fade out. */
+  /** Boot succeeded: wait for audio unlock, play engine & dev splashes, then fade out. The menu theme fades in whenever its render lands. */
   finish(): Promise<void>;
   /** Boot failed: drop the splash at once so the error box is visible. */
   abort(): void;
@@ -33,7 +31,6 @@ export interface Splash {
 
 const noop: Splash = {
   attachAudio: () => undefined,
-  attachMusicReady: () => undefined,
   finish: () => Promise.resolve(),
   abort: () => undefined,
 };
@@ -72,7 +69,6 @@ export function startSplash(root: HTMLElement | null, search = location.search):
   const logo = root.querySelector<HTMLImageElement>('#splash-dev img');
 
   let audio: AudioEngine | null = null;
-  let musicReady: Promise<void> = Promise.resolve();
   let activeAct: Act | null = null;
 
   // Mirror the loading prompt ("Generating textures…") during Stage 0.
@@ -129,12 +125,8 @@ export function startSplash(root: HTMLElement | null, search = location.search):
     attachAudio(engine) {
       audio = engine;
     },
-    attachMusicReady(ready) {
-      musicReady = ready;
-    },
     async finish() {
-      // Wait for the menu theme worker so music is ready before any splash screen begins.
-      await musicReady;
+      // Do not wait for the menu theme: MenuMusic starts looping when its worker render lands.
       observer.disconnect();
 
       if (audio && audio.ctx.state !== 'running') {

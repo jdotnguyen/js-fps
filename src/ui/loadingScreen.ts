@@ -37,17 +37,8 @@ export class LoadingScreen {
     const graphic = document.createElement('div');
     graphic.className = 'loading-graphic';
     graphic.setAttribute('aria-hidden', 'true');
-    graphic.innerHTML = `<svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <polygon points="24,8 96,8 112,24 112,96 96,112 24,112 8,96 8,24" fill="#081217" stroke="rgba(207,232,240,0.22)" stroke-width="1.5"/>
-      <circle cx="60" cy="60" r="42" stroke="rgba(79,214,208,0.28)" stroke-width="1.2" stroke-dasharray="6 6"/>
-      <circle cx="60" cy="60" r="28" stroke="rgba(207,232,240,0.22)" stroke-width="1"/>
-      <polygon points="60,34 82,47 82,73 60,86 38,73 38,47" fill="rgba(79,214,208,0.1)" stroke="#4fd6d0" stroke-width="1.6"/>
-      <circle cx="60" cy="60" r="3.5" fill="#a3e635"/>
-      <line x1="60" y1="14" x2="60" y2="26" stroke="#a3e635" stroke-width="1.5"/>
-      <line x1="60" y1="94" x2="60" y2="106" stroke="rgba(207,232,240,0.35)" stroke-width="1.2"/>
-      <line x1="14" y1="60" x2="26" y2="60" stroke="rgba(207,232,240,0.35)" stroke-width="1.2"/>
-      <line x1="94" y1="60" x2="106" y2="60" stroke="rgba(207,232,240,0.35)" stroke-width="1.2"/>
-    </svg>`;
+    graphic.innerHTML =
+      '<img src="/assets/brand/tag-stack-transparent.svg" alt="" width="520" height="380" draggable="false" />';
 
     const titleEl = document.createElement('div');
     titleEl.className = 'loading-title';

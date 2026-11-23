@@ -110,7 +110,6 @@ export async function bootApp(): Promise<void> {
     splash.attachAudio(audio);
     const menuMusic = new MenuMusic(audio, 'title');
     menuMusic.start();
-    splash.attachMusicReady(menuMusic.ready);
     addEventListener('pointerdown', () => void audio.resume(), { capture: true });
     addEventListener('keydown', () => void audio.resume(), { capture: true });
 
