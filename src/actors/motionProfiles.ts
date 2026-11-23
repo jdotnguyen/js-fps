@@ -37,9 +37,14 @@ export interface MotionStyle {
   posture: number;
   /** Left/right asymmetry in idle life, 0..1. */
   asymmetry: number;
+  /**
+   * How much speech gestures move the arms and wrists, 0..1 (1 = neutral). 0 keeps the hands at rest while talking: the jaw
+   * and head still act. Bram's intro sets it to 0 until he has served the coffee, so his hands only come up for the mugs.
+   */
+  talkArms: number;
 }
 
-export const NEUTRAL_STYLE: Readonly<MotionStyle> = { tempo: 1, fidgetRate: 1, armSwing: 1, armCarry: 1, headPitch: 0, posture: 0, asymmetry: 0 };
+export const NEUTRAL_STYLE: Readonly<MotionStyle> = { tempo: 1, fidgetRate: 1, armSwing: 1, armCarry: 1, headPitch: 0, posture: 0, asymmetry: 0, talkArms: 1 };
 
 /** Built-in neutral clips: the bottom of every resolution chain. */
 export const NEUTRAL_CLIPS: Readonly<Record<Activity, string>> = {
@@ -166,6 +171,7 @@ const styleShape = {
   headPitch: optional(numRange(-30, 30)),
   posture: optional(numRange(-1, 1)),
   asymmetry: optional(numRange(0, 1)),
+  talkArms: optional(numRange(0, 1)),
 };
 
 const stageRange: Validator<[number, number]> = (v, p) => {

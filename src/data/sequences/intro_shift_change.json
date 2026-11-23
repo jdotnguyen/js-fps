@@ -1038,6 +1038,11 @@
               "do": "npcAnim",
               "npc": "cook",
               "anim": "idle"
+            },
+            {
+              "do": "setFlag",
+              "flag": "bram_coffee_served",
+              "value": true
             }
           ]
         }

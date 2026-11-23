@@ -989,10 +989,11 @@ export class Animator {
 
     const busy = Animator.ARMS_BUSY.has(this.to.name) ? 0.25 : 1;
     const moveFactor = this.useMocap ? this.locoInfo.moveWeight : Math.min(1, this.amp * 1.4);
-    this.speechHandsK = 1 - moveFactor;
+    const talkArms = this.motion.style.talkArms;
+    this.speechHandsK = (1 - moveFactor) * talkArms;
     // Speech adds nothing to the arms while walking or jogging, so the gait's own arm swing plays untouched. (A mug in the right
     // hand moves the gesture to the free left hand: Humanoid.speak, upright-mug-grip D3b.)
-    const armsK = busy * (1 - moveFactor) * (1 - this.capturedSpeechArms);
+    const armsK = busy * (1 - moveFactor) * (1 - this.capturedSpeechArms) * talkArms;
     gesture(plan, this.speechT, w, armsK, this.speechSink);
   }
 

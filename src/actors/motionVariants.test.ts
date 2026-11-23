@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { ctx } from '../ai/enemyTestKit.ts';
 import type { Animator } from './animator.ts';
 import { Humanoid } from './humanoid.ts';
-import { validateMotionProfiles } from './motionProfiles.ts';
+import { resolveProfile, sharedMotionProfiles, validateMotionProfiles } from './motionProfiles.ts';
+import { sharedMocapLibrary } from './mocap.ts';
 import { motionScene } from './motionScene.ts';
 import { GILES } from './squadLooks.ts';
 
@@ -19,6 +20,7 @@ const profiles = validateMotionProfiles(
           intro: { when: { sequence: 'intro_shift_change' }, clips: { idle: 'idle_talk' }, poses: { offer_mug: 'drink' } },
           panel: { when: { task: 'bypass', stage: [2, 4] }, clips: { crouch: 'kneel_fix' } },
           late: { when: { flag: 'kitchen_closed' }, style: { tempo: 0.8 } },
+          hush: { when: { flag: 'bram_hush' }, style: { talkArms: 0 } },
         },
       },
     },
@@ -88,4 +90,51 @@ test('scene variants: switching cross-fades instead of popping', () => {
   h.update(1 / 60);
   const step = h['bones']['chest'].quaternion.angleTo(before);
   assert.ok(step < 0.05, `first frames after the switch move ${step.toFixed(3)} rad`);
+});
+
+test('talkArms 0: a talking body keeps its arms and wrists at rest; the jaw still talks', () => {
+  const flags: Record<string, boolean> = { bram_hush: true };
+  motionScene.flags = () => flags;
+  const swing = (hush: boolean): { arm: number; wrist: number; jaw: number } => {
+    flags['bram_hush'] = hush;
+    const quiet = bram();
+    const talker = bram();
+    run(quiet);
+    run(talker);
+    talker.speak('Coffee first, then the gossip, that is the rule in my kitchen.', 'neutral', 3, 'hush_probe');
+    let arm = 0;
+    let wrist = 0;
+    let jaw = 0;
+    for (let i = 0; i < 150; i++) {
+      quiet.update(1 / 60);
+      talker.update(1 / 60);
+      for (const j of ['upperArm_R', 'foreArm_R', 'upperArm_L', 'foreArm_L'] as const) {
+        arm = Math.max(arm, talker['bones'][j].quaternion.angleTo(quiet['bones'][j].quaternion));
+      }
+      for (const j of ['hand_R', 'hand_L'] as const) wrist = Math.max(wrist, talker['bones'][j].quaternion.angleTo(quiet['bones'][j].quaternion));
+      jaw = Math.max(jaw, talker['bones'].jaw.quaternion.angleTo(quiet['bones'].jaw.quaternion));
+    }
+    quiet.dispose();
+    talker.dispose();
+    return { arm, wrist, jaw };
+  };
+  const loud = swing(false);
+  const hushed = swing(true);
+  motionScene.flags = () => ({});
+  assert.ok(loud.arm > 0.3, `a calm line normally lifts the forearm (${loud.arm.toFixed(2)} rad)`);
+  assert.ok(hushed.arm < 0.02, `with talkArms 0 the arms stay at rest (${hushed.arm.toFixed(3)} rad)`);
+  // The wrists keep only the hand solver's follow-through of the talking trunk (a few degrees), with no speech accents.
+  assert.ok(hushed.wrist < 0.09 && hushed.wrist < loud.wrist, `wrists stay quiet (${hushed.wrist.toFixed(3)} vs ${loud.wrist.toFixed(3)} rad)`);
+  assert.ok(hushed.jaw > 0.1, 'the jaw still talks');
+});
+
+test("Bram's intro: no talk gestures on his arms until the coffee is served, then he talks with his hands again", () => {
+  const flags: Record<string, boolean> = {};
+  const scene = (seq: boolean) => ({ sequences: new Set(seq ? ['intro_shift_change'] : []), task: null, stage: 0, flag: (n: string) => Boolean(flags[n]) });
+  const lib = sharedMocapLibrary();
+  const talkArms = (seq: boolean): number => resolveProfile(lib, sharedMotionProfiles(), 'bram', 'm', false, scene(seq), true).style.talkArms;
+  assert.equal(talkArms(false), 1, 'everyday Bram gestures');
+  assert.equal(talkArms(true), 0, 'intro, before the hand-off');
+  flags['bram_coffee_served'] = true;
+  assert.equal(talkArms(true), 1, 'intro, after both mugs are handed over');
 });

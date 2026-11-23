@@ -104,3 +104,28 @@ test('the coffee hand-off: Bram\'s offering hand lands where it does on the defa
     motionScene.reset();
   }
 });
+
+test('standing between serves, Bram\'s hands rest: neither hand rises or swings on his idle loop (no remote-clicking 80_37 take)', async () => {
+  const l = await cast();
+  motionScene.startSequence('intro_shift_change');
+  try {
+    const h = bram('idle', l);
+    for (let i = 0; i < 2 * FPS; i++) h.update(1 / FPS);
+    const track: Record<'hand_R' | 'hand_L', THREE.Vector3[]> = { hand_R: [], hand_L: [] };
+    // Two full loops of his idle, hands measured against his chest so his weight shifts don't count.
+    for (let i = 0; i < 8 * FPS; i++) {
+      h.update(1 / FPS);
+      h.group.updateMatrixWorld(true);
+      const inv = h.bones.chest.matrixWorld.clone().invert();
+      for (const j of ['hand_R', 'hand_L'] as const) track[j].push(h.bones[j].getWorldPosition(new THREE.Vector3()).applyMatrix4(inv));
+    }
+    for (const [j, pts] of Object.entries(track)) {
+      const mean = pts.reduce((a, b) => a.clone().add(b)).multiplyScalar(1 / pts.length);
+      const drift = Math.max(...pts.map((p) => p.distanceTo(mean)));
+      assert.ok(drift < 0.03, `${j} moves ${(drift * 100).toFixed(1)} cm from where it rests (limit 3 cm)`);
+    }
+    h.dispose();
+  } finally {
+    motionScene.reset();
+  }
+});

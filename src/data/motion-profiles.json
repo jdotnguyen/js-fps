@@ -249,7 +249,11 @@
         "intro": {
           "when": { "sequence": "intro_shift_change" },
           "clips": { "work": "bram_coffee" },
-          "style": { "tempo": 1 }
+          "style": { "tempo": 1, "talkArms": 0 }
+        },
+        "intro_served": {
+          "when": { "sequence": "intro_shift_change", "flag": "bram_coffee_served" },
+          "style": { "talkArms": 1 }
         }
       },
       "hands": {

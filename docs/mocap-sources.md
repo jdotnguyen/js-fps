@@ -34,7 +34,9 @@ node scripts/bake-mocap.mjs --check
 
 One-shot clips (`loop: false`, such as `priya_rise`) play once and hold their last frame. The bake keeps their hip height from the floor up (the lowest foot in the clip sits on the floor), so a get-up starts with the hips near the floor. Kill beats play them with `clip` (see `src/data/types/kills.ts`).
 
-Some takes stand in a swayback. The performer's pelvis tips forward and the upper back bends back to balance it, so the character sticks his butt out and pushes his chest forward (Bram's `80_37` idle and `80_14` talk). For these, set `"levelTrunk": true` on a standing BVH clip in the bake list.
+Some takes stand in a swayback. The performer's pelvis tips forward and the upper back bends back to balance it, so the character sticks his butt out and pushes his chest forward (Bram's `80_14` talk, and `80_37`, his idle before `137_41`). For these, set `"levelTrunk": true` on a standing BVH clip in the bake list.
+
+A standing idle loops for whole scenes, so its take must not carry an incidental action. Bram's first idle, `80_37` ("TV"), had the performer raise and click a remote: in the intro his right hand rose about 27 cm and his wrist flicked on every 3.7 s loop, and scaling the arm motion down still read as the same gesture. Pick a take whose hands rest (`137_41` "Strong Man Wait", 3.2-6.7 s, keeps both hands within about 1 cm on Bram), and measure the hands on the character, not just the source joints.
 - **What it does.** The bake removes the take's average forward/back tilt from the pelvis, spine and chest. The chest keeps its own lean, up to 10° forward and 3° back, spread evenly over the lower and upper back. Every frame keeps its motion around that average.
 - **What it leaves alone.** The legs keep their world angles and the feet stay planted. The arms, neck and head keep their pose against the chest. Turning and side-lean are unchanged. The bake log prints the pelvis/spine/chest pitch before and after.
 - **When to use it.** Use it for standing idle, talk and their posture holds (`src/actors/mocapPosture.test.ts` fails any standing idle or talk whose pelvis is more than 10° from upright or whose upper back bends more than 12° backwards). Don't use it on walks and runs, which lean into their speed, or on kneels, crouches and get-ups.
@@ -51,7 +53,7 @@ The core library loads at start and must stay within 2 MB. Every other named cha
 | Pack | Clips | Size |
 |---|---|---|
 | core | 39 | 895.5 KB |
-| bram | 8 | 227.6 KB |
+| bram | 8 | 223.4 KB |
 | hale | 5 | 148.4 KB |
 | heins | 4 | 56.2 KB |
 | priya | 7 | 181.1 KB |
