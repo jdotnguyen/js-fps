@@ -352,6 +352,8 @@ interface RawSlot {
   kind: LightSlotKind;
   ry: number;
   swing?: { pivot: THREE.Vector3; amp: number; period: number; jolt?: SwingJolt };
+  /** Id of the movable prop this fixture belongs to (a train car's cabin lights): it follows the prop and never gets a static dead fixture. */
+  owner?: string;
 }
 
 /** Placement matrix for a grid cell and a rotation in degrees. */
@@ -461,6 +463,8 @@ export class Level implements World, CaptureHost {
       colliders: Collider[];
     }
   >();
+  /** Fixtures (glow, shaft, pooled light) that belong to a movable prop and move with it, keyed by prop id. */
+  private readonly propLights = new Map<string, Array<{ objects: Array<{ object: THREE.Object3D; base: THREE.Vector3 }>; slotPos: THREE.Vector3; slotBase: THREE.Vector3 }>>();
   /** Props marked `dynamic` in the level data (a subset of `movableProps`), with their mass. */
   private readonly dynamicProps = new Map<string, { mass: number; room: string }>();
   private readonly npcList: LevelNpc[] = [];
@@ -966,7 +970,7 @@ export class Level implements World, CaptureHost {
         const params: PieceParams = { height: height - floorY, ...(r.area !== undefined ? { area: r.area } : {}), ...(piece.params ?? {}) };
         const out = registry.create(piece.kit, params, rng.fork(`${r.id}:${piece.kit}:${cell.join(',')}`), m);
         const hullHeight = (piece.kit.startsWith('wall_') || piece.kit.startsWith('ceiling')) && typeof params.height === 'number' ? params.height : height - floorY;
-        hull.addPiece(r.id, cell, piece.kit, rot, hullHeight, out.sockets, floorY);
+        if (r.id !== 'R15b') hull.addPiece(r.id, cell, piece.kit, rot, hullHeight, out.sockets, floorY);
         for (const k of out.keepouts ?? []) {
           const box = new THREE.Box3(new THREE.Vector3(...k.min), new THREE.Vector3(...k.max)).applyMatrix4(matrix);
           this.debug.keepouts.push({ room: r.id, source: `${piece.kit}@${cell.join(',')}`, box });
@@ -1077,6 +1081,9 @@ export class Level implements World, CaptureHost {
       mesh.position.copy(slot.pos);
       mesh.rotation.y = slot.ry;
       room.group.add(mesh);
+      // A moving prop's own light keeps its pooled light but not the flat diffuser plate: the car has its own roof strip.
+      if (slot.owner) mesh.visible = false;
+      const followers: THREE.Object3D[] = slot.owner ? [mesh] : [];
       if (slot.swing) {
         // A swinging fixture: its glow rides a pivot and its pooled light follows (flooded-tunnel spec).
         const sw = slot.swing;
@@ -1104,6 +1111,7 @@ export class Level implements World, CaptureHost {
         shaft.mesh.position.set(slot.pos.x, slot.pos.y - 0.04 - len / 2, slot.pos.z);
         shaft.mesh.rotation.y = slot.ry;
         room.group.add(shaft.mesh);
+        if (slot.owner) followers.push(shaft.mesh);
         room.ticks.push((t) => {
           shaft.uniforms.uTime.value = t;
         });
@@ -1136,6 +1144,13 @@ export class Level implements World, CaptureHost {
         score: 0,
       });
       if (slot.swing) swingRefs.at(-1)!.ref = room.slots[room.slots.length - 1]!;
+      if (slot.owner) {
+        // A cabin light rides with its prop: setPropTransform shifts the glow, the shaft and the pooled light together.
+        const pooled = room.slots[room.slots.length - 1]!;
+        const list = this.propLights.get(slot.owner) ?? [];
+        list.push({ objects: followers.map((object) => ({ object, base: object.position.clone() })), slotPos: pooled.position, slotBase: pooled.position.clone() });
+        this.propLights.set(slot.owner, list);
+      }
       if (light.sparks) this.sparkers.push({ room, position: room.slots[room.slots.length - 1]!.position, light: item, prev: 1 });
       if (light.id) {
         if (this.namedLights.has(light.id)) console.warn(`[level] light id "${light.id}" is used twice`);
@@ -1145,8 +1160,8 @@ export class Level implements World, CaptureHost {
     }
     rawSlots.forEach((s, i) => {
       this.debug.slots.push({ pos: s.pos.clone(), kind: s.kind, claimed: claimed.has(i) });
-      if (!claimed.has(i)) {
-        // A dead fixture: dark diffuser, merged with the room.
+      if (!claimed.has(i) && !s.owner) {
+        // A dead fixture: dark diffuser, merged with the room. (A moving prop's own unclaimed fixture stays out: it would be left behind.)
         const dead = glowGeometry(s.kind);
         room.merger.add(dead, this.deps.materials.black, at(s.pos.x, s.pos.y, s.pos.z, 0, s.ry, 0));
       }
@@ -1357,7 +1372,8 @@ export class Level implements World, CaptureHost {
     }
     for (const s of out.lightSlots) {
       const pos = new THREE.Vector3(...s.pos).applyMatrix4(matrix);
-      slots.push(s.swing ? { pos, kind: s.kind, ry: s.ry + ry, swing: { ...s.swing, pivot: new THREE.Vector3(...s.swing.pivot).applyMatrix4(matrix) } } : { pos, kind: s.kind, ry: s.ry + ry });
+      const owner = movableObj ? { owner: movableObj.id } : {};
+      slots.push(s.swing ? { pos, kind: s.kind, ry: s.ry + ry, ...owner, swing: { ...s.swing, pivot: new THREE.Vector3(...s.swing.pivot).applyMatrix4(matrix) } } : { pos, kind: s.kind, ry: s.ry + ry, ...owner });
     }
     for (const s of out.sockets) {
       const pos = new THREE.Vector3(...s.pos).applyMatrix4(matrix);
@@ -1419,7 +1435,21 @@ export class Level implements World, CaptureHost {
       const local = mp.localColliders[i];
       if (col && local) this.collision.move(col, transformBox(local, mat));
     }
+    this.moveOwnedLights(id, mp.initialPos, pos);
     return true;
+  }
+
+  /** Shift a prop's own light fixtures by how far the prop is from where the level built it (translation only). */
+  private moveOwnedLights(id: string, from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }): void {
+    const list = this.propLights.get(id);
+    if (!list) return;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const dz = to.z - from.z;
+    for (const l of list) {
+      for (const o of l.objects) o.object.position.set(o.base.x + dx, o.base.y + dy, o.base.z + dz);
+      l.slotPos.set(l.slotBase.x + dx, l.slotBase.y + dy, l.slotBase.z + dz);
+    }
   }
 
   /**
@@ -1475,8 +1505,12 @@ export class Level implements World, CaptureHost {
     const surfaceOf = new Map<BoxSpec, PieceOutput['surfaces'][number]['material']>();
     const added: Collider[] = [];
     for (const s of out.surfaces) surfaceOf.set(s.box, s.material);
-    for (const c of out.colliders) {
-      added.push(this.collision.add(transformBox(c, matrix), tag, surfaceOf.get(c) ?? null));
+    for (let i = 0; i < out.colliders.length; i++) {
+      const c = out.colliders[i]!;
+      const col = this.collision.add(transformBox(c, matrix), tag, surfaceOf.get(c) ?? null);
+      if (c.enabled === false) col.enabled = false;
+      out.bindCollider?.(i, col);
+      added.push(col);
       surfaceOf.delete(c);
     }
     // Surface-only boxes (e.g. gratings inside a larger floor collider).
@@ -1766,7 +1800,7 @@ export class Level implements World, CaptureHost {
     const leaves = new Set<unknown>(this.doors.map((d) => d.collider));
     const mesh = await NavMeshNav.buildAsync({
       world: this.collision,
-      boxes: this.collision.colliders.filter((c) => !leaves.has(c)),
+      boxes: this.collision.colliders.filter((c) => c.enabled && !leaves.has(c)),
       doors: navDoors,
     });
     const missing = mesh.unmarkedDoors();
@@ -1788,7 +1822,7 @@ export class Level implements World, CaptureHost {
     const navDoors = this.doors.map((d) => ({ id: d.data.id, box: d.collider as Aabb, isOpen: () => !d.collider.enabled || this.opensForActors(d) }));
     if (navmeshReady()) {
       const leaves = new Set<unknown>(this.doors.map((d) => d.collider));
-      const mesh = new NavMeshNav({ world: this.collision, boxes: this.collision.colliders.filter((c) => !leaves.has(c)), doors: navDoors });
+      const mesh = new NavMeshNav({ world: this.collision, boxes: this.collision.colliders.filter((c) => c.enabled && !leaves.has(c)), doors: navDoors });
       const missing = mesh.unmarkedDoors();
       if (missing.length) console.warn(`[nav] doorways with no navmesh: ${missing.join(', ')}`);
       console.info(`[nav] navmesh: ${mesh.edgeCount()} polygons in ${(performance.now() - t0).toFixed(0)} ms`);

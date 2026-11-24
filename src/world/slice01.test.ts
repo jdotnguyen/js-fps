@@ -1325,3 +1325,93 @@ test('the stinger feed frames her resting spot from CAM 04', () => {
   const text = JSON.stringify(stinger);
   assert.ok(text.includes('anchor:cam04_stinger_look') && text.includes('CAM 04  MEDBAY') && !text.includes('stinger_cam'), 'the stinger films from CAM 04 in the medical bay');
 });
+
+test('no room light shaft hangs through a train car: standing in a cabin never puts the camera inside one', () => {
+  const { level } = build();
+  level.group.updateMatrixWorld(true);
+  const cars: Array<[string, number, number, number, number]> = [
+    ['R15a car and its pull-out path', 48, 32.8, 56, 0],
+    ['R16a car and its glide-in path', 88, 15, 40, -0.6],
+    ['R15b car', 128, 34.8, 45.2, 0],
+  ];
+  for (const [name, x, z0, z1, y0] of cars) {
+    const body = new THREE.Box3(new THREE.Vector3(x - 1.5, y0 + 0.4, z0), new THREE.Vector3(x + 1.5, y0 + 3.3, z1));
+    level.group.traverse((o) => {
+      if (!(o instanceof THREE.Mesh) || !(o.material instanceof THREE.ShaderMaterial) || !o.material.uniforms['uTime']) return;
+      // Marine snow and water also use shader materials; light shafts are the ones with a "uTime" uniform and no snow name.
+      if (o.parent?.name === 'abyss_backdrop' || o.name.startsWith('abyss')) return;
+      const b = new THREE.Box3().setFromObject(o);
+      if (b.getSize(new THREE.Vector3()).length() > 8) return; // exterior water and other big shader surfaces are not shafts
+      assert.equal(b.intersectsBox(body), false, `a light shaft box ${b.min.toArray().map((n) => n.toFixed(1))}..${b.max.toArray().map((n) => n.toFixed(1))} crosses the ${name}`);
+    });
+  }
+});
+
+test('Stage 2 tunnel rings sit around the car and a sealed blast-gate shutter meets the floor, in world coordinates', () => {
+  const { level } = build();
+  level.group.updateMatrixWorld(true);
+  const p = new THREE.Vector3();
+  // The rig is at (128, 0, 40) and its nine 6 m rings cover +/- 27 m around it.
+  let rings = 0;
+  level.group.traverse((o) => {
+    if (!o.name.startsWith('sea_tunnel_ring_')) return;
+    o.getWorldPosition(p);
+    rings++;
+    assert.ok(Math.abs(p.x - 128) < 0.01, `${o.name} is on the car's track (x ${p.x})`);
+    assert.ok(p.z >= 40 - 27.01 && p.z <= 40 + 27.01, `${o.name} is within 27 m of the car (z ${p.z})`);
+  });
+  assert.equal(rings, 9, 'nine tunnel rings');
+  // Sealed shutters sit on their room floor: R15a (floor 0) and R16a (floor -0.6).
+  const shutters: Array<[number, number]> = [];
+  level.group.traverse((o) => {
+    if (o.name !== 'blast_gate_shutter') return;
+    for (let q: THREE.Object3D | null = o; q; q = q.parent) if (q.name === 'rig_gate_root') return; // the rig's approaching gate is not a room gate
+    o.getWorldPosition(p);
+    shutters.push([p.z, p.y]);
+  });
+  assert.equal(shutters.length, 2, 'two blast-gate shutters');
+  for (const [z, y] of shutters) {
+    const floor = z < 40 ? -0.6 : 0; // R16a's gate is the one north of z = 40
+    assert.ok(Math.abs(y - floor) < 0.01, `sealed shutter at z ${z.toFixed(1)} meets its floor (y ${y} vs ${floor})`);
+  }
+});
+
+test('each train car claims its two cabin lights, they ride with the car, and the whole cabin is in their range', () => {
+  const { level } = build();
+  const slots = (level as unknown as { debug: { slots: Array<{ pos: THREE.Vector3; kind: string; claimed: boolean }> } }).debug.slots;
+  // [car centre x, z, floor y, car length] for Train Car A, Train Car B and the Stage 2 car.
+  const cars: Array<[string, number, number, number, number]> = [
+    ['R15a car', 48, 38, 0, 10.4],
+    ['R16a car', 88, 35, -0.6, 9],
+    ['R15b car', 128, 40, 0, 10.4],
+  ];
+  for (const [name, x, z, y0, len] of cars) {
+    const lightY = y0 + 0.4 + 2.9 - 0.18 - 0.16;
+    const mine = slots.filter((s) => s.claimed && Math.abs(s.pos.x - x) < 0.05 && Math.abs(s.pos.y - lightY) < 0.05 && Math.abs(s.pos.z - z) < len / 2);
+    assert.equal(mine.length, 2, `${name} has both cabin light slots claimed`);
+    // 8 m range from each slot (see slice01.json) covers the far bulkhead from either side of the car.
+    for (const end of [z - len / 2, z + len / 2]) {
+      const nearest = Math.min(...mine.map((s) => Math.abs(s.pos.z - end)));
+      assert.ok(nearest <= 8, `${name}: the bulkhead at z ${end} is within 8 m of a cabin light (${nearest.toFixed(1)} m)`);
+    }
+  }
+  // The claimed fixtures are real meshes that move with the car and leave nothing behind.
+  const fixturesNear = (x: number, y: number, z: number): number => {
+    let n = 0;
+    level.group.updateMatrixWorld(true);
+    level.group.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      const p = o.getWorldPosition(new THREE.Vector3());
+      if (Math.abs(p.x - x) < 0.05 && Math.abs(p.y - y) < 0.06 && Math.abs(p.z - z) < 2.3) n++;
+    });
+    return n;
+  };
+  const y = 0.4 + 2.9 - 0.18 - 0.16;
+  const parked = fixturesNear(128, y, 40);
+  assert.equal(parked, 2, 'the Stage 2 car has its two glow fixtures where it stands');
+  level.setPropTransform('r15b_train', { x: 128, y: 0, z: 60 }, Math.PI);
+  assert.equal(fixturesNear(128, y, 40), 0, 'no cabin fixture is left floating where the car was');
+  assert.equal(fixturesNear(128, y, 60), 2, 'the fixtures are now in the car');
+  level.setPropTransform('r15b_train', { x: 128, y: 0, z: 40 }, Math.PI);
+  assert.equal(fixturesNear(128, y, 40), 2, 'back where it started, back with the car');
+});

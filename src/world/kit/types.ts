@@ -36,6 +36,14 @@ export interface BoxSpec {
   max: Vec3;
   /** `'glass'` marks a see-through partition, which muffles sound only lightly (in-world-audio: Glass muffles lightly). */
   acoustic?: 'glass';
+  /** Initial enabled state for the collider (default true). */
+  enabled?: boolean;
+}
+
+/** Handle returned by `PieceBuilder.solid` to toggle a collider's enabled state at runtime. */
+export interface SolidRef {
+  enabled: boolean;
+  setEnabled(on: boolean): void;
 }
 
 export const SURFACE_MATERIALS = ['concrete', 'metal', 'grate', 'rubber', 'water'] as const;
@@ -184,6 +192,8 @@ export interface PieceOutput {
   soundLoops?: SoundLoopSlot[];
   /** Subscribe to synchronized positional one-shot sounds triggered by this prop. */
   onSound?: (fn: (ev: PropSoundEvent) => void) => void;
+  /** Bind runtime collider handles back to `SolidRef`s created by `PieceBuilder.solid`. */
+  bindCollider?: (index: number, collider: { enabled: boolean }) => void;
 }
 
 /** Props hung on a wall (back on their local z = 0): they must not overlap any wall piece's `keepouts`. */
@@ -241,6 +251,7 @@ export class PieceBuilder {
   private readonly soundListeners: Array<(ev: PropSoundEvent) => void> = [];
   private readonly ticks: Array<(t: number, dt: number) => void> = [];
   private readonly listeners: Array<{ event: string; fn: (payload: unknown) => void }> = [];
+  private readonly colliderRefs: Array<{ index: number; ref: SolidRef; bound: { enabled: boolean } | null }> = [];
 
   /** React to a named event (bus event or level trigger emit). Payload is unknown: check it. */
   on(event: string, fn: (payload: unknown) => void): void {
@@ -272,15 +283,30 @@ export class PieceBuilder {
   }
 
   /** Collider from min/max corners. */
-  solid(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, surface?: SurfaceMaterial, acoustic?: 'glass'): void {
-    const box: BoxSpec = { min: [minX, minY, minZ], max: [maxX, maxY, maxZ], ...(acoustic ? { acoustic } : {}) };
+  solid(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, surface?: SurfaceMaterial, acoustic?: 'glass', enabled = true): SolidRef {
+    const box: BoxSpec = { min: [minX, minY, minZ], max: [maxX, maxY, maxZ], ...(acoustic ? { acoustic } : {}), ...(enabled ? {} : { enabled: false }) };
+    const index = this.colliders.length;
     this.colliders.push(box);
     if (surface) this.surfaces.push({ box, material: surface });
+    const entry: { index: number; ref: SolidRef; bound: { enabled: boolean } | null } = {
+      index,
+      bound: null,
+      ref: {
+        enabled,
+        setEnabled(on: boolean) {
+          entry.ref.enabled = on;
+          box.enabled = on;
+          if (entry.bound) entry.bound.enabled = on;
+        },
+      },
+    };
+    this.colliderRefs.push(entry);
+    return entry.ref;
   }
 
   /** Collider from centre and size. */
-  solidC(cx: number, cy: number, cz: number, w: number, h: number, d: number, surface?: SurfaceMaterial): void {
-    this.solid(cx - w / 2, cy - h / 2, cz - d / 2, cx + w / 2, cy + h / 2, cz + d / 2, surface);
+  solidC(cx: number, cy: number, cz: number, w: number, h: number, d: number, surface?: SurfaceMaterial): SolidRef {
+    return this.solid(cx - w / 2, cy - h / 2, cz - d / 2, cx + w / 2, cy + h / 2, cz + d / 2, surface);
   }
 
   socket(name: string, pos: Vec3, dir: Vec3, kind?: SocketKind): void {
@@ -328,6 +354,17 @@ export class PieceBuilder {
     if (this.spots.length) out.spots = this.spots;
     if (this.keepouts.length) out.keepouts = this.keepouts;
     if (this.soundLoops.length) out.soundLoops = this.soundLoops;
+    if (this.colliderRefs.length) {
+      const refs = this.colliderRefs;
+      out.bindCollider = (index, collider) => {
+        for (const r of refs) {
+          if (r.index === index) {
+            r.bound = collider;
+            collider.enabled = r.ref.enabled;
+          }
+        }
+      };
+    }
     const soundListeners = this.soundListeners;
     out.onSound = (fn) => {
       soundListeners.push(fn);

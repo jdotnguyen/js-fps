@@ -84,6 +84,7 @@ export class HullBuilder {
     if (kit === 'wall_sanity_screen') cell.openings.set(rot, SCREEN);
     if (kit === 'wall_glass_partition') cell.openings.set(rot, { width: 3.9, sill: 0.35, head: 2.54, window: true });
     if (kit === 'door_frame') cell.openings.set(rot, DOOR);
+    if (kit === 'transit_blast_gate') cell.openings.set(rot, { width: 3.3, sill: 0, head: 3.45, window: false });
     if (kit.startsWith('corridor_')) {
       if (kit === 'corridor_window') cell.openings.set((rot + 270) % 360, WINDOW);
       for (const socket of sockets) {

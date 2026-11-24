@@ -7,6 +7,7 @@ import { PHOTO_SLOT_KEYS } from '../../render/tex/manifest.ts';
 import { KitRegistry } from '../registry.ts';
 import { STRUCTURE_PIECES } from './structure.ts';
 import { TRANSIT_PROPS, TRANSIT_STRUCTURE } from './transit.ts';
+import { BOARDING_STEP_RISE, RAIL_TOP, TRAIN_RIDE_HEIGHT } from './transitCommon.ts';
 
 const MATERIAL_KEYS = [...PHOTO_SLOT_KEYS, 'steel', 'hazardClean', 'glass', 'black', 'cable', 'glowCyan'];
 
@@ -44,9 +45,9 @@ test('transit_train_shell has walkable interior floor, open boarding doorway, an
   const out = def.generate({ area: 'transit', length: 10, width: 3, height: 2.9 }, new Rng('train'), m);
   assert.ok(out.surfaces.some((s) => s.material === 'metal'), 'train deck has metal footstep surface');
   assert.ok(out.navNodes.length >= 4, 'train provides interior and doorway nav nodes');
-  // Open boarding doorway on +X side: no collider blocks (x=1.45, y=1.0, z=0).
+  // Open boarding doorway on +X side: no enabled collider blocks (x=1.45, y=1.0, z=0).
   const blockedDoor = out.colliders.some(
-    (b) => b.min[0] <= 1.45 && b.max[0] >= 1.45 && b.min[1] <= 1.0 && b.max[1] >= 1.0 && b.min[2] <= 0 && b.max[2] >= 0,
+    (b) => b.enabled !== false && b.min[0] <= 1.45 && b.max[0] >= 1.45 && b.min[1] <= 1.0 && b.max[1] >= 1.0 && b.min[2] <= 0 && b.max[2] >= 0,
   );
   assert.equal(blockedDoor, false, 'boarding doorway on +X is unobstructed at player height');
   // Opposite -X wall is closed at (x=-1.45, y=1.0, z=0).
@@ -151,15 +152,71 @@ test('transit_blast_gate starts sealed, opens via transit:blast_gate, and resets
   gate.tick?.(0.2, 0.5);
   assert.equal(shutter.position.y, 0, 'mismatched gateId leaves shutter sealed');
 
-  // Matching gateId opens shutter upward into header pocket.
+  // Matching gateId opens shutter upward into header pocket and disables shutter collider.
+  const shutterCollider = gate.colliders.find((b) => b.min[0] > -1.8 && b.max[0] < 1.8 && b.min[1] <= 0.05 && b.max[1] >= 3.0);
+  assert.ok(shutterCollider, 'blast gate has shutter collider');
+  assert.notEqual(shutterCollider.enabled, false, 'shutter collider starts enabled');
   for (const l of gate.listeners ?? []) if (l.event === 'transit:blast_gate') l.fn({ gateId: 'r15a_south', open: true });
   for (let i = 0; i < 6; i++) gate.tick?.(0.3 + i * 0.4, 0.4);
   assert.ok(shutter.position.y > 3.0, `shutter retracts upward when open (${shutter.position.y})`);
+  assert.equal(shutterCollider.enabled, false, 'shutter collider disables when open for train passage');
 
-  // level:reset returns shutter to sealed.
+  // level:reset returns shutter to sealed and re-enables collider.
   for (const l of gate.listeners ?? []) if (l.event === 'level:reset') l.fn({});
   gate.tick?.(3.0, 1 / 60);
   assert.equal(shutter.position.y, 0, 'level:reset seals blast gate');
+  assert.notEqual(shutterCollider.enabled, false, 'level:reset re-enables shutter collider');
+});
+
+test('transit_train_shell has clean cabin interior, animated boarding door, and doorway collider toggle', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const train = reg.create('transit_train_shell', { area: 'transit', length: 10.4, width: 3, height: 2.9, id: 'r15a_train', carId: 'r15a_train' }, new Rng('cabin'), m);
+  assert.ok(train.object.getObjectByName('prop:r15a_train')?.userData['propId'] === 'r15a_train', 'named train registers propId for Level.setPropTransform');
+  // No rusty materials anywhere in the cabin.
+  train.object.traverse((c) => {
+    if (c instanceof THREE.Mesh) {
+      const mat = Array.isArray(c.material) ? c.material[0] : c.material;
+      assert.equal(mat?.name.toLowerCase().includes('rust'), false, `clean transit material (${mat?.name})`);
+    }
+  });
+  // Central aisle >= 1.8 m clear at standing height inside the cabin length.
+  const aisleBlocked = train.colliders.some(
+    (b) => b.enabled !== false && b.max[0] > -0.9 && b.min[0] < 0.9 && b.min[1] < 1.8 + TRAIN_RIDE_HEIGHT && b.max[1] > 0.1 + TRAIN_RIDE_HEIGHT && b.max[2] > -4.8 && b.min[2] < 4.8,
+  );
+  assert.equal(aisleBlocked, false, 'central aisle >= 1.8 m clear');
+  assert.ok(train.lightSlots.length >= 2, 'train cabin has interior ceiling light slots');
+
+  const door = train.object.getObjectByName('train_boarding_door')!;
+  assert.ok(door, 'train exposes animated boarding door');
+  const openZ = door.position.z;
+  assert.ok(openZ > 1.5, 'boarding door starts slid open');
+  const doorCollider = train.colliders.find((b) => b.min[0] > 1.0 && b.min[1] <= 0.1 + TRAIN_RIDE_HEIGHT && b.max[1] >= 2.0 + TRAIN_RIDE_HEIGHT && b.min[2] <= 0 && b.max[2] >= 0);
+  assert.ok(doorCollider, 'train has doorway collider');
+  assert.equal(doorCollider.enabled, false, 'doorway collider starts disabled when open');
+
+  for (const l of train.listeners ?? []) if (l.event === 'transit:train_door') l.fn({ carId: 'r15a_train', open: false });
+  for (let i = 0; i < 6; i++) train.tick?.(i * 0.2, 0.2);
+  assert.ok(Math.abs(door.position.z) < 0.1, 'boarding door slides closed');
+  assert.equal(doorCollider.enabled, true, 'doorway collider enables when closed');
+
+  for (const l of train.listeners ?? []) if (l.event === 'level:reset') l.fn({});
+  assert.equal(door.position.z, openZ, 'level:reset reopens boarding door');
+  assert.equal(doorCollider.enabled, false, 'level:reset disables doorway collider');
+});
+
+test('transit_sea_tunnel_rig builds clean glass tunnel rings and scrolls when active', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const rig = reg.create('transit_sea_tunnel_rig', { area: 'transit' }, new Rng('tunnel'), m);
+  const ring0 = rig.object.getObjectByName('sea_tunnel_ring_0')!;
+  assert.ok(ring0, 'sea-tunnel rig creates modular tunnel rings');
+  const z0 = ring0.position.z;
+  for (const l of rig.listeners ?? []) if (l.event === 'transit:tunnel_scroll') l.fn({ active: true, speed: 20 });
+  rig.tick?.(0.1, 0.1);
+  assert.notEqual(ring0.position.z, z0, 'tunnel ring scrolls along track when active');
+  for (const l of rig.listeners ?? []) if (l.event === 'level:reset') l.fn({});
+  assert.equal(ring0.position.z, z0, 'level:reset restores ring position');
 });
 
 test('transit_depart_board and platform_railing build within expected envelopes', () => {
@@ -174,4 +231,245 @@ test('transit_depart_board and platform_railing build within expected envelopes'
   assert.ok(rail.colliders.length > 0 && rail.surfaces.some((s) => s.material === 'metal'), 'railing has metal collider');
   const rb = new THREE.Box3().setFromObject(rail.object);
   assert.ok(rb.max.z - rb.min.z >= 5.5 && rb.max.y >= 1.0, 'railing spans 5.6 m length at ~1.04 m height');
+});
+
+const railTops = (o: THREE.Object3D): number[] => {
+  const tops: number[] = [];
+  o.updateMatrixWorld(true);
+  o.traverse((c) => {
+    if (c instanceof THREE.Mesh && !Array.isArray(c.material) && c.material.name === 'transit-rail') tops.push(new THREE.Box3().setFromObject(c).max.y);
+  });
+  return tops;
+};
+
+test('car body rides above the rails: no rail intersects the floor and the bogies show below it', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const car = reg.create('transit_train_shell', { area: 'transit', length: 10.4, id: 'r15a_train', carId: 'r15a_train' }, new Rng('lift'), m);
+  const floors = car.colliders.filter((b) => b.max[0] - b.min[0] >= 2.9 && b.max[1] - b.min[1] < 0.2 && b.min[1] < 1);
+  assert.ok(floors.length > 0, 'car has a floor collider');
+  const underside = Math.min(...floors.map((b) => b.min[1]));
+  assert.ok(underside >= RAIL_TOP + 0.2 - 1e-6, `floor underside ${underside} clears the rail head (${RAIL_TOP}) by >= 0.2 m`);
+  assert.equal(railTops(car.object).length, 0, 'the car itself contains no rail geometry');
+  let wheels = 0;
+  car.object.traverse((c) => {
+    if (c instanceof THREE.Mesh && !Array.isArray(c.material) && c.material.name === 'transit-bogie-wheel') wheels++;
+  });
+  assert.equal(wheels, 8, 'two bogies with two axles of two wheels');
+  assert.ok(car.object.getObjectByName('train_underglow'), 'car lights the track bed beneath it');
+  for (const id of ['track_bed', 'transit_tunnel_shroud', 'transit_sea_tunnel_rig']) {
+    const piece = reg.create(id, { area: 'transit', length: 12 }, new Rng(id), m);
+    const tops = railTops(piece.object);
+    assert.ok(tops.length >= 2, `${id} lays polished rails`);
+    for (const t of tops) assert.ok(t <= RAIL_TOP + 1e-6 && t <= underside - 0.2 + 1e-6, `${id} rail top ${t} stays under the car floor`);
+  }
+});
+
+test('boarding steps bridge the lifted threshold in steps the motor can climb', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const step = reg.create('transit_boarding_step', { area: 'transit' }, new Rng('step'), m);
+  const tops = step.colliders.map((b) => b.max[1]).sort((a, b) => a - b);
+  assert.equal(tops.length, 2);
+  assert.ok(Math.abs(tops[0]! - BOARDING_STEP_RISE) < 1e-6, 'first riser');
+  assert.ok(Math.abs(tops[1]! - (0.08 + TRAIN_RIDE_HEIGHT)) < 1e-6, 'last step meets the car floor');
+  assert.ok(tops[0]! <= 0.35 && tops[1]! - tops[0]! <= 0.35, 'each riser is within the 0.35 m step height');
+});
+
+test('the open boarding door leaf stays inside its pocket, clear of windows, benches and the wall', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const car = reg.create('transit_train_shell', { area: 'transit', length: 10.4, width: 3, height: 2.9, id: 'r15a_train', carId: 'r15a_train' }, new Rng('pocket'), m);
+  car.object.updateMatrixWorld(true);
+  const door = car.object.getObjectByName('train_boarding_door')!;
+  const leaf = new THREE.Box3().setFromObject(door).expandByScalar(-0.002); // resting on the floor is not a collision
+  assert.ok(leaf.min.x >= 1.5 - 0.14 - 1e-6 && leaf.max.x <= 1.5 + 1e-6, 'leaf sits inside the 0.14 m wall');
+  car.object.traverse((c) => {
+    if (c instanceof THREE.Mesh && c.name === 'train_window_glass') {
+      assert.equal(leaf.intersectsBox(new THREE.Box3().setFromObject(c).expandByScalar(0.001)), false, 'open leaf never overlaps a window pane');
+    }
+  });
+  for (const b of car.colliders) {
+    const box = new THREE.Box3(new THREE.Vector3(...b.min), new THREE.Vector3(...b.max));
+    if (!box.intersectsBox(leaf)) continue;
+    assert.ok(box.containsBox(leaf), 'the only solid the open leaf touches is the pocket that contains it ');
+  }
+  // Closed: the leaf fills the doorway centred on z = 0.
+  for (const l of car.listeners ?? []) if (l.event === 'transit:train_door') l.fn({ carId: 'r15a_train', open: false, instant: true });
+  car.object.updateMatrixWorld(true);
+  const closed = new THREE.Box3().setFromObject(door);
+  assert.ok(closed.min.z <= -1.05 && closed.max.z >= 1.05, 'closed leaf spans the doorway');
+});
+
+test('car headlights are unlit shader beams that follow ride speed, add no scene lights, and never outrun clear track', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const car = reg.create('transit_train_shell', { area: 'transit', length: 10.4, id: 'r16a_train', carId: 'r16a_train' }, new Rng('lamp'), m);
+  let lights = 0;
+  car.object.traverse((c) => {
+    if (c instanceof THREE.Light) lights++;
+  });
+  assert.equal(lights, 0, 'no SpotLight or PointLight in the car group, so the LightPool count never changes');
+  const beams: THREE.Mesh[] = [];
+  car.object.traverse((c) => {
+    if (c instanceof THREE.Mesh && c.name === 'train_headlight_beam') beams.push(c);
+  });
+  assert.equal(beams.length, 2, 'twin beams');
+  const pool = car.object.getObjectByName('train_headlight_pool')!;
+  assert.ok(beams.every((b) => !b.visible) && !pool.visible, 'parked: lens glow only, no beam or pool');
+  assert.ok(car.object.getObjectByName('train_headlight_glow'), 'parked lamps keep a soft lens glow');
+  car.object.updateMatrixWorld(true);
+  const beamBox = new THREE.Box3().setFromObject(beams[0]!);
+  assert.ok(beamBox.max.z - beamBox.min.z <= 8.5, 'beam is at most 8 m long');
+  assert.ok(Math.max(Math.abs(beamBox.min.x), Math.abs(beamBox.max.x)) <= 1.65, 'beam stays inside a 3.3 m blast-gate bore');
+
+  const motion = (speed: number, clear: number, carId = 'r16a_train'): void => {
+    for (const l of car.listeners ?? []) if (l.event === 'transit:car_motion') l.fn({ carId, speed, clear });
+  };
+  motion(9, 8, 'other_car');
+  for (let i = 0; i < 30; i++) car.tick?.(i / 30, 1 / 30);
+  assert.ok(beams.every((b) => !b.visible), "another car's motion is ignored");
+  motion(9, 9);
+  for (let i = 0; i < 30; i++) car.tick?.(i / 30, 1 / 30);
+  assert.ok(beams.every((b) => b.visible) && pool.visible, 'moving: beams and pool are on');
+  assert.ok(Math.abs(beams[0]!.scale.z - 1) < 1e-6, 'full length with free track ahead');
+  motion(3, 2.5);
+  car.tick?.(2, 1 / 30);
+  assert.ok(beams[0]!.scale.z < 0.3, 'beam shortens to the clear distance ahead of the nose');
+  motion(0, 2);
+  for (let i = 0; i < 90; i++) car.tick?.(3 + i / 30, 1 / 30);
+  assert.ok(beams.every((b) => !b.visible) && !pool.visible, 'docked: beam fades out, parking lamps only');
+});
+
+test('an opened blast gate leaves the whole bore clear: nothing static crosses the path of a car or the player', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const gate = reg.create('transit_blast_gate', { area: 'transit', height: 5, gateId: 'r15a_south' }, new Rng('bore'), m);
+  gate.object.updateMatrixWorld(true);
+  // The car is 3.1 m wide and (lifted) 3.3 m tall; the bore runs through the wall toward -Z in the piece frame.
+  const path = new THREE.Box3(new THREE.Vector3(-1.55, 0.4, -4), new THREE.Vector3(1.55, 3.35, -1.0));
+  gate.object.traverse((c) => {
+    if (!(c instanceof THREE.Mesh)) return;
+    let p: THREE.Object3D | null = c;
+    while (p) {
+      if (p.name === 'blast_gate_shutter') return; // the shutter retracts into the header
+      p = p.parent;
+    }
+    const b = new THREE.Box3().setFromObject(c);
+    assert.equal(b.intersectsBox(path), false, `static gate mesh ${(Array.isArray(c.material) ? c.material[0] : c.material)?.name} box ${b.min.toArray().map((n) => n.toFixed(2))}..${b.max.toArray().map((n) => n.toFixed(2))} does not cross the bore`);
+  });
+  const crossing = gate.colliders.filter((b) => b.enabled !== false && b.min[0] < 1.55 && b.max[0] > -1.55 && b.min[1] < 3.35 && b.max[1] > 0.4 && b.min[2] < -1.0 && b.max[2] > -4);
+  assert.equal(crossing.length, 1, 'only the shutter collider (disabled when open) can cross the bore');
+});
+
+test('the cabin has a faint cold emissive fill of its own and a roof strip that does not blow out', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const car = reg.create('transit_train_shell', { area: 'transit', length: 10.4, id: 'r15a_train', carId: 'r15a_train' }, new Rng('fill'), m);
+  let filled = 0;
+  let strip: THREE.MeshStandardMaterial | null = null;
+  car.object.traverse((c) => {
+    if (!(c instanceof THREE.Mesh) || Array.isArray(c.material)) return;
+    const mat = c.material;
+    if (mat instanceof THREE.MeshStandardMaterial && mat.emissiveIntensity > 0.3 && mat.emissiveIntensity < 1 && mat.emissive.getHex() === 0x0b2a33) filled++;
+    if (mat.name === 'cabin-ceiling-led') strip = mat as THREE.MeshStandardMaterial;
+  });
+  assert.ok(filled > 20, `cabin surfaces carry the fill (${filled} meshes)`);
+  assert.ok(strip, 'roof LED strip exists');
+  assert.ok((strip as THREE.MeshStandardMaterial).emissiveIntensity <= 1.2, 'roof strip is calm enough not to blow out close to the camera');
+  // The shared palette materials are untouched by the fill.
+  assert.notEqual(m['steel' as keyof typeof m], undefined);
+});
+
+test('the ride tunnel is one closed, lit hallway: wall texture between the lights, no windows, no ocean', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  for (const id of ['transit_sea_tunnel_rig', 'transit_tunnel_shroud']) {
+    const out = reg.create(id, { area: 'transit', length: 18 }, new Rng(id), m);
+    out.object.updateMatrixWorld(true);
+    const names = new Set<string>();
+    let glassPanes = 0;
+    let lights = 0;
+    out.object.traverse((c) => {
+      if (!(c instanceof THREE.Mesh) || Array.isArray(c.material)) return;
+      for (let a: THREE.Object3D | null = c; a; a = a.parent) if (a.name === 'rig_gate_root') return; // the approaching gate is its own piece
+      names.add(c.material.name);
+      if (c.name === 'shroud_window_glass' || c.material.name === 'ocean-glass') glassPanes++;
+      if (c.material.name.endsWith('guide-light') || c.material.name.endsWith('roof-light')) lights++;
+      if (c.material instanceof THREE.ShaderMaterial) assert.fail(id + ' draws no shader effects outside the hallway');
+    });
+    assert.equal(glassPanes, 0, id + ' has no windows');
+    assert.equal(names.has('black'), false, id + ' uses no unlit black slab');
+    for (const need of ['transit-tunnel-steel', 'transit-rail']) assert.ok(names.has(need), id + ' has ' + need);
+    assert.ok(lights >= 6, id + ' has lit roof, guide and rib bars (' + lights + ')');
+    assert.equal(out.object.getObjectByName('abyss_marine_snow'), undefined, id + ' draws no ocean');
+    // The wall texture sits between the lit rib bars on both sides: a wall slab whose inner face is at x = +/-2.1.
+    let wallsOnBothSides = 0;
+    out.object.traverse((c) => {
+      if (!(c instanceof THREE.Mesh) || Array.isArray(c.material)) return;
+      const b = new THREE.Box3().setFromObject(c);
+      if (Math.abs(Math.abs(b.min.x) - 2.17) < 0.1 && b.max.y - b.min.y > 3.9 && b.max.z - b.min.z > 5.9) wallsOnBothSides++;
+    });
+    assert.ok(wallsOnBothSides >= 2, id + ' has full-height wall panels on both sides');
+  }
+});
+
+test('the hallway fades to black at its open ends, and the rig brings a closed gate to where the R16a gate will be', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  // Fog planes: thicker toward the end, solid at the end.
+  for (const [params, ends] of [[{ fog: 'south' }, 1], [{ fog: 'north' }, 1], [{ fog: 'both' }, 2], [{}, 0]] as const) {
+    const sh = reg.create('transit_tunnel_shroud', { area: 'transit', length: 18, ...params }, new Rng('fog'), m);
+    const fogs = sh.object.children.filter((c) => c.name === 'hall_fog');
+    assert.equal(fogs.length, ends, 'shroud fog ' + JSON.stringify(params));
+    for (const g of fogs) {
+      const ops = g.children.map((c) => ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity).sort((a, b) => b - a);
+      assert.equal(ops[0], 1, 'solid black at the end');
+      assert.ok(ops.every((o, i) => i === 0 || o < ops[i - 1]!), 'thinner away from the end');
+      for (const c of g.children) assert.ok(Math.abs(c.position.z) > 5.9, 'fog starts well beyond a car at the end of the pull-out');
+    }
+  }
+  const rig = reg.create('transit_sea_tunnel_rig', { area: 'transit' }, new Rng('rigfog'), m);
+  assert.equal(rig.object.children.filter((c) => c.name === 'hall_fog').length, 2, 'the rig fades to black at both ends');
+
+  // The approaching gate: hidden until armed, then rides the scroll toward the car and stops 10.125 m ahead.
+  const holder = rig.object.getObjectByName('rig_gate_holder')!;
+  const gate = holder.getObjectByName('rig_gate_root')!;
+  assert.equal(gate.visible, false, 'no gate before the slow-down');
+  for (const l of rig.listeners ?? []) if (l.event === 'transit:tunnel_scroll') l.fn({ active: true, speed: 20 });
+  for (const l of rig.listeners ?? []) if (l.event === 'transit:rig_gate') l.fn({ arm: true });
+  assert.equal(gate.visible, true);
+  assert.ok(Math.abs(gate.position.z - (27 + 1.875)) < 1e-6, 'it starts in the fog, 27 m ahead');
+  rig.tick?.(0.1, 0.5);
+  assert.ok(Math.abs(gate.position.z - (27 - 10 + 1.875)) < 1e-6, 'it rides the scroll toward the car');
+  for (let i = 0; i < 20; i++) rig.tick?.(1 + i * 0.5, 0.5);
+  assert.ok(Math.abs(gate.position.z - (10.125 + 1.875)) < 1e-6, 'it stops exactly where R16a\'s closed gate is, 10.125 m ahead');
+  for (const l of rig.listeners ?? []) if (l.event === 'transit:rig_gate') l.fn({ arm: false });
+  assert.equal(gate.visible, false, 'released at the hand-off');
+});
+
+test('a blast gate can be asked to open fast, lifts clear of a car roof, and is bright enough to see coming', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const gate = reg.create('transit_blast_gate', { area: 'transit', height: 5, gateId: 'r16a_north' }, new Rng('fast'), m);
+  const shutter = gate.object.getObjectByName('blast_gate_shutter')!;
+  for (const l of gate.listeners ?? []) if (l.event === 'transit:blast_gate') l.fn({ gateId: 'r16a_north', open: true, seconds: 0.8 });
+  for (let i = 0; i < 9; i++) gate.tick?.(i * 0.1, 0.1); // 0.9 s
+  assert.ok(shutter.position.y >= 3.45 + 0.05, 'a 0.8 s open is complete in 0.9 s and the shutter is clear of the 3.3 m car roof (' + shutter.position.y + ')');
+  // Default speed still takes the full 1.8 s.
+  const slow = reg.create('transit_blast_gate', { area: 'transit', height: 5, gateId: 'r15a_south' }, new Rng('slow'), m);
+  const s2 = slow.object.getObjectByName('blast_gate_shutter')!;
+  for (const l of slow.listeners ?? []) if (l.event === 'transit:blast_gate') l.fn({ gateId: 'r15a_south', open: true });
+  for (let i = 0; i < 9; i++) slow.tick?.(i * 0.1, 0.1);
+  assert.ok(s2.position.y < 3.0, 'default open speed is unchanged');
+  // The shutter leaves are bright and self-lit.
+  let bright = 0;
+  shutter.traverse((c) => {
+    if (c instanceof THREE.Mesh && !Array.isArray(c.material) && c.material.name === 'gate-shutter') {
+      const mat = c.material as THREE.MeshStandardMaterial;
+      assert.ok(mat.emissiveIntensity > 0 && mat.color.getHex() > 0x808080, 'bright, self-lit leaf');
+      bright++;
+    }
+  });
+  assert.equal(bright, 2, 'both leaves');
 });

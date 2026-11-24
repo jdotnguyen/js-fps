@@ -63,6 +63,7 @@ import { cachedGpuLimits, gpuKey } from '../render/gpuProbe.ts';
 import type { LevelData } from '../data/types/level.ts';
 import { ITEMS } from './titlePrepare.ts';
 import type { TitlePreload } from './titlePreload.ts';
+import { TransitRideController } from '../game/transitRide.ts';
 import type { MenuMusic } from '../audio/menuMusic.ts';
 import { PropAudioController } from '../audio/propAudio.ts';
 import { EARSHOT_LEVEL, voiceAudibility, wallOccluder } from '../audio/occlusion.ts';
@@ -1544,6 +1545,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           ['r10_flood', 'anchor:r10_valve_stand', { tunnel_started: true }],
           ['r11', 'cp_climax', { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, 'giles.infectionStage': 3, 'giles.bandaged': true, 'weapon:shotgun': true }],
           ['r15a', 'anchor:r15a_platform', { tunnel_started: true, valve_done: true }],
+          ['transit_ride', 'anchor:r15a_train_inside', { tunnel_started: true, valve_done: true }],
           ['r16', 'anchor:r16_train_exit', { tunnel_started: true, valve_done: true }],
           ['r16b', 'anchor:r16_concourse', { tunnel_started: true, valve_done: true }],
         ];
@@ -1567,6 +1569,9 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
               }
               player.placeAtEye(new THREE.Vector3(cp.pos[0], cp.pos[1] + PLAYER_TUNING.eyeHeight, cp.pos[2]), ((cp.yaw ?? 0) * Math.PI) / 180);
               squad!.requestPlacement();
+              if (jump === 'transit_ride') {
+                events.emit('transit:start_ride' as never, {} as never);
+              }
             }, 400),
           );
         });
@@ -1645,6 +1650,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     addEventListener('resize', onResize);
     cleanups.push(() => removeEventListener('resize', onResize));
 
+    const transitRide = level ? new TransitRideController({ events, level, player, squad }) : null;
+    if (transitRide) cleanups.push(() => transitRide.dispose());
     const npcCamFwd = { x: 0, z: -1 };
     const scoreFeet = { x: 0, y: 0, z: 0 };
     let simTime = 0;
@@ -1659,6 +1666,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         simTime += dt;
         game.update(dt);
         if (game.mode === 'playing' && !game.flying) {
+          transitRide?.update(dt);
           stepPhysics(dt);
           sequences?.update(dt);
           enemies!.update(dt);
