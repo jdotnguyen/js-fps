@@ -1,7 +1,10 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Rng } from '../../core/rng.ts';
 import { fixtureMaterial, type Materials } from '../../render/materials.ts';
 import { paintedDecal } from '../../render/decals.ts';
+import { flashingState } from '../../render/flashing.ts';
+import { trackAnisotropy } from '../../render/anisotropy.ts';
 import { CanvasScreen, SCREEN_FONT } from '../../render/screens.ts';
 import { at, cylinderBetween, rounded } from './geom.ts';
 import { resolvePalette } from './palettes.ts';
@@ -19,7 +22,7 @@ import {
   poolMaterial,
   railMaterial,
 } from './transitCommon.ts';
-import { PieceBuilder, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams } from './types.ts';
+import { PieceBuilder, boolParam, numParam, strParam, type PieceDef, type PieceOutput, type PieceParams } from './types.ts';
 
 /**
  * Lower transit wing structural & hero pieces (openspec finale-transit-rooms-geometry,
@@ -188,6 +191,7 @@ function trainShell(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
     for (const sz of [-1, 1]) {
       const bz = sz * (doorHalf + 0.24);
       addMesh(cylinderBetween(new THREE.Vector3(rx, floorH, bz), new THREE.Vector3(rx, h - roofT, bz), 0.024), trimMat);
+      solid(rx - 0.03, floorH, bz - 0.03, rx + 0.03, h - roofT, bz + 0.03, 'metal');
     }
     for (let z = -hl + 1.1; z <= hl - 1.0; z += 1.55) {
       if (Math.abs(z) < doorHalf - 0.1) continue;
@@ -442,7 +446,8 @@ function trainShell(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
   pb.tick((_t, dt) => {
     const target = doorTargetOpen ? 1 : 0;
     if (doorOpenProgress !== target) {
-      const step = Math.min(1, dt / 0.85);
+      const duration = doorTargetOpen ? 1.8 : 0.85;
+      const step = Math.min(1, dt / duration);
       doorOpenProgress = doorOpenProgress < target ? Math.min(1, doorOpenProgress + step) : Math.max(0, doorOpenProgress - step);
       applyDoorState();
     }
@@ -458,6 +463,124 @@ function trainShell(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
     addMesh(slab(w - wallT * 2, 0.06, wallT + 0.02), trimMat, at(0, sillY, zc));
     addMesh(slab(w - wallT * 2, 0.05, wallT + 0.02), pal.pipeAccent, at(0, headY, zc));
     solid(-hw, floorH, hl - wallT, hw, h - roofT, hl);
+
+    // Centred comms/radio terminal on the interior face of the rear bulkhead (for incoming radio to Heins).
+    const rearFaceZ = hl - wallT;
+    const commsGroup = new THREE.Group();
+    commsGroup.name = 'train_comms_terminal';
+    const commsBezel = new THREE.Mesh(slab(0.66, 0.6, 0.02), trimMat);
+    commsBezel.position.set(0, 1.38, rearFaceZ - 0.01);
+    commsGroup.add(commsBezel);
+    const commsBody = new THREE.Mesh(rounded(0.62, 0.56, 0.09, 0.015), darkMat);
+    commsBody.position.set(0, 1.38, rearFaceZ - 0.05);
+    commsGroup.add(commsBody);
+    const commsScreenMat =
+      typeof document !== 'undefined'
+        ? paintedDecal(
+            (ctx, cw, ch) => {
+              ctx.fillStyle = '#07141b';
+              ctx.fillRect(0, 0, cw, ch);
+              ctx.fillStyle = '#123846';
+              ctx.fillRect(0, 0, cw, 46);
+              ctx.fillStyle = '#38e8b8';
+              ctx.fillRect(0, 44, cw, 4);
+              ctx.fillStyle = '#e8f4f8';
+              ctx.font = `bold 22px ${SCREEN_FONT}`;
+              ctx.textAlign = 'left';
+              ctx.fillText('COMMS LINK // CH-04', 20, 31);
+              ctx.fillStyle = '#e0a82e';
+              ctx.font = `bold 20px ${SCREEN_FONT}`;
+              ctx.fillText('CAR B -> HEINS', 20, 92);
+              ctx.fillStyle = '#8ec8d8';
+              ctx.font = `18px ${SCREEN_FONT}`;
+              ctx.fillText('STATUS: CARRIER ACTIVE', 20, 130);
+              for (let i = 0; i < 14; i++) {
+                const bh = 16 + ((i * 19 + 7) % 44);
+                ctx.fillStyle = i < 10 ? '#38e8b8' : '#245866';
+                ctx.fillRect(20 + i * 32, 224 - bh, 20, bh);
+              }
+            },
+            512,
+            256,
+            'train-comms-screen',
+          )
+        : flatPaint('train-comms-screen-fallback', 0x0b2a33, 0.4, 0.1);
+    const commsScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.25), commsScreenMat);
+    commsScreen.applyMatrix4(at(0, 1.48, rearFaceZ - 0.098, 0, Math.PI, 0));
+    commsGroup.add(commsScreen);
+    const commsGrille = new THREE.Mesh(slab(0.22, 0.1, 0.02), trimMat);
+    commsGrille.position.set(-0.14, 1.23, rearFaceZ - 0.102);
+    commsGroup.add(commsGrille);
+    const commsHandset = new THREE.Mesh(rounded(0.1, 0.16, 0.035, 0.008), pal.pipeAccent);
+    commsHandset.position.set(0.15, 1.24, rearFaceZ - 0.106);
+    commsGroup.add(commsHandset);
+    const commsLedMat = fixtureMaterial(0x38e8b8, 2.0);
+    commsLedMat.name = 'train-comms-led';
+    const commsLed = new THREE.Mesh(slab(0.03, 0.018, 0.015), commsLedMat);
+    commsLed.position.set(0.24, 1.59, rearFaceZ - 0.1);
+    commsGroup.add(commsLed);
+    addDynamic(commsGroup);
+  }
+
+  // Transit infographic / info sign on the solid windowless door-pocket wall (north-west end at rot=180).
+  {
+    const pocketZc = (doorHalf + pocketEnd) / 2;
+    const signY = (sillY + headY) / 2;
+    const innerX = doorSign * (hw - wallT);
+    const infoGroup = new THREE.Group();
+    infoGroup.name = 'train_pocket_info_sign';
+    const infoFrame = new THREE.Mesh(slab(0.024, 0.9, 1.6), trimMat);
+    infoFrame.position.set(innerX - doorSign * 0.012, signY, pocketZc);
+    infoGroup.add(infoFrame);
+    const infoMat =
+      typeof document !== 'undefined'
+        ? paintedDecal(
+            (ctx, cw, ch) => {
+              ctx.fillStyle = '#0b1820';
+              ctx.fillRect(0, 0, cw, ch);
+              ctx.fillStyle = '#153442';
+              ctx.fillRect(0, 0, cw, 48);
+              ctx.fillStyle = '#48d8e8';
+              ctx.fillRect(0, 44, cw, 4);
+              ctx.fillStyle = '#e8f4f8';
+              ctx.font = `bold 22px ${SCREEN_FONT}`;
+              ctx.textAlign = 'left';
+              ctx.fillText('THALASSA TRANSIT // LINE 01 ROUTE', 20, 32);
+              ctx.strokeStyle = '#38e8b8';
+              ctx.lineWidth = 4;
+              ctx.beginPath();
+              ctx.moveTo(56, 114);
+              ctx.lineTo(456, 114);
+              ctx.stroke();
+              const stops = [
+                { x: 64, label: 'R15A DEPART' },
+                { x: 256, label: 'ABYSSAL BORE' },
+                { x: 448, label: 'R16A ARRIVAL' },
+              ];
+              for (const s of stops) {
+                ctx.fillStyle = '#38e8b8';
+                ctx.beginPath();
+                ctx.arc(s.x, 114, 10, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#cfe6ee';
+                ctx.font = `bold 15px ${SCREEN_FONT}`;
+                ctx.textAlign = 'center';
+                ctx.fillText(s.label, s.x, 148);
+              }
+              ctx.textAlign = 'left';
+              ctx.fillStyle = '#e0a82e';
+              ctx.font = `bold 18px ${SCREEN_FONT}`;
+              ctx.fillText('DEPTH -185 m  |  PRESSURE NOMINAL', 20, 212);
+            },
+            512,
+            256,
+            'train-pocket-info-sign',
+          )
+        : flatPaint('train-pocket-info-fallback', 0x0b1820, 0.6, 0.1);
+    const infoFace = new THREE.Mesh(new THREE.PlaneGeometry(1.52, 0.82), infoMat);
+    infoFace.applyMatrix4(at(innerX - doorSign * 0.026, signY, pocketZc, 0, doorSign > 0 ? -Math.PI / 2 : Math.PI / 2, 0));
+    infoGroup.add(infoFace);
+    addDynamic(infoGroup);
   }
 
   // Undercarriage (Decision 6): side skirts, two bogies with wheelsets on the rails, and a guide-strip glow.
@@ -517,23 +640,40 @@ function concoursePillar(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
   const pal = resolvePalette(p, m);
   const w = numParam(p, 'width', 1.45);
   const h = numParam(p, 'height', 8.0);
-  const baseH = 0.5;
-  const capH = 0.55;
+  const baseH = 0.56;
+  const capH = 0.62;
   const shaftH = Math.max(1.0, h - baseH - capH);
+  const hw = w / 2;
 
-  // Heavy plinth base, architectural concrete/slate shaft with corner steel ribs, and ceiling capital.
-  pb.add(rounded(w + 0.28, baseH, w + 0.28, 0.04), pal.doorPanel, at(0, baseH / 2, 0));
-  pb.add(slab(w + 0.32, 0.08, w + 0.32), pal.trim, at(0, baseH + 0.04, 0));
-  pb.add(rounded(w, shaftH, w, 0.04), pal.wallAlt, at(0, baseH + shaftH / 2, 0));
+  // Heavy stepped plinth base with brushed steel kick collar.
+  pb.add(rounded(w + 0.32, 0.16, w + 0.32, 0.03), pal.trim, at(0, 0.08, 0));
+  pb.add(rounded(w + 0.26, baseH - 0.16, w + 0.26, 0.04), pal.doorPanel, at(0, 0.16 + (baseH - 0.16) / 2, 0));
+  pb.add(slab(w + 0.34, 0.09, w + 0.34), pal.trim, at(0, baseH + 0.045, 0));
+
+  // Main architectural clean slate shaft with corner brushed-steel ribs and horizontal band rings.
+  pb.add(rounded(w, shaftH, w, 0.04), pal.wallMain, at(0, baseH + shaftH / 2, 0));
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
-      pb.add(slab(0.14, shaftH, 0.14), pal.trim, at(sx * (w / 2 - 0.03), baseH + shaftH / 2, sz * (w / 2 - 0.03)));
+      pb.add(slab(0.15, shaftH, 0.15), pal.trim, at(sx * (hw - 0.03), baseH + shaftH / 2, sz * (hw - 0.03)));
     }
   }
-  pb.add(slab(w + 0.34, 0.1, w + 0.34), pal.trim, at(0, h - capH - 0.05, 0));
-  pb.add(rounded(w + 0.36, capH, w + 0.36, 0.04), pal.doorPanel, at(0, h - capH / 2, 0));
+  // Vertical recessed accent channels on all four faces for grand terminal depth.
+  for (const sx of [-1, 1]) {
+    pb.add(slab(0.03, shaftH - 0.6, 0.28), pal.doorPanel, at(sx * (hw + 0.005), baseH + shaftH / 2, 0));
+    pb.add(slab(0.28, shaftH - 0.6, 0.03), pal.doorPanel, at(0, baseH + shaftH / 2, sx * (hw + 0.005)));
+  }
+  // Mid-height architectural collar band & upper cove trim ring.
+  pb.add(slab(w + 0.14, 0.12, w + 0.14), pal.doorPanel, at(0, 2.55, 0));
+  pb.add(slab(w + 0.18, 0.045, w + 0.18), pal.trim, at(0, 2.63, 0));
+  const coveGlow = fixtureMaterial(0xb8e6f0, 0.75);
+  coveGlow.name = 'concourse-pillar-cove';
+  pb.add(slab(w + 0.16, 0.035, w + 0.16), coveGlow, at(0, h - capH - 0.14, 0));
 
-  const ch = w / 2 + 0.14;
+  // Grand capital meeting the 8.0 m ceiling.
+  pb.add(slab(w + 0.34, 0.1, w + 0.34), pal.trim, at(0, h - capH - 0.05, 0));
+  pb.add(rounded(w + 0.38, capH, w + 0.38, 0.04), pal.doorPanel, at(0, h - capH / 2, 0));
+
+  const ch = hw + 0.14;
   pb.solid(-ch, 0, -ch, ch, h, ch);
   return pb.build();
 }
@@ -544,14 +684,19 @@ function checkinBooth(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
   const w = numParam(p, 'width', 3.6);
   const d = numParam(p, 'depth', 2.2);
   const h = numParam(p, 'height', 3.2);
+  const label = strParam(p, 'label', 'CHECK-IN // CLEARANCE');
   const hw = w / 2;
   const hd = d / 2;
   const counterH = 1.05;
   const fasciaBottom = 2.4;
 
-  // Solid base counter + brushed transaction ledge (front faces -Z).
-  pb.add(rounded(w, counterH - 0.06, d, 0.02), pal.wallMain, at(0, (counterH - 0.06) / 2, 0));
+  // Solid base counter with recessed brushed-steel kick plate and transaction ledge (front faces -Z).
+  pb.add(slab(w - 0.08, 0.16, d - 0.08), pal.doorPanel, at(0, 0.08, 0));
+  pb.add(rounded(w, counterH - 0.2, d, 0.02), pal.wallMain, at(0, 0.16 + (counterH - 0.2) / 2, 0));
+  pb.add(slab(w - 0.14, 0.04, 0.03), pal.pipeAccent, at(0, 0.56, -hd - 0.01));
   pb.add(rounded(w + 0.08, 0.07, d + 0.16, 0.015), pal.trim, at(0, counterH - 0.035, -0.04));
+  // Recessed stainless pass-through tray at central cutout.
+  pb.add(slab(0.76, 0.02, 0.34), pal.doorPanel, at(0, counterH + 0.01, -hd + 0.12));
 
   // Side partition piers + back wall.
   for (const sx of [-1, 1]) {
@@ -559,7 +704,18 @@ function checkinBooth(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
   }
   pb.add(slab(w - 0.36, h - counterH, 0.16), pal.wallMain, at(0, (h + counterH) / 2, hd - 0.08));
 
-  // Glazed teller screen with a central check-in cutout + overhead signage fascia.
+  // Interior teller workstation detail visible through glass: dual monitors, keyboard, desk lamp glow.
+  const monitorShell = flatPaint('booth-monitor', 0x161d24, 0.45, 0.3);
+  const screenGlow = fixtureMaterial(0x52c8dc, 0.85);
+  screenGlow.name = 'booth-monitor-glow';
+  for (const sx of [-0.95, 0.95]) {
+    pb.add(slab(0.46, 0.3, 0.04), monitorShell, at(sx, counterH + 0.26, 0.18, -0.1, sx > 0 ? -0.22 : 0.22, 0));
+    pb.add(slab(0.4, 0.24, 0.015), screenGlow, at(sx, counterH + 0.26, 0.155, -0.1, sx > 0 ? -0.22 : 0.22, 0));
+    pb.add(slab(0.1, 0.12, 0.08), pal.trim, at(sx, counterH + 0.06, 0.2));
+    pb.add(slab(0.36, 0.025, 0.14), monitorShell, at(sx, counterH + 0.015, -0.08));
+  }
+
+  // Glazed teller screen with central check-in cutout + overhead signage fascia.
   const screenH = fasciaBottom - counterH;
   const sideGlassW = (w - 0.36 - 0.9) / 2;
   for (const sx of [-1, 1]) {
@@ -572,6 +728,26 @@ function checkinBooth(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
   }
   pb.add(rounded(w + 0.06, h - fasciaBottom, d + 0.06, 0.02), pal.doorPanel, at(0, (h + fasciaBottom) / 2, 0));
   pb.add(slab(w + 0.08, 0.08, 0.06), pal.trim, at(0, fasciaBottom + 0.04, -hd - 0.03));
+  // Overhead illuminated fascia sign facing -Z.
+  const fasciaMat =
+    typeof document !== 'undefined'
+      ? paintedDecal(
+          (ctx, cw, ch) => {
+            ctx.fillStyle = '#0d1920';
+            ctx.fillRect(0, 0, cw, ch);
+            ctx.fillStyle = '#38c8d8';
+            ctx.fillRect(0, ch - 8, cw, 8);
+            ctx.fillStyle = '#e8f4f8';
+            ctx.font = `bold 34px ${SCREEN_FONT}`;
+            ctx.textAlign = 'center';
+            ctx.fillText(label, cw / 2, ch * 0.62, cw - 36);
+          },
+          512,
+          96,
+          `checkin-fascia-${label}`,
+        )
+      : flatPaint('checkin-fascia-fallback', 0x0d1920, 0.5, 0.1);
+  pb.add(new THREE.PlaneGeometry(w - 0.36, 0.42), fasciaMat, at(0, fasciaBottom + 0.42, -hd - 0.042, 0, Math.PI, 0));
 
   pb.solid(-hw, 0, -hd, hw, h, hd);
   return pb.build();
@@ -1120,6 +1296,7 @@ function transitDepartBoard(p: PieceParams, _rng: Rng, m: Materials): PieceOutpu
   const w = numParam(p, 'width', 2.4);
   const h = numParam(p, 'height', 1.1);
   const y = numParam(p, 'y', 3.15);
+  const mode = strParam(p, 'mode', 'departure') === 'arrival' ? 'arrival' : 'departure';
 
   pb.add(rounded(w + 0.14, h + 0.14, 0.16, 0.02), pal.doorPanel, at(0, y, 0));
   pb.add(slab(w + 0.18, 0.06, 0.18), pal.trim, at(0, y + h / 2 + 0.07, 0));
@@ -1138,7 +1315,7 @@ function transitDepartBoard(p: PieceParams, _rng: Rng, m: Materials): PieceOutpu
         ctx.fillRect(0, 0, cw, ch);
         ctx.fillStyle = '#12303c';
         ctx.fillRect(0, 0, cw, 52);
-        ctx.fillStyle = '#48d8e8';
+        ctx.fillStyle = mode === 'arrival' ? '#e0a82e' : '#48d8e8';
         ctx.fillRect(0, 48, cw, 4);
         ctx.fillStyle = '#e8f4f8';
         ctx.font = `bold 24px ${SCREEN_FONT}`;
@@ -1146,19 +1323,30 @@ function transitDepartBoard(p: PieceParams, _rng: Rng, m: Materials): PieceOutpu
         ctx.fillText('TRANSIT LINE 01 // ARRIVAL TERMINAL', 20, 34);
         ctx.fillStyle = '#e0a82e';
         ctx.font = `bold 20px ${SCREEN_FONT}`;
-        ctx.fillText('PLATFORM A   |   SHUTTLE CAR 01', 20, 96);
+        ctx.fillText(
+          mode === 'arrival' ? 'PLATFORM B   |   ARRIVAL TRACK DOCK' : 'PLATFORM A   |   SHUTTLE CAR 01',
+          20,
+          96,
+        );
         ctx.fillStyle = '#9ec4d0';
         ctx.font = `18px ${SCREEN_FONT}`;
-        ctx.fillText('ROUTE: R15A DEPARTURE -> SEA TUNNEL -> R16A', 20, 140);
+        ctx.fillText(
+          mode === 'arrival' ? 'PROCEED WEST -> CONCOURSE & CHECK-IN' : 'ROUTE: R15A DEPARTURE -> SEA TUNNEL -> R16A',
+          20,
+          140,
+        );
         const blink = Math.floor(t * 2) % 2 === 0;
-        ctx.fillStyle = '#38e8b8';
+        ctx.fillStyle = mode === 'arrival' ? '#f0b840' : '#38e8b8';
         ctx.font = `bold 22px ${SCREEN_FONT}`;
-        ctx.fillText(blink ? 'STATUS: BOARDING // CLEAR TO DEPART _' : 'STATUS: BOARDING // CLEAR TO DEPART', 20, 198);
+        const statusText = mode === 'arrival' ? 'STATUS: DOCKED // AWAITING CLEARANCE' : 'STATUS: BOARDING // CLEAR TO DEPART';
+        ctx.fillText(blink ? `${statusText} _` : statusText, 20, 198);
       },
       0.45,
     );
   }
   const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), screen ? screen.material : pal.doorPanel);
+  face.name = 'transit_board_face';
+  face.userData['boardMode'] = mode;
   face.applyMatrix4(at(0, y, -0.085, 0, Math.PI, 0));
   pb.dynamic(face);
   if (screen) pb.tick((t) => screen!.update(t));
@@ -1313,6 +1501,75 @@ function transitTunnelShroud(p: PieceParams, _rng: Rng, m: Materials): PieceOutp
   return pb.build();
 }
 
+let darkBoreMat: THREE.MeshStandardMaterial | undefined;
+/** Unlit tunnel steel for the switched-off bore past R16a's car: no emissive, so only the room lights ever touch it. */
+function darkBoreSteel(): THREE.MeshStandardMaterial {
+  if (!darkBoreMat) {
+    darkBoreMat = new THREE.MeshStandardMaterial({ color: 0x1a2328, roughness: 0.75, metalness: 0.35 });
+    darkBoreMat.name = 'transit-dark-bore-steel';
+    darkBoreMat.userData['flat'] = true;
+  }
+  return darkBoreMat;
+}
+
+/**
+ * The tunnel the track runs on into past R16a's parked car (openspec r16a-perpendicular-train-arrival, Decision 3): the ride
+ * hallway with its lights off. Local frame: the room's wall plane is z = 0 (the room is at -Z), and the bore runs out of
+ * it toward +Z for `length`. The piece owns the wall across its 4 m cell edge: piers and a header (`wallHeight` tall)
+ * around an open `width` x `height` portal with a dark steel frame, then a steel liner (dark, no emissive, no rib bars or
+ * guide strips) closed at the far end by black fog planes that thicken to solid black. Everything but the portal is solid.
+ */
+function transitDarkBore(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
+  const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
+  const w = numParam(p, 'width', 3.4);
+  const h = numParam(p, 'height', 3.4);
+  const len = numParam(p, 'length', 6.0);
+  const wallH = numParam(p, 'wallHeight', 5.0);
+  const steel = darkBoreSteel();
+  const hw = w / 2;
+  const t = 0.1;
+  const wallT = 0.25;
+  // The wall across the cell edge: piers either side of the portal and a header above it (inward only, like a kit wall).
+  const pierW = 2.0 - hw;
+  for (const sx of [-1, 1]) {
+    pb.add(slab(pierW, wallH + 0.05, wallT), pal.wallMain, at(sx * (hw + pierW / 2), wallH / 2, -wallT / 2));
+    pb.solid(sx > 0 ? hw : -2.0, 0, -wallT, sx > 0 ? 2.0 : -hw, wallH, 0, 'metal');
+    // Dark steel jamb trim around the portal.
+    pb.add(slab(0.12, h, 0.34), steel, at(sx * (hw + 0.04), h / 2, -wallT / 2 - 0.02));
+  }
+  const headH = wallH + 0.05 - h;
+  pb.add(slab(4.0, headH, wallT), pal.wallMain, at(0, h + headH / 2, -wallT / 2));
+  pb.add(slab(w + 0.24, 0.14, 0.34), steel, at(0, h - 0.07, -wallT / 2 - 0.02));
+  pb.solid(-2.0, h, -wallT, 2.0, wallH, 0, 'metal');
+  // Liner side walls and roof, and a solid cap at the far end.
+  for (const sx of [-1, 1]) {
+    pb.add(slab(t, h, len), steel, at(sx * (hw + t / 2), h / 2, len / 2));
+    pb.solid(sx > 0 ? hw : -hw - t, 0, 0, sx > 0 ? hw + t : -hw, h, len, 'metal');
+  }
+  pb.add(slab(w + 2 * t, t, len), steel, at(0, h + t / 2, len / 2));
+  pb.solid(-hw - t, h, 0, hw + t, h + t, len, 'metal');
+  pb.solid(-hw, 0, len - 0.3, hw, h + t, len, 'metal');
+  // A floor, so nothing that gets in can fall out of the world under the walls and the cap.
+  pb.solid(-hw - t, -0.3, 0, hw + t, 0, len, 'metal');
+  // Black fog planes, solid at the far end, so the bore reads as continuing into the dark.
+  const fog = new THREE.Group();
+  fog.name = 'dark_bore_fog';
+  const spacing = Math.min(1.0, (len - 0.4) / 4);
+  const opacity = [1, 0.82, 0.58, 0.32];
+  for (let k = 0; k < opacity.length; k++) {
+    const mat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: opacity[k]!, depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false });
+    mat.name = 'dark-bore-fog';
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    plane.position.set(0, h / 2, len - 0.12 - k * spacing);
+    plane.renderOrder = 6;
+    plane.frustumCulled = false;
+    fog.add(plane);
+  }
+  pb.dynamic(fog);
+  return pb.build();
+}
+
 /**
  * Infinite-scrolling hallway rig for Stage 2 of the abyssal ride: the same lit hallway as the shrouds, in segments that
  * scroll past the stationary train cabin. Lights fade into the dark at both ends, so the hallway seen on pull-out runs
@@ -1347,6 +1604,7 @@ function transitSeaTunnelRig(p: PieceParams, _rng: Rng, m: Materials): PieceOutp
   gateHolder.add(gateRoot);
   pb.dynamic(gateHolder);
   let gateArmed = false;
+  let gateExplicit = false;
   let gateWallZ = RIG_GATE_START_Z;
   const placeGate = (): void => {
     gateRoot.position.z = gateWallZ + 1.875; // the gate piece's wall is 1.875 m from its origin
@@ -1406,8 +1664,15 @@ function transitSeaTunnelRig(p: PieceParams, _rng: Rng, m: Materials): PieceOutp
   });
   pb.on('transit:rig_gate', (payload) => {
     if (!payload || typeof payload !== 'object') return;
-    gateArmed = (payload as Record<string, unknown>)['arm'] === true;
-    gateWallZ = RIG_GATE_START_Z;
+    const rec = payload as Record<string, unknown>;
+    gateArmed = rec['arm'] === true;
+    if (typeof rec['wallZ'] === 'number' && Number.isFinite(rec['wallZ'])) {
+      gateExplicit = true;
+      gateWallZ = Math.max(RIG_GATE_FINAL_Z, rec['wallZ']);
+    } else {
+      gateExplicit = false;
+      gateWallZ = RIG_GATE_START_Z;
+    }
     placeGate();
   });
   pb.on('level:reset', () => {
@@ -1415,6 +1680,7 @@ function transitSeaTunnelRig(p: PieceParams, _rng: Rng, m: Materials): PieceOutp
     speed = numParam(p, 'speed', 20);
     scrollOffset = 0;
     gateArmed = false;
+    gateExplicit = false;
     gateWallZ = RIG_GATE_START_Z;
     placeGate();
     updatePositions();
@@ -1422,8 +1688,8 @@ function transitSeaTunnelRig(p: PieceParams, _rng: Rng, m: Materials): PieceOutp
   pb.tick((_t, dt) => {
     if (!active) return;
     scrollOffset = (scrollOffset + speed * dt) % totalLen;
-    // The gate rides the scroll toward the car and stops where R16a's closed gate will be.
-    if (gateArmed) {
+    // The gate rides the scroll toward the car and stops where R16a's closed gate will be (unless driven analytically).
+    if (gateArmed && !gateExplicit) {
       gateWallZ = Math.max(RIG_GATE_FINAL_Z, gateWallZ - speed * dt);
       placeGate();
     }
@@ -1433,6 +1699,567 @@ function transitSeaTunnelRig(p: PieceParams, _rng: Rng, m: Materials): PieceOutp
   return pb.build();
 }
 
+
+const beaconBeamMatCache = new Map<string, THREE.MeshBasicMaterial>();
+function beaconBeamMaterial(key: string, color: number): THREE.MeshBasicMaterial {
+  let mat = beaconBeamMatCache.get(key);
+  if (!mat) {
+    mat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.42,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    mat.name = `transit-${key}`;
+    beaconBeamMatCache.set(key, mat);
+  }
+  return mat;
+}
+
+const beaconLensMatCache = new Map<string, THREE.MeshStandardMaterial>();
+function beaconLensMaterial(key: string, color: number, emissiveIntensity: number): THREE.MeshStandardMaterial {
+  let mat = beaconLensMatCache.get(key);
+  if (!mat) {
+    mat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity,
+      roughness: 0.18,
+      metalness: 0.05,
+    });
+    mat.name = `transit-${key}`;
+    beaconLensMatCache.set(key, mat);
+  }
+  return mat;
+}
+
+/**
+ * Wall/pillar-mounted red rotating emergency beacon (facing -Z from mount plane at z = 0).
+ * Dark until `transit:r16_beacons` { on: true }; swaps rotating cones for a steady red lens under reducedFlashing.
+ */
+function transitRotatingBeacon(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
+  const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
+  const phase = numParam(p, 'phase', 0);
+  const beamLen = numParam(p, 'beamLength', 3.4);
+  const claimLight = boolParam(p, 'light', true);
+
+  // Wall mounting plate, horizontal arm, housing collar, and protective dome cage.
+  pb.add(rounded(0.22, 0.22, 0.04, 0.01), pal.doorPanel, at(0, 0, -0.02));
+  pb.add(rounded(0.08, 0.08, 0.16, 0.01), pal.trim, at(0, -0.04, -0.1));
+  pb.add(new THREE.CylinderGeometry(0.085, 0.095, 0.07, 16), pal.doorPanel, at(0, 0.015, -0.16));
+  // Dark unlit ruby dome shell visible when beacon is off.
+  pb.add(new THREE.CylinderGeometry(0.068, 0.075, 0.13, 14), flatPaint('beacon-dome-off', 0x4a0c0c, 0.22, 0.1), at(0, 0.11, -0.16));
+  pb.add(new THREE.SphereGeometry(0.068, 14, 10), flatPaint('beacon-dome-off', 0x4a0c0c, 0.22, 0.1), at(0, 0.175, -0.16));
+  // Thin protective wire guard ring.
+  pb.add(new THREE.TorusGeometry(0.084, 0.008, 6, 16).rotateX(Math.PI / 2), pal.trim, at(0, 0.12, -0.16));
+
+  // Twin opposing volumetric red beams rotating around the dome's Y axis.
+  const coneA = new THREE.ConeGeometry(0.55, beamLen, 14, 1, true).rotateZ(-Math.PI / 2).translate(beamLen / 2, 0, 0);
+  const coneB = new THREE.ConeGeometry(0.55, beamLen, 14, 1, true).rotateZ(Math.PI / 2).translate(-beamLen / 2, 0, 0);
+  const core = new THREE.SphereGeometry(0.082, 14, 10);
+  const rotorGeo = mergeGeometries([core.toNonIndexed(), coneA.toNonIndexed(), coneB.toNonIndexed()], false)!;
+  const rotor = new THREE.Mesh(rotorGeo, beaconBeamMaterial('red-beacon-beam', 0xff2218));
+  rotor.position.set(0, 0.12, -0.16);
+  rotor.name = 'r16_beacon_rotor';
+  rotor.visible = false;
+  pb.dynamic(rotor);
+
+  // Steady glowing red lens shown when `reducedFlashing` is active.
+  const steady = new THREE.Mesh(
+    new THREE.SphereGeometry(0.085, 14, 10),
+    beaconLensMaterial('red-beacon-steady', 0xff281c, 3.2),
+  );
+  steady.position.set(0, 0.12, -0.16);
+  steady.name = 'r16_beacon_steady';
+  steady.visible = false;
+  pb.dynamic(steady);
+
+  if (claimLight) pb.light([0, 0.12, -0.26], 'emergency');
+
+  const defaultOn = boolParam(p, 'defaultOn', false);
+  let on = defaultOn;
+  pb.tick((t) => {
+    rotor.visible = on && !flashingState.reduced;
+    steady.visible = on && flashingState.reduced;
+    rotor.rotation.y = t * 4.2 + phase;
+  });
+  pb.on('transit:r16_beacons', (e) => {
+    on = (e as { on?: boolean } | undefined)?.on === true;
+  });
+  pb.on('level:reset', () => {
+    on = defaultOn;
+  });
+
+  return pb.build();
+}
+
+const BLOOD_VARIANTS: Record<string, readonly string[]> = {
+  pool: ['pool_01', 'pool_02', 'pool_03', 'pool_04', 'pool_05'],
+  spatter: ['spatter_01', 'spatter_02', 'spatter_03', 'spatter_04', 'spatter_05'],
+  smear: ['smear_01', 'smear_02', 'smear_03', 'smear_04'],
+  leak: ['leak_01', 'leak_02', 'leak_03'],
+  drag: ['smear_01', 'smear_02', 'smear_03', 'smear_04'],
+  drop: ['drop_01', 'drop_02', 'drop_03'],
+};
+
+let bloodLoader: THREE.TextureLoader | null = null;
+const bloodMatCache = new Map<string, THREE.MeshStandardMaterial>();
+function bloodTextureMaterial(variant: string, seed: string, explicitTex: string): THREE.MeshStandardMaterial {
+  const pool = BLOOD_VARIANTS[variant] ?? BLOOD_VARIANTS['pool']!;
+  const hash = Math.abs(seed.split('').reduce((h, c) => ((h * 31) ^ c.charCodeAt(0)) | 0, 0));
+  const texName = explicitTex || pool[hash % pool.length]!;
+  const key = `blood-tex-${texName}`;
+  let mat = bloodMatCache.get(key);
+  if (mat) return mat;
+
+  let map: THREE.Texture | null = null;
+  if (typeof document !== 'undefined' && typeof document.createElementNS === 'function') {
+    if (!bloodLoader) bloodLoader = new THREE.TextureLoader();
+    const base = (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+    map = bloodLoader.load(`${base}assets/textures/blood/${texName}.webp`);
+    map.colorSpace = THREE.SRGBColorSpace;
+    trackAnisotropy(map);
+  }
+
+  mat = new THREE.MeshStandardMaterial({
+    color: map ? 0xffffff : 0x3b0404,
+    map,
+    transparent: true,
+    opacity: 0.94,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+    roughness: 0.16,
+    metalness: 0.06,
+  });
+  mat.name = key;
+  bloodMatCache.set(key, mat);
+  return mat;
+}
+
+/**
+ * Glossy dark-red CC0 photographic blood decal for floors (`surface: 'floor'`) or walls/pillars (`surface: 'wall'`).
+ * Zero colliders; shares cached materials per texture asset in `public/assets/textures/blood/`.
+ * Optional `count > 1` stamps a dense deterministic cluster of overlapping decals across `spreadW` x `spreadH`.
+ */
+const ALL_FLOOR_BLOOD = [
+  'pool_01', 'pool_02', 'pool_03', 'pool_04', 'pool_05',
+  'spatter_01', 'spatter_02', 'spatter_03', 'spatter_04', 'spatter_05',
+  'smear_01', 'smear_02', 'smear_03', 'smear_04',
+  'drop_01', 'drop_02', 'drop_03',
+] as const;
+
+const ALL_WALL_BLOOD = [
+  'spatter_01', 'spatter_02', 'spatter_03', 'spatter_04', 'spatter_05',
+  'smear_01', 'smear_02', 'smear_03', 'smear_04',
+  'leak_01', 'leak_02', 'leak_03',
+  'pool_01', 'pool_02', 'pool_03', 'pool_04', 'pool_05',
+  'drop_01', 'drop_02', 'drop_03',
+] as const;
+
+function bloodDecalProp(p: PieceParams): PieceOutput {
+  const pb = new PieceBuilder();
+  const surface = strParam(p, 'surface', 'floor') === 'wall' ? 'wall' : 'floor';
+  const variant = strParam(p, 'variant', surface === 'wall' ? 'leak' : 'pool');
+  const explicitTex = strParam(p, 'tex', '');
+  const w = numParam(p, 'width', 1.6);
+  const h = numParam(p, 'height', 1.6);
+  const seed = strParam(p, 'seed', 'r16');
+  const count = Math.max(1, Math.round(numParam(p, 'count', 1)));
+
+  if (count === 1) {
+    const mat = bloodTextureMaterial(variant, seed, explicitTex);
+    const geo = new THREE.PlaneGeometry(w, h);
+    if (surface === 'floor') {
+      pb.add(geo, mat, at(0, 0.008, 0, -Math.PI / 2, 0, 0));
+    } else {
+      const y = numParam(p, 'y', h / 2);
+      pb.add(geo, mat, at(0, y, -0.008, 0, Math.PI, 0));
+    }
+    return pb.build();
+  }
+
+  const spreadW = numParam(p, 'spreadW', w * 2.2);
+  const spreadH = numParam(p, 'spreadH', h * 2.0);
+  const baseY = numParam(p, 'y', h / 2);
+  const pool = surface === 'floor' ? ALL_FLOOR_BLOOD : ALL_WALL_BLOOD;
+  let state = Math.abs(seed.split('').reduce((acc, c) => ((acc * 31) ^ c.charCodeAt(0)) | 0, 0)) || 1;
+  const next = (): number => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+
+  for (let i = 0; i < count; i++) {
+    const texName = explicitTex || pool[Math.floor(next() * pool.length)]!;
+    const mat = bloodTextureMaterial(variant, seed, texName);
+    const sw = w * (0.65 + next() * 0.85);
+    const sh = h * (0.65 + next() * 0.85);
+    const dx = (next() - 0.5) * spreadW;
+    const d2 = (next() - 0.5) * spreadH;
+    const lift = 0.008 + (i % 10) * 0.0014;
+    const geo = new THREE.PlaneGeometry(sw, sh);
+    if (surface === 'floor') {
+      const yaw = next() * Math.PI * 2;
+      pb.add(geo, mat, at(dx, lift, d2, -Math.PI / 2, 0, yaw));
+    } else {
+      const isLeak = texName.startsWith('leak_');
+      const roll = isLeak ? (next() - 0.5) * 0.16 : (next() - 0.5) * 1.4;
+      pb.add(geo, mat, at(dx, Math.max(sh * 0.35, baseY + d2), -lift, 0, Math.PI, roll));
+    }
+  }
+  return pb.build();
+}
+
+const FALLEN_BODY_MODELS: Record<string, string> = {
+  guard1: 'assets/models/crew/guard_1.glb',
+  office1: 'assets/models/crew/office_1.glb',
+  office2: 'assets/models/crew/office_2.glb',
+  office3: 'assets/models/crew/office_3.glb',
+  scientist1: 'assets/models/crew/scientist_1.glb',
+  botanist1: 'assets/models/crew/botanist_1.glb',
+};
+
+const bloodImgCache = new Map<string, Promise<HTMLImageElement | null>>();
+function loadBloodImage(texName: string): Promise<HTMLImageElement | null> {
+  let p = bloodImgCache.get(texName);
+  if (p) return p;
+  p = new Promise((resolve) => {
+    if (typeof Image === 'undefined') return resolve(null);
+    const base = (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = `${base}assets/textures/blood/${texName}.webp`;
+  });
+  bloodImgCache.set(texName, p);
+  return p;
+}
+
+function applyBloodOverlayToMaterial(mat: THREE.Material, bloodImg: HTMLImageElement | null, seed: number): THREE.Material {
+  if (!(mat instanceof THREE.MeshStandardMaterial) || !bloodImg || typeof document === 'undefined') return mat;
+  const cloned = mat.clone();
+  const srcImg = cloned.map?.image as (HTMLImageElement | HTMLCanvasElement | ImageBitmap | undefined);
+  const w = 512;
+  const h = 512;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  if (!ctx) return cloned;
+
+  if (srcImg) {
+    try {
+      ctx.drawImage(srcImg as CanvasImageSource, 0, 0, w, h);
+    } catch {
+      ctx.fillStyle = `#${cloned.color.getHexString()}`;
+      ctx.fillRect(0, 0, w, h);
+    }
+  } else {
+    ctx.fillStyle = `#${cloned.color.getHexString()}`;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  // Stamp 3 varied dark-blood splatters across the UV map so torso, limbs, and clothes are heavily bloodied.
+  for (let i = 0; i < 3; i++) {
+    const a = ((seed * 1.7 + i * 2.1) % 6.28);
+    const sx = ((seed * 97 + i * 173) % 340) + 86;
+    const sy = ((seed * 131 + i * 199) % 340) + 86;
+    const sz = 210 + ((seed * 53 + i * 71) % 160);
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(a);
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(bloodImg, -sz / 2, -sz / 2, sz, sz);
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.globalAlpha = 0.55;
+    ctx.drawImage(bloodImg, -sz / 2, -sz / 2, sz, sz);
+    ctx.restore();
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.flipY = cloned.map ? cloned.map.flipY : false;
+  trackAnisotropy(tex);
+  cloned.map = tex;
+  cloned.roughness = Math.min(cloned.roughness, 0.52);
+  cloned.needsUpdate = true;
+  return cloned;
+}
+
+function relaxCorpseBones(scene: THREE.Object3D, pose: string): void {
+  const s = pose === 'faceup' ? -1 : 1;
+  scene.traverse((o) => {
+    if (!(o instanceof THREE.Bone)) return;
+    const n = o.name.toLowerCase();
+    if (n.includes('leftarm') || n.includes('upperarm_l') || n.includes('arm_l')) {
+      o.rotation.z += 0.95;
+      o.rotation.x += 0.35 * s;
+    } else if (n.includes('rightarm') || n.includes('upperarm_r') || n.includes('arm_r')) {
+      o.rotation.z -= 0.85;
+      o.rotation.x -= 0.25 * s;
+    } else if (n.includes('leftforearm') || n.includes('lowerarm_l')) {
+      o.rotation.y += 0.45;
+    } else if (n.includes('rightforearm') || n.includes('lowerarm_r')) {
+      o.rotation.y -= 0.55;
+    } else if (n.includes('leftupleg') || n.includes('thigh_l')) {
+      o.rotation.z += 0.14;
+      o.rotation.x += 0.18 * s;
+    } else if (n.includes('rightupleg') || n.includes('thigh_r')) {
+      o.rotation.z -= 0.22;
+      o.rotation.x -= 0.12 * s;
+    } else if (n.includes('rightleg') || n.includes('calf_r') || n.includes('shin_r')) {
+      o.rotation.x += 0.45;
+    } else if (n.includes('head')) {
+      o.rotation.y += 0.42 * s;
+      o.rotation.z += 0.22;
+    }
+  });
+}
+
+/**
+ * Grounded, uncollided high-fidelity fallen crew body (movable via `Level.setPropTransform`).
+ * Loads a rigged crew GLB in the browser, poses it on the floor, and composites dark blood textures onto its materials.
+ */
+function fallenBody(p: PieceParams): PieceOutput {
+  const pb = new PieceBuilder();
+  const root = new THREE.Group();
+  root.name = 'fallen_body';
+  const id = strParam(p, 'id', '');
+  if (id) root.userData['propId'] = id;
+
+  const variant = strParam(p, 'variant', 'guard1');
+  const pose = strParam(p, 'pose', 'facedown');
+  const bloodTex = strParam(p, 'bloodTex', 'spatter_02');
+  const modelUrl = FALLEN_BODY_MODELS[variant] ?? FALLEN_BODY_MODELS['guard1']!;
+  root.userData['bodyVariant'] = variant;
+
+  // Lightweight fallback silhouette shown in headless Node tests and replaced once the GLB finishes loading in browser.
+  const fallback = new THREE.Mesh(
+    rounded(0.42, 0.22, 1.65, 0.06),
+    flatPaint('crew-fallback', 0x222c36, 0.72, 0.08),
+  );
+  fallback.position.set(0, 0.11, 0);
+  root.add(fallback);
+
+  if (typeof document !== 'undefined' && typeof document.createElementNS === 'function') {
+    const base = (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+    const seed = Math.abs((id || variant).split('').reduce((h, ch) => ((h * 31) ^ ch.charCodeAt(0)) | 0, 0));
+    void Promise.all([
+      import('../../render/gltf.ts').then(({ createGltfLoader }) => createGltfLoader()).then((l) => l.loadAsync(`${base}${modelUrl}`)),
+      loadBloodImage(bloodTex),
+    ]).then(([gltf, bloodImg]) => {
+      const model = gltf.scene;
+      // Measure standing bounds and normalize height to ~1.74 m.
+      model.updateMatrixWorld(true);
+      const rawBox = new THREE.Box3().setFromObject(model);
+      const rawH = rawBox.max.y - rawBox.min.y;
+      const scale = rawH > 0.2 ? 1.74 / rawH : 1;
+      model.scale.setScalar(scale);
+
+      // Pose bones out of T-pose and composite blood splatter directly onto the crew textures.
+      relaxCorpseBones(model, pose);
+      model.traverse((o) => {
+        if (!(o instanceof THREE.Mesh)) return;
+        o.castShadow = true;
+        o.receiveShadow = true;
+        o.frustumCulled = false;
+        if (Array.isArray(o.material)) {
+          o.material = o.material.map((m, idx) => applyBloodOverlayToMaterial(m, bloodImg, seed + idx));
+        } else if (o.material) {
+          o.material = applyBloodOverlayToMaterial(o.material, bloodImg, seed);
+        }
+      });
+
+      const wrapper = new THREE.Group();
+      wrapper.add(model);
+      if (pose === 'faceup') {
+        wrapper.rotation.x = -Math.PI / 2;
+      } else if (pose === 'side') {
+        wrapper.rotation.x = Math.PI / 2;
+        wrapper.rotation.y = 0.65;
+      } else {
+        wrapper.rotation.x = Math.PI / 2;
+      }
+      wrapper.updateMatrixWorld(true);
+      const posedBox = new THREE.Box3().setFromObject(wrapper);
+      if (Number.isFinite(posedBox.min.y)) {
+        wrapper.position.y -= posedBox.min.y - 0.01;
+      }
+
+      root.remove(fallback);
+      root.add(wrapper);
+      root.updateMatrixWorld(true);
+    }).catch(() => {
+      // Keep fallback mesh if GLB fails to load.
+    });
+  }
+
+  pb.dynamic(root);
+  return pb.build();
+}
+
+/**
+ * Grand Arrival Concourse overhead structural ceiling truss (`span` along X, anchored at floor y = 0,
+ * hanging from `height` ceiling down to `height - 1.05 m`, zero floor colliders).
+ */
+function concourseTruss(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
+  const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
+  const span = numParam(p, 'span', 19.4);
+  const h = numParam(p, 'height', 8.0);
+  const depth = numParam(p, 'depth', 0.42);
+  const topY = h - 0.08;
+  const botY = h - 0.96;
+  const midY = (topY + botY) / 2;
+
+  // Upper & lower steel I-beam chords spanning the full concourse width.
+  pb.add(slab(span, 0.14, depth + 0.12), pal.doorPanel, at(0, topY, 0));
+  pb.add(slab(span, 0.16, depth + 0.14), pal.doorPanel, at(0, botY, 0));
+  pb.add(slab(span, 0.045, depth + 0.18), pal.trim, at(0, botY - 0.09, 0));
+  // Recessed web plates & vertical architectural stiffeners.
+  pb.add(slab(span - 0.2, topY - botY - 0.12, depth * 0.45), pal.wallMain, at(0, midY, 0));
+  const ribs = Math.max(4, Math.round(span / 2.4));
+  for (let i = 0; i <= ribs; i++) {
+    const x = -span / 2 + 0.35 + ((span - 0.7) * i) / ribs;
+    pb.add(slab(0.12, topY - botY, depth + 0.08), pal.trim, at(x, midY, 0));
+  }
+  // Subtle linear architectural LED accent along the bottom soffit.
+  const stripMat = fixtureMaterial(0xd4eef6, 0.9);
+  stripMat.name = 'concourse-truss-led';
+  pb.add(slab(span * 0.48, 0.025, 0.12), stripMat, at(0, botY - 0.12, 0));
+  return pb.build();
+}
+
+/**
+ * Focal Arrival Concourse monument sign mounted high on a wall (local wall plane z = 0, facing -Z).
+ */
+function concourseMonumentSign(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
+  const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
+  const w = numParam(p, 'width', 8.2);
+  const h = numParam(p, 'height', 2.0);
+  const y = numParam(p, 'y', 5.0);
+  const title = strParam(p, 'title', 'THALASSA TRANSIT TERMINAL');
+  const sub = strParam(p, 'sub', 'ARRIVAL CONCOURSE  //  SECTOR 01  //  CUSTOMS & DISPATCH');
+
+  pb.add(rounded(w + 0.26, h + 0.26, 0.14, 0.02), pal.doorPanel, at(0, y, -0.07));
+  pb.add(slab(w + 0.32, 0.07, 0.18), pal.trim, at(0, y + h / 2 + 0.14, -0.08));
+  pb.add(slab(w + 0.32, 0.07, 0.18), pal.trim, at(0, y - h / 2 - 0.14, -0.08));
+  const accentStrip = fixtureMaterial(0x38c8d8, 1.0);
+  accentStrip.name = 'concourse-monument-strip';
+  pb.add(slab(w, 0.035, 0.04), accentStrip, at(0, y - h / 2 - 0.05, -0.14));
+
+  const faceMat =
+    typeof document !== 'undefined'
+      ? paintedDecal(
+          (ctx, cw, ch) => {
+            ctx.fillStyle = '#091319';
+            ctx.fillRect(0, 0, cw, ch);
+            ctx.fillStyle = '#112936';
+            ctx.fillRect(0, 0, cw, 22);
+            ctx.fillStyle = '#38c8d8';
+            ctx.fillRect(42, ch - 26, cw - 84, 6);
+            ctx.fillStyle = '#e0a82e';
+            ctx.fillRect(42, 48, 14, ch - 96);
+            ctx.fillStyle = '#eaf4f8';
+            ctx.font = `800 72px ${SCREEN_FONT}`;
+            ctx.textAlign = 'center';
+            ctx.fillText(title, cw / 2 + 6, ch * 0.5, cw - 120);
+            ctx.fillStyle = '#7ec8d8';
+            ctx.font = `700 32px ${SCREEN_FONT}`;
+            ctx.fillText(sub, cw / 2 + 6, ch * 0.77, cw - 120);
+          },
+          1024,
+          256,
+          `concourse-monument-${title}`,
+        )
+      : flatPaint('concourse-monument-fallback', 0x091319, 0.5, 0.1);
+  pb.add(new THREE.PlaneGeometry(w, h), faceMat, at(0, y, -0.148, 0, Math.PI, 0));
+  return pb.build();
+}
+
+/**
+ * Clean modern transit terminal waiting bench (width along X, facing -Z).
+ */
+function concourseBench(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
+  const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
+  const w = numParam(p, 'width', 2.4);
+  const d = 0.64;
+  const seatMat = flatPaint('concourse-bench-seat', 0x20313d, 0.68, 0.08);
+  const hw = w / 2;
+
+  // Brushed steel base beam & twin pedestal legs.
+  pb.add(slab(w - 0.3, 0.07, 0.1), pal.doorPanel, at(0, 0.34, 0));
+  for (const sx of [-hw + 0.35, hw - 0.35]) {
+    pb.add(rounded(0.08, 0.38, d - 0.08, 0.015), pal.trim, at(sx, 0.19, 0));
+    pb.add(slab(0.16, 0.03, d), pal.doorPanel, at(sx, 0.015, 0));
+  }
+  // Padded seat & backrest panels + end armrests.
+  pb.add(rounded(w, 0.09, d - 0.1, 0.025), seatMat, at(0, 0.44, -0.02));
+  pb.add(rounded(w, 0.38, 0.08, 0.025), seatMat, at(0, 0.74, d / 2 - 0.06, -0.14, 0, 0));
+  for (const sx of [-hw + 0.04, 0, hw - 0.04]) {
+    pb.add(rounded(0.045, 0.22, d - 0.12, 0.01), pal.trim, at(sx, 0.56, -0.01));
+  }
+
+  pb.solid(-hw, 0, -d / 2, hw, 0.92, d / 2, 'metal');
+  return pb.build();
+}
+
+/**
+ * Clean terminal queue stanchion posts with taut retractable belt (runs along X).
+ */
+function stanchionBarrier(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
+  const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
+  const len = numParam(p, 'length', 3.2);
+  const posts = Math.max(2, Math.round(numParam(p, 'posts', 3)));
+  const beltMat = flatPaint('stanchion-belt', 0x164a56, 0.78, 0.05);
+  const hl = len / 2;
+
+  for (let i = 0; i < posts; i++) {
+    const x = -hl + (len * i) / (posts - 1);
+    pb.add(new THREE.CylinderGeometry(0.16, 0.18, 0.045, 16), pal.doorPanel, at(x, 0.0225, 0));
+    pb.add(new THREE.CylinderGeometry(0.028, 0.032, 0.92, 12), pal.trim, at(x, 0.48, 0));
+    pb.add(new THREE.CylinderGeometry(0.042, 0.042, 0.1, 14), pal.doorPanel, at(x, 0.93, 0));
+  }
+  pb.add(slab(len - 0.06, 0.065, 0.012), beltMat, at(0, 0.9, 0));
+  pb.solid(-hl - 0.14, 0, -0.16, hl + 0.14, 0.98, 0.16, 'metal');
+  return pb.build();
+}
+
+/**
+ * Abandoned transit passenger luggage cluster (hard-shell rolling case + tipped Pelican + scattered folder).
+ * Low-profile storytelling prop with no blocking collider so it never snags movement.
+ */
+function luggageCluster(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
+  const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
+  const tipped = boolParam(p, 'tipped', true);
+  const caseDark = flatPaint('luggage-dark', 0x1e2832, 0.48, 0.22);
+  const caseTeal = flatPaint('luggage-teal', 0x264852, 0.45, 0.18);
+  const caseAmber = flatPaint('luggage-amber', 0xa67422, 0.52, 0.15);
+  const paper = flatPaint('luggage-paper', 0xd8dce0, 0.85, 0.0);
+
+  // Primary upright rolling transit case.
+  pb.add(rounded(0.46, 0.68, 0.26, 0.03), caseDark, at(-0.24, 0.34, 0.05, 0, 0.28, 0));
+  pb.add(slab(0.18, 0.22, 0.03), pal.trim, at(-0.24, 0.78, 0.05, 0, 0.28, 0));
+  // Secondary hard-shell case (either tipped on its side or resting beside it).
+  if (tipped) {
+    pb.add(rounded(0.58, 0.22, 0.38, 0.025), caseTeal, at(0.32, 0.11, -0.14, 0, -0.45, 0));
+    pb.add(rounded(0.34, 0.14, 0.26, 0.02), caseAmber, at(0.18, 0.07, 0.34, 0, 0.7, 0));
+    pb.add(slab(0.24, 0.008, 0.32), paper, at(0.58, 0.008, 0.18, 0, 0.42, 0));
+    pb.add(slab(0.22, 0.008, 0.28), paper, at(0.44, 0.01, 0.42, 0, -0.58, 0));
+  } else {
+    pb.add(rounded(0.42, 0.52, 0.24, 0.025), caseTeal, at(0.26, 0.26, -0.06, 0, -0.22, 0));
+  }
+  return pb.build();
+}
 
 function propDef(id: string, generate: (p: PieceParams, rng: Rng, m: Materials) => PieceOutput): PieceDef {
   return { id, family: 'prop', footprint: [1, 1], generate };
@@ -1450,8 +2277,14 @@ export const TRANSIT_PROPS: PieceDef[] = [
   propDef('transit_train_shell', trainShell),
   propDef('transit_tunnel_shroud', transitTunnelShroud),
   propDef('transit_sea_tunnel_rig', transitSeaTunnelRig),
+  propDef('transit_dark_bore', transitDarkBore),
   propDef('concourse_pillar', concoursePillar),
   propDef('checkin_booth', checkinBooth),
+  propDef('concourse_truss', concourseTruss),
+  propDef('concourse_monument_sign', concourseMonumentSign),
+  propDef('concourse_bench', concourseBench),
+  propDef('stanchion_barrier', stanchionBarrier),
+  propDef('luggage_cluster', luggageCluster),
   propDef('track_bed', trackBed),
   propDef('transit_boarding_step', boardingStep),
   propDef('seam_header', seamHeader),
@@ -1461,4 +2294,7 @@ export const TRANSIT_PROPS: PieceDef[] = [
   propDef('transit_sign', transitSign),
   propDef('transit_depart_board', transitDepartBoard),
   propDef('platform_railing', platformRailing),
+  propDef('transit_rotating_beacon', transitRotatingBeacon),
+  propDef('blood_decal', bloodDecalProp),
+  propDef('fallen_body', fallenBody),
 ];

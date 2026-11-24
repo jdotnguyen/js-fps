@@ -1607,10 +1607,11 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
                 if (r16mode === 'blackout') {
                   level!.tintRoomLights('R16a', 'black');
                   level!.tintRoomLights('R16b', 'black');
+                  events.emit('transit:r16_beacons' as never, { on: false } as never);
                 } else if (r16mode === 'emergency') {
                   level!.tintRoomLights('R16a', 'black');
                   level!.tintRoomLights('R16b', 'black');
-                  for (const id of ['r16a_beacon_n', 'r16a_beacon_s', 'r16b_beacon_n1', 'r16b_beacon_s1']) {
+                  for (const id of ['r16a_beacon_n', 'r16a_beacon_s']) {
                     level!.setLight(id, 'alarm', '#ff2218', 1);
                   }
                   events.emit('transit:r16_beacons' as never, { on: true } as never);

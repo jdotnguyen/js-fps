@@ -39,35 +39,38 @@ Defines the structural layout, spatial progression, greybox train shells, grand 
 - **WHEN** Jay walks from the `R15a` west platform through the train car's west doorway
 - **THEN** he stands inside the enclosed, windowed greybox train car without falling through the floor or clipping outside the car walls
 
-### Requirement: Isolated Arrival Track Dock with left-turn stair choreography
-`R16a` ("Arrival Track Dock") SHALL sit at isolated grid coordinates culled from the main station. It SHALL be a `12 m x 12 m` (`3x3` cells) North-South dock (`5.0 m` ceiling, sunken `floorY: -0.6`) with a center track holding a matching walkable greybox Train Car shell stopping before the stairs, a west exit platform, and wide south stairs climbing `+0.6 m` onto `R16b`.
+### Requirement: Isolated Arrival Track Dock opening across a platform from the train's right side
+`R16a` ("Arrival Track Dock") SHALL sit at isolated grid coordinates culled from the main station. It SHALL be a `12 m x 12 m` (`3x3` cells) dock (`5.0 m` ceiling, sunken `floorY: -0.6`) whose track runs north to south along its east edge, with a matching walkable greybox Train Car shell stopping beside a `4 m` platform on the track's west side. Its whole west edge SHALL be open (`12 m`) onto full-width stairs climbing `+0.6 m` west onto `R16b`, so a person at the car's right-side windows or doorway looks across the platform into the concourse. Its north wall holds the entry blast gate and its south wall an open tunnel bore over the track.
 
 #### Scenario: Exiting the arrival train and turning left
-- **WHEN** Jay steps west out of the `R16a` train car's west doorway onto the platform
-- **THEN** he faces a solid west wall roughly `3.5 m` to `4.0 m` ahead
-- **AND** turning left (south) faces wide stairs climbing `+0.6 m` directly onto the `R16b` Arrival Concourse
+- **WHEN** the car's right-side door has been opened by script and Jay steps west out of the doorway onto the platform
+- **THEN** he stands on real floor beside the car, with wide stairs climbing `+0.6 m` west onto the `R16b` Arrival Concourse straight ahead and no wall within `4 m` of the car's right side
+
+#### Scenario: Looking at the arrival train from the concourse
+- **WHEN** Jay stands in `R16b` between the first pillar pair, on the dock's centre line, looking east
+- **THEN** he sees the whole right side of the train across the platform, the entry gate in the dock's north wall on his left and the dark tunnel bore in its south wall on his right
 
 #### Scenario: Arrival Terminal is culled from the departure wing
 - **WHEN** the camera stands anywhere in `R11`, `R13d`, or `R15a`
 - **THEN** `R16a`, `R16b`, and `R16c` are not drawn
 
 ### Requirement: Grand Arrival Concourse and Dispatch Room shell
-`R16b` ("Arrival Concourse") SHALL join the south edge of `R16a` via open seams at deck level (`y = 0`) and span `20 m x 24 m` (`5x6` cells) with an `8.0 m` ceiling height. It SHALL frame an unobstructed central path with symmetrical pillar rows (at least three pairs) on the way to flanking check-in booth bays on both sides, leading to a doorway into `R16c` ("Arrival Dispatch") at the south end.
+`R16b` ("Arrival Concourse") SHALL join the west edge of `R16a` via an open `12 m` seam at deck level (`y = 0`) and span `24 m x 20 m` (`6x5` cells, long axis east to west) with an `8.0 m` ceiling height. It SHALL frame an unobstructed central path along the dock's centre line with symmetrical pillar rows (at least three pairs, the nearest pair either side of that line) on the way to flanking check-in booth bays on both sides, with a doorway on its south side into `R16c` ("Arrival Dispatch"), which hangs off that side.
 
 #### Scenario: Cresting the stairs into the Arrival Concourse
 - **WHEN** Jay climbs the stairs from `R16a` into `R16b`
-- **THEN** he stands at deck level (`y = 0`) under an `8.0 m` ceiling looking south down a clear central aisle framed by symmetrical full-height pillar rows (wide enough to conceal a large figure behind a pillar), flanking check-in booth bays along the east and west sides, and the `R16c` dispatch entrance
+- **THEN** he stands at deck level (`y = 0`) under an `8.0 m` ceiling looking west down a clear central aisle framed by symmetrical full-height pillar rows (wide enough to conceal a large figure behind a pillar), with check-in booth bays along the north and south sides and the `R16c` dispatch entrance in the south wall
 
 #### Scenario: Walking the entire arrival terminal
-- **WHEN** a body walks from inside the `R16a` train car, out onto the west platform, up the south stairs into `R16b`, down the central path past the pillars and check-in booths, and into `R16c`
+- **WHEN** a body walks from inside the `R16a` train car, out onto the platform, up the west stairs into `R16b`, along the central path past the pillars and check-in booths, and through the south doorway into `R16c`
 - **THEN** it completes the walk on real colliders without stalling or falling through seams
 
 ### Requirement: Modular grid compliance and debug jump access
-All new and modified rooms in the transit wing SHALL conform to the `4.0 m` modular grid standard with no coplanar z-fighting, no floor/wall seam gaps, and valid sunken-floor anchor placement. The debug launcher SHALL support `?debug&jump=r11`, `?debug&jump=r15a`, and `?debug&jump=r16` so each stage of the transit wing can be inspected directly in the browser.
+All new and modified rooms in the transit wing SHALL conform to the `4.0 m` modular grid standard with no coplanar z-fighting, no floor/wall seam gaps, valid sunken-floor anchor placement, and no cell that is the floor of two rooms. The debug launcher SHALL support `?debug&jump=r11`, `?debug&jump=r15a`, `?debug&jump=r16` and `?debug&jump=r16b` so each stage of the transit wing can be inspected directly in the browser.
 
 #### Scenario: Jumping directly to the Departure Bay and Arrival Terminal
 - **WHEN** the game launches with `?debug&jump=r15a` or `?debug&jump=r16`
-- **THEN** Jay spawns standing on walkable floor inside `R15a` (facing the docked train) or `R16a` (at the train exit facing west/left toward the stairs) with clear sightlines and no black screen
+- **THEN** Jay spawns standing on walkable floor inside `R15a` (facing the docked train) or on the `R16a` platform beside the parked car (facing west toward the stairs and the concourse) with clear sightlines and no black screen
 
 ### Requirement: Power Bay turbine-generators and switchgear dressing
 `R11` SHALL be dressed as a deep-sea power plant with at least two parallel turbine-generator units along the east bay, a high-voltage switchgear cabinet bank, industrial auxiliary props, overhead `5.0 m` service runs, hazard markings, stencils, and rule-placed grime decals obeying the surface-dressing standard. Placed props SHALL preserve `>= 1.2 m` clear paths between `D_R10_R11`, `r11_giles_task`, `r11_hold`, and `D_R13d_R11`.
@@ -145,15 +148,16 @@ Under station `backup` power prior to energization, `R11`'s overhead bay light b
 - **THEN** the armored shutter leaves retract to reveal the dark sea-tunnel bore, the shutter collider is disabled for unobstructed train passage, and the rail aspect signals shift to green/clear, returning to sealed on level reset
 
 ### Requirement: Finished clean transit train interior and animated boarding door
-Train Car A (`R15a`) and Train Car B (`R16a`) SHALL feature a finished clean transit cabin interior using the `transit` palette with no rusty or dirty textures, including bench seating, overhead grab rails, interior cabin lighting, status strips, wide end windshields, and an animated west boarding door.
+Train Car A (`R15a`) and Train Car B (`R16a`) SHALL feature a finished clean transit cabin interior using the `transit` palette with no rusty or dirty textures, including bench seating, overhead grab rails, interior cabin lighting, status strips, wide end windshields, an animated right-side boarding door, a comms/radio terminal centred on the solid rear bulkhead (for incoming radio communication to Heins), and an interior transit infographic / info sign mounted on the solid windowless door-pocket wall at the north-west end of Train Car B.
 
 #### Scenario: Inspecting the boarded train cabin interior
 - **WHEN** Jay boards Train Car A in `R15a` or stands inside Train Car B in `R16a`
-- **THEN** he sees clean slate/steel cabin walls, non-slip metal flooring, commuter bench seating, overhead grab rails, lit cabin status strips, and clear side and end windows with no rusty or dirty textures
+- **THEN** he sees clean slate/steel cabin walls, non-slip metal flooring, commuter bench seating, overhead grab rails, lit cabin status strips, and clear side and end windows with no rusty or dirty textures, a comms/radio terminal centred on the solid rear bulkhead, and a transit infographic / info sign on the windowless door-pocket wall that does not overlap the doorway, door-leaf travel, or any window glass
 
 #### Scenario: Boarding door seals for departure and opens on arrival
-- **WHEN** the departure ride begins or Train Car B docks in `R16a`
-- **THEN** the west boarding door leaf slides closed and engages its doorway collider for departure, and slides open with the doorway collider cleared once Train Car B comes to rest at the `R16a` exit platform
+- **WHEN** the departure ride begins, and later Train Car B comes to rest at the `R16a` platform
+- **THEN** the boarding door leaf of Train Car A slides closed and engages its doorway collider for departure
+- **AND** Train Car B's door stays closed, with its doorway collider engaged, until a scripted `transit:train_door` open event is emitted for it, and then slides open with the collider cleared
 
 #### Scenario: Open door leaf stays inside its pocket
 - **WHEN** the boarding door is fully open
@@ -203,12 +207,16 @@ After Stage 1 pull-out, the ride SHALL hand off seamlessly into an isolated, inf
 - **THEN** no static gate geometry, room wall or ceiling light shaft is inside the car body or its path
 
 ### Requirement: Stage 3 seamless handoff to Train Car B gliding into R16a
-At the end of Stage 2, the ride SHALL hand off seamlessly to Train Car B, which glides ~`15 m` south at a start speed of `5 m/s` through the `r16a_north` blast gate (which lifts after the hand-off) into `R16a`, decelerating to rest at the `R16a` exit platform, opening its west boarding door, and sealing `r16a_north` behind it.
+At the end of Stage 2, the ride SHALL hand off seamlessly to Train Car B, which glides ~`15 m` south at a start speed of `5 m/s` through the `r16a_north` blast gate (which lifts after the hand-off) into `R16a`, decelerating to rest at the `R16a` platform with its right side toward the concourse, keeping its boarding door closed, and sealing `r16a_north` behind it. The ride's axis, speeds and timings SHALL NOT change from the previous layout.
 
 #### Scenario: Train Car B glides into R16a and opens for disembarkation
 - **WHEN** Stage 3 of the transit ride runs
-- **THEN** `r16a_north` lifts via `transit:blast_gate`, Train Car B glides ~`15 m` south through the north portal into `R16a` carrying Jay smoothly to the `R16a` west platform, opens its west boarding door, and seals `r16a_north` once clear
-- **AND** Jay can immediately walk west out of Train Car B onto the `R16a` platform and south up the stairs into `R16b`
+- **THEN** `r16a_north` lifts via `transit:blast_gate`, Train Car B glides ~`15 m` south through the north portal along the east edge of `R16a`, carrying Jay smoothly, and stops beside the platform with the concourse on its right
+- **AND** `r16a_north` seals once the car is clear, and the boarding door stays closed until a scripted open event lets Jay walk out onto the platform
+
+#### Scenario: Ride timings are unchanged
+- **WHEN** the 3-stage ride runs in the new layout
+- **THEN** the pull-out distance, the Stage 2 slow-down, the `5 m/s` glide start speed, the gate arrival distance and the glide duration match the previous layout, and the car never turns
 
 ### Requirement: The cabin is visible end to end, lit by the car's own lights
 Each train car SHALL carry its own cabin lighting (claimed light slots that move with the car, lit by a cold teal-white wash) so that the whole cabin can be seen from either end in every ride stage, including inside the tunnel where there are no room lights.
@@ -264,3 +272,36 @@ The debug launcher SHALL support jumping directly to the departure train and tri
 #### Scenario: Launching the 3-stage ride from debug mode
 - **WHEN** the game launches with `?debug&jump=r15a` (or `?debug&jump=transit_ride`) and the transit ride preview is triggered
 - **THEN** Jay is placed inside Train Car A in `R15a` and the full 3-stage ride (pull-out -> scrolling lit hallway -> `R16a` glide-in) plays cleanly from start to finish
+
+### Requirement: Platform-edge guard and a through-track into a dark bore
+`R16a` SHALL fence the track side of its platform with a continuous guard rail broken only by a boarding gap aligned to the car's doorway, reaching both the north and south walls, so the player cannot walk onto the track at the car's tail or nose. The track SHALL run through the dock and out of its south wall into an open tunnel bore that is unlit and fades to black within a few metres.
+
+#### Scenario: Guard keeps the player off the track
+- **WHEN** a player walks along the `R16a` platform or the stairs past the car's nose or tail
+- **THEN** the guard rail blocks every route onto the track bed and into the bore, while the boarding gap in front of the car's doorway remains at least `2.2 m` wide
+
+#### Scenario: Dark bore beyond the car
+- **WHEN** Jay looks south along the track past the parked car, for example through its windshield
+- **THEN** the rails run on into an open, unlit tunnel bore with no lit strips or guide bars, which fades to solid black within a few metres, and nothing in it can be walked into from the dock
+
+### Requirement: Arrival Concourse clean grand terminal finish and architectural dressing
+`R16b` ("Arrival Concourse") SHALL use a clean `cleanSlate` architectural wall and pillar finish matching `R15a` (with no raw weathered concrete on walls, `concourse_pillar` shafts, or `concourse_truss` webs). It SHALL be dressed as a grand deep-sea transit terminal hall with overhead `concourse_truss` ceiling beams spanning the `8.0 m` volume, a focal west-wall `concourse_monument_sign` (`THALASSA TRANSIT TERMINAL // ARRIVAL CONCOURSE`) directly down the central sightline from `R16a`, labeled `checkin_booth` enclosures with interior teller workstations, wayfinding `transit_sign` plaques, perimeter `concourse_bench` seating, `stanchion_barrier` check-in queue runs, and uncollided `luggage_cluster` storytelling props. Placed props SHALL keep the central east-west aisle (`z = 36`) and the south path to `D_R16b_R16c` unobstructed. `R16c` ("Arrival Dispatch") SHALL remain an undressed shell behind its visible doorway because the slice ends at `R16a` looking into `R16b`.
+
+#### Scenario: Viewing the Arrival Concourse from R16a
+- **WHEN** Jay looks west from Train Car B or the `R16a` platform across the stairs into `R16b`
+- **THEN** he sees clean `cleanSlate` walls and full-height fluted pillars framed by overhead structural ceiling trusses, the focal `THALASSA TRANSIT TERMINAL` monument sign on the far west wall, illuminated check-in booths with queue stanchions, waiting benches, and abandoned passenger luggage along the margins
+
+#### Scenario: Walking the Arrival Concourse central aisle
+- **WHEN** a player capsule walks west from the east stair landing (`x = 76, z = 36`) down the central aisle toward the west focal wall
+- **THEN** it completes the walk smoothly past the pillar colonnade and check-in bays without colliding with benches, stanchions, or luggage
+
+### Requirement: Arrival Concourse massacre blood dressing and flickering overhead lighting
+`R16b` SHALL layer dense, glossy photographic blood decals (`blood_decal`, including multi-quad clusters sharing cached materials from `public/assets/textures/blood/` across all five families: `pool`, `spatter`, `smear`, `leak`, and `drop`) heavily over its clean floor, all four faces of all six `concourse_pillar`s from floor to ceiling, the west focal wall, north and south perimeter walls, east corner walls, stair seam header, and check-in booth fronts, with zero blocking colliders and staggered depth offsets to prevent z-fighting. `R16b` SHALL omit rotating red emergency beacons and instead light the hall with flickering and failing overhead main lights (`flicker` / `failing`, with up to two hero `shadow: true` casters) while preserving named-light blackout support (`tintRoomLights('R16b', 'black')`).
+
+#### Scenario: Dense blood coverage across the clean concourse
+- **WHEN** `R16b` is loaded in `slice01`
+- **THEN** all five photographic blood texture families (`pool_*`, `spatter_*`, `smear_*`, `leak_*`, `drop_*`) are heavily plastered across the floor, walls, pillars, and booth fronts with no blocking colliders and merged by shared material
+
+#### Scenario: Flickering overhead lighting without rotating red beacons
+- **WHEN** `R16b` loads under default lighting
+- **THEN** its six overhead main lights run `flicker` and `failing` patterns (with hero shadow casters casting pillar shadows across the blood-soaked floor), and no `transit_rotating_beacon` props or red beacon lights are present in `R16b`

@@ -625,11 +625,11 @@ test('admin hub (R14a-R14e) props stay inside room bounds, do not overlap, and s
   for (const r of data.rooms) if (r.pieces.some((p) => p.kit === 'wall_sanity_screen')) screenRooms.add(r.id);
   assert.deepEqual([...screenRooms].sort(), ['R02', 'R12c', 'R14c', 'R14d']);
   const realRooms = new Set(data.rooms.filter((r) => r.pieces.some((p) => p.kit === 'wall_window')).map((r) => r.id));
-  assert.deepEqual([...realRooms].sort(), ['R01', 'R01w', 'R12b', 'R15a']);
+  assert.deepEqual([...realRooms].sort(), ['R01', 'R01w', 'R12b', 'R15a', 'R16a']);
   assert.ok(screens >= 4 && screens <= 8, `screens merge into about one mesh per screened room (found ${screens})`);
   const lamps = level.floodlights();
   const perRoom = (id: string): number => lamps.filter((l) => l.room === id).length;
-  assert.deepEqual([perRoom('R01'), perRoom('R01w'), perRoom('R12b'), perRoom('R15a'), lamps.length], [2, 2, 1, 2, 7], 'floodlights: R01 2, R01w 2, R12b 1, R15a 2');
+  assert.deepEqual([perRoom('R01'), perRoom('R01w'), perRoom('R12b'), perRoom('R15a'), perRoom('R16a'), lamps.length], [2, 2, 1, 2, 2, 9], 'floodlights: R01 2, R01w 2, R12b 1, R15a 2, R16a 2');
   assert.equal(lamps.filter((l) => l.flicker).length, 1, 'one Docking Ring lamp flickers');
   assert.ok(lamps.find((l) => l.flicker)!.room === 'R01');
   let subLamps = 0;
@@ -1347,6 +1347,102 @@ test('no room light shaft hangs through a train car: standing in a cabin never p
   }
 });
 
+// r16a-perpendicular-train-arrival: the train still runs north to south in R16a's east column, and the whole concourse is
+// turned 90 degrees clockwise so it lies WEST of the dock: you stand between the pillars looking east at the train's right
+// side. R16c hangs off R16b's south side, and the track runs on south out of R16a into a dark bore.
+test('R16 is turned: the concourse lies west of the dock, the dispatch room south of the concourse, and no room overlaps another', () => {
+  const { level } = build();
+  const room = (id: string) => data.rooms.find((r) => r.id === id)!;
+  const cellsOf = (id: string, kit: string): number[][] => (room(id).pieces ?? []).filter((p) => p.kit === kit).flatMap((p) => ((p as { cells?: number[][] }).cells ?? [(p as { cell?: number[] }).cell!]));
+  const span = (cells: number[][], axis: 0 | 2): [number, number] => [Math.min(...cells.map((c) => c[axis]!)), Math.max(...cells.map((c) => c[axis]!))];
+  const a = cellsOf('R16a', 'floor');
+  assert.deepEqual([span(a, 0), span(a, 2)], [[20, 22], [8, 10]], 'R16a is the 3x3 dock at x cells 20-22, z cells 8-10');
+  const b = cellsOf('R16b', 'floor');
+  assert.deepEqual([span(b, 0), span(b, 2)], [[14, 19], [7, 11]], 'R16b is 24 m (east-west) x 20 m, west of the dock, between R15a and R16a');
+  const c = cellsOf('R16c', 'floor');
+  assert.deepEqual([span(c, 0), span(c, 2)], [[16, 18], [12, 12]], 'R16c sits south of R16b, east of the booth bays');
+  const stairs = (room('R16a').pieces ?? []).filter((p) => p.kit === 'stairs') as Array<{ cell: number[]; rot?: number }>;
+  assert.deepEqual(stairs.map((s) => [s.cell[0], s.cell[2], s.rot]).sort(), [[20, 10, 90], [20, 8, 90], [20, 9, 90]], 'full-width stairs on the west edge only, climbing west');
+  // No cell is a floor of two rooms.
+  const seen = new Map<string, string>();
+  for (const r of data.rooms) {
+    for (const cell of cellsOf(r.id, 'floor')) {
+      const key = cell.join(',');
+      assert.equal(seen.has(key), false, `cell ${key} is a floor of both ${seen.get(key)} and ${r.id}`);
+      seen.set(key, r.id);
+    }
+  }
+  // The pillars flank the dock's centre line (z 36), so the first pair frames the train from the aisle.
+  const pillars = (room('R16b').props ?? []).filter((p) => p.kit === 'concourse_pillar');
+  assert.ok(pillars.length >= 6 && pillars.every((p) => Math.abs(Math.abs(p.pos![2]! - 36) - 4.8) < 0.01), 'pillar rows run east to west, either side of z 36');
+  // Looking east from between the first pillar pair, the train's right side is straight ahead across the platform.
+  const view = level.anchor('r16_concourse')!;
+  assert.ok(view.pos.x < 78 && Math.abs(view.pos.z - 36) < 0.01, 'the concourse anchor stands in R16b on the dock\'s centre line');
+});
+
+test('R16a opens west across a platform onto the concourse stairs, with nothing tall near the car\'s right side, and walled elsewhere', () => {
+  const { level } = build();
+  const tall = (b: { readonly min: readonly number[]; readonly max: readonly number[] }): boolean => b.min[1]! < 2.5 && b.max[1]! > 2.5; // not the ceiling slab
+  assert.equal(level.collision.query(82.5, 30.5, 86.15, 41.5, []).filter(tall).length, 0, 'nothing tall within 4 m of the car\'s right side');
+  // The seam is open for the dock\'s whole 12 m and walled beyond it (R16b\'s corners).
+  assert.equal(level.collision.query(77.8, 30.4, 78.2, 41.6, []).filter(tall).length, 0, 'the west seam is open');
+  assert.ok(level.collision.query(77.8, 26.5, 78.2, 29.5, []).filter(tall).length > 0, 'R16b\'s north corner is walled');
+  assert.ok(level.collision.query(77.8, 42.5, 78.2, 45.5, []).filter(tall).length > 0, 'R16b\'s south corner is walled');
+  // South wall over the platform columns; the track column is the open portal.
+  for (const x of [80, 84]) assert.ok(level.collision.query(x - 0.3, 41.8, x + 0.3, 42.1, []).filter(tall).length > 0, `the south wall closes the platform at x ${x}`);
+  assert.equal(level.collision.query(87.6, 41.8, 88.4, 42.1, []).filter(tall).length, 0, 'the track column is open to the bore');
+  // Walking west from the platform climbs the stairs onto the concourse floor.
+  level.update(0, 0.016, new THREE.Vector3(82, 1.0, 36), false);
+  const climb: MotorState = { x: 83.5, y: -0.6, z: 36, vy: 0, grounded: true };
+  for (let i = 0; i < 90; i++) moveBody(climb, -3 / 30, 0, 1 / 30, DEFAULT_MOTOR, level.collision);
+  assert.ok(climb.x < 76 && Math.abs(climb.y) < 0.12, `up the stairs and onto R16b (x ${climb.x.toFixed(2)}, y ${climb.y.toFixed(2)})`);
+});
+
+test('R16a guard rail keeps the player off the track, with a boarding gap of at least 2.2 m at the car door', () => {
+  const { level } = build();
+  const a = data.rooms.find((r) => r.id === 'R16a')!;
+  const rails = (a.props ?? []).filter((p) => p.kit === 'platform_railing').map((p) => ({ z: p.pos![2]!, len: (p.params as { length: number }).length })).sort((p, q) => p.z - q.z);
+  assert.equal(rails.length, 2, 'two rail runs with a gap between');
+  const gap0 = rails[0]!.z + rails[0]!.len / 2;
+  const gap1 = rails[1]!.z - rails[1]!.len / 2;
+  assert.ok(gap1 - gap0 >= 2.2, `the boarding gap is ${(gap1 - gap0).toFixed(2)} m`);
+  assert.ok(gap0 < 35 && gap1 > 35, 'the gap is in front of the car door (car centre z 35)');
+  assert.ok(rails[1]!.z + rails[1]!.len / 2 >= 41.7, 'the south run reaches the south wall, so there is no way round the car\'s nose');
+  assert.ok(rails[0]!.z - rails[0]!.len / 2 <= 30.3, 'the north run reaches the north wall, so there is no way round the car\'s tail');
+  level.update(0, 0.016, new THREE.Vector3(82, 1.0, 36), false);
+  for (const z of [30.8, 32, 33, 37, 38.5, 40, 41.2]) {
+    const body: MotorState = { x: 82, y: -0.6, z, vy: 0, grounded: true };
+    for (let i = 0; i < 90; i++) moveBody(body, 4 / 30, 0, 1 / 30, DEFAULT_MOTOR, level.collision);
+    assert.ok(body.x < 86.0, `walking east at z ${z} stops at the rail, not on the track (x ${body.x.toFixed(2)})`);
+  }
+});
+
+test('R16a: the track runs on south out of the dock into a dark, unlit bore that fades to black', () => {
+  const { level } = build();
+  const a = data.rooms.find((r) => r.id === 'R16a')!;
+  const bore = (a.props ?? []).find((p) => p.kit === 'transit_dark_bore')!;
+  assert.ok(bore, 'R16a has the dark bore piece');
+  assert.deepEqual([bore.pos![0], bore.pos![2]], [88, 42], 'it is on the car\'s track, in the south wall');
+  level.update(0, 0.016, new THREE.Vector3(84, 1.0, 38), false);
+  // The fog planes are a dynamic part: read their world positions (Level.integrate keeps the world transform).
+  level.group.updateMatrixWorld(true);
+  const fog = level.group.getObjectByName('dark_bore_fog');
+  assert.ok(fog, 'the bore has its fog planes');
+  assert.equal(fog!.children.length, 4, 'four fog planes thicken to black');
+  const p = new THREE.Vector3();
+  for (const c of fog!.children) {
+    c.getWorldPosition(p);
+    assert.ok(p.z > 42.5 && p.z < 48.01 && Math.abs(p.x - 88) < 0.01 && Math.abs(p.y - (-0.6 + 1.7)) < 0.01, `a fog plane sits inside the bore (world ${p.toArray().map((n) => n.toFixed(2))})`);
+  }
+  // A capsule can go in through the portal but the liner holds it and the cap stops it.
+  const south: MotorState = { x: 88, y: -0.6, z: 41, vy: 0, grounded: true };
+  for (let i = 0; i < 150; i++) moveBody(south, 0, 4 / 30, 1 / 30, DEFAULT_MOTOR, level.collision);
+  assert.ok(south.z > 43 && south.z < 47.8, `the bore is closed at its far end (z ${south.z.toFixed(2)})`);
+  const west: MotorState = { x: 88, y: -0.6, z: 44, vy: 0, grounded: true };
+  for (let i = 0; i < 90; i++) moveBody(west, -4 / 30, 0, 1 / 30, DEFAULT_MOTOR, level.collision);
+  assert.ok(west.x > 86.3, `the liner\'s west wall holds (x ${west.x.toFixed(2)})`);
+});
+
 test('Stage 2 tunnel rings sit around the car and a sealed blast-gate shutter meets the floor, in world coordinates', () => {
   const { level } = build();
   level.group.updateMatrixWorld(true);
@@ -1414,4 +1510,79 @@ test('each train car claims its two cabin lights, they ride with the car, and th
   assert.equal(fixturesNear(128, y, 60), 2, 'the fixtures are now in the car');
   level.setPropTransform('r15b_train', { x: 128, y: 0, z: 40 }, Math.PI);
   assert.equal(fixturesNear(128, y, 40), 2, 'back where it started, back with the car');
+});
+
+test('R16a visual overhaul: ocean windows behind train, arrival signage, blood decals, movable pillar body, named lights & rotating beacons', () => {
+  const { level } = build();
+  const data = level.source;
+  const r16a = data.rooms.find((r) => r.id === 'R16a')!;
+  const r16b = data.rooms.find((r) => r.id === 'R16b')!;
+
+  // East wall behind Train Car B uses real ocean windows (wall_window, rot 270).
+  const eastWin = (r16a.pieces ?? []).find((p) => p.kit === 'wall_window' && p.rot === 270);
+  assert.ok(eastWin, 'R16a east wall has wall_window ocean glazing');
+  assert.equal(eastWin.cells?.length, 3, 'all 3 east-wall cells behind the track are ocean windows');
+
+  // Arrival board, signage, overhead framing, and blood decals are present.
+  const board = (r16a.props ?? []).find((p) => p.kit === 'transit_depart_board');
+  assert.equal(board?.params?.['mode'], 'arrival', 'R16a uses arrival mode on transit_depart_board');
+  assert.ok((r16a.props ?? []).some((p) => p.kit === 'room_sign'), 'R16a has room_sign');
+  assert.ok((r16a.props ?? []).filter((p) => p.kit === 'blood_decal').length >= 6, 'R16a has dense blood decals');
+  assert.equal((r16b.props ?? []).filter((p) => p.kit === 'transit_rotating_beacon').length, 0, 'R16b has no rotating red beacons');
+
+  // Rigged dead crew bodies in R16a and R16b use varied models, dead poses, and blood overlays.
+  const r16Npcs = level.npcSpawns().filter((n) => n.room === 'R16a' || n.room === 'R16b');
+  assert.ok(r16Npcs.length >= 6, `at least 6 rigged fallen crew bodies across R16a/R16b (got ${r16Npcs.length})`);
+  assert.ok(r16Npcs.every((n) => n.dead === true && n.blood === true), 'all R16a/R16b fallen bodies are marked dead and bloodied');
+  const pillarBody = r16Npcs.find((n) => n.id === 'r16_pillar_body');
+  assert.ok(pillarBody && pillarBody.room === 'R16b' && pillarBody.pose === 'corpseProne', 'r16_pillar_body sits beside the facing R16b pillar in corpseProne');
+
+  // Named lights support blackout, selective flash, and rotating beacon alarm lights.
+  assert.ok(level.tintRoomLights('R16a', 'black'), 'R16a supports pitch-black blackout');
+  assert.ok(level.setLight('r16a_light_mid', 'steady', '#dce8f4', 1), 'R16a named hero light flashes cleanly');
+  assert.ok(level.setLight('r16a_beacon_n', 'alarm', '#ff2218', 1), 'R16a north rotating beacon light switches to alarm');
+});
+
+test('R16b Arrival Concourse visual overhaul: clean grand terminal dressing, full blood texture coverage, and clear walkability', () => {
+  const { level } = build();
+  const r16b = level.source.rooms.find((r) => r.id === 'R16b')!;
+  const props = r16b.props ?? [];
+
+  assert.equal(r16b.area, 'transit', 'R16b stays on the clean transit palette');
+  assert.ok(props.filter((p) => p.kit === 'concourse_truss').length >= 4, 'R16b has overhead ceiling trusses');
+  assert.ok(props.some((p) => p.kit === 'concourse_monument_sign'), 'R16b has focal west-wall monument sign');
+  assert.ok(props.filter((p) => p.kit === 'concourse_bench').length >= 4, 'R16b has clean terminal waiting benches');
+  assert.ok(props.filter((p) => p.kit === 'stanchion_barrier').length >= 2, 'R16b has check-in queue stanchions');
+  assert.ok(props.filter((p) => p.kit === 'luggage_cluster').length >= 4, 'R16b has abandoned luggage clusters');
+
+  // Blood decals cover all five photographic texture families (pool, spatter, smear, leak, drop).
+  const blood = props.filter((p) => p.kit === 'blood_decal');
+  assert.ok(blood.length >= 40, `R16b is plastered with blood decals (${blood.length})`);
+  const texNames = new Set(blood.map((p) => String(p.params?.['tex'] ?? '')).filter(Boolean));
+  for (const prefix of ['pool_', 'spatter_', 'smear_', 'leak_', 'drop_']) {
+    assert.ok([...texNames].some((t) => t.startsWith(prefix)), `R16b uses ${prefix}* photographic blood textures`);
+  }
+
+  // Central aisle (z = 36) from east stairs (x = 76) to west focal wall (x = 57) is completely walkable.
+  level.update(0, 0.016, new THREE.Vector3(76, 1.0, 36), false);
+  const aisle: MotorState = { x: 76, y: 0, z: 36, vy: 0, grounded: true };
+  for (let i = 0; i < 180; i++) moveBody(aisle, -4 / 30, 0, 1 / 30, DEFAULT_MOTOR, level.collision);
+  assert.ok(aisle.x < 57.5, `R16b central aisle is unobstructed down to west wall (reached x ${aisle.x.toFixed(2)})`);
+});
+
+test('all three transit ride train cars share identical 9 m shell dimensions for seamless handoffs', () => {
+  const { level } = build();
+  const findTrain = (roomId: string, id: string) =>
+    (level.source.rooms.find((r) => r.id === roomId)?.props ?? []).find((p) => p.params?.['id'] === id);
+  const cars = [
+    findTrain('R15a', 'r15a_train'),
+    findTrain('R15b', 'r15b_train'),
+    findTrain('R16a', 'r16a_train'),
+  ];
+  for (const car of cars) {
+    assert.ok(car, 'train prop exists');
+    assert.equal(car!.params?.['length'], 9, `${String(car!.params?.['id'])} length is 9 m`);
+    assert.equal(car!.params?.['width'], 3, `${String(car!.params?.['id'])} width is 3 m`);
+    assert.equal(car!.params?.['height'], 2.9, `${String(car!.params?.['id'])} height is 2.9 m`);
+  }
 });

@@ -180,9 +180,17 @@ test('transit_train_shell has clean cabin interior, animated boarding door, and 
       assert.equal(mat?.name.toLowerCase().includes('rust'), false, `clean transit material (${mat?.name})`);
     }
   });
-  // Central aisle >= 1.8 m clear at standing height inside the cabin length.
+  // Central aisle >= 1.8 m clear at standing height inside the cabin length (apart from thin 0.06 m grab-rail stanchions).
   const aisleBlocked = train.colliders.some(
-    (b) => b.enabled !== false && b.max[0] > -0.9 && b.min[0] < 0.9 && b.min[1] < 1.8 + TRAIN_RIDE_HEIGHT && b.max[1] > 0.1 + TRAIN_RIDE_HEIGHT && b.max[2] > -4.8 && b.min[2] < 4.8,
+    (b) =>
+      b.enabled !== false &&
+      (b.max[0] - b.min[0] > 0.1 || b.max[2] - b.min[2] > 0.1) &&
+      b.max[0] > -0.9 &&
+      b.min[0] < 0.9 &&
+      b.min[1] < 1.8 + TRAIN_RIDE_HEIGHT &&
+      b.max[1] > 0.1 + TRAIN_RIDE_HEIGHT &&
+      b.max[2] > -4.8 &&
+      b.min[2] < 4.8,
   );
   assert.equal(aisleBlocked, false, 'central aisle >= 1.8 m clear');
   assert.ok(train.lightSlots.length >= 2, 'train cabin has interior ceiling light slots');
@@ -446,6 +454,50 @@ test('the hallway fades to black at its open ends, and the rig brings a closed g
   assert.ok(Math.abs(gate.position.z - (10.125 + 1.875)) < 1e-6, 'it stops exactly where R16a\'s closed gate is, 10.125 m ahead');
   for (const l of rig.listeners ?? []) if (l.event === 'transit:rig_gate') l.fn({ arm: false });
   assert.equal(gate.visible, false, 'released at the hand-off');
+
+  // Analytical wallZ mode: honors explicit wallZ without render-tick drift and clamps to RIG_GATE_FINAL_Z (10.125).
+  for (const l of rig.listeners ?? []) if (l.event === 'transit:rig_gate') l.fn({ arm: true, wallZ: 15.5 });
+  assert.equal(gate.visible, true);
+  assert.ok(Math.abs(gate.position.z - (15.5 + 1.875)) < 1e-6, 'explicit wallZ sets gate position directly');
+  rig.tick?.(10, 0.5);
+  assert.ok(Math.abs(gate.position.z - (15.5 + 1.875)) < 1e-6, 'render tick does not drift an analytically driven gate');
+  for (const l of rig.listeners ?? []) if (l.event === 'transit:rig_gate') l.fn({ arm: true, wallZ: 9.0 });
+  assert.ok(Math.abs(gate.position.z - (10.125 + 1.875)) < 1e-6, 'explicit wallZ clamps at RIG_GATE_FINAL_Z');
+  for (const l of rig.listeners ?? []) if (l.event === 'transit:rig_gate') l.fn({ arm: false });
+});
+
+test('the dark bore past the R16a car is the ride tunnel switched off: unlit steel, black fog that thickens to the back, and a solid liner', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const bore = reg.create('transit_dark_bore', { area: 'transit', width: 3.4, height: 3.4, length: 6, wallHeight: 5 }, new Rng('dark'), m);
+  let liners = 0;
+  bore.object.traverse((c) => {
+    if (!(c instanceof THREE.Mesh) || Array.isArray(c.material)) return;
+    const mat = c.material as THREE.MeshStandardMaterial;
+    if (mat.name === 'transit-dark-bore-steel') {
+      liners++;
+      assert.equal(mat.emissive.getHex(), 0, 'the liner is not emissive');
+    }
+    assert.ok(!(mat.name.includes('light') || mat.name.includes('guide') || mat.name.includes('led')), 'no lit strip or guide bar in the dark bore: ' + mat.name);
+    assert.ok(!(c instanceof THREE.Light), 'no scene light');
+  });
+  assert.ok(liners > 0, 'steel liner exists');
+  const fog = bore.object.getObjectByName('dark_bore_fog')!;
+  const planes = fog.children as THREE.Mesh[];
+  assert.equal(planes.length, 4, 'four fog planes');
+  const ops = planes.map((c) => (c.material as THREE.MeshBasicMaterial).opacity);
+  assert.equal(ops[0], 1, 'solid black at the back wall');
+  assert.ok(ops.every((o, i) => i === 0 || o < ops[i - 1]!), 'thinner toward the mouth');
+  for (const c of planes) assert.ok(c.position.z > 2 && c.position.z < 6, 'every fog plane is inside the bore, away from the portal (z ' + c.position.z + ')');
+  assert.ok(planes[0]!.position.z > planes[3]!.position.z, 'the opaque plane is at the far end');
+  // The liner is solid: its side walls and roof block a capsule.
+  const solids = bore.colliders ?? [];
+  assert.ok(solids.length >= 8, 'wall piers, header, liner side walls, roof, end cap and floor are colliders');
+  // The portal is open: nothing solid crosses the bore's axis between the wall plane and the end cap.
+  for (const col of solids) {
+    const crossesAxis = col.min[0] < 0 && col.max[0] > 0 && col.min[1] < 1.7 && col.max[1] > 1.7;
+    if (crossesAxis) assert.ok(col.min[2] >= 5.6, 'only the end cap crosses the axis');
+  }
 });
 
 test('a blast gate can be asked to open fast, lifts clear of a car roof, and is bright enough to see coming', () => {
@@ -472,4 +524,128 @@ test('a blast gate can be asked to open fast, lifts clear of a car roof, and is 
     }
   });
   assert.equal(bright, 2, 'both leaves');
+});
+
+test('transit_train_shell mounts a centred rear-bulkhead comms terminal and a door-pocket info sign clear of glass and door travel', () => {
+  const m = stubMaterials();
+  const def = TRANSIT_PROPS.find((d) => d.id === 'transit_train_shell')!;
+  const out = def.generate({ area: 'transit', length: 9, width: 3, height: 2.9, doorSide: 'right', id: 'r16a_train' }, new Rng('r16a'), m);
+  out.object.updateMatrixWorld(true);
+
+  const comms = out.object.getObjectByName('train_comms_terminal');
+  assert.ok(comms, 'rear-bulkhead comms terminal exists');
+  const cb = new THREE.Box3().setFromObject(comms);
+  const commsCenterX = (cb.min.x + cb.max.x) / 2;
+  assert.ok(Math.abs(commsCenterX) < 0.05, `comms terminal is centred on x (${commsCenterX})`);
+  assert.ok(cb.min.z > 4.0 && cb.max.z <= 4.5 - 0.14 + 0.01, `comms terminal sits on interior face of rear bulkhead (z ${cb.min.z}..${cb.max.z})`);
+  assert.ok(cb.min.y > TRAIN_RIDE_HEIGHT + 1.0 && cb.max.y < TRAIN_RIDE_HEIGHT + 2.28, 'comms terminal sits between sill and head trim');
+
+  const sign = out.object.getObjectByName('train_pocket_info_sign');
+  assert.ok(sign, 'door-pocket info sign exists');
+  const sb = new THREE.Box3().setFromObject(sign);
+  // Door pocket on +X (doorSide='right') spans z in [1.05, 3.31]; inner wall surface is x = 1.36.
+  assert.ok(sb.min.z >= 1.05 && sb.max.z <= 3.31, `info sign stays inside the windowless door pocket (z ${sb.min.z}..${sb.max.z})`);
+  assert.ok(sb.max.x <= 1.36 + 0.005 && sb.min.x >= 1.3, `info sign sits flush on the interior pocket skin (x ${sb.min.x}..${sb.max.x})`);
+  assert.ok(sb.min.y > TRAIN_RIDE_HEIGHT + 1.05 && sb.max.y < TRAIN_RIDE_HEIGHT + 2.28, 'info sign sits between sill and head trim');
+
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const px = sx * 0.54;
+      const pz = sz * (1.05 + 0.24);
+      const hit = out.colliders.some(
+        (b) => b.enabled !== false && b.min[0] <= px && b.max[0] >= px && b.min[2] <= pz && b.max[2] >= pz && b.min[1] <= TRAIN_RIDE_HEIGHT + 1 && b.max[1] >= TRAIN_RIDE_HEIGHT + 1,
+      );
+      assert.ok(hit, `stanchion pole at (${px}, ${pz}) has a solid collider`);
+    }
+  }
+});
+
+test('transit_depart_board supports departure (default) and arrival modes', () => {
+  const m = stubMaterials();
+  const def = TRANSIT_PROPS.find((d) => d.id === 'transit_depart_board')!;
+  const dep = def.generate({ area: 'transit' }, new Rng('dep'), m);
+  const arr = def.generate({ area: 'transit', mode: 'arrival' }, new Rng('arr'), m);
+  assert.equal(dep.object.getObjectByName('transit_board_face')?.userData['boardMode'], 'departure');
+  assert.equal(arr.object.getObjectByName('transit_board_face')?.userData['boardMode'], 'arrival');
+});
+
+test('transit_rotating_beacon spins when enabled, obeys reducedFlashing, and resets cleanly', async () => {
+  const { flashingState } = await import('../../render/flashing.ts');
+  const m = stubMaterials();
+  const def = TRANSIT_PROPS.find((d) => d.id === 'transit_rotating_beacon')!;
+  const out = def.generate({ area: 'transit', phase: 0.5 }, new Rng('beacon'), m);
+  const rotor = out.object.getObjectByName('r16_beacon_rotor')!;
+  const steady = out.object.getObjectByName('r16_beacon_steady')!;
+  assert.ok(rotor && steady, 'rotor and steady lens meshes exist');
+  assert.equal(out.lightSlots?.length, 1, 'claims one emergency light slot by default');
+  assert.equal(out.lightSlots?.[0]!.kind, 'emergency');
+
+  const emit = (ev: string, payload?: unknown) => {
+    for (const l of out.listeners ?? []) if (l.event === ev) l.fn(payload);
+  };
+
+  out.tick?.(0, 0.016);
+  assert.equal(rotor.visible, false);
+  assert.equal(steady.visible, false);
+
+  flashingState.reduced = false;
+  emit('transit:r16_beacons', { on: true });
+  out.tick?.(1, 0.016);
+  const r1 = rotor.rotation.y;
+  out.tick?.(2, 0.016);
+  assert.equal(rotor.visible, true);
+  assert.equal(steady.visible, false);
+  assert.notEqual(rotor.rotation.y, r1, 'rotor turns over time');
+
+  flashingState.reduced = true;
+  out.tick?.(3, 0.016);
+  assert.equal(rotor.visible, false, 'no rotating beam under reducedFlashing');
+  assert.equal(steady.visible, true, 'steady red lens shown under reducedFlashing');
+
+  flashingState.reduced = false;
+  emit('level:reset');
+  out.tick?.(4, 0.016);
+  assert.equal(rotor.visible, false);
+  assert.equal(steady.visible, false);
+});
+
+test('blood_decal shares cached materials with zero colliders, and fallen_body is grounded and uncollided', () => {
+  const m = stubMaterials();
+  const bloodDef = TRANSIT_PROPS.find((d) => d.id === 'blood_decal')!;
+  const a = bloodDef.generate({ surface: 'floor', variant: 'pool', seed: 'r16_a' }, new Rng('a'), m);
+  const b = bloodDef.generate({ surface: 'floor', variant: 'pool', seed: 'r16_a' }, new Rng('b'), m);
+  assert.equal(a.colliders.length, 0, 'blood decals have no colliders');
+  const matA = (a.object.children[0] as THREE.Mesh).material;
+  const matB = (b.object.children[0] as THREE.Mesh).material;
+  assert.equal(matA, matB, 'same variant + seed bucket shares one cached material');
+
+  const bodyDef = TRANSIT_PROPS.find((d) => d.id === 'fallen_body')!;
+  const body = bodyDef.generate({ area: 'transit' }, new Rng('body'), m);
+  assert.equal(body.colliders.length, 0, 'fallen body does not block movement');
+  const box = new THREE.Box3().setFromObject(body.object);
+  assert.ok(box.min.y >= -0.02 && box.max.y <= 0.35, `fallen body lies low on the floor (y ${box.min.y}..${box.max.y})`);
+});
+
+test('R16b concourse dressing pieces (truss, monument sign, bench, stanchion, luggage) have valid bounds and collision', () => {
+  const m = stubMaterials();
+  const boxOf = (o: THREE.Object3D): THREE.Box3 => new THREE.Box3().setFromObject(o);
+
+  const truss = TRANSIT_PROPS.find((d) => d.id === 'concourse_truss')!.generate({ area: 'transit', span: 19.4, height: 8 }, new Rng('tr'), m);
+  const tb = boxOf(truss.object);
+  assert.equal(truss.colliders.length, 0, 'overhead concourse truss has no floor colliders');
+  assert.ok(tb.min.y >= 6.5 && tb.max.y <= 8.05, `truss hangs in upper ceiling volume (${tb.min.y}..${tb.max.y})`);
+
+  const sign = TRANSIT_PROPS.find((d) => d.id === 'concourse_monument_sign')!.generate({ area: 'transit', width: 8.6, height: 2.1, y: 5.1 }, new Rng('sg'), m);
+  const sb = boxOf(sign.object);
+  assert.equal(sign.colliders.length, 0, 'wall monument sign has no blocking colliders');
+  assert.ok(sb.min.y >= 3.5 && sb.max.x - sb.min.x >= 8.4, `monument sign spans focal header (${sb.max.x - sb.min.x} m)`);
+
+  const bench = TRANSIT_PROPS.find((d) => d.id === 'concourse_bench')!.generate({ area: 'transit', width: 2.6 }, new Rng('bn'), m);
+  assert.ok(bench.colliders.length > 0, 'bench has solid collision');
+
+  const stanchion = TRANSIT_PROPS.find((d) => d.id === 'stanchion_barrier')!.generate({ area: 'transit', length: 5.2, posts: 4 }, new Rng('st'), m);
+  assert.ok(stanchion.colliders.length > 0, 'stanchion barrier has solid collision');
+
+  const luggage = TRANSIT_PROPS.find((d) => d.id === 'luggage_cluster')!.generate({ area: 'transit', tipped: true }, new Rng('lg'), m);
+  assert.equal(luggage.colliders.length, 0, 'abandoned luggage cluster is uncollided');
 });

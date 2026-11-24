@@ -67,6 +67,7 @@ All CC0 (public domain, no credit required) except where marked; listed so the s
 | Concrete Wall 008, Brushed Concrete 2, Painted Concrete 02 | [Poly Haven](https://polyhaven.com) | CC0 | concrete, concreteFloor, concretePainted |
 | Metal 0001, 0051, 0053 | [TextureCan](https://www.texturecan.com) | CC0 | diamondRusty, rustBlotch, rustDrip |
 | Biomasse (`mat_biomass` maps from "PBR material Biomasse" by Bessarabian Femboy, @vjuhandkx) | [Sketchfab](https://sketchfab.com/3d-models/pbr-material-biomasse-a3503d87b5b04649855b4e4d47761a2b) | **CC BY 4.0** (credit required; listed with the models above) | bloom |
+| Blood category (`BloodFabric01/04/07/10/13`, `BloodSpatter01–04/06`, `BloodFabricSpatter01/03/05/06`, `BloodLeak01–03`, `BloodDrop01/15/35`) | [Texture Ninja](https://texture.ninja/textures/Blood/11) | CC0 | `public/assets/textures/blood/*.webp` (dark-crimson graded WebP decals used by `blood_decal`) |
 
 ## Audio
 
