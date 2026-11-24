@@ -116,7 +116,13 @@ const LISTEN_LINGER = 1.2;
 /** A walker outweighs a standing body, so the standing one yields. */
 const WALKER_MASS = 4;
 
-const CORPSE_BLOOD_TEX = ['spatter_01', 'spatter_02', 'spatter_03', 'spatter_04', 'pool_01', 'pool_02'] as const;
+const CORPSE_BLOOD_TEX = [
+  'pool_01', 'pool_02', 'pool_03', 'pool_04', 'pool_05',
+  'spatter_01', 'spatter_02', 'spatter_03', 'spatter_04', 'spatter_05',
+  'smear_01', 'smear_02', 'smear_03', 'smear_04',
+  'leak_01', 'leak_02', 'leak_03',
+  'drop_01', 'drop_02', 'drop_03',
+] as const;
 const corpseBloodImgCache = new Map<string, Promise<HTMLImageElement | null>>();
 function loadCorpseBloodImage(texName: string): Promise<HTMLImageElement | null> {
   let p = corpseBloodImgCache.get(texName);
@@ -137,9 +143,14 @@ function loadCorpseBloodImage(texName: string): Promise<HTMLImageElement | null>
 function applyBloodToBody(body: Humanoid, seedStr: string): void {
   if (typeof document === 'undefined' || typeof Image === 'undefined') return;
   const seed = Math.abs(seedStr.split('').reduce((h, c) => ((h * 31) ^ c.charCodeAt(0)) | 0, 0));
-  const texName = CORPSE_BLOOD_TEX[seed % CORPSE_BLOOD_TEX.length]!;
-  void loadCorpseBloodImage(texName).then((bloodImg) => {
-    if (!bloodImg) return;
+  // Pick a varied set of 8 blood textures (pools, spatters, smears, leaks, drops) per body.
+  const picks: string[] = [];
+  for (let k = 0; k < 8; k++) {
+    picks.push(CORPSE_BLOOD_TEX[(seed + k * 3) % CORPSE_BLOOD_TEX.length]!);
+  }
+  void Promise.all(picks.map(loadCorpseBloodImage)).then((loaded) => {
+    const imgs = loaded.filter((img): img is HTMLImageElement => img !== null);
+    if (imgs.length === 0) return;
     let idx = 0;
     for (const mat of body.surfaceMaterials()) {
       if (mat.alphaTest > 0) continue; // skip hair cards
@@ -162,18 +173,24 @@ function applyBloodToBody(body: Humanoid, seedStr: string): void {
         ctx.fillStyle = `#${mat.color.getHexString()}`;
         ctx.fillRect(0, 0, w, h);
       }
-      for (let i = 0; i < 3; i++) {
+      // Stamp 12 varied blood textures across a 4x3 UV grid so front, back, and limbs are heavily drenched.
+      for (let i = 0; i < 12; i++) {
+        const bloodImg = imgs[(seed + idx + i) % imgs.length]!;
+        const gx = i % 4;
+        const gy = Math.floor(i / 4);
+        const jitterX = ((seed * 97 + idx * 41 + i * 173) % 96) - 48;
+        const jitterY = ((seed * 131 + idx * 59 + i * 199) % 112) - 56;
+        const sx = (gx + 0.5) * (w / 4) + jitterX;
+        const sy = (gy + 0.5) * (h / 3) + jitterY;
         const a = ((seed * 1.7 + idx * 1.3 + i * 2.1) % 6.28);
-        const sx = ((seed * 97 + idx * 41 + i * 173) % 340) + 86;
-        const sy = ((seed * 131 + idx * 59 + i * 199) % 340) + 86;
-        const sz = 210 + ((seed * 53 + i * 71) % 160);
+        const sz = 175 + ((seed * 53 + idx * 29 + i * 71) % 165);
         ctx.save();
         ctx.translate(sx, sy);
         ctx.rotate(a);
-        ctx.globalAlpha = 0.85;
+        ctx.globalAlpha = 0.92;
         ctx.drawImage(bloodImg, -sz / 2, -sz / 2, sz, sz);
         ctx.globalCompositeOperation = 'multiply';
-        ctx.globalAlpha = 0.55;
+        ctx.globalAlpha = 0.65;
         ctx.drawImage(bloodImg, -sz / 2, -sz / 2, sz, sz);
         ctx.restore();
       }
@@ -181,7 +198,7 @@ function applyBloodToBody(body: Humanoid, seedStr: string): void {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.flipY = mat.map ? mat.map.flipY : false;
       mat.map = tex;
-      mat.roughness = Math.min(mat.roughness, 0.45);
+      mat.roughness = Math.min(mat.roughness, 0.28);
       mat.needsUpdate = true;
       idx++;
     }
@@ -629,7 +646,7 @@ export class NpcDirector {
       const poseName = s.pose && this.deps.ctx.poses.has(s.pose) ? s.pose : 'idle';
       if (s.dead) {
         a.ambient = false;
-        a.body.playDead(poseName);
+        a.body.setPose(poseName, 0.01);
       } else {
         a.resetPose(poseName);
       }
@@ -650,12 +667,11 @@ export class NpcDirector {
       this.warnOnce(`npc "${id}": unknown pose "${idle}", using idle`);
       idle = 'idle';
     }
-    const body = new Humanoid({ ...spec, role: 'npc', pose: idle, ...(transformable ? { transformable: true } : {}) }, this.deps.ctx);
+    const body = new Humanoid({ ...spec, role: dead ? 'corpse' : 'npc', pose: idle, ...(transformable ? { transformable: true } : {}) }, this.deps.ctx);
     if (blood) applyBloodToBody(body, id);
     const a = new NpcActor(id, body);
     if (dead) {
       a.ambient = false;
-      a.body.playDead(idle);
     }
     a.place(at, yaw);
     this.actors.set(id, a);
@@ -1191,6 +1207,7 @@ export class NpcDirector {
       if (seen.has(a)) continue;
       seen.add(a);
       if (!a.body.group.visible) continue;
+      if (a.body.state !== 'alive' || a.body.spec.role === 'corpse') continue;
       const mate = this.mateOf(a.id);
       const fp = a.body.footprint;
       const m = a.motor;

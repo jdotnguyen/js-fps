@@ -118,7 +118,7 @@ async function boot(): Promise<void> {
   const looks = ['crew', 'lab', 'botanist', 'diver', 'maintenance', 'assistant', 'engineer', 'crew', 'lab', 'botanist', 'diver', 'crew'];
   const bodies: Array<{ h: Humanoid; base: string }> = [];
   // Crew bodies cycled over the seats (`?models=a,b,c` picks others).
-  const MODELS = params.get('models')?.split(',') ?? ['office1', 'office2', 'office3', 'guard1', 'scientist1', 'assistant', 'botanist1', 'botanist2', 'botanist3'];
+  const MODELS = params.get('models')?.split(',') ?? ['office1', 'office2', 'office3', 'guard1', 'assistant', 'botanist1', 'botanist2', 'botanist3'];
   const add = (look: string, id: string, pos: THREE.Vector3, yaw: number, pose: string): void => {
     const spec = { ...castSpec(look, id), model: MODELS[bodies.length % MODELS.length]! };
     const h = new Humanoid({ ...spec, role: 'npc', pose }, { poses, gore, bodyModels, colliders });

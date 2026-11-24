@@ -1919,7 +1919,6 @@ const FALLEN_BODY_MODELS: Record<string, string> = {
   office1: 'assets/models/crew/office_1.glb',
   office2: 'assets/models/crew/office_2.glb',
   office3: 'assets/models/crew/office_3.glb',
-  scientist1: 'assets/models/crew/scientist_1.glb',
   botanist1: 'assets/models/crew/botanist_1.glb',
 };
 

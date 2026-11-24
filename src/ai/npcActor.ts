@@ -256,11 +256,12 @@ export class NpcActor {
    * (typing at a console, crouched at a panel, kneeling over a body, holding out an offer).
    */
   get separationExempt(): boolean {
-    return this.gripped || this.tow !== null || this.body.carried !== null || this.offering !== null || WORK_POSES.has(this.basePose) || PLACED_POSE.test(this.basePose);
+    return this.body.state !== 'alive' || this.body.spec.role === 'corpse' || this.gripped || this.tow !== null || this.body.carried !== null || this.offering !== null || WORK_POSES.has(this.basePose) || PLACED_POSE.test(this.basePose);
   }
 
   /** Soft push from actor separation: slides the body (through level collision), never a teleport. */
   nudge(dx: number, dz: number, colliders: ColliderQuery | null): void {
+    if (this.body.state !== 'alive' || this.body.spec.role === 'corpse') return;
     const x0 = this.motor.x;
     const z0 = this.motor.z;
     if (colliders) moveBody(this.motor, dx, dz, 1 / 60, MOTOR, colliders);
@@ -477,6 +478,16 @@ export class NpcActor {
     let speed = 0;
     const desired = tmpB.set(0, 0, 0);
 
+    // Static dead corpses: zero AI, zero gaze, zero steering, zero movement unless explicitly dragged/scripted.
+    if (this.body.state !== 'alive' || this.body.spec.role === 'corpse') {
+      this.body.lookTarget = null;
+      if (this.wayPhase) this.cancelWay();
+      if (!this.tow && !this.move && !this.clipAnim && !this.body.killing) {
+        if (camD < NPC_TUNING.sleepDistance || !env.camera) this.body.update(dt, env.camera);
+        return;
+      }
+    }
+
     // Follow: walk toward the target when it gets away.
     if (this.follow && !this.move) {
       const f = this.follow;
@@ -627,9 +638,11 @@ export class NpcActor {
     }
 
     // Head: script look wins, then Jay up close, then the conversation (ADR-0029), then ambient notice of Jay.
-    const scripted = this.lookGet?.() ?? null;
-    const talk = !scripted && !this.tow ? (this.talkLook?.() ?? null) : null;
-    if (scripted) this.body.lookTarget = scripted;
+    const dead = this.body.state !== 'alive' || this.body.spec.role === 'corpse';
+    const scripted = dead ? null : (this.lookGet?.() ?? null);
+    const talk = !dead && !scripted && !this.tow ? (this.talkLook?.() ?? null) : null;
+    if (dead) this.body.lookTarget = null;
+    else if (scripted) this.body.lookTarget = scripted;
     else if (talk) this.body.lookTarget = talk;
     else if (this.ambient && !this.move && !this.tow) {
       const social = this.socialLook?.() ?? null;
@@ -637,7 +650,7 @@ export class NpcActor {
       else this.body.lookTarget = this.notices(env) ? env.playerHead : null;
     } else this.body.lookTarget = null;
 
-    if (this.ambient && !this.busy && !this.offering) this.ambientGesture(dt);
+    if (!dead && this.ambient && !this.busy && !this.offering) this.ambientGesture(dt);
 
     // A body in a scripted kill never sleeps: it may be on a camera feed far from Jay (the stinger's surgery feed).
     if (camD < NPC_TUNING.sleepDistance || !env.camera || this.body.killing) this.body.update(dt, env.camera);
@@ -733,7 +746,7 @@ export class NpcActor {
   private giveWay(dt: number, env: NpcEnv, desired: THREE.Vector3): number {
     const me = this.position;
     const wish = env.playerWish;
-    if (this.tow || this.body.carried !== null || this.offering !== null || !this.body.group.visible || PLACED_POSE.test(this.basePose)) {
+    if (this.body.state !== 'alive' || this.body.spec.role === 'corpse' || this.tow || this.body.carried !== null || this.offering !== null || !this.body.group.visible || PLACED_POSE.test(this.basePose)) {
       if (this.wayPhase) this.cancelWay();
       return 0;
     }

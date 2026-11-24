@@ -2819,7 +2819,7 @@
           ],
           "spot": "sit_stool",
           "chat": "commons_bar",
-          "model": "scientist1"
+          "model": "botanist3"
         },
         {
           "id": "bar_1",
@@ -8725,7 +8725,7 @@
         {
           "id": "r11_giles_task",
           "pos": [
-            32.4,
+            31.95,
             0,
             38
           ],
@@ -10620,14 +10620,14 @@
         {
           "id": "r16a_corpse_south",
           "look": "lab",
-          "model": "scientist1",
+          "model": "botanist3",
           "at": [
             82.2,
             -0.6,
             38.6
           ],
           "yaw": 80,
-          "pose": "corpseSprawled",
+          "pose": "corpseTwisted",
           "dead": true,
           "blood": true
         }
@@ -14618,7 +14618,7 @@
             33.7
           ],
           "yaw": -95,
-          "pose": "corpseSupine",
+          "pose": "corpseReaching",
           "dead": true,
           "blood": true
         },
@@ -14632,7 +14632,175 @@
             38.2
           ],
           "yaw": 110,
-          "pose": "corpseCurled",
+          "pose": "corpseProne",
+          "dead": true,
+          "blood": true
+        },
+        {
+          "id": "r16b_corpse_east_center",
+          "look": "exec",
+          "model": "office1",
+          "at": [
+            75.6,
+            0,
+            36.2
+          ],
+          "yaw": 140,
+          "pose": "corpseReaching",
+          "dead": true,
+          "blood": true
+        },
+        {
+          "id": "r16b_corpse_north_aisle1",
+          "look": "assistant",
+          "model": "assistant",
+          "at": [
+            71.5,
+            0,
+            29
+          ],
+          "yaw": 35,
+          "pose": "corpseProne",
+          "dead": true,
+          "blood": true
+        },
+        {
+          "id": "r16b_corpse_south_aisle1",
+          "look": "lab",
+          "model": "botanist3",
+          "at": [
+            71.4,
+            0,
+            43.2
+          ],
+          "yaw": 215,
+          "pose": "corpseTwisted",
+          "dead": true,
+          "blood": true
+        },
+        {
+          "id": "r16b_corpse_mid_center",
+          "look": "exec",
+          "model": "office1",
+          "at": [
+            71.2,
+            0,
+            35.8
+          ],
+          "yaw": -30,
+          "pose": "corpseTwisted",
+          "dead": true,
+          "blood": true
+        },
+        {
+          "id": "r16b_corpse_west_north1",
+          "look": "botanist",
+          "model": "botanist3",
+          "at": [
+            64.2,
+            0,
+            33.8
+          ],
+          "yaw": 165,
+          "pose": "corpseTwisted",
+          "dead": true,
+          "blood": true
+        },
+        {
+          "id": "r16b_corpse_west_south1",
+          "look": "assistant",
+          "model": "office2",
+          "at": [
+            64.8,
+            0,
+            38.6
+          ],
+          "yaw": -125,
+          "pose": "corpseProne",
+          "dead": true,
+          "blood": true
+        },
+        {
+          "id": "r16b_corpse_west_center",
+          "look": "lab",
+          "model": "botanist2",
+          "at": [
+            65.6,
+            0,
+            35.9
+          ],
+          "yaw": 45,
+          "pose": "corpseReaching",
+          "dead": true,
+          "blood": true
+        },
+        {
+          "id": "r16b_corpse_north_aisle2",
+          "look": "exec",
+          "model": "office3",
+          "at": [
+            65.5,
+            0,
+            29.2
+          ],
+          "yaw": -60,
+          "pose": "corpseProne",
+          "dead": true,
+          "blood": true
+        },
+        {
+          "id": "r16b_corpse_dispatch",
+          "look": "assistant",
+          "model": "office2",
+          "at": [
+            68.2,
+            0,
+            43.8
+          ],
+          "yaw": 15,
+          "pose": "corpseReaching",
+          "dead": true,
+          "blood": true
+        },
+        {
+          "id": "r16b_corpse_booth_north",
+          "look": "botanist",
+          "model": "botanist2",
+          "at": [
+            60.6,
+            0,
+            32.6
+          ],
+          "yaw": 240,
+          "pose": "corpseProne",
+          "dead": true,
+          "blood": true
+        },
+        {
+          "id": "r16b_corpse_booth_south",
+          "look": "assistant",
+          "model": "assistant",
+          "at": [
+            60.8,
+            0,
+            39.4
+          ],
+          "yaw": 120,
+          "pose": "corpseTwisted",
+          "dead": true,
+          "blood": true
+        },
+        {
+          "id": "r16b_corpse_west_wall",
+          "look": "botanist",
+          "model": "botanist1",
+          "at": [
+            57.8,
+            0,
+            36.2
+          ],
+          "yaw": -80,
+          "pose": "corpseReaching",
           "dead": true,
           "blood": true
         }
@@ -17922,7 +18090,7 @@
             8.4
           ],
           "spot": "sit_sofa",
-          "model": "scientist1"
+          "model": "botanist1"
         }
       ]
     },
@@ -18978,7 +19146,7 @@
           ],
           "spot": "sit_chair",
           "chat": "admin_boardroom",
-          "model": "scientist1"
+          "model": "botanist2"
         },
         {
           "id": "board_4",
@@ -19527,6 +19695,9 @@
       ],
       "rot": 180,
       "state": "closed",
+      "params": {
+        "travelTime": 3.4
+      },
       "access": {
         "sealed": true,
         "text": "lockdown"

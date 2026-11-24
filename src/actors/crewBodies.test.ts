@@ -49,7 +49,7 @@ function worldJoints(m: PreparedBodyModel): Record<JointName, THREE.Vector3> {
 }
 
 const TABLE = JSON.parse(readFileSync(new URL('../data/body-models.json', import.meta.url), 'utf8')) as Record<string, { url: string; credit?: { license?: string } }>;
-const NEW = ['office1', 'office2', 'office3', 'guard1', 'scientist1'];
+const NEW = ['office1', 'office2', 'office3', 'guard1'];
 
 for (const id of NEW) {
   test(`${id} model: rig maps, stands straight facing -Z, keeps every limb piece`, async () => {

@@ -274,18 +274,5 @@
       "source": "https://sketchfab.com/3d-models/security-guard-rigged-3d-model-1e3307732bbf4453b30f021bfec5bcaf",
       "license": "CC-BY-4.0"
     }
-  },
-  "scientist1": {
-    "url": "assets/models/crew/scientist_1.glb",
-    "variants": [],
-    "share": 0,
-    "gender": "m",
-    "sickTint": 0.3,
-    "credit": {
-      "title": "SCP Scientist Male 1 - FIX RIGGER",
-      "author": "Maxime66410",
-      "source": "https://sketchfab.com/3d-models/scp-scientist-male-1-fix-rigger-17d85f54095647d697ca5f61a98dab1a",
-      "license": "CC-BY-4.0"
-    }
   }
 }

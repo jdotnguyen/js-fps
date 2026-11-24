@@ -231,7 +231,7 @@ const CREW_MODELS: Readonly<Record<string, readonly string[]>> = {
   security: ['guard1'], // not Heins: the chief's own body stays hers
   engineer: ['botanist1', 'ruiz'],
   medic: ['doctor', 'priya'],
-  lab: ['botanist1', 'botanist2', 'botanist3', 'scientist1'],
+  lab: ['botanist1', 'botanist2', 'botanist3'],
   botanist: ['botanist1', 'botanist2', 'botanist3'],
   diver: ['sung'],
   exec: ['office1', 'office3'], // not Hale: the director's own body stays his
