@@ -914,7 +914,6 @@ export const SAMPLE_URLS = {
   trunkChirp: 'assets/audio/ambience/oneshot-trunk-chirp.mp3',
   trunkHatch: 'assets/audio/ambience/oneshot-trunk-hatch.mp3',
   trunkVent: 'assets/audio/ambience/oneshot-trunk-vent.mp3',
-  leakHiss: 'assets/audio/ambience/oneshot-leak-hiss.mp3',
   // Supply sub docking (intro-sequence spec, fix-supply-sub-docking): muffled underwater ElevenLabs SFX.
   subPass: 'assets/audio/ambience/oneshot-sub-pass.mp3',
   subClamp: 'assets/audio/ambience/oneshot-sub-clamp.mp3',
