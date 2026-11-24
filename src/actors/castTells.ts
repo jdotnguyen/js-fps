@@ -22,8 +22,6 @@ export const NO_TELLS: Readonly<Tells> = { bandage: false, veins: 0, sweat: 0 };
 
 type BoneOf = (name: JointName) => THREE.Object3D;
 
-const GAUZE = new THREE.Color('#d9d4c6');
-const GAUZE_STAIN = new THREE.Color('#5a3a30');
 const VEIN = new THREE.Color('#2b2f4a');
 
 /** Forearm radius at local y (segment 0.01 -> -0.25, r 0.046 -> 0.034), a little proud. */
@@ -51,32 +49,10 @@ export class CastTells {
   private readonly sweatMat: THREE.MeshStandardMaterial;
 
   constructor(bone: BoneOf) {
-    const gauze = new THREE.MeshStandardMaterial({ color: GAUZE, roughness: 0.92, metalness: 0 });
-    const stain = new THREE.MeshStandardMaterial({ color: GAUZE_STAIN, roughness: 0.8, metalness: 0 });
     this.veinMat = new THREE.MeshStandardMaterial({ color: VEIN, roughness: 0.55, metalness: 0, transparent: true, opacity: 0.85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     this.sweatMat = new THREE.MeshStandardMaterial({ color: '#d4e6ee', roughness: 0.04, metalness: 0, transparent: true, opacity: 0.7 });
-    this.mats.push(gauze, stain, this.veinMat, this.sweatMat);
+    this.mats.push(this.veinMat, this.sweatMat);
 
-    // Bandage: a wrapped cuff over the sleeve, a few ridges, and a dark seep on the inner side.
-    const wrap = new THREE.CylinderGeometry(0.057, 0.048, 0.14, 14, 1, true);
-    wrap.translate(0, -0.095, 0);
-    this.geos.push(wrap);
-    const cuff = new THREE.Mesh(wrap, gauze);
-    cuff.material.side = THREE.DoubleSide;
-    this.bandage.add(cuff);
-    for (const y of [-0.045, -0.085, -0.125, -0.16]) {
-      const r = forearmR(y) + 0.0145;
-      const ridge = new THREE.TorusGeometry(r, 0.0035, 5, 16);
-      ridge.rotateX(Math.PI / 2);
-      ridge.translate(0, y, 0);
-      this.geos.push(ridge);
-      this.bandage.add(new THREE.Mesh(ridge, gauze));
-    }
-    const seep = new THREE.SphereGeometry(0.02, 8, 6);
-    seep.scale(1, 1.4, 0.35);
-    seep.translate(0.0, -0.1, -0.052);
-    this.geos.push(seep);
-    this.bandage.add(new THREE.Mesh(seep, stain));
     this.bandage.name = 'tell:bandage';
     bone('foreArm_L').add(this.bandage);
 
@@ -172,6 +148,6 @@ export class CastTells {
 }
 
 /** The tells the infection ladder shows (ADR-0022): the bandage once bandaged, veins and sweat from stage 3. */
-export function tellsFor(stage: number, bandaged: boolean): Tells {
-  return { bandage: bandaged, veins: stage >= 3 ? 1 : 0, sweat: stage >= 3 ? 1 : 0 };
+export function tellsFor(stage: number, _bandaged: boolean): Tells {
+  return { bandage: false, veins: stage >= 3 ? 1 : 0, sweat: stage >= 3 ? 1 : 0 };
 }

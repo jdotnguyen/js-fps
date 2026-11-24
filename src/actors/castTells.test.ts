@@ -9,11 +9,11 @@ function rig(): { tells: CastTells; bones: Record<string, THREE.Object3D> } {
   return { tells, bones };
 }
 
-test('the ladder maps stage and bandage to tells: bandage from stage 2, veins and sweat from 3', () => {
+test('the ladder maps stage to tells: veins and sweat from stage 3, no bandage/cast', () => {
   assert.deepEqual(tellsFor(0, false), NO_TELLS);
-  assert.deepEqual(tellsFor(2, true), { bandage: true, veins: 0, sweat: 0 });
-  assert.deepEqual(tellsFor(3, true), { bandage: true, veins: 1, sweat: 1 });
-  assert.deepEqual(tellsFor(4, true), { bandage: true, veins: 1, sweat: 1 });
+  assert.deepEqual(tellsFor(2, true), { bandage: false, veins: 0, sweat: 0 });
+  assert.deepEqual(tellsFor(3, true), { bandage: false, veins: 1, sweat: 1 });
+  assert.deepEqual(tellsFor(4, true), { bandage: false, veins: 1, sweat: 1 });
 });
 
 test('overlays hang on the forearm, head and neck bones and toggle by visibility', () => {

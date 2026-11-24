@@ -101,3 +101,21 @@ test('injury at the panel: favouring, Giles works mostly with his right hand and
     motionScene.reset();
   }
 });
+
+test('injury: Giles left elbow never bends backwards when blending into panel_work or typing', () => {
+  for (const pose of ['panel_work', 'typing'] as const) {
+    const h = new Humanoid({ ...GILES, role: 'npc', pose: 'idle' }, ctx());
+    h.setPose(pose);
+    h.setInjury(1);
+    const bones = h['bones'] as Record<string, THREE.Object3D>;
+    const eul = new THREE.Euler();
+    let minX = Infinity;
+    for (let i = 0; i < 180; i++) {
+      h.update(1 / 60);
+      eul.setFromQuaternion(bones['foreArm_L']!.quaternion, 'YXZ');
+      if (eul.x < minX) minX = eul.x;
+    }
+    h.dispose();
+    assert.ok(minX >= -0.02, `${pose}: left elbow never hyperextends (min ${((minX * 180) / Math.PI).toFixed(1)}°)`);
+  }
+});

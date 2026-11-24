@@ -261,7 +261,7 @@ test('the reveal ladder follows the giles.infectionStage flag: rasp, then the la
   assert.ok(events.some((e) => e.name === 'squad:infectionStage'));
 });
 
-test('Giles shows a bandage once bandaged and veins and sweat at stage 3, and loses them when the flags go back (a restart)', () => {
+test('Giles shows veins and sweat at stage 3 (no bandage/cast), and loses them when the flags go back (a restart)', () => {
   let flags: Record<string, unknown> = {};
   const { squad } = setup({ flags: () => flags as never });
   const dt = 1 / 60;
@@ -273,10 +273,10 @@ test('Giles shows a bandage once bandaged and veins and sweat at stage 3, and lo
   assert.deepEqual(body.tells, { bandage: false, veins: 0, sweat: 0 });
   flags = { 'giles.infectionStage': 2, 'giles.bandaged': true };
   run();
-  assert.deepEqual(body.tells, { bandage: true, veins: 0, sweat: 0 }, 'stage 2: bandage only');
+  assert.deepEqual(body.tells, { bandage: false, veins: 0, sweat: 0 }, 'stage 2: no cast/bandage');
   flags = { 'giles.infectionStage': 3, 'giles.bandaged': true };
   run();
-  assert.deepEqual(body.tells, { bandage: true, veins: 1, sweat: 1 }, 'stage 3: veins and sweat');
+  assert.deepEqual(body.tells, { bandage: false, veins: 1, sweat: 1 }, 'stage 3: veins and sweat');
   // A load or restart from before the beat: flags come back empty.
   flags = {};
   run();
@@ -712,4 +712,16 @@ test('catchUpIn force (a scene on rails): every mate goes to the entry, even one
   doorway.squad.mates[0]!.place({ x: 0, y: 0, z: 0.1 }, 0);
   doorway.squad.catchUpIn((p) => p.z > 0, { x: 0, y: 0, z: 1.5 }, true);
   assert.ok(doorway.squad.mates[0]!.position.z > 1, 'off the threshold');
+});
+
+test('squadmates lower their pistols to idle_pistol out of combat when gunDrawn is true', () => {
+  const { squad } = setup({ flags: (() => ({ gunDrawn: true })) as unknown as () => Record<string, number> });
+  const m = squad.mates[0]!;
+  m.body.setPose('aim_pistol', 0);
+  for (let i = 0; i < 40; i++) m.body.update(1 / 60);
+  assert.ok(m.body.pistol, 'pistol shows while aiming');
+  assert.equal(squad.restPose(), 'idle_pistol');
+  for (let i = 0; i < 40; i++) squad.update(1 / 60, null);
+  assert.equal(m.body.idlePose, 'idle_pistol', 'out of combat: mate lowers to idle_pistol');
+  assert.ok(m.body.pistol, 'pistol stays in hand at idle_pistol');
 });

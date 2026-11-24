@@ -769,11 +769,10 @@ export class LimbContactSolver {
           vTarget.copy(vShoulder).addScaledVector(vDiff, maxReach / reach);
         }
 
-        // Natural anatomical elbow pole: outward and slightly behind the shoulder normally,
-        // swinging gently forward when clearing a thick chest/coat (crossed arms).
+        // Natural anatomical elbow pole: outward and behind the shoulder, never in front of the body.
         const xSign = side === 'L' ? -1 : 1;
         const torsoSwing = THREE.MathUtils.clamp(torsoPushMag / 0.14, 0, 1);
-        const poleZ = THREE.MathUtils.lerp(0.78, -0.35, torsoSwing);
+        const poleZ = THREE.MathUtils.lerp(0.78, 0.2, torsoSwing);
         const poleX = xSign * THREE.MathUtils.lerp(0.68, 0.92, torsoSwing);
         if (input.keepElbows) vPole.copy(vElbow);
         else input.group.localToWorld(vPole.set(poleX, Math.max(0.55, (vShoulder.y - floorY) - 0.25), poleZ));

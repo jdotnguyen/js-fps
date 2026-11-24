@@ -100,6 +100,7 @@ const STANDING_ARMS_OVERLAY: ReadonlySet<string> = new Set([
   'idle_hips',
   'idle_mug',
   'idle_wand',
+  'idle_pistol',
   'talk_gesture',
   'wave',
   'point',
@@ -1128,7 +1129,11 @@ export class Animator {
     if (!this.guardFresh) this.guardHand.copy(this.guardCur);
     else this.guardHand.lerp(this.guardCur, 1 - Math.exp(-Animator.GUARD_RATE * dt));
     this.guardFresh = true;
-    lo.getWorldPosition(this.guardElbow);
+    // Anatomical elbow pole: outward and behind the body (never in front, which would bend the elbow backwards).
+    const xSign = s === 'L' ? -1 : 1;
+    const root = this.bones[0].parent ?? this.bones[0];
+    this.guardElbow.set(xSign * 0.65, 0.9, 0.78);
+    root.localToWorld(this.guardElbow);
     hand.getWorldQuaternion(this.guardRot);
     // A favoured arm is guarded fully well before the favouring itself is: a half-drawn arm hovers at the body, where contact
     // pushes come and go, and needs steadying most.
@@ -1942,6 +1947,14 @@ export class Animator {
       }
       this.e.set(this.off[k] ?? 0, this.off[k + 1] ?? 0, this.off[k + 2] ?? 0, 'XYZ');
       bone.quaternion.copy(base).multiply(this.q.setFromEuler(this.e));
+      // Elbows are hinge joints: clamp negative X flexion so retargeted clips or blends never hyperextend them backwards.
+      if ((i === J.foreArm_L || i === J.foreArm_R) && this.convulse <= 0.01) {
+        this.e.setFromQuaternion(bone.quaternion, 'YXZ');
+        if (this.e.x < 0) {
+          this.e.x = 0;
+          bone.quaternion.setFromEuler(this.e);
+        }
+      }
     }
     const pelvis = this.bones[J.pelvis];
     const rest = this.restPos[J.pelvis];
