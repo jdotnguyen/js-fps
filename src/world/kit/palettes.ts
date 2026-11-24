@@ -141,6 +141,22 @@ export const AREA_PALETTES: Record<string, AreaPalette> = {
   },
   tunnel: { wallMain: 'rustHeavy', wallAlt: 'concrete', floor: 'concreteFloor', floorAlt: 'diamondRusty', hazard: 'hazard' },
   control: { wallMain: 'paintDark', floor: 'concretePainted', hazard: 'hazardClean' },
+  // Lower transit wing (R11 Power Bay, R13d Maintenance Corridor, R15a Departure Bay, R16a-c Arrival Terminal):
+  // clean architectural concrete/slate with dark structural steel and brushed trim.
+  transit: {
+    wallMain: 'cleanSlate',
+    wallAlt: 'concrete',
+    ceiling: 'steelDark',
+    trim: 'steelBrushed',
+    floor: 'concretePainted',
+    floorAlt: 'diamond',
+    hazard: 'hazardClean',
+    doorSurround: 'cleanSlate',
+    doorPanel: 'steelDark',
+    doorGlassBar: 'steelBrushed',
+    pipeAccent: 'cleanTeal',
+    pipeMain: 'steelDark',
+  },
   // Hydroponics (R12a-R12e): clean washable white FRP-style panels, cool slate upper service band, stainless trim and dark structural ceiling.
   hydroponics: {
     wallMain: 'cleanWall',

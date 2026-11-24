@@ -190,11 +190,6 @@
       }
      }
     ]
-   },
-   {
-    "do": "setFlag",
-    "flag": "dive_leak_cool",
-    "value": false
    }
   ]
  }

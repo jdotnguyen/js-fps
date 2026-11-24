@@ -501,7 +501,7 @@ export class Level implements World, CaptureHost {
   private lastTime = 0;
   private lastFlashing = false;
   /** Lights with an `id` (render-lighting spec: a single scripted light), with their authored colours. */
-  private readonly namedLights = new Map<string, { slot: { item: ControlledLight; color: THREE.Color }; color: THREE.Color; glows: THREE.Color[] }>();
+  private readonly namedLights = new Map<string, { slot: RoomRuntime['slots'][number]; color: THREE.Color; glows: THREE.Color[] }>();
   private readonly tinted = new Map<string, { slots: THREE.Color[]; glows: THREE.Color[]; sky: THREE.Color; ground: THREE.Color; intensity: number }>();
   private atmosphereReady = false;
   /** Station power (station-power spec), and what the backup look replaced on each backup light. */
@@ -2236,18 +2236,30 @@ export class Level implements World, CaptureHost {
 
   /** Set the pattern of every light in a room. False if the room has none. */
   /**
-   * Switch one named light (render-lighting spec: a single scripted light): its pattern, and a tint ("emergency", a
-   * "#rrggbb" colour, or "none" for its own colour). Every other light in its room keeps its pattern and colour.
+   * Switch one named light (render-lighting spec: a single scripted light): its pattern, a tint ("emergency", a
+   * "#rrggbb" colour, or "none" for its own colour), and an optional auxiliary `power` scale in [0, 1] that
+   * overrides station backup power for this light alone until mains return or the level resets.
    */
-  setLight(id: string, pattern: LightPattern, tint?: string): boolean {
+  setLight(id: string, pattern: LightPattern, tint?: string, power?: number): boolean {
     const named = this.namedLights.get(id);
     if (!named) return false;
+    const clampedPower = power !== undefined ? Math.max(0, Math.min(1, power)) : undefined;
+    const powerChanged = clampedPower !== undefined && clampedPower !== named.slot.item.power;
     // A light switching off or on (or recoloured) changes its room's captured look; a flicker does not (design D2).
-    if (tint !== undefined || steadyPatternValue(named.slot.item.pattern) !== steadyPatternValue(pattern)) {
+    if (tint !== undefined || powerChanged || steadyPatternValue(named.slot.item.pattern) !== steadyPatternValue(pattern)) {
       const room = this.rooms.find((r) => r.slots.some((s) => s.item === named.slot.item));
       if (room) this.bumpLighting(room.data.id);
     }
     named.slot.item.pattern = pattern;
+    if (clampedPower !== undefined) {
+      named.slot.item.power = clampedPower;
+      if (clampedPower > 0 && tint === undefined && this.powerState === 'backup') {
+        named.slot.color.copy(named.color);
+        named.slot.item.emissives.forEach((m, i) => m.emissive.copy(named.glows[i] ?? m.emissive));
+        const saved = this.backupSaved.get(named.slot);
+        if (saved) named.slot.range = saved.range;
+      }
+    }
     if (tint !== undefined) {
       const color = tint === 'none' ? named.color : new THREE.Color(tint === 'emergency' ? '#ff2a1a' : tint);
       named.slot.color.copy(color);

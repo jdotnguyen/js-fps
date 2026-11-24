@@ -168,18 +168,17 @@ test('slice01 data: the gallery drop catches the squad up during the walk and se
   }
 });
 
-test('slice01 data: the climax seals the dive bay with its north entrance and gathers in R11 before sealing R11', async () => {
+test('slice01 data: the climax opens R13d without referencing removed D_R13b_R13d and gathers in R11 before sealing R11', async () => {
   const { readFileSync } = await import('node:fs');
   const read = (f: string) => readFileSync(new URL(`../data/sequences/${f}.json`, import.meta.url), 'utf8');
   const climax = (JSON.parse(read('action_climax')) as Array<{ id: string; steps: Array<Record<string, unknown>> }>).find((s) => s.id === 'climax')!.steps;
   const at = (pred: (s: Record<string, unknown>) => boolean) => climax.findIndex(pred);
-  const north = at((s) => s['do'] === 'doorState' && s['id'] === 'D_R13d_R11' && s['state'] === 'open');
-  assert.equal(climax[north + 1]?.['id'], 'D_R13b_R13d', 'dive bay sealed as the corridor opens');
-  assert.equal(climax[north + 1]?.['state'], 'sealed');
+  assert.ok(at((s) => s['do'] === 'doorState' && s['id'] === 'D_R13d_R11' && s['state'] === 'open') >= 0, 'north entrance opens');
+  assert.equal(read('action_climax').includes('D_R13b_R13d'), false, 'removed dive-bay door is not referenced');
+  assert.equal(read('action_restore').includes('D_R13b_R13d'), false, 'restore does not reference removed dive-bay door');
   const gather = at((s) => s['do'] === 'gatherIn' && s['room'] === 'R11');
   const line = at((s) => s['do'] === 'say' && s['line'] === 'climax_giles_03');
   const seal = at((s) => s['do'] === 'doorState' && s['id'] === 'D_R10_R11' && s['state'] === 'sealed');
-  assert.ok(gather > at((s) => 'parallel' in s), 'after the fight');
+  assert.ok(gather > at((s) => 'parallel' in s), 'after power job');
   assert.ok(gather < line && line < seal, 'gather, then "Doors sealing", then the seal');
-  assert.match(read('action_restore'), /"flag": "climax_started",\s*"then": \[\s*\{\s*"do": "doorState",\s*"id": "D_R13b_R13d",\s*"state": "sealed"/, 'a load re-seals the dive bay');
 });

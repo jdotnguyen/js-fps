@@ -8082,12 +8082,12 @@
   },
   {
    "id": "R11",
-   "name": "Control Room",
-   "area": "control",
-   "height": 4,
+   "name": "Power Bay",
+   "area": "transit",
+   "height": 5,
    "atmosphere": {
-    "fog": "#05070a",
-    "fogDensity": 0.05,
+    "fog": "#060a0e",
+    "fogDensity": 0.018,
     "reverb": "metal_hall",
     "ambience": "hull_hum"
    },
@@ -8308,96 +8308,251 @@
    ],
    "props": [
     {
-     "kit": "console_bank",
+     "kit": "power_terminal",
      "pos": [
-      38.4,
-      0,
-      35
-     ],
-     "rot": 180,
-     "params": {
-      "width": 3.6,
-      "mode": "control"
-     }
-    },
-    {
-     "kit": "console_bank",
-     "pos": [
-      41.4,
-      0,
-      41
-     ],
-     "rot": 90,
-     "params": {
-      "width": 3,
-      "mode": "control"
-     }
-    },
-    {
-     "kit": "console",
-     "pos": [
-      31.2,
+      31.1,
       0,
       38
      ],
      "rot": 270,
+     "params": {}
+    },
+    {
+     "kit": "electrical_box",
+     "pos": [
+      30.42,
+      0.9,
+      35.8
+     ],
+     "rot": 270,
+     "params": {}
+    },
+    {
+     "kit": "power_box",
+     "pos": [
+      30.46,
+      0.9,
+      40.3
+     ],
+     "rot": 270,
+     "params": {}
+    },
+    {
+     "kit": "cable_drum",
+     "pos": [
+      31.1,
+      0,
+      42.6
+     ],
+     "rot": 20,
+     "params": {}
+    },
+    {
+     "kit": "transit_sign",
+     "pos": [
+      30.31,
+      0,
+      44.9
+     ],
+     "rot": 270,
      "params": {
-      "screen": "status"
+      "title": "POWER BAY 11",
+      "sub": "AUXILIARY TURBINE PLANT · DECK 0",
+      "y": 2
      }
     },
     {
-     "kit": "chair",
+     "kit": "transit_sign",
      "pos": [
-      38.4,
+      33.2,
       0,
-      36.6
-     ]
-    },
-    {
-     "kit": "chair",
-     "pos": [
-      40,
-      0,
-      41.4
-     ]
-    },
-    {
-     "kit": "crate_stack",
-     "pos": [
-      32.6,
-      0,
-      44.4
-     ]
-    },
-    {
-     "kit": "crate",
-     "pos": [
-      38.8,
-      0,
-      43.6
+      34.31
      ],
-     "rot": 25,
+     "rot": 180,
      "params": {
-      "size": 0.9
+      "title": "TRANSIT RAIL",
+      "sub": "BOARDING PLATFORM ->",
+      "y": 1.9
+     }
+    },
+    {
+     "kit": "power_generator",
+     "pos": [
+      39.5,
+      0,
+      38.2
+     ],
+     "rot": 90,
+     "params": {
+      "ceiling": 5
+     }
+    },
+    {
+     "kit": "power_generator",
+     "pos": [
+      39.5,
+      0,
+      42
+     ],
+     "rot": 90,
+     "params": {
+      "ceiling": 5
+     }
+    },
+    {
+     "kit": "switchgear_bank",
+     "pos": [
+      39.5,
+      0,
+      34.78
+     ],
+     "rot": 180,
+     "params": {
+      "ceiling": 5
+     }
+    },
+    {
+     "kit": "electrical_box_02",
+     "pos": [
+      39.8,
+      0,
+      45.1
+     ],
+     "params": {}
+    },
+    {
+     "kit": "gas_cylinder",
+     "pos": [
+      38,
+      0,
+      44.9
+     ],
+     "rot": 15,
+     "params": {}
+    },
+    {
+     "kit": "gas_cylinder",
+     "pos": [
+      38.5,
+      0,
+      45.1
+     ],
+     "rot": -20,
+     "params": {}
+    },
+    {
+     "kit": "platform_trolley",
+     "pos": [
+      35.6,
+      0,
+      44.7
+     ],
+     "rot": 12,
+     "params": {}
+    },
+    {
+     "kit": "transit_sign",
+     "pos": [
+      41.69,
+      0,
+      40.1
+     ],
+     "rot": 90,
+     "params": {
+      "title": "HIGH VOLTAGE",
+      "sub": "4.16 kV SWITCHGEAR · AUTHORIZED ONLY",
+      "y": 2.1,
+      "accent": "#d93b2b",
+      "width": 1.15,
+      "height": 0.4
+     }
+    },
+    {
+     "kit": "rib_frame",
+     "pos": [
+      36,
+      0,
+      36.2
+     ],
+     "params": {
+      "width": 11.4,
+      "height": 5
+     }
+    },
+    {
+     "kit": "rib_frame",
+     "pos": [
+      36,
+      0,
+      43.8
+     ],
+     "params": {
+      "width": 11.4,
+      "height": 5
+     }
+    },
+    {
+     "kit": "pipe_run",
+     "pos": [
+      36,
+      0,
+      38.2
+     ],
+     "params": {
+      "length": 7.4,
+      "height": 4.55,
+      "ceiling": 5,
+      "hung": true,
+      "paint": "teal"
+     }
+    },
+    {
+     "kit": "pipe_run",
+     "pos": [
+      36,
+      0,
+      42
+     ],
+     "params": {
+      "length": 7.4,
+      "height": 4.55,
+      "ceiling": 5,
+      "hung": true,
+      "paint": "dark"
      }
     },
     {
      "kit": "cable_bundle",
      "pos": [
-      36,
+      31.2,
       0,
       40
      ],
+     "rot": 90,
      "params": {
-      "length": 12,
-      "height": 3.6
+      "length": 8.8,
+      "height": 4.4
+     }
+    },
+    {
+     "kit": "ambient_loop",
+     "pos": [
+      39.5,
+      1.2,
+      40.1
+     ],
+     "params": {
+      "sound": "generatorHum",
+      "gain": 0.42,
+      "range": 16,
+      "on": "r11:hum_on"
      }
     },
     {
      "kit": "emergency_beacon",
      "pos": [
       41.7,
-      2.8,
+      3.2,
       36
      ],
      "rot": 270,
@@ -8409,7 +8564,7 @@
      "kit": "emergency_beacon",
      "pos": [
       30.3,
-      2.8,
+      3.2,
       42
      ],
      "rot": 90,
@@ -8436,40 +8591,81 @@
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#cfe0ff",
-     "intensity": 8
-    },
-    {
-     "slot": 2,
-     "pattern": "flicker",
-     "color": "#cfe0ff",
-     "intensity": 7
-    },
-    {
-     "slot": 4,
-     "pattern": "steady",
-     "color": "#cfe0ff",
-     "intensity": 9
+     "color": "#dce8f4",
+     "intensity": 14,
+     "range": 18,
+     "id": "r11_bank_1a"
     },
     {
      "slot": 6,
      "pattern": "steady",
-     "color": "#cfe0ff",
-     "intensity": 7
+     "color": "#dce8f4",
+     "intensity": 14,
+     "range": 18,
+     "id": "r11_bank_1b"
+    },
+    {
+     "slot": 1,
+     "pattern": "steady",
+     "color": "#dce8f4",
+     "intensity": 16,
+     "range": 20,
+     "id": "r11_bank_2a",
+     "shadow": true
+    },
+    {
+     "slot": 7,
+     "pattern": "steady",
+     "color": "#dce8f4",
+     "intensity": 16,
+     "range": 20,
+     "id": "r11_bank_2b"
+    },
+    {
+     "slot": 2,
+     "pattern": "steady",
+     "color": "#dce8f4",
+     "intensity": 15,
+     "range": 18,
+     "id": "r11_bank_3a"
     },
     {
      "slot": 8,
-     "pattern": "dying",
-     "color": "#cfe0ff",
-     "intensity": 6
+     "pattern": "steady",
+     "color": "#dce8f4",
+     "intensity": 15,
+     "range": 18,
+     "id": "r11_bank_3b",
+     "shadow": true
+    },
+    {
+     "slot": 3,
+     "pattern": "steady",
+     "color": "#ffb870",
+     "intensity": 7,
+     "range": 8,
+     "id": "r11_desk_lamp",
+     "backup": true,
+     "backupScale": 0.25,
+     "ownColor": true
     },
     {
      "slot": "emergency",
-     "pattern": "off"
+     "pattern": "off",
+     "color": "#ff3b24",
+     "intensity": 10,
+     "range": 14,
+     "id": "r11_beacon_ne",
+     "ownColor": true
     },
     {
      "slot": "emergency",
-     "pattern": "off"
+     "pattern": "off",
+     "color": "#ff3b24",
+     "intensity": 10,
+     "range": 14,
+     "id": "r11_beacon_sw",
+     "ownColor": true
     }
    ],
    "triggers": [
@@ -8489,87 +8685,6 @@
      ],
      "on": "enter",
      "emit": "trigger:r11_enter"
-    }
-   ],
-   "spawns": [
-    {
-     "id": "r11_door_south",
-     "pos": [
-      32,
-      0,
-      48.6
-     ],
-     "kind": "door",
-     "group": "r11_climax",
-     "active": false,
-     "count": 4,
-     "interval": 5,
-     "yaw": 0
-    },
-    {
-     "id": "r11_door_north",
-     "pos": [
-      36,
-      0,
-      31.6
-     ],
-     "kind": "door",
-     "group": "r11_climax",
-     "active": false,
-     "count": 4,
-     "interval": 5,
-     "yaw": 180
-    },
-    {
-     "id": "r11_vent_1",
-     "pos": [
-      40,
-      3.8,
-      44
-     ],
-     "kind": "ceiling",
-     "group": "r11_climax",
-     "active": false,
-     "count": 2,
-     "interval": 8
-    },
-    {
-     "id": "r11_vent_2",
-     "pos": [
-      32,
-      3.8,
-      36
-     ],
-     "kind": "ceiling",
-     "group": "r11_climax",
-     "active": false,
-     "count": 1
-    },
-    {
-     "id": "r11_corridor",
-     "pos": [
-      40,
-      0,
-      32
-     ],
-     "kind": "floor",
-     "group": "r11_climax",
-     "active": false,
-     "count": 2,
-     "interval": 6
-    },
-    {
-     "id": "r11_hero",
-     "pos": [
-      34,
-      0,
-      31.6
-     ],
-     "kind": "door",
-     "group": "r11_climax",
-     "active": false,
-     "variant": "hero",
-     "yaw": 180
     }
    ],
    "anchors": [
@@ -8603,7 +8718,7 @@
      "id": "ammo_r11",
      "pos": [
       32.6,
-      0.9,
+      0,
       44.4
      ]
     },
@@ -8647,7 +8762,7 @@
      "id": "ammo_r11_b",
      "pos": [
       38.8,
-      0.92,
+      0,
       43.6
      ]
     },
@@ -8658,6 +8773,1644 @@
       0,
       37.2
      ]
+    }
+   ]
+  },
+  {
+   "id": "R15a",
+   "name": "Departure Boarding Bay",
+   "area": "transit",
+   "height": 5,
+   "atmosphere": {
+    "fog": "#060a0e",
+    "fogDensity": 0.014,
+    "reverb": "metal_hall",
+    "ambience": "hull_hum"
+   },
+   "pieces": [
+    {
+     "kit": "ceiling",
+     "cell": [
+      11,
+      0,
+      8
+     ]
+    },
+    {
+     "kit": "ceiling_pipes",
+     "cell": [
+      12,
+      0,
+      8
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      13,
+      0,
+      8
+     ]
+    },
+    {
+     "kit": "ceiling_pipes",
+     "cell": [
+      11,
+      0,
+      9
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      12,
+      0,
+      9
+     ]
+    },
+    {
+     "kit": "ceiling_pipes",
+     "cell": [
+      13,
+      0,
+      9
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      11,
+      0,
+      10
+     ]
+    },
+    {
+     "kit": "ceiling_pipes",
+     "cell": [
+      12,
+      0,
+      10
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      13,
+      0,
+      10
+     ]
+    },
+    {
+     "kit": "ceiling_pipes",
+     "cell": [
+      11,
+      0,
+      11
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      12,
+      0,
+      11
+     ]
+    },
+    {
+     "kit": "ceiling_pipes",
+     "cell": [
+      13,
+      0,
+      11
+     ]
+    },
+    {
+     "kit": "floor",
+     "cells": [
+      [
+       11,
+       0,
+       8
+      ],
+      [
+       12,
+       0,
+       8
+      ],
+      [
+       13,
+       0,
+       8
+      ],
+      [
+       11,
+       0,
+       9
+      ],
+      [
+       12,
+       0,
+       9
+      ],
+      [
+       13,
+       0,
+       9
+      ],
+      [
+       11,
+       0,
+       10
+      ],
+      [
+       12,
+       0,
+       10
+      ],
+      [
+       13,
+       0,
+       10
+      ],
+      [
+       11,
+       0,
+       11
+      ],
+      [
+       12,
+       0,
+       11
+      ],
+      [
+       13,
+       0,
+       11
+      ]
+     ]
+    },
+    {
+     "kit": "wall_plain",
+     "cells": [
+      [
+       11,
+       0,
+       8
+      ],
+      [
+       13,
+       0,
+       8
+      ]
+     ]
+    },
+    {
+     "kit": "wall_panel",
+     "cells": [
+      [
+       12,
+       0,
+       8
+      ]
+     ]
+    },
+    {
+     "kit": "wall_window",
+     "cells": [
+      [
+       13,
+       0,
+       8
+      ],
+      [
+       13,
+       0,
+       9
+      ],
+      [
+       13,
+       0,
+       10
+      ],
+      [
+       13,
+       0,
+       11
+      ]
+     ],
+     "rot": 270
+    },
+    {
+     "kit": "wall_plain",
+     "cells": [
+      [
+       11,
+       0,
+       9
+      ],
+      [
+       11,
+       0,
+       11
+      ]
+     ],
+     "rot": 90
+    },
+    {
+     "kit": "wall_panel",
+     "cells": [
+      [
+       11,
+       0,
+       10
+      ]
+     ],
+     "rot": 90
+    },
+    {
+     "kit": "wall_plain",
+     "cells": [
+      [
+       11,
+       0,
+       11
+      ],
+      [
+       13,
+       0,
+       11
+      ]
+     ],
+     "rot": 180
+    },
+    {
+     "kit": "wall_panel",
+     "cells": [
+      [
+       12,
+       0,
+       11
+      ]
+     ],
+     "rot": 180
+    }
+   ],
+   "props": [
+    {
+     "kit": "track_bed",
+     "pos": [
+      48,
+      0,
+      38
+     ],
+     "params": {
+      "length": 15.4
+     }
+    },
+    {
+     "kit": "transit_train_shell",
+     "pos": [
+      48,
+      0,
+      38
+     ],
+     "rot": 180,
+     "params": {
+      "length": 10.4,
+      "width": 3,
+      "height": 2.9,
+      "doorSide": "right"
+     }
+    }
+   ],
+   "lights": [
+    {
+     "slot": 0,
+     "pattern": "steady",
+     "color": "#dce8f4",
+     "intensity": 14,
+     "range": 18,
+     "backupScale": 1,
+     "ownColor": true
+    },
+    {
+     "slot": 2,
+     "pattern": "steady",
+     "color": "#dce8f4",
+     "intensity": 14,
+     "range": 18,
+     "backupScale": 1,
+     "ownColor": true
+    },
+    {
+     "slot": 4,
+     "pattern": "steady",
+     "color": "#dce8f4",
+     "intensity": 16,
+     "range": 20,
+     "backupScale": 1,
+     "ownColor": true
+    },
+    {
+     "slot": 7,
+     "pattern": "steady",
+     "color": "#dce8f4",
+     "intensity": 16,
+     "range": 20,
+     "backupScale": 1,
+     "ownColor": true
+    },
+    {
+     "slot": 9,
+     "pattern": "steady",
+     "color": "#dce8f4",
+     "intensity": 14,
+     "range": 18,
+     "backupScale": 1,
+     "ownColor": true
+    },
+    {
+     "slot": 11,
+     "pattern": "steady",
+     "color": "#dce8f4",
+     "intensity": 14,
+     "range": 18,
+     "backupScale": 1,
+     "ownColor": true
+    }
+   ],
+   "anchors": [
+    {
+     "id": "r15a_platform",
+     "pos": [
+      44,
+      0,
+      32
+     ],
+     "yaw": 225
+    },
+    {
+     "id": "r15a_train_inside",
+     "pos": [
+      48,
+      0.08,
+      38
+     ],
+     "yaw": 180
+    }
+   ]
+  },
+  {
+   "id": "R16a",
+   "name": "Arrival Track Dock",
+   "area": "transit",
+   "height": 5,
+   "floorY": -0.6,
+   "atmosphere": {
+    "fog": "#060a0e",
+    "fogDensity": 0.014,
+    "reverb": "metal_hall",
+    "ambience": "hull_hum"
+   },
+   "visibleFrom": [
+    "R16b"
+   ],
+   "pieces": [
+    {
+     "kit": "ceiling",
+     "cell": [
+      21,
+      0,
+      8
+     ]
+    },
+    {
+     "kit": "ceiling_pipes",
+     "cell": [
+      22,
+      0,
+      8
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      23,
+      0,
+      8
+     ]
+    },
+    {
+     "kit": "ceiling_pipes",
+     "cell": [
+      21,
+      0,
+      9
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      22,
+      0,
+      9
+     ]
+    },
+    {
+     "kit": "ceiling_pipes",
+     "cell": [
+      23,
+      0,
+      9
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      21,
+      0,
+      10
+     ]
+    },
+    {
+     "kit": "ceiling_pipes",
+     "cell": [
+      22,
+      0,
+      10
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      23,
+      0,
+      10
+     ]
+    },
+    {
+     "kit": "floor",
+     "cells": [
+      [
+       21,
+       0,
+       8
+      ],
+      [
+       22,
+       0,
+       8
+      ],
+      [
+       23,
+       0,
+       8
+      ],
+      [
+       21,
+       0,
+       9
+      ],
+      [
+       22,
+       0,
+       9
+      ],
+      [
+       23,
+       0,
+       9
+      ],
+      [
+       21,
+       0,
+       10
+      ],
+      [
+       22,
+       0,
+       10
+      ],
+      [
+       23,
+       0,
+       10
+      ]
+     ]
+    },
+    {
+     "kit": "wall_plain",
+     "cells": [
+      [
+       21,
+       0,
+       8
+      ],
+      [
+       23,
+       0,
+       8
+      ]
+     ]
+    },
+    {
+     "kit": "wall_panel",
+     "cells": [
+      [
+       21,
+       0,
+       8
+      ],
+      [
+       21,
+       0,
+       10
+      ]
+     ],
+     "rot": 90
+    },
+    {
+     "kit": "wall_panel",
+     "cells": [
+      [
+       22,
+       0,
+       8
+      ]
+     ]
+    },
+    {
+     "kit": "wall_panel",
+     "cells": [
+      [
+       23,
+       0,
+       8
+      ],
+      [
+       23,
+       0,
+       10
+      ]
+     ],
+     "rot": 270
+    },
+    {
+     "kit": "wall_plain",
+     "cells": [
+      [
+       21,
+       0,
+       9
+      ]
+     ],
+     "rot": 90
+    },
+    {
+     "kit": "wall_plain",
+     "cells": [
+      [
+       23,
+       0,
+       9
+      ]
+     ],
+     "rot": 270
+    },
+    {
+     "kit": "stairs",
+     "cell": [
+      21,
+      0,
+      10
+     ],
+     "rot": 180,
+     "params": {
+      "rise": 0.6,
+      "run": 1.8,
+      "steps": 3,
+      "width": 3.98,
+      "offset": -1.1,
+      "rails": "none"
+     }
+    },
+    {
+     "kit": "stairs",
+     "cell": [
+      22,
+      0,
+      10
+     ],
+     "rot": 180,
+     "params": {
+      "rise": 0.6,
+      "run": 1.8,
+      "steps": 3,
+      "width": 3.98,
+      "offset": -1.1,
+      "rails": "none"
+     }
+    },
+    {
+     "kit": "stairs",
+     "cell": [
+      23,
+      0,
+      10
+     ],
+     "rot": 180,
+     "params": {
+      "rise": 0.6,
+      "run": 1.8,
+      "steps": 3,
+      "width": 3.98,
+      "offset": -1.1,
+      "rails": "none"
+     }
+    }
+   ],
+   "props": [
+    {
+     "kit": "track_bed",
+     "pos": [
+      88,
+      -0.6,
+      34.8
+     ],
+     "params": {
+      "length": 9
+     }
+    },
+    {
+     "kit": "transit_train_shell",
+     "pos": [
+      88,
+      -0.6,
+      35
+     ],
+     "rot": 180,
+     "params": {
+      "length": 9,
+      "width": 3,
+      "height": 2.9,
+      "doorSide": "right"
+     }
+    }
+   ],
+   "lights": [
+    {
+     "slot": 0,
+     "pattern": "steady",
+     "color": "#dce6f2",
+     "intensity": 14,
+     "range": 18,
+     "backupScale": 1,
+     "ownColor": true
+    },
+    {
+     "slot": 4,
+     "pattern": "steady",
+     "color": "#dce6f2",
+     "intensity": 16,
+     "range": 20,
+     "backupScale": 1,
+     "ownColor": true
+    },
+    {
+     "slot": 8,
+     "pattern": "steady",
+     "color": "#dce6f2",
+     "intensity": 14,
+     "range": 18,
+     "backupScale": 1,
+     "ownColor": true
+    }
+   ],
+   "anchors": [
+    {
+     "id": "r16_train_inside",
+     "pos": [
+      88,
+      -0.52,
+      35
+     ],
+     "yaw": 180
+    },
+    {
+     "id": "r16_train_exit",
+     "pos": [
+      85,
+      -0.6,
+      35
+     ],
+     "yaw": 90
+    }
+   ]
+  },
+  {
+   "id": "R16b",
+   "name": "Arrival Concourse",
+   "area": "transit",
+   "height": 8,
+   "atmosphere": {
+    "fog": "#060a0e",
+    "fogDensity": 0.012,
+    "reverb": "metal_hall",
+    "ambience": "hull_hum"
+   },
+   "visibleFrom": [
+    "R16a"
+   ],
+   "pieces": [
+    {
+     "kit": "ceiling",
+     "cell": [
+      20,
+      0,
+      11
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      21,
+      0,
+      11
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      22,
+      0,
+      11
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      23,
+      0,
+      11
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      24,
+      0,
+      11
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      20,
+      0,
+      12
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      21,
+      0,
+      12
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      22,
+      0,
+      12
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      23,
+      0,
+      12
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      24,
+      0,
+      12
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      20,
+      0,
+      13
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      21,
+      0,
+      13
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      22,
+      0,
+      13
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      23,
+      0,
+      13
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      24,
+      0,
+      13
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      20,
+      0,
+      14
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      21,
+      0,
+      14
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      22,
+      0,
+      14
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      23,
+      0,
+      14
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      24,
+      0,
+      14
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      20,
+      0,
+      15
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      21,
+      0,
+      15
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      22,
+      0,
+      15
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      23,
+      0,
+      15
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      24,
+      0,
+      15
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      20,
+      0,
+      16
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      21,
+      0,
+      16
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      22,
+      0,
+      16
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      23,
+      0,
+      16
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      24,
+      0,
+      16
+     ]
+    },
+    {
+     "kit": "floor",
+     "cells": [
+      [
+       20,
+       0,
+       11
+      ],
+      [
+       21,
+       0,
+       11
+      ],
+      [
+       22,
+       0,
+       11
+      ],
+      [
+       23,
+       0,
+       11
+      ],
+      [
+       24,
+       0,
+       11
+      ],
+      [
+       20,
+       0,
+       12
+      ],
+      [
+       21,
+       0,
+       12
+      ],
+      [
+       22,
+       0,
+       12
+      ],
+      [
+       23,
+       0,
+       12
+      ],
+      [
+       24,
+       0,
+       12
+      ],
+      [
+       20,
+       0,
+       13
+      ],
+      [
+       21,
+       0,
+       13
+      ],
+      [
+       22,
+       0,
+       13
+      ],
+      [
+       23,
+       0,
+       13
+      ],
+      [
+       24,
+       0,
+       13
+      ],
+      [
+       20,
+       0,
+       14
+      ],
+      [
+       21,
+       0,
+       14
+      ],
+      [
+       22,
+       0,
+       14
+      ],
+      [
+       23,
+       0,
+       14
+      ],
+      [
+       24,
+       0,
+       14
+      ],
+      [
+       20,
+       0,
+       15
+      ],
+      [
+       21,
+       0,
+       15
+      ],
+      [
+       22,
+       0,
+       15
+      ],
+      [
+       23,
+       0,
+       15
+      ],
+      [
+       24,
+       0,
+       15
+      ],
+      [
+       20,
+       0,
+       16
+      ],
+      [
+       21,
+       0,
+       16
+      ],
+      [
+       22,
+       0,
+       16
+      ],
+      [
+       23,
+       0,
+       16
+      ],
+      [
+       24,
+       0,
+       16
+      ]
+     ]
+    },
+    {
+     "kit": "wall_plain",
+     "cells": [
+      [
+       20,
+       0,
+       11
+      ],
+      [
+       24,
+       0,
+       11
+      ]
+     ]
+    },
+    {
+     "kit": "wall_panel",
+     "cells": [
+      [
+       20,
+       0,
+       11
+      ],
+      [
+       20,
+       0,
+       13
+      ],
+      [
+       20,
+       0,
+       15
+      ]
+     ],
+     "rot": 90
+    },
+    {
+     "kit": "wall_panel",
+     "cells": [
+      [
+       24,
+       0,
+       11
+      ],
+      [
+       24,
+       0,
+       13
+      ],
+      [
+       24,
+       0,
+       15
+      ]
+     ],
+     "rot": 270
+    },
+    {
+     "kit": "wall_plain",
+     "cells": [
+      [
+       20,
+       0,
+       12
+      ],
+      [
+       20,
+       0,
+       14
+      ],
+      [
+       20,
+       0,
+       16
+      ]
+     ],
+     "rot": 90
+    },
+    {
+     "kit": "wall_plain",
+     "cells": [
+      [
+       24,
+       0,
+       12
+      ],
+      [
+       24,
+       0,
+       14
+      ],
+      [
+       24,
+       0,
+       16
+      ]
+     ],
+     "rot": 270
+    },
+    {
+     "kit": "wall_plain",
+     "cells": [
+      [
+       20,
+       0,
+       16
+      ],
+      [
+       24,
+       0,
+       16
+      ]
+     ],
+     "rot": 180
+    },
+    {
+     "kit": "wall_panel",
+     "cells": [
+      [
+       21,
+       0,
+       16
+      ],
+      [
+       23,
+       0,
+       16
+      ]
+     ],
+     "rot": 180
+    }
+   ],
+   "props": [
+    {
+     "kit": "seam_header",
+     "pos": [
+      88,
+      0,
+      42
+     ],
+     "params": {
+      "width": 12,
+      "bottom": 5,
+      "top": 8,
+      "depth": 0.4
+     }
+    },
+    {
+     "kit": "concourse_pillar",
+     "pos": [
+      83.2,
+      0,
+      46.5
+     ],
+     "params": {
+      "width": 1.5,
+      "height": 8
+     }
+    },
+    {
+     "kit": "concourse_pillar",
+     "pos": [
+      92.8,
+      0,
+      46.5
+     ],
+     "params": {
+      "width": 1.5,
+      "height": 8
+     }
+    },
+    {
+     "kit": "concourse_pillar",
+     "pos": [
+      83.2,
+      0,
+      51.5
+     ],
+     "params": {
+      "width": 1.5,
+      "height": 8
+     }
+    },
+    {
+     "kit": "concourse_pillar",
+     "pos": [
+      92.8,
+      0,
+      51.5
+     ],
+     "params": {
+      "width": 1.5,
+      "height": 8
+     }
+    },
+    {
+     "kit": "concourse_pillar",
+     "pos": [
+      83.2,
+      0,
+      56.5
+     ],
+     "params": {
+      "width": 1.5,
+      "height": 8
+     }
+    },
+    {
+     "kit": "concourse_pillar",
+     "pos": [
+      92.8,
+      0,
+      56.5
+     ],
+     "params": {
+      "width": 1.5,
+      "height": 8
+     }
+    },
+    {
+     "kit": "checkin_booth",
+     "pos": [
+      79.45,
+      0,
+      59.5
+     ],
+     "rot": 270,
+     "params": {
+      "width": 3.6,
+      "depth": 2.2,
+      "height": 3.2
+     }
+    },
+    {
+     "kit": "checkin_booth",
+     "pos": [
+      96.55,
+      0,
+      59.5
+     ],
+     "rot": 90,
+     "params": {
+      "width": 3.6,
+      "depth": 2.2,
+      "height": 3.2
+     }
+    },
+    {
+     "kit": "checkin_booth",
+     "pos": [
+      79.45,
+      0,
+      63.5
+     ],
+     "rot": 270,
+     "params": {
+      "width": 3.6,
+      "depth": 2.2,
+      "height": 3.2
+     }
+    },
+    {
+     "kit": "checkin_booth",
+     "pos": [
+      96.55,
+      0,
+      63.5
+     ],
+     "rot": 90,
+     "params": {
+      "width": 3.6,
+      "depth": 2.2,
+      "height": 3.2
+     }
+    }
+   ],
+   "lights": [
+    {
+     "slot": 2,
+     "pattern": "steady",
+     "color": "#dce6f2",
+     "intensity": 24,
+     "range": 26,
+     "backupScale": 1,
+     "ownColor": true
+    },
+    {
+     "slot": 7,
+     "pattern": "steady",
+     "color": "#dce6f2",
+     "intensity": 24,
+     "range": 26,
+     "backupScale": 1,
+     "ownColor": true
+    },
+    {
+     "slot": 12,
+     "pattern": "steady",
+     "color": "#dce6f2",
+     "intensity": 24,
+     "range": 26,
+     "backupScale": 1,
+     "ownColor": true
+    },
+    {
+     "slot": 17,
+     "pattern": "steady",
+     "color": "#dce6f2",
+     "intensity": 24,
+     "range": 26,
+     "backupScale": 1,
+     "ownColor": true
+    },
+    {
+     "slot": 22,
+     "pattern": "steady",
+     "color": "#dce6f2",
+     "intensity": 24,
+     "range": 26,
+     "backupScale": 1,
+     "ownColor": true
+    },
+    {
+     "slot": 27,
+     "pattern": "steady",
+     "color": "#dce6f2",
+     "intensity": 24,
+     "range": 26,
+     "backupScale": 1,
+     "ownColor": true
+    }
+   ],
+   "anchors": [
+    {
+     "id": "r16_concourse",
+     "pos": [
+      88,
+      0,
+      44
+     ],
+     "yaw": 180
+    }
+   ]
+  },
+  {
+   "id": "R16c",
+   "name": "Arrival Dispatch",
+   "area": "transit",
+   "height": 3.6,
+   "atmosphere": {
+    "fog": "#060a0e",
+    "fogDensity": 0.014,
+    "reverb": "small_office",
+    "ambience": "hull_hum"
+   },
+   "pieces": [
+    {
+     "kit": "ceiling",
+     "cell": [
+      21,
+      0,
+      17
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      22,
+      0,
+      17
+     ]
+    },
+    {
+     "kit": "ceiling",
+     "cell": [
+      23,
+      0,
+      17
+     ]
+    },
+    {
+     "kit": "floor",
+     "cells": [
+      [
+       21,
+       0,
+       17
+      ],
+      [
+       22,
+       0,
+       17
+      ],
+      [
+       23,
+       0,
+       17
+      ]
+     ]
+    },
+    {
+     "kit": "wall_panel",
+     "cells": [
+      [
+       21,
+       0,
+       17
+      ],
+      [
+       23,
+       0,
+       17
+      ]
+     ]
+    },
+    {
+     "kit": "wall_plain",
+     "cells": [
+      [
+       21,
+       0,
+       17
+      ],
+      [
+       23,
+       0,
+       17
+      ]
+     ],
+     "rot": 180
+    },
+    {
+     "kit": "wall_plain",
+     "cells": [
+      [
+       21,
+       0,
+       17
+      ]
+     ],
+     "rot": 90
+    },
+    {
+     "kit": "wall_panel",
+     "cells": [
+      [
+       22,
+       0,
+       17
+      ]
+     ],
+     "rot": 180
+    },
+    {
+     "kit": "wall_plain",
+     "cells": [
+      [
+       23,
+       0,
+       17
+      ]
+     ],
+     "rot": 270
+    }
+   ],
+   "lights": [
+    {
+     "slot": 0,
+     "pattern": "steady",
+     "color": "#dce6f2",
+     "intensity": 12,
+     "range": 14,
+     "backupScale": 1,
+     "ownColor": true
+    },
+    {
+     "slot": 2,
+     "pattern": "steady",
+     "color": "#dce6f2",
+     "intensity": 12,
+     "range": 14,
+     "backupScale": 1,
+     "ownColor": true
+    }
+   ],
+   "anchors": [
+    {
+     "id": "r16_dispatch",
+     "pos": [
+      88,
+      0,
+      68
+     ],
+     "yaw": 0
     }
    ]
   },
@@ -10319,6 +12072,22 @@
      ]
     },
     {
+     "kit": "wall_panel",
+     "cells": [
+      [
+       7,
+       0,
+       8
+      ],
+      [
+       7,
+       0,
+       10
+      ]
+     ],
+     "rot": 270
+    },
+    {
      "kit": "wall_plain",
      "cells": [
       [
@@ -10376,17 +12145,6 @@
       ]
      ],
      "rot": 180
-    },
-    {
-     "kit": "wall_panel",
-     "cells": [
-      [
-       7,
-       0,
-       10
-      ]
-     ],
-     "rot": 270
     }
    ],
    "props": [
@@ -11019,10 +12777,10 @@
   {
    "id": "R13d",
    "name": "Maintenance Corridor",
-   "area": "dive_bay",
+   "area": "transit",
    "atmosphere": {
     "fog": "#020405",
-    "fogDensity": 0.09,
+    "fogDensity": 0.05,
     "ambient": "dark",
     "reverb": "metal_corridor",
     "ambience": "hull_groan"
@@ -11125,6 +12883,20 @@
      "kit": "wall_vent",
      "cells": [
       [
+       8,
+       0,
+       8
+      ]
+     ],
+     "params": {
+      "material": "rustBlotch"
+     },
+     "rot": 90
+    },
+    {
+     "kit": "wall_vent",
+     "cells": [
+      [
        9,
        0,
        8
@@ -11133,20 +12905,6 @@
      "params": {
       "material": "rustBlotch"
      }
-    },
-    {
-     "kit": "wall_vent",
-     "cells": [
-      [
-       10,
-       0,
-       8
-      ]
-     ],
-     "params": {
-      "material": "rustBlotch"
-     },
-     "rot": 270
     }
    ],
    "props": [
@@ -11165,58 +12923,11 @@
      }
     },
     {
-     "kit": "pipe_labels",
-     "pos": [
-      36,
-      0,
-      33.4
-     ],
-     "params": {
-      "length": 11,
-      "y": 0.5,
-      "radius": 0.1,
-      "labels": "SEAWATER COOLING:#2f7a3a|HYDRAULIC SUPPLY:#b4551c|FRESH WATER:#2b5d8a"
-     }
-    },
-    {
-     "kit": "pipe_run",
-     "pos": [
-      36,
-      0,
-      33.4
-     ],
-     "params": {
-      "length": 11,
-      "height": 0.5,
-      "paint": "dark"
-     }
-    },
-    {
-     "kit": "crate",
-     "pos": [
-      41,
-      0,
-      30.8
-     ],
-     "rot": 15,
-     "params": {
-      "size": 0.7
-     }
-    },
-    {
      "kit": "debris_pile",
      "pos": [
       37.6,
       0,
       31.2
-     ]
-    },
-    {
-     "kit": "pipe_leak",
-     "pos": [
-      38.5,
-      0.5,
-      33.4
      ]
     },
     {
@@ -11234,11 +12945,18 @@
    ],
    "lights": [
     {
+     "slot": 0,
+     "pattern": "steady",
+     "color": "#ffcf9a",
+     "intensity": 5,
+     "range": 10
+    },
+    {
      "slot": 2,
      "pattern": "dying",
      "color": "#ffcf9a",
-     "intensity": 3,
-     "range": 6
+     "intensity": 5,
+     "range": 10
     }
    ],
    "triggers": [
@@ -11258,24 +12976,6 @@
      ],
      "on": "enter",
      "emit": "area:dark"
-    },
-    {
-     "id": "trig_dive_leak",
-     "box": [
-      [
-       37.1,
-       0,
-       31.5
-      ],
-      [
-       39.9,
-       2.2,
-       34.3
-      ]
-     ],
-     "on": "enter",
-     "emit": "trigger:dive_leak",
-     "once": false
     }
    ],
    "anchors": [
@@ -11287,14 +12987,6 @@
       32
      ],
      "yaw": 270
-    },
-    {
-     "id": "dive_leak",
-     "pos": [
-      38.5,
-      0.6,
-      33.4
-     ]
     }
    ]
   },
@@ -13272,6 +14964,21 @@
    "unlockOn": "valve:r10_main"
   },
   {
+   "id": "D_R16b_R16c",
+   "kit": "pressure_slide",
+   "between": [
+    "R16b",
+    "R16c"
+   ],
+   "cell": [
+    22,
+    0,
+    16
+   ],
+   "rot": 180,
+   "state": "closed"
+  },
+  {
    "id": "D_R02_R12a",
    "kit": "pressure_slide",
    "between": [
@@ -13395,25 +15102,6 @@
    "state": "closed"
   },
   {
-   "id": "D_R13b_R13d",
-   "kit": "pressure_slide",
-   "between": [
-    "R13b",
-    "R13d"
-   ],
-   "cell": [
-    7,
-    0,
-    8
-   ],
-   "rot": 270,
-   "state": "closed",
-   "access": {
-    "sealed": true,
-    "text": "out_of_service"
-   }
-  },
-  {
    "id": "D_R13b_R13e",
    "kit": "pressure_slide",
    "between": [
@@ -13446,6 +15134,21 @@
     "sealed": true,
     "text": "lockdown"
    }
+  },
+  {
+   "id": "D_R13d_R15a",
+   "kit": "bulkhead",
+   "between": [
+    "R13d",
+    "R15a"
+   ],
+   "cell": [
+    10,
+    0,
+    8
+   ],
+   "rot": 270,
+   "state": "closed"
   },
   {
    "id": "D_R02_R14a",
@@ -13623,7 +15326,7 @@
    "kind": "ammo_shotgun",
    "pos": [
     32.6,
-    0.9,
+    0,
     44.4
    ]
   },
@@ -13633,7 +15336,7 @@
    "kind": "ammo_shotgun",
    "pos": [
     38.8,
-    0.92,
+    0,
     43.6
    ]
   },

@@ -121,12 +121,67 @@
    },
    {
     "do": "if",
-    "flag": "climax_started",
+    "flag": "r11_powered",
     "then": [
      {
-      "do": "doorState",
-      "id": "D_R13b_R13d",
-      "state": "sealed"
+      "do": "light",
+      "id": "r11_bank_1a",
+      "pattern": "steady",
+      "power": 1
+     },
+     {
+      "do": "light",
+      "id": "r11_bank_1b",
+      "pattern": "steady",
+      "power": 1
+     },
+     {
+      "do": "light",
+      "id": "r11_bank_2a",
+      "pattern": "steady",
+      "power": 1
+     },
+     {
+      "do": "light",
+      "id": "r11_bank_2b",
+      "pattern": "steady",
+      "power": 1
+     },
+     {
+      "do": "light",
+      "id": "r11_bank_3a",
+      "pattern": "steady",
+      "power": 1
+     },
+     {
+      "do": "light",
+      "id": "r11_bank_3b",
+      "pattern": "steady",
+      "power": 1
+     },
+     {
+      "do": "light",
+      "id": "r11_beacon_ne",
+      "pattern": "off",
+      "power": 0
+     },
+     {
+      "do": "light",
+      "id": "r11_beacon_sw",
+      "pattern": "off",
+      "power": 0
+     },
+     {
+      "do": "emit",
+      "event": "r11:power_state",
+      "payload": {
+       "state": "online",
+       "instant": true
+      }
+     },
+     {
+      "do": "emit",
+      "event": "r11:hum_on"
      }
     ]
    },

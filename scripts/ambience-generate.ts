@@ -941,6 +941,37 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     prompt:
       'one single short clean electronic heart monitor beep, a pure soft sine tone, hospital vital signs monitor, one beep only, dry, no music, no voice',
   },
+  // detail-r11-power-bay: R11 Power Bay switchgear breaker throw, turbine spin-up, and continuous generator hum.
+  {
+    id: 'breaker_clunk',
+    file: 'oneshot-breaker-clunk.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.0,
+    promptInfluence: 0.7,
+    prompt:
+      'heavy industrial high voltage electrical switchgear breaker throwing shut, deep metallic mechanical clunk followed by a crisp spring latch snap and brief electrical contact arc hum, dry, close, no music, no voice',
+  },
+  {
+    id: 'turbine_spinup',
+    file: 'oneshot-turbine-spinup.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 3.0,
+    promptInfluence: 0.65,
+    prompt:
+      'large deep-sea industrial power plant turbine generator starting up and accelerating, deep heavy mechanical bearing rumble and rising turbine whine settling toward steady power, enclosed steel hall, no music, no voice',
+  },
+  {
+    id: 'generator_hum',
+    file: 'emitter-generator-hum.mp3',
+    category: 'emitter',
+    loop: true,
+    duration: 12,
+    promptInfluence: 0.55,
+    prompt:
+      'seamless steady hum of a large industrial electrical power generator and turbine running at speed inside a deep-sea steel power bay, low 60 hertz transformer drone and smooth mechanical turbine whirr, constant steady loop, no music, no voice',
+  },
 ];
 
 function loadApiKey(): string {

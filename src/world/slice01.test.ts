@@ -64,13 +64,13 @@ function build(inventory: Inventory | null = null): { level: InstanceType<typeof
   return { level, events };
 }
 
-const ROOMS = ['R01', 'R01w', 'R02', 'R03', 'R04', 'R05', 'R06', 'R07', 'R08', 'R09', 'R10', 'R11', 'R12a', 'R12b', 'R12c', 'R12d', 'R12e', 'R13a', 'R13b', 'R13c', 'R13d', 'R13e', 'R14a', 'R14b', 'R14c', 'R14d', 'R14e'];
+const ROOMS = ['R01', 'R01w', 'R02', 'R03', 'R04', 'R05', 'R06', 'R07', 'R08', 'R09', 'R10', 'R11', 'R12a', 'R12b', 'R12c', 'R12d', 'R12e', 'R13a', 'R13b', 'R13c', 'R13d', 'R13e', 'R14a', 'R14b', 'R14c', 'R14d', 'R14e', 'R15a', 'R16a', 'R16b', 'R16c'];
 
 test('slice01 validates: every ADR-0014/0023 room, areas, map stations, checkpoints', () => {
   const ids = new Set(data.rooms.map((r) => r.id));
   for (const id of ROOMS) assert.ok(ids.has(id), `room ${id}`);
   const areas = new Set(data.rooms.map((r) => r.area));
-  for (const a of ['dock', 'commons', 'gallery', 'hydroponics', 'dive_bay', 'admin', 'labs', 'security', 'medbay', 'tunnel', 'control']) assert.ok(areas.has(a), `area ${a}`);
+  for (const a of ['dock', 'commons', 'gallery', 'hydroponics', 'dive_bay', 'admin', 'labs', 'security', 'medbay', 'tunnel', 'transit']) assert.ok(areas.has(a), `area ${a}`);
   assert.deepEqual(new Set((data.mapStations ?? []).map((s) => s.reveals)), new Set(['commons', 'hydroponics', 'dive_bay', 'admin']));
   assert.deepEqual(data.checkpoints.map((c) => c.id), ['cp_first_contact', 'cp_cover_me', 'cp_security', 'cp_flooded', 'cp_climax']);
   assert.deepEqual(data.doors.find((d) => d.id === 'hydro_store')?.access, { requires: 'card_l2' });
@@ -79,8 +79,8 @@ test('slice01 validates: every ADR-0014/0023 room, areas, map stations, checkpoi
   const spawns = data.rooms.flatMap((r) => r.spawns ?? []);
   assert.ok(spawns.length >= 5);
   for (const s of spawns) assert.equal(s.active, false, s.id);
-  // trim-lab-wing-encounters: no fight in R05 or R07; R06 is the escaped creature alone.
-  assert.deepEqual(new Set(spawns.map((s) => s.group)), new Set(['r06_cover', 'r09_tunnel', 'r11_climax']));
+  // trim-lab-wing-encounters + finale-transit-rooms-geometry: no combat spawns in R11 Power Bay.
+  assert.deepEqual(new Set(spawns.map((s) => s.group)), new Set(['r06_cover', 'r09_tunnel']));
 });
 
 test('slice01 builds headlessly; every anchor the draft sequences use exists; NPCs are placed', () => {
@@ -276,8 +276,8 @@ test('slice01 critical path: nav-reachable and walkable through the real doors',
   walkTo('hydro_alarm', at(48.6, 28.4));
   walkTo('cp_round_dive');
   walkTo('dive_case_locker', at(15.8, 40));
-  // dive-bay spec: the maintenance corridor (R13d) is sealed from the Launch Hall all game.
-  assert.equal(level.doorStates()['D_R13b_R13d'] !== 'open', true);
+  // dive-bay spec (finale-transit-rooms-geometry): no doorway connects Launch Hall to R13d.
+  assert.equal(level.doorStates()['D_R13b_R13d'], undefined);
   walkTo('drop_jay');
   // The drop: lockdown behind, the way to R05 opens (sequences do this with setDoor/unlock).
   level.setDoor('D_R02_R03', 'sealed');
@@ -377,12 +377,11 @@ test('slice01 Part B: the action sequences find their anchors, doors, groups and
     for (const n of names) assert.ok(level.anchor(n), `${file}: anchor:${n}`);
     for (const m of text.matchAll(/"(?:door:|id": ")(D_[A-Za-z0-9_]+)"/g)) assert.ok(doorIds.has(m[1]!), `${file}: door ${m[1]}`);
   }
-  // Spawn groups: the counts ADR-0014 asks for.
+  // Spawn groups: R06 single creature + R09 tunnel; R11 Power Bay has zero combat spawns.
   const spawns = data.rooms.flatMap((r) => r.spawns ?? []);
   const total = (g: string): number => spawns.filter((s) => s.group === g).reduce((n, s) => n + (s.count ?? 1), 0);
   assert.equal(total('r06_cover'), 1, 'the escaped creature alone');
-  assert.equal(total('r11_climax'), 14);
-  assert.ok(spawns.some((s) => s.group === 'r11_climax' && s.variant === 'hero'), 'a hero in the climax');
+  assert.equal(total('r11_climax'), 0, 'no combat spawns in R11 Power Bay');
   // The glass wall into the medical bay takes cracks and blood; the control room hides the bloom's trail.
   const r07 = data.rooms.find((r) => r.id === 'R07')!;
   // medbay-attack: marks land where Priya touches the centre pane, so no whole-pane blood overlay; each pane its own id.
@@ -625,11 +624,11 @@ test('admin hub (R14a-R14e) props stay inside room bounds, do not overlap, and s
   for (const r of data.rooms) if (r.pieces.some((p) => p.kit === 'wall_sanity_screen')) screenRooms.add(r.id);
   assert.deepEqual([...screenRooms].sort(), ['R02', 'R12c', 'R14c', 'R14d']);
   const realRooms = new Set(data.rooms.filter((r) => r.pieces.some((p) => p.kit === 'wall_window')).map((r) => r.id));
-  assert.deepEqual([...realRooms].sort(), ['R01', 'R01w', 'R12b']);
+  assert.deepEqual([...realRooms].sort(), ['R01', 'R01w', 'R12b', 'R15a']);
   assert.ok(screens >= 4 && screens <= 8, `screens merge into about one mesh per screened room (found ${screens})`);
   const lamps = level.floodlights();
   const perRoom = (id: string): number => lamps.filter((l) => l.room === id).length;
-  assert.deepEqual([perRoom('R01'), perRoom('R01w'), perRoom('R12b'), lamps.length], [2, 2, 1, 5], 'floodlights: R01 2, R01w 2, R12b 1');
+  assert.deepEqual([perRoom('R01'), perRoom('R01w'), perRoom('R12b'), perRoom('R15a'), lamps.length], [2, 2, 1, 2, 7], 'floodlights: R01 2, R01w 2, R12b 1, R15a 2');
   assert.equal(lamps.filter((l) => l.flicker).length, 1, 'one Docking Ring lamp flickers');
   assert.ok(lamps.find((l) => l.flicker)!.room === 'R01');
   let subLamps = 0;
@@ -973,11 +972,10 @@ test('medbay staging: clear spine, viewing strip, stage and lane; the shotgun fa
 test('dive bay lanes fit two capsules side by side between the R13b doors (dive-bay spec, budgets and clearance)', () => {
   const { level } = build();
   const found: Array<{ tag: string; minY: number; maxY: number; enabled: boolean }> = [];
-  // Door to door through the launch hall: from R13a to R13e, R13c and R13d, stopping short of the door leaves.
+  // Door to door through the launch hall: from R13a to R13e and R13c (R13b east wall to R13d is solid).
   const routes: Array<Array<[number, number]>> = [
     [[24, 30.5], [21.2, 33.6], [21.0, 38.6], [18.6, 40]],
     [[24, 30.5], [21.0, 32.1], [18.6, 32]],
-    [[24, 30.5], [26.5, 32.6], [29.4, 32]],
   ];
   for (const route of routes) {
     for (let i = 1; i < route.length; i++) {
@@ -1039,11 +1037,12 @@ test('dive bay (R13a-R13e) props stay inside room bounds, do not overlap, and NP
   }
 });
 
-test('dive bay rooms have their new roles: no dive-suit racks, the cold store at the stow point, the leak in R13d', () => {
+test('dive bay rooms have their roles: four dive_bay rooms, no dive-suit racks, cold store at stow point, and R13d detached', () => {
   const props = data.rooms.flatMap((r) => (r.props ?? []).map((p) => ({ room: r.id, ...p })));
   assert.equal(props.filter((p) => p.kit === 'dive_suit_rack').length, 0, 'no open-water dive suits anywhere in slice01');
-  const names = Object.fromEntries(data.rooms.filter((r) => r.id.startsWith('R13')).map((r) => [r.id, r.name]));
-  assert.deepEqual(names, { R13a: 'Wet Vestibule', R13b: 'Launch Hall', R13c: 'ROV Workshop', R13d: 'Maintenance Corridor', R13e: 'Sample Store' });
+  const diveNames = Object.fromEntries(data.rooms.filter((r) => r.area === 'dive_bay').map((r) => [r.id, r.name]));
+  assert.deepEqual(diveNames, { R13a: 'Wet Vestibule', R13b: 'Launch Hall', R13c: 'ROV Workshop', R13e: 'Sample Store' });
+  assert.equal(data.rooms.find((r) => r.id === 'R13d')!.area, 'transit', 'R13d belongs to transit wing');
   const store = props.find((p) => p.kit === 'cold_store')!;
   assert.equal(store.room, 'R13e');
   const locker = data.rooms.find((r) => r.id === 'R13e')!.anchors!.find((a) => a.id === 'dive_case_locker')!;
@@ -1051,8 +1050,7 @@ test('dive bay rooms have their new roles: no dive-suit racks, the cold store at
   for (const kit of ['gantry_crane', 'rov', 'tether_winch', 'pilot_console', 'whiteboard', 'wet_bench', 'core_rack', 'eyewash_station', 'shadow_board']) {
     assert.ok(props.some((p) => p.room === 'R13b' && p.kit === kit), `R13b has a ${kit}`);
   }
-  assert.ok(props.some((p) => p.room === 'R13d' && p.kit === 'pipe_leak'), 'R13d leak');
-  assert.ok(data.rooms.find((r) => r.id === 'R13d')!.triggers!.some((t) => t.emit === 'trigger:dive_leak'), 'leak trigger');
+  assert.equal(props.some((p) => p.room === 'R13d' && (p.kit === 'pipe_run' || p.kit === 'pipe_leak')), false, 'blocking R13d pipe and leak removed');
 });
 
 test('dive bay signage and wear: plates by the entries, and 4-8 wear decals per clean room (surface-dressing §4)', () => {
@@ -1066,7 +1064,7 @@ test('dive bay signage and wear: plates by the entries, and 4-8 wear decals per 
     assert.ok(n >= 4 && n <= 8, `${id}: ${n} wear decals`);
   }
   assert.equal(props('R13d').find((p) => p.kit === 'room_sign')!.params!['panel'], false, 'R13d plate only');
-  for (const id of ['R13b', 'R13d']) assert.ok(props(id).some((p) => p.kit === 'pipe_labels'), `${id} pipe labels`);
+  assert.ok(props('R13b').some((p) => p.kit === 'pipe_labels'), 'R13b pipe labels');
 });
 
 test('security and medbay overhaul: low fog, cleanWall armory walls, 8-light shared pool, and purposeful dressing (security-medbay spec)', () => {
@@ -1141,23 +1139,76 @@ test('the squad and enemies can path from R07 through the sump to the pump room'
   assert.ok(path.some((p) => p.y < -1), 'through the sump');
 });
 
-// dive-bay spec "The maintenance corridor is closed from the dive bay".
-test('the Launch Hall door to the maintenance corridor is out of service all game; the corridor still opens onto R11 for the climax', () => {
-  const { level, events } = build();
-  const uses = new Map<string, Interactable>();
-  level.registerInteractions({ add: (i: Interactable) => (uses.set(i.id, i), () => undefined) } as unknown as Interactions);
-  const denied: Array<{ id: string; key: string }> = [];
-  events.on('access:denied', (e) => void denied.push({ id: e.id, key: e.hint.key }));
-  uses.get('door:D_R13b_R13d')!.use();
-  assert.deepEqual(denied, [{ id: 'D_R13b_R13d', key: 'access_sealed_out_of_service' }]);
-  assert.notEqual(level.doorStates()['D_R13b_R13d'], 'open');
-  assert.equal(ui['access_sealed_out_of_service'], "This door won't open. Out of service.");
-  level.resetToData();
-  uses.get('door:D_R13b_R13d')!.use();
-  assert.equal(denied.length, 2, 'still shut after a reload');
-  // The climax opens the R11 side, which the climax spec owns.
+// dive-bay + transit-wing specs (finale-transit-rooms-geometry): solid wall between R13b and R13d,
+// walkable transit wing (R11 -> R13d -> R15a -> Train A; Train B -> R16a -> stairs -> R16b -> R16c),
+// and isolated Arrival Terminal culled from the departure wing.
+test('transit wing: solid Dive Bay wall, walkable departure bay and grand arrival terminal, and arrival culled from departure', () => {
+  const { level } = build();
+  assert.equal(data.doors.some((d) => d.id === 'D_R13b_R13d'), false, 'no D_R13b_R13d door in slice01');
+  const r11 = data.rooms.find((r) => r.id === 'R11')!;
+  assert.equal(r11.name, 'Power Bay');
+  assert.equal(r11.height, 5);
+  assert.equal(data.rooms.find((r) => r.id === 'R16b')!.height, 8, 'R16b has 8.0 m grand concourse ceiling');
+
+  // Solid wall separates Launch Hall (x=29.2, z=32) from R13d (x=30.8, z=32).
+  const wallHits = level.collision.query(29.7, 31.5, 30.3, 32.5, []).filter((b) => b.max[1] > 2.5);
+  assert.ok(wallHits.length > 0, 'solid wall collider separates R13b and R13d');
+
+  // Arrival terminal is culled when standing in R11, R13d, or R15a.
+  for (const anchorId of ['r11_hold', 'dark_corridor', 'r15a_platform']) {
+    const a = level.anchor(anchorId)!.pos;
+    level.update(0, 0.016, new THREE.Vector3(a.x, a.y + 1.62, a.z), false);
+    for (const arr of ['R16a', 'R16b', 'R16c']) {
+      assert.equal(level.group.getObjectByName(`room:${arr}`)!.visible, false, `${arr} culled from ${anchorId}`);
+    }
+  }
+
+  // Headless walk: R11 -> R13d -> R15a -> inside Train Car A, and Train Car B -> west platform -> south stairs -> R16b -> R16c.
   level.setDoor('D_R13d_R11', 'open');
-  assert.equal(level.doorStates()['D_R13d_R11'], 'open');
+  level.setDoor('D_R13d_R15a', 'open');
+  level.setDoor('D_R16b_R16c', 'open');
+  const openEye = new THREE.Vector3(36, 1.62, 34);
+  for (let i = 0; i < 60; i++) level.update(i / 30, 1 / 30, openEye, false);
+  const nav = level.navGraph();
+  const walkChain = (startAnchor: string, targets: string[]): void => {
+    const start = level.anchor(startAnchor)!.pos;
+    const body: MotorState = { x: start.x, y: start.y, z: start.z, vy: 0, grounded: true };
+    const eye = new THREE.Vector3();
+    for (const target of targets) {
+      const to = level.anchor(target)!.pos;
+      const path = nav.findPath({ x: body.x, y: body.y, z: body.z }, to, { radius: 0.3 });
+      assert.ok(path, `nav route from ${startAnchor} to ${target}`);
+      for (const wp of path!) {
+        for (let step = 0; step < 30 * 20; step++) {
+          const dx = wp.x - body.x;
+          const dz = wp.z - body.z;
+          const d = Math.hypot(dx, dz);
+          if (d < 0.25) break;
+          const v = Math.min(d, 4 / 30);
+          moveBody(body, (dx / d) * v, (dz / d) * v, 1 / 30, DEFAULT_MOTOR, level.collision);
+          level.update(step / 30, 1 / 30, eye.set(body.x, body.y + 1.62, body.z), false);
+        }
+      }
+      assert.ok(Math.hypot(to.x - body.x, to.z - body.z) < 0.6, `walked to ${target}`);
+      assert.ok(Math.abs(body.y - to.y) < 0.12, `${target}: y ${body.y.toFixed(2)} near ${to.y.toFixed(2)}`);
+    }
+  };
+  walkChain('r11_hold', ['dark_corridor', 'r15a_platform', 'r15a_train_inside']);
+  walkChain('r16_train_inside', ['r16_train_exit', 'r16_concourse', 'r16_dispatch']);
+
+  // detail-r11-power-bay: R11 has twin power_generators, switchgear_bank, power_terminal, and clear squad walkability.
+  const r11Props = r11.props ?? [];
+  assert.equal(r11Props.filter((p) => p.kit === 'power_generator').length, 2, 'R11 has twin parallel turbine-generators');
+  assert.ok(r11Props.some((p) => p.kit === 'switchgear_bank'), 'R11 has switchgear_bank');
+  assert.ok(r11Props.some((p) => p.kit === 'power_terminal'), 'R11 has power_terminal');
+  walkChain('r11_giles_task', ['r11_hold', 'dark_corridor']);
+
+  // Under station backup power, R11's 6 overhead bank lights are dark while beacons & desk lamp keep it readable.
+  level.setPower('backup');
+  const r11Lights = level.roomLights('R11');
+  const overheadDark = r11Lights.filter((l) => l.kind === 'ceiling' && l.light.power === 0);
+  assert.equal(overheadDark.length, 6, 'all 6 overhead cascade bank lights are dark under backup power');
+  assert.ok(r11Lights.some((l) => l.kind === 'emergency' && l.light.power > 0), 'standby emergency beacons stay lit');
 });
 
 test('`jump=r10_flood` stands Jay at the valve, within reach of its use box', () => {

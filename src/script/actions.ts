@@ -813,10 +813,10 @@ export const ACTIONS: Record<string, ActionDef> = {
     if (s.wait && s.s) return timed(s.s);
   }),
 
-  /** One named light alone (render-lighting spec): `pattern`, and `tint` ("emergency", "#rrggbb" or "none"). */
-  light: act({ id: str, pattern: oneOf(LIGHT_PATTERNS), tint: optional(str) }, (s, ctx) => {
+  /** One named light alone (render-lighting spec): `pattern`, `tint` ("emergency", "#rrggbb" or "none"), and optional auxiliary `power` in [0, 1]. */
+  light: act({ id: str, pattern: oneOf(LIGHT_PATTERNS), tint: optional(str), power: optional(numRange(0, 1)) }, (s, ctx) => {
     if (!ctx.host.light) return ctx.missing('light');
-    if (!ctx.host.light(s.id, s.pattern, s.tint)) ctx.host.warn(`${ctx.seqId}: light: no light "${s.id}"`);
+    if (!ctx.host.light(s.id, s.pattern, s.tint, s.power)) ctx.host.warn(`${ctx.seqId}: light: no light "${s.id}"`);
   }),
 
   /** `beat: true`: land on the score's next beat (adaptive-music spec), or play at once with no score. */

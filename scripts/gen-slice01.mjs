@@ -1073,46 +1073,161 @@ trigger(R10, 'trig_r10_ambush', [[30.3, 0, 45.8], [33.6, 2.2, 50.2]], 'trigger:r
 trigger(R10, 'trig_r10_valve', around([36.9, 0, 52.6], 0.8, 2.2), 'valve:r10_main', { on: 'use', prompt: 'Turn valve' });
 checkpoints.push({ id: 'cp_flooded', room: 'R09', pos: [6.9, 0, 44], yaw: 270 });
 
-// ---------------------------------------------------------------- R11 control room (control)
-const R11 = room('R11', 'Control Room', rect(8, 10, 9, 11), {
-  area: 'control',
-  height: 4,
+// ---------------------------------------------------------------- R11 power bay (transit)
+const TRANSIT_ATMOS = { fog: '#060a0e', fogDensity: 0.018, reverb: 'metal_hall', ambience: 'hull_hum' };
+const R11 = room('R11', 'Power Bay', rect(8, 10, 9, 11), {
+  area: 'transit',
+  height: 5.0,
   ceiling: 'ceiling_pipes',
-  atmosphere: { fog: '#05070a', fogDensity: 0.05, reverb: 'metal_hall', ambience: 'hull_hum' },
-  lights: [L(0, 'steady', '#cfe0ff', 8), L(2, 'flicker', '#cfe0ff', 7), L(4, 'steady', '#cfe0ff', 9), L(6, 'steady', '#cfe0ff', 7), L(8, 'dying', '#cfe0ff', 6)],
+  atmosphere: TRANSIT_ATMOS,
+  lights: [
+    // Bank 1 (west / terminal row)
+    L(0, 'steady', '#dce8f4', 14, 18, { id: 'r11_bank_1a' }),
+    L(6, 'steady', '#dce8f4', 14, 18, { id: 'r11_bank_1b' }),
+    // Bank 2 (center aisle row, 1 shadow slot)
+    L(1, 'steady', '#dce8f4', 16, 20, { id: 'r11_bank_2a', shadow: true }),
+    L(7, 'steady', '#dce8f4', 16, 20, { id: 'r11_bank_2b' }),
+    // Bank 3 (east / generator row, 1 shadow slot)
+    L(2, 'steady', '#dce8f4', 15, 18, { id: 'r11_bank_3a' }),
+    L(8, 'steady', '#dce8f4', 15, 18, { id: 'r11_bank_3b', shadow: true }),
+    // Standby terminal task light + emergency beacons (keep bay readable under backup power).
+    L(3, 'steady', '#ffb870', 7, 8, { id: 'r11_desk_lamp', backup: true, backupScale: 0.25, ownColor: true }),
+    L('emergency', 'off', '#ff3b24', 10, 14, { id: 'r11_beacon_ne', ownColor: true }),
+    L('emergency', 'off', '#ff3b24', 10, 14, { id: 'r11_beacon_sw', ownColor: true }),
+  ],
 });
-prop(R11, 'console_bank', [38.4, 0, 35], 180, { width: 3.6, mode: 'control' });
-prop(R11, 'console_bank', [41.4, 0, 41], 90, { width: 3, mode: 'control' });
-prop(R11, 'console', [31.2, 0, 38], 270, { screen: 'status' });
-prop(R11, 'chair', [38.4, 0, 36.6]);
-prop(R11, 'chair', [40, 0, 41.4]);
-prop(R11, 'crate_stack', [32.6, 0, 44.4], 0);
-prop(R11, 'crate', [38.8, 0, 43.6], 25, { size: 0.9 });
-prop(R11, 'cable_bundle', [36, 0, 40], 0, { length: 12, height: 3.6 });
-prop(R11, 'emergency_beacon', [41.7, 2.8, 36], 270, { wall: true });
-prop(R11, 'emergency_beacon', [30.3, 2.8, 42], 90, { wall: true });
+// West wall: Giles's transit power-up terminal at final_console + distribution boxes + signage.
+prop(R11, 'power_terminal', [31.1, 0, 38.0], 270, {});
+prop(R11, 'electrical_box', [30.42, 0.9, 35.8], 270, {});
+prop(R11, 'power_box', [30.46, 0.9, 40.3], 270, {});
+prop(R11, 'cable_drum', [31.1, 0, 42.6], 20, {});
+wallProp(R11, 'transit_sign', 8, 11, 'w', -0.9, { title: 'POWER BAY 11', sub: 'AUXILIARY TURBINE PLANT · DECK 0', y: 2.0 });
+wallProp(R11, 'transit_sign', 8, 9, 'n', 1.2, { title: 'TRANSIT RAIL', sub: 'BOARDING PLATFORM ->', y: 1.9 });
+
+// East machinery bay: twin parallel turbine-generators, HV switchgear bank, auxiliary gear.
+prop(R11, 'power_generator', [39.5, 0, 38.2], 90, { ceiling: 5.0 });
+prop(R11, 'power_generator', [39.5, 0, 42.0], 90, { ceiling: 5.0 });
+prop(R11, 'switchgear_bank', [39.5, 0, 34.78], 180, { ceiling: 5.0 });
+prop(R11, 'electrical_box_02', [39.8, 0, 45.1], 0, {});
+prop(R11, 'gas_cylinder', [38.0, 0, 44.9], 15, {});
+prop(R11, 'gas_cylinder', [38.5, 0, 45.1], -20, {});
+prop(R11, 'platform_trolley', [35.6, 0, 44.7], 12, {});
+wallProp(R11, 'transit_sign', 10, 10, 'e', 0.1, { title: 'HIGH VOLTAGE', sub: '4.16 kV SWITCHGEAR · AUTHORIZED ONLY', y: 2.1, accent: '#d93b2b', width: 1.15, height: 0.4 });
+
+// Upper 5.0 m volume: structural ribs, overhead pipe runs, and west cable tray.
+prop(R11, 'rib_frame', [36.0, 0, 36.2], 0, { width: 11.4, height: 5.0 });
+prop(R11, 'rib_frame', [36.0, 0, 43.8], 0, { width: 11.4, height: 5.0 });
+prop(R11, 'pipe_run', [36.0, 0, 38.2], 0, { length: 7.4, height: 4.55, ceiling: 5.0, hung: true, paint: 'teal' });
+prop(R11, 'pipe_run', [36.0, 0, 42.0], 0, { length: 7.4, height: 4.55, ceiling: 5.0, hung: true, paint: 'dark' });
+prop(R11, 'cable_bundle', [31.2, 0, 40.0], 90, { length: 8.8, height: 4.4 });
+
+// Positioned generator hum emitter (gated on r11:hum_on).
+prop(R11, 'ambient_loop', [39.5, 1.2, 40.1], 0, { sound: 'generatorHum', gain: 0.42, range: 16, on: 'r11:hum_on' });
+
+prop(R11, 'emergency_beacon', [41.7, 3.2, 36], 270, { wall: true });
+prop(R11, 'emergency_beacon', [30.3, 3.2, 42], 90, { wall: true });
 anchor(R11, 'giles_final', [32.4, 0, 38], 270);
 anchor(R11, 'final_console', [31.2, 1.2, 38]);
 anchor(R11, 'r11_hold', [36, 0, 40], 0);
-anchor(R11, 'ammo_r11', [32.6, 0.9, 44.4]);
-// Beat 7/8: Giles works facing the console; the reveal turns him to the room. Spare shells for the climax.
+anchor(R11, 'ammo_r11', [32.6, 0, 44.4]);
 anchor(R11, 'r11_giles_task', [32.4, 0, 38], 90);
 anchor(R11, 'r11_okafor_end', [35.4, 0, 40.4], 70);
 anchor(R11, 'r11_okafor_step', [34.0, 0, 39.3], 70);
 anchor(R11, 'r11_jay_end', [35.8, 0, 38.3], 90);
-anchor(R11, 'ammo_r11_b', [38.8, 0.92, 43.6]);
+anchor(R11, 'ammo_r11_b', [38.8, 0, 43.6]);
 anchor(R11, 'ammo_r11_c', [40.2, 0, 37.2]);
-// Beat 8: the bloom's fluid trail runs from Giles's console back toward the south door (revealed by `reveal:trail`).
+// Retained until Phase 3 rewrites the ending sequence.
 prop(R11, 'fluid_trail', [32.6, 0, 38.5], 203.6, { length: 8, width: 1, seed: 2 });
-// ~14 enemies through two entrances (R10 side and the R13d maintenance door), max 8 active.
-spawn(R11, 'r11_door_south', [32, 0, 48.6], 'door', 'r11_climax', { count: 4, interval: 5, yaw: 0 });
-spawn(R11, 'r11_door_north', [36, 0, 31.6], 'door', 'r11_climax', { count: 4, interval: 5, yaw: 180 });
-spawn(R11, 'r11_vent_1', [40, 3.8, 44], 'ceiling', 'r11_climax', { count: 2, interval: 8 });
-spawn(R11, 'r11_vent_2', [32, 3.8, 36], 'ceiling', 'r11_climax', { count: 1 });
-spawn(R11, 'r11_corridor', [40, 0, 32], 'floor', 'r11_climax', { count: 2, interval: 6 });
-spawn(R11, 'r11_hero', [34, 0, 31.6], 'door', 'r11_climax', { variant: 'hero', yaw: 180 });
 trigger(R11, 'trig_r11_enter', cellBox(8, 8, 11, 11), 'trigger:r11_enter');
 checkpoints.push({ id: 'cp_climax', room: 'R11', pos: [32, 0, 43], yaw: 0 });
+
+// ---------------------------------------------------------------- R15a departure boarding bay (transit, N-S)
+const R15a = room('R15a', 'Departure Boarding Bay', rect(11, 13, 8, 11), {
+  area: 'transit',
+  height: 5.0,
+  ceiling: 'ceiling_pipes',
+  atmosphere: { ...TRANSIT_ATMOS, fogDensity: 0.014 },
+  lights: [
+    L(0, 'steady', '#dce8f4', 14, 18, { backupScale: 1, ownColor: true }),
+    L(2, 'steady', '#dce8f4', 14, 18, { backupScale: 1, ownColor: true }),
+    L(4, 'steady', '#dce8f4', 16, 20, { backupScale: 1, ownColor: true }),
+    L(7, 'steady', '#dce8f4', 16, 20, { backupScale: 1, ownColor: true }),
+    L(9, 'steady', '#dce8f4', 14, 18, { backupScale: 1, ownColor: true }),
+    L(11, 'steady', '#dce8f4', 14, 18, { backupScale: 1, ownColor: true }),
+  ],
+});
+for (const z of [8, 9, 10, 11]) wallKit(R15a, 13, z, 'e', 'wall_window');
+prop(R15a, 'track_bed', [48, 0, 38], 0, { length: 15.4 });
+// Train Car A: nose facing south (+Z, rot 180), open west boarding doorway facing the X=11 platform.
+prop(R15a, 'transit_train_shell', [48, 0, 38], 180, { length: 10.4, width: 3.0, height: 2.9, doorSide: 'right' });
+anchor(R15a, 'r15a_platform', [44.0, 0, 32.0], 225);
+anchor(R15a, 'r15a_train_inside', [48.0, 0.08, 38.0], 180);
+
+// ---------------------------------------------------------------- R16a/b/c arrival terminal (isolated on grid)
+const ARRIVAL_SINK = -0.6;
+const ARRIVAL_STAIRS = { rise: 0.6, run: 1.8, steps: 3, width: 3.98, offset: -1.1, rails: 'none' };
+const R16a = room('R16a', 'Arrival Track Dock', rect(21, 23, 8, 10), {
+  area: 'transit',
+  height: 5.0,
+  floorY: ARRIVAL_SINK,
+  ceiling: 'ceiling_pipes',
+  atmosphere: { ...TRANSIT_ATMOS, fogDensity: 0.014 },
+  extraPieces: [
+    { kit: 'stairs', cell: [21, 0, 10], rot: 180, params: ARRIVAL_STAIRS },
+    { kit: 'stairs', cell: [22, 0, 10], rot: 180, params: ARRIVAL_STAIRS },
+    { kit: 'stairs', cell: [23, 0, 10], rot: 180, params: ARRIVAL_STAIRS },
+  ],
+  lights: [
+    L(0, 'steady', '#dce6f2', 14, 18, { backupScale: 1, ownColor: true }),
+    L(4, 'steady', '#dce6f2', 16, 20, { backupScale: 1, ownColor: true }),
+    L(8, 'steady', '#dce6f2', 14, 18, { backupScale: 1, ownColor: true }),
+  ],
+});
+const R16b = room('R16b', 'Arrival Concourse', rect(20, 24, 11, 16), {
+  area: 'transit',
+  height: 8.0,
+  ceiling: 'ceiling',
+  atmosphere: { ...TRANSIT_ATMOS, fogDensity: 0.012, reverb: 'metal_hall' },
+  lights: [
+    L(2, 'steady', '#dce6f2', 24, 26, { backupScale: 1, ownColor: true }),
+    L(7, 'steady', '#dce6f2', 24, 26, { backupScale: 1, ownColor: true }),
+    L(12, 'steady', '#dce6f2', 24, 26, { backupScale: 1, ownColor: true }),
+    L(17, 'steady', '#dce6f2', 24, 26, { backupScale: 1, ownColor: true }),
+    L(22, 'steady', '#dce6f2', 24, 26, { backupScale: 1, ownColor: true }),
+    L(27, 'steady', '#dce6f2', 24, 26, { backupScale: 1, ownColor: true }),
+  ],
+});
+const R16c = room('R16c', 'Arrival Dispatch', rect(21, 23, 17, 17), {
+  area: 'transit',
+  height: 3.6,
+  atmosphere: { ...TRANSIT_ATMOS, fogDensity: 0.014, reverb: 'small_office' },
+  lights: [
+    L(0, 'steady', '#dce6f2', 12, 14, { backupScale: 1, ownColor: true }),
+    L(2, 'steady', '#dce6f2', 12, 14, { backupScale: 1, ownColor: true }),
+  ],
+});
+for (const x of [21, 22, 23]) opening('R16a', 'R16b', x, 10, 's');
+door('D_R16b_R16c', 'R16b', 'R16c', 22, 16, 's', { kit: 'pressure_slide', state: 'closed' });
+// Close the 5.0 m -> 8.0 m ceiling height step over the R16a/R16b open seam.
+prop(R16b, 'seam_header', [88.0, 0, 42.0], 0, { width: 12.0, bottom: 5.0, top: 8.0, depth: 0.4 });
+// Train Car B stops down the center right before the south stairs; west door faces X=21 exit platform (~4.25 m to wall).
+prop(R16a, 'track_bed', [88.0, ARRIVAL_SINK, 34.8], 0, { length: 9.0 });
+prop(R16a, 'transit_train_shell', [88.0, ARRIVAL_SINK, 35.0], 180, { length: 9.0, width: 3.0, height: 2.9, doorSide: 'right' });
+// Symmetrical grand bank-style colonnade (3 pillar pairs flanking the central avenue to the check-in booths).
+for (const z of [46.5, 51.5, 56.5]) {
+  prop(R16b, 'concourse_pillar', [83.2, 0, z], 0, { width: 1.5, height: 8.0 });
+  prop(R16b, 'concourse_pillar', [92.8, 0, z], 0, { width: 1.5, height: 8.0 });
+}
+// Check-in booth bays along both flanks south of the pillar colonnade, counters facing inward toward x = 88.
+for (const z of [59.5, 63.5]) {
+  prop(R16b, 'checkin_booth', [79.45, 0, z], 270, { width: 3.6, depth: 2.2, height: 3.2 });
+  prop(R16b, 'checkin_booth', [96.55, 0, z], 90, { width: 3.6, depth: 2.2, height: 3.2 });
+}
+anchor(R16a, 'r16_train_inside', [88.0, ARRIVAL_SINK + 0.08, 35.0], 180);
+// Exiting west out of Train Car B facing the west wall (~2.75 m ahead); turn left (south) to climb the stairs.
+anchor(R16a, 'r16_train_exit', [85.0, ARRIVAL_SINK, 35.0], 90);
+anchor(R16b, 'r16_concourse', [88.0, 0, 44.0], 180);
+anchor(R16c, 'r16_dispatch', [88.0, 0, 68.0], 0);
 
 // ---------------------------------------------------------------- R12 hydroponics hub
 const HYDRO = { fog: '#141e1b', fogDensity: 0.016, ambient: 'hydro', reverb: 'small_office', ambience: 'hydro_misters' };
@@ -1260,24 +1375,24 @@ const R13b = room('R13b', 'Launch Hall', rect(5, 7, 8, 10), {
 });
 const R13c = room('R13c', 'ROV Workshop', [[4, 8], [4, 9]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'small_office' }, floor: 'floor_tiles', lights: [L(0, 'steady', WORK, 7), L(1, 'steady', WORK, 6)] });
 const R13d = room('R13d', 'Maintenance Corridor', rect(8, 10, 8, 8), {
-  area: 'dive_bay',
-  // The only decayed room in the bay (rebuild-dive-bay): rust by override so the dive map still reveals it.
+  area: 'transit',
+  // Detached from the Dive Bay (finale-transit-rooms-geometry); keeps rust overrides until Phase 2b.
   wallMaterial: 'rustBlotch',
   ceilingMaterial: 'paintDark',
   floorMaterial: 'diamondRusty',
-  atmosphere: { fog: '#020405', fogDensity: 0.09, ambient: 'dark', reverb: 'metal_corridor', ambience: 'hull_groan' },
+  atmosphere: { fog: '#020405', fogDensity: 0.05, ambient: 'dark', reverb: 'metal_corridor', ambience: 'hull_groan' },
   ceiling: 'ceiling_pipes',
   walls: ['wall_plain', 'wall_vent'],
-  lights: [L(2, 'dying', '#ffcf9a', 3, 6)],
+  lights: [L(0, 'steady', '#ffcf9a', 5, 10), L(2, 'dying', '#ffcf9a', 5, 10)],
 });
 const R13e = room('R13e', 'Sample Store', [[4, 10]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'small_office' }, floor: 'floor_tiles', lights: [L(0, 'steady', WORK, 7)] });
 door('D_R02_R13a', 'R02', 'R13a', 6, 6, 's');
 door('D_R13a_R13b', 'R13a', 'R13b', 6, 7, 's');
 door('D_R13b_R13c', 'R13b', 'R13c', 5, 8, 'w');
-// The unfinished maintenance corridor is shut from the dive bay all game (dive-bay spec); the climax opens it from R11.
-door('D_R13b_R13d', 'R13b', 'R13d', 7, 8, 'e', { access: { sealed: true, text: 'out_of_service' } });
+// R13b-R13d wall is solid (D_R13b_R13d removed in finale-transit-rooms-geometry).
 door('D_R13b_R13e', 'R13b', 'R13e', 5, 10, 'w');
 door('D_R13d_R11', 'R13d', 'R11', 9, 8, 's', { kit: 'bulkhead', access: { sealed: true, text: 'lockdown' } });
+door('D_R13d_R15a', 'R13d', 'R15a', 10, 8, 'e', { kit: 'bulkhead', state: 'closed' });
 station(R13a, 'dive_map', 'dive_bay', 6, 7, 'w');
 // R13a wet vestibule: boot wash and coveralls on the east wall, a grated wash mat over the drain on the centreline.
 wallProp(R13a, 'boot_wash', 6, 7, 'e', -0.9, { width: 1.3 }, 0.01);
@@ -1303,7 +1418,6 @@ wallProp(R13c, 'room_sign', 4, 9, 'e', -0.95, { code: 'R13C', name: 'ROV WORKSHO
 wallProp(R13e, 'room_sign', 4, 10, 's', -1.05, { code: 'R13E', name: 'SAMPLE STORE', warn: 'LAB B CHAIN OF CUSTODY', co2: 590, rh: 55 }, 0.01);
 wallProp(R13d, 'room_sign', 8, 8, 'n', -1.2, { code: 'R13D', name: 'MAINTENANCE', panel: false }, 0.01);
 prop(R13b, 'pipe_labels', [24.5, 0, 41.4], 0, { length: 8, y: 0.4, radius: 0.1, labels: 'SEAWATER COOLING:#2f7a3a|HYDRAULIC RETURN:#b4551c' });
-prop(R13d, 'pipe_labels', [36, 0, 33.4], 0, { length: 11, y: 0.5, radius: 0.1, labels: 'SEAWATER COOLING:#2f7a3a|HYDRAULIC SUPPLY:#b4551c|FRESH WATER:#2b5d8a' });
 // Wear by rule (task 5.2): wet where water is, oil under the workshop bench, salt rings at drains and doors.
 for (const [x, z, w, d, rot] of [[24, 33.9, 2.6, 0.7, 0], [21.8, 36, 2.4, 0.6, 90], [24, 38.15, 2.4, 0.6, 180], [27.3, 38.4, 1.4, 1.0, 0]]) prop(R13b, 'floor_wear', [x, 0, z], rot, { kind: 'puddle', width: w, depth: d });
 prop(R13b, 'floor_wear', [22.4, 0, 31.6], 20, { kind: 'prints', width: 0.9, depth: 2.4 });
@@ -1327,8 +1441,6 @@ prop(R13c, 'platform_trolley', [16.4, 0, 34.9], 0, { id: 'rov_trolley' }, { dyna
 wallProp(R13c, 'parts_bins', 4, 8, 'n', 0, { width: 1.6 }, 0.01);
 wallProp(R13c, 'gas_cylinder_rack', 4, 9, 's', -1.0, undefined, 0.01);
 wallProp(R13c, 'hose_reel', 4, 9, 'e', 0.6, undefined, 0.01);
-prop(R13d, 'pipe_run', [36, 0, 33.4], 0, { length: 11, height: 0.5, paint: 'dark' });
-prop(R13d, 'crate', [41, 0, 30.8], 15, { size: 0.7 });
 prop(R13d, 'debris_pile', [37.6, 0, 31.2]);
 // R13e sample store: the Lab B cold store (the stow point) on the west wall, fridges on the south, freezer, pressure
 // cabinet and survival suits on the north.
@@ -1350,15 +1462,11 @@ anchor(R13b, 'dive_crew_lean', [26.24, 0, 30.75], 270);
 anchor(R13b, 'dive_case_pickup', [21.4, 0, 37.2], 270);
 anchor(R13e, 'dive_case_locker', [15, 1.0, 40]);
 anchor(R13d, 'dark_corridor', [32, 0, 32], 270);
-// A hissing leak on the R13d pipe run (rebuild-dive-bay): steam puff, and `trigger:dive_leak` plays the hiss.
-prop(R13d, 'pipe_leak', [38.5, 0.5, 33.4], 0);
-anchor(R13d, 'dive_leak', [38.5, 0.6, 33.4]);
 npc(R13b, 'diver_1', 'diver', [26.4, 0, 35.4], 'idle_hips');
 npc(R13b, 'maint_1', 'maintenance', [26.6, 0, 37.9], 'crouchWork', { yaw: 270 }); // at the ROV's core basket
 npc(R13e, 'diver_2', 'diver', [16.6, 0, 39.4], 'idle_weight');
 trigger(R13a, 'trig_dive_enter', cellBox(6, 6, 7, 7), 'trigger:dive_enter', { once: false });
 trigger(R13d, 'trig_dive_dark', cellBox(8, 8, 8, 8), 'area:dark');
-trigger(R13d, 'trig_dive_leak', around([38.5, 0, 32.9], 1.4, 2.2), 'trigger:dive_leak', { once: false });
 trigger(R13e, 'trig_dive_case', around([15.6, 0, 40], 0.8, 2), 'round:dive_case', { on: 'use', prompt: 'Stow sample case', once: false });
 trigger(R13e, 'trig_dive_lockers', cellBox(4, 4, 10, 10), 'trigger:dive_lockers_enter', { once: false });
 
@@ -1656,8 +1764,8 @@ function build() {
 // Medical Bay's west wall above the console (west-wall beacons face rot 90, as in R06 and R07).
 prop(R02, 'emergency_beacon', [14.3, 3.0, 20], 90, { wall: true });
 prop(R08, 'emergency_beacon', [-5.7, 2.6, 50], 90, { wall: true });
-// R09 authors its own red beacons (overhaul-flooded-tunnel), so it takes no standby beacon here.
-for (const [r, n] of [[R02, 1], [R05, 1], [R06, 2], [R07, 1], [R08, 1], [R11, 2]]) for (let i = 0; i < n; i++) r.lights.push(L('emergency', 'off'));
+// R09 and R11 author their own beacons, so they take no generic standby beacon here.
+for (const [r, n] of [[R02, 1], [R05, 1], [R06, 2], [R07, 1], [R08, 1]]) for (let i = 0; i < n; i++) r.lights.push(L('emergency', 'off'));
 
 SPAWN_FIELDS = await detectSpawnFields();
 const level = build();

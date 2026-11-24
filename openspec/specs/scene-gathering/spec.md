@@ -34,16 +34,16 @@ Skipping a scene SHALL complete any gather step at once: squadmates outside the 
 - **WHEN** the player skips while a gather step is waiting
 - **THEN** both squadmates end inside the room and the scene's end state applies
 
-### Requirement: Climax keeps the fight in the Control Room wing
-When the climax opens `D_R13d_R11` as an enemy entrance, `D_R13b_R13d` SHALL be sealed, so Jay can step into the R13d corridor but cannot reach the dive bay. Restoring a save taken after the climax started SHALL seal it again.
+### Requirement: R11 wing stays physically isolated from the dive bay
+Because `R13d` is physically separated from the Launch Hall (`R13b`) by a solid wall with no `D_R13b_R13d` door, opening `D_R13d_R11` during `R11` sequences SHALL NOT allow Jay or squadmates to reach the Dive Bay, and neither `action_climax` nor `action_restore` SHALL issue `doorState` commands for a removed `D_R13b_R13d` door.
 
-#### Scenario: Jay retreats through the north entrance
-- **WHEN** Jay walks out of R11 into R13d during the climax
-- **THEN** the door from R13d to the Launch Hall stays sealed
+#### Scenario: Stepping into R13d from R11
+- **WHEN** `D_R13d_R11` is open and Jay walks north into `R13d`
+- **THEN** the west end of `R13d` is a solid wall and the Dive Bay (`R13b`) cannot be entered from `R13d`
 
-#### Scenario: Load during the climax
-- **WHEN** a save with `climax_started` set is loaded
-- **THEN** `D_R13b_R13d` is sealed
+#### Scenario: Restoring a save taken in R11
+- **WHEN** `action_restore` runs for a save taken after entering `R11`
+- **THEN** it completes without referencing a non-existent `D_R13b_R13d` door
 
 ### Requirement: Climax gathers in R11 before it seals
 When the climax is won, the scene SHALL wait until Jay and both squadmates are inside R11 (`gatherIn R11`) before Giles's "Doors sealing" line plays and `D_R10_R11` and `D_R13d_R11` seal. The reveal SHALL only start with Jay inside R11.

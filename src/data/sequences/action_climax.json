@@ -43,11 +43,6 @@
     "state": "open"
    },
    {
-    "do": "doorState",
-    "id": "D_R13b_R13d",
-    "state": "sealed"
-   },
-   {
     "do": "lightState",
     "room": "R11",
     "pattern": "flicker",
@@ -66,10 +61,6 @@
    {
     "do": "say",
     "line": "climax_giles_01"
-   },
-   {
-    "do": "spawnGroup",
-    "group": "r11_climax"
    },
    {
     "parallel": [
@@ -109,10 +100,6 @@
         "wait": false
        }
       ]
-     },
-     {
-      "do": "waitGroup",
-      "group": "r11_climax"
      }
     ]
    },
@@ -355,6 +342,10 @@
      {
       "do": "emit",
       "event": "reveal:trail"
+     },
+     {
+      "do": "emit",
+      "event": "r11:power_up"
      },
      {
       "do": "sfx",
@@ -615,6 +606,179 @@
    },
    {
     "do": "endSlice"
+   }
+  ]
+ },
+ {
+  "id": "r11_power_cascade",
+  "trigger": {
+   "event": "r11:power_up"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "setFlag",
+    "flag": "r11_powered",
+    "value": true
+   },
+   {
+    "do": "emit",
+    "event": "r11:power_state",
+    "payload": {
+     "state": "starting"
+    }
+   },
+   {
+    "do": "emit",
+    "event": "r11:hum_on"
+   },
+   {
+    "do": "sfx",
+    "id": "breakerClunk",
+    "at": "anchor:final_console"
+   },
+   {
+    "do": "sfx",
+    "id": "turbineSpinUp",
+    "at": "anchor:r11_hold"
+   },
+   {
+    "do": "wait",
+    "s": 0.45
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_1a",
+    "pattern": "flicker",
+    "power": 1
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_1b",
+    "pattern": "flicker",
+    "power": 1
+   },
+   {
+    "do": "sfx",
+    "id": "breakerClunk",
+    "at": "anchor:final_console",
+    "gain": 0.7
+   },
+   {
+    "do": "wait",
+    "s": 0.35
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_1a",
+    "pattern": "steady",
+    "power": 1
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_1b",
+    "pattern": "steady",
+    "power": 1
+   },
+   {
+    "do": "wait",
+    "s": 0.3
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_2a",
+    "pattern": "flicker",
+    "power": 1
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_2b",
+    "pattern": "flicker",
+    "power": 1
+   },
+   {
+    "do": "sfx",
+    "id": "breakerClunk",
+    "at": "anchor:r11_hold",
+    "gain": 0.75
+   },
+   {
+    "do": "wait",
+    "s": 0.35
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_2a",
+    "pattern": "steady",
+    "power": 1
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_2b",
+    "pattern": "steady",
+    "power": 1
+   },
+   {
+    "do": "wait",
+    "s": 0.3
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_3a",
+    "pattern": "flicker",
+    "power": 1
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_3b",
+    "pattern": "flicker",
+    "power": 1
+   },
+   {
+    "do": "sfx",
+    "id": "breakerClunk",
+    "at": "anchor:r11_hold",
+    "gain": 0.85
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.08,
+    "s": 0.4
+   },
+   {
+    "do": "wait",
+    "s": 0.4
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_3a",
+    "pattern": "steady",
+    "power": 1
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_3b",
+    "pattern": "steady",
+    "power": 1
+   },
+   {
+    "do": "emit",
+    "event": "r11:power_state",
+    "payload": {
+     "state": "online"
+    }
+   },
+   {
+    "do": "light",
+    "id": "r11_beacon_ne",
+    "pattern": "off",
+    "power": 0
+   },
+   {
+    "do": "light",
+    "id": "r11_beacon_sw",
+    "pattern": "off",
+    "power": 0
    }
   ]
  }

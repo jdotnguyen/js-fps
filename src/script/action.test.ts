@@ -56,7 +56,7 @@ function walk(steps: Step[], visit: (s: Record<string, unknown>) => void): void 
 // ------------------------------------------------------------------------------- data checks
 
 test('the action sequences name only things that exist: lines, sounds, anchors, NPCs, doors, rooms, objectives, groups', () => {
-  assert.equal(actionDefs.length, 15);
+  assert.equal(actionDefs.length, 16);
   // `researcher_b_creature`: what grows out of Voss in the drop's kill (infection-kills spec), escapes through Lab B's ceiling vent at the end of the drop (trim-lab-wing-encounters).
   const npcSet = new Set([...npcIds, 'giles', 'okafor', 'r08_thing', 'researcher_b_creature', 'r09_flood_shambler']);
   for (const def of actionDefs) {
@@ -107,13 +107,11 @@ test('the checkpoint ladder: data checkpoints on room entry plus one sequence ch
   assert.deepEqual(taken, ['cp_contact_clear', 'cp_cover_done', 'cp_security_done', 'cp_valve', 'cp_climax_won']);
 });
 
-test('slice01 level numbers: 0 + 1 + 14 enemies, a hero, spawn counts per group (trim-lab-wing-encounters)', () => {
+test('slice01 level numbers: 0 + 1 + 0 enemies (R11 Power Bay has no combat spawns)', () => {
   const spawns = level.rooms.flatMap((r: any) => r.spawns ?? []);
   const total = (g: string): number => spawns.filter((s: any) => s.group === g).reduce((n: number, s: any) => n + (s.count ?? 1), 0);
-  for (const g of ['r05_contact', 'r05_trickle', 'r07_playdead']) assert.equal(total(g), 0, g);
+  for (const g of ['r05_contact', 'r05_trickle', 'r07_playdead', 'r11_climax']) assert.equal(total(g), 0, g);
   assert.equal(total('r06_cover'), 1);
-  assert.equal(total('r11_climax'), 14);
-  assert.ok(spawns.some((s: any) => s.group === 'r11_climax' && s.variant === 'hero'));
 });
 
 // ------------------------------------------------------------------------------- harness
@@ -179,7 +177,7 @@ function makeGame(only?: string[], opts: { holdMauled?: boolean } = {}) {
     glass: (id, state) => void log.push(`glass ${id} ${state}`),
     ventState: (id, state, instant) => void log.push(`vent ${id} ${state}${instant ? ' instant' : ''}`),
     water: (room, level, sec) => room === 'R09' && (log.push(`water ${room} ${level} ${sec}`), true),
-    light: (id, pattern, tint) => (log.push(`namedLight ${id} ${pattern}${tint ? ` ${tint}` : ''}`), true),
+    light: (id, pattern, tint, power) => (log.push(`namedLight ${id} ${pattern}${tint ? ` ${tint}` : ''}${power !== undefined ? ` power=${power}` : ''}`), true),
     setPower: (state) => void log.push(`power ${state}`),
     cameraFeed: (id, opts) => (feeds.push(opts), void log.push(`feed ${id} ${opts.state}${opts.fullscreen ? ' fullscreen' : ''}`)),
     radio: (track) => void log.push(track ? `radio ${track}` : 'radio stop'),
@@ -1089,7 +1087,7 @@ test('the ambush cuts the valve aftermath short: speech silenced, the music out,
 
 const VALVE_DONE = { ...COVER_DONE, sec_done: true, medlab_open: true, tunnel_started: true, valve_done: true, 'giles.infectionStage': 3 };
 
-test('R11 climax: needs the valve; both entrances open; 30 s power job; halfway call at 50 %; won only when the job AND all 14 are done', async () => {
+test('R11 Power Bay sequence: needs the valve; both entrances open; 30 s power job with no combat spawns; halfway call at 50 %; completes when the job finishes', async () => {
   const g = makeGame(['climax', 'climax_hero']);
   fire(g, 'trigger:r11_enter');
   assert.equal(g.m.isRunning('climax'), false, 'the valve first');
@@ -1101,7 +1099,7 @@ test('R11 climax: needs the valve; both entrances open; 30 s power job; halfway 
   assert.ok(at(g, 'door D_R10_R11 open') >= 0 && at(g, 'door D_R13d_R11 open') >= 0, 'two entrances');
   assert.equal(g.tasks[0]!.step['task'], 'power_restore');
   assert.equal((g.tasks[0]!.step['args'] as Record<string, unknown>)['duration'], 30);
-  inOrder(g, [...lines('climax_giles_01'), 'group r11_climax']);
+  assert.equal(count(g, 'group r11_climax'), 0, 'no combat spawns in R11 Power Bay');
   await until(g, () => said(g, 'climax_okafor_01') === 1);
   g.host.events.emit('squad:taskProgress', { id: 'engineer', task: 'power_restore', panel: null, progress: 0.4 });
   await advance(g, 1);
@@ -1109,12 +1107,7 @@ test('R11 climax: needs the valve; both entrances open; 30 s power job; halfway 
   g.host.events.emit('squad:taskProgress', { id: 'engineer', task: 'power_restore', panel: null, progress: 0.52 });
   await advance(g, 1);
   assert.equal(said(g, 'climax_giles_02'), 1);
-  // The job finishes first: still holding until the last enemy falls.
   g.finishTask();
-  await advance(g, 4);
-  assert.equal(g.host.flags['climax_done'], undefined);
-  assert.equal(said(g, 'climax_giles_03'), 0);
-  g.clear('r11_climax');
   await until(g, () => !g.m.isRunning('climax'));
   assert.equal(said(g, 'climax_giles_03'), 1);
   assert.ok(at(g, 'door D_R10_R11 sealed') > at(g, 'say climax_giles_03') && at(g, 'door D_R13d_R11 sealed') > 0);
@@ -1124,46 +1117,17 @@ test('R11 climax: needs the valve; both entrances open; 30 s power job; halfway 
   noWarnings(g);
 });
 
-test('the climax is won in either order: all 14 dead first, then the power job', async () => {
-  const g = makeGame(['climax']);
-  setFlags(g, VALVE_DONE);
-  fire(g, 'trigger:r11_enter');
-  await until(g, () => g.tasks.length === 1);
-  g.clear('r11_climax');
-  await advance(g, 5);
-  assert.equal(g.host.flags['climax_done'], undefined, 'the job is not done');
-  g.finishTask();
-  await until(g, () => g.host.flags['climax_done'] === true);
-  assert.equal(count(g, 'event climax:won'), 1);
-});
-
-test('the hero gets one line from Okafor, only during the climax', async () => {
-  const g = makeGame(['climax', 'climax_hero']);
-  g.host.events.emit('enemy:spawned', { id: 'a', variant: 'hero', group: 'r11_climax' });
-  await advance(g, 3);
-  assert.equal(said(g, 'climax_okafor_02'), 0, 'not before the climax');
-  setFlags(g, VALVE_DONE);
-  fire(g, 'trigger:r11_enter');
-  g.host.events.emit('enemy:spawned', { id: 'b', variant: 'shambler', group: 'r11_climax' });
-  await advance(g, 3);
-  assert.equal(said(g, 'climax_okafor_02'), 0, 'only the hero');
-  g.host.events.emit('enemy:spawned', { id: 'c', variant: 'hero', group: 'r11_climax' });
-  await advance(g, 3);
-  assert.equal(said(g, 'climax_okafor_02'), 1);
-});
-
-test('dying in the climax replays it from cp_climax with the entrances open again and the group free to spawn', async () => {
+test('dying in R11 replays the power-restore sequence from cp_climax with the entrances open again', async () => {
   const g = makeGame(['climax']);
   setFlags(g, VALVE_DONE);
   fire(g, 'trigger:r11_enter');
   await until(g, () => g.tasks.length === 1);
   g.host.events.emit('player:died', {});
   g.tasks.length = 0;
-  g.groups.get('r11_climax')!.triggered = false;
   g.host.events.emit('game:restarted', { checkpoint: 'cp_climax' });
   assert.equal(g.m.isRunning('climax'), true);
   await until(g, () => g.tasks.length === 1);
-  assert.equal(count(g, 'group r11_climax'), 2);
+  assert.equal(count(g, 'door D_R10_R11 open'), 2);
 });
 
 // ------------------------------------------------------------------------------- beat 8: reveal, title card, stinger
@@ -1463,7 +1427,6 @@ test('the climax takes cp_climax_won before the reveal; a reload there replays t
   setFlags(g, VALVE_DONE);
   fire(g, 'trigger:r11_enter');
   await until(g, () => g.tasks.length === 1);
-  g.clear('r11_climax');
   g.finishTask();
   await until(g, () => g.host.flags['climax_done'] === true);
   assert.ok(at(g, 'checkpoint cp_climax_won') >= 0, 'checkpoint taken');
@@ -1671,4 +1634,58 @@ test('skippableAfter: not skippable the first time, skippable once watched to th
   assert.equal(m.skippable, true);
   assert.equal(m.skip(), true);
   assert.equal(g.host.flags['flooded'], true, 'the skip applies the end state');
+});
+
+test('light step forwards optional auxiliary power scale to host.light', () => {
+  const d = validateSequences({
+    'x.json': {
+      id: 'lpow',
+      steps: [
+        { do: 'light', id: 'r11_bank_1a', pattern: 'steady', power: 1 },
+        { do: 'light', id: 'r11_beacon_ne', pattern: 'off', power: 0 },
+        { do: 'light', id: 'r10_beacon', pattern: 'alarm', tint: 'emergency' },
+      ],
+    },
+  });
+  const g = makeGame();
+  new SequenceManager(g.host, d).start('lpow');
+  assert.ok(g.log.includes('namedLight r11_bank_1a steady power=1'));
+  assert.ok(g.log.includes('namedLight r11_beacon_ne off power=0'));
+  assert.ok(g.log.includes('namedLight r10_beacon alarm emergency'));
+});
+
+test('detail-r11-power-bay: r11_power_cascade staggers Banks 1 -> 2 -> 3, flips power_state, and restores on r11_powered', () => {
+  const g = makeGame(['r11_power_cascade', 'action_restore']);
+  setFlags(g, { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true });
+  const states: string[] = [];
+  let humOn = false;
+  g.host.events.on('r11:power_state' as never, (p: unknown) => void states.push((p as { state: string }).state));
+  g.host.events.on('r11:hum_on' as never, () => void (humOn = true));
+
+  g.host.events.emit('r11:power_up' as never, {} as never);
+  g.m.update(0);
+  assert.equal(g.host.flags['r11_powered'], true);
+  assert.equal(humOn, true);
+  assert.deepEqual(states, ['starting']);
+
+  for (let i = 0; i < 60 * 3; i++) g.m.update(1 / 60);
+  assert.deepEqual(states, ['starting', 'online']);
+  const b1 = g.log.indexOf('namedLight r11_bank_1a steady power=1');
+  const b2 = g.log.indexOf('namedLight r11_bank_2a steady power=1');
+  const b3 = g.log.indexOf('namedLight r11_bank_3a steady power=1');
+  const beaconsOff = g.log.indexOf('namedLight r11_beacon_ne off power=0');
+  assert.ok(b1 >= 0 && b2 > b1 && b3 > b2 && beaconsOff > b3, 'banks energize 1 -> 2 -> 3 then extinguish beacons');
+  noWarnings(g);
+
+  // Restore with r11_powered set: immediately restores all 6 bank lights, beacons off, and online instant.
+  const r = makeGame(['action_restore']);
+  setFlags(r, { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, r11_powered: true });
+  const restoredStates: Array<{ state: string; instant?: boolean }> = [];
+  r.host.events.on('r11:power_state' as never, (p: unknown) => void restoredStates.push(p as { state: string; instant?: boolean }));
+  r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
+  assert.ok(r.log.includes('namedLight r11_bank_1a steady power=1'));
+  assert.ok(r.log.includes('namedLight r11_bank_3b steady power=1'));
+  assert.ok(r.log.includes('namedLight r11_beacon_sw off power=0'));
+  assert.deepEqual(restoredStates, [{ state: 'online', instant: true }]);
+  noWarnings(r);
 });

@@ -145,3 +145,37 @@ test('slice01: the medical bay front row stays lit on backup power, the security
   const on = level.roomLights('M').filter((l) => l.light.power === 1);
   assert.ok(on.length >= 3, `${on.length} lights at full strength`);
 });
+
+test('setLight with auxiliary power energizes a single non-backup light under backup power and resets cleanly on mains or reset', () => {
+  const level = build([
+    room('A', 0, [
+      { id: 'a_0', slot: 0, pattern: 'steady', backup: true },
+      { id: 'a_1', slot: 1, pattern: 'steady', color: '#88ccff' },
+      { id: 'a_2', slot: 2, pattern: 'steady' },
+    ]),
+    room('B', 6, [{ id: 'b_0', slot: 0, pattern: 'steady' }]),
+  ]);
+  level.setPower('backup');
+  assert.deepEqual(powers(level, 'A'), [BACKUP_LIGHT.scale, 0, 0]);
+  assert.deepEqual(powers(level, 'B'), [BACKUP_LIGHT.scale]);
+
+  // Energize a_1 onto auxiliary circuit without touching a_2 or room B.
+  assert.equal(level.setLight('a_1', 'steady', undefined, 1), true);
+  assert.deepEqual(powers(level, 'A'), [BACKUP_LIGHT.scale, 1, 0]);
+  assert.deepEqual(powers(level, 'B'), [BACKUP_LIGHT.scale]);
+  assert.equal(level.roomLights('A')[1]!.light.emissives[0]!.emissive.getHex(), 0x88ccff);
+
+  // Omitting power preserves current power state; dimming a_0 to 0 turns off the standby beacon/backup light.
+  assert.equal(level.setLight('a_0', 'off', undefined, 0), true);
+  assert.deepEqual(powers(level, 'A'), [0, 1, 0]);
+
+  // Returning to mains or resetting clears per-light overrides.
+  level.setPower('mains');
+  assert.deepEqual(powers(level, 'A'), [1, 1, 1]);
+
+  level.setPower('backup');
+  level.setLight('a_1', 'steady', undefined, 1);
+  level.resetToData();
+  assert.equal(level.power, 'mains');
+  assert.deepEqual(powers(level, 'A'), [1, 1, 1]);
+});

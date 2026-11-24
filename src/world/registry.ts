@@ -10,6 +10,7 @@ import { SLICE_PROPS, SLICE_STRUCTURE } from './kit/slice.ts';
 import { DIVE_BAY_PROPS } from './kit/diveBay.ts';
 import { IMPORTED_PROP_PIECES } from './kit/importedProps.ts';
 import { LAB_WING_PROPS } from './kit/labWing.ts';
+import { TRANSIT_PROPS } from './kit/transit.ts';
 import { applyPlacementFx } from './kit/placementFx.ts';
 import {
   LIGHT_SLOT_KINDS,
@@ -46,7 +47,7 @@ export interface KitManifest {
 export const validateKitManifest: Validator<KitManifest> = obj({ glb: record(str) });
 
 /** Every built-in kit piece (procedural generators and imported-prop stand-ins). */
-export const KIT_PIECES: readonly PieceDef[] = [...STRUCTURE_PIECES, ...PROP_PIECES, ...SLICE_STRUCTURE, ...SLICE_PROPS, ...DIVE_BAY_PROPS, ...LAB_WING_PROPS, ...IMPORTED_PROP_PIECES];
+export const KIT_PIECES: readonly PieceDef[] = [...STRUCTURE_PIECES, ...PROP_PIECES, ...SLICE_STRUCTURE, ...SLICE_PROPS, ...DIVE_BAY_PROPS, ...LAB_WING_PROPS, ...TRANSIT_PROPS, ...IMPORTED_PROP_PIECES];
 
 export class KitRegistry {
   private readonly defs = new Map<string, PieceDef>();

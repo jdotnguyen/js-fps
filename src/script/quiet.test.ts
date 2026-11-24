@@ -954,19 +954,6 @@ test('dive bay: a load after securing shows the hatch closed at once, with no be
   assert.equal(none.length, 0, 'an unsecured trunk is left open');
 });
 
-test('dive bay: the R13d leak hisses at most once per 20 s', async () => {
-  const g = makeGame(['dive_leak']);
-  fire(g, 'trigger:dive_leak');
-  await advance(g, 5);
-  fire(g, 'trigger:dive_leak');
-  await advance(g, 5);
-  assert.equal(count(g, 'sfx leakHiss'), 1);
-  await advance(g, 12);
-  fire(g, 'trigger:dive_leak');
-  await advance(g, 1);
-  assert.equal(count(g, 'sfx leakHiss'), 2);
-});
-
 // adaptive-music: the Lab B score is rendered before the drop needs it, and the Lab B klaxon lands on its beat.
 test('the Lab B score loads at the gallery call and again as the drop starts; the drop klaxons wait for the beat', () => {
   const loads = (id: string): number => {

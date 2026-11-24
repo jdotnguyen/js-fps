@@ -201,7 +201,7 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
       if (tint !== undefined) d.level?.tintRoomLights(room, tint);
       return ok;
     },
-    light: (id, pattern, tint) => d.level?.setLight(id, pattern as LightPattern, tint) ?? false,
+    light: (id, pattern, tint, power) => d.level?.setLight(id, pattern as LightPattern, tint, power) ?? false,
     setPower: (state) => d.level?.setPower(state),
     cameraShake: (amount, seconds) => d.events.emit('camera:shake', { amount, seconds }),
     intercom: (id, live) => {

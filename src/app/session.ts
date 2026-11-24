@@ -1535,14 +1535,17 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       }
       if (jump && jump !== 'drop' && jump !== 'hydro' && level) {
         const base: Record<string, boolean | number> = { introSeen: true, briefingSeen: true, rounds_done: true, drop_started: true, drop_done: true };
-        const steps: Array<[string, string, Record<string, boolean | number>]> = [
+        const steps: Array<[string, string, Record<string, boolean | number | string>]> = [
           ['r05', 'cp_first_contact', {}],
           ['r06', 'cp_cover_me', { contact_done: true }],
           ['r07', 'cp_security', { cover_done: true }],
           ['r09', 'cp_flooded', { armory_open: true, glass_near: true, sec_done: true, medlab_open: true, 'giles.infectionStage': 3, 'weapon:shotgun': true }],
           // Just before the valve and the flood cutscene (overhaul-flooded-tunnel): an anchor, not a checkpoint.
           ['r10_flood', 'anchor:r10_valve_stand', { tunnel_started: true }],
-          ['r11', 'cp_climax', { tunnel_started: true, valve_done: true, 'giles.infectionStage': 3, 'giles.bandaged': true, 'weapon:shotgun': true }],
+          ['r11', 'cp_climax', { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, 'giles.infectionStage': 3, 'giles.bandaged': true, 'weapon:shotgun': true }],
+          ['r15a', 'anchor:r15a_platform', { tunnel_started: true, valve_done: true }],
+          ['r16', 'anchor:r16_train_exit', { tunnel_started: true, valve_done: true }],
+          ['r16b', 'anchor:r16_concourse', { tunnel_started: true, valve_done: true }],
         ];
         const off = events.on('game:mode', ({ mode }) => {
           if (mode !== 'playing') return;
@@ -1559,6 +1562,9 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
               Object.assign(game.flags, base);
               for (const [, , add] of steps.slice(0, upto + 1)) Object.assign(game.flags, add);
               sequences?.start('action_restore');
+              if (jump === 'r11' && new URLSearchParams(location.search).get('power') === 'on') {
+                events.emit('r11:power_up' as never, {} as never);
+              }
               player.placeAtEye(new THREE.Vector3(cp.pos[0], cp.pos[1] + PLAYER_TUNING.eyeHeight, cp.pos[2]), ((cp.yaw ?? 0) * Math.PI) / 180);
               squad!.requestPlacement();
             }, 400),

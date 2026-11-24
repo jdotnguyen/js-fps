@@ -93,6 +93,7 @@ export function plainWall(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Mat
   const h = o.height;
   const mat = o.pal?.wallMain ?? m.paintDark;
   const rows = h > 3.4 ? [0.3, 1.45, 2.7, 3.7] : [0.3, 1.45, 2.6];
+  while (h > 5.0 && rows[rows.length - 1]! + 1.25 < h - 0.3) rows.push(rows[rows.length - 1]! + 1.25);
   for (let i = 0; i < rows.length; i++) {
     const y0 = rows[i]!;
     const y1 = Math.min(rows[i + 1] ?? h - 0.1, h - 0.1);
@@ -117,7 +118,17 @@ export function panelWall(pb: PieceBuilder, m: Materials, rng: Rng, f: THREE.Mat
       const x = xc + dx;
       pb.add(rounded(pw, 1.0, 0.06), lower, inFrame(f, x, 0.82, 0.03));
       pb.add(rounded(pw, 1.1, 0.06), upper, inFrame(f, x, 1.92, 0.03));
-      if (h > 3.4) pb.add(rounded(pw, Math.min(1.2, h - 2.95), 0.06), lower, inFrame(f, x, 2.65 + Math.min(1.2, h - 2.95) / 2, 0.03));
+      if (h > 3.4) {
+        let y = 2.65;
+        let band = 0;
+        while (y < h - 0.35) {
+          const bh = Math.min(1.2, h - 0.15 - y);
+          if (bh < 0.3) break;
+          pb.add(rounded(pw, bh, 0.06), band % 2 === 0 ? lower : upper, inFrame(f, x, y + bh / 2, 0.03));
+          y += bh + 0.12;
+          band++;
+        }
+      }
     }
     if (b > 0) pilaster(pb, o.pal?.trim ?? m.steel, f, -L / 2 + bayW * b, h);
   }

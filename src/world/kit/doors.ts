@@ -90,7 +90,7 @@ export function buildDoor(kit: DoorKit, height: number, state: () => DoorState, 
   const glassBarKey = frontPal?.doorGlassBar ?? backPal?.doorGlassBar;
   const glassBarMat = glassBarKey ? m[glassBarKey] : m.paintBone;
   const framePaint = (pal: AreaPalette | undefined): THREE.MeshStandardMaterial =>
-    kit === 'bulkhead' ? m.servicePaint : pal?.doorPanel ? m[pal.doorPanel] : m.paintDark;
+    pal?.doorPanel ? m[pal.doorPanel] : kit === 'bulkhead' ? m.servicePaint : m.paintDark;
   const frameSurround = (pal: AreaPalette | undefined): THREE.MeshStandardMaterial =>
     pal?.doorSurround ? m[pal.doorSurround] : m.paintDark;
   doorFrame(pb, m, 4, height, {

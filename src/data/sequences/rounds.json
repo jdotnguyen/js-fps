@@ -267,34 +267,6 @@
   ]
  },
  {
-  "id": "dive_leak",
-  "trigger": {
-   "event": "trigger:dive_leak",
-   "unless": "dive_leak_cool"
-  },
-  "steps": [
-   {
-    "do": "setFlag",
-    "flag": "dive_leak_cool",
-    "value": true
-   },
-   {
-    "do": "sfx",
-    "id": "leakHiss",
-    "at": "anchor:dive_leak"
-   },
-   {
-    "do": "wait",
-    "s": 20
-   },
-   {
-    "do": "setFlag",
-    "flag": "dive_leak_cool",
-    "value": false
-   }
-  ]
- },
- {
   "id": "dive_case_taken",
   "trigger": {
    "event": "item:given",

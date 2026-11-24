@@ -136,8 +136,8 @@ export interface SequenceHost {
   /** Cutscenes watched to the end in this save slot (`skippableAfter`); kept outside checkpoints. */
   seen?(id: string): boolean;
   markSeen?(id: string): void;
-  /** One named light (render-lighting spec): pattern and optional tint. False when no light has that id. */
-  light?(id: string, pattern: string, tint?: string): boolean;
+  /** One named light (render-lighting spec): pattern, optional tint, and optional auxiliary power scale in [0, 1]. False when no light has that id. */
+  light?(id: string, pattern: string, tint?: string, power?: number): boolean;
   /** Station power (station-power spec): every room on main or backup lights. */
   setPower?(state: 'mains' | 'backup'): void;
   /** `beat`: wait for the score's next beat (adaptive-music spec). */
