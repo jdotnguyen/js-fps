@@ -80,6 +80,15 @@ test('the kill beats cue the score by their own events, and the slams duck it', 
   assert.ok((DEF.cues['kill:impale']!.layers!['brutal'] ?? 0) > 0.5);
 });
 
+test('Her motif is faded out before Okafor speaks in the aftermath', async () => {
+  const { audio, player } = await playing();
+  player.cue('medbay', 'aftermath');
+  assert.ok((audio.gains.get('hold') ?? 0) > 0.5);
+  player.cue('medbay', 'aftermath_out');
+  player.update(1.2, null, () => null);
+  assert.ok((audio.gains.get('hold') ?? 0) < 0.02, 'the motif has stopped before line 20');
+});
+
 test('Ends with the intercom: the end cue silences every layer and frees the score', async () => {
   const { audio, player } = await playing();
   player.cue('medbay', 'aftermath');

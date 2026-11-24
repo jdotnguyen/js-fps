@@ -800,6 +800,8 @@ export const SAMPLE_URLS = {
   // The flood cutscene: the alarm with the beacon, and the sting as the shambler charges the door.
   valveTurn: 'assets/audio/ambience/oneshot-valve-turn.mp3',
   creatureCharge: 'assets/audio/ambience/oneshot-creature-charge.mp3',
+  // The elite's scream from far down the R09 hall as the flood cutscene opens (overhaul-valve-cutscene; downloaded, see CREDITS.md).
+  creatureScreamFar: 'assets/audio/ambience/oneshot-creature-scream-far.mp3',
   creatureSeverShriek: 'assets/audio/ambience/oneshot-creature-sever-shriek.mp3',
   ambushSting: 'assets/audio/ambience/oneshot-ambush-sting.mp3',
   doorPound: 'assets/audio/ambience/oneshot-door-pound.mp3',

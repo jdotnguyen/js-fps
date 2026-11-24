@@ -358,6 +358,12 @@ export const ACTIONS: Record<string, ActionDef> = {
     ctx.host.placePlayer(at, s.yaw, s.pitch);
   }),
 
+  /** Switch Jay's flashlight on or off whatever the controls allow (the valve cutscene lights the hall for the charge). */
+  playerFlashlight: act({ on: bool }, (s, ctx) => {
+    if (!ctx.host.setFlashlight) return ctx.missing('playerFlashlight');
+    ctx.host.setFlashlight(s.on);
+  }),
+
   playerControl: act(control, (s, ctx) => {
     const { reset, ...over } = s;
     if (reset) ctx.releaseControl();
@@ -941,6 +947,8 @@ const SKIPS: Record<string, SkipFn> = {
   // A pry in progress snaps to its forced opening.
   doorPry: (s, ctx) => void ctx.host.pryDoor?.(s['id'] as string, s['open'] as number, 0),
   timeScale: NOOP,
+  // A skipped scene leaves the light as the scene set it.
+  playerFlashlight: (s, ctx) => void ctx.host.setFlashlight?.(s['on'] as boolean),
   sfx: NOOP,
   gore: NOOP,
   waitGroup: NOOP,

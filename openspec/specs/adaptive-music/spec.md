@@ -172,7 +172,7 @@ moves away, within the security office.
 
 ### Requirement: Her motif returns in the aftermath
 In the aftermath, the Priya motif SHALL play once more, slower and detuned, under the silence, and SHALL end before
-Okafor's first aftermath line.
+Okafor's first aftermath line, which he speaks while walking to the console.
 
 #### Scenario: The last time
 - **WHEN** the aftermath begins

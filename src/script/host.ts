@@ -102,6 +102,8 @@ export interface SequenceHost {
   /** Resolves when the player arrives (or is released). */
   walkTo?(at: Vec3Like, speed: number | undefined, via?: string): Promise<void>;
   fade?(level: number, seconds: number): void;
+  /** Force the flashlight on or off (`playerFlashlight`), with its click. */
+  setFlashlight?(on: boolean): void;
   /** Teleport the player, cancelling any forced walk (skipped scenes, `playerPlace`). */
   placePlayer?(at: PlaceTarget, yaw: number | undefined, pitch: number | undefined): void;
   cameraShake?(amount: number, seconds: number): void;

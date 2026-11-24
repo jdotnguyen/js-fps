@@ -49,6 +49,8 @@ export interface GameHostDeps {
   /** Adaptive scores (adaptive-music spec): the `score` step, and `sfx` steps that wait for the beat. */
   score?: { load(id: string): void; cue(id: string, cue: string): void; stinger(name: string, id?: string): void; untilBeat(): number } | null | undefined;
   hud: PlayerHud;
+  /** Jay's flashlight, for `playerFlashlight`. */
+  flashlight?: { on: boolean } | null | undefined;
   toasts: Toasts;
   /** Key items (ADR-0024), for `giveItem`. */
   inventory?: Inventory | undefined;
@@ -175,6 +177,11 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
       return d.player.walkTo(v3(at), speed ?? walk?.speed, walk?.points);
     },
     fade: (level, seconds) => d.hud.setFade(level, seconds),
+    setFlashlight: (on) => {
+      if (!d.flashlight || d.flashlight.on === on) return;
+      d.flashlight.on = on;
+      d.events.emit('player:flashlight', { on });
+    },
     placePlayer: (at, yaw, pitch) => {
       d.player.cancelWalk();
       d.player.placeAtEye(

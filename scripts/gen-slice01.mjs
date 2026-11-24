@@ -944,7 +944,8 @@ const R09 = room('R09', 'Flooded Maintenance Tunnel', [[2, 11], [3, 11], [4, 11]
     L(0, 'failing', '#9fe8ff', 6),
     L(1, 'failing', '#9fe8ff', 4, undefined, { pool: false }),
     L(2, 'failing', '#9fe8ff', 5),
-    L(3, 'failing', '#bfefff', 6, undefined, { sparks: true }),
+    // The tube over the ammo crate: the valve cutscene holds it steady so the waiting elite is lit (overhaul-valve-cutscene).
+    L(3, 'failing', '#bfefff', 6, undefined, { sparks: true, id: 'r09_charge_light' }),
     L(4, 'failing', '#9fe8ff', 4, undefined, { pool: false }),
     L(5, 'failing', '#9fe8ff', 5),
     L(6, 'failing', '#9fe8ff', 5),
@@ -1043,13 +1044,19 @@ anchor(R10, 'r10_flood_giles', [31.4, 0, 50.7], 90);
 anchor(R10, 'r10_flood_okafor', [32.4, 0, 51.4], 90);
 anchor(R10, 'r10_flood_view', [31.0, 1.5, 48.0]);
 anchor(R10, 'r10_porthole', [30.0, 1.6, 48.5]);
+// Where Jay's scripted run ends: in the gap between the pump units, level with the R09 door so the hall is in view, outside trig_r10_ambush.
+anchor(R10, 'r10_run_stop', [35.2, 0, 48.6], 270);
 anchor(R09, 'r09_flood_shambler', [24.4, SUMP, 48.2], 90);
 anchor(R09, 'r09_flood_top', [28.7, 0, 48.2], 90);
 // The ambush: it waits right behind the door, then lunges into the doorway (elbows at the door's plane).
 anchor(R09, 'r09_flood_behind', [28.9, 0, 48.0], 90);
 anchor(R09, 'r09_flood_door', [29.55, 0, 48.0], 90);
 // The elite prying the door open from the middle (design D13): facing the door, blades within reach of the seam.
-anchor(R09, 'r09_pry', [29.5, 0, 48.0], 270);
+anchor(R09, 'r09_pry', [29.75, 0, 48.0], 270);
+// The valve cutscene's scream and charge (overhaul-valve-cutscene): the elite waits beside the ammo crate at the back of the straight
+// stretch that can be seen through the open door, screams there, and runs at the door once Jay's flashlight is on it.
+anchor(R09, 'r09_charge_start', [17.0, SUMP, 47.8], 90);
+anchor(R09, 'r09_charge_view', [17.0, 0.3, 47.8]);
 spawn(R09, 'r09_floor_1', [13, SUMP, 44], 'floor', 'r09_tunnel', { outfit: 'engineer' });
 // The play-dead corpses float face down (flooded-tunnel spec), just under the surface.
 spawn(R09, 'r09_corpse_1', [16.4, WATER - 0.2, 48.6], 'corpse', 'r09_tunnel', { variant: 'playDead', float: true });
@@ -1059,8 +1066,8 @@ spawn(R09, 'r09_vent', [19.6, 2.8, 49], 'vent', 'r09_tunnel', { count: 1 });
 trigger(R09, 'trig_r09_enter', [[6.3, -0.2, 42.3], [9.7, 2.6, 45.7]], 'trigger:r09_enter');
 trigger(R09, 'trig_r09_mid', [[14.3, SUMP - 0.1, 46.3], [17.7, 1.6, 49.7]], 'trigger:r09_mid');
 trigger(R10, 'trig_r10_enter', cellBox(8, 8, 12, 12), 'trigger:r10_enter');
-// At the R11 bulkhead after the valve: the shambler bursts back through the R09 door.
-trigger(R10, 'trig_r10_ambush', around([32, 0, 47.2], 1.4, 2.2), 'trigger:r10_ambush');
+// Beside the R09 and R11 doors after the valve: walking in makes the shambler pry the R09 door open (overhaul-valve-cutscene).
+trigger(R10, 'trig_r10_ambush', [[30.3, 0, 45.8], [33.6, 2.2, 50.2]], 'trigger:r10_ambush');
 trigger(R10, 'trig_r10_valve', around([36.9, 0, 52.6], 0.8, 2.2), 'valve:r10_main', { on: 'use', prompt: 'Turn valve' });
 checkpoints.push({ id: 'cp_flooded', room: 'R09', pos: [6.9, 0, 44], yaw: 270 });
 

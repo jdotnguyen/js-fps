@@ -272,15 +272,18 @@ a steady prowl, never passing through a wall, and the surgery door SHALL close b
 - **THEN** `D_R06_R07` is no longer sealed
 
 ### Requirement: The aftermath belongs to Priya and Okafor
-While the creature walks back to the surgery, Okafor SHALL go to the glass, put his hand on it and say "I'm here. ...I'm
-here." to her. After the creature has gone he SHALL hold there briefly, then switch the intercom off, write in his notebook,
-and say "I told her she was fine." and, after a pause of at least 3 s, "Med lab's through there." No other line SHALL play
-in the aftermath.
+While the creature walks back to the surgery, Okafor SHALL go to the glass and put his hand on it. At the glass he SHALL
+let out a long, tired exhale and a sniffle, clearly audible (no words). Once the surgery door has closed he SHALL leave
+the glass after no more than a short beat, set off for the console and say "Gotta keep moving." as he does. He SHALL then
+say "I told her she was fine." while still walking, before he reaches the console. At the console he SHALL switch the
+intercom off and write in his notebook, and after a pause of at least 3 s after that line has finished he SHALL say
+"Med lab's through there." No other line SHALL play in the aftermath.
 
 #### Scenario: Aftermath
 - **WHEN** the creature turns to walk back into the surgery
-- **THEN** Okafor walks to the glass, puts his hand on it and says "I'm here. ...I'm here."; once the surgery door has closed he holds a moment, switches the intercom off, writes in his notebook, and then says "I told her she was fine."
-- **AND** no stretch between her death and the console is longer than about 4 s without a voice or Okafor moving
+- **THEN** Okafor walks to the glass, puts his hand on it and exhales and sniffles audibly; once the surgery door has closed he leaves the glass after a short beat, begins to walk to the console and says "Gotta keep moving."
+- **AND** he says "I told her she was fine." right after, while still walking, and no more than about 4 s pass between the exhale and that line
+- **AND** he switches the intercom off and writes in his notebook only after reaching the console
 
 #### Scenario: The last line
 - **WHEN** "I told her she was fine." has finished

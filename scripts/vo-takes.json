@@ -1782,5 +1782,36 @@
     ],
     "at": "2026-11-23T18:38:27.500Z",
     "source": "generated"
+  },
+  {
+    "batch": "react_okafor_exhale",
+    "speakers": [
+      "player"
+    ],
+    "voices": [
+      "Orus"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "react_okafor_exhale_01",
+      "react_okafor_exhale_02"
+    ],
+    "at": "2026-11-23T22:13:40.387Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_medic_01",
+    "speakers": [
+      "medic"
+    ],
+    "voices": [
+      "Charon"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "sec_okafor_23"
+    ],
+    "at": "2026-11-23T22:14:33.918Z",
+    "source": "generated"
   }
 ]

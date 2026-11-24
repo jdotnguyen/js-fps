@@ -73,3 +73,25 @@ test('doorPry parts a sealed door to a fraction over time, keeps it sealed, and 
   level.dispose();
   disposeMaterials(materials);
 });
+
+// flooded-tunnel spec (overhaul-valve-cutscene D7): the ambush pries wider, to 0.5, but the gap is still too narrow to pass.
+test('at the widest pry the ambush uses (0.5) the door still blocks the doorway; only a fuller opening lets a body through', () => {
+  const materials = createMaterials(8, 4);
+  const events = new EventBus();
+  const level = new Level(twoRooms(), { materials, registry: new KitRegistry({ glb: {} }), events, scene: new THREE.Scene(), inventory: null });
+  const eye = new THREE.Vector3(0, 1.7, -30);
+  const run = (s: number): void => {
+    for (let i = 0; i < Math.round(s * 60); i++) level.update(i / 60, 1 / 60, eye, false);
+  };
+  const blocked = (): boolean => level.collision.raycast(0, 1, -2, 0, 0, 1, 16) !== null;
+  level.pryDoor('D', 0.5, 0.5);
+  run(1);
+  assert.ok(Math.abs(level.doorOpenness('D')! - 0.5) < 1e-6);
+  assert.equal(blocked(), true, 'the doorway is still blocked at 0.5');
+  assert.equal(level.doorStates()['D'], 'sealed');
+  level.pryDoor('D', 1, 0.5);
+  run(1);
+  assert.equal(blocked(), false, 'a fully open door lets a body through (proves the probe)');
+  level.dispose();
+  disposeMaterials(materials);
+});

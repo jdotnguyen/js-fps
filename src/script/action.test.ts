@@ -157,7 +157,8 @@ function makeGame(only?: string[], opts: { holdMauled?: boolean } = {}) {
     lookAt: () => undefined,
     clampLook: (at) => void log.push(at ? 'clamp' : 'unclamp'),
     frame: () => undefined,
-    walkTo: () => Promise.resolve(),
+    walkTo: () => (log.push('player walkTo'), Promise.resolve()),
+    setFlashlight: (on) => void log.push(`flashlight ${on ? 'on' : 'off'}`),
     placePlayer: () => void log.push('place'),
     fade: (level) => void log.push(`fade ${level}`),
     cameraShake: () => void log.push('shake'),
@@ -627,7 +628,7 @@ test('playerWalkTo with distance: a few steps from where Jay stands toward the t
   assert.deepEqual(goals[1], { x: 4, z: 45 }, 'a distance past the target stops at it');
   const sec = actionDefs.find((s) => s.id === 'sec_glass')!;
   let follow: Record<string, unknown> | null = null;
-  walk(sec.steps, (st) => void (st['do'] === 'playerWalkTo' && (follow = st)));
+  walk(sec.steps, (st) => void (st['do'] === 'playerWalkTo' && st['distance'] !== undefined && (follow = st)));
   assert.ok(follow && (follow['distance'] as number) >= 2.4 && (follow['distance'] as number) <= 3.2, 'Jay takes 3-4 steps after her');
 });
 
@@ -835,11 +836,11 @@ test('medbay-attack aftermath: silence, the intercom off, the notebook, "I told 
   await advance(g, 1);
   const after = (): string[] => g.log.slice(n);
   assert.ok(after().includes('door D_R08_R08b closed') && after().includes('npc despawn r08_thing'));
-  assert.ok(!after().some((e) => e.startsWith('say ')), 'a short hold at the glass after his line, then the console');
+  assert.ok(!after().some((e) => e.startsWith('say ') && !['say sec_okafor_23', 'say sec_okafor_20', 'say sec_okafor_21'].includes(e)), 'after his exhale: only Okafor, starting with "Gotta keep moving." as he sets off');
   await until(g, () => !g.m.isRunning('sec_glass'), 60);
-  inOrder(g, ['say sec_okafor_22', 'score medbay aftermath', 'intercom medbay off', 'score medbay end', 'npc npcAnim okafor okafor_notebook', 'say sec_okafor_20', 'say sec_okafor_21', 'door D_R06_R07 open', 'checkpoint cp_security_done']);
+  inOrder(g, ['say sec_okafor_22', 'score medbay aftermath_out', 'say sec_okafor_23', 'say sec_okafor_20', 'intercom medbay off', 'score medbay end', 'npc npcAnim okafor okafor_notebook', 'say sec_okafor_21', 'door D_R06_R07 open', 'checkpoint cp_security_done']);
   const sayLines = after().filter((e) => e.startsWith('say '));
-  assert.deepEqual(sayLines, ['say sec_okafor_20', 'say sec_okafor_21'], 'Priya and Okafor only: no other line in the aftermath');
+  assert.deepEqual(sayLines, ['say sec_okafor_23', 'say sec_okafor_20', 'say sec_okafor_21'], 'Priya and Okafor only: no other line in the aftermath');
   assert.equal(g.host.flags['sec_done'], true);
   assert.equal(g.host.flags['obj:obj_medlab'], 'active');
   assert.equal(g.control.state.move, 'free');
@@ -923,7 +924,7 @@ test('the valve: the flood plays out, the objective moves on, cp_valve is taken'
   fire(g, 'valve:r10_main');
   assert.equal(g.m.isRunning('valve_turn'), true);
   await until(g, () => !g.m.isRunning('valve_turn'));
-  inOrder(g, [...lines('flood_okafor_01', 'flood_okafor_02', 'flood_giles_02'), 'checkpoint cp_valve']);
+  inOrder(g, [...lines('flood_okafor_01', 'flood_okafor_02'), 'checkpoint cp_valve', ...lines('flood_giles_02')]);
   // No casual lines after the panic (playtest).
   for (const l of ['valve_giles_01', 'valve_quiet_giles_01', 'valve_quiet_giles_02', 'valve_quiet_okafor_01']) assert.equal(said(g, l), 0, l);
   assert.equal(g.host.flags['valve_done'], true);
@@ -947,7 +948,7 @@ test('the valve cutscene: on rails at the wheel, the squad placed unseen, beacon
   assert.equal(g.control.state.move, 'locked', 'on rails with the bars');
   assert.equal(g.m.skippable, false, 'not skippable the first time');
   await until(g, () => !g.m.isRunning('valve_turn'));
-  inOrder(g, ['sfx valveTurn', ...FLOOD_END.slice(0, 5), ...lines('flood_giles_02'), 'checkpoint cp_valve']);
+  inOrder(g, ['sfx valveTurn', ...FLOOD_END.slice(0, 5), 'checkpoint cp_valve', ...lines('flood_giles_02')]);
   assert.ok(g.log.includes('npc npcMoveTo giles'), 'Giles placed');
   assert.equal(g.log.some((e) => e.startsWith('water')), false, 'R09 does not flood');
   assert.equal(g.control.state.move, 'free', 'controls back at the end');
@@ -956,8 +957,9 @@ test('the valve cutscene: on rails at the wheel, the squad placed unseen, beacon
   // during the charge; the camera is released with the controls (not held on the door through the lines).
   // The door stands open from the start (the stairs seen through it), the creature shrieks as it charges, the door slams,
   // it pounds on the door, then the hand. The pump room goes red with three beacons before the turn.
-  inOrder(g, ['door D_R09_R10 open', 'npc spawn r09_flood_shambler', 'door D_R09_R10 sealed', 'sfx floodSlamHit', 'sfx floodDoorSlam', 'sfx doorPound', 'npc npcMoveTo r09_flood_shambler']);
-  assert.equal(count(g, 'sfx creatureCharge'), 1, 'it shrieks as it charges');
+  inOrder(g, ['door D_R09_R10 open', 'npc spawn r09_flood_shambler', 'namedLight r09_charge_light steady', 'sfx creatureScreamFar', 'player walkTo', 'flashlight on', 'npc npcMoveTo r09_flood_shambler', ...lines('flood_okafor_01'), 'door D_R09_R10 sealed', 'sfx floodSlamHit', 'sfx floodDoorSlam', 'sfx doorPound']);
+  assert.equal(count(g, 'sfx creatureScreamFar'), 1, 'one scream from far down the hall, before anyone speaks');
+  assert.equal(count(g, 'sfx creatureCharge'), 0, 'the old shriek is not used in the cutscene');
   assert.equal(g.log.includes('event flood:handslap'), false, 'no hand at the porthole: its arms come later');
   assert.equal(g.log.filter((e) => e === 'sfx doorPound').length, 2, 'two rounds of pounding');
   inOrder(g, ['namedLight r10_beacon alarm emergency', 'namedLight r10_beacon_s alarm emergency', 'sfx alarmBlast', 'score labB floodAlarm']);
@@ -1021,11 +1023,29 @@ test('the valve cutscene is timed off its lines: the seal comes on "Seal it now!
   assert.ok(t('cue floodAlarm') < t('cue floodCharge') && t('cue floodCharge') < sealed, 'the music builds into the charge');
   assert.ok(Math.abs(t('cue floodHold') - leavesMeet) < 0.05, 'and turns on the slam');
   assert.ok(t('cue floodOut') >= t('end flood_giles_02') - 1e-6, 'it fades only after the last line');
-  assert.ok(t('sfx creatureCharge') < sealed, 'the charge starts before the door closes');
+  assert.ok(t('sfx creatureScreamFar') < t('start flood_okafor_01'), 'the scream comes before anyone speaks');
+  assert.ok(t('cue floodCharge') <= t('start flood_okafor_01'), 'and the music builds with it');
+});
+
+// flooded-tunnel spec (overhaul-valve-cutscene): the view is freed at the slam, so the pounds and the retreat play with control back.
+test('the valve cutscene frees the view at the slam: free, flagged and checkpointed before the first pound', async () => {
+  const g = makeGame();
+  valveReady(g);
+  const seenAtPound: Array<{ move: string; look: string; valveDone: unknown }> = [];
+  const sfx = g.host.sfx!;
+  g.host.sfx = (id, at, o) => {
+    if (id === 'doorPound') seenAtPound.push({ move: g.control.state.move, look: g.control.state.look, valveDone: g.host.flags['valve_done'] });
+    return sfx(id, at, o);
+  };
+  fire(g, 'valve:r10_main');
+  await until(g, () => !g.m.isRunning('valve_turn'));
+  assert.equal(seenAtPound.length, 2, 'two pounds');
+  for (const p of seenAtPound) assert.deepEqual(p, { move: 'free', look: 'free', valveDone: true }, 'free to move and look while it pounds');
+  inOrder(g, ['door D_R09_R10 sealed', 'sfx floodSlamHit', 'checkpoint cp_valve', 'sfx doorPound']);
 });
 
 test('once watched, skipping the flood cutscene at any point lands on the full end state', async () => {
-  for (const at of [0.5, 5, 9, 11, 12.5]) {
+  for (const at of [0.5, 5, 9, 11, 12.5, 15, 18]) {
     const g = makeGame();
     valveReady(g);
     const seen = new Set(['flood_cutscene']);
@@ -1058,13 +1078,38 @@ test('the ambush at the R11 door: only after the valve, once; the elite pries th
   assert.equal(g.m.isRunning('r10_ambush'), true);
   assert.equal(g.control.state.look, 'locked', 'the view is pulled to the door');
   await until(g, () => !g.m.isRunning('r10_ambush'));
-  inOrder(g, ['npc spawn r09_flood_shambler', 'npc npcAnim r09_flood_shambler pry_reach', 'sfx ambushSting', 'pry D_R09_R10 0.06', 'npc npcAnim r09_flood_shambler pry_clamp', 'npc npcAnim r09_flood_shambler pry_wrench', 'sfx doorPry', 'pry D_R09_R10 0.3', 'sfx floodDoorSlam', 'door D_R09_R10 sealed', 'npc npcSever r09_flood_shambler', 'sfx creatureSeverShriek', ...lines('flood_okafor_03')]);
+  inOrder(g, ['npc spawn r09_flood_shambler', 'npc npcAnim r09_flood_shambler pry_reach', 'sfx ambushSting', 'pry D_R09_R10 0.06', 'npc npcAnim r09_flood_shambler pry_clamp', 'npc npcAnim r09_flood_shambler pry_wrench', 'sfx doorPry', 'pry D_R09_R10 0.5', 'npc npcAnim r09_flood_shambler pry_thrust', 'sfx floodDoorSlam', 'door D_R09_R10 sealed', 'npc npcSever r09_flood_shambler', 'sfx creatureSeverShriek', ...lines('flood_okafor_03')]);
   assert.equal(g.log.includes('door D_R09_R10 open'), false, 'the door is forced, never opened');
   assert.equal(g.control.state.move, 'free', 'controls back');
   assert.equal(g.host.flags['ambush_done'], true);
   fire(g, 'trigger:r10_ambush');
   assert.equal(g.m.isRunning('r10_ambush'), false, 'once');
   assert.equal(g.log.filter((e) => e === 'npc spawn r09_flood_shambler').length, 1, 'not again');
+});
+
+// flooded-tunnel spec (overhaul-valve-cutscene): walking into the ambush box cuts the aftermath short and starts the pry on that frame.
+test('the ambush cuts the valve aftermath short: speech silenced, the music out, the pry started, nothing lost', async () => {
+  const g = makeGame();
+  valveReady(g);
+  fire(g, 'valve:r10_main');
+  // Run to the first pound: the door has sealed, Jay is free and flagged, Giles has not spoken yet.
+  for (let i = 0; i < 60 * 60 && count(g, 'sfx doorPound') < 1; i++) {
+    g.m.update(1 / 60);
+    if (i % 3 === 0) await Promise.resolve();
+  }
+  assert.equal(g.host.flags['valve_done'], true, 'armed once the door has sealed');
+  assert.equal(g.m.isRunning('valve_turn'), true, 'the aftermath is still playing');
+  assert.equal(said(g, 'flood_giles_02'), 0);
+  fire(g, 'trigger:r10_ambush');
+  assert.equal(g.m.isRunning('valve_turn'), false, 'the aftermath is cut');
+  assert.equal(g.m.isRunning('r10_ambush'), true, 'the pry starts on the same frame');
+  assert.ok(g.log.includes('stopSpeech'), 'every line playing is silenced');
+  assert.ok(g.log.includes('score labB floodOut'), 'the music still ends');
+  await until(g, () => !g.m.isRunning('r10_ambush'));
+  assert.equal(said(g, 'flood_giles_02'), 0, 'Giles never gets to ask');
+  assert.equal(g.host.flags['obj:obj_power'], 'active');
+  assert.ok(g.log.includes('checkpoint cp_valve'));
+  assert.equal(g.control.state.move, 'free');
 });
 
 // ------------------------------------------------------------------------------- beat 7: the climax
@@ -1264,6 +1309,7 @@ async function playThrough(g: Game, events: string[]): Promise<void> {
   fire(g, 'trigger:r10_enter');
   fire(g, 'valve:r10_main');
   await settle('valve_done');
+  await until(g, () => !g.m.isRunning('valve_turn'));
   fire(g, 'trigger:r10_ambush');
   await settle('ambush_done');
   for (let i = 0; i < 12 * 60 && g.m.isRunning('r10_ambush'); i++) g.m.update(1 / 60);

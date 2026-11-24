@@ -343,6 +343,14 @@
           "hold": 1
         }
       },
+      "aftermath_out": {
+        "fade": 1,
+        "distance": false,
+        "layers": {
+          "drone": 0.4,
+          "hold": 0
+        }
+      },
       "end": {
         "cut": true,
         "distance": false,

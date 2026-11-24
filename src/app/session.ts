@@ -1724,6 +1724,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       saves,
       events,
       game,
+      flashlight,
       player,
       world,
       level,

@@ -198,7 +198,7 @@
     "do": "spawn",
     "npc": "r09_flood_shambler",
     "kind": "flood_elite",
-    "at": "anchor:r09_flood_shambler"
+    "at": "anchor:r09_charge_start"
    },
    {
     "do": "score",
@@ -264,11 +264,60 @@
     "s": 1.6
    },
    {
+    "do": "playerFrame",
+    "target": "anchor:r09_charge_view",
+    "duration": 1.2,
+    "wait": true
+   },
+   {
+    "do": "wait",
+    "s": 0.3
+   },
+   {
+    "do": "light",
+    "id": "r09_charge_light",
+    "pattern": "steady"
+   },
+   {
+    "do": "sfx",
+    "id": "creatureScreamFar",
+    "at": "anchor:r09_charge_start",
+    "gain": 20
+   },
+   {
+    "do": "score",
+    "id": "labB",
+    "cue": "floodCharge"
+   },
+   {
+    "do": "wait",
+    "s": 0.4
+   },
+   {
+    "do": "playerWalkTo",
+    "to": "anchor:r10_run_stop",
+    "speed": 3.8,
+    "timeout": 5,
+    "wait": true
+   },
+   {
+    "do": "playerFlashlight",
+    "on": true
+   },
+   {
+    "do": "wait",
+    "s": 0.5
+   },
+   {
     "parallel": [
      {
       "do": "loop",
       "count": 1,
       "steps": [
+       {
+        "do": "wait",
+        "s": 1.2
+       },
        {
         "do": "say",
         "line": "flood_okafor_01"
@@ -311,42 +360,41 @@
         "do": "score",
         "id": "labB",
         "cue": "floodHold"
+       },
+       {
+        "do": "playerFrame",
+        "clear": true
+       },
+       {
+        "do": "playerControl",
+        "reset": true
+       },
+       {
+        "do": "setFlag",
+        "flag": "valve_done",
+        "value": true
+       },
+       {
+        "do": "completeObjective",
+        "id": "obj_valve"
+       },
+       {
+        "do": "setObjective",
+        "id": "obj_power"
+       },
+       {
+        "do": "checkpoint",
+        "id": "cp_valve",
+        "label": "Valve Room"
        }
       ]
      },
      {
-      "do": "loop",
-      "count": 1,
-      "steps": [
-       {
-        "do": "playerFrame",
-        "target": "anchor:r10_porthole",
-        "duration": 1.2,
-        "wait": true
-       },
-       {
-        "do": "wait",
-        "s": 1.2
-       },
-       {
-        "do": "sfx",
-        "id": "creatureCharge",
-        "at": "anchor:r09_flood_top",
-        "gain": 6
-       },
-       {
-        "do": "score",
-        "id": "labB",
-        "cue": "floodCharge"
-       },
-       {
-        "do": "npcMoveTo",
-        "npc": "r09_flood_shambler",
-        "to": "anchor:r09_flood_behind",
-        "speed": 2.7,
-        "wait": true
-       }
-      ]
+      "do": "npcMoveTo",
+      "npc": "r09_flood_shambler",
+      "to": "anchor:r09_flood_behind",
+      "speed": 3.2,
+      "wait": true
      }
     ]
    },
@@ -396,14 +444,6 @@
     "cue": "hold"
    },
    {
-    "do": "playerFrame",
-    "clear": true
-   },
-   {
-    "do": "playerControl",
-    "reset": true
-   },
-   {
     "do": "say",
     "line": "flood_giles_02"
    },
@@ -411,24 +451,6 @@
     "do": "npcAnim",
     "npc": "giles",
     "anim": "cough"
-   },
-   {
-    "do": "setFlag",
-    "flag": "valve_done",
-    "value": true
-   },
-   {
-    "do": "completeObjective",
-    "id": "obj_valve"
-   },
-   {
-    "do": "setObjective",
-    "id": "obj_power"
-   },
-   {
-    "do": "checkpoint",
-    "id": "cp_valve",
-    "label": "Valve Room"
    },
    {
     "do": "score",
@@ -494,6 +516,23 @@
    }
   },
   "steps": [
+   {
+    "do": "if",
+    "flag": "running:valve_turn",
+    "then": [
+     {
+      "do": "score",
+      "id": "labB",
+      "cue": "floodOut"
+     }
+    ],
+    "else": []
+   },
+   {
+    "do": "stopSequence",
+    "id": "valve_turn",
+    "speech": true
+   },
    {
     "do": "setFlag",
     "flag": "ambush_done",
@@ -576,22 +615,31 @@
     "do": "sfx",
     "id": "creatureCharge",
     "at": "anchor:r09_flood_door",
-    "gain": 5
+    "gain": 16
    },
    {
     "do": "doorPry",
     "id": "D_R09_R10",
-    "open": 0.3,
-    "s": 1.1
+    "open": 0.5,
+    "s": 1.2
    },
    {
     "do": "cameraShake",
     "amount": 0.25,
-    "s": 1.1
+    "s": 1.2
    },
    {
     "do": "wait",
-    "s": 1.1
+    "s": 1
+   },
+   {
+    "do": "npcAnim",
+    "npc": "r09_flood_shambler",
+    "anim": "pry_thrust"
+   },
+   {
+    "do": "wait",
+    "s": 0.7
    },
    {
     "do": "sfx",
@@ -610,7 +658,7 @@
    },
    {
     "do": "wait",
-    "s": 0.27
+    "s": 0.1
    },
    {
     "do": "npcSever",

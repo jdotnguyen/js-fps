@@ -1170,6 +1170,34 @@ test('`jump=r10_flood` stands Jay at the valve, within reach of its use box', ()
   assert.ok(a.pos.x >= min[0] && a.pos.x <= max[0] && a.pos.z >= min[2] && a.pos.z <= max[2], 'inside the valve use box');
 });
 
+// overhaul-valve-cutscene: Jay's scripted run ends outside the ambush box, and the elite's charge start is seen through the open door.
+test('the valve cutscene run stops outside the ambush trigger and sees the charge start down the R09 hall', () => {
+  const { level } = build();
+  const box = data.rooms.find((r) => r.id === 'R10')!.triggers!.find((t) => t.id === 'trig_r10_ambush')!.box;
+  const [min, max] = box;
+  // R10 is the 8 x 8 m room x 30..38, z 46..54.
+  assert.ok(min[0] >= 30 && max[0] <= 38 && min[2] >= 46 - 0.3 && max[2] <= 54, 'the box lies in R10 (beside the doors)');
+  const stop = level.anchor('r10_run_stop')!.pos;
+  assert.ok(stop.x < min[0] || stop.x > max[0] || stop.z < min[2] || stop.z > max[2], 'the run stop is outside the ambush box');
+  assert.ok(Math.min(Math.abs(stop.x - max[0]), Math.abs(stop.z - max[2])) >= 1.2, 'with room to spare for the player body');
+  assert.ok(Math.abs(stop.y - level.floorAt(stop.x, stop.z)) < 0.05, 'on the floor');
+  // The sightline: with the R09 door open, the charge start is in clear view from the run stop at eye height.
+  level.setDoor('D_R09_R10', 'open');
+  const from = new THREE.Vector3(stop.x, 1.62, stop.z);
+  for (let i = 0; i < 3 * 60; i++) level.update(i / 60, 1 / 60, from, false);
+  assert.equal(level.doorOpenness('D_R09_R10'), 1, 'the door has opened');
+  const start = level.anchor('r09_charge_start')!.pos;
+  const eye = { x: stop.x, y: 1.62, z: stop.z };
+  for (const y of [start.y + 0.6, start.y + 1.2, start.y + 1.8]) {
+    const dx = start.x - eye.x;
+    const dy = y - eye.y;
+    const dz = start.z - eye.z;
+    const d = Math.hypot(dx, dy, dz);
+    const hit = level.collision.raycast(eye.x, eye.y, eye.z, dx / d, dy / d, dz / d, d);
+    assert.equal(hit, null, `the charge start is hidden at y ${y.toFixed(1)} (hit ${hit ? `${hit.collider.minX.toFixed(1)},${hit.collider.minZ.toFixed(1)}` : ''})`);
+  }
+});
+
 // station-power spec "A squad reaction and the PA notice": the notice is heard where the blackout finds the player.
 test('the power-failure notice has a PA speaker in the Lab Junction and in Lab B', () => {
   const { level } = build();

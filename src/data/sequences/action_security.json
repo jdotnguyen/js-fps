@@ -1157,6 +1157,11 @@
             "then": [],
             "else": [
              {
+              "do": "score",
+              "id": "medbay",
+              "cue": "aftermath"
+             },
+             {
               "do": "wait",
               "s": 2.4
              },
@@ -1214,13 +1219,33 @@
        },
        {
         "do": "wait",
-        "s": 1.2
+        "s": 0.3
+       },
+       {
+        "do": "score",
+        "id": "medbay",
+        "cue": "aftermath_out"
        },
        {
         "do": "npcMoveTo",
         "npc": "okafor",
         "to": "anchor:r07_console",
-        "speed": 1,
+        "speed": 2.2,
+        "wait": false
+       },
+       {
+        "do": "say",
+        "line": "sec_okafor_23"
+       },
+       {
+        "do": "say",
+        "line": "sec_okafor_20"
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "okafor",
+        "to": "anchor:r07_console",
+        "speed": 2.2,
         "wait": true
        },
        {
@@ -1237,14 +1262,6 @@
         "do": "npcAnim",
         "npc": "okafor",
         "anim": "okafor_notebook"
-       },
-       {
-        "do": "wait",
-        "s": 4
-       },
-       {
-        "do": "say",
-        "line": "sec_okafor_20"
        },
        {
         "do": "wait",

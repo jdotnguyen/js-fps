@@ -52,6 +52,17 @@ export const REACTION_BATCHES: readonly ReactionBatch[] = [
     ],
   },
   {
+    // speed-up-priya-aftermath: Okafor's exhale and sniffle at the glass after her death. A male voice only: the
+    // sigh and sniffle are not his speech, so they use Jay's cast entry (a steady lower-mid male voice).
+    name: 'react_okafor_exhale',
+    speaker: 'player',
+    character: 'a worn-out middle-aged male surgeon, deep low male voice, alone and exhausted after watching a patient die',
+    takes: [
+      { id: 'react_okafor_exhale_01', direction: 'one long, heavy, tired exhale through the nose and mouth, loud and audible, then a single wet sniffle; exhausted and grieving, no words', vocalization: 'Hhhhaaahhh... [sniff]' },
+      { id: 'react_okafor_exhale_02', direction: 'a slow weary sigh out, shaky at the end, then a quiet sniffle and a swallow; loud and close to the microphone, no words', vocalization: 'Hhhhhhhh... hh— [sniff]' },
+    ],
+  },
+  {
     // Her panic as the thing crawls up her arm (infection-kills spec, the scratch beat: sound `voss_panic_breath`).
     name: 'react_voss_panic',
     speaker: 'crew_lab',
