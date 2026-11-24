@@ -125,3 +125,27 @@ test('aim swing never exceeds its clamp', () => {
     if (a <= AIM_CLAMP) assert.ok(Math.abs(got - a) < 1e-6, 'small errors are taken out entirely');
   }
 });
+
+test('squad pistol grips (fix-squad-pistol-grips): Okafor wrist stays level without aimTarget and Giles left hand cups under the right hand/grip', async () => {
+  const lib = makeLib({ mechanic: await loadMainCast('mechanic'), doctor: await loadMainCast('doctor') });
+
+  const pitchOf = (who: 'giles' | 'okafor') => {
+    const h = new Humanoid({ ...CAST[who]!, role: 'npc', pose: 'aim_pistol' }, { ...enemyCtx(), bodyModels: lib });
+    for (let i = 0; i < 40; i++) h.update(1 / 60);
+    h.group.updateMatrixWorld(true);
+    const bore = new THREE.Vector3(0, 0, -1).applyQuaternion(h.pistol!.muzzle.getWorldQuaternion(new THREE.Quaternion()));
+    const handR = h.bones.hand_R.getWorldPosition(new THREE.Vector3());
+    const handL = h.bones.hand_L.getWorldPosition(new THREE.Vector3());
+    const grip = h.pistol!.grip.getWorldPosition(new THREE.Vector3());
+    const pitch = THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(bore.y, -1, 1)));
+    h.dispose();
+    return { pitch, handR, handL, grip };
+  };
+
+  const g = pitchOf('giles');
+  const o = pitchOf('okafor');
+  assert.ok(g.pitch >= -5 && g.pitch <= 3, `Giles bore pitch (${g.pitch.toFixed(1)}°) level or slightly down`);
+  assert.ok(o.pitch >= -5 && o.pitch <= 3, `Okafor bore pitch (${o.pitch.toFixed(1)}°) level or slightly down`);
+  assert.ok(g.handL.distanceTo(g.grip) <= 0.065 && g.handL.y < g.grip.y, `Giles hand_L cups under grip (${g.handL.distanceTo(g.grip).toFixed(3)} m)`);
+  assert.ok(o.handL.distanceTo(o.grip) <= 0.065 && o.handL.y < o.grip.y, `Okafor hand_L cups under grip (${o.handL.distanceTo(o.grip).toFixed(3)} m)`);
+});

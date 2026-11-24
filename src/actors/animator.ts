@@ -125,7 +125,7 @@ const OVERLAY_HEAD_JOINTS: readonly JointName[] = ['neck', 'head'];
 function standingOverlayKind(poseName: string): StandingOverlayKind | null {
   if (/^(sit_|lean_)/.test(poseName)) return null;
   // A character's own arms-out scan pose (Ruiz's `ruiz_arms_out`) keeps their legs and trunk on their idle: restless, not frozen.
-  if (STANDING_ARMS_OVERLAY.has(poseName) || poseName.endsWith('_offer_mug') || poseName.endsWith('_arms_out')) return 'arms';
+  if (STANDING_ARMS_OVERLAY.has(poseName) || poseName.endsWith('_offer_mug') || poseName.endsWith('_arms_out') || poseName.endsWith('_idle_pistol')) return 'arms';
   if (STANDING_HEAD_OVERLAY.has(poseName) || poseName.endsWith('_glance') || poseName.endsWith('_glance_other')) return 'head';
   if (STANDING_IDLE_OVERLAY.has(poseName)) return 'idle';
   return null;

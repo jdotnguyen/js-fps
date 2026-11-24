@@ -442,6 +442,7 @@ export class SquadMate {
     if (!target) {
       const rest = squad.restPose();
       if (this.body.idlePose === 'aim_pistol' && rest !== 'aim_pistol') this.body.setPose(rest, 0.5);
+      else if (rest === 'idle_pistol' && this.body.idlePose === 'idle' && this.gestureLeft <= 0) this.body.setPose(rest, 0.5);
       return;
     }
     // Back off from anything too close (the medic keeps more room).
@@ -1053,9 +1054,9 @@ export class Squad {
     return !!f && (f['gunDrawn'] === true || f['drop_done'] === true);
   }
 
-  /** The pose a mate returns to when nothing else holds him: pistol up after the drop, otherwise idle. */
+  /** The pose a mate returns to when nothing else holds him: low-ready pistol after the drop, otherwise idle. */
   restPose(): string {
-    return this.gunsDrawn ? 'aim_pistol' : 'idle';
+    return this.gunsDrawn ? 'idle_pistol' : 'idle';
   }
 
   enemyList(): readonly SquadEnemy[] {

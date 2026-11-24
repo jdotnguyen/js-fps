@@ -2570,6 +2570,84 @@
     ]
    }
   },
+  "idle_pistol": {
+   "joints": {
+    "spine": [
+     -2,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     24,
+     -14,
+     0
+    ],
+    "foreArm_R": [
+     47,
+     27,
+     -47
+    ],
+    "hand_R": [
+     -18,
+     58,
+     10
+    ],
+    "upperArm_L": [
+     18,
+     14,
+     -10
+    ],
+    "foreArm_L": [
+     40,
+     -24,
+     62
+    ],
+    "hand_L": [
+     28,
+     38,
+     -30
+    ]
+   }
+  },
+  "giles_idle_pistol": {
+   "joints": {
+    "spine": [
+     -2,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     24,
+     -14,
+     8
+    ],
+    "foreArm_R": [
+     47,
+     27,
+     -53
+    ],
+    "hand_R": [
+     -18,
+     58,
+     10
+    ],
+    "upperArm_L": [
+     14,
+     16,
+     -16
+    ],
+    "foreArm_L": [
+     36,
+     -28,
+     74
+    ],
+    "hand_L": [
+     38,
+     48,
+     -38
+    ]
+   }
+  },
   "dock_guard_idle_wand": {
    "pelvis": [
     0.028,

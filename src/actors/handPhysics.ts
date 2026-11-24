@@ -379,7 +379,7 @@ export function chooseHandShape(
   if (poseName === 'panel_work') return 'pinch';
   if (ikActive) return 'surface';
   if (poseName === 'flex_hand') return side === 'R' ? 'flex' : 'relaxed';
-  if (poseName === 'aim_pistol') return side === 'R' ? 'grip' : 'cup';
+  if (poseName === 'aim_pistol' || poseName === 'idle_pistol' || poseName.endsWith('_idle_pistol')) return side === 'R' ? 'grip' : 'cup';
   if (/(^|_)(mug|drink)(_|$)/.test(poseName)) {
     return side === 'R' ? 'cup' : 'relaxed';
   }

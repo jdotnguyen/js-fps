@@ -7,15 +7,31 @@
     "crew_m": {
       "gender": "m",
       "pools": {
-        "walk": ["crew_m_walk_a", "crew_m_walk_b", "crew_m_walk_c"],
-        "jog": ["crew_m_jog_a", "crew_m_jog_b", "crew_m_jog_c"]
+        "walk": [
+          "crew_m_walk_a",
+          "crew_m_walk_b",
+          "crew_m_walk_c"
+        ],
+        "jog": [
+          "crew_m_jog_a",
+          "crew_m_jog_b",
+          "crew_m_jog_c"
+        ]
       }
     },
     "crew_f": {
       "gender": "f",
       "pools": {
-        "walk": ["crew_f_walk_a", "crew_f_walk_b", "crew_f_walk_c"],
-        "jog": ["crew_f_jog_a", "crew_f_jog_b", "crew_f_jog_c"]
+        "walk": [
+          "crew_f_walk_a",
+          "crew_f_walk_b",
+          "crew_f_walk_c"
+        ],
+        "jog": [
+          "crew_f_jog_a",
+          "crew_f_jog_b",
+          "crew_f_jog_c"
+        ]
       }
     },
     "giles": {
@@ -28,28 +44,70 @@
         "jog": "giles_jog",
         "work": "giles_console",
         "drink": "giles_coffee",
-        "aimPistol": "pistol_idle"
+        "aimPistol": "giles_pistol"
+      },
+      "poses": {
+        "idle_pistol": "giles_idle_pistol"
       },
       "variants": {
         "intro": {
-          "when": { "sequence": "intro_shift_change" },
-          "holds": { "lean_back": "giles_coffee" },
-          "style": { "tempo": 0.9 }
+          "when": {
+            "sequence": "intro_shift_change"
+          },
+          "holds": {
+            "lean_back": "giles_coffee"
+          },
+          "style": {
+            "tempo": 0.9
+          }
         },
         "panel": {
-          "when": { "task": ["bypass", "bypass_short", "bypass_long", "unlock_locker"] },
-          "clips": { "work": "giles_panel" },
-          "holds": { "crouch": "giles_panel" }
+          "when": {
+            "task": [
+              "bypass",
+              "bypass_short",
+              "bypass_long",
+              "unlock_locker"
+            ]
+          },
+          "clips": {
+            "work": "giles_panel"
+          },
+          "holds": {
+            "crouch": "giles_panel"
+          }
         },
         "console": {
-          "when": { "task": ["power_restore", "reroute"] },
-          "clips": { "work": "giles_console" },
-          "style": { "headPitch": 10, "fidgetRate": 0.7 }
+          "when": {
+            "task": [
+              "power_restore",
+              "reroute"
+            ]
+          },
+          "clips": {
+            "work": "giles_console"
+          },
+          "style": {
+            "headPitch": 10,
+            "fidgetRate": 0.7
+          }
         },
         "reveal": {
-          "when": { "stage": [4, 4] },
-          "holds": { "stand": "giles_reveal" },
-          "style": { "posture": -0.6, "headPitch": 10, "tempo": 0.9, "fidgetRate": 2 }
+          "when": {
+            "stage": [
+              4,
+              4
+            ]
+          },
+          "holds": {
+            "stand": "giles_reveal"
+          },
+          "style": {
+            "posture": -0.6,
+            "headPitch": 10,
+            "tempo": 0.9,
+            "fidgetRate": 2
+          }
         }
       },
       "holds": {
@@ -86,7 +144,7 @@
         "jog": "okafor_jog",
         "work": "okafor_console",
         "drink": "okafor_coffee",
-        "aimPistol": "pistol_idle"
+        "aimPistol": "okafor_pistol"
       },
       "holds": {
         "stand": "okafor_hold",
@@ -110,18 +168,36 @@
       },
       "variants": {
         "intro": {
-          "when": { "sequence": "intro_shift_change" },
-          "holds": { "lean_back": "okafor_coffee" }
+          "when": {
+            "sequence": "intro_shift_change"
+          },
+          "holds": {
+            "lean_back": "okafor_coffee"
+          }
         },
         "console": {
-          "when": { "task": "biometric" },
-          "clips": { "work": "okafor_console" },
-          "style": { "headPitch": 6, "fidgetRate": 0.25 }
+          "when": {
+            "task": "biometric"
+          },
+          "clips": {
+            "work": "okafor_console"
+          },
+          "style": {
+            "headPitch": 6,
+            "fidgetRate": 0.25
+          }
         },
         "revive": {
-          "when": { "task": "revive" },
-          "holds": { "kneel": "okafor_revive" },
-          "style": { "tempo": 1.1, "fidgetRate": 0.2 }
+          "when": {
+            "task": "revive"
+          },
+          "holds": {
+            "kneel": "okafor_revive"
+          },
+          "style": {
+            "tempo": 1.1,
+            "fidgetRate": 0.2
+          }
         }
       },
       "hands": {
@@ -161,10 +237,23 @@
         "headPitch": -2
       },
       "variants": {
-        "run": { "when": { "sequence": "sec_glass" }, "clips": { "jog": "priya_run" } },
+        "run": {
+          "when": {
+            "sequence": "sec_glass"
+          },
+          "clips": {
+            "jog": "priya_run"
+          }
+        },
         "intro": {
-          "when": { "sequence": "intro_shift_change" },
-          "style": { "tempo": 1.2, "armCarry": 1.25, "headPitch": -4 }
+          "when": {
+            "sequence": "intro_shift_change"
+          },
+          "style": {
+            "tempo": 1.2,
+            "armCarry": 1.25,
+            "headPitch": -4
+          }
         }
       },
       "hands": {
@@ -207,8 +296,17 @@
       },
       "variants": {
         "labb": {
-          "when": { "sequence": ["briefing_gallery", "drop"] },
-          "style": { "tempo": 1.25, "fidgetRate": 2.4, "headPitch": 10 }
+          "when": {
+            "sequence": [
+              "briefing_gallery",
+              "drop"
+            ]
+          },
+          "style": {
+            "tempo": 1.25,
+            "fidgetRate": 2.4,
+            "headPitch": 10
+          }
         }
       },
       "hands": {
@@ -248,13 +346,25 @@
       },
       "variants": {
         "intro": {
-          "when": { "sequence": "intro_shift_change" },
-          "clips": { "work": "bram_coffee" },
-          "style": { "tempo": 1, "talkArms": 0 }
+          "when": {
+            "sequence": "intro_shift_change"
+          },
+          "clips": {
+            "work": "bram_coffee"
+          },
+          "style": {
+            "tempo": 1,
+            "talkArms": 0
+          }
         },
         "intro_served": {
-          "when": { "sequence": "intro_shift_change", "flag": "bram_coffee_served" },
-          "style": { "talkArms": 1 }
+          "when": {
+            "sequence": "intro_shift_change",
+            "flag": "bram_coffee_served"
+          },
+          "style": {
+            "talkArms": 1
+          }
         }
       },
       "hands": {
@@ -294,9 +404,15 @@
       },
       "variants": {
         "checkpoint": {
-          "when": { "sequence": "intro_shift_change" },
-          "poses": { "arms_out": "ruiz_arms_out" },
-          "style": { "fidgetRate": 1.8 }
+          "when": {
+            "sequence": "intro_shift_change"
+          },
+          "poses": {
+            "arms_out": "ruiz_arms_out"
+          },
+          "style": {
+            "fidgetRate": 1.8
+          }
         }
       },
       "hands": {
@@ -336,13 +452,21 @@
       },
       "variants": {
         "post": {
-          "when": { "sequence": ["briefing_gallery", "drop"] },
-          "style": { "fidgetRate": 0.3, "posture": 0.5 }
+          "when": {
+            "sequence": [
+              "briefing_gallery",
+              "drop"
+            ]
+          },
+          "style": {
+            "fidgetRate": 0.3,
+            "posture": 0.5
+          }
         }
       },
       "hands": {
         "tension": 0.5,
-        "stiffness": 1.0,
+        "stiffness": 1,
         "fidget": 0.12,
         "restCurl": 0.5
       }
@@ -377,8 +501,16 @@
       },
       "variants": {
         "briefing": {
-          "when": { "sequence": ["rounds", "briefing_gallery"] },
-          "style": { "tempo": 1.15, "fidgetRate": 2.4 }
+          "when": {
+            "sequence": [
+              "rounds",
+              "briefing_gallery"
+            ]
+          },
+          "style": {
+            "tempo": 1.15,
+            "fidgetRate": 2.4
+          }
         }
       },
       "hands": {

@@ -722,6 +722,6 @@ test('squadmates lower their pistols to idle_pistol out of combat when gunDrawn 
   assert.ok(m.body.pistol, 'pistol shows while aiming');
   assert.equal(squad.restPose(), 'idle_pistol');
   for (let i = 0; i < 40; i++) squad.update(1 / 60, null);
-  assert.equal(m.body.idlePose, 'idle_pistol', 'out of combat: mate lowers to idle_pistol');
+  assert.ok(m.body.idlePose === 'idle_pistol' || m.body.idlePose === 'giles_idle_pistol', 'out of combat: mate lowers to idle_pistol');
   assert.ok(m.body.pistol, 'pistol stays in hand at idle_pistol');
 });
