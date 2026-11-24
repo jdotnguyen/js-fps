@@ -609,6 +609,11 @@ export class Humanoid {
     this.animator.setPose(pose, 0.01);
   }
 
+  /** Imported-model surface materials on this body (for corpse blood overlays). */
+  surfaceMaterials(): readonly THREE.MeshStandardMaterial[] {
+    return Object.values(this.materials.surfaces);
+  }
+
   getUp(): void {
     if (this.state !== 'playingDead' || this.locomotion.mode !== 'walk') return;
     this.state = 'gettingUp';

@@ -49,6 +49,10 @@ export interface NpcSpawn {
   room?: string | undefined;
   /** Optional explicit room list this NPC may roam between for work spots. */
   roam?: readonly string[] | undefined;
+  /** Static fallen corpse (zero AI/collision, frozen in dead pose). */
+  dead?: boolean | undefined;
+  /** Composite dark-crimson blood splatters onto the body's materials. */
+  blood?: boolean | undefined;
 }
 
 export interface ResolvedTarget {
@@ -111,6 +115,78 @@ export const LISTEN_RANGE = 4.5;
 const LISTEN_LINGER = 1.2;
 /** A walker outweighs a standing body, so the standing one yields. */
 const WALKER_MASS = 4;
+
+const CORPSE_BLOOD_TEX = ['spatter_01', 'spatter_02', 'spatter_03', 'spatter_04', 'pool_01', 'pool_02'] as const;
+const corpseBloodImgCache = new Map<string, Promise<HTMLImageElement | null>>();
+function loadCorpseBloodImage(texName: string): Promise<HTMLImageElement | null> {
+  let p = corpseBloodImgCache.get(texName);
+  if (p) return p;
+  p = new Promise((resolve) => {
+    if (typeof Image === 'undefined') return resolve(null);
+    const base = (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = `${base}assets/textures/blood/${texName}.webp`;
+  });
+  corpseBloodImgCache.set(texName, p);
+  return p;
+}
+
+function applyBloodToBody(body: Humanoid, seedStr: string): void {
+  if (typeof document === 'undefined' || typeof Image === 'undefined') return;
+  const seed = Math.abs(seedStr.split('').reduce((h, c) => ((h * 31) ^ c.charCodeAt(0)) | 0, 0));
+  const texName = CORPSE_BLOOD_TEX[seed % CORPSE_BLOOD_TEX.length]!;
+  void loadCorpseBloodImage(texName).then((bloodImg) => {
+    if (!bloodImg) return;
+    let idx = 0;
+    for (const mat of body.surfaceMaterials()) {
+      if (mat.alphaTest > 0) continue; // skip hair cards
+      const w = 512;
+      const h = 512;
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext('2d');
+      if (!ctx) continue;
+      const srcImg = mat.map?.image as (HTMLImageElement | HTMLCanvasElement | ImageBitmap | undefined);
+      if (srcImg) {
+        try {
+          ctx.drawImage(srcImg as CanvasImageSource, 0, 0, w, h);
+        } catch {
+          ctx.fillStyle = `#${mat.color.getHexString()}`;
+          ctx.fillRect(0, 0, w, h);
+        }
+      } else {
+        ctx.fillStyle = `#${mat.color.getHexString()}`;
+        ctx.fillRect(0, 0, w, h);
+      }
+      for (let i = 0; i < 3; i++) {
+        const a = ((seed * 1.7 + idx * 1.3 + i * 2.1) % 6.28);
+        const sx = ((seed * 97 + idx * 41 + i * 173) % 340) + 86;
+        const sy = ((seed * 131 + idx * 59 + i * 199) % 340) + 86;
+        const sz = 210 + ((seed * 53 + i * 71) % 160);
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(a);
+        ctx.globalAlpha = 0.85;
+        ctx.drawImage(bloodImg, -sz / 2, -sz / 2, sz, sz);
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.globalAlpha = 0.55;
+        ctx.drawImage(bloodImg, -sz / 2, -sz / 2, sz, sz);
+        ctx.restore();
+      }
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.flipY = mat.map ? mat.map.flipY : false;
+      mat.map = tex;
+      mat.roughness = Math.min(mat.roughness, 0.45);
+      mat.needsUpdate = true;
+      idx++;
+    }
+  });
+}
 
 const SQUAD_NAMES: Readonly<Record<string, SquadId>> = { giles: 'engineer', engineer: 'engineer', okafor: 'medic', medic: 'medic' };
 
@@ -345,7 +421,7 @@ export class NpcDirector {
         continue;
       }
       this.levelSpawns.set(s.id, s);
-      this.create(s.id, s.look, s.pos, s.yaw, s.pose, s.transformable === true, s.model);
+      this.create(s.id, s.look, s.pos, s.yaw, s.pose, s.transformable === true, s.model, s.dead === true, s.blood === true);
     }
     // ADR-0029: NPCs sharing a chat id talk to each other.
     const byChat = new Map<string, string[]>();
@@ -490,7 +566,7 @@ export class NpcDirector {
   enableAmbientLife(spots: readonly AmbientSpot[]): void {
     const agents: AmbientAgent[] = [];
     for (const s of this.levelSpawns.values()) {
-      if (!s.room || !isAmbientEligible(s.id, s.pose, s.roam)) continue;
+      if (s.dead || !s.room || !isAmbientEligible(s.id, s.pose, s.roam)) continue;
       const id = s.id;
       agents.push({
         id,
@@ -544,13 +620,19 @@ export class NpcDirector {
     this.parked.clear();
     for (const a of this.actors.values()) a.untow();
     for (const s of this.levelSpawns.values()) {
-      const a = this.actors.get(s.id) ?? this.create(s.id, s.look, s.pos, s.yaw, s.pose, s.transformable === true, s.model);
+      const a = this.actors.get(s.id) ?? this.create(s.id, s.look, s.pos, s.yaw, s.pose, s.transformable === true, s.model, s.dead === true, s.blood === true);
       a.stopMove();
       a.followTarget(null);
       a.lookAt(null);
       a.offering = null;
       if (a.body.infection > 0) a.body.setInfection(0); // the Lab B researcher is human again
-      a.resetPose(s.pose && this.deps.ctx.poses.has(s.pose) ? s.pose : 'idle');
+      const poseName = s.pose && this.deps.ctx.poses.has(s.pose) ? s.pose : 'idle';
+      if (s.dead) {
+        a.ambient = false;
+        a.body.playDead(poseName);
+      } else {
+        a.resetPose(poseName);
+      }
       a.place(s.pos, s.yaw);
     }
     for (const g of this.chats.values()) g.reset();
@@ -560,7 +642,7 @@ export class NpcDirector {
     this.releaseAll();
   }
 
-  private create(id: string, look: string, at: Vec3Like, yaw: number, pose: string | undefined, transformable: boolean, model?: string): NpcActor {
+  private create(id: string, look: string, at: Vec3Like, yaw: number, pose: string | undefined, transformable: boolean, model?: string, dead = false, blood = false): NpcActor {
     this.remove(id);
     const spec = { ...castSpec(look, id, (m) => this.warnOnce(m)), ...(model ? { model } : {}) };
     let idle = pose ?? spec.pose ?? 'idle';
@@ -569,7 +651,12 @@ export class NpcDirector {
       idle = 'idle';
     }
     const body = new Humanoid({ ...spec, role: 'npc', pose: idle, ...(transformable ? { transformable: true } : {}) }, this.deps.ctx);
+    if (blood) applyBloodToBody(body, id);
     const a = new NpcActor(id, body);
+    if (dead) {
+      a.ambient = false;
+      a.body.playDead(idle);
+    }
     a.place(at, yaw);
     this.actors.set(id, a);
     this.group.add(body.group);
@@ -1033,8 +1120,8 @@ export class NpcDirector {
       if (seen.has(a)) continue;
       seen.add(a);
       const mate = this.mateOf(id);
-      // Squadmates update through the squad unless held.
-      if (mate && !mate.scripted) continue;
+      // Squadmates update through the squad unless held by this director.
+      if (mate && (!mate.scripted || !this.held.has(mate.id))) continue;
       a.update(dt, this.env);
     }
     // After every body has moved and posed: a gripped victim is put back in the attacker's hand.
@@ -1116,6 +1203,10 @@ export class NpcDirector {
         put(m.x, m.z, fp.r, Infinity, null, mate); // the squad AI steers itself (Jay's pass moves it)
         continue;
       }
+      if (mate && mate.scripted && !this.held.has(mate.id)) {
+        put(m.x, m.z, fp.r, Infinity, null, null); // held externally (e.g. transit ride): immovable solid body
+        continue;
+      }
       const goal = a.goalDistance;
       const mass = goal === null ? fp.mass : goal < ARRIVE_LOCK ? Infinity : Math.max(fp.mass, WALKER_MASS);
       put(m.x, m.z, fp.r, mass, a);
@@ -1125,7 +1216,7 @@ export class NpcDirector {
       for (const mate of this.deps.squad.mates) {
         if (seen.has(this.actors.get(mate.id === 'engineer' ? 'giles' : 'okafor') as NpcActor)) continue;
         if (!mate.body.group.visible) continue;
-        put(mate.motor.x, mate.motor.z, mate.body.footprint.r, Infinity, null, mate.working || mate.downed ? null : mate);
+        put(mate.motor.x, mate.motor.z, mate.body.footprint.r, Infinity, null, mate.working || mate.downed || mate.scripted ? null : mate);
       }
     }
     const extra = this.deps.obstacles?.();

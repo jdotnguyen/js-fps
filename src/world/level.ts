@@ -274,6 +274,10 @@ export interface LevelNpc {
   model?: string;
   /** Optional explicit list of room ids this NPC may roam between for work spots. */
   roam?: readonly string[];
+  /** Static fallen corpse (zero AI/collision, frozen in dead pose). */
+  dead?: boolean;
+  /** Composite dark-crimson blood splatters onto the body's materials. */
+  blood?: boolean;
   room: string;
 }
 
@@ -677,6 +681,8 @@ export class Level implements World, CaptureHost {
           ...(n.chat ? { chat: n.chat } : {}),
           ...(n.model ? { model: n.model } : {}),
           ...(n.roam?.length ? { roam: n.roam } : {}),
+          ...(n.dead ? { dead: true } : {}),
+          ...(n.blood ? { blood: true } : {}),
           room: r.id,
         });
       }

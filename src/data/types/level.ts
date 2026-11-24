@@ -216,6 +216,10 @@ const npcShape = {
   model: optional(id),
   /** Explicit list of room ids this NPC may roam between for ambient work spots (overrides single-room/pose locks). */
   roam: optional(arr(id)),
+  /** Static fallen corpse: frozen in its dead pose with zero AI, idle-life, or standing collision. */
+  dead: optional(bool),
+  /** Stamp dark-crimson blood splatters onto this NPC's body materials. */
+  blood: optional(bool),
 };
 
 /**
