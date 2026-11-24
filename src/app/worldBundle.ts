@@ -45,12 +45,64 @@ export function stationLightBudget(quality: Settings['quality'], caps: GpuCaps, 
   return { fillLights: tier.fillLights, shadowLights: tier.shadowLights, shadowMapSize: tier.shadowMapSize, cookieSpots: tier.cookieSpots };
 }
 
+export interface StationAssets {
+  registry: KitRegistry;
+  data: LevelData;
+}
+
+export interface PrepareStationAssetsOptions {
+  levelId: string;
+  /** Loads the level's JSON (the session and the title both use the Vite glob in `levelFiles.ts`). */
+  loadLevelJson: () => Promise<unknown>;
+  /** The kit manifest. Defaults to the bundled JSON; Node tests pass it in because a bare JSON import needs an attribute there. */
+  loadKitManifest?: () => Promise<unknown>;
+  itemTable: ItemTable;
+  uiText: UiText;
+  onProgress?: (fraction: number, label: string) => void;
+  /** Awaited between GLB parses (the title passes one that waits for the menu to go idle). */
+  yieldTo?: () => Promise<void>;
+  /** Work at most this long between yields while parsing GLBs. */
+  sliceMs?: number;
+}
+
+/** Load and validate the level JSON and preload its kit GLBs without requiring materials or a scene. */
+export async function prepareStationAssets(o: PrepareStationAssetsOptions): Promise<StationAssets> {
+  const [levelJson, { KitRegistry: KitReg, validateKitManifest }, kitManifestJson] = await Promise.all([
+    o.loadLevelJson(),
+    import('../world/registry.ts'),
+    (o.loadKitManifest ?? (() => import('../data/kit-manifest.json').then((m) => m.default)))(),
+  ]);
+  const registry = new KitReg(validate(validateKitManifest, kitManifestJson, 'data/kit-manifest.json'), undefined);
+  try {
+    const refs = { items: new Set(Object.keys(o.itemTable)), uiText: new Set(Object.keys(o.uiText)) };
+    const data = validate(levelValidator(registry.ids(), refs), levelJson, `data/levels/${o.levelId}.json`);
+    const ids = data.rooms.flatMap((r) => [...r.pieces.map((p) => p.kit), ...(r.props ?? []).map((p) => p.kit)]);
+    await registry.preload(
+      ids,
+      undefined,
+      o.onProgress
+        ? (done, total) => {
+            o.onProgress!((done / Math.max(1, total)) * 0.35, `Loading station models (${done}/${total})…`);
+          }
+        : undefined,
+      o.yieldTo,
+      o.sliceMs,
+    );
+    return { registry, data };
+  } catch (err) {
+    registry.dispose();
+    throw err;
+  }
+}
+
 export interface StationWorldOptions {
   levelId: string;
   /** Loads the level's JSON (the session and the title both use the Vite glob in `levelFiles.ts`). */
   loadLevelJson: () => Promise<unknown>;
   /** The kit manifest. Defaults to the bundled JSON; Node tests pass it in because a bare JSON import needs an attribute there. */
   loadKitManifest?: () => Promise<unknown>;
+  /** Optional pre-validated level data and preloaded kit registry from `prepareStationAssets`. */
+  preparedAssets?: StationAssets;
   materials: Materials;
   events: EventBus;
   scene: THREE.Scene;
@@ -74,17 +126,13 @@ export interface StationWorld {
 
 /** Load the level's data, validate it, and build the world. The one path every station load takes. */
 export async function buildStationWorld(o: StationWorldOptions): Promise<StationWorld> {
-  const [levelJson, { loadLevel }, { KitRegistry: KitReg, validateKitManifest }, kitManifestJson] = await Promise.all([
-    o.loadLevelJson(),
+  const [{ Level }, assets] = await Promise.all([
     import('../world/level.ts'),
-    import('../world/registry.ts'),
-    (o.loadKitManifest ?? (() => import('../data/kit-manifest.json').then((m) => m.default)))(),
+    o.preparedAssets ? Promise.resolve(o.preparedAssets) : prepareStationAssets(o),
   ]);
-  const registry = new KitReg(validate(validateKitManifest, kitManifestJson, 'data/kit-manifest.json'), undefined);
+  const { registry, data } = assets;
   try {
-    const refs = { items: new Set(Object.keys(o.itemTable)), uiText: new Set(Object.keys(o.uiText)) };
-    const data = validate(levelValidator(registry.ids(), refs), levelJson, `data/levels/${o.levelId}.json`);
-    const level = await loadLevel(
+    const level = await Level.buildAsync(
       data,
       {
         materials: o.materials,
@@ -97,7 +145,13 @@ export async function buildStationWorld(o: StationWorldOptions): Promise<Station
         lightBudget: o.lightBudget,
       },
       o.onProgress || o.yieldTo || o.sliceMs
-        ? { ...(o.onProgress ? { onProgress: o.onProgress } : {}), ...(o.yieldTo ? { yieldTo: o.yieldTo } : {}), ...(o.sliceMs ? { sliceMs: o.sliceMs } : {}) }
+        ? {
+            ...(o.onProgress
+              ? { onProgress: (f: number, label: string) => o.onProgress!(0.35 + f * 0.65, label) }
+              : {}),
+            ...(o.yieldTo ? { yieldTo: o.yieldTo } : {}),
+            ...(o.sliceMs ? { sliceMs: o.sliceMs } : {}),
+          }
         : undefined,
     );
     return { registry, level, data };

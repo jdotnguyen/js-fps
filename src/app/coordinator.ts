@@ -46,6 +46,12 @@ export class SessionCoordinator {
     return this.loading;
   }
 
+  /** Arm title-preload without entering the title menu (e.g. while the splash plays before an auto-load). */
+  armPreload(): void {
+    this.preload?.dispose();
+    this.preload = this.host.createPreload?.() ?? null;
+  }
+
   /** Enter the lightweight non-WebGL title state, disposing any active session first. */
   enterTitle(): void {
     if (this.session) {

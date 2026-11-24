@@ -27,7 +27,8 @@ import {
   type RoomLightSphere,
 } from './portalCull.ts';
 import { HullBuilder, type ExteriorHull } from './kit/exteriorHull.ts';
-import { AoMergeBuilder, applyWorldMeterUvs, withVertexColors, type AoFn } from './kit/merge.ts';
+import { AoMergeBuilder, MergeWorkerPool, applyWorldMeterUvs, withVertexColors, type AoFn } from './kit/merge.ts';
+import { colliderAo } from './kit/colliderAo.ts';
 import { snapModelToSocket, type SnapOptions } from './kit/modelSnap.ts';
 import { CELL, CORRIDOR_H, DECK_H, ROOM_H, WALL_MOUNTED_PROPS, joltSwing, swingAngle, transformBox, type BoxSpec, type SwingJolt, type LightSlotKind, type PieceOutput, type PieceParams, type Socket, type SocketKind } from './kit/types.ts';
 import { LightPool, type PooledSlot } from './lightPool.ts';
@@ -144,40 +145,6 @@ const SLOT_DEFAULTS: Record<LightSlotKind, { color: string; intensity: number; r
   // Hanging lamp bulb: warm, short range, the light just under the bulb so it pools on the table below.
   pendant: { color: '#ffcf99', intensity: 4, range: 4.5, emissive: 3, drop: 0.15 },
 };
-
-/** Distance from a point to a box (0 inside). */
-function boxDistance(p: THREE.Vector3, c: Collider): number {
-  const dx = Math.max(c.minX - p.x, 0, p.x - c.maxX);
-  const dy = Math.max(c.minY - p.y, 0, p.y - c.maxY);
-  const dz = Math.max(c.minZ - p.z, 0, p.z - c.maxZ);
-  return Math.hypot(dx, dy, dz);
-}
-
-/**
- * Per-vertex AO from nearby colliders: a box darkens a vertex when it lies on the side
- * the vertex faces (so a wall never shades itself) and is close.
- */
-function colliderAo(world: CollisionWorld): AoFn {
-  const q = new THREE.Vector3();
-  const list: Collider[] = [];
-  const R = 0.9;
-  return (p, n) => {
-    q.copy(p).addScaledVector(n, 0.12);
-    world.find(q.x - R, q.z - R, q.x + R, q.z + R, list);
-    let ao = 1;
-    for (const c of list) {
-      if (q.y < c.minY - R || q.y > c.maxY + R) continue;
-      const cx = (c.minX + c.maxX) / 2 - p.x;
-      const cy = (c.minY + c.maxY) / 2 - p.y;
-      const cz = (c.minZ + c.maxZ) / 2 - p.z;
-      if (cx * n.x + cy * n.y + cz * n.z <= 0) continue;
-      const d = boxDistance(q, c);
-      if (d > R) continue;
-      ao *= 1 - 0.5 * Math.exp(-d / 0.3);
-    }
-    return Math.max(0.32, ao);
-  };
-}
 
 interface RoomRuntime {
   data: RoomData;
@@ -633,6 +600,23 @@ export class Level implements World, CaptureHost {
     this.addImportedCost(room);
   }
 
+  /** Merge a room using a `MergeWorkerPool`, keeping `room.staticMeshes` preparation on the main thread. */
+  private async mergeRoomInPool(room: RoomRuntime, pool: MergeWorkerPool): Promise<void> {
+    for (const mesh of room.staticMeshes) room.merger.addMesh(mesh);
+    room.staticMeshes.length = 0;
+    room.stats.materials = room.merger.materialCount;
+    room.group.add(await room.merger.buildInWorkerPool(`room:${room.data.id}`, pool));
+    if (room.data.water) addMurkTo(room.group);
+    room.group.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        room.stats.drawCalls++;
+        const g = o.geometry;
+        room.stats.triangles += (g.index ? g.index.count : g.getAttribute('position').count) / 3;
+      }
+    });
+    this.addImportedCost(room);
+  }
+
   private finalizeBuild(data: LevelData, deps: LevelDeps, ao: AoFn): void {
     this.collectLabBFloor();
     this.offs.push(
@@ -897,19 +881,37 @@ export class Level implements World, CaptureHost {
     for (const [index, r] of data.rooms.entries()) {
       onProgress?.((index / totalRooms) * 0.45, `Building ${r.name}…`);
       this.buildRoom(r, index, rng, occupancy, hull);
-      await yieldTo();
+      if (slicer) await slicer.tick();
+      else await yieldTo();
     }
     onProgress?.(0.48, 'Building exterior hull and doors…');
     this.buildExteriorAndDoors(data, deps, rng, hull);
-    await yieldTo();
+    if (slicer) await slicer.tick();
+    else await yieldTo();
     const ao = colliderAo(this.collision);
-    for (let i = 0; i < this.rooms.length; i++) {
-      const room = this.rooms[i]!;
-      onProgress?.(0.5 + (i / totalRooms) * 0.45, `Baking lighting: ${room.data.name}…`);
-      if (slicer) await this.mergeRoomAsync(room, ao, slicer);
-      else {
-        this.mergeRoom(room, ao);
-        await yieldTo();
+    if (typeof Worker !== 'undefined' && this.rooms.length > 0) {
+      const pool = new MergeWorkerPool(this.collision, Math.min(4, this.rooms.length));
+      let mergedCount = 0;
+      try {
+        await Promise.all(
+          this.rooms.map(async (room) => {
+            await this.mergeRoomInPool(room, pool);
+            mergedCount++;
+            onProgress?.(0.5 + (mergedCount / totalRooms) * 0.45, `Baking lighting: ${room.data.name}…`);
+          }),
+        );
+      } finally {
+        pool.dispose();
+      }
+    } else {
+      for (let i = 0; i < this.rooms.length; i++) {
+        const room = this.rooms[i]!;
+        onProgress?.(0.5 + (i / totalRooms) * 0.45, `Baking lighting: ${room.data.name}…`);
+        if (slicer) await this.mergeRoomAsync(room, ao, slicer);
+        else {
+          this.mergeRoom(room, ao);
+          await yieldTo();
+        }
       }
     }
     onProgress?.(0.97, 'Finalizing station layout…');

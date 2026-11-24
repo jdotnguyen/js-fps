@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { applyWorldUvs } from '../../render/uvTiling.ts';
 import { runSteps, runStepsSliced, type TimeSlicer } from '../../core/timeSlice.ts';
+import type { CollisionWorld } from '../collision.ts';
+import type { MergeWorkerBucketIn, MergeWorkerBucketOut, MergeWorkerPartIn, MergeWorkerReply } from './mergeWorker.ts';
 
 /** Ambient occlusion in [0, 1] (1 = fully lit) at a world point with its normal. */
 export type AoFn = (p: THREE.Vector3, n: THREE.Vector3) => number;
@@ -227,23 +229,142 @@ export class AoMergeBuilder {
 
   /** Vertex colour = AO (1 without an AO function) times the flat albedo, if any. */
   private bakeAo(g: THREE.BufferGeometry, ao: AoFn | null, tint?: THREE.Color): void {
-    const pos = g.getAttribute('position');
-    const nor = g.getAttribute('normal');
-    const colors = new Float32Array(pos.count * 3);
-    const tr = tint?.r ?? 1;
-    const tg = tint?.g ?? 1;
-    const tb = tint?.b ?? 1;
-    for (let i = 0; i < pos.count; i++) {
-      let v = 1;
-      if (ao) {
-        this.p.fromBufferAttribute(pos, i);
-        this.n.fromBufferAttribute(nor, i);
-        v = ao(this.p, this.n);
+    bakeAoIntoBuffer(g, ao, this.p, this.n, tint);
+  }
+
+  /**
+   * Run AO baking, geometry merging, and vertex deduplication in a `MergeWorkerPool`,
+   * transferring raw attribute buffers out and back.
+   */
+  async buildInWorkerPool(name: string, pool: MergeWorkerPool): Promise<THREE.Group> {
+    const entries: Array<{ material: THREE.Material; flat: boolean; bake: boolean }> = [];
+    const buckets: MergeWorkerBucketIn[] = [];
+    const transfers: ArrayBuffer[] = [];
+
+    for (const [material, list] of this.parts) {
+      const flat = flatBuckets.get(material.name) === material;
+      const bake = takesAo(material) && material !== glowBucket;
+      const worldTile = takesWorldUvs(material);
+      const parts: MergeWorkerPartIn[] = [];
+      for (const g of list) {
+        const pos = g.getAttribute('position').array as Float32Array;
+        const nor = g.getAttribute('normal').array as Float32Array;
+        const uv = g.getAttribute('uv').array as Float32Array;
+        const tint = this.tints.get(g);
+        parts.push({
+          position: pos,
+          normal: nor,
+          uv,
+          ...(tint ? { tint: [tint.r, tint.g, tint.b] as [number, number, number] } : {}),
+        });
+        transfers.push(pos.buffer as ArrayBuffer, nor.buffer as ArrayBuffer, uv.buffer as ArrayBuffer);
       }
-      colors[i * 3] = v * tr;
-      colors[i * 3 + 1] = v * tg;
-      colors[i * 3 + 2] = v * tb;
+      entries.push({ material, flat, bake });
+      buckets.push({ bake, flat, worldTile, worldTileMeters: worldTileMeters(material), parts });
     }
-    g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    this.parts.clear();
+
+    const out = await pool.merge(buckets, transfers);
+    const group = new THREE.Group();
+    group.name = name;
+    for (let i = 0; i < entries.length; i++) {
+      const { material, flat, bake } = entries[i]!;
+      const mat = flat ? material : bake ? withVertexColors(material) : material;
+      for (const mOut of out[i]!.meshes) {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(mOut.position, 3));
+        g.setAttribute('normal', new THREE.BufferAttribute(mOut.normal, 3));
+        g.setAttribute('uv', new THREE.BufferAttribute(mOut.uv, 2));
+        if (mOut.color) g.setAttribute('color', new THREE.BufferAttribute(mOut.color, 3));
+        if (mOut.index) g.setIndex(new THREE.BufferAttribute(mOut.index, 1));
+        const mesh = new THREE.Mesh(g, mat);
+        mesh.castShadow = !material.transparent;
+        mesh.receiveShadow = true;
+        mesh.name = `${name}:${material.name || material.type}`;
+        group.add(mesh);
+      }
+    }
+    return group;
+  }
+}
+
+/** Bake per-vertex AO (1 without an AO function) times optional flat albedo into `g`'s `color` attribute. */
+export function bakeAoIntoBuffer(g: THREE.BufferGeometry, ao: AoFn | null, p: THREE.Vector3, n: THREE.Vector3, tint?: THREE.Color): void {
+  const pos = g.getAttribute('position');
+  const nor = g.getAttribute('normal');
+  const colors = new Float32Array(pos.count * 3);
+  const tr = tint?.r ?? 1;
+  const tg = tint?.g ?? 1;
+  const tb = tint?.b ?? 1;
+  for (let i = 0; i < pos.count; i++) {
+    let v = 1;
+    if (ao) {
+      p.fromBufferAttribute(pos, i);
+      n.fromBufferAttribute(nor, i);
+      v = ao(p, n);
+    }
+    colors[i * 3] = v * tr;
+    colors[i * 3 + 1] = v * tg;
+    colors[i * 3 + 2] = v * tb;
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+}
+
+/** Worker pool that bakes room AO and merges/indexes static geometry in parallel across rooms. */
+export class MergeWorkerPool {
+  private readonly workers: Worker[] = [];
+  private readonly pending = new Map<number, { resolve: (out: MergeWorkerBucketOut[]) => void; reject: (err: Error) => void }>();
+  private nextId = 1;
+  private rr = 0;
+
+  constructor(world: CollisionWorld, maxWorkers = 4) {
+    const enabled = world.colliders.filter((c) => c.enabled);
+    const boxes = new Float32Array(enabled.length * 6);
+    for (let i = 0; i < enabled.length; i++) {
+      const c = enabled[i]!;
+      const o = i * 6;
+      boxes[o] = c.minX;
+      boxes[o + 1] = c.minY;
+      boxes[o + 2] = c.minZ;
+      boxes[o + 3] = c.maxX;
+      boxes[o + 4] = c.maxY;
+      boxes[o + 5] = c.maxZ;
+    }
+
+    const hw = typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 2;
+    const count = Math.min(maxWorkers, Math.max(1, hw));
+    for (let i = 0; i < count; i++) {
+      const w = new Worker(new URL('./mergeWorker.ts', import.meta.url), { type: 'module' });
+      w.onmessage = (e: MessageEvent<MergeWorkerReply>) => {
+        const msg = e.data;
+        const job = this.pending.get(msg.id);
+        if (!job) return;
+        this.pending.delete(msg.id);
+        if (msg.type === 'error') job.reject(new Error(msg.error));
+        else job.resolve(msg.buckets);
+      };
+      w.onerror = (err) => {
+        const e = new Error(err.message || 'merge worker error');
+        for (const job of this.pending.values()) job.reject(e);
+        this.pending.clear();
+      };
+      w.postMessage({ type: 'init', cellSize: world.cellSize, boxes: boxes.slice() }, { transfer: [] });
+      this.workers.push(w);
+    }
+  }
+
+  merge(buckets: MergeWorkerBucketIn[], transfers: ArrayBuffer[]): Promise<MergeWorkerBucketOut[]> {
+    const id = this.nextId++;
+    const w = this.workers[this.rr++ % this.workers.length]!;
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { resolve, reject });
+      w.postMessage({ type: 'merge', id, buckets }, { transfer: transfers });
+    });
+  }
+
+  dispose(): void {
+    for (const w of this.workers) w.terminate();
+    this.workers.length = 0;
+    this.pending.clear();
   }
 }

@@ -23,6 +23,11 @@ While the splash and title menu are showing, the shell SHALL prepare the assets 
 - **THEN** preparation starts as soon as the title is entered, behind the splash, without waiting for the audio-unlock click
 - **AND** no renderer exists and nothing is held on the GPU at any point on the title
 
+#### Scenario: Preparing during the splash on auto-load URLs
+- **WHEN** the game boots with debug or sandbox auto-load URL parameters (`?level=`, `?debug&jump=`, `?enemies=`, `?seq=`)
+- **THEN** preparation starts behind the splash for the requested station level (or shared assets only for sandbox levels) without creating a renderer
+- **AND** the auto-loaded session adopts any matching prepared results when the splash finishes
+
 #### Scenario: Starting a game after preparation finished
 - **WHEN** the player chooses New game, Continue or Load game on the default level after preparation finished
 - **THEN** the loading screen does not fetch, synthesize, decode or build anything that preparation already produced

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Rng } from '../core/rng.ts';
 import { yieldFrame } from '../core/yieldFrame.ts';
+import { TimeSlicer } from '../core/timeSlice.ts';
 import { obj, record, str, type Validator } from '../core/validate.ts';
 import type { KitIds } from '../data/types/level.ts';
 import { disposeTexture, type Materials } from '../render/materials.ts';
@@ -82,6 +83,8 @@ export class KitRegistry {
     onProgress?: (done: number, total: number, id: string) => void,
     /** Between parses; the title passes one that waits for the menu to go idle. Defaults to the next frame. */
     yieldTo: () => Promise<void> = yieldFrame,
+    /** When set, only yield once this many ms of main-thread parse work have elapsed since the last yield. */
+    sliceMs?: number,
   ): Promise<void> {
     const wanted = [...new Set(ids)].filter((id) => this.manifest.glb[id] && !this.glbs.has(id));
     if (!wanted.length) return;
@@ -125,6 +128,7 @@ export class KitRegistry {
       }),
     );
 
+    const slicer = sliceMs !== undefined ? new TimeSlicer(yieldTo, sliceMs) : null;
     for (const item of fetched) {
       try {
         if (!item.buffer) throw item.error ?? new Error('missing buffer');
@@ -139,7 +143,8 @@ export class KitRegistry {
       }
       done++;
       onProgress?.(done, total, item.id);
-      await yieldTo();
+      if (slicer) await slicer.tick();
+      else await yieldTo();
     }
   }
 

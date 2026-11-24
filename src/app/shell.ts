@@ -180,11 +180,13 @@ export async function bootApp(): Promise<void> {
       await idle.wait();
     };
     for (const type of ['pointermove', 'pointerdown', 'keydown', 'wheel'] as const) menuRoot.addEventListener(type, () => idle.touch(), { capture: true, passive: true });
+    const autoLevel = launch.autoLoad?.levelParam;
+    const autoIsStation = !autoLevel || (autoLevel !== 'demo' && autoLevel !== 'lab' && autoLevel !== 'corner');
     const arming = new TitleArming({
-      defaultLevel: DEFAULT_LEVEL,
+      defaultLevel: autoIsStation && autoLevel ? autoLevel : DEFAULT_LEVEL,
       quality: () => settings.get().quality,
       probe: () => probeGpuLimits(),
-      worldAllowed: !launch.checker,
+      worldAllowed: !launch.checker && autoIsStation,
       current: () => coordinator.currentPreload,
       loaders: (preload, limits) =>
         realSharedLoaders({
@@ -339,7 +341,8 @@ export async function bootApp(): Promise<void> {
 
     // Expose shell booted state before finishing splash.
     if (launch.autoLoad) {
-      // Dev/sandbox URL: bypass title menu and launch session loading immediately after splash.
+      // Dev/sandbox URL: arm preload during the splash, then launch session loading immediately after.
+      coordinator.armPreload();
       await splash.finish();
       splashOver();
       await coordinator.start({ kind: 'autoLoad', plan: launch.autoLoad });

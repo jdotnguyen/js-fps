@@ -209,27 +209,38 @@ async function loadPhotos(anisotropy: number, baseUrl: string): Promise<PhotoLoa
 }
 
 function generateSetsAsync(textureSize: number): Promise<Record<TextureKey, TexSet>> {
-  const sync = (): Record<TextureKey, TexSet> => {
+  const syncKeys = (keys: readonly TextureKey[]): Record<TextureKey, TexSet> => {
     const sets = {} as Record<TextureKey, TexSet>;
-    for (const key of TEXTURE_KEYS) sets[key] = TEXTURE_SPECS[key](textureSize);
+    for (const key of keys) sets[key] = TEXTURE_SPECS[key](textureSize);
     return sets;
   };
-  if (typeof Worker === 'undefined') return Promise.resolve(sync());
-  return new Promise((resolve) => {
-    const worker = new Worker(new URL('./tex/texWorker.ts', import.meta.url), { type: 'module' });
-    worker.onmessage = (e: MessageEvent<TexWorkerResponse>) => {
-      worker.terminate();
-      const sets = {} as Record<TextureKey, TexSet>;
-      for (let i = 0; i < TEXTURE_KEYS.length; i++) sets[TEXTURE_KEYS[i]!] = e.data.sets[i]!;
-      resolve(sets);
-    };
-    worker.onerror = () => {
-      worker.terminate();
-      resolve(sync());
-    };
-    const req: TexWorkerRequest = { keys: TEXTURE_KEYS, size: textureSize };
-    worker.postMessage(req);
-  });
+  if (typeof Worker === 'undefined') return Promise.resolve(syncKeys(TEXTURE_KEYS));
+
+  const hw = typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 2;
+  const workerCount = Math.min(4, Math.max(1, hw), TEXTURE_KEYS.length);
+  const chunks: TextureKey[][] = Array.from({ length: workerCount }, () => []);
+  for (let i = 0; i < TEXTURE_KEYS.length; i++) chunks[i % workerCount]!.push(TEXTURE_KEYS[i]!);
+
+  return Promise.all(
+    chunks.map(
+      (keys) =>
+        new Promise<Partial<Record<TextureKey, TexSet>>>((resolve) => {
+          const worker = new Worker(new URL('./tex/texWorker.ts', import.meta.url), { type: 'module' });
+          worker.onmessage = (e: MessageEvent<TexWorkerResponse>) => {
+            worker.terminate();
+            const part: Partial<Record<TextureKey, TexSet>> = {};
+            for (let i = 0; i < keys.length; i++) part[keys[i]!] = e.data.sets[i]!;
+            resolve(part);
+          };
+          worker.onerror = () => {
+            worker.terminate();
+            resolve(syncKeys(keys));
+          };
+          const req: TexWorkerRequest = { keys, size: textureSize };
+          worker.postMessage(req);
+        }),
+    ),
+  ).then((parts) => Object.assign({}, ...parts) as Record<TextureKey, TexSet>);
 }
 
 const MATERIAL_TEX_SLOTS = [

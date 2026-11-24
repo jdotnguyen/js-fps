@@ -58,7 +58,7 @@ import { SquadMuzzleLight } from '../render/squadMuzzleLight.ts';
 import { FootstepAudio } from '../audio/footsteps.ts';
 import { StageTimer } from './stageTimer.ts';
 import { levelFileLoader } from './levelFiles.ts';
-import { buildStationWorld, createStationScene, type WorldBundle } from './worldBundle.ts';
+import { buildStationWorld, createStationScene, prepareStationAssets, type StationAssets, type WorldBundle } from './worldBundle.ts';
 import { cachedGpuLimits, gpuKey } from '../render/gpuProbe.ts';
 import type { LevelData } from '../data/types/level.ts';
 import { ITEMS } from './titlePrepare.ts';
@@ -411,13 +411,20 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     attachShellMemProbe(memProbe, audio);
   };
 
+  let maxProgress = 0;
+  const setProgress = (fraction: number, label: string): void => {
+    if (disposed) return;
+    maxProgress = Math.max(maxProgress, fraction);
+    loading.setProgress(maxProgress, label);
+  };
+
   try {
     const t0 = performance.now();
     stages.begin('renderer');
     // The shared clip library is its own chunk (startup-bundle spec); fetch it alongside every other stage.
     const mocapPromise = loadSharedMocapLibrary();
     mocapPromise.catch(() => undefined); // awaited with the cast assets below; avoids an unhandled rejection if an earlier stage throws
-    loading.setProgress(0.02, 'Initializing renderer…');
+    setProgress(0.02, 'Initializing renderer…');
     await yieldFrame();
 
     const physics = resolvePhysicsSwitches(settings.get().physics, location.search);
@@ -457,34 +464,13 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     const camera = new THREE.PerspectiveCamera(settings.get().fov, innerWidth / innerHeight, 0.05, 120);
 
     stages.begin('textures+audio');
-    loading.setProgress(0.06, 'Preparing textures and audio…');
+    setProgress(0.06, 'Preparing textures and audio…');
     await yieldFrame();
 
     const texSize = textureSizeFor(settings.get().quality);
     const inventory = bundle?.inventory ?? new Inventory(itemTable, events);
 
-    // Stage 1 (0.06..0.24): Materials, exterior models, chunked procedural SFX & priority gameplay audio in parallel.
-    const [loadedMaterials, , , , gameplayAudio] = await Promise.all([
-      adopt(ITEMS.materials, () => createMaterialsAsync(texSize, currentAnisotropy())),
-      preloadSeabed(import.meta.env.BASE_URL),
-      preloadSubModel(import.meta.env.BASE_URL),
-      adopt(ITEMS.audioSounds, () => audio.renderSoundsAsync(undefined, { batchSize: 4 })),
-      adopt(ITEMS.audioSamples, () =>
-        audio.loadGameplaySamples({
-          onProgress: (done, total) => {
-            loading.setProgress(0.06 + (done / Math.max(1, total)) * 0.16, 'Preparing audio and textures…');
-          },
-        }),
-      ),
-    ]);
-    void gameplayAudio.background;
-    materials = loadedMaterials;
-    applyAnisotropy(); // prepared materials may predate the GPU's maximum
-    measureMaterialUnits(Object.values(materials).filter((m): m is THREE.Material => m instanceof THREE.Material));
-    loading.setProgress(0.24, 'Loading station assets…');
-    await yieldFrame();
-
-    // Start downloading body models, mocap packs, weapon GLBs, and physics WASM concurrently with level build.
+    // Start independent cast, physics, and station GLB loads concurrently with textures+audio so cold loads avoid a waterfall.
     const bodyModelsReady = adopt(ITEMS.bodyModels, async () => {
       const lib = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/body-models.json'));
       await lib.load(import.meta.env.BASE_URL);
@@ -495,16 +481,62 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       if (launch.bodyModels === 'off') lib.forceShare = 0;
       return lib;
     });
+    bodyModelsReady.catch(() => undefined);
 
     const physicsPromise = levelId && anyPhysics(physics.switches) ? loadPhysics(physics.switches) : Promise.resolve(null);
+    physicsPromise.catch(() => undefined);
+
     const castAssetsPromise = Promise.all([
       bodyModelsReady,
       adopt(ITEMS.mocap, () => mocapPromise.then((lib) => loadMocapPacks(lib, Object.keys(sharedMotionProfiles().profiles)))),
       adopt(ITEMS.weapons, loadWeaponModels),
       loadSquadPistolModel(),
     ]);
+    castAssetsPromise.catch(() => undefined);
 
-    // Stage 2 (0.24..0.60): Load & chunk-build the level.
+    const SESSION_SLICE_MS = 20;
+    const stationAssetsPromise: Promise<StationAssets> | null =
+      !bundle && levelId
+        ? prepareStationAssets({
+            levelId,
+            loadLevelJson: levelFileLoader(levelId),
+            itemTable,
+            uiText,
+            sliceMs: SESSION_SLICE_MS,
+            onProgress: (f, label) => setProgress(0.24 + f * 0.36, label),
+          }).then((assets) => {
+            if (disposed) {
+              assets.registry.dispose();
+            } else {
+              registry = assets.registry;
+            }
+            return assets;
+          })
+        : null;
+    stationAssetsPromise?.catch(() => undefined);
+
+    // Stage 1 (0.06..0.24): Materials, exterior models, chunked procedural SFX & priority gameplay audio in parallel.
+    const [loadedMaterials, , , , gameplayAudio] = await Promise.all([
+      adopt(ITEMS.materials, () => createMaterialsAsync(texSize, currentAnisotropy())),
+      preloadSeabed(import.meta.env.BASE_URL),
+      preloadSubModel(import.meta.env.BASE_URL),
+      adopt(ITEMS.audioSounds, () => audio.renderSoundsAsync(undefined, { batchSize: 4 })),
+      adopt(ITEMS.audioSamples, () =>
+        audio.loadGameplaySamples({
+          onProgress: (done, total) => {
+            setProgress(0.06 + (done / Math.max(1, total)) * 0.16, 'Preparing audio and textures…');
+          },
+        }),
+      ),
+    ]);
+    void gameplayAudio.background;
+    materials = loadedMaterials;
+    applyAnisotropy(); // prepared materials may predate the GPU's maximum
+    measureMaterialUnits(Object.values(materials).filter((m): m is THREE.Material => m instanceof THREE.Material));
+    setProgress(0.24, 'Loading station assets…');
+    await yieldFrame();
+
+    // Stage 2 (0.24..0.60): Finish station GLB preload (if still in flight) & chunk-build the level.
     stages.begin('level');
     let room: DemoRoom | null = null;
     let levelSpawns: SpawnPointData[] = [];
@@ -517,16 +549,18 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         // Built at the title: nothing to load or build here, only the light pools to confirm for this renderer.
         stages.markPrepared();
         loaded = bundle;
-        loading.setProgress(0.6, 'Station ready…');
+        setProgress(0.6, 'Station ready…');
         const actual = lightBudgetOf(activeTier(settings.get().quality));
         if (JSON.stringify(actual) !== JSON.stringify(bundle.lightBudget)) {
           console.warn('[session] the prepared world used other light pools than this renderer allows; resizing', bundle.lightBudget, actual);
           bundle.level.setLightBudget(actual);
         }
       } else {
+        const preparedAssets = await stationAssetsPromise!;
         loaded = await buildStationWorld({
           levelId,
           loadLevelJson: levelFileLoader(levelId),
+          preparedAssets,
           materials,
           events,
           scene,
@@ -535,8 +569,9 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           uiText,
           debugChecker: launch.checker,
           lightBudget: lightBudgetOf(activeTier(settings.get().quality)),
+          sliceMs: SESSION_SLICE_MS,
           onProgress: (f, label) => {
-            loading.setProgress(0.24 + f * 0.36, label);
+            setProgress(0.24 + f * 0.36, label);
           },
         });
       }
@@ -1567,9 +1602,31 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
               if (jump === 'r11' && new URLSearchParams(location.search).get('power') === 'on') {
                 events.emit('r11:power_up' as never, {} as never);
               }
+              if (jump === 'r16' || jump === 'r16b') {
+                const r16mode = new URLSearchParams(location.search).get('r16mode');
+                if (r16mode === 'blackout') {
+                  level!.tintRoomLights('R16a', 'black');
+                  level!.tintRoomLights('R16b', 'black');
+                } else if (r16mode === 'emergency') {
+                  level!.tintRoomLights('R16a', 'black');
+                  level!.tintRoomLights('R16b', 'black');
+                  for (const id of ['r16a_beacon_n', 'r16a_beacon_s', 'r16b_beacon_n1', 'r16b_beacon_s1']) {
+                    level!.setLight(id, 'alarm', '#ff2218', 1);
+                  }
+                  events.emit('transit:r16_beacons' as never, { on: true } as never);
+                }
+              }
               player.placeAtEye(new THREE.Vector3(cp.pos[0], cp.pos[1] + PLAYER_TUNING.eyeHeight, cp.pos[2]), ((cp.yaw ?? 0) * Math.PI) / 180);
               squad!.requestPlacement();
               if (jump === 'transit_ride') {
+                // Debug only: `&door=open` opens Train Car B's door when the ride ends, since a script does that in the game.
+                if (new URLSearchParams(location.search).get('door') === 'open') {
+                  const offArrived = events.on('transit:ride_state' as never, ((p: { stage?: string }) => {
+                    if (p.stage !== 'arrived') return;
+                    offArrived();
+                    events.emit('transit:train_door' as never, { carId: 'r16a_train', open: true } as never);
+                  }) as never);
+                }
                 events.emit('transit:start_ride' as never, {} as never);
               }
             }, 400),
