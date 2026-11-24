@@ -539,25 +539,246 @@ function transitSign(p: PieceParams): PieceOutput {
             ctx.fillRect(0, 0, 14, ch);
             ctx.fillRect(14, ch - 8, cw - 14, 8);
             ctx.fillStyle = '#e4e8ec';
-            ctx.font = '800 54px "Arial Narrow", Arial, sans-serif';
+            ctx.font = '800 50px "Arial Narrow", Arial, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(title, 30, ch * 0.52);
+            ctx.fillText(title, 30, ch * 0.52, cw - 52);
             ctx.fillStyle = accent;
-            ctx.font = '700 28px "Arial Narrow", Arial, sans-serif';
-            ctx.fillText(sub, 30, ch * 0.82);
+            ctx.font = '700 26px "Arial Narrow", Arial, sans-serif';
+            ctx.fillText(sub, 30, ch * 0.82, cw - 52);
           },
           512,
           176,
           `transit-sign-${title}-${sub}`,
         )
       : flatPaint('sign-fallback', 0x1a2024, 0.7, 0.1);
-  pb.add(new THREE.PlaneGeometry(w, h), mat, at(0, y, -0.008, 0, Math.PI, 0));
+  pb.add(new THREE.PlaneGeometry(w, h), mat, at(0, y, -0.042, 0, Math.PI, 0));
+  return pb.build();
+}
+
+/**
+ * Heavy armored sea-tunnel blast-gate portal (`4.0 m W x 5.0 m H`, wall-aligned on `-Z` edge).
+ * Telescoping vertical-lift shutter leaves retract into the upper header (`x in [-1.95, +1.95]`),
+ * revealing a deep matte-black sea-tunnel alcove. Listens to `transit:blast_gate` & `level:reset`.
+ */
+function transitBlastGate(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
+  const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
+  const h = Math.max(4.0, numParam(p, 'height', 5.0));
+  const gateId = strParam(p, 'gateId', '');
+  const boreW = 3.3;
+  const boreH = 3.45;
+  const hw = boreW / 2;
+  const wallZ = -1.875;
+
+  // Side jamb piers and upper header lintel (keeping 3.3 m x 3.45 m bore clear when open).
+  const pierW = 2.0 - hw;
+  for (const sx of [-1, 1]) {
+    const px = sx * (hw + pierW / 2);
+    pb.add(slab(pierW, h + 0.1, 0.38), pal.wallMain, at(px, h / 2, wallZ));
+    pb.add(slab(0.12, boreH + 0.12, 0.44), pal.trim, at(sx * (hw + 0.04), boreH / 2, wallZ + 0.03));
+    pb.add(slab(0.08, boreH - 0.2, 0.06), pal.hazard, at(sx * (hw + 0.14), boreH / 2, -1.66));
+  }
+  const headH = h + 0.05 - boreH;
+  pb.add(slab(4.0, headH, 0.4), pal.wallMain, at(0, boreH + headH / 2, wallZ));
+  pb.add(slab(boreW + 0.24, 0.16, 0.48), pal.trim, at(0, boreH + 0.08, wallZ + 0.04));
+  pb.add(slab(boreW + 0.12, 0.1, 0.06), pal.hazard, at(0, boreH + 0.22, -1.64));
+
+  // Recessed dark sea-tunnel alcove behind the gate so opening reveals depth, never void.
+  const tunnelDepth = 0.9;
+  const tz = -2.0 - tunnelDepth / 2;
+  pb.add(slab(boreW + 0.1, boreH + 0.1, 0.08), m.black, at(0, boreH / 2, -2.0 - tunnelDepth));
+  pb.add(slab(0.08, boreH + 0.1, tunnelDepth), m.black, at(-hw - 0.02, boreH / 2, tz));
+  pb.add(slab(0.08, boreH + 0.1, tunnelDepth), m.black, at(hw + 0.02, boreH / 2, tz));
+  pb.add(slab(boreW + 0.1, 0.08, tunnelDepth), m.black, at(0, boreH + 0.02, tz));
+  pb.add(slab(boreW + 0.1, 0.08, tunnelDepth), m.black, at(0, -0.02, tz));
+  for (const rz of [-2.22, -2.56]) {
+    pb.add(slab(0.1, boreH, 0.08), pal.doorPanel, at(-hw + 0.05, boreH / 2, rz));
+    pb.add(slab(0.1, boreH, 0.08), pal.doorPanel, at(hw - 0.05, boreH / 2, rz));
+    pb.add(slab(boreW, 0.1, 0.08), pal.doorPanel, at(0, boreH - 0.05, rz));
+  }
+
+  // Overhead sector stencil plate on the lintel.
+  if (typeof document !== 'undefined') {
+    const plate = paintedDecal(
+      (ctx, cw, ch) => {
+        ctx.fillStyle = '#14191e';
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.fillStyle = '#e0a82e';
+        ctx.fillRect(0, 0, cw, 10);
+        ctx.fillRect(0, ch - 10, cw, 10);
+        ctx.fillStyle = '#e4e8ec';
+        ctx.font = '800 36px "Arial Narrow", Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('SECTOR 01 // SEA TUNNEL', cw / 2, ch * 0.63, cw - 40);
+      },
+      512,
+      128,
+      'transit-blast-gate-plate',
+    );
+    pb.add(new THREE.PlaneGeometry(2.8, 0.48), plate, at(0, boreH + 0.62, -1.655));
+  }
+
+  // Animated vertical-lift armored shutter leaves (contained strictly inside x in [-1.66, +1.66]).
+  const shutter = new THREE.Group();
+  shutter.name = 'blast_gate_shutter';
+  const leafLower = new THREE.Mesh(rounded(boreW - 0.04, 1.78, 0.18, 0.02), pal.doorPanel);
+  leafLower.position.set(0, 0.89, wallZ - 0.02);
+  shutter.add(leafLower);
+  const leafUpper = new THREE.Mesh(rounded(boreW - 0.04, 1.76, 0.14, 0.02), pal.wallAlt);
+  leafUpper.position.set(0, 2.6, wallZ + 0.04);
+  shutter.add(leafUpper);
+  const centerBar = new THREE.Mesh(slab(boreW - 0.12, 0.12, 0.22), pal.trim);
+  centerBar.position.set(0, 1.76, wallZ + 0.02);
+  shutter.add(centerBar);
+  const sealStrip = new THREE.Mesh(slab(boreW - 0.16, 0.09, 0.2), pal.hazard);
+  sealStrip.position.set(0, 0.07, wallZ + 0.02);
+  shutter.add(sealStrip);
+  pb.dynamic(shutter);
+
+  // Dual rail aspect signal lamps (amber-red when sealed -> emerald-green when open).
+  const signalMat = fixtureMaterial(0xff4422, 1.6);
+  signalMat.name = 'blast-gate-signal';
+  for (const sx of [-1, 1]) {
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.28, 0.08), signalMat);
+    lamp.position.set(sx * (hw + 0.16), boreH - 0.35, -1.63);
+    pb.dynamic(lamp);
+  }
+
+  let targetOpen = false;
+  let progress = 0;
+
+  pb.on('transit:blast_gate', (payload) => {
+    if (!payload || typeof payload !== 'object') return;
+    const rec = payload as Record<string, unknown>;
+    if (typeof rec['gateId'] === 'string' && gateId && rec['gateId'] !== gateId) return;
+    targetOpen = rec['open'] !== false;
+    if (rec['instant'] === true) {
+      progress = targetOpen ? 1 : 0;
+      shutter.position.y = progress * (boreH - 0.1);
+    }
+  });
+  pb.on('level:reset', () => {
+    targetOpen = false;
+    progress = 0;
+    shutter.position.y = 0;
+  });
+  pb.tick((_t, dt) => {
+    const target = targetOpen ? 1 : 0;
+    if (progress !== target) {
+      const step = Math.min(1, dt / 1.8);
+      progress = progress < target ? Math.min(1, progress + step) : Math.max(0, progress - step);
+    }
+    const ease = progress * progress * (3 - 2 * progress);
+    shutter.position.y = ease * (boreH - 0.1);
+    if (progress > 0.85) {
+      signalMat.color.setHex(0x38e8b8);
+      signalMat.emissive.setHex(0x38e8b8);
+      signalMat.emissiveIntensity = 2.0;
+    } else {
+      signalMat.color.setHex(0xff4422);
+      signalMat.emissive.setHex(0xff4422);
+      signalMat.emissiveIntensity = 1.6;
+    }
+  });
+
+  // Solid colliders for jambs, header, and sealed shutter envelope.
+  pb.solid(-2.0, 0, -2.02, -hw, h, -1.68);
+  pb.solid(hw, 0, -2.02, 2.0, h, -1.68);
+  pb.solid(-hw, boreH, -2.02, hw, h, -1.68);
+  pb.solid(-hw, 0, -2.0, hw, boreH, -1.72);
+  return pb.build();
+}
+
+/**
+ * Suspended/wall-mounted Departure Boarding Bay rail schedule board (`CanvasScreen`, facing -Z).
+ */
+function transitDepartBoard(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
+  const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
+  const w = numParam(p, 'width', 2.4);
+  const h = numParam(p, 'height', 1.1);
+  const y = numParam(p, 'y', 3.15);
+
+  pb.add(rounded(w + 0.14, h + 0.14, 0.16, 0.02), pal.doorPanel, at(0, y, 0));
+  pb.add(slab(w + 0.18, 0.06, 0.18), pal.trim, at(0, y + h / 2 + 0.07, 0));
+  pb.add(slab(w + 0.18, 0.06, 0.18), pal.trim, at(0, y - h / 2 - 0.07, 0));
+  for (const sx of [-w * 0.36, w * 0.36]) {
+    pb.add(slab(0.06, 1.4, 0.06), pal.trim, at(sx, y + h / 2 + 0.72, 0));
+  }
+
+  let screen: CanvasScreen | null = null;
+  if (typeof document !== 'undefined') {
+    screen = new CanvasScreen(
+      512,
+      256,
+      (ctx, cw, ch, t) => {
+        ctx.fillStyle = '#071117';
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.fillStyle = '#12303c';
+        ctx.fillRect(0, 0, cw, 52);
+        ctx.fillStyle = '#48d8e8';
+        ctx.fillRect(0, 48, cw, 4);
+        ctx.fillStyle = '#e8f4f8';
+        ctx.font = `bold 24px ${SCREEN_FONT}`;
+        ctx.textAlign = 'left';
+        ctx.fillText('TRANSIT LINE 01 // ARRIVAL TERMINAL', 20, 34);
+        ctx.fillStyle = '#e0a82e';
+        ctx.font = `bold 20px ${SCREEN_FONT}`;
+        ctx.fillText('PLATFORM A   |   SHUTTLE CAR 01', 20, 96);
+        ctx.fillStyle = '#9ec4d0';
+        ctx.font = `18px ${SCREEN_FONT}`;
+        ctx.fillText('ROUTE: R15A DEPARTURE -> SEA TUNNEL -> R16A', 20, 140);
+        const blink = Math.floor(t * 2) % 2 === 0;
+        ctx.fillStyle = '#38e8b8';
+        ctx.font = `bold 22px ${SCREEN_FONT}`;
+        ctx.fillText(blink ? 'STATUS: BOARDING // CLEAR TO DEPART _' : 'STATUS: BOARDING // CLEAR TO DEPART', 20, 198);
+      },
+      0.45,
+    );
+  }
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), screen ? screen.material : pal.doorPanel);
+  face.applyMatrix4(at(0, y, -0.085, 0, Math.PI, 0));
+  pb.dynamic(face);
+  if (screen) pb.tick((t) => screen!.update(t));
+  return pb.build();
+}
+
+/**
+ * Brushed-steel platform safety handrail + flush yellow tactile edge strip (along Z, facing -X/+X).
+ */
+function platformRailing(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
+  const pb = new PieceBuilder();
+  const pal = resolvePalette(p, m);
+  const len = Math.max(1.2, numParam(p, 'length', 5.6));
+  const railH = 1.04;
+  const hl = len / 2;
+
+  // Flush yellow tactile hazard edge strip (never snags capsule).
+  pb.add(slab(0.24, 0.008, len), pal.hazard, at(0.14, 0.004, 0));
+  // Top & mid rails + end/intermediate posts.
+  pb.add(rounded(0.055, 0.055, len, 0.015), pal.trim, at(0, railH, 0));
+  pb.add(slab(0.035, 0.035, len), pal.trim, at(0, railH * 0.54, 0));
+  const posts = Math.max(2, Math.round(len / 1.4) + 1);
+  for (let i = 0; i < posts; i++) {
+    const pz = -hl + 0.06 + ((len - 0.12) * i) / (posts - 1);
+    pb.add(slab(0.05, railH, 0.05), pal.doorPanel, at(0, railH / 2, pz));
+    pb.add(slab(0.12, 0.02, 0.12), pal.trim, at(0, 0.01, pz));
+  }
+  pb.solid(-0.08, 0, -hl, 0.08, railH + 0.05, hl, 'metal');
   return pb.build();
 }
 
 function propDef(id: string, generate: (p: PieceParams, rng: Rng, m: Materials) => PieceOutput): PieceDef {
   return { id, family: 'prop', footprint: [1, 1], generate };
 }
+
+function structureDef(id: string, generate: (p: PieceParams, rng: Rng, m: Materials) => PieceOutput): PieceDef {
+  return { id, family: 'structure', footprint: [1, 1], generate };
+}
+
+export const TRANSIT_STRUCTURE: PieceDef[] = [
+  structureDef('transit_blast_gate', transitBlastGate),
+];
 
 export const TRANSIT_PROPS: PieceDef[] = [
   propDef('transit_train_shell', trainShell),
@@ -569,4 +790,6 @@ export const TRANSIT_PROPS: PieceDef[] = [
   propDef('switchgear_bank', switchgearBank),
   propDef('power_terminal', powerTerminal),
   propDef('transit_sign', transitSign),
+  propDef('transit_depart_board', transitDepartBoard),
+  propDef('platform_railing', platformRailing),
 ];

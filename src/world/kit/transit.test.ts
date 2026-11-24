@@ -6,7 +6,7 @@ import type { Materials } from '../../render/materials.ts';
 import { PHOTO_SLOT_KEYS } from '../../render/tex/manifest.ts';
 import { KitRegistry } from '../registry.ts';
 import { STRUCTURE_PIECES } from './structure.ts';
-import { TRANSIT_PROPS } from './transit.ts';
+import { TRANSIT_PROPS, TRANSIT_STRUCTURE } from './transit.ts';
 
 const MATERIAL_KEYS = [...PHOTO_SLOT_KEYS, 'steel', 'hazardClean', 'glass', 'black', 'cable', 'glowCyan'];
 
@@ -23,8 +23,8 @@ test('all transit structural greybox pieces are registered and produce meshes wi
   const m = stubMaterials();
   const reg = new KitRegistry({ glb: {} });
   const ids = reg.ids();
-  for (const def of TRANSIT_PROPS) {
-    assert.ok(ids.prop.has(def.id), `${def.id} registered as prop`);
+  for (const def of [...TRANSIT_STRUCTURE, ...TRANSIT_PROPS]) {
+    assert.ok(ids[def.family].has(def.id), `${def.id} registered as ${def.family}`);
     const out = reg.create(def.id, { area: 'transit' }, new Rng(def.id), m);
     let meshes = 0;
     out.object.traverse((c) => {
@@ -133,4 +133,45 @@ test('power_generator, switchgear_bank, and power_terminal react to r11:power_st
     for (const l of out.listeners ?? []) if (l.event === 'level:reset') l.fn({});
     out.tick?.(1.5, 1 / 60);
   }
+});
+
+test('transit_blast_gate starts sealed, opens via transit:blast_gate, and resets on level:reset', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const gate = reg.create('transit_blast_gate', { area: 'transit', height: 5, gateId: 'r15a_south' }, new Rng('gate'), m);
+  const shutter = gate.object.getObjectByName('blast_gate_shutter')!;
+  assert.ok(shutter, 'blast gate exposes animated shutter group');
+  assert.equal(shutter.position.y, 0, 'shutter starts sealed at y = 0');
+
+  const box = new THREE.Box3().setFromObject(gate.object);
+  assert.ok(box.min.x >= -2.05 && box.max.x <= 2.05, `portal fits 4 m cell width (${box.min.x}..${box.max.x})`);
+
+  // Mismatched gateId is ignored.
+  for (const l of gate.listeners ?? []) if (l.event === 'transit:blast_gate') l.fn({ gateId: 'r16a_north', open: true });
+  gate.tick?.(0.2, 0.5);
+  assert.equal(shutter.position.y, 0, 'mismatched gateId leaves shutter sealed');
+
+  // Matching gateId opens shutter upward into header pocket.
+  for (const l of gate.listeners ?? []) if (l.event === 'transit:blast_gate') l.fn({ gateId: 'r15a_south', open: true });
+  for (let i = 0; i < 6; i++) gate.tick?.(0.3 + i * 0.4, 0.4);
+  assert.ok(shutter.position.y > 3.0, `shutter retracts upward when open (${shutter.position.y})`);
+
+  // level:reset returns shutter to sealed.
+  for (const l of gate.listeners ?? []) if (l.event === 'level:reset') l.fn({});
+  gate.tick?.(3.0, 1 / 60);
+  assert.equal(shutter.position.y, 0, 'level:reset seals blast gate');
+});
+
+test('transit_depart_board and platform_railing build within expected envelopes', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+
+  const board = reg.create('transit_depart_board', { area: 'transit' }, new Rng('board'), m);
+  const bb = new THREE.Box3().setFromObject(board.object);
+  assert.ok(bb.max.x - bb.min.x >= 2.2, 'departure board spans ~2.4 m width');
+
+  const rail = reg.create('platform_railing', { area: 'transit', length: 5.6 }, new Rng('rail'), m);
+  assert.ok(rail.colliders.length > 0 && rail.surfaces.some((s) => s.material === 'metal'), 'railing has metal collider');
+  const rb = new THREE.Box3().setFromObject(rail.object);
+  assert.ok(rb.max.z - rb.min.z >= 5.5 && rb.max.y >= 1.0, 'railing spans 5.6 m length at ~1.04 m height');
 });

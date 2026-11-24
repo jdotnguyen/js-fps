@@ -445,11 +445,12 @@ test('area palettes reach the pieces: the nutrient room override and the kitchen
   assert.ok(has('R08b', 'tileWall'), 'surgery tile walls');
   assert.ok(has('R02', 'tileWall'), 'kitchen tile walls');
   assert.ok(has('R09', 'rustHeavy'), 'tunnel walls');
-  // Dive bay (rebuild-dive-bay): clean steel everywhere except the R13d maintenance corridor.
+  // Dive bay & transit corridor: clean steel/slate everywhere including R13d.
   const rust: Array<keyof Materials> = ['rustBlotch', 'rustHeavy', 'rustDrip', 'servicePaint', 'diamondRusty', 'diamondHazard', 'hazard'];
-  for (const r of ['R13a', 'R13b', 'R13c', 'R13e']) for (const k of rust) assert.ok(!has(r, k), `${r} uses no ${k}`);
+  for (const r of ['R13a', 'R13b', 'R13c', 'R13d', 'R13e']) for (const k of rust) assert.ok(!has(r, k), `${r} uses no ${k}`);
   assert.ok(has('R13b', 'boltPanel') && has('R13b', 'cleanSlate') && has('R13b', 'hazardClean'), 'dive bay clean slate and bolted steel');
-  assert.ok(has('R13d', 'rustBlotch') && has('R13d', 'diamondRusty'), 'R13d keeps rust walls and floor');
+  assert.ok(has('R13d', 'cleanSlate') && has('R13d', 'concretePainted') && has('R13d', 'steelDark'), 'R13d uses clean transit palette');
+  assert.ok(has('R15a', 'cleanSlate') && has('R15a', 'concretePainted') && !has('R15a', 'rustBlotch'), 'R15a uses clean transit palette');
   assert.ok(!has('R01', 'hazard') && has('R01', 'hazardClean'), 'dock uses the clean hazard stripes');
   assert.ok(has('R01', 'concretePainted'), 'dock floor');
   assert.ok(has('R01', 'cleanSlate') && has('R01', 'boltPanel') && has('R01', 'steelDark') && has('R01', 'steelBrushed') && has('R01', 'cleanTeal'), 'dock clean slate walls, bolted upper, dark steel ceiling, clean teal accents and brushed trim');

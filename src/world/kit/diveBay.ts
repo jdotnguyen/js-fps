@@ -802,7 +802,7 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     const o2 = numParam(p, 'o2', 20.9);
     const co2 = numParam(p, 'co2', 640);
     const rh = numParam(p, 'rh', 72);
-    const W = panel ? 1.2 : 0.6;
+    const W = numParam(p, 'width', panel ? 1.2 : 0.6);
     const canvas = document.createElement('canvas');
     canvas.width = panel ? 1024 : 512;
     canvas.height = 384;

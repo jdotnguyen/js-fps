@@ -9011,18 +9011,12 @@
       [
        11,
        0,
-       11
-      ]
-     ],
-     "rot": 90
-    },
-    {
-     "kit": "wall_panel",
-     "cells": [
+       10
+      ],
       [
        11,
        0,
-       10
+       11
       ]
      ],
      "rot": 90
@@ -9044,15 +9038,17 @@
      "rot": 180
     },
     {
-     "kit": "wall_panel",
-     "cells": [
-      [
-       12,
-       0,
-       11
-      ]
+     "kit": "transit_blast_gate",
+     "cell": [
+      12,
+      0,
+      11
      ],
-     "rot": 180
+     "rot": 180,
+     "params": {
+      "gateId": "r15a_south",
+      "height": 5
+     }
     }
    ],
    "props": [
@@ -9080,6 +9076,145 @@
       "width": 3,
       "height": 2.9,
       "doorSide": "right"
+     }
+    },
+    {
+     "kit": "rib_frame",
+     "pos": [
+      48,
+      0,
+      34.4
+     ],
+     "params": {
+      "width": 11.4,
+      "height": 5
+     }
+    },
+    {
+     "kit": "rib_frame",
+     "pos": [
+      48,
+      0,
+      38
+     ],
+     "params": {
+      "width": 11.4,
+      "height": 5
+     }
+    },
+    {
+     "kit": "rib_frame",
+     "pos": [
+      48,
+      0,
+      43.8
+     ],
+     "params": {
+      "width": 11.4,
+      "height": 5
+     }
+    },
+    {
+     "kit": "platform_railing",
+     "pos": [
+      45.75,
+      0,
+      33.4
+     ],
+     "params": {
+      "length": 5.6
+     }
+    },
+    {
+     "kit": "platform_railing",
+     "pos": [
+      45.75,
+      0,
+      42.6
+     ],
+     "params": {
+      "length": 5.6
+     }
+    },
+    {
+     "kit": "transit_depart_board",
+     "pos": [
+      44.3,
+      0,
+      35.6
+     ],
+     "params": {
+      "width": 2.4,
+      "height": 1.1,
+      "y": 3.15
+     }
+    },
+    {
+     "kit": "room_sign",
+     "pos": [
+      42.26,
+      0,
+      33.66
+     ],
+     "rot": 270,
+     "params": {
+      "code": "R15A",
+      "name": "DEPARTURE BAY",
+      "sub": "DECK 0 · TRANSIT",
+      "panel": false,
+      "width": 0.48
+     }
+    },
+    {
+     "kit": "transit_sign",
+     "pos": [
+      42.27,
+      0,
+      39.8
+     ],
+     "rot": 270,
+     "params": {
+      "title": "PLATFORM A",
+      "sub": "BOARDING ZONE · KEEP CLEAR OF EDGE",
+      "y": 2.05,
+      "accent": "#e0a82e",
+      "width": 1.6,
+      "height": 0.48
+     }
+    },
+    {
+     "kit": "console",
+     "pos": [
+      42.75,
+      0,
+      41.8
+     ],
+     "rot": 270,
+     "params": {}
+    },
+    {
+     "kit": "electrical_box_02",
+     "pos": [
+      42.3,
+      0,
+      44.4
+     ],
+     "rot": 270,
+     "params": {}
+    },
+    {
+     "kit": "pipe_run",
+     "pos": [
+      44,
+      0,
+      38
+     ],
+     "params": {
+      "length": 14,
+      "height": 4.55,
+      "ceiling": 5,
+      "hung": true,
+      "paint": "teal"
      }
     }
    ],
@@ -9330,14 +9465,16 @@
      "rot": 90
     },
     {
-     "kit": "wall_panel",
-     "cells": [
-      [
-       22,
-       0,
-       8
-      ]
-     ]
+     "kit": "transit_blast_gate",
+     "cell": [
+      22,
+      0,
+      8
+     ],
+     "params": {
+      "gateId": "r16a_north",
+      "height": 5
+     }
     },
     {
      "kit": "wall_panel",
@@ -12792,10 +12929,7 @@
       8,
       0,
       8
-     ],
-     "params": {
-      "material": "paintDark"
-     }
+     ]
     },
     {
      "kit": "ceiling_pipes",
@@ -12803,10 +12937,7 @@
       9,
       0,
       8
-     ],
-     "params": {
-      "material": "paintDark"
-     }
+     ]
     },
     {
      "kit": "ceiling",
@@ -12814,10 +12945,7 @@
       10,
       0,
       8
-     ],
-     "params": {
-      "material": "paintDark"
-     }
+     ]
     },
     {
      "kit": "floor",
@@ -12837,10 +12965,7 @@
        0,
        8
       ]
-     ],
-     "params": {
-      "material": "diamondRusty"
-     }
+     ]
     },
     {
      "kit": "wall_plain",
@@ -12851,14 +12976,16 @@
        8
       ],
       [
+       9,
+       0,
+       8
+      ],
+      [
        10,
        0,
        8
       ]
-     ],
-     "params": {
-      "material": "rustBlotch"
-     }
+     ]
     },
     {
      "kit": "wall_vent",
@@ -12874,13 +13001,10 @@
        8
       ]
      ],
-     "params": {
-      "material": "rustBlotch"
-     },
      "rot": 180
     },
     {
-     "kit": "wall_vent",
+     "kit": "wall_panel",
      "cells": [
       [
        8,
@@ -12888,23 +13012,7 @@
        8
       ]
      ],
-     "params": {
-      "material": "rustBlotch"
-     },
      "rot": 90
-    },
-    {
-     "kit": "wall_vent",
-     "cells": [
-      [
-       9,
-       0,
-       8
-      ]
-     ],
-     "params": {
-      "material": "rustBlotch"
-     }
     }
    ],
    "props": [
@@ -12918,22 +13026,14 @@
      "rot": 180,
      "params": {
       "code": "R13D",
-      "name": "MAINTENANCE",
+      "name": "TRANSIT CORRIDOR",
       "panel": false
      }
     },
     {
-     "kit": "debris_pile",
-     "pos": [
-      37.6,
-      0,
-      31.2
-     ]
-    },
-    {
      "kit": "pa_speaker",
      "pos": [
-      33,
+      31.9,
       0,
       30.26
      ],
@@ -12941,22 +13041,79 @@
      "params": {
       "id": "pa_maintenance"
      }
+    },
+    {
+     "kit": "cable_bundle",
+     "pos": [
+      36,
+      0,
+      30.45
+     ],
+     "rot": 90,
+     "params": {
+      "length": 10.8,
+      "height": 2.75
+     }
+    },
+    {
+     "kit": "cable_tray",
+     "pos": [
+      36,
+      0,
+      33.55
+     ],
+     "rot": 90,
+     "params": {
+      "length": 7.2,
+      "ceiling": 3.2,
+      "drop": 0.35
+     }
+    },
+    {
+     "kit": "transit_sign",
+     "pos": [
+      36,
+      0,
+      30.28
+     ],
+     "rot": 180,
+     "params": {
+      "title": "BOARDING BAY ->",
+      "sub": "PLATFORM A · LINE 01",
+      "y": 1.85,
+      "accent": "#e0a82e",
+      "width": 1.75,
+      "height": 0.48
+     }
     }
    ],
    "lights": [
     {
      "slot": 0,
      "pattern": "steady",
-     "color": "#ffcf9a",
-     "intensity": 5,
-     "range": 10
+     "color": "#dce8f4",
+     "intensity": 9,
+     "range": 12,
+     "backup": true,
+     "backupScale": 0.4,
+     "ownColor": true
+    },
+    {
+     "slot": 1,
+     "pattern": "steady",
+     "color": "#dce8f4",
+     "intensity": 9,
+     "range": 12,
+     "backup": true,
+     "backupScale": 0.4,
+     "ownColor": true
     },
     {
      "slot": 2,
-     "pattern": "dying",
-     "color": "#ffcf9a",
-     "intensity": 5,
-     "range": 10
+     "pattern": "steady",
+     "color": "#dce8f4",
+     "intensity": 9,
+     "range": 12
     }
    ],
    "triggers": [

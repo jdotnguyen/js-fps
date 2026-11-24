@@ -346,6 +346,27 @@ export function hazardStripes(size: number, seed: number): TexSet {
 }
 
 /**
+ * Clean satin safety-yellow industrial coating with subtle micro-grain and zero grime or wear.
+ */
+export function hazardClean(size: number, seed: number): TexSet {
+  const w = new Writer(size);
+  const YELLOW: RGB = [0.86, 0.65, 0.08];
+  for (let y = 0; y < size; y++) {
+    const v = (y + 0.5) / size;
+    for (let x = 0; x < size; x++) {
+      const i = y * size + x;
+      const u = (x + 0.5) / size;
+      const fine = valueNoise(u * 256, v * 256, 256, 256, seed + 2);
+      const grain = (fine - 0.5) * 0.025;
+      w.height[i] = grain;
+      w.color(i, [YELLOW[0] + grain, YELLOW[1] + grain * 0.8, YELLOW[2]]);
+      w.surface(i, 0.42 + (fine - 0.5) * 0.04, 0.05);
+    }
+  }
+  return w.finish('hazardClean', 2);
+}
+
+/**
  * 0.5 m x 0.5 m laboratory epoxy/ceramic floor tiles with grout seams, subtle per-tile
  * tint variation, and light scuffing.
  */
@@ -430,8 +451,8 @@ export const TEXTURE_SPECS = {
   grating: (s: number) => grating(s, 606),
   rubber: (s: number) => rubberStuds(s, 707),
   hazard: (s: number) => hazardStripes(s, 808),
-  /** Clean procedural stripes; kept as `hazardClean` once `hazard` becomes the rusty photo set. */
-  hazardClean: (s: number) => hazardStripes(s, 808),
+  /** Clean satin safety-yellow coating (no grime or wear). */
+  hazardClean: (s: number) => hazardClean(s, 808),
   labTile: (s: number) => labTile(s, 909),
   labPanel: (s: number) => paintedMetal(s, { seed: 1010, paint: [0.7, 0.73, 0.75], subdiv: 2, wear: 0.25, grime: 0.35, rivets: false }),
   concrete: (s: number) => concrete(s, 1111),
