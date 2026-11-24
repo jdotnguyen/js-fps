@@ -485,11 +485,11 @@ export const ACTIONS: Record<string, ActionDef> = {
    * Project an NPC's voice for the rest of the sequence (voice-playback: A scene can project a voice): its local lines are
    * no quieter than at `at` m. Cleared when the sequence ends, or with `at: 0`.
    */
-  voiceProject: act({ npc: str, at: numRange(0, 30) }, (s, ctx) => {
+  voiceProject: act({ npc: str, at: numRange(0, 30), clear: optional(bool) }, (s, ctx) => {
     if (!ctx.host.projectVoice) return ctx.missing('voiceProject');
     const npc = s.npc.startsWith('npc:') ? s.npc.slice(4) : s.npc;
     if (s.at <= 0) return ctx.host.projectVoice(npc, null);
-    ctx.host.projectVoice(npc, s.at);
+    ctx.host.projectVoice(npc, s.at, s.clear === true);
     ctx.onEnd(() => ctx.host.projectVoice?.(npc, null));
   }),
 

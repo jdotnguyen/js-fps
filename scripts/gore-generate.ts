@@ -123,6 +123,15 @@ export const GORE_MANIFEST: readonly GoreAssetSpec[] = [
     prompt: `slow thick drips of blood falling onto a metal lab floor and pooling, irregular wet drips, seamless loop, quiet, ${DRY}`,
   },
   {
+    id: 'creature_rush',
+    sound: 'creature_rush',
+    file: 'creature-rush.mp3',
+    loop: false,
+    duration: 2.5,
+    promptInfluence: 0.55,
+    prompt: 'infected zombie creature charging, a guttural wet snarl rising into a hoarse rasping shriek, fast clawed footfalls and heavy ragged breathing, close-miked, dry, no room reverb, no music, no speech, horror creature foley',
+  },
+  {
     id: 'creature_clicks',
     sound: 'creature_clicks',
     file: 'creature-clicks.mp3',
@@ -132,15 +141,7 @@ export const GORE_MANIFEST: readonly GoreAssetSpec[] = [
     prompt: `newborn alien creature unfolding wet chitinous limbs, insect-like clicking and joint popping, low wet breathing rasp, slime squelches, horror creature foley, ${DRY}`,
   },
   // The R08 kill (medbay-attack spec): her head on the steel cart, her body against the pane, her palm dragged across it.
-  {
-    id: 'cart_impact',
-    sound: 'cart_impact',
-    file: 'cart-impact.mp3',
-    loop: false,
-    duration: 1.0,
-    promptInfluence: 0.6,
-    prompt: `a heavy blunt impact on a steel hospital instrument cart, metal tray and surgical instruments jumping and rattling, the cart's frame clanging, short and hard, horror foley, ${DRY}`,
-  },
+  // `cart_impact` (cart-impact.mp3) and `cart_glass_break` are downloaded clips, not generated: see CREDITS.md.
   {
     id: 'body_glass_hit',
     sound: 'body_glass_hit',

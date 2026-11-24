@@ -834,7 +834,9 @@ export const SAMPLE_URLS = {
   head_crunch_2: 'assets/audio/gore/kill-crunch-4.mp3',
   head_crunch_3: 'assets/audio/gore/kill-crunch-1.mp3',
   // Not generated yet (`npm run gore:generate -- --id <name>`): until they exist the kill plays the next id it names.
+  // The slam on the cart is two downloaded clips played together (CREDITS.md): a door slam and breaking glass.
   cart_impact: 'assets/audio/gore/cart-impact.mp3',
+  cart_glass_break: 'assets/audio/gore/cart-glass-break.mp3',
   body_glass_hit: 'assets/audio/gore/body-glass-hit.mp3',
   // overhaul-priya-r08-death D26: the dark surgery, heard through the rescue.
   surgery_rattle: 'assets/audio/gore/surgery-rattle.mp3',
@@ -843,8 +845,13 @@ export const SAMPLE_URLS = {
   surgery_scrape: 'assets/audio/gore/surgery-scrape.mp3',
   surgery_latch: 'assets/audio/gore/surgery-latch.mp3',
   // overhaul-priya-r08-death 9.4: the impale (data/kills.json mauled), two variants each.
+  // The lab creature charging Priya in R08 (ElevenLabs, scripts/gore-generate.ts).
+  creature_rush: 'assets/audio/gore/creature-rush.mp3',
   impale_stab: ['assets/audio/gore/impale-stab-1.mp3', 'assets/audio/gore/impale-stab-2.mp3'],
   impale_wet: ['assets/audio/gore/impale-wet-1.mp3', 'assets/audio/gore/impale-wet-2.mp3'],
+  // The blade piercing her and her choking as it goes in: two downloaded clips (CREDITS.md); the choke is raised 2x.
+  impale_blade: 'assets/audio/gore/impale-blade.mp3',
+  impale_choke: 'assets/audio/gore/impale-choke.mp3',
   glass_squeak: 'assets/audio/gore/glass-squeak.mp3',
   // The creature hammering on the Lab B glass, and Voss's palms on it (ElevenLabs, scripts/gore-generate.ts).
   creature_glass_hit: [1, 2, 3, 4].map((i) => `assets/audio/gore/creature-glass-hit-${i}.mp3`),

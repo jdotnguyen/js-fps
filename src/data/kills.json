@@ -34,13 +34,15 @@
         "blend": 0.4,
         "convulse": 0,
         "until": "time",
-        "s": 15.5,
-        "max": 18,
+        "s": 2.6,
+        "max": 4,
         "lines": ["sec_priya_05"],
         "events": [
-          { "t": 0, "do": "attackerPose", "pose": "maul_grip", "blend": 0.6 },
-          { "t": 0, "do": "haulTo", "mark": "impale", "via": ["surgeryOut", "surgeryIn", "along", "lane", "lane2"], "faceMark": "cower", "speed": 1 },
-          { "t": 0.6, "do": "backTo", "mark": "cower", "speed": 0.45 }
+          { "t": 0, "do": "attackerPose", "pose": "maul_grip", "blend": 0.6, "gait": 0.6 },
+          { "t": 0, "do": "haulTo", "mark": "impale", "via": ["surgeryOut", "surgeryIn", "back", "lane2"], "faceMark": "cower", "speed": 7.2 },
+          { "t": 0, "do": "sfx", "id": ["creature_rush"], "joint": "chest" },
+          { "t": 0.6, "do": "backTo", "mark": "cower", "speed": 0.45 },
+          { "t": 1.2, "do": "attackerPose", "pose": "maul_grip", "blend": 0.3, "charge": 1 }
         ]
       },
       {
@@ -55,10 +57,11 @@
         "max": 2.2,
         "lines": ["sec_priya_06"],
         "events": [
-          { "t": 0, "do": "attackerPose", "pose": "maul_impale", "blend": 0.08 },
+          { "t": 0, "do": "attackerPose", "pose": "maul_impale", "blend": 0.08, "gait": 1, "charge": 0 },
           { "t": 0, "do": "grip", "hand": "R", "joint": "chest" },
           { "t": 0, "do": "light", "state": "on" },
-          { "t": 0, "do": "sfx", "id": ["impale_stab", "kill_tear", "fleshTear"], "joint": "chest" },
+          { "t": 0, "do": "sfx", "id": ["impale_blade", "impale_stab", "kill_tear", "fleshTear"], "joint": "chest" },
+          { "t": 0.25, "do": "sfx", "id": ["impale_choke"], "joint": "chest" },
           { "t": 0.05, "do": "kick", "joint": "chest", "dir": "back", "strength": 1.4 },
           { "t": 0.05, "do": "gore", "kind": "spurt", "joint": "chest", "s": 2.2 },
           { "t": 0.08, "do": "gore", "kind": "burst", "joint": "chest", "count": 170 },
@@ -115,19 +118,21 @@
       },
       {
         "id": "still",
-        "poses": ["corpseProne"],
+        "poses": ["corpseSlumped"],
         "convulse": 0,
         "until": "time",
         "s": 9.6,
         "max": 10,
         "events": [
-          { "t": 0, "do": "die", "pose": "corpseProne", "blend": 0.6 },
+          { "t": 0, "do": "die", "pose": "corpseSlumped", "blend": 0.6 },
           { "t": 0.3, "do": "gore", "kind": "pool", "joint": "chest", "size": 1 },
-          { "t": 0.8, "do": "attackerPose", "pose": "maul_prowl", "blend": 0.6 },
-          { "t": 1, "do": "walkTo", "mark": "surgery", "via": ["exit", "surgeryIn", "surgeryOut"], "speed": 1.7 },
-          { "t": 2.2, "do": "attackerLook", "mark": "glassLook" },
-          { "t": 3.6, "do": "attackerLook" },
+          { "t": 0.4, "do": "attackerPose", "pose": "maul_prowl", "blend": 0.6 },
+          { "t": 0.4, "do": "attackerLook", "mark": "glassLook" },
+          { "t": 1, "do": "sfx", "id": ["creatureScreamFar"], "joint": "chest", "gain": 20 },
           { "t": 2, "do": "gore", "kind": "pool", "joint": "chest", "size": 1.4 },
+          { "t": 3.4, "do": "attackerLook" },
+          { "t": 3.4, "do": "attackerPose", "pose": "maul_grip", "blend": 0.3, "gait": 0.6, "charge": 0.6 },
+          { "t": 3.4, "do": "walkTo", "mark": "surgery", "via": ["surgeryIn", "surgeryOut"], "speed": 7.2 },
           { "t": 4.5, "do": "gore", "kind": "pool", "joint": "chest", "size": 1.8 },
           { "t": 6, "do": "light", "state": "off" }
         ]

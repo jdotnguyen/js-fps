@@ -110,7 +110,7 @@ export interface SequenceHost {
   /** A room intercom on or off (in-world-audio: A live intercom relays a room). False for an unknown id. */
   intercom?(id: string, live: boolean): boolean;
   /** Hold an NPC's local voice at the loudness of `at` m, or end that with null (voice-playback: A scene can project a voice). */
-  projectVoice?(npc: string, at: number | null): void;
+  projectVoice?(npc: string, at: number | null, clear?: boolean): void;
   setTimeScale?(scale: number): void;
 
   setDoor?(id: string, state: string): boolean;

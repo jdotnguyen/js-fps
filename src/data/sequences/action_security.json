@@ -80,6 +80,12 @@
     "anim": "idle"
    },
    {
+    "do": "voiceProject",
+    "npc": "okafor",
+    "at": 1.5,
+    "clear": true
+   },
+   {
     "parallel": [
      {
       "do": "say",
@@ -94,8 +100,8 @@
        {
         "do": "npcMoveTo",
         "npc": "priya",
-        "to": "anchor:r07_medbay_door",
-        "speed": 3.6,
+        "to": "anchor:priya_wait",
+        "speed": 5.2,
         "wait": true
        }
       ]
@@ -126,13 +132,18 @@
       "count": 1,
       "steps": [
        {
+        "do": "doorState",
+        "id": "D_R07_R08",
+        "state": "open"
+       },
+       {
         "do": "wait",
-        "s": 3
+        "s": 4.6
        },
        {
         "do": "doorState",
         "id": "D_R07_R08",
-        "state": "open"
+        "state": "sealed"
        }
       ]
      },
@@ -173,18 +184,6 @@
    {
     "do": "doorState",
     "id": "D_R07_R08",
-    "state": "open"
-   },
-   {
-    "do": "npcMoveTo",
-    "npc": "priya",
-    "to": "anchor:priya_door",
-    "speed": 3,
-    "wait": true
-   },
-   {
-    "do": "doorState",
-    "id": "D_R07_R08",
     "state": "sealed"
    },
    {
@@ -193,13 +192,6 @@
       "do": "loop",
       "count": 1,
       "steps": [
-       {
-        "do": "npcMoveTo",
-        "npc": "priya",
-        "to": "anchor:priya_wait",
-        "speed": 3,
-        "wait": true
-       },
        {
         "do": "npcAnim",
         "npc": "priya",
@@ -277,51 +269,6 @@
       "steps": [
        {
         "do": "waitFor",
-        "event": "interact:medbay_bang"
-       },
-       {
-        "do": "sfx",
-        "id": "glassThud",
-        "at": "anchor:medbay_c_glass"
-       },
-       {
-        "do": "cameraShake",
-        "amount": 0.08,
-        "s": 0.2
-       },
-       {
-        "do": "say",
-        "line": [
-         "sec_jay_bang_01",
-         "sec_jay_bang_02",
-         "sec_jay_bang_03",
-         "sec_jay_bang_04"
-        ],
-        "wait": false,
-        "overlap": true,
-        "cooldown": 2.5
-       },
-       {
-        "do": "if",
-        "flag": "r08_thing_in",
-        "then": [
-         {
-          "do": "emit",
-          "event": "kill:notice",
-          "payload": {
-           "npc": "priya"
-          }
-         }
-        ]
-       }
-      ]
-     },
-     {
-      "do": "loop",
-      "until": "medbay:over",
-      "steps": [
-       {
-        "do": "waitFor",
         "event": "weapon:glass"
        },
        {
@@ -343,6 +290,11 @@
       "do": "loop",
       "count": 1,
       "steps": [
+       {
+        "do": "npcAnim",
+        "npc": "okafor",
+        "anim": "idle"
+       },
        {
         "do": "npcMoveTo",
         "npc": "okafor",
@@ -629,6 +581,13 @@
         ]
        },
        {
+        "do": "npcLookAt",
+        "npc": "priya",
+        "target": "anchor:r08_lurk",
+        "turn": true,
+        "turnRate": 4
+       },
+       {
         "do": "say",
         "line": "sec_priya_17"
        },
@@ -642,8 +601,29 @@
         "cue": "dread"
        },
        {
-        "do": "say",
-        "line": "sec_okafor_16"
+        "parallel": [
+         {
+          "do": "say",
+          "line": "sec_okafor_16"
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "wait",
+            "s": 1.4
+           },
+           {
+            "do": "npcLookAt",
+            "npc": "priya",
+            "target": "npc:okafor",
+            "turn": true,
+            "turnRate": 2.4
+           }
+          ]
+         }
+        ]
        },
        {
         "do": "say",
@@ -713,6 +693,19 @@
             "id": "obj_armory"
            },
            {
+            "do": "playerControl",
+            "move": "locked",
+            "look": "free",
+            "weapons": false,
+            "interact": false
+           },
+           {
+            "do": "playerFrame",
+            "target": "npc:giles",
+            "duration": 0.6,
+            "give": 6
+           },
+           {
             "do": "say",
             "line": "sec_giles_13"
            },
@@ -762,39 +755,98 @@
         ]
        },
        {
-        "do": "waitPlayerIn",
-        "room": "R07",
-        "timeout": 10
+        "do": "playerFrame",
+        "clear": true
+       },
+       {
+        "do": "playerWalkTo",
+        "to": "anchor:shotgun_pickup",
+        "speed": 4.5,
+        "timeout": 8,
+        "wait": true
        },
        {
         "do": "wait",
-        "s": 0.8
+        "s": 0.4
        },
        {
-        "do": "sfx",
-        "id": "surgery_latch",
-        "at": "anchor:r08_lurk"
+        "do": "playerFrame",
+        "target": "anchor:r07_regroup",
+        "duration": 0.5,
+        "give": 6,
+        "wait": true
        },
        {
-        "do": "say",
-        "line": "sec_priya_01",
-        "wait": false,
-        "overlap": true
+        "do": "playerFrame",
+        "clear": true
        },
        {
-        "do": "wait",
-        "s": 1.2
+        "parallel": [
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "playerWalkTo",
+            "to": "anchor:r07_regroup",
+            "speed": 4.5,
+            "timeout": 8,
+            "wait": true
+           }
+          ]
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "waitPlayerIn",
+            "room": "R07",
+            "timeout": 10
+           },
+           {
+            "do": "sfx",
+            "id": "surgery_latch",
+            "at": "anchor:r08_lurk"
+           },
+           {
+            "do": "say",
+            "line": "sec_priya_01",
+            "wait": false,
+            "overlap": true
+           },
+           {
+            "do": "wait",
+            "s": 0.5
+           },
+           {
+            "do": "spawn",
+            "npc": "r08_thing",
+            "kind": "lab_creature",
+            "at": "anchor:r08_lurk"
+           },
+           {
+            "do": "npcAnim",
+            "npc": "okafor",
+            "anim": "idle"
+           },
+           {
+            "do": "score",
+            "id": "medbay",
+            "cue": "emerge"
+           },
+           {
+            "do": "doorState",
+            "id": "D_R08_R08b",
+            "state": "open"
+           }
+          ]
+         }
+        ]
        },
        {
-        "do": "spawn",
-        "npc": "r08_thing",
-        "kind": "lab_creature",
-        "at": "anchor:r08_lurk"
-       },
-       {
-        "do": "score",
-        "id": "medbay",
-        "cue": "emerge"
+        "do": "playerControl",
+        "reset": true
        },
        {
         "do": "doorState",
@@ -829,6 +881,7 @@
              "surgery": "anchor:r08_lurk",
              "surgeryIn": "anchor:r08_surgery_in",
              "surgeryOut": "anchor:r08_surgery_out",
+             "back": "anchor:r08_back",
              "glassLook": "anchor:medbay_c_glass"
             },
             "wait": true
@@ -1168,14 +1221,9 @@
              {
               "do": "npcMoveTo",
               "npc": "okafor",
-              "to": "anchor:r07_medbay_door",
+              "to": "anchor:r07_glass_body",
               "speed": 1.2,
               "wait": true
-             },
-             {
-              "do": "npcAnim",
-              "npc": "okafor",
-              "anim": "okafor_hand_glass"
              },
              {
               "do": "wait",
@@ -1208,14 +1256,9 @@
        {
         "do": "npcMoveTo",
         "npc": "okafor",
-        "to": "anchor:r07_medbay_door",
+        "to": "anchor:r07_glass_body",
         "speed": 1.2,
         "wait": true
-       },
-       {
-        "do": "npcAnim",
-        "npc": "okafor",
-        "anim": "okafor_hand_glass"
        },
        {
         "do": "wait",
@@ -1313,16 +1356,51 @@
         "s": 0.5
        },
        {
-        "do": "npcMoveTo",
-        "npc": "priya",
-        "to": "anchor:priya_sit",
-        "speed": 1.1,
-        "wait": true
-       },
-       {
-        "do": "npcAnim",
-        "npc": "priya",
-        "anim": "priya_sit_wall"
+        "parallel": [
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "npcMoveTo",
+            "npc": "priya",
+            "to": "anchor:priya_sit",
+            "speed": 1.1,
+            "wait": true
+           },
+           {
+            "do": "npcAnim",
+            "npc": "priya",
+            "anim": "priya_sit_wall"
+           }
+          ]
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "npcMoveTo",
+            "npc": "okafor",
+            "to": "anchor:r07_glass_beds",
+            "speed": 1.1,
+            "wait": true
+           },
+           {
+            "do": "npcLookAt",
+            "npc": "okafor",
+            "target": "anchor:priya_sit",
+            "turn": true,
+            "turnRate": 2.4
+           },
+           {
+            "do": "npcAnim",
+            "npc": "okafor",
+            "anim": "okafor_stoop"
+           }
+          ]
+         }
+        ]
        }
       ]
      }

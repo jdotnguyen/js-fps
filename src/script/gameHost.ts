@@ -28,7 +28,7 @@ import type { TargetRef, Vec3Like } from './types.ts';
 declare module '../core/events.ts' {
   interface EventMap {
     /** `voiceProject` step: hold an NPC's local voice at the loudness of `at` m, or end that (null). */
-    'voice:project': { npc: string; at: number | null };
+    'voice:project': { npc: string; at: number | null; clear?: boolean };
   }
 }
 
@@ -209,7 +209,7 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
       d.audio.setIntercom(id, live);
       return true;
     },
-    projectVoice: (npc, at) => d.events.emit('voice:project', { npc, at }),
+    projectVoice: (npc, at, clear) => d.events.emit('voice:project', { npc, at, ...(clear ? { clear } : {}) }),
     water: (room, level, seconds) => {
       const body = d.level?.water.room(room);
       if (!body) return false;

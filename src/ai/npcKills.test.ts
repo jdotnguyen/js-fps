@@ -769,7 +769,7 @@ const LEVEL_ANCHORS: Record<string, Spot> = Object.fromEntries(
 );
 /** The marks `sec_glass` passes (the parent's contract). */
 const R08_MARKS = {
-  along: 'r08_along', lane: 'r08_lane', lane2: 'r08_lane2', cower: 'priya_cower', impale: 'r08_impale', around: 'r08_around', slamSpot: 'r08_slam_spot', slamFace: 'r08_slam_face',
+  along: 'r08_along', lane: 'r08_lane', lane2: 'r08_lane2', back: 'r08_back', cower: 'priya_cower', impale: 'r08_impale', around: 'r08_around', slamSpot: 'r08_slam_spot', slamFace: 'r08_slam_face',
   cart: 'r08_cart_top', throwAt: 'r08_throw_point', rest: 'priya_rest', exit: 'r08_along', surgery: 'r08_lurk',
   surgeryIn: 'r08_surgery_in', surgeryOut: 'r08_surgery_out', glassLook: 'medbay_c_glass',
 };
@@ -821,7 +821,7 @@ test('the R08 kill (kills.json mauled) plays end to end on the slice01 anchors: 
   assert.equal(priya.body.alive, false);
   const rest = a['priya_rest']!;
   assert.ok(Math.hypot(priya.position.x - rest.x, priya.position.z - rest.z) < 0.5, `she lies at the foot of the pane (${priya.position.x.toFixed(2)}, ${priya.position.z.toFixed(2)})`);
-  assert.equal(g.emitted.filter((e) => e.name === 'kill:noticed').length, 1, 'it stared at Jay once on the way');
+  assert.ok(g.emitted.filter((e) => e.name === 'kill:noticed').length <= 1, 'it stares at Jay at most once (the rush is over before the nine-second stare)');
   const lurk = a['r08_lurk']!;
   assert.ok(Math.hypot(thing.position.x - lurk.x, thing.position.z - lurk.z) < 1.5, `it went back toward the surgery (${thing.position.x.toFixed(1)}, ${thing.position.z.toFixed(1)})`);
 });

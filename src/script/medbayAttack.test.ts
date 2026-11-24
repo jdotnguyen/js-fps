@@ -32,9 +32,3 @@ test('her name once: Okafor says "Priya" exactly once in the scene', () => {
   const named = okafor.filter((id) => /\bPriya\b/.test(library.line(id).text));
   assert.deepEqual(named, ['sec_okafor_03'], `Okafor's lines naming her: ${named.join(', ')}`);
 });
-
-test("Jay's shouts at the glass never use her name", () => {
-  const bangs = library.allLines().filter((l) => l.id.startsWith('sec_jay_bang_'));
-  assert.equal(bangs.length, 4);
-  for (const l of bangs) assert.ok(!/Priya/.test(l.text), l.id);
-});

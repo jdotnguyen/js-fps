@@ -267,8 +267,9 @@ export class NpcDirector {
     const a = this.actor(id, false);
     a?.stopMove();
     a?.lookAt(null);
-    if (m.body.idlePose !== 'idle' && !m.task) m.body.setPose('idle', 0.5);
-    if (a) a.basePose = 'idle';
+    const rest = this.deps.squad?.restPose() ?? 'idle';
+    if (m.body.idlePose !== rest && !m.task) m.body.setPose(rest, 0.5);
+    if (a) a.basePose = rest;
   }
 
   /** Give every squadmate back to the AI (the scene ended). */

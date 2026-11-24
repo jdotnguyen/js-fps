@@ -83,7 +83,7 @@ const eventShape = {
   /** `sfx`: sound names, first one that exists plays (a recording to come, then an existing stand-in); `stinger`: the score stinger. */
   id: optional(arr(str)),
   /** `sfx`: loudness multiplier (default 1). */
-  gain: optional(numRange(0.1, 4)),
+  gain: optional(numRange(0.1, 24)),
   /** `sfx`/`kick`/`gore`: the joint it comes from. */
   joint: optional(joint),
   /** `kick`: push direction in the victim's own frame (she faces forward); `glass streak`: `pull` runs it along the pane the way she is dragged. */
@@ -102,7 +102,11 @@ const eventShape = {
   /** `light`: the kill's key light on the victim. */
   state: optional(oneOf(['on', 'off', 'dip'] as const)),
   /** `toGlass`/`haulTo`/`drag`/`walkTo`: walk speed (m/s). `walkTo` is the attacker walking with nothing held (up to 2.2 m/s). */
-  speed: optional(numRange(0.1, 6)),
+  speed: optional(numRange(0.1, 8)),
+  /** `attackerPose`: the attacker's stepping rate while it moves (1 = as its speed implies; 0.6 = slower, heavier steps). */
+  gait: optional(numRange(0.1, 2)),
+  /** `attackerPose`: the lunge (0..1) the attacker leans into: body forward, arms out, jaw wide (the body's `charge`). */
+  charge: optional(numRange(0, 1)),
   /** `pin`: metres behind the victim and to her right (her own frame); the attacker faces the way she faces, or `away`. */
   behind: optional(numRange(-2, 2)),
   side: optional(numRange(-2, 2)),

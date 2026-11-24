@@ -332,6 +332,11 @@ export class Humanoid {
     return true;
   }
 
+  /** Slows (or speeds) the stepping of the locomotion cycle without changing the ground speed. */
+  set gaitRate(v: number) {
+    this.animator.gaitRate = v;
+  }
+
   get poseName(): string {
     return this.animator.poseName;
   }

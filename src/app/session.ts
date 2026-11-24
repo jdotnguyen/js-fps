@@ -1011,9 +1011,17 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     };
     // voiceProject steps (voice-playback: A scene can project a voice), by NPC id.
     const projectedVoices = new Map<string, number>();
-    events.on('voice:project', ({ npc, at }) => {
-      if (at === null) projectedVoices.delete(npc);
-      else projectedVoices.set(npc, at);
+    // A "clear" projection also lifts the wall muffling and attenuation (the voice carries as if in the open).
+    const clearVoices = new Set<string>();
+    events.on('voice:project', ({ npc, at, clear }) => {
+      if (at === null) {
+        projectedVoices.delete(npc);
+        clearVoices.delete(npc);
+      } else {
+        projectedVoices.set(npc, at);
+        if (clear) clearVoices.add(npc);
+        else clearVoices.delete(npc);
+      }
     });
 
     const voiceFrom = new THREE.Vector3();
@@ -1024,10 +1032,12 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       voiceFrom.set(p.x, p.y, p.z);
       const a = voiceAudibility(level.voicePath(voiceFrom, camera.position));
       const distance = voiceFrom.distanceTo(camera.position);
-      const projectAt = projectedVoices.size > 0 ? projectedVoices.get(speakerNpcId(line.speaker) ?? '') : undefined;
-      const gain = projectAt !== undefined ? a.gain * projectionGain(distance, projectAt) : a.gain;
+      const speakerId = projectedVoices.size > 0 ? (speakerNpcId(line.speaker) ?? '') : '';
+      const projectAt = projectedVoices.size > 0 ? projectedVoices.get(speakerId) : undefined;
+      const clear = projectAt !== undefined && clearVoices.has(speakerId);
+      const gain = projectAt !== undefined ? (clear ? Math.max(a.gain, 1) : a.gain) * projectionGain(distance, projectAt) : a.gain;
       const relayed = relayedToPlayer(voiceFrom);
-      return { gain, cutoffHz: a.cutoffHz, distance, audible: a.level >= EARSHOT_LEVEL, ...(relayed ? { relayed } : {}) };
+      return { gain, cutoffHz: clear ? 20000 : a.cutoffHz, distance, audible: a.level >= EARSHOT_LEVEL, ...(relayed ? { relayed } : {}) };
     };
     speech = new SpeechManager(events, dialogue, voicePlayer, { hearing });
     const speakerHead = new THREE.Vector3();

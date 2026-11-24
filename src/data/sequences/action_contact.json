@@ -271,11 +271,6 @@
         "do": "sfx",
         "id": "click",
         "at": "anchor:r06_panel"
-       },
-       {
-        "do": "say",
-        "line": "cover_giles_02",
-        "wait": false
        }
       ]
      },
@@ -420,14 +415,6 @@
     "do": "score",
     "id": "labB",
     "cue": "end"
-   },
-   {
-    "do": "wait",
-    "s": 0.8
-   },
-   {
-    "do": "say",
-    "line": "contact_after_01"
    }
   ]
  }

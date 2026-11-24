@@ -36,7 +36,7 @@ const LINE_POOLS: Record<string, string[]> = {
   cover_priya_run_01: ['assets/vo/react_priya_sob_01.mp3', 'assets/vo/react_priya_sob_02.mp3'],
   sec_okafor_22: ['assets/vo/react_okafor_exhale_01.mp3'],
   sec_priya_17: ['assets/vo/react_priya_breath_01.mp3', 'assets/vo/react_priya_breath_02.mp3'],
-  sec_priya_02: ['assets/vo/react_priya_scream_01.mp3', 'assets/vo/react_priya_scream_02.mp3', 'assets/vo/react_priya_scream_03.mp3'],
+  sec_priya_02: ['assets/vo/react_priya_scream_slam.mp3'], // a downloaded scream (CREDITS.md), not generated
   stinger_priya_03: ['assets/vo/react_priya_scream_02.mp3', 'assets/vo/react_priya_scream_03.mp3', 'assets/vo/react_priya_scream_01.mp3'],
   sec_priya_03: ['assets/vo/react_priya_choke_01.mp3', 'assets/vo/react_priya_choke_02.mp3'],
   sec_priya_06: ['assets/vo/react_priya_scream_01.mp3', 'assets/vo/react_priya_scream_02.mp3', 'assets/vo/react_priya_scream_03.mp3'],

@@ -440,7 +440,8 @@ export class SquadMate {
     this.targetId = target?.id ?? null;
     this.behaviour = target ? 'combat' : 'follow';
     if (!target) {
-      if (this.body.idlePose === 'aim_pistol') this.body.setPose('idle', 0.5);
+      const rest = squad.restPose();
+      if (this.body.idlePose === 'aim_pistol' && rest !== 'aim_pistol') this.body.setPose(rest, 0.5);
       return;
     }
     // Back off from anything too close (the medic keeps more room).
@@ -562,7 +563,7 @@ export class SquadMate {
       if (t.done) {
         this.clearTaskRig();
         this.body.lookTarget = null;
-        this.body.setPose('idle', 0.5);
+        this.body.setPose(squad.restPose(), 0.5);
         this.task = null;
       }
     }
@@ -577,7 +578,7 @@ export class SquadMate {
       if (kneeling) squad.emit('squad:reviveProgress', { target: r.target, progress: r.progress, paused: r.paused });
       if (done) {
         this.revive = null;
-        this.body.setPose('idle', 0.5);
+        this.body.setPose(squad.restPose(), 0.5);
         if (r.target === 'player') player.revive?.();
         else squad.mate('engineer').getUp(squad, true);
         squad.emit('squad:revived', { id: this.id, target: r.target });
@@ -675,7 +676,7 @@ export class SquadMate {
   private idleGestures(dt: number, squad: Squad): void {
     if (this.gestureLeft > 0) {
       this.gestureLeft -= dt;
-      if (this.gestureLeft <= 0) this.body.setPose('idle', 0.6);
+      if (this.gestureLeft <= 0) this.body.setPose(squad.restPose(), 0.6);
       return;
     }
     if (this.behaviour !== 'follow' || this.mode !== 'idle') return;
@@ -694,7 +695,7 @@ export class SquadMate {
     }
     // Ambient fidgets while standing about: shift weight, look down, tilt the head. No head turns: they already watch Jay.
     this.ambientT -= dt;
-    if (this.ambientT > 0 || this.body.idlePose !== 'idle') return;
+    if (this.ambientT > 0 || this.body.idlePose !== 'idle' || squad.restPose() !== 'idle') return;
     this.ambientT = this.idleRng.range(5, 12);
     this.body.setPose(this.idleRng.pick(SQUAD_FIDGETS), 0.8);
     this.gestureLeft = this.idleRng.range(2, 4);
@@ -860,7 +861,8 @@ export class SquadMate {
       else if (this.mode === 'task') speed = toTarget < 1.2 ? Math.max(0.65, Math.min(SQUAD_TUNING.brisk, toTarget * 1.9)) : Math.max(speed, SQUAD_TUNING.brisk);
       else if (this.mode === 'backoff') speed = Math.max(speed, SQUAD_TUNING.brisk);
       // Moving again: drop a work or aim pose so the walk cycle shows.
-      if (this.body.idlePose !== 'idle' && this.gestureLeft <= 0) this.body.setPose('idle', 0.3);
+      const rest = squad.restPose();
+      if (this.body.idlePose !== rest && this.gestureLeft <= 0) this.body.setPose(rest, 0.3);
     }
 
     // Give way: Jay is solid to them, so a mate standing in his way steps out of his line (out of a
@@ -1040,6 +1042,20 @@ export class Squad {
 
   setEnemies(source: SquadEnemySource | null): void {
     this.enemies = source;
+  }
+
+  /**
+   * Has the Lab B drop happened (`gunDrawn` or `drop_done`)? From then on August and Tomas keep their pistols in hand
+   * and only put them away to work a door (the task pose replaces the aim pose).
+   */
+  get gunsDrawn(): boolean {
+    const f = this.deps.flags?.();
+    return !!f && (f['gunDrawn'] === true || f['drop_done'] === true);
+  }
+
+  /** The pose a mate returns to when nothing else holds him: pistol up after the drop, otherwise idle. */
+  restPose(): string {
+    return this.gunsDrawn ? 'aim_pistol' : 'idle';
   }
 
   enemyList(): readonly SquadEnemy[] {

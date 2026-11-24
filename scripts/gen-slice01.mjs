@@ -829,6 +829,8 @@ anchor(R07, 'r07_glass_okafor', [3.1, 0, 45.1], 180);
 anchor(R07, 'r07_glass_giles', [-1.8, 0, 45.0], 170);
 anchor(R07, 'r07_glass_jay', [0.3, 0, 45.25], 180);
 anchor(R07, 'r07_medbay_door', [4.0, 0, 45.35], 180);
+anchor(R07, 'r07_glass_body', [1.2, 0, 45.2], 180);
+anchor(R07, 'r07_glass_beds', [-5.3, 0, 45.1], 180);
 anchor(R07, 'r07_intercom', [-1.4, 1.9, 38.3]);
 // overhaul-priya-r08-death D23/D30: Giles reads the lockdown order here, and Okafor switches the intercom off here.
 anchor(R07, 'r07_console', [-2.6, 0, 39.55], 0);
@@ -854,6 +856,7 @@ anchor(R08, 'r08_along', [3.8, 0, 46.7], 90);
 // Its walk along the glass passes here, between the pane and the cart, clear of both (medbay-attack "Clear lane").
 anchor(R08, 'r08_lane', [-1.0, 0, 46.32], 90);
 anchor(R08, 'r08_lane2', [-3.3, 0, 47.1], 90);
+anchor(R08, 'r08_back', [-0.3, 0, 48.7]);
 anchor(R08, 'priya_rest', [1.0, 0, 46.33], 0);
 // D20 (task 12.1): the stinger's CAM 04 feed looks from cam04_pos at her body by the centre pane.
 anchor(R08, 'cam04_stinger_look', [1.0, 0.35, 46.55]);
@@ -889,7 +892,6 @@ anchor(R07, 'body_r07_2', [-4.2, 0, 42.3], 250); // the last stand, out of the v
 trigger(R07, 'trig_r07_enter', cellBox(-1, 1, 10, 10), 'trigger:r07_enter');
 trigger(R07, 'trig_r08_glass', [[-5.6, 0, 43.4], [5.6, 2.4, 45.6]], 'trigger:r08_glass');
 // Jay bangs on the centre pane while Priya pleads (medbay-attack spec): only offered while the scene allows interact.
-trigger(R07, 'medbay_bang', [[-1.2, 0, 44.7], [1.8, 2.2, 45.75]], 'interact:medbay_bang', { on: 'use', prompt: 'Bang on the glass', once: false });
 trigger(R07a, 'trig_r07_armory', cellBox(2, 2, 10, 10), 'trigger:r07_armory');
 checkpoints.push({ id: 'cp_security', room: 'R07', pos: [0, 0, 40.2], yaw: 180 });
 

@@ -912,7 +912,7 @@ test('medbay staging: clear spine, viewing strip, stage and lane; the shotgun fa
   }
   // "Clear lane": the creature's route surgery door -> along the glass -> the impale spot keeps 0.6 m from every R08 collider.
   // (Along the glass, between the pane and the cart, then in to the corner.)
-  const route: Array<[number, number, number]> = ['r08_lurk', 'r08_along', 'r08_lane', 'r08_lane2', 'r08_impale'].map(anchor);
+  const route: Array<[number, number, number]> = ['r08_lurk', 'r08_surgery_out', 'r08_surgery_in', 'r08_back', 'r08_lane2', 'r08_impale'].map(anchor);
   for (let i = 0; i + 1 < route.length; i++) {
     const [a, b] = [route[i]!, route[i + 1]!];
     for (let t = 0; t <= 1.0001; t += 0.05) {

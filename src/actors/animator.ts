@@ -141,6 +141,8 @@ export class Animator {
   gait: GaitStyle = 'none';
   /** Ground speed in m/s, set by the mover. */
   speed = 0;
+  /** Scales how fast the locomotion cycle turns for a given ground speed (a scripted kill slows the rushing creature's steps). */
+  gaitRate = 1;
   /** Turn speed in rad/s (+ = left) and heading error to the target (rad). Used by crawlers AND upright turning/banking. */
   turnRate = 0;
   turnError = 0;
@@ -773,7 +775,7 @@ export class Animator {
       if (this.speed > 0.02) {
         // Slower, heavier zombie step progression: limp speed matches ground travel without frantic leg spin.
         const strideMul = mode === 'heavy' ? 1.45 : 1.05;
-        this.locoPhase = (this.locoPhase + (this.speed / (zStride * strideMul)) * dt) % 1;
+        this.locoPhase = (this.locoPhase + (this.speed / (zStride * strideMul)) * dt * this.gaitRate) % 1;
       }
       // Subtle lurching time warp makes every zombie stride feel uneven and dragging.
       const samplePhase =
@@ -788,7 +790,7 @@ export class Animator {
     } else if (mode === 'loco') {
       const stride = Math.max(0.6, this.locoInfo.stride);
       if (this.speed > 0.02) {
-        this.locoPhase = (this.locoPhase + (this.speed / stride) * dt) % 1;
+        this.locoPhase = (this.locoPhase + (this.speed / stride) * dt * this.gaitRate) % 1;
       }
       sampleLocomotion(
         this.mocap,

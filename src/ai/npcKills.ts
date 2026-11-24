@@ -153,7 +153,7 @@ const LYING_KILL_POSE = /^(corpse|writhing)/;
  * teleport her), the attacker hauls and drags at most `haulMax` m/s, a slam winds up for `windup` s and holds her head on
  * the surface for `hold` s, and her root stays within `lift` m of the floor while held.
  */
-export const MAUL = { gripStep: 0.5, gripDraw: 0.03, liftCarried: 0.5, haulMax: 1.4, walkMax: 2.2, windup: 0.32, strike: 0.1, hold: 0.08, lift: [-0.55, 0.15] as const, arc: 0.35, slideS: 0.9, reach: 0.7, inFront: 0.55, arriveSpare: 0.8, easeAllowance: 1.2 };
+export const MAUL = { gripStep: 0.5, gripDraw: 0.03, liftCarried: 0.5, haulMax: 1.4, walkMax: 2.2, rushMax: 8, windup: 0.32, strike: 0.1, hold: 0.08, lift: [-0.55, 0.15] as const, arc: 0.35, slideS: 0.9, reach: 0.7, inFront: 0.55, arriveSpare: 0.8, easeAllowance: 1.2 };
 /** Crunch variants, rotated so two impacts in a row never use the same one (stand-ins until the recordings exist). */
 const CRUNCHES = ['head_crunch_1', 'head_crunch_2', 'head_crunch_3'];
 const tmpA = new THREE.Vector3();
@@ -572,6 +572,7 @@ export class KillDirector {
     const order = CRUNCHES.slice((n - 1) % CRUNCHES.length).concat(CRUNCHES.slice(0, (n - 1) % CRUNCHES.length));
     if (this.w.sfx && !this.w.sfx([...order, 'kill_crunch', 'fleshTear'], head)) this.w.warn(`kill ${k.npc}: no head crunch sound yet`);
     this.w.sfx?.(['cart_impact', 'metalKnock'], s.target);
+    this.w.sfx?.(['cart_glass_break'], s.target);
   }
 
   private startThrow(k: ActiveKill, e: KillEvent): void {
@@ -896,6 +897,8 @@ export class KillDirector {
       case 'attackerPose':
         if (k.attacker && e.pose) {
           k.attackerPose = e.pose;
+          if (e.gait !== undefined) k.attacker.body.gaitRate = k.instant ? 1 : e.gait;
+          if (e.charge !== undefined) k.attacker.body.charge = k.instant ? 0 : e.charge;
           k.attacker.body.setPose(e.pose, k.instant ? 0.01 : (e.blend ?? 0.25));
         }
         return;
@@ -912,6 +915,8 @@ export class KillDirector {
         if (!a) return;
         const at = e.mark ? this.mark(k, e.mark) : null;
         a.lookAt(at ? () => at : null);
+        // Looking at a mark turns the whole body to it (it stares at Jay's side of the glass); none: free again.
+        a.turnTo(at && !k.instant ? Math.atan2(-(at.x - a.position.x), -(at.z - a.position.z)) : null);
         return;
       }
       case 'haulTo':
@@ -921,7 +926,8 @@ export class KillDirector {
         const at = this.mark(k, e.mark);
         if (!a || !at) return;
         // Hauling (or dragging) her is slow; walking away with nothing held is not (D37).
-        const cap = e.do === 'walkTo' ? MAUL.walkMax : MAUL.haulMax;
+        // The approach in the first beat is a rush: it holds nothing yet, so it may run (the lab creature breaking in on R08).
+        const cap = (k.run.beat === k.run.style.beats[0] && e.do !== 'drag') || e.do === 'walkTo' ? MAUL.rushMax : MAUL.haulMax;
         // Dragged along the floor: she holds the beat's lying pose, her legs never step.
         if (e.do === 'drag') {
           k.actor.body.carried = k.run.style.beats.find((b) => b.id === k.run.beatId)?.poses[0] ?? 'corpseProne';

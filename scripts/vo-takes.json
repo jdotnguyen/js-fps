@@ -82,7 +82,6 @@
     "model": "gemini-2.5-flash-preview-tts",
     "lines": [
       "bark_task_01",
-      "bark_task_02",
       "bark_task_03",
       "bark_idle_01",
       "bark_idle_03",
@@ -195,8 +194,7 @@
     "lines": [
       "drop_giles_01",
       "contact_giles_01",
-      "cover_giles_01",
-      "cover_giles_02"
+      "cover_giles_01"
     ],
     "at": "2026-11-20T03:20:43.402Z",
     "source": "traced",
@@ -441,7 +439,6 @@
     "model": "gemini-3.1-flash-tts-preview",
     "lines": [
       "contact_okafor_01",
-      "contact_after_01",
       "tunnel_okafor_01"
     ],
     "at": "2026-11-20T04:00:52.767Z",
@@ -896,11 +893,7 @@
     "model": "gemini-3.1-flash-tts-preview",
     "lines": [
       "sec_jay_01",
-      "sec_jay_02",
-      "sec_jay_bang_01",
-      "sec_jay_bang_02",
-      "sec_jay_bang_03",
-      "sec_jay_bang_04"
+      "sec_jay_02"
     ],
     "at": "2026-11-21T16:55:44.478Z",
     "source": "traced",
@@ -1008,7 +1001,6 @@
       "intro_okafor_10",
       "intro_okafor_11",
       "contact_okafor_01",
-      "contact_after_01",
       "sec_okafor_02",
       "sec_okafor_03"
     ],

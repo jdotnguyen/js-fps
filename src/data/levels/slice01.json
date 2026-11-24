@@ -5510,25 +5510,6 @@
      ],
      "on": "enter",
      "emit": "trigger:r08_glass"
-    },
-    {
-     "id": "medbay_bang",
-     "box": [
-      [
-       -1.2,
-       0,
-       44.7
-      ],
-      [
-       1.8,
-       2.2,
-       45.75
-      ]
-     ],
-     "on": "use",
-     "emit": "interact:medbay_bang",
-     "once": false,
-     "prompt": "Bang on the glass"
     }
    ],
    "anchors": [
@@ -5599,6 +5580,24 @@
       4,
       0,
       45.35
+     ],
+     "yaw": 180
+    },
+    {
+     "id": "r07_glass_body",
+     "pos": [
+      1.2,
+      0,
+      45.2
+     ],
+     "yaw": 180
+    },
+    {
+     "id": "r07_glass_beds",
+     "pos": [
+      -5.3,
+      0,
+      45.1
      ],
      "yaw": 180
     },
@@ -6296,6 +6295,14 @@
       47.1
      ],
      "yaw": 90
+    },
+    {
+     "id": "r08_back",
+     "pos": [
+      -0.3,
+      0,
+      48.7
+     ]
     },
     {
      "id": "priya_rest",

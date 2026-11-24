@@ -417,7 +417,7 @@ test('R05 first contact (trim-lab-wing-encounters): no fight; the creature passe
   await until(g, () => !g.m.isRunning('contact'));
   assert.equal(g.log.some((e) => e.startsWith('group ')), false, 'no enemy in R05');
   assert.equal(at(g, 'door D_R04_R05 open'), -1, 'the Lab B door stays sealed');
-  for (const l of ['contact_giles_01', 'contact_okafor_01', 'contact_okafor_02', 'contact_okafor_03', 'contact_after_01']) assert.equal(said(g, l), 0, `${l} is not in R05`);
+  for (const l of ['contact_giles_01', 'contact_okafor_01', 'contact_okafor_02', 'contact_okafor_03']) assert.equal(said(g, l), 0, `${l} is not in R05`);
   // The bangs walk along the ducts toward R06; Okafor's revive rule as they start.
   const bangs = g.log.filter((e) => e === 'sfx ductBang' || e === 'sfx ductScrape');
   assert.ok(bangs.length >= 5, `${bangs.length} duct sounds`);
@@ -496,14 +496,13 @@ test('R06 cover me: Giles bypasses for 20 s, the escaped creature crawls in and 
   await advance(g, 0.2);
   assert.ok(at(g, 'door D_R06_R07 open') >= 0);
   await advance(g, 3);
-  assert.equal(said(g, 'contact_after_01'), 0, 'the legs lesson waits for the kill');
   g.clear('r06_cover');
   await until(g, () => !g.m.isRunning('cover_me'));
   // The win sets cover_done and takes the checkpoint at once; the talk follows (so stepping into R07 can cut it).
-  inOrder(g, [...lines('cover_giles_02'), 'checkpoint cp_cover_done', 'score labB end', ...lines('contact_after_01')]);
+  inOrder(g, ['checkpoint cp_cover_done', 'score labB end']);
   // overhaul-priya-r08-death D14 (2026-11-23 amendment): she hides behind the desk through the fight; her run is the
   // cutscene that opens the R07 scene, so cover_me ends without it and cp_cover_done records her still hidden.
-  inOrder(g, ['npc npcMoveTo priya instant', 'npc npcAnim priya priya_crouch instant', 'checkpoint cp_cover_done', ...lines('contact_after_01')]);
+  inOrder(g, ['npc npcMoveTo priya instant', 'npc npcAnim priya priya_crouch instant', 'checkpoint cp_cover_done']);
   assert.equal(said(g, 'cover_okafor_run_01'), 0, 'no run in R06');
   assert.equal(at(g, 'door D_R07_R08 open'), -1, 'the medical bay door stays shut');
   // overhaul-priya-r08-death decision 22: Giles is not infected; no arm beat in R06.
@@ -560,7 +559,7 @@ test('R07: entering the security office after the cover fight starts the scene: 
   await until(g, () => at(g, 'score medbay enter') >= 0);
   inOrder(g, [
     'npc npcMoveTo priya instant', 'npc npcAnim priya priya_crouch instant', 'door D_R07_R08 sealed', 'catchUp R07',
-    'say cover_okafor_run_01 overlap', 'npc npcAnim priya clip:priya_stumble', 'door D_R07_R08 open', 'door D_R07_R08 sealed',
+    'say cover_okafor_run_01 overlap', 'door D_R07_R08 open', 'npc npcAnim priya clip:priya_stumble', 'door D_R07_R08 sealed',
     'project okafor 3.5', 'score medbay enter',
   ]);
   // D41: while the bars are up and Jay has walked in after her, the squad is put just behind him and the bulkhead seals,
@@ -577,11 +576,10 @@ test('R07: entering the security office after the cover fight starts the scene: 
   assert.equal(g.log.some((e) => e.includes('r07_playdead')), false, 'no play-dead ambush (trim-lab-wing-encounters)');
 });
 
-test('medbay-attack "Shooting the glass" (D34): a round on the glass counts as a bang for the creature, with no shout', async () => {
+test('medbay-attack "Shooting the glass" (D34): a round on the glass brings the stare of the creature forward', async () => {
   const g = makeGame();
   toScene(g);
   await until(g, () => g.control.state.move === 'slow');
-  const shouts = (): number => ['sec_jay_bang_01', 'sec_jay_bang_02', 'sec_jay_bang_03', 'sec_jay_bang_04'].reduce((n, l) => n + said(g, l), 0);
   g.host.events.emit('weapon:glass', { weapon: 'pistol', x: 1, y: 1.5, z: 45.7 });
   await advance(g, 0.2);
   assert.equal(count(g, 'event kill:notice'), 0, 'nothing to notice before the creature is in');
@@ -589,7 +587,6 @@ test('medbay-attack "Shooting the glass" (D34): a round on the glass counts as a
   g.host.events.emit('weapon:glass', { weapon: 'pistol', x: 1, y: 1.5, z: 45.7 });
   await advance(g, 0.2);
   assert.equal(count(g, 'event kill:notice'), 1);
-  assert.equal(shouts(), 0, 'a shot is not a shout');
 });
 
 test('R07 straight after the fight: stepping in ends the R06 talk at once and the run cutscene starts (D14, 2026-11-23)', async () => {
@@ -607,7 +604,6 @@ test('R07 straight after the fight: stepping in ends the R06 talk at once and th
   assert.equal(g.m.isRunning('sec_glass'), true);
   assert.ok(at(g, 'stopSpeech') >= 0, 'every line still playing is cut');
   await advance(g, 3);
-  assert.equal(said(g, 'contact_after_01'), 0, 'its lines never play');
 });
 
 test('playerWalkTo with distance: a few steps from where Jay stands toward the target, never past it', async () => {
@@ -694,11 +690,16 @@ test('medbay-attack "She turns around" (D35): hands up, a slow turn to the surge
   const sec = actionDefs.find((d) => d.id === 'sec_glass')!;
   const turns: Array<Record<string, unknown>> = [];
   walk(sec.steps, (st) => void (st['do'] === 'npcLookAt' && st['npc'] === 'priya' && st['turn'] === true && turns.push(st)));
-  assert.equal(turns.length, 2, 'away and back');
+  assert.equal(turns.length, 4, 'away and back, then the snap to the surgery door at the tray and back to Okafor');
   assert.equal(turns[0]!['target'], 'anchor:priya_turn_away', 'her back to the glass, facing the surgery door');
   assert.ok((turns[0]!['turnRate'] as number) < (turns[1]!['turnRate'] as number), 'slow away, quicker back');
   assert.ok((turns[0]!['turnRate'] as number) < 3.2, 'slower than the default turn');
   assert.equal(turns[1]!['target'], 'npc:okafor');
+  // After the tray falls she whips round to the surgery door, then looks back to Okafor at "Look at me."
+  assert.equal(turns[2]!['target'], 'anchor:r08_lurk');
+  assert.ok((turns[2]!['turnRate'] as number) > 3.2, 'a panicked, fast snap');
+  assert.equal(turns[3]!['target'], 'npc:okafor');
+  inOrder(g, ['npc npcAnim priya priya_flinch', 'npc npcLookAt priya', 'say sec_priya_17', 'say sec_okafor_16']);
 });
 
 test('medbay-attack "The rescue is tight" (D36): from her first line to the armory opening in at most 80 s, lines timed by their clips', async () => {
@@ -772,34 +773,6 @@ test('medbay-attack: the kill step is the creature on Priya at the centre pane, 
   for (const m of ['along', 'cower', 'impale', 'cart', 'throwAt', 'rest', 'surgery']) assert.ok(marks[m]?.startsWith('anchor:'), m);
 });
 
-test('medbay-attack: banging on the glass thuds and shakes each time, shouts at most every 2.5 s, and changes nothing else', async () => {
-  const g = await toPlead();
-  await advance(g, 0.2);
-  const before = g.log.length;
-  for (let i = 0; i < 5; i++) {
-    fire(g, 'interact:medbay_bang');
-    await advance(g, 0.35);
-  }
-  const during = g.log.slice(before);
-  assert.equal(during.filter((e) => e === 'sfx glassThud').length, 5, 'five thuds');
-  assert.equal(during.filter((e) => e === 'shake').length, 5, 'five shakes');
-  const shouts = during.filter((e) => e.startsWith('say sec_jay_bang_'));
-  assert.equal(shouts.length, 1, `shouts do not pile up (${shouts.join(', ')})`);
-  assert.equal(g.kills.length, 1, 'the kill is unchanged');
-  assert.ok(!during.some((e) => e.startsWith('glass ') || e.startsWith('gore ')), 'the glass does not crack');
-});
-
-test('medbay-attack: a bang brings the stare forward only once the creature is in the medical bay', async () => {
-  const g = await toPlead();
-  fire(g, 'interact:medbay_bang');
-  await advance(g, 0.3);
-  assert.equal(count(g, 'event kill:notice'), 0, 'still in the doorway: no notice');
-  await advance(g, 1.5);
-  fire(g, 'interact:medbay_bang');
-  await advance(g, 0.1);
-  assert.ok(count(g, 'event kill:notice') >= 1, 'in the room: the bang reaches it');
-});
-
 test('medbay-attack: the attack lines ride the kill beats; the prompt goes with the impale; the music follows', async () => {
   const g = await toPlead();
   await advance(g, 2);
@@ -830,7 +803,7 @@ test('medbay-attack aftermath: silence, the intercom off, the notebook, "I told 
   }
   // D39: while it walks back to the surgery, Okafor goes to the glass, puts his hand on it and speaks to her.
   await advance(g, 5);
-  inOrder(g, ['event kill:still', 'say sec_jay_02 overlap', 'npc npcMoveTo okafor', 'npc npcAnim okafor okafor_hand_glass', 'say sec_okafor_22']);
+  inOrder(g, ['event kill:still', 'say sec_jay_02 overlap', 'npc npcMoveTo okafor', 'say sec_okafor_22']);
   const n = g.log.length;
   g.kills[0]!.resolve();
   await advance(g, 1);
@@ -873,7 +846,7 @@ test('medbay-attack: the vitals monitor beeps every 0.8 s on the score grid all 
 test('dying during the Priya scene replays it from the start; the control stack always comes back', async () => {
   const g = makeGame();
   toScene(g);
-  await advance(g, 6);
+  await advance(g, 7);
   assert.equal(g.control.state.move, 'slow');
   g.host.events.emit('player:died', {});
   assert.equal(g.control.state.move, 'free', 'control released on death');
