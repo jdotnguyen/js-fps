@@ -42,13 +42,17 @@ const R16A_GLIDE_DIST = 15; // 20 -> 35 (+Z south through r16a_north at z=30.125
 
 const GATE_LEAD_SECONDS = 1.6;
 const PULLOUT_SECONDS = 3.8;
+/** Speed (m/s) at the end of Stage 1 pull-out (quadratic u^2 over 14 m in 3.8 s); Stage 2 starts here. */
+const PULLOUT_END_SPEED = (2 * R15A_PULLOUT_DIST) / PULLOUT_SECONDS;
 const DEFAULT_TUNNEL_SECONDS = 8.0;
 const ARRIVAL_SECONDS = 9.0; // 3 * 15 m / 9 s = 5 m/s at the start (GLIDE_START_SPEED)
 /** Extra free track the headlight beam may use past the dock before it would meet the R16a south wall (m). */
 const DOCK_BEAM_MARGIN = 2.0;
 const TUNNEL_SPEED = 20;
-/** Stage 2 never runs shorter than this, so the slow-down and the gate's approach always fit. */
+/** Stage 2 never runs shorter than this, so the ramp-up, slow-down and gate approach always fit. */
 const MIN_TUNNEL_SECONDS = 3;
+/** The Stage 2 ramp-up from PULLOUT_END_SPEED to TUNNEL_SPEED lasts at most this long. */
+const MAX_ACCEL_SECONDS = 2.2;
 /** The Stage 2 slow-down (linear, ending at the Stage 3 start speed) lasts at most this long. */
 const MAX_DECEL_SECONDS = 4;
 /** The R16a gate starts to lift this long after the hand-off, once R16a is rendered. */
@@ -68,8 +72,9 @@ export class TransitRideController {
   private elapsed = 0;
   private tunnelSeconds = DEFAULT_TUNNEL_SECONDS;
   private trainZ = R15A_TRAIN_START.z;
-  private rigGateArmed = false;
   private r16GateOpened = false;
+  private warmedR16a = false;
+  private warmedR16b = false;
   private readonly offStart: () => void;
   private readonly offReset: () => void;
 
@@ -90,12 +95,14 @@ export class TransitRideController {
   start(tunnelSeconds = DEFAULT_TUNNEL_SECONDS): void {
     if (this.stage !== 'idle' && this.stage !== 'arrived') return;
     this.tunnelSeconds = Math.max(MIN_TUNNEL_SECONDS, tunnelSeconds);
-    this.rigGateArmed = false;
     this.r16GateOpened = false;
+    this.warmedR16a = false;
+    this.warmedR16b = false;
     this.elapsed = 0;
     this.trainZ = R15A_TRAIN_START.z;
     this.lockMatesInCabin(R15A_TRAIN_START);
     this.setStage('gate_open');
+    this.emit('render:warm', { room: 'R15b' });
     this.emit('transit:blast_gate', { gateId: 'r15a_south', open: true });
     this.emit('transit:train_door', { carId: 'r15a_train', open: false });
   }
@@ -109,8 +116,9 @@ export class TransitRideController {
     this.d.level.setPropTransform('r16a_train', R16A_TRAIN_PARK, Math.PI);
     this.emit('transit:tunnel_scroll', { active: false });
     this.emit('transit:rig_gate', { arm: false });
-    this.rigGateArmed = false;
     this.r16GateOpened = false;
+    this.warmedR16a = false;
+    this.warmedR16b = false;
     for (const carId of ['r15a_train', 'r15b_train', 'r16a_train']) this.emit('transit:car_motion', { carId, speed: 0, clear: 8 });
     this.emit('transit:ride_state', { stage: 'idle' });
   }
@@ -145,42 +153,63 @@ export class TransitRideController {
         this.elapsed = 0;
         this.setStage('sea_tunnel');
         this.emit('transit:train_door', { carId: 'r15b_train', open: false, instant: true });
-        this.emit('transit:tunnel_scroll', { active: true, speed: TUNNEL_SPEED });
-        this.emit('transit:car_motion', { carId: 'r15b_train', speed: TUNNEL_SPEED, clear: 8 });
+        this.emit('transit:tunnel_scroll', { active: true, speed: PULLOUT_END_SPEED });
+        this.emit('transit:car_motion', { carId: 'r15b_train', speed: PULLOUT_END_SPEED, clear: 8 });
       }
       return;
     }
 
     if (this.stage === 'sea_tunnel') {
-      // Slow the hallway down early (design Decision 15): cruise, then a linear slow-down that ends exactly at the Stage 3
-      // start speed, with the closed gate approaching so that it arrives where R16a's gate will be.
+      // Three-phase speed profile: smoothstep ramp from Stage 1's exit speed to cruise, steady cruise, then a linear
+      // slow-down ending at Stage 3's start speed, with the closed gate placed analytically at RIG_GATE_FINAL_Z + remaining.
       const total = this.tunnelSeconds;
-      const decel = Math.min(MAX_DECEL_SECONDS, total * 0.6);
+      const accel = Math.min(MAX_ACCEL_SECONDS, total * 0.35);
+      const decel = Math.min(MAX_DECEL_SECONDS, total * 0.55);
+      const decelStart = total - decel;
       const e = Math.min(this.elapsed, total);
-      const inDecel = e >= total - decel;
-      const slope = (TUNNEL_SPEED - GLIDE_START_SPEED) / decel;
       const left = total - e;
-      const speed = inDecel ? GLIDE_START_SPEED + slope * left : TUNNEL_SPEED;
-      if (inDecel) {
-        this.emit('transit:tunnel_scroll', { active: true, speed });
-        this.emit('transit:car_motion', { carId: 'r15b_train', speed, clear: 8 });
+      const slope = (TUNNEL_SPEED - GLIDE_START_SPEED) / decel;
+      const decelDist = GLIDE_START_SPEED * decel + 0.5 * slope * decel * decel;
+
+      let speed: number;
+      let remaining: number;
+      if (e < accel) {
+        const u = e / accel;
+        const s = u * u * (3 - 2 * u);
+        speed = PULLOUT_END_SPEED + (TUNNEL_SPEED - PULLOUT_END_SPEED) * s;
+        const accelRem =
+          PULLOUT_END_SPEED * (accel - e) +
+          (TUNNEL_SPEED - PULLOUT_END_SPEED) * accel * (0.5 - u * u * u * (1 - 0.5 * u));
+        remaining = decelDist + TUNNEL_SPEED * (decelStart - accel) + accelRem;
+      } else if (e < decelStart) {
+        speed = TUNNEL_SPEED;
+        remaining = decelDist + TUNNEL_SPEED * (decelStart - e);
+      } else {
+        speed = GLIDE_START_SPEED + slope * left;
+        remaining = GLIDE_START_SPEED * left + 0.5 * slope * left * left;
       }
-      if (!this.rigGateArmed) {
-        // Distance the hallway still has to travel; arm the gate when it equals the gate's own travel.
-        const remaining = inDecel
-          ? GLIDE_START_SPEED * left + 0.5 * slope * left * left
-          : GLIDE_START_SPEED * decel + 0.5 * slope * decel * decel + TUNNEL_SPEED * (total - decel - e);
-        if (remaining <= RIG_GATE_START_Z - RIG_GATE_FINAL_Z) {
-          this.rigGateArmed = true;
-          this.emit('transit:rig_gate', { arm: true });
-        }
+
+      this.emit('transit:tunnel_scroll', { active: true, speed });
+      this.emit('transit:car_motion', { carId: 'r15b_train', speed, clear: 8 });
+
+      // Pre-warm R16a and R16b shaders and GPU textures staggered during decel so the Stage 2 -> Stage 3 cut does not freeze.
+      if (!this.warmedR16a && e >= decelStart) {
+        this.warmedR16a = true;
+        this.emit('render:warm', { room: 'R16a' });
+      }
+      if (!this.warmedR16b && e >= decelStart + 0.5) {
+        this.warmedR16b = true;
+        this.emit('render:warm', { room: 'R16b' });
+      }
+
+      if (remaining <= RIG_GATE_START_Z - RIG_GATE_FINAL_Z) {
+        this.emit('transit:rig_gate', { arm: true, wallZ: RIG_GATE_FINAL_Z + remaining });
       }
       if (this.elapsed >= this.tunnelSeconds) {
         const startZ = R16A_TRAIN_PARK.z - R16A_GLIDE_DIST;
         this.d.level.setPropTransform('r16a_train', { x: R16A_TRAIN_PARK.x, y: R16A_TRAIN_PARK.y, z: startZ }, Math.PI);
         // R16a's gate is still closed here, exactly where the rig's gate stopped; it lifts once R16a is rendered.
         this.emit('transit:rig_gate', { arm: false });
-        this.rigGateArmed = false;
         this.emit('transit:train_door', { carId: 'r16a_train', open: false, instant: true });
         this.emit('transit:tunnel_scroll', { active: false });
         this.emit('transit:car_motion', { carId: 'r15b_train', speed: 0, clear: 8 });
@@ -211,7 +240,7 @@ export class TransitRideController {
       if (u >= 1) {
         this.emit('transit:car_motion', { carId: 'r16a_train', speed: 0, clear: DOCK_BEAM_MARGIN });
         this.releaseMates();
-        this.emit('transit:train_door', { carId: 'r16a_train', open: true });
+        // The arrival door stays closed: a script opens it (openspec r16a-perpendicular-train-arrival, Decision 5).
         this.emit('transit:blast_gate', { gateId: 'r16a_north', open: false });
         this.setStage('arrived');
       }
@@ -260,10 +289,10 @@ export class TransitRideController {
     for (let i = 0; i < mates.length; i++) {
       const m = mates[i]!;
       m.scripted = true;
-      const inCabin = Math.abs(m.motor.x - origin.x) < 1.3 && Math.abs(m.motor.z - origin.z) < 4.5;
+      const inCabin = Math.abs(m.motor.x - origin.x) < 0.85 && Math.abs(m.motor.z - origin.z) < 3.5;
       if (!inCabin) {
         const sx = i % 2 === 0 ? -0.55 : 0.55;
-        const sz = i % 2 === 0 ? -1.8 : -2.2;
+        const sz = i % 2 === 0 ? -1.9 : -2.8;
         m.place({ x: origin.x + sx, y: origin.y + TRAIN_RIDE_HEIGHT + 0.08, z: origin.z + sz }, Math.PI);
       }
     }

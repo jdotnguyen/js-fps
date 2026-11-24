@@ -775,17 +775,36 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       // the post chain's linear target, so compile with a render target bound: against the canvas, three keys the
       // programs as sRGB output and the door still compiles the linear ones in the frame it opens.
       const warmTarget = new THREE.WebGLRenderTarget(1, 1);
+      const uploadedTextures = new WeakSet<THREE.Texture>();
+      const TEX_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'alphaMap', 'aoMap', 'bumpMap'] as const;
       events.on('render:warm', ({ room }) => {
         const g = level!.roomGroup(room);
-        if (!g || !renderer) return;
+        const r = renderer;
+        if (!g || !r) return;
         const wasVisible = g.visible;
-        const prevTarget = renderer.getRenderTarget();
+        const prevTarget = r.getRenderTarget();
         g.visible = true;
-        renderer.setRenderTarget(warmTarget);
+        // Pre-upload any loaded textures (e.g. R16a/R16b blood decals) so first draw does not stall on texImage2D.
+        g.traverse((obj) => {
+          if (!(obj instanceof THREE.Mesh)) return;
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          for (const mat of mats) {
+            if (!mat || typeof mat !== 'object') continue;
+            const rec = mat as unknown as Record<string, unknown>;
+            for (const slot of TEX_SLOTS) {
+              const tex = rec[slot];
+              if (tex instanceof THREE.Texture && tex.image && !uploadedTextures.has(tex)) {
+                uploadedTextures.add(tex);
+                r.initTexture(tex);
+              }
+            }
+          }
+        });
+        r.setRenderTarget(warmTarget);
         try {
-          void renderer.compileAsync(g, camera, scene).catch(() => undefined);
+          void r.compileAsync(g, camera, scene).catch(() => undefined);
         } finally {
-          renderer.setRenderTarget(prevTarget);
+          r.setRenderTarget(prevTarget);
           g.visible = wasVisible;
         }
       });
