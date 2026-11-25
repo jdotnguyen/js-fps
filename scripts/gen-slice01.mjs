@@ -988,8 +988,6 @@ for (const [x, z, s, along] of [[2, 11, 's', 0.4], [3, 11, 'n', 1.0], [6, 12, 's
 }
 prop(R09, 'debris_pile', [12, SUMP, 44.6]);
 prop(R09, 'debris_pile', [20.4, SUMP, 49.1]);
-// The steel case with the ammo: wedged against the wall pipe, its top 0.85 m above the sump floor.
-prop(R09, 'crate', [17.2, SUMP, 49.2], 30, { size: 0.85 });
 prop(R09, 'crate', [25, SUMP, 49.4], 70, { size: 0.6 });
 prop(R09, 'pipe_run', [10, SUMP, 45.6], 0, { length: 6, height: 2.0, paint: 'teal' });
 prop(R09, 'pipe_run', [22, SUMP, 49.6], 0, { length: 8, height: 1.15, paint: 'dark' });
@@ -1033,7 +1031,6 @@ wallProp(R10, 'pressure_gauge', 9, 12, 'n', 0.2);
 prop(R10, 'ambient_loop', [36.6, 2.6, 49], 0, { sound: 'klaxon', gain: 0.9, range: 20, on: 'flood:klaxon' });
 anchor(R09, 'r09_entry', [6.9, 0, 44], 270);
 anchor(R09, 'r09_mid', [16, SUMP, 48], 270);
-anchor(R09, 'ammo_r09', [17.2, SUMP + 0.95, 49.2]);
 anchor(R10, 'valve_r10', [37.4, 1.3, 52.6]);
 // Where `?debug&jump=r10_flood` puts Jay: facing the valve wheel.
 anchor(R10, 'r10_valve_stand', [36.3, 0, 52.6], 270);
@@ -1607,7 +1604,6 @@ const SUPPLIES = [
   ['ammo_r05', 'ammo_pistol'],
   ['health_r07', 'medkit'],
   ['ammo_r07a', 'ammo_shotgun'],
-  ['ammo_r09', 'ammo_pistol'],
   ['health_r10', 'medkit'],
   ['ammo_r11', 'ammo_shotgun'],
   ['ammo_r11_b', 'ammo_shotgun'],

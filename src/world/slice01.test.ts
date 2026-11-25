@@ -1110,7 +1110,7 @@ test('under backup power every room keeps at least one light, and the post-lab p
 });
 
 // flooded-tunnel spec (overhaul-flooded-tunnel group 7): the R09 sump and the R10 pump room.
-test('R09 is a sump: the water stays below both doors, the landings are out of jump reach, the case is within it', () => {
+test('R09 is a sump: the water stays below both doors and the landings are out of jump reach', () => {
   const { level } = build(new Inventory(items));
   const water = level.water.room('R09');
   assert.ok(water, 'R09 has standing water');
@@ -1123,11 +1123,6 @@ test('R09 is a sump: the water stays below both doors, the landings are out of j
     assert.ok(water.level < top - 0.3, `${name}: the waterline stays below the threshold`);
     assert.ok(top - sump > 0.9, `${name}: more than a water jump's reach above the sump floor`);
   }
-  const caseTop = level.floorAt(17.2, 49.2);
-  assert.ok(caseTop > water.level, `the case stands above the water (${caseTop})`);
-  assert.ok(caseTop - sump <= 0.9, `and within a water jump's reach (${(caseTop - sump).toFixed(2)} m)`);
-  const ammo = data.pickups?.find((p) => p.id === 'S_ammo_r09');
-  assert.ok(ammo && ammo.pos[1] > caseTop && ammo.pos[1] - caseTop < 0.2, 'the ammo lies on the case');
 });
 
 test('the squad and enemies can path from R07 through the sump to the pump room', () => {
