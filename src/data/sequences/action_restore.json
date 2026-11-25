@@ -182,22 +182,16 @@
      {
       "do": "emit",
       "event": "r11:hum_on"
-     }
-    ]
-   },
-   {
-    "do": "if",
-    "flag": "climax_done",
-    "then": [
-     {
-      "do": "doorState",
-      "id": "D_R10_R11",
-      "state": "sealed"
      },
      {
       "do": "doorState",
       "id": "D_R13d_R11",
-      "state": "sealed"
+      "state": "open"
+     },
+     {
+      "do": "doorState",
+      "id": "D_R13d_R15a",
+      "state": "closed"
      }
     ]
    },

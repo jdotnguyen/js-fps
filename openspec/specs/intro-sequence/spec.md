@@ -117,7 +117,7 @@ During a framed or speaker shot, the mouse SHALL push the view at most 6° off t
 - **THEN** the view moves no more than 6° off the aim and returns to it once the mouse is still
 
 ### Requirement: Walk to the kitchen on rails
-When Jay leaves the booth, he SHALL walk on rails from his post to the kitchen in R02, leaving by the booth's open side. Giles and Okafor walk ahead to the kitchen counter. During the walk, the quarantine PA SHALL play over the squad's banter, Giles SHALL rub his forearm, and Okafor SHALL ask about it.
+When Jay leaves the booth, he SHALL walk on rails from his post to the kitchen in R02, leaving by the booth's open side. Giles and Okafor walk ahead to the kitchen counter. During the walk, the quarantine PA SHALL play over the squad's banter, with no forearm-rub tell or injury check from Okafor.
 
 #### Scenario: The walk
 - **WHEN** Okafor's kitchen line ends
@@ -130,6 +130,10 @@ When Jay leaves the booth, he SHALL walk on rails from his post to the kitchen i
 #### Scenario: PA over the banter
 - **WHEN** the quarantine PA plays during the walk
 - **THEN** it plays at once over the squad's lines, and both subtitles show together with the PA above
+
+#### Scenario: No forearm-rub foreshadowing on the walk
+- **WHEN** the squad walks from the booth to the kitchen counter
+- **THEN** Giles does not play `rub_forearm`, `giles_forearm_seen` is not set, and Okafor does not ask about Giles's arm
 
 ### Requirement: Heading shot on the walk
 As Jay leaves the booth, the speaker shot SHALL end. From there until Jay walks into the Commons, the view SHALL face a point a little ahead along Jay's route at eye height and turn smoothly with the route. The mouse SHALL push the view up to about 35° sideways and 26° vertically. The view SHALL hold for about 0.5 s after the mouse stops, then settle back over about 1 s.

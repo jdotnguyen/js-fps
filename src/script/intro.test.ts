@@ -463,7 +463,7 @@ test('watched to the end, the intro sets its flags, hands back control and takes
   assert.deepEqual(m.running(), [], 'finished within 400 s of simulated time');
   assert.equal(host.flags['introSeen'], true);
   assert.equal(host.flags['pa_quarantine_played'], true);
-  assert.equal(host.flags['giles_forearm_seen'], true);
+  assert.equal(host.flags['giles_forearm_seen'], undefined);
   assert.equal(host.flags['mara_mentioned'], true);
   assert.equal(host.flags['priya_met'], true);
   assert.equal(control.state.move, 'free');
@@ -481,7 +481,7 @@ test('skipping the intro from the first second lands in the same end state', () 
   assert.deepEqual(m.running(), []);
   assert.equal(host.flags['introSeen'], true);
   assert.equal(host.flags['pa_quarantine_played'], true);
-  assert.equal(host.flags['giles_forearm_seen'], true);
+  assert.equal(host.flags['giles_forearm_seen'], undefined);
   assert.equal(host.flags['mara_mentioned'], true);
   assert.equal(host.flags['priya_met'], true);
   assert.equal(control.state.move, 'free');

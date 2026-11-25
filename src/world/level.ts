@@ -2579,7 +2579,11 @@ export class Level implements World, CaptureHost {
         if (d.auto && this.doorAccessOpen(d)) this.openDoor(d);
         else d.target = d.open;
       }
-      const speed = d.forced ? dt * d.forced.rate : dt / d.visual.travelTime;
+      const travelTime =
+        typeof d.data.params?.['travelTime'] === 'number' && d.data.params['travelTime'] > 0
+          ? d.data.params['travelTime']
+          : d.visual.travelTime;
+      const speed = d.forced ? dt * d.forced.rate : dt / travelTime;
       if (d.open !== d.target) {
         const dir: 'open' | 'close' = d.open < d.target ? 'open' : 'close';
         if (d.moving !== dir) {

@@ -1,10 +1,10 @@
 [
  {
-  "id": "climax",
+  "id": "r11_power_bay",
   "trigger": {
    "event": "trigger:r11_enter",
    "requires": "valve_done",
-   "unless": "climax_done"
+   "unless": "r11_powered"
   },
   "resumeFromCheckpoint": true,
   "debugSetup": {
@@ -13,9 +13,7 @@
     "sec_done": true,
     "medlab_open": true,
     "tunnel_started": true,
-    "valve_done": true,
-    "giles.infectionStage": 3,
-    "giles.bandaged": true
+    "valve_done": true
    }
   },
   "steps": [
@@ -24,13 +22,8 @@
    },
    {
     "do": "setFlag",
-    "flag": "climax_started",
+    "flag": "r11_started",
     "value": true
-   },
-   {
-    "do": "setFlag",
-    "flag": "giles.infectionStage",
-    "value": 3
    },
    {
     "do": "doorState",
@@ -40,111 +33,260 @@
    {
     "do": "doorState",
     "id": "D_R13d_R11",
-    "state": "open"
-   },
-   {
-    "do": "lightState",
-    "room": "R11",
-    "pattern": "flicker",
-    "tint": "emergency"
-   },
-   {
-    "do": "npcMoveTo",
-    "npc": "giles",
-    "to": "anchor:r11_giles_task"
+    "state": "locked"
    },
    {
     "do": "npcMoveTo",
     "npc": "okafor",
-    "to": "anchor:r11_okafor_end"
-   },
-   {
-    "do": "say",
-    "line": "climax_giles_01"
-   },
-   {
-    "parallel": [
-     {
-      "do": "npcTask",
-      "npc": "giles",
-      "task": "power_restore",
-      "args": {
-       "at": "anchor:r11_giles_task",
-       "panel": "r11_power",
-       "duration": 30
-      },
-      "wait": true
-     },
-     {
-      "do": "loop",
-      "count": 1,
-      "steps": [
-       {
-        "do": "say",
-        "line": "climax_okafor_01"
-       },
-       {
-        "do": "waitFor",
-        "event": "squad:taskProgress",
-        "match": {
-         "task": "power_restore"
-        },
-        "min": {
-         "progress": 0.5
-        },
-        "timeout": 120
-       },
-       {
-        "do": "say",
-        "line": "climax_giles_02",
-        "wait": false
-       }
-      ]
-     }
-    ]
+    "to": "anchor:r11_okafor_end",
+    "wait": false
    },
    {
     "do": "wait",
     "s": 0.8
    },
    {
-    "do": "gatherIn",
-    "room": "R11"
+    "do": "say",
+    "line": "r11_okafor_01"
    },
    {
     "do": "say",
-    "line": "climax_giles_03",
-    "wait": false
+    "line": "r11_jay_01"
    },
    {
-    "do": "doorState",
-    "id": "D_R10_R11",
-    "state": "sealed"
+    "parallel": [
+     {
+      "do": "npcMoveTo",
+      "npc": "giles",
+      "to": "anchor:r11_giles_task"
+     },
+     {
+      "do": "say",
+      "line": "r11_giles_01"
+     }
+    ]
    },
    {
-    "do": "doorState",
-    "id": "D_R13d_R11",
-    "state": "sealed"
+    "do": "npcAnim",
+    "npc": "giles",
+    "anim": "typing"
    },
    {
-    "do": "sfx",
-    "id": "hullGroan",
-    "at": "anchor:r11_hold"
-   },
-   {
-    "do": "cameraShake",
-    "amount": 0.3,
-    "s": 1
-   },
-   {
-    "do": "lightState",
-    "room": "R11",
-    "pattern": "dying",
-    "tint": "emergency"
+    "do": "say",
+    "line": "r11_giles_02"
    },
    {
     "do": "wait",
-    "s": 2.5
+    "s": 0.6
+   },
+   {
+    "do": "say",
+    "line": "r11_giles_03"
+   },
+   {
+    "do": "sfx",
+    "id": "breakerClunk",
+    "at": "anchor:final_console",
+    "gain": 2.4
+   },
+   {
+    "do": "emit",
+    "event": "r11:power_state",
+    "payload": {
+     "state": "starting"
+    }
+   },
+   {
+    "do": "emit",
+    "event": "r11:hum_on"
+   },
+   {
+    "do": "wait",
+    "s": 0.5
+   },
+   {
+    "do": "say",
+    "line": "r11_giles_04",
+    "wait": false
+   },
+   {
+    "do": "sfx",
+    "id": "generatorPhase1",
+    "gain": 4.5
+   },
+   {
+    "do": "sfx",
+    "id": "breakerClunk",
+    "at": "anchor:final_console",
+    "gain": 2.2
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.04,
+    "s": 0.35
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_1a",
+    "pattern": "flicker",
+    "power": 1
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_1b",
+    "pattern": "flicker",
+    "power": 1
+   },
+   {
+    "do": "wait",
+    "s": 0.45
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_1a",
+    "pattern": "steady",
+    "power": 1
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_1b",
+    "pattern": "steady",
+    "power": 1
+   },
+   {
+    "do": "wait",
+    "s": 2.6
+   },
+   {
+    "do": "say",
+    "line": "r11_giles_05",
+    "wait": false
+   },
+   {
+    "do": "sfx",
+    "id": "generatorPhase2",
+    "gain": 2.6
+   },
+   {
+    "do": "sfx",
+    "id": "breakerClunk",
+    "at": "anchor:r11_hold",
+    "gain": 1.8
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.06,
+    "s": 0.4
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_2a",
+    "pattern": "flicker",
+    "power": 1
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_2b",
+    "pattern": "flicker",
+    "power": 1
+   },
+   {
+    "do": "wait",
+    "s": 0.4
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_2a",
+    "pattern": "steady",
+    "power": 1
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_2b",
+    "pattern": "steady",
+    "power": 1
+   },
+   {
+    "do": "wait",
+    "s": 2.6
+   },
+   {
+    "do": "say",
+    "line": "r11_giles_06",
+    "wait": false
+   },
+   {
+    "do": "sfx",
+    "id": "generatorPhase3",
+    "gain": 1
+   },
+   {
+    "do": "sfx",
+    "id": "breakerClunk",
+    "at": "anchor:r11_hold",
+    "gain": 1.3
+   },
+   {
+    "do": "sfx",
+    "id": "fluorescentBuzz",
+    "gain": 2.2
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.09,
+    "s": 0.45
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_3a",
+    "pattern": "flicker",
+    "power": 1
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_3b",
+    "pattern": "flicker",
+    "power": 1
+   },
+   {
+    "do": "wait",
+    "s": 0.45
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_3a",
+    "pattern": "steady",
+    "power": 1
+   },
+   {
+    "do": "light",
+    "id": "r11_bank_3b",
+    "pattern": "steady",
+    "power": 1
+   },
+   {
+    "do": "emit",
+    "event": "r11:power_state",
+    "payload": {
+     "state": "online"
+    }
+   },
+   {
+    "do": "light",
+    "id": "r11_beacon_ne",
+    "pattern": "off",
+    "power": 0
+   },
+   {
+    "do": "light",
+    "id": "r11_beacon_sw",
+    "pattern": "off",
+    "power": 0
+   },
+   {
+    "do": "setFlag",
+    "flag": "r11_powered",
+    "value": true
    },
    {
     "do": "setFlag",
@@ -152,315 +294,58 @@
     "value": true
    },
    {
+    "do": "npcAnim",
+    "npc": "giles",
+    "anim": "idle"
+   },
+   {
+    "do": "wait",
+    "s": 2
+   },
+   {
+    "do": "sfx",
+    "id": "heavyBulkheadOpen",
+    "gain": 5.5
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.035,
+    "s": 0.65
+   },
+   {
+    "do": "doorState",
+    "id": "D_R13d_R11",
+    "state": "open"
+   },
+   {
+    "do": "doorState",
+    "id": "D_R13d_R15a",
+    "state": "closed"
+   },
+   {
+    "do": "wait",
+    "s": 1.1
+   },
+   {
+    "do": "say",
+    "line": "r11_okafor_02"
+   },
+   {
+    "do": "say",
+    "line": "r11_giles_07"
+   },
+   {
     "do": "completeObjective",
     "id": "obj_power"
    },
    {
+    "do": "setObjective",
+    "id": "obj_transit_board"
+   },
+   {
     "do": "checkpoint",
-    "id": "cp_climax_won",
-    "label": "Auxiliary Power"
-   },
-   {
-    "do": "emit",
-    "event": "climax:won"
-   }
-  ]
- },
- {
-  "id": "reveal_restore",
-  "trigger": {
-   "event": "game:mode",
-   "match": {
-    "mode": "playing",
-    "from": "title"
-   },
-   "requires": "climax_done",
-   "unless": "reveal_done"
-  },
-  "steps": [
-   {
-    "do": "if",
-    "flag": "running:cliffhanger",
-    "then": [],
-    "else": [
-     {
-      "do": "if",
-      "flag": "running:title_card",
-      "then": [],
-      "else": [
-       {
-        "do": "if",
-        "flag": "running:stinger_priya",
-        "then": [],
-        "else": [
-         {
-          "do": "setFlag",
-          "flag": "seq:cliffhanger",
-          "value": false
-         },
-         {
-          "do": "setFlag",
-          "flag": "seq:title_card",
-          "value": false
-         },
-         {
-          "do": "setFlag",
-          "flag": "seq:stinger_priya",
-          "value": false
-         },
-         {
-          "do": "setFlag",
-          "flag": "giles.infectionStage",
-          "value": 3
-         },
-         {
-          "do": "setFlag",
-          "flag": "giles.bandaged",
-          "value": true
-         },
-         {
-          "do": "lightState",
-          "room": "R11",
-          "pattern": "dying",
-          "tint": "emergency"
-         },
-         {
-          "do": "npcMoveTo",
-          "npc": "giles",
-          "to": "anchor:r11_giles_task",
-          "instant": true
-         },
-         {
-          "do": "npcMoveTo",
-          "npc": "okafor",
-          "to": "anchor:r11_okafor_end",
-          "instant": true
-         },
-         {
-          "do": "emit",
-          "event": "climax:won"
-         }
-        ]
-       }
-      ]
-     }
-    ]
-   }
-  ]
- },
- {
-  "id": "climax_hero",
-  "trigger": {
-   "event": "enemy:spawned",
-   "match": {
-    "variant": "hero"
-   },
-   "requires": "climax_started",
-   "unless": "climax_done"
-  },
-  "steps": [
-   {
-    "do": "wait",
-    "s": 1.2
-   },
-   {
-    "do": "say",
-    "line": "climax_okafor_02"
-   }
-  ]
- },
- {
-  "id": "cliffhanger",
-  "trigger": {
-   "event": "climax:won"
-  },
-  "once": true,
-  "skippable": true,
-  "exclusive": "rails",
-  "debugSetup": {
-   "flags": {
-    "station_power": "backup",
-    "climax_done": true,
-    "giles.infectionStage": 3,
-    "giles.bandaged": true
-   }
-  },
-  "steps": [
-   {
-    "do": "playerControl",
-    "move": "locked",
-    "look": "free",
-    "weapons": false,
-    "interact": false
-   },
-   {
-    "do": "npcMoveTo",
-    "npc": "okafor",
-    "to": "anchor:r11_okafor_end"
-   },
-   {
-    "do": "npcMoveTo",
-    "npc": "giles",
-    "to": "anchor:r11_giles_task"
-   },
-   {
-    "do": "wait",
-    "s": 1.5
-   },
-   {
-    "do": "say",
-    "line": "end_okafor_01"
-   },
-   {
-    "do": "say",
-    "line": "end_giles_01"
-   },
-   {
-    "do": "say",
-    "line": "end_jay_01"
-   },
-   {
-    "do": "wait",
-    "s": 1
-   },
-   {
-    "do": "say",
-    "line": "end_giles_02"
-   },
-   {
-    "do": "wait",
-    "s": 1
-   },
-   {
-    "parallel": [
-     {
-      "do": "lightState",
-      "room": "R11",
-      "pattern": "steady",
-      "tint": "none"
-     },
-     {
-      "do": "emit",
-      "event": "reveal:trail"
-     },
-     {
-      "do": "emit",
-      "event": "r11:power_up"
-     },
-     {
-      "do": "sfx",
-      "id": "fluorescentBuzz",
-      "at": "anchor:r11_hold"
-     },
-     {
-      "do": "setFlag",
-      "flag": "giles.infectionStage",
-      "value": 4
-     }
-    ]
-   },
-   {
-    "do": "playerLookAt",
-    "target": "npc:giles",
-    "duration": 1.2,
-    "weight": 1
-   },
-   {
-    "do": "wait",
-    "s": 1.5
-   },
-   {
-    "do": "playerClampLook",
-    "target": "npc:giles",
-    "degrees": 26
-   },
-   {
-    "do": "npcMoveTo",
-    "npc": "giles",
-    "to": "anchor:giles_final"
-   },
-   {
-    "do": "wait",
-    "s": 1.2
-   },
-   {
-    "do": "say",
-    "line": "giles_reveal_01"
-   },
-   {
-    "do": "say",
-    "line": "end_giles_03"
-   },
-   {
-    "do": "say",
-    "line": "end_giles_04"
-   },
-   {
-    "do": "say",
-    "line": "end_giles_05"
-   },
-   {
-    "do": "say",
-    "line": "end_jay_02"
-   },
-   {
-    "parallel": [
-     {
-      "do": "transform",
-      "npc": "giles",
-      "to": 1,
-      "duration": 9
-     },
-     {
-      "do": "loop",
-      "count": 1,
-      "steps": [
-       {
-        "do": "npcMoveTo",
-        "npc": "okafor",
-        "to": "anchor:r11_okafor_step",
-        "speed": 1.4
-       },
-       {
-        "do": "say",
-        "line": "end_okafor_02"
-       }
-      ]
-     },
-     {
-      "do": "loop",
-      "count": 1,
-      "steps": [
-       {
-        "do": "wait",
-        "s": 1.2
-       },
-       {
-        "do": "say",
-        "line": "end_giles_06"
-       }
-      ]
-     }
-    ]
-   },
-   {
-    "do": "wait",
-    "s": 1
-   },
-   {
-    "do": "npcFollow",
-    "npc": "okafor",
-    "stop": true
-   },
-   {
-    "do": "fade",
-    "to": 1,
-    "s": 2.5,
-    "wait": true
-   },
-   {
-    "do": "emit",
-    "event": "story:cliffhanger"
+    "id": "cp_r11_powered",
+    "label": "Power Bay Online"
    }
   ]
  },
@@ -635,12 +520,13 @@
    {
     "do": "sfx",
     "id": "breakerClunk",
-    "at": "anchor:final_console"
+    "at": "anchor:final_console",
+    "gain": 2.4
    },
    {
     "do": "sfx",
-    "id": "turbineSpinUp",
-    "at": "anchor:r11_hold"
+    "id": "generatorPhase1",
+    "gain": 4.5
    },
    {
     "do": "wait",
@@ -662,7 +548,12 @@
     "do": "sfx",
     "id": "breakerClunk",
     "at": "anchor:final_console",
-    "gain": 0.7
+    "gain": 2.2
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.04,
+    "s": 0.35
    },
    {
     "do": "wait",
@@ -682,7 +573,12 @@
    },
    {
     "do": "wait",
-    "s": 0.3
+    "s": 0.6
+   },
+   {
+    "do": "sfx",
+    "id": "generatorPhase2",
+    "gain": 2.6
    },
    {
     "do": "light",
@@ -700,7 +596,12 @@
     "do": "sfx",
     "id": "breakerClunk",
     "at": "anchor:r11_hold",
-    "gain": 0.75
+    "gain": 1.8
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.06,
+    "s": 0.4
    },
    {
     "do": "wait",
@@ -720,7 +621,12 @@
    },
    {
     "do": "wait",
-    "s": 0.3
+    "s": 0.6
+   },
+   {
+    "do": "sfx",
+    "id": "generatorPhase3",
+    "gain": 1
    },
    {
     "do": "light",
@@ -738,12 +644,12 @@
     "do": "sfx",
     "id": "breakerClunk",
     "at": "anchor:r11_hold",
-    "gain": 0.85
+    "gain": 1.3
    },
    {
     "do": "cameraShake",
-    "amount": 0.08,
-    "s": 0.4
+    "amount": 0.09,
+    "s": 0.45
    },
    {
     "do": "wait",

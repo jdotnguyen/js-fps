@@ -796,32 +796,6 @@
                     {
                       "do": "say",
                       "line": "intro_giles_06"
-                    },
-                    {
-                      "do": "npcAnim",
-                      "npc": "giles",
-                      "anim": "rub_forearm"
-                    },
-                    {
-                      "do": "setFlag",
-                      "flag": "giles_forearm_seen",
-                      "value": true
-                    },
-                    {
-                      "do": "say",
-                      "line": "intro_okafor_04"
-                    },
-                    {
-                      "do": "say",
-                      "line": "intro_giles_07"
-                    },
-                    {
-                      "do": "say",
-                      "line": "intro_okafor_05"
-                    },
-                    {
-                      "do": "say",
-                      "line": "intro_giles_08"
                     }
                   ]
                 },

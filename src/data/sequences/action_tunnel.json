@@ -98,11 +98,6 @@
   },
   "steps": [
    {
-    "do": "setFlag",
-    "flag": "giles.infectionStage",
-    "value": 3
-   },
-   {
     "do": "setObjective",
     "id": "obj_valve"
    },
@@ -125,11 +120,6 @@
    {
     "do": "say",
     "line": "tunnel_giles_01"
-   },
-   {
-    "do": "npcAnim",
-    "npc": "giles",
-    "anim": "cough"
    },
    {
     "do": "setFlag",
@@ -446,11 +436,6 @@
    {
     "do": "say",
     "line": "flood_giles_02"
-   },
-   {
-    "do": "npcAnim",
-    "npc": "giles",
-    "anim": "cough"
    },
    {
     "do": "score",

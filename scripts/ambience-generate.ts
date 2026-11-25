@@ -972,6 +972,56 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     prompt:
       'seamless steady hum of a large industrial electrical power generator and turbine running at speed inside a deep-sea steel power bay, low 60 hertz transformer drone and smooth mechanical turbine whirr, constant steady loop, no music, no voice',
   },
+  {
+    id: 'generatorPhase1',
+    file: 'oneshot-generator-phase-1.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 3.5,
+    promptInfluence: 0.55,
+    prompt:
+      'heavy industrial switchgear relay thump followed by a deep muffled low-frequency sub-bass turbine generator beginning to rumble and spool up inside a steel deep-sea power room, mechanical inertia, dark sci-fi facility, no music, no voice',
+  },
+  {
+    id: 'generatorPhase2',
+    file: 'oneshot-generator-phase-2.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 3.5,
+    promptInfluence: 0.55,
+    prompt:
+      'heavy high-voltage power bus engagement clunk followed by a deeper, heavier layered twin industrial turbine generator rumble climbing in resonant low-end bass weight inside a pressurized steel power plant, no music, no voice',
+  },
+  {
+    id: 'generatorPhase3',
+    file: 'oneshot-generator-phase-3.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 4.0,
+    promptInfluence: 0.55,
+    prompt:
+      'massive industrial breaker lock-in followed by full-load subsea power plant turbines reaching operating speed with a deep resonant sub-bass rumble and steady 60 hertz electrical transformer hum settling in, no music, no voice',
+  },
+  {
+    id: 'heavyBulkheadOpen',
+    file: 'oneshot-heavy-bulkhead-open.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 3.6,
+    promptInfluence: 0.55,
+    prompt:
+      'massive heavy steel submarine bulkhead blast door slowly unlocking with a deep metallic latch clunk and pressurized hydraulic air release, then grinding slowly open on heavy steel tracks with resonant low-frequency weight and a final heavy mechanical stop thud, dark sci-fi industrial facility, no music, no voice',
+  },
+  {
+    id: 'powerBayHum',
+    file: 'emitter-power-bay-hum.mp3',
+    category: 'emitter',
+    loop: true,
+    duration: 14,
+    promptInfluence: 0.6,
+    prompt:
+      'loud deep resonant low-bass hum of massive industrial subsea electrical turbines and heavy high-voltage power transformers running at full load inside a steel generator hall, rich rumbling 60 hertz sub-bass drone with warm mechanical vibration and steady power-plant thrumming, seamless constant loop, no music, no voice',
+  },
 ];
 
 function loadApiKey(): string {

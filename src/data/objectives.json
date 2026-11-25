@@ -113,9 +113,14 @@
     "target": "anchor:valve_r10"
   },
   "obj_power": {
-    "title": "Hold the control room while Giles restores power",
+    "title": "Power Bay: restore power to the transit line",
     "required": true,
     "target": "room:R11"
+  },
+  "obj_transit_board": {
+    "title": "Departure Bay: board the transit train",
+    "required": true,
+    "target": "anchor:r15a_train_inside"
   },
   "opt_hydro_storeroom": {
     "title": "Find a way into the Level 2 storeroom",

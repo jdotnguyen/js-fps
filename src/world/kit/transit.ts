@@ -891,6 +891,7 @@ function powerGenerator(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
 
   let state: PowerBayState = 'standby';
   let speed = 0;
+  let silencedAtR16 = false;
   pb.on('r11:power_state', (payload) => {
     const parsed = parsePowerState(payload);
     if (!parsed) return;
@@ -899,9 +900,16 @@ function powerGenerator(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
       speed = state === 'online' ? 14 : state === 'starting' ? 7 : 0;
     }
   });
+  pb.on('transit:ride_state', (payload) => {
+    const rec = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : null;
+    const stage = rec?.['stage'];
+    if (stage === 'arrival' || stage === 'arrived') silencedAtR16 = true;
+    else if (stage === 'idle') silencedAtR16 = false;
+  });
   pb.on('level:reset', () => {
     state = 'standby';
     speed = 0;
+    silencedAtR16 = false;
   });
   pb.tick((t, dt) => {
     const target = state === 'online' ? 14 : state === 'starting' ? 9 : 0;
@@ -911,6 +919,15 @@ function powerGenerator(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
     applyStatusStrip(statusMat, state, t);
   });
 
+  pb.soundLoop({
+    sound: 'powerBayHum',
+    pos: [0, 1.1, 0],
+    gain: 8.5,
+    maxDist: 34,
+    reverb: 0.25,
+    bus: 'sfx',
+    active: () => state === 'online' && !silencedAtR16,
+  });
   pb.solid(-0.92, 0, -1.62, 0.92, 2.35, 1.62, 'metal');
   return pb.build();
 }
@@ -1084,7 +1101,7 @@ function powerTerminal(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
     applyStatusStrip(statusMat, state, t);
   });
 
-  pb.solid(-0.88, 0, -0.46, 0.88, 1.82, 0.44, 'metal');
+  pb.solid(-0.88, 0, -0.36, 0.88, 1.82, 0.44, 'metal');
   return pb.build();
 }
 

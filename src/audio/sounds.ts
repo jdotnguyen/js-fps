@@ -917,10 +917,15 @@ export const SAMPLE_URLS = {
   // Supply sub docking (intro-sequence spec, fix-supply-sub-docking): muffled underwater ElevenLabs SFX.
   subPass: 'assets/audio/ambience/oneshot-sub-pass.mp3',
   subClamp: 'assets/audio/ambience/oneshot-sub-clamp.mp3',
-  // R11 Power Bay (detail-r11-power-bay): switchgear breaker throw, turbine spin-up, and generator hum loop.
+  // R11 Power Bay (detail-r11-power-bay / r11-power-bay-narrative): switchgear breaker throw, turbine spin-up, phased generator rumbles, and hum loop.
   breakerClunk: 'assets/audio/ambience/oneshot-breaker-clunk.mp3',
   turbineSpinUp: 'assets/audio/ambience/oneshot-turbine-spinup.mp3',
   generatorHum: 'assets/audio/ambience/emitter-generator-hum.mp3',
+  generatorPhase1: 'assets/audio/ambience/oneshot-generator-phase-1.mp3',
+  generatorPhase2: 'assets/audio/ambience/oneshot-generator-phase-2.mp3',
+  generatorPhase3: 'assets/audio/ambience/oneshot-generator-phase-3.mp3',
+  heavyBulkheadOpen: 'assets/audio/ambience/oneshot-heavy-bulkhead-open.mp3',
+  powerBayHum: 'assets/audio/ambience/emitter-power-bay-hum.mp3',
 
   // Door motion and access feedback (ElevenLabs, scripts/doors-generate.ts).
   doorPressureOpen: 'assets/audio/doors/door-pressure-open.mp3',

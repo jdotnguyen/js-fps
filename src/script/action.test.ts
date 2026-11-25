@@ -56,7 +56,7 @@ function walk(steps: Step[], visit: (s: Record<string, unknown>) => void): void 
 // ------------------------------------------------------------------------------- data checks
 
 test('the action sequences name only things that exist: lines, sounds, anchors, NPCs, doors, rooms, objectives, groups', () => {
-  assert.equal(actionDefs.length, 16);
+  assert.equal(actionDefs.length, 13);
   // `researcher_b_creature`: what grows out of Voss in the drop's kill (infection-kills spec), escapes through Lab B's ceiling vent at the end of the drop (trim-lab-wing-encounters).
   const npcSet = new Set([...npcIds, 'giles', 'okafor', 'r08_thing', 'researcher_b_creature', 'r09_flood_shambler']);
   for (const def of actionDefs) {
@@ -89,14 +89,14 @@ test('the action sequences name only things that exist: lines, sounds, anchors, 
   }
 });
 
-test('gameplay beats are not skippable and resume after death; the reveal and the stinger can be skipped', () => {
-  for (const id of ['contact', 'cover_me', 'sec_glass', 'medlab_door', 'tunnel_enter', 'valve_turn', 'climax']) {
+test('gameplay beats are not skippable and resume after death; the stinger can be skipped', () => {
+  for (const id of ['contact', 'cover_me', 'sec_glass', 'medlab_door', 'tunnel_enter', 'valve_turn', 'r11_power_bay']) {
     assert.notEqual(byId.get(id)?.skippable, true, `${id} stays unskippable`);
     assert.equal(byId.get(id)?.resumeFromCheckpoint, true, `${id} resumes from its checkpoint`);
   }
-  for (const id of ['cliffhanger', 'stinger_priya']) assert.equal(byId.get(id)?.skippable, true, id);
+  assert.equal(byId.get('stinger_priya')?.skippable, true, 'stinger_priya');
   assert.notEqual(byId.get('title_card')?.skippable, true);
-  for (const id of ['sec_glass', 'cliffhanger', 'title_card', 'stinger_priya']) assert.equal(byId.get(id)?.exclusive, 'rails', id);
+  for (const id of ['sec_glass', 'title_card', 'stinger_priya']) assert.equal(byId.get(id)?.exclusive, 'rails', id);
 });
 
 test('the checkpoint ladder: data checkpoints on room entry plus one sequence checkpoint per finished beat', () => {
@@ -104,7 +104,7 @@ test('the checkpoint ladder: data checkpoints on room entry plus one sequence ch
   for (const id of ['cp_first_contact', 'cp_cover_me', 'cp_security', 'cp_flooded', 'cp_climax']) assert.ok(ids.has(id), id);
   const taken: string[] = [];
   for (const def of actionDefs) walk(def.steps, (s) => s['do'] === 'checkpoint' && taken.push(String(s['id'])));
-  assert.deepEqual(taken, ['cp_contact_clear', 'cp_cover_done', 'cp_security_done', 'cp_valve', 'cp_climax_won']);
+  assert.deepEqual(taken, ['cp_contact_clear', 'cp_cover_done', 'cp_security_done', 'cp_valve', 'cp_r11_powered']);
 });
 
 test('slice01 level numbers: 0 + 1 + 0 enemies (R11 Power Bay has no combat spawns)', () => {
@@ -884,7 +884,7 @@ test('the med-lab door: Okafor badges in (5 s biometric task) after the Priya sc
   await until(g, () => !g.m.isRunning('tunnel_enter'));
   assert.equal(g.groups.get('r09_tunnel')!.triggered, true);
   inOrder(g, lines('okafor_quiet_01', 'tunnel_giles_01'));
-  assert.equal(g.host.flags['giles.infectionStage'], 3);
+  assert.equal(g.host.flags['giles.infectionStage'], undefined);
   assert.equal(g.host.flags['obj:obj_valve'], 'active');
   noWarnings(g);
 });
@@ -1083,86 +1083,64 @@ test('the ambush cuts the valve aftermath short: speech silenced, the music out,
   assert.equal(g.control.state.move, 'free');
 });
 
-// ------------------------------------------------------------------------------- beat 7: the climax
+// ------------------------------------------------------------------------------- beat 7: R11 Power Bay
 
-const VALVE_DONE = { ...COVER_DONE, sec_done: true, medlab_open: true, tunnel_started: true, valve_done: true, 'giles.infectionStage': 3 };
+const VALVE_DONE = { ...COVER_DONE, sec_done: true, medlab_open: true, tunnel_started: true, valve_done: true };
+const R11_LINES = ['r11_okafor_01', 'r11_jay_01', 'r11_giles_01', 'r11_giles_02', 'r11_giles_03', 'r11_giles_04', 'r11_giles_05', 'r11_giles_06', 'r11_okafor_02', 'r11_giles_07'];
 
-test('R11 Power Bay sequence: needs the valve; both entrances open; 30 s power job with no combat spawns; halfway call at 50 %; completes when the job finishes', async () => {
-  const g = makeGame(['climax', 'climax_hero']);
+test('R11 Power Bay sequence: cautious whispered entry, Giles diagnoses terminal, 3-phase generator rumble + light cascade, opens D_R13d_R11, no infection arc', async () => {
+  const g = makeGame(['r11_power_bay']);
   fire(g, 'trigger:r11_enter');
-  assert.equal(g.m.isRunning('climax'), false, 'the valve first');
+  assert.equal(g.m.isRunning('r11_power_bay'), false, 'the valve first');
   setFlags(g, VALVE_DONE);
   fire(g, 'trigger:r11_enter');
-  assert.equal(g.m.isRunning('climax'), true);
-  assert.equal(g.m.skip(), false);
-  await until(g, () => g.tasks.length === 1);
-  assert.ok(at(g, 'door D_R10_R11 open') >= 0 && at(g, 'door D_R13d_R11 open') >= 0, 'two entrances');
-  assert.equal(g.tasks[0]!.step['task'], 'power_restore');
-  assert.equal((g.tasks[0]!.step['args'] as Record<string, unknown>)['duration'], 30);
+  assert.equal(g.m.isRunning('r11_power_bay'), true);
+  assert.equal(g.control.state.move, 'free', 'player keeps free movement in R11');
+  await until(g, () => !g.m.isRunning('r11_power_bay'), 120);
+  inOrder(g, lines(...R11_LINES));
+  inOrder(g, [
+    'door D_R13d_R11 locked',
+    'sfx breakerClunk',
+    'sfx generatorPhase1',
+    'sfx generatorPhase2',
+    'sfx generatorPhase3',
+    'door D_R13d_R11 open',
+    'checkpoint cp_r11_powered',
+  ]);
   assert.equal(count(g, 'group r11_climax'), 0, 'no combat spawns in R11 Power Bay');
-  await until(g, () => said(g, 'climax_okafor_01') === 1);
-  g.host.events.emit('squad:taskProgress', { id: 'engineer', task: 'power_restore', panel: null, progress: 0.4 });
-  await advance(g, 1);
-  assert.equal(said(g, 'climax_giles_02'), 0);
-  g.host.events.emit('squad:taskProgress', { id: 'engineer', task: 'power_restore', panel: null, progress: 0.52 });
-  await advance(g, 1);
-  assert.equal(said(g, 'climax_giles_02'), 1);
-  g.finishTask();
-  await until(g, () => !g.m.isRunning('climax'));
-  assert.equal(said(g, 'climax_giles_03'), 1);
-  assert.ok(at(g, 'door D_R10_R11 sealed') > at(g, 'say climax_giles_03') && at(g, 'door D_R13d_R11 sealed') > 0);
-  assert.equal(count(g, 'event climax:won'), 1);
+  assert.equal(g.host.flags['r11_powered'], true);
   assert.equal(g.host.flags['climax_done'], true);
   assert.equal(g.host.flags['obj:obj_power'], 'done');
+  assert.equal(g.host.flags['obj:obj_transit_board'], 'active');
+  assert.equal(g.host.flags['giles.infectionStage'], undefined, 'no Giles infection escalation');
+  assert.equal(count(g, 'event reveal:trail'), 0, 'no infection reveal trail');
+  assert.equal(g.log.some((e) => e === 'npc transform giles'), false, 'Giles never transforms');
   noWarnings(g);
 });
 
-test('dying in R11 replays the power-restore sequence from cp_climax with the entrances open again', async () => {
-  const g = makeGame(['climax']);
-  setFlags(g, VALVE_DONE);
-  fire(g, 'trigger:r11_enter');
-  await until(g, () => g.tasks.length === 1);
-  g.host.events.emit('player:died', {});
-  g.tasks.length = 0;
-  g.host.events.emit('game:restarted', { checkpoint: 'cp_climax' });
-  assert.equal(g.m.isRunning('climax'), true);
-  await until(g, () => g.tasks.length === 1);
-  assert.equal(count(g, 'door D_R10_R11 open'), 2);
+test('r11_power_cascade plays all three generator phase rumbles and energizes R11 light banks', async () => {
+  const g = makeGame(['r11_power_cascade']);
+  g.host.events.emit('r11:power_up', {});
+  await until(g, () => !g.m.isRunning('r11_power_cascade'), 30);
+  inOrder(g, ['sfx breakerClunk', 'sfx generatorPhase1', 'sfx generatorPhase2', 'sfx generatorPhase3']);
+  assert.equal(g.host.flags['r11_powered'], true);
+  noWarnings(g);
 });
 
-// ------------------------------------------------------------------------------- beat 8: reveal, title card, stinger
+// ------------------------------------------------------------------------------- beat 8: title card & stinger
 
-const WON = { ...VALVE_DONE, climax_started: true, climax_done: true };
-const REVEAL_LINES = ['end_okafor_01', 'end_giles_01', 'end_jay_01', 'end_giles_02', 'giles_reveal_01', 'end_giles_03', 'end_giles_04', 'end_giles_05', 'end_jay_02', 'end_okafor_02', 'end_giles_06'];
 /** slice-stinger: the bloom turns Priya's corpse on camera; she says nothing (her one breath is her kill's beat line). */
 
-test('cliffhanger to endSlice: banter, lights and trail, "I didn\'t want you to see this", Okafor steps in, "Stay back, Tomas.", black, title card, the stinger feed, end', async () => {
-  const g = makeGame();
-  setFlags(g, WON);
-  g.host.events.emit('climax:won', {});
-  assert.equal(g.m.isRunning('cliffhanger'), true);
-  assert.equal(g.control.state.move, 'locked');
-  assert.equal(g.control.state.weapons, false);
-  await until(g, () => said(g, 'end_giles_02') === 1);
-  assert.equal(g.host.flags['giles.infectionStage'], 3, 'the change waits for the lights');
-  assert.equal(count(g, 'event reveal:trail'), 0);
-  await until(g, () => said(g, 'giles_reveal_01') === 1);
-  assert.equal(g.host.flags['giles.infectionStage'], 4);
-  assert.equal(count(g, 'event reveal:trail'), 1);
-  assert.ok(at(g, 'light R11 steady none') >= 0, 'the lights come back');
-  assert.ok(at(g, 'event reveal:trail') < at(g, 'say giles_reveal_01'), 'the trail is visible before he speaks');
-  assert.ok(at(g, 'clamp') >= 0 && at(g, 'clamp') < at(g, 'say giles_reveal_01'), 'the view is soft-locked on him');
-  await until(g, () => said(g, 'end_giles_06') === 1);
-  // The change begins, Okafor steps toward him: both before the last line.
-  assert.ok(g.log.some((e) => e === 'npc transform giles'));
-  assert.ok(g.log.lastIndexOf('npc npcMoveTo okafor') > at(g, 'say end_jay_02') && at(g, 'say end_okafor_02') < at(g, 'say end_giles_06'));
+test('story:cliffhanger plays the title card and Priya CAM 04 stinger through to endSlice', async () => {
+  const g = makeGame(['title_card', 'stinger_priya']);
+  g.host.events.emit('story:cliffhanger', {});
+  assert.equal(g.m.isRunning('title_card'), true);
+  assert.equal(g.m.skip(), false, 'the title card is not skippable');
   await until(g, () => g.ended() === 1, 120);
-  inOrder(g, lines(...REVEAL_LINES));
-  inOrder(g, [...lines('end_giles_06'), 'fade 1', 'event story:cliffhanger', 'hush nurse', 'feed stinger live fullscreen', 'npc kill priya', 'feed stinger static fullscreen', 'fade 1', 'feed stinger off fullscreen']);
+  inOrder(g, ['event story:title_done', 'hush nurse', 'feed stinger live fullscreen', 'npc kill priya', 'feed stinger static fullscreen', 'fade 1', 'feed stinger off fullscreen']);
   assert.equal(g.log.filter((e) => e.startsWith('say stinger_')).length, 0, 'no words from her in the stinger');
   assert.equal(at(g, 'npc spawn r08_thing') > at(g, 'feed stinger live fullscreen'), false, 'nobody else in the room');
   assert.deepEqual(g.cards, ['THALASSA']);
-  assert.ok(at(g, 'event story:cliffhanger') < at(g, 'event story:title_done') && at(g, 'event story:title_done') < at(g, 'feed stinger live fullscreen'));
   assert.equal(g.ended(), 1);
   assert.equal(g.control.state.move, 'free', 'every control layer is released at the end');
   assert.ok(g.feeds[0]!.fullscreen && g.feeds[0]!.state === 'live');
@@ -1173,34 +1151,9 @@ test('cliffhanger to endSlice: banter, lights and trail, "I didn\'t want you to 
   noWarnings(g);
 });
 
-test('skipping the reveal applies its end state, then the title card and the stinger still play to endSlice', async () => {
-  const g = makeGame();
-  setFlags(g, WON);
-  g.host.events.emit('climax:won', {});
-  await until(g, () => said(g, 'end_giles_01') === 1);
-  assert.equal(g.m.skippable, true);
-  assert.equal(g.m.skip(), true);
-  assert.equal(g.m.isRunning('cliffhanger'), false);
-  assert.equal(g.host.flags['giles.infectionStage'], 4);
-  assert.equal(count(g, 'event reveal:trail'), 1);
-  assert.ok(at(g, 'light R11 steady none') >= 0);
-  assert.ok(at(g, 'fade 1') >= 0);
-  assert.equal(count(g, 'event story:cliffhanger'), 1);
-  for (const l of REVEAL_LINES.slice(2)) assert.ok(g.log.includes(`played ${l}`) || said(g, l) === 1, `${l} played or marked played`);
-  assert.equal(g.ended(), 0, 'the end is still ahead');
-  assert.equal(g.m.isRunning('title_card'), true);
-  assert.equal(g.m.skip(), false, 'the title card is not skippable');
-  await until(g, () => g.ended() === 1, 120);
-  assert.deepEqual(g.cards, ['THALASSA']);
-  assert.equal(g.control.state.move, 'free');
-  noWarnings(g);
-});
-
-test('skipping the stinger ends the slice at once with the feed off; skipping right at the start of the reveal works too', async () => {
-  const g = makeGame();
-  setFlags(g, WON);
-  g.host.events.emit('climax:won', {});
-  g.m.skip();
+test('skipping the stinger ends the slice at once with the feed off', async () => {
+  const g = makeGame(['title_card', 'stinger_priya']);
+  g.host.events.emit('story:cliffhanger', {});
   await until(g, () => g.m.isRunning('stinger_priya'), 60);
   await advance(g, 1);
   assert.equal(g.ended(), 0);
@@ -1251,41 +1204,33 @@ async function playThrough(g: Game, events: string[]): Promise<void> {
   await settle('ambush_done');
   for (let i = 0; i < 12 * 60 && g.m.isRunning('r10_ambush'); i++) g.m.update(1 / 60);
   fire(g, 'trigger:r11_enter');
-  await settle('climax_done');
+  await settle('r11_powered');
+  await until(g, () => !g.m.isRunning('r11_power_bay'));
 }
 
-test('the whole action half runs from drop:done to endSlice with every checkpoint, in order, no warnings, controls free at the end', async () => {
+test('the whole action half runs from drop:done through R11 Power Bay with every checkpoint, in order, no warnings, no Giles infection tells', async () => {
   const g = makeGame();
   const events: string[] = [];
   await playThrough(g, events);
-  await until(g, () => g.ended() === 1, 200);
   const cps = g.log.filter((e) => e.startsWith('checkpoint ')).map((e) => e.slice(11));
-  assert.deepEqual(cps, ['cp_contact_clear', 'cp_cover_done', 'cp_security_done', 'cp_valve', 'cp_climax_won']);
-  const stages = ['giles.infectionStage'];
-  assert.equal(g.host.flags[stages[0]!], 4);
-  assert.equal(g.ended(), 1);
-  assert.deepEqual(g.cards, ['THALASSA']);
+  assert.deepEqual(cps, ['cp_contact_clear', 'cp_cover_done', 'cp_security_done', 'cp_valve', 'cp_r11_powered']);
+  assert.equal(g.host.flags['giles.infectionStage'], undefined);
   assert.equal(g.control.state.move, 'free');
   assert.equal(g.control.state.weapons, true);
   assert.equal(g.m.running().length, 0, 'nothing left running');
-  // overhaul-priya-r08-death decision 22: no arm tells before the tunnel; the tunnel's cough is left for the cliffhanger rewrite.
   assert.equal(at(g, 'npc npcAnim giles flex_hand'), -1);
   assert.equal(at(g, 'npc npcAnim giles rub_forearm'), -1);
-  assert.ok(at(g, 'npc npcAnim giles cough') >= 0);
+  assert.equal(at(g, 'npc npcAnim giles cough'), -1);
   noWarnings(g);
 });
 
 test('every dialogue line of the action half is played at least once on the way (nothing orphaned)', async () => {
   const g = makeGame();
   await playThrough(g, []);
-  await until(g, () => g.ended() === 1, 200);
   const used = new Set<string>();
   for (const def of actionDefs) walk(def.steps, (s) => s['do'] === 'say' && (Array.isArray(s['line']) ? [] : [String(s['line'])]).forEach((l) => used.add(l)));
-  // Everything the sequences can say was said in this run except the hero call (a separate trigger).
-  for (const l of used) if (l !== 'climax_okafor_02') assert.ok(said(g, l) >= 1, `${l} was said`);
-  assert.ok(used.has('climax_okafor_02'));
-  // And the action half has a voice for every beat of ADR-0014: Okafor's legs, revive rule, "Stay back, Tomas."
-  for (const l of ['contact_okafor_03', 'okafor_revive_rule_01', 'end_giles_06']) assert.ok(used.has(l), l);
+  for (const l of used) assert.ok(said(g, l) >= 1, `${l} was said`);
+  for (const l of ['contact_okafor_03', 'okafor_revive_rule_01', 'r11_giles_03']) assert.ok(used.has(l), l);
 });
 
 // ------------------------------------------------------------------------------- loads and restarts
@@ -1313,9 +1258,10 @@ test('a load or restart puts the doors the finished beats opened back, from the 
   g.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   for (const d of ['D_R03_R05 closed', 'D_R05_R06 closed', 'D_R06_R07 open', 'D_R07_R07a open', 'D_R07_R09 open', 'D_R10_R11 closed']) assert.ok(at(g, `door ${d}`) >= 0, d);
   assert.equal(at(g, 'door D_R10_R11 sealed'), -1);
-  setFlags(g, { climax_done: true });
+  setFlags(g, { r11_powered: true });
   g.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
-  assert.ok(at(g, 'door D_R10_R11 sealed') >= 0 && at(g, 'door D_R13d_R11 sealed') >= 0);
+  assert.ok(at(g, 'door D_R13d_R11 open') >= 0 && at(g, 'door D_R13d_R15a closed') >= 0);
+  assert.equal(at(g, 'door D_R13d_R11 sealed'), -1);
   noWarnings(g);
 });
 
@@ -1345,7 +1291,7 @@ test('station-power "Panicked radio chatter": the calls come one after another, 
 });
 
 test('station-power: every sequence after the contact fight debug-starts under backup power', () => {
-  for (const id of ['cover_me', 'sec_glass', 'medlab_door', 'tunnel_enter', 'valve_turn', 'climax', 'cliffhanger']) {
+  for (const id of ['cover_me', 'sec_glass', 'medlab_door', 'tunnel_enter', 'valve_turn', 'r11_power_bay']) {
     const g = makeGame([id]);
     g.m.start(id, { debug: true });
     assert.ok(at(g, 'power backup') >= 0, `${id} starts on backup power`);
@@ -1422,87 +1368,17 @@ test('Priya\'s scene has no hand-placed gore (the kill clips its own at the pane
   assert.throws(() => validateSequences({ 'x.json': { id: 'bad', steps: [{ do: 'gore', at: [0, 0, 0], kind: 'burst', clipAxis: 'w' }] } }));
 });
 
-test('the climax takes cp_climax_won before the reveal; a reload there replays the reveal, not the fight', async () => {
-  const g = makeGame(['climax']);
-  setFlags(g, VALVE_DONE);
-  fire(g, 'trigger:r11_enter');
-  await until(g, () => g.tasks.length === 1);
-  g.finishTask();
-  await until(g, () => g.host.flags['climax_done'] === true);
-  assert.ok(at(g, 'checkpoint cp_climax_won') >= 0, 'checkpoint taken');
-  assert.ok(at(g, 'checkpoint cp_climax_won') < at(g, 'event climax:won'), 'before the reveal starts');
-  // Reload from that autosave in a fresh session: flags as saved (no seq:cliffhanger yet), the group cleared.
-  const saved = { ...VALVE_DONE, climax_started: true, climax_done: true, 'group:r11_climax': 'cleared', 'cp:cp_climax_won': true };
-  const r = makeGame(['reveal_restore', 'cliffhanger']);
+test('loading a save after cp_r11_powered restores R11 online with D_R13d_R11 open and does not replay r11_power_bay', async () => {
+  const saved = { ...VALVE_DONE, r11_started: true, r11_powered: true, climax_done: true, 'cp:cp_r11_powered': true };
+  const r = makeGame(['action_restore', 'r11_power_bay']);
   setFlags(r, saved);
   r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
-  await until(r, () => r.m.isRunning('cliffhanger'));
-  assert.equal(count(r, 'group r11_climax'), 0, 'the fight does not replay');
-  assert.equal(r.host.flags['giles.infectionStage'], 3);
-  assert.ok(at(r, 'light R11 dying emergency') >= 0, 'lights as they were before the reveal');
-  assert.ok(at(r, 'npc npcMoveTo giles instant') >= 0 && at(r, 'npc npcMoveTo okafor instant') >= 0, 'squad placed');
-  // Pause and resume mid-reveal must not start a second one.
-  const before = count(r, 'event sequence:started');
-  r.host.events.emit('game:mode', { mode: 'paused' });
-  r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
-  assert.equal(count(r, 'event sequence:started') - before, 1, 'only the restore itself, no second cliffhanger');
-  assert.equal(r.log.filter((e) => e === 'event climax:won').length, 1);
-});
-
-test('after the slice ends (reveal_done) a load does not replay the reveal; a fresh game never does', () => {
-  const done = makeGame(['reveal_restore', 'cliffhanger']);
-  setFlags(done, { climax_done: true, reveal_done: true });
-  done.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
-  assert.equal(done.m.isRunning('cliffhanger'), false);
-  const fresh = makeGame(['reveal_restore', 'cliffhanger']);
-  fresh.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
-  assert.equal(fresh.log.filter((e) => e === 'event climax:won').length, 0);
-});
-
-test('a manual save taken mid-reveal replays the reveal on load, and never twice while it plays', async () => {
-  // Saved flags: the reveal had started (seq:cliffhanger is remembered) but not finished.
-  const saved = { ...VALVE_DONE, climax_started: true, climax_done: true, 'group:r11_climax': 'cleared', 'seq:cliffhanger': true, 'cp:cp_climax_won': true };
-  const r = makeGame(['reveal_restore', 'cliffhanger', 'title_card', 'stinger_priya']);
-  setFlags(r, saved);
-  r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
-  await until(r, () => r.m.isRunning('cliffhanger'));
-  assert.equal(count(r, 'group r11_climax'), 0, 'no fight');
-  assert.equal(r.host.flags['giles.infectionStage'], 3);
-  assert.equal(r.host.flags['giles.bandaged'], true);
-  assert.equal(count(r, 'event climax:won'), 1);
-  // Pause and resume while it plays: nothing restarts.
-  const before = count(r, 'event sequence:started');
-  r.host.events.emit('game:mode', { mode: 'paused' });
-  r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
-  assert.equal(count(r, 'event sequence:started') - before, 1, 'only the (idempotent) restore itself');
-  assert.equal(count(r, 'event climax:won'), 1, 'the reveal was not started again');
-  // A save taken during the title card or the stinger replays the reveal too, but pausing there does not.
-  const t = makeGame(['reveal_restore', 'cliffhanger', 'title_card', 'stinger_priya']);
-  setFlags(t, { ...saved, 'seq:title_card': true });
-  t.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
-  await until(t, () => t.m.isRunning('cliffhanger'));
-  assert.equal(t.host.flags['seq:title_card'], false, 'the later beats may play again');
-});
-
-test('a death restart into cp_climax_won replays the reveal (the restore is not cancelled by the restart)', async () => {
-  const saved = { ...VALVE_DONE, climax_started: true, climax_done: true, 'group:r11_climax': 'cleared', 'cp:cp_climax_won': true };
-  const r = makeGame(['reveal_restore', 'cliffhanger']);
-  setFlags(r, saved);
-  // What the game does: load the autosave (game:mode playing), then announce the restart.
-  r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
-  r.host.events.emit('game:restarted', { checkpoint: 'cp_climax_won' });
-  await until(r, () => r.m.isRunning('cliffhanger'));
-  assert.equal(r.m.isRunning('cliffhanger'), true);
-  assert.equal(count(r, 'group r11_climax'), 0, 'no fight');
-  assert.equal(r.host.flags['giles.infectionStage'], 3);
-  assert.ok(at(r, 'npc npcMoveTo giles instant') >= 0 && at(r, 'npc npcMoveTo okafor instant') >= 0, 'squad placed after the restart');
-  // A finished slice does not replay on a restart either.
-  const done = makeGame(['reveal_restore', 'cliffhanger']);
-  setFlags(done, { climax_done: true, reveal_done: true });
-  done.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
-  done.host.events.emit('game:restarted', { checkpoint: 'cp_climax_won' });
-  assert.equal(done.m.isRunning('cliffhanger'), false);
-  assert.equal(count(done, 'event climax:won'), 0);
+  assert.ok(at(r, 'door D_R13d_R11 open') >= 0, 'north transit door stays open');
+  assert.ok(at(r, 'event r11:power_state') >= 0, 'terminal restored to online');
+  assert.ok(at(r, 'event r11:hum_on') >= 0, 'generator hum restored');
+  fire(r, 'trigger:r11_enter');
+  assert.equal(r.m.isRunning('r11_power_bay'), false, 'power bay sequence does not replay');
+  noWarnings(r);
 });
 
 // -------------------------------------------------------------------- speaker (conversation) shots

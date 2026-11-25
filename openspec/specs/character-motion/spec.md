@@ -46,27 +46,6 @@ During ordinary standing dialogue, Giles SHALL maintain his relaxed shoulder car
 - **THEN** both shoulders transition smoothly from idle through the first word and back to idle after the last word
 - **AND** his elbows stay near his sides at rest and a captured gesture can settle while his jaw continues to articulate the line
 
-### Requirement: Giles's injury shows only when he cannot hide it
-Giles SHALL have an injured-arm variant (his left forearm, the one he cut), weighted by state. Observed by the player or a squadmate, or talking, he hides it and SHALL move with his everyday clips, its weight at most the stage's concealed value. Unobserved, during a task that loads that arm, or after a ladder tell, it rises to the stage's unhidden value. The weight SHALL rise with infection stage and reach full only at the reveal.
-
-#### Scenario: Watched in the intro
-- **WHEN** the player looks at Giles from within 6 m during the intro at infection stage 0
-- **THEN** his left arm swings and carries like the right, with no favouring
-
-#### Scenario: Unwatched
-- **WHEN** neither the player nor Okafor has Giles in view for 4 s
-- **THEN** he holds his left arm in and favours it
-- **AND** when the player looks at him again it eases back toward normal within 1 s
-
-#### Scenario: Working the panel
-- **WHEN** Giles does the R06 bypass at infection stage 2 or higher
-- **THEN** he works mostly with his right hand and his left hand moves less and more slowly
-
-#### Scenario: Stages
-- **WHEN** Giles's infection stage rises
-- **THEN** both the concealed and the unhidden injury weights rise with it
-- **AND** at the reveal his injured arm motion plays at full weight whoever is watching
-
 ### Requirement: Generic crew use a gendered default profile
 Characters without a name SHALL use the masculine or feminine default profile according to their body's recorded gender. Each crew member SHALL vary its default by a seeded tempo and posture offset, so two crew members on the same profile do not move in step.
 
@@ -147,3 +126,21 @@ Giles SHALL perform door bypass jobs (`bypass`, `bypass_short`, `bypass_long`, `
 #### Scenario: Ambient crouched work stays intact
 - **WHEN** a level placement or sequence explicitly asks for `crouchWork`
 - **THEN** the `crouchWork` pose remains available and unchanged
+
+### Requirement: Squad pistol carry keeps natural wrist and support-hand alignment
+Okafor and Giles SHALL each use a character-calibrated pistol-aiming clip (`okafor_pistol` and `giles_pistol`) so that in `aim_pistol`, both point the pistol level or slightly downward rather than pitched up, Okafor's right wrist sits straight, and both characters' left support hands cup directly beneath their right hand and pistol grip.
+
+#### Scenario: Okafor holds the pistol with a level right wrist and cupped left hand
+- **WHEN** Okafor settles into `aim_pistol` with no active `aimTarget`
+- **THEN** his pistol barrel pitch is level or slightly downward (-5° to +3°) and his left hand cups beneath his right hand and pistol grip
+
+#### Scenario: Giles aims level and supports the pistol directly beneath his right hand
+- **WHEN** Giles settles into `aim_pistol` with no active `aimTarget`
+- **THEN** his pistol barrel pitch is level or slightly downward (-5° to +3°) and his left hand cups directly beneath his right hand and pistol grip without protruding past the right hand
+
+### Requirement: Squadmates lower their pistols at idle out of combat
+When a squadmate has no active combat target, the squadmate SHALL return to `idle` (lowering the pistol) rather than holding `aim_pistol` while standing idle.
+
+#### Scenario: Combat ends and mates return to idle
+- **WHEN** combat ends after `gunDrawn` is true and no enemy target remains
+- **THEN** Giles and Okafor transition back to `idle` and hide their pistols until they engage in combat again

@@ -1594,10 +1594,10 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           ['r05', 'cp_first_contact', {}],
           ['r06', 'cp_cover_me', { contact_done: true }],
           ['r07', 'cp_security', { cover_done: true }],
-          ['r09', 'cp_flooded', { armory_open: true, glass_near: true, sec_done: true, medlab_open: true, 'giles.infectionStage': 3, 'weapon:shotgun': true }],
+          ['r09', 'cp_flooded', { armory_open: true, glass_near: true, sec_done: true, medlab_open: true, 'weapon:shotgun': true }],
           // Just before the valve and the flood cutscene (overhaul-flooded-tunnel): an anchor, not a checkpoint.
           ['r10_flood', 'anchor:r10_valve_stand', { tunnel_started: true }],
-          ['r11', 'cp_climax', { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, 'giles.infectionStage': 3, 'giles.bandaged': true, 'weapon:shotgun': true }],
+          ['r11', 'cp_climax', { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, 'weapon:shotgun': true }],
           ['r15a', 'anchor:r15a_platform', { tunnel_started: true, valve_done: true }],
           ['transit_ride', 'anchor:r15a_train_inside', { tunnel_started: true, valve_done: true }],
           ['r16', 'anchor:r16_train_exit', { tunnel_started: true, valve_done: true }],

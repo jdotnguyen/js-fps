@@ -88,6 +88,26 @@
     { "id": "sec_priya_04", "speaker": "nurse", "text": "Tomas, please- please-",
       "emote": "scream", "channel": "local", "priority": "story", "audio": "assets/vo/sec_priya_04.mp3", "minDuration": 1.8, "choices": [] },
     { "id": "climax_okafor_02", "speaker": "medic", "text": "Big one. Shotgun, Jay. Now.",
-      "emote": "urgent", "channel": "local", "priority": "story", "audio": "assets/vo/climax_okafor_02.mp3", "minDuration": 1.8, "choices": [] }
+      "emote": "urgent", "channel": "local", "priority": "story", "audio": "assets/vo/climax_okafor_02.mp3", "minDuration": 1.8, "choices": [] },
+    { "id": "r11_okafor_01", "speaker": "medic", "text": "Easy. Stay tight—I don't know this section.",
+      "emote": "whisper", "direction": "hushed, tense whisper in a dark unfamiliar industrial room; weapon up, watching the shadows", "channel": "local", "priority": "story", "audio": "assets/vo/r11_okafor_01.mp3", "minDuration": 2.8, "choices": [] },
+    { "id": "r11_jay_01", "speaker": "player", "text": "Yeah. Eyes open—I can't see the far wall.",
+      "emote": "whisper", "direction": "low, guarded whisper answering Okafor; scanning the dark bay", "channel": "local", "priority": "story", "audio": "assets/vo/r11_jay_01.mp3", "minDuration": 2.6, "choices": [] },
+    { "id": "r11_giles_01", "speaker": "engineer", "text": "Relax, you two. It's just the lower power bay. I've been down here a hundred times.",
+      "emote": "neutral", "direction": "casual, unbothered, walking right past their tense whispering; warm dry amusement", "channel": "local", "priority": "story", "audio": "assets/vo/r11_giles_01.mp3", "minDuration": 4.2, "choices": [] },
+    { "id": "r11_giles_02", "speaker": "engineer", "text": "Let's see why the transit rail's dead... breakers are fine, bus pressure's holding...",
+      "emote": "neutral", "direction": "muttering to himself while tapping the console, focused engineer diagnosing a fault", "channel": "local", "priority": "story", "audio": "assets/vo/r11_giles_02.mp3", "minDuration": 4.8, "choices": [] },
+    { "id": "r11_giles_03", "speaker": "engineer", "text": "Ha—there it is! Quarantine dumped the phase relays. Lazy lockout. Watch this.",
+      "emote": "relieved", "direction": "sudden bright a-ha realization, pleased with himself, reaching for the switches", "channel": "local", "priority": "story", "audio": "assets/vo/r11_giles_03.mp3", "minDuration": 4.4, "choices": [] },
+    { "id": "r11_giles_04", "speaker": "engineer", "text": "Phase one... turbines waking up.",
+      "emote": "neutral", "direction": "steady, satisfied callout over the first low generator rumble starting up", "channel": "local", "priority": "story", "audio": "assets/vo/r11_giles_04.mp3", "minDuration": 2.4, "choices": [] },
+    { "id": "r11_giles_05", "speaker": "engineer", "text": "Phase two. Rail bus taking load.",
+      "emote": "neutral", "direction": "brisk, confident over the deepening generator hum", "channel": "local", "priority": "story", "audio": "assets/vo/r11_giles_05.mp3", "minDuration": 2.4, "choices": [] },
+    { "id": "r11_giles_06", "speaker": "engineer", "text": "And phase three—there's our lights.",
+      "emote": "relieved", "direction": "warm satisfaction as the final overhead banks stabilize", "channel": "local", "priority": "story", "audio": "assets/vo/r11_giles_06.mp3", "minDuration": 2.6, "choices": [] },
+    { "id": "r11_okafor_02", "speaker": "medic", "text": "North bulkhead just cycled. That lead to the train?",
+      "emote": "neutral", "direction": "normal speaking volume, clear steady relieved voice, not whispering, glancing toward the open north doorway", "channel": "local", "priority": "story", "audio": "assets/vo/r11_okafor_02.mp3", "minDuration": 2.8, "choices": [] },
+    { "id": "r11_giles_07", "speaker": "engineer", "text": "Straight through the maintenance hall. Departure bay's on the other side—let's move.",
+      "emote": "neutral", "direction": "brisk, ready to go, gesturing north toward the maintenance corridor", "channel": "local", "priority": "story", "audio": "assets/vo/r11_giles_07.mp3", "minDuration": 3.8, "choices": [] }
   ]
 }

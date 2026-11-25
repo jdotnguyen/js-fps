@@ -1805,5 +1805,72 @@
     ],
     "at": "2026-11-23T22:14:33.918Z",
     "source": "generated"
+  },
+  {
+    "batch": "retake_medic_01",
+    "speakers": [
+      "medic"
+    ],
+    "voices": [
+      "Charon"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "r11_okafor_01",
+      "r11_okafor_02"
+    ],
+    "at": "2026-11-24T23:04:10.691Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_player_01",
+    "speakers": [
+      "player"
+    ],
+    "voices": [
+      "Orus"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "r11_jay_01"
+    ],
+    "at": "2026-11-24T23:04:14.810Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_engineer_01",
+    "speakers": [
+      "engineer"
+    ],
+    "voices": [
+      "Algenib"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "r11_giles_01",
+      "r11_giles_02",
+      "r11_giles_03",
+      "r11_giles_04",
+      "r11_giles_05",
+      "r11_giles_06",
+      "r11_giles_07"
+    ],
+    "at": "2026-11-24T23:04:41.358Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_medic_01",
+    "speakers": [
+      "medic"
+    ],
+    "voices": [
+      "Charon"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "r11_okafor_02"
+    ],
+    "at": "2026-11-24T23:14:32.520Z",
+    "source": "generated"
   }
 ]
