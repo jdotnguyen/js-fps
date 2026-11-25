@@ -164,7 +164,7 @@ async function boot(): Promise<void> {
     bodyModels.load(import.meta.env.BASE_URL),
     loadSharedMocapLibrary().then((lib) => loadMocapPacks(lib, Object.keys(motionProfiles.profiles))),
   ]);
-  const CROWD_MODELS = ['zombieWalk', 'necromorphCrowd', 'gameChar'] as const;
+  const CROWD_MODELS = ['necromorphCrowd', 'gameChar'] as const;
   let crowdIdx = 0;
   const resolveModel = (spec: HumanoidSpec): HumanoidSpec => {
     if (spec.model) return spec;
@@ -252,12 +252,12 @@ async function boot(): Promise<void> {
       }
       return;
     }
-    spawn({ seed: 'shambler-a', outfit: 'crew', role: 'enemy', infection: 1.5, model: 'zombieWalk' }, -2.2, -5.8, 0);
+    spawn({ seed: 'shambler-a', outfit: 'crew', role: 'enemy', infection: 1.5, model: 'necromorphCrowd' }, -2.2, -5.8, 0);
     spawn({ seed: 'shambler-b', outfit: 'lab', role: 'enemy', infection: 2.2, model: 'necromorphCrowd' }, 0.6, -6.8, 0.2);
     spawn({ seed: 'shambler-c', outfit: 'security', role: 'enemy', infection: 2.8, model: 'gameChar' }, 2.8, -6.0, -0.3);
     spawn({ seed: 'hero-warden', outfit: 'lab', role: 'enemy', infection: 2, hero: true, height: 2.15, build: 1.25, baseHp: 400, pose: 'hulk', model: 'necromorph' }, 0.2, -3.2, 0);
     // Dedicated floor crawler (one leg cleanly severed & stumped) so the labored zombie crawl physics show right away.
-    const crawler = spawn({ seed: 'crawler-a', outfit: 'crew', role: 'enemy', infection: 2.5, model: 'zombieWalk' }, -1.2, -3.0, 0.15);
+    const crawler = spawn({ seed: 'crawler-a', outfit: 'crew', role: 'enemy', infection: 2.5, model: 'gameChar' }, -1.2, -3.0, 0.15);
     crawler.applyHit(
       { humanoid: crawler, joint: 'shin_L', region: 'shin_L', distance: 1, point: crawler.jointWorld('shin_L') },
       500,

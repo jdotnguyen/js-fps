@@ -35,7 +35,7 @@ test('TransitRideController runs 3-stage hybrid ride, carries player, and resets
     id,
     motor: { x: 48, y: 0.08 + TRAIN_RIDE_HEIGHT, z },
     body: { group: { position: new THREE.Vector3(48, 0.08 + TRAIN_RIDE_HEIGHT, z) } },
-    scripted: false,
+    rideLocked: false,
     place(p: { x: number; y: number; z: number }) {
       this.motor.x = p.x;
       this.motor.y = p.y;
@@ -61,7 +61,7 @@ test('TransitRideController runs 3-stage hybrid ride, carries player, and resets
 
   ctrl.start(2.0);
   assert.equal(ctrl.currentStage, 'gate_open');
-  assert.equal(squad.mates[0]!.scripted, true, 'squad locked to cabin during ride');
+  assert.equal(squad.mates[0]!.rideLocked, true, 'squad locked to cabin during ride');
   // Gate lead (1.6 s) -> pullout (3.8 s)
   for (let i = 0; i < 20; i++) ctrl.update(0.1);
   assert.equal(ctrl.currentStage, 'pullout');
@@ -84,7 +84,7 @@ test('TransitRideController runs 3-stage hybrid ride, carries player, and resets
   assert.equal(ctrl.currentStage, 'arrived');
   assert.equal(props.get('r16a_train')!.pos.z, 35, 'Train Car B docked at R16a z=35');
   assert.equal(player.body.z, 35, 'player carried smoothly to R16a dock');
-  assert.equal(squad.mates[0]!.scripted, false, 'squad released on arrival');
+  assert.equal(squad.mates[0]!.rideLocked, false, 'squad released on arrival');
   // The arrival door stays closed: nothing opens Train Car B's door until a script emits `transit:train_door`.
   const doorEvents = emitted.filter((e) => e.event === 'transit:train_door').map((e) => e.payload as { carId: string; open: boolean });
   assert.equal(doorEvents.some((e) => e.carId === 'r16a_train' && e.open), false, 'Train Car B\'s door stays closed on arrival');

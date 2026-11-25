@@ -576,3 +576,20 @@ test('npcLookAt turn with turnRate: a slow scripted turn takes longer than the d
   assert.ok(slow < normal * 0.6, `slower than the default (${slow.toFixed(2)} vs ${normal.toFixed(2)} rad in 0.5 s)`);
   assert.ok(slow <= 1.3 * 0.5 + 0.1, 'about 1.3 rad/s');
 });
+
+test('externally scripted squadmate (e.g. transit ride) stays solid to the player and is not nudged even if present in actors', async () => {
+  const { npcs, squad, player } = setup({ squad: true });
+  squad!.update(1 / 60, null);
+  const giles = squad!.mate('engineer');
+  void npcs.command('npcAnim', { npc: 'giles', anim: 'glance' });
+  npcs.update(1 / 60, null);
+  npcs.endScene(['giles']); // release from NpcDirector while keeping actor in npcs.actors
+  giles.scripted = true;
+  giles.place({ x: 0.5, y: 0, z: 0 }, 0);
+  player.body.x = 0.3;
+  player.body.z = 0; // overlapping Jay
+  for (let i = 0; i < 30; i++) npcs.update(1 / 60, null);
+  assert.ok(Math.hypot(giles.motor.x - 0.5, giles.motor.z) < 1e-6, 'externally scripted mate is not nudged away');
+  const solids = [...npcs.solidBodies()];
+  assert.ok(solids.some((b) => Math.hypot(b.x - 0.5, b.z) < 0.01), 'still reported as a solid body for player collision');
+});

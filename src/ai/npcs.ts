@@ -1137,7 +1137,7 @@ export class NpcDirector {
       seen.add(a);
       const mate = this.mateOf(id);
       // Squadmates update through the squad unless held by this director.
-      if (mate && (!mate.scripted || !this.held.has(mate.id))) continue;
+      if (mate && (mate.rideLocked || !mate.scripted || !this.held.has(mate.id))) continue;
       a.update(dt, this.env);
     }
     // After every body has moved and posed: a gripped victim is put back in the attacker's hand.

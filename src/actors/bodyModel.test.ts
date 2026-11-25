@@ -44,10 +44,10 @@ async function loadWithoutTextures(url: URL): Promise<THREE.Group> {
   return gltf.scene;
 }
 
-const ZOMBIE = new URL('../../public/assets/models/infected/zombie_walk.glb', import.meta.url);
+const CROWD = new URL('../../public/assets/models/infected/necromorph_crowd.glb', import.meta.url);
 let cached: PreparedBodyModel | null = null;
-async function zombie(): Promise<PreparedBodyModel> {
-  cached ??= prepareBodyModel(await loadWithoutTextures(ZOMBIE));
+async function crowdModel(): Promise<PreparedBodyModel> {
+  cached ??= prepareBodyModel(await loadWithoutTextures(CROWD));
   return cached;
 }
 
@@ -66,8 +66,8 @@ test('bone names from common exporters normalise', () => {
   assert.equal(normaliseBoneName('Spine3_4'), 'spine3');
 });
 
-test('zombie model: every game joint placed, standing straight in the rest pose, facing -Z', async () => {
-  const m = await zombie();
+test('crowd infected model: every game joint placed, standing straight in the rest pose, facing -Z', async () => {
+  const m = await crowdModel();
   const w = worldJoints(m);
   for (const name of JOINT_NAMES) assert.ok(m.jointOffsets[name], name);
   // Upright, roughly human proportions at the reference height.
@@ -87,8 +87,8 @@ test('zombie model: every game joint placed, standing straight in the rest pose,
   }
 });
 
-test('zombie model: all triangles kept, weights folded onto game joints, toes point -Z', async () => {
-  const m = await zombie();
+test('crowd infected model: all triangles kept, weights folded onto game joints, toes point -Z', async () => {
+  const m = await crowdModel();
   let tris = 0;
   let toeZ = 0;
   for (const p of m.parts) {
@@ -110,15 +110,15 @@ test('zombie model: all triangles kept, weights folded onto game joints, toes po
     }
   }
   assert.equal(tris, m.triangles);
-  assert.ok(tris > 9000 && tris < 10000, `${tris} triangles`);
+  assert.ok(tris > 4000, `${tris} triangles`);
   assert.ok(toeZ < -0.1, `toes reach ${toeZ} in front of the ankle`);
   for (const j of ['head', 'chest', 'upperArm_L', 'foreArm_R', 'hand_L', 'thigh_R', 'shin_L', 'foot_R'] as const) {
     assert.ok(m.parts.some((p) => p.joint === j), `a piece for ${j}`);
   }
 });
 
-test('zombie model: a body from it has stumps for every severable joint and separate geometry', async () => {
-  const m = await zombie();
+test('crowd infected model: a body from it has stumps for every severable joint and separate geometry', async () => {
+  const m = await crowdModel();
   const a = bodyGeometryFromModel(m, 1.8, 7);
   const b = bodyGeometryFromModel(m, 1.8, 7);
   assert.equal(a.extraBones.filter((e) => e.kind === 'stump').length, 9);
@@ -135,10 +135,10 @@ test('zombie model: a body from it has stumps for every severable joint and sepa
 });
 
 test('a humanoid built from the model: textured pieces, hit capsules on the body, an arm can be shot off', async () => {
-  const m = await zombie();
-  const library = { get: (id: string) => (id === 'zombieWalk' ? m : undefined) } as unknown as BodyModelLibrary;
-  const h = new Humanoid({ seed: 'model-test', outfit: 'crew', role: 'enemy', infection: 2, model: 'zombieWalk', height: 1.78 }, { ...enemyCtx(), bodyModels: library });
-  assert.equal(h.modelId, 'zombieWalk');
+  const m = await crowdModel();
+  const library = { get: (id: string) => (id === 'necromorphCrowd' ? m : undefined) } as unknown as BodyModelLibrary;
+  const h = new Humanoid({ seed: 'model-test', outfit: 'crew', role: 'enemy', infection: 2, model: 'necromorphCrowd', height: 1.78 }, { ...enemyCtx(), bodyModels: library });
+  assert.equal(h.modelId, 'necromorphCrowd');
   const meshes = h.group.children.filter((c): c is THREE.SkinnedMesh => (c as THREE.SkinnedMesh).isSkinnedMesh);
   // One per model material, plus the wet layer (stump caps).
   assert.equal(meshes.length, Object.keys(m.surfaces).length + 1);
@@ -722,7 +722,7 @@ test('the crowd picks a model every time: no procedural shamblers or play-dead b
     assert.ok(id, `${v} spawn ${i} got no model`);
     seen.add(id);
   }
-  assert.ok(seen.has('zombieWalk') && seen.has('necromorphCrowd'));
+  assert.ok(seen.has('necromorphCrowd') && seen.has('gameChar'));
   assert.ok(!seen.has('priya'), 'squad bodies never join the crowd');
 });
 

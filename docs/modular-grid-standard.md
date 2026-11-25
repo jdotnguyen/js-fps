@@ -73,7 +73,6 @@ Measured from glTF scene-graph transforms and dequantized `POSITION` accessors (
 | `crew/botanist_1.glb`, `_2.glb` | `2.000 × 2.000 × 2.000` | `-1.000 .. 1.000` | Quantized `[-1, 1]` bounds; requires `bodyModel.ts` or `+1.0 m` Y-shift. |
 | `crew/botanist_3.glb` | `8.455 × 8.455 × 8.026` | `-4.156 .. 4.299` | **Oversized (~4.7×)**, centered at origin; needs scale `~0.21` + floor shift. |
 | `crew/assistant.glb` | `0.020 × 0.018 × 0.020` | `-0.009 .. 0.009` | **Sub-meter (~1/100×)**; relies on `bodyModel.ts` skeleton normalization. |
-| `infected/zombie_walk.glb` | `67.966 × 183.040 × 69.617` | `-0.097 .. 182.943` | **Centimeters (100×)**; `0.01` scale = `1.830 m` tall. |
 | `infected/gamechar.glb` | `0.030 × 0.051 × 0.010` | `-0.025 .. 0.025` | **Sub-meter (~1/35×)**; relies on `bodyModel.ts` normalization. |
 | `infected/necromorph_crowd.glb` | `0.012 × 0.020 × 0.006` | `-0.010 .. 0.010` | **Sub-meter (~1/90×)**; relies on `bodyModel.ts` normalization. |
 | `infected/necromorph_slasher.glb` | `0.057 × 0.015 × 0.033` | `-0.008 .. 0.008` | **Sub-meter (~1/100×)**; relies on `bodyModel.ts` normalization. |

@@ -264,7 +264,7 @@ test('body-models.json enables handRig on Phase 1 main cast (mechanic, doctor, p
   for (const id of ['mechanic', 'doctor', 'priya', 'hale', 'office3']) {
     assert.equal(table[id]?.handRig, true, `${id} has handRig: true`);
   }
-  for (const id of ['zombieWalk', 'necromorphCrowd', 'gameChar', 'necromorph']) {
+  for (const id of ['necromorphCrowd', 'gameChar', 'necromorph']) {
     assert.ok(!table[id]?.handRig, `crowd/enemy ${id} stays lean without handRig`);
   }
 });

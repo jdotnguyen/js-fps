@@ -46,7 +46,7 @@
     { "id": "sec_giles_12", "speaker": "engineer", "text": "Armory's on its own circuit. That one I can open.",
       "emote": "neutral", "direction": "flat and focused, no humour", "channel": "local", "priority": "story", "audio": "assets/vo/sec_giles_12.mp3", "minDuration": 4, "choices": [] },
     { "id": "sec_giles_13", "speaker": "engineer", "text": "Jay. Take it.",
-      "emote": "neutral", "direction": "quiet and grim", "channel": "local", "priority": "story", "audio": "assets/vo/sec_giles_13.mp3", "minDuration": 1.6, "gain": 2.5, "choices": [] },
+      "emote": "neutral", "direction": "quiet and grim", "channel": "local", "priority": "story", "audio": "assets/vo/sec_giles_13.mp3", "minDuration": 1.6, "gain": 3.5, "choices": [] },
     { "id": "sec_priya_19", "speaker": "nurse", "text": "I made you a coffee. Before. It's still on the counter.",
       "emote": "neutral", "direction": "small and wistful, holding herself together", "channel": "local", "priority": "story", "audio": "assets/vo/sec_priya_19.mp3", "minDuration": 4.3, "choices": [] },
     { "id": "sec_okafor_18", "speaker": "medic", "text": "I'll drink it.",

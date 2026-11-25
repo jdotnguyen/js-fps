@@ -1,20 +1,4 @@
 {
-  "zombieWalk": {
-    "url": "assets/models/infected/zombie_walk.glb",
-    "variants": [
-      "shambler",
-      "playDead"
-    ],
-    "share": 0.3333,
-    "gender": "m",
-    "sickTint": 0.3,
-    "credit": {
-      "title": "Zombie Walk",
-      "author": "LostBoyz2078",
-      "source": "https://sketchfab.com/3d-models/zombie-walk-24fd963a21a14f4abc68fd8960f34069",
-      "license": "CC-BY-NC-4.0"
-    }
-  },
   "necromorphCrowd": {
     "url": "assets/models/infected/necromorph_crowd.glb",
     "variants": [

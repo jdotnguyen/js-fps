@@ -23,7 +23,7 @@ export interface TransitRideMate {
   id: string;
   motor: { x: number; y: number; z: number };
   body: { group: { position: THREE.Vector3 } };
-  scripted: boolean;
+  rideLocked: boolean;
   place(p: { x: number; y: number; z: number }, heading: number): void;
 }
 
@@ -288,7 +288,7 @@ export class TransitRideController {
     const mates = this.d.squad?.mates ?? [];
     for (let i = 0; i < mates.length; i++) {
       const m = mates[i]!;
-      m.scripted = true;
+      m.rideLocked = true;
       const inCabin = Math.abs(m.motor.x - origin.x) < 0.85 && Math.abs(m.motor.z - origin.z) < 3.5;
       if (!inCabin) {
         const sx = i % 2 === 0 ? -0.55 : 0.55;
@@ -300,7 +300,7 @@ export class TransitRideController {
 
   private releaseMates(): void {
     for (const m of this.d.squad?.mates ?? []) {
-      m.scripted = false;
+      m.rideLocked = false;
     }
   }
 

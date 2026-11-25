@@ -1062,8 +1062,7 @@ anchor(R09, 'r09_charge_view', [17.0, 0.3, 47.8]);
 spawn(R09, 'r09_floor_1', [13, SUMP, 44], 'floor', 'r09_tunnel', { outfit: 'engineer' });
 // The play-dead corpses float face down (flooded-tunnel spec), just under the surface.
 spawn(R09, 'r09_corpse_1', [16.4, WATER - 0.2, 48.6], 'corpse', 'r09_tunnel', { variant: 'playDead', float: true });
-spawn(R09, 'r09_floor_2', [22, SUMP, 47.2], 'floor', 'r09_tunnel', { count: 2, interval: 6 });
-spawn(R09, 'r09_corpse_2', [24.2, WATER - 0.2, 47.6], 'corpse', 'r09_tunnel', { variant: 'playDead', float: true });
+spawn(R09, 'r09_floor_2', [22, SUMP, 47.2], 'floor', 'r09_tunnel', { count: 1 });
 spawn(R09, 'r09_vent', [19.6, 2.8, 49], 'vent', 'r09_tunnel', { count: 1 });
 trigger(R09, 'trig_r09_enter', [[6.3, -0.2, 42.3], [9.7, 2.6, 45.7]], 'trigger:r09_enter');
 trigger(R09, 'trig_r09_mid', [[14.3, SUMP - 0.1, 46.3], [17.7, 1.6, 49.7]], 'trigger:r09_mid');

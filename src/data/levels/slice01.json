@@ -7478,21 +7478,7 @@
           "kind": "floor",
           "group": "r09_tunnel",
           "active": false,
-          "count": 2,
-          "interval": 6
-        },
-        {
-          "id": "r09_corpse_2",
-          "pos": [
-            24.2,
-            -0.65,
-            47.6
-          ],
-          "kind": "corpse",
-          "group": "r09_tunnel",
-          "active": false,
-          "variant": "playDead",
-          "float": true
+          "count": 1
         },
         {
           "id": "r09_vent",

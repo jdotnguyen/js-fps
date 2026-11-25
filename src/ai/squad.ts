@@ -174,6 +174,8 @@ export class SquadMate {
   behaviour: Behaviour = 'follow';
   /** A sequence drives this body (NPC actions): the AI yields completely. */
   scripted = false;
+  /** Held in place on a moving train (transit ride): no follow, give-way, catch-up or regroup; only Jay's body can shove them. */
+  rideLocked = false;
   hp: number = REVIVE.maxHp;
   /** Seconds left lying down. */
   downedT = 0;
@@ -804,6 +806,18 @@ export class SquadMate {
 
   update(dt: number, squad: Squad, player: SquadPlayer, cameraPos: THREE.Vector3 | null): void {
     this.publishRevive(squad);
+    // Riding the train: stand where placed, face Jay, move only when his body pushes them (the director's player pass).
+    if (this.rideLocked) {
+      this.path = null;
+      this.target.copy(this.position);
+      this.mode = 'idle';
+      this.wayPhase = null;
+      this.body.lookTarget = squad.playerHead;
+      this.body.aimTarget = null;
+      this.body.steer(null, dt, { maxSpeed: 0 });
+      this.body.update(dt, cameraPos);
+      return;
+    }
     // A sequence is driving this body (npc actions): the NPC director moves and animates it.
     if (this.scripted) {
       if (this.body.handTargets.L || this.body.handTargets.R || this.body.plantFeet) this.clearTaskRig();
@@ -1201,7 +1215,7 @@ export class Squad {
     this.readPlayer();
     this.trail.length = 0;
     for (const m of this.mates) {
-      if (m.scripted) continue; // a sequence has placed them
+      if (m.scripted || m.rideLocked) continue; // a sequence (or the train ride) has placed them
       const spot = this.spawnSpot(m);
       m.place(spot, this.player.yaw);
     }
@@ -1226,7 +1240,7 @@ export class Squad {
     this.readPlayer();
     const moved: SquadId[] = [];
     for (const m of this.mates) {
-      if (m.downed) continue;
+      if (m.downed || m.rideLocked) continue;
       if (m.position.distanceTo(this.playerFeet) <= distance || this.canSee(m.position)) continue;
       m.place(this.spawnSpot(m), this.player.yaw);
       moved.push(m.id);
@@ -1242,7 +1256,7 @@ export class Squad {
     this.readPlayer();
     const moved: SquadId[] = [];
     for (const m of this.mates) {
-      if (inside(m.position)) continue;
+      if (m.rideLocked || inside(m.position)) continue;
       const spot = this.spawnSpot(m);
       m.place(spot, this.player.yaw);
       moved.push(m.id);
@@ -1265,7 +1279,7 @@ export class Squad {
     const moved: SquadId[] = [];
     const unseen = (p: P3): boolean => force || !this.canSee(tmpA.set(p.x, p.y, p.z));
     for (const m of this.mates) {
-      if (m.downed || (!force && (inside(m.position) || this.canSee(m.position)))) continue;
+      if (m.downed || m.rideLocked || (!force && (inside(m.position) || this.canSee(m.position)))) continue;
       let spot: P3 | null = null;
       if (entry && inside(entry) && unseen(entry) && this.standable(entry)) {
         const off = m.id === 'engineer' ? -0.45 : 0.45;
@@ -1356,7 +1370,7 @@ export class Squad {
 
   /** Far away and out of sight: reappear on Jay's trail behind him (ADR-0011). */
   private catchUp(m: SquadMate): void {
-    if (m.scripted || m.downed || m.behaviour === 'task' || m.behaviour === 'revive') return;
+    if (m.scripted || m.rideLocked || m.downed || m.behaviour === 'task' || m.behaviour === 'revive') return;
     const d = m.position.distanceTo(this.playerFeet);
     if (d < SQUAD_TUNING.teleportDistance || this.canSee(m.position)) return;
     for (const back of [5, 7, 9, 4]) {

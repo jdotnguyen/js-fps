@@ -60,7 +60,6 @@ export const LIKENESS_CREDITS: readonly CreditEntry[] = [
 
 /** Third-party 3D models from CREDITS.md. */
 export const MODEL_CREDITS: readonly ModelCredit[] = [
-  { asset: 'Zombie Walk', author: 'LostBoyz2078', licence: 'CC BY-NC 4.0', usedAs: 'Common Infected' },
   { asset: 'zombie monster slasher necromorph', author: 'wojciechmiedziocha', licence: 'CC BY 4.0', usedAs: 'Common Infected' },
   { asset: 'Zombie (Game character)', author: 'barnusmodels', licence: 'CC BY 4.0', usedAs: 'Common Infected' },
   { asset: 'Necromorph Slasher Varient 1 Rig', author: 'NO.DONT.EAT.ME.CASEOH', licence: 'CC BY 4.0', usedAs: 'Hero Infected' },
@@ -100,6 +99,7 @@ export const ANIMATION_CREDITS: readonly CreditEntry[] = [
   { role: 'Motion Capture Database', name: 'Carnegie Mellon University Graphics Lab' },
   { role: 'Research Motion Dataset 1 & 2', name: 'Bandai Namco Research Inc. (CC BY-NC 4.0)' },
   { role: '100STYLE Locomotion Dataset', name: 'Ian Mason, Sebastian Starke, Taku Komura (CC BY 4.0)' },
+  { role: 'Zombie Walk Animation', name: 'LostBoyz2078 (CC BY-NC 4.0)' },
 ];
 
 export const AUDIO_CREDITS: readonly CreditEntry[] = [
