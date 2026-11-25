@@ -1018,6 +1018,12 @@ test('dive bay (R13a-R13e) props stay inside room bounds, do not overlap, and NP
         assert.ok(b.min.x >= minX - 0.1 && b.max.x <= maxX + 0.1 && b.min.z >= minZ - 0.1 && b.max.z <= maxZ + 0.1, `${id} ${p.kit} inside the room`);
         boxes.push({ label: `${p.kit}@${p.pos.join(',')}`, box: b });
       }
+      if (id === 'R13d') {
+        out.object.applyMatrix4(m);
+        out.object.updateMatrixWorld(true);
+        const vb = new THREE.Box3().setFromObject(out.object);
+        assert.ok(vb.min.x >= minX - 0.1 && vb.max.x <= maxX + 0.1 && vb.min.z >= minZ - 0.1 && vb.max.z <= maxZ + 0.1, `${id} ${p.kit} visual mesh stays inside room bounds`);
+      }
     }
     for (let i = 0; i < boxes.length; i++) {
       for (let j = i + 1; j < boxes.length; j++) {
