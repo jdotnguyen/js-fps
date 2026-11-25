@@ -63,7 +63,7 @@ export interface GameHostDeps {
   /** Speech manager for `say`; without it lines are skipped with a warning. */
   speech?: { say(id: string, opts?: ScriptSpeechOptions): { done: Promise<unknown> } | null; stopAll(): void; stopChannels?(match: (channel: string) => boolean, letFinish?: boolean): void; onlySpeakers?(speakers: readonly string[] | null): void } | null | undefined;
   /** End-credits overlay triggered when the slice finishes; settles once it covers the screen. */
-  showCredits?: (opts?: { instant?: boolean }) => void | Promise<void>;
+  showCredits?: (opts?: { instant?: boolean; fromSlice?: boolean }) => void | Promise<void>;
   /** Security camera feeds (`render/cameraFeed.ts`) for the `cameraFeed` action. */
   cameraFeeds?: { apply(id: string, opts: CameraFeedOptions): void } | null | undefined;
   /** Gore particles and pools (`gore` action). */
@@ -311,7 +311,7 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
         return;
       }
       const toTitle = (): void => d.game.quitToTitle();
-      void Promise.resolve(d.showCredits({ instant: true })).then(toTitle, toTitle);
+      void Promise.resolve(d.showCredits({ fromSlice: true })).then(toTitle, toTitle);
     },
     hush,
     giveItem: (id) => d.inventory?.give(id, 'script') ?? false,

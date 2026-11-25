@@ -228,7 +228,7 @@ export class EndCredits {
    * is already black at the end of the slice. The cutscene has already shown the title, so this path starts on the
    * director credit.
    */
-  show(onClose?: () => void, opts: { instant?: boolean } = {}): Promise<void> {
+  show(onClose?: () => void, opts: { instant?: boolean; fromSlice?: boolean } = {}): Promise<void> {
     if (this.active) return Promise.resolve();
     this.active = true;
     this.onCloseCb = onClose ?? null;
@@ -254,7 +254,7 @@ export class EndCredits {
     this.root.addEventListener('wheel', this.onWheel, { passive: true });
 
     this.startVisorLoop();
-    const cards = opts.instant ? HEADLINE_CREDITS.slice(1) : HEADLINE_CREDITS;
+    const cards = opts.instant || opts.fromSlice ? HEADLINE_CREDITS.slice(1) : HEADLINE_CREDITS;
     void this.runSequence(cards);
     if (opts.instant) return Promise.resolve();
     return new Promise<void>((resolve) => {

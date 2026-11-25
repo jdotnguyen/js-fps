@@ -150,9 +150,11 @@ export interface SessionShellDeps {
   memProbe: MemProbe | null;
   launch: LaunchPlan;
   loading: LoadingScreen;
-  showCredits: (opts?: { instant?: boolean }) => Promise<void>;
+  showCredits: (opts?: { instant?: boolean; fromSlice?: boolean }) => Promise<void>;
   onQuitToTitle: () => void;
   setActiveScore: (score: ScorePlayer | null) => void;
+  /** Called on session dispose; returns true if the shell keeps the score looping under end credits. */
+  releaseActiveScore: (score: ScorePlayer) => boolean;
 }
 
 export interface PlaySession {
@@ -316,9 +318,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     sequences = null;
     speech?.stopAll();
     speech = null;
-    score?.stopAll();
+    if (score && !shell.releaseActiveScore(score)) score.stopAll();
     score = null;
-    shell.setActiveScore(null);
     storyDucker?.dispose();
     storyDucker = null;
     roomAudio?.stop();
@@ -1473,7 +1474,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
               c.receiveShadow = true;
             }
           });
-          const scale = 6 / Math.max(0.01, box.max.y - box.min.y);
+          const scale = 5.1 / Math.max(0.01, box.max.y - box.min.y);
           const center = box.getCenter(new THREE.Vector3());
           model.scale.setScalar(scale);
           model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
@@ -1507,7 +1508,12 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
             juggernautYaw = rev.yaw;
           }
           juggernautT = 0;
-          squad?.setAim(['giles', 'okafor'], () => juggernautHead?.getWorldPosition(juggernautAim) ?? null);
+          squad?.setAim(['giles', 'okafor'], () => {
+            if (!juggernautHead) return null;
+            juggernautHead.getWorldPosition(juggernautAim);
+            juggernautAim.y += 0.8;
+            return juggernautAim;
+          });
           if (juggernautRoot) {
             juggernautRoot.position.copy(juggernautStart);
             juggernautRoot.rotation.y = juggernautYaw;
@@ -1955,7 +1961,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           sequences?.update(dt);
           enemies!.update(dt);
           if (juggernautActive && juggernautRoot) {
-            juggernautT = Math.min(1, juggernautT + dt / 2.3);
+            juggernautT = Math.min(1, juggernautT + dt / 5.2);
             const ease = juggernautT * juggernautT * (3 - 2 * juggernautT);
             juggernautRoot.position.lerpVectors(juggernautStart, juggernautEnd, ease);
           }

@@ -17,9 +17,9 @@ When the slice finishes and opens the end credits directly (`instant`), the acti
 - **WHEN** the end credits finish or are closed by the player
 - **THEN** the carried surveillance score fades out over ~3 s (`fadeOutAll`) while the title menu theme fades back in over the same duration
 
-### Requirement: End credits open directly over the stinger blackout
-When triggered by `endSlice`, the end credits SHALL cover the black frame immediately (`instant`, with no fade-in exposing the game or title menu underneath) and only then return the underlying session to the title screen, without playing the title menu open sting while the credits are visible.
+### Requirement: End credits fade in over the stinger blackout
+After `stinger_priya` holds on green static for 2.8 s and cuts to black (`s: 0`), it SHALL hold on black for 3.5 s while the surveillance score continues before calling `endSlice`. When triggered by `endSlice`, the end credits SHALL fade in smoothly over the black frame (`fromSlice: true`, starting on the director credit) and only then return the underlying session to the title screen once opaque, without playing the title menu open sting while the credits are visible.
 
-#### Scenario: No flash or menu sting between stinger and credits
-- **WHEN** `stinger_priya` fades to black and calls `endSlice`
-- **THEN** the end credits appear opaque over the black with no frame of the game world or title menu visible in between and no menu open sting
+#### Scenario: Clean fade from blackout to credits
+- **WHEN** `stinger_priya` holds on static for 2.8 s, cuts to black, holds for 3.5 s, and calls `endSlice`
+- **THEN** the end credits fade in smoothly over the black frame with no frame of the game world or title menu visible in between and no menu open sting

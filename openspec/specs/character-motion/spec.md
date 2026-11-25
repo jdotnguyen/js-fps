@@ -144,3 +144,10 @@ When a squadmate has no active combat target, the squadmate SHALL return to `idl
 #### Scenario: Combat ends and mates return to idle
 - **WHEN** combat ends after `gunDrawn` is true and no enemy target remains
 - **THEN** Giles and Okafor transition back to `idle` and hide their pistols until they engage in combat again
+
+### Requirement: Armed locomotion preserves pistol aim and finger grip
+When a humanoid walks while `idlePose` is `aim_pistol`, locomotion SHALL keep `aim_pistol` active with the upper-body pistol-aim overlay and pistol finger grip rather than reverting to an unarmed casual walk.
+
+#### Scenario: Advancing with sidearm drawn
+- **WHEN** Giles or Okafor walks forward (`speed > 0.35 m/s`) while holding `aim_pistol`
+- **THEN** their legs play the walk cycle while their upper body, arms, and fingers keep the pistol drawn forward toward the aim target

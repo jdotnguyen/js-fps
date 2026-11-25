@@ -1362,7 +1362,7 @@
    },
    {
     "do": "wait",
-    "s": 0.5
+    "s": 0.28
    },
    {
     "do": "lightState",
@@ -1415,10 +1415,6 @@
     "do": "score",
     "id": "labB",
     "cue": "r16Stalk"
-   },
-   {
-    "do": "wait",
-    "s": 0.5
    },
    {
     "do": "playerFrame",
@@ -1582,6 +1578,19 @@
     "gain": 2.2
    },
    {
+    "do": "wait",
+    "s": 1.0
+   },
+   {
+    "do": "say",
+    "line": "r16_okafor_03",
+    "wait": false
+   },
+   {
+    "do": "wait",
+    "s": 0.25
+   },
+   {
     "do": "emit",
     "event": "squad:aim",
     "payload": {
@@ -1591,11 +1600,7 @@
    },
    {
     "do": "wait",
-    "s": 1.2
-   },
-   {
-    "do": "say",
-    "line": "r16_okafor_03"
+    "s": 2.35
    },
    {
     "do": "emit",
@@ -1637,6 +1642,14 @@
      "h": 540
     },
     "look": "fullscreen"
+   },
+   {
+    "do": "emit",
+    "event": "squad:aim",
+    "payload": {
+     "ids": "giles,okafor",
+     "target": "anchor:r16_monster_face_aim"
+    }
    },
    {
     "do": "wait",
@@ -1863,19 +1876,22 @@
    },
    {
     "do": "wait",
-    "s": 1.8
+    "s": 2.8
    },
    {
     "do": "fade",
     "to": 1,
-    "s": 0.8,
-    "wait": true
+    "s": 0
    },
    {
     "do": "cameraFeed",
     "id": "stinger",
     "state": "off",
     "fullscreen": true
+   },
+   {
+    "do": "wait",
+    "s": 3.5
    },
    {
     "do": "setFlag",

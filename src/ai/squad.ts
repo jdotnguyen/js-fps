@@ -271,11 +271,13 @@ export class SquadMate {
     const gun = shotPoints(this);
     const inv = this.body.group.matrixWorld.clone().invert();
     const localMuzzle = new THREE.Vector3(gun.muzzle.x, gun.muzzle.y, gun.muzzle.z).applyMatrix4(inv);
-    const worldTarget = new THREE.Vector3(
-      gun.muzzle.x + gun.forward.x * 8,
-      gun.muzzle.y + gun.forward.y * 8,
-      gun.muzzle.z + gun.forward.z * 8,
-    );
+    const worldTarget = this.body.aimTarget
+      ? new THREE.Vector3(this.body.aimTarget.x, this.body.aimTarget.y, this.body.aimTarget.z)
+      : new THREE.Vector3(
+        gun.muzzle.x + gun.forward.x * 8,
+        gun.muzzle.y + gun.forward.y * 8,
+        gun.muzzle.z + gun.forward.z * 8,
+      );
     const localTarget = worldTarget.applyMatrix4(inv);
     this.weaponLight.position.copy(localMuzzle);
     this.weaponLightTarget.position.copy(localTarget);
@@ -294,12 +296,13 @@ export class SquadMate {
 
   /** Keep pistol and gaze tracking `scriptedAimGet` (runs even while `scripted` is true). */
   updateScriptedAim(dt: number): void {
-    if (!this.scriptedAimGet || this.scriptedBurst) return;
+    if (!this.scriptedAimGet) return;
     const t = this.scriptedAimGet();
     if (!t) return;
     const aim = this.aimPoint.set(t.x, t.y, t.z);
     this.body.lookTarget = aim;
     this.body.aimTarget = aim;
+    if (this.scriptedBurst) this.scriptedBurst.target.copy(aim);
     if (this.body.idlePose !== 'aim_pistol') this.body.setPose('aim_pistol', 0.2);
     // Gently turn toward the aim target only when completely stationary, without calling setHeading() (which zeroes speed/velocity).
     if (this.body.speed < 0.005) {

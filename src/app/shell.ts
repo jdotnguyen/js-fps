@@ -144,10 +144,11 @@ export async function bootApp(): Promise<void> {
       if (!creditsScore) return;
       creditsScore = false;
       activeScore?.fadeOutAll(CREDITS_SCORE_FADE);
+      if (!coordinator.active) activeScore = null;
       menuMusic.hold(false, CREDITS_SCORE_FADE);
     };
-    const showCredits = (opts: { instant?: boolean } = {}): Promise<void> => {
-      if (opts.instant && activeScore?.playing) {
+    const showCredits = (opts: { instant?: boolean; fromSlice?: boolean } = {}): Promise<void> => {
+      if ((opts.instant || opts.fromSlice) && activeScore?.playing) {
         creditsScore = true;
         menuMusic.hold(true);
       }
@@ -280,7 +281,13 @@ export async function bootApp(): Promise<void> {
             showCredits,
             onQuitToTitle: () => coordinator.enterTitle(),
             setActiveScore: (s) => {
+              if (activeScore && activeScore !== s) activeScore.stopAll();
               activeScore = s;
+            },
+            releaseActiveScore: (s) => {
+              if (creditsScore && activeScore === s) return true;
+              if (activeScore === s) activeScore = null;
+              return false;
             },
           },
           intent,
