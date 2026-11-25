@@ -5,6 +5,7 @@ import {
   HEADLINE_CREDITS,
   LIKENESS_CREDITS,
   MODEL_CREDITS,
+  MUSIC_CREDITS,
   TEXTURE_CREDITS,
 } from './credits.ts';
 
@@ -13,6 +14,16 @@ test('only the opening headline cards credit Justin Nguyen', () => {
   const nonTitleHeadlines = HEADLINE_CREDITS.slice(1);
   for (const card of nonTitleHeadlines) {
     assert.equal(card.title, 'JUSTIN NGUYEN');
+  }
+});
+
+test('music credits list all original tracks and scores', () => {
+  const names = MUSIC_CREDITS.map((c) => c.name);
+  assert.deepEqual(names, ['"Pressure"', '"Lab B"', '"Medical Bay"', '"TAG FM"']);
+  const musicCard = HEADLINE_CREDITS.find((c) => c.eyebrow === 'MUSIC & SOUND DESIGN');
+  assert.ok(musicCard?.subtitle);
+  for (const title of ['PRESSURE', 'LAB B', 'MEDICAL BAY', 'TAG FM']) {
+    assert.ok(musicCard.subtitle.includes(title), `expected ${title} in ${musicCard.subtitle}`);
   }
 });
 

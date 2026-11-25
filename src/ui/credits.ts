@@ -48,8 +48,16 @@ export const HEADLINE_CREDITS: readonly HeadlineCredit[] = [
   {
     eyebrow: 'MUSIC & SOUND DESIGN',
     title: 'JUSTIN NGUYEN',
-    subtitle: '"PRESSURE" — MAIN THEME',
+    subtitle: '"PRESSURE" · "LAB B" · "MEDICAL BAY" · "TAG FM"',
   },
+];
+
+/** Original music and adaptive scores in the game. */
+export const MUSIC_CREDITS: readonly CreditEntry[] = [
+  { role: 'Main Theme', name: '"Pressure"' },
+  { role: 'Adaptive Score', name: '"Lab B"' },
+  { role: 'Adaptive Score', name: '"Medical Bay"' },
+  { role: 'Station Radio', name: '"TAG FM"' },
 ];
 
 /** Friends whose likenesses are used for squad characters. */
@@ -383,6 +391,7 @@ export class EndCredits {
     const track = h(
       'div',
       { class: 'credits-scroll-track' },
+      section('Original Music', MUSIC_CREDITS),
       section('Likeness', LIKENESS_CREDITS),
       modelsSection,
       section('Motion Capture', ANIMATION_CREDITS),
