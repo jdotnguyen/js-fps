@@ -44,3 +44,14 @@ When Train Car B comes to rest at the `R16a` platform at the end of Stage 3, `r1
 #### Scenario: Train Car B stops at R16a and hands off to the arrival finale
 - **WHEN** `TransitRideController` transitions to `arrived` at the end of Stage 3
 - **THEN** `r16a_north` seals, Train Car B's boarding door stays closed, `transit_ride_done` is set to `true`, checkpoint `cp_r16_arrived` saves, and `transit:arrived_r16` is emitted
+
+### Requirement: Squadmates hold their cabin positions during the ride
+From the moment the transit ride starts until Train Car B comes to rest at `R16a`, each squadmate (Giles, Okafor) SHALL stay where the ride placed them inside the cabin. They SHALL NOT follow Jay, dodge his aim cone, give way, path, or be relocated by `squadRegroup`, `squadCatchUpIn`, `gatherIn` timeouts, load placement, or far-and-unseen catch-up, and a sequence ending SHALL NOT hand them back to the follow AI mid-ride. Only contact with Jay's body MAY move them (a soft shove out of his capsule through level collision); they SHALL NOT walk back to their spot afterwards. The ride lock is separate from the cutscene `scripted` hold, so releasing a cutscene never clears it, and it is cleared when the ride ends or resets.
+
+#### Scenario: Standing in the cabin through every stage
+- **WHEN** Jay stands or walks anywhere in the cabin from pull-out through the tunnel cruise to the `R16a` stop, without touching either squadmate
+- **THEN** Giles and Okafor do not move, step aside, or leave the car, and no scene step, cutscene release or catch-up places them elsewhere
+
+#### Scenario: Walking into a squadmate
+- **WHEN** Jay walks into Giles or Okafor during the ride
+- **THEN** that squadmate is nudged out of Jay's way and stays at the new spot, and the squad AI resumes only after the car comes to rest at `R16a`

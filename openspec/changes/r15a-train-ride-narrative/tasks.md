@@ -24,3 +24,8 @@
 
 - [ ] 5.1 Run `npm run typecheck`, `npm run audio:audit`, and `npm test -- src/script/action.test.ts src/game/transitRide.test.ts src/world/kit/transit.test.ts src/world/slice01.test.ts` and confirm all pass.
 - [ ] 5.2 Playtest end-to-end in the browser from `?debug&jump=r15a` (walk across platform, watch Giles & Okafor board, step into Train Car A, ride all 3 stages with Heins radio exchange over the rear-bulkhead comms terminal, verify SFX, LED state, timing, and clean stop in `R16a` with boarding door closed and `r16a_north` sealed).
+
+## 6. Squadmates hold cabin positions during the ride
+
+- [x] 6.1 Add `SquadMate.rideLocked` (`src/ai/squad.ts`), set and cleared by `TransitRideController` instead of `scripted`; locked mates skip follow, give-way, catch-up, `placeNearPlayer`, `regroup`, `placeIn` and `catchUpIn`, and the NPC director skips them (`src/ai/npcs.ts`); Jay's player-separation pass still nudges them.
+- [ ] 6.2 Playtest `?debug&jump=transit_ride`: Giles and Okafor stay put through all stages, shove aside only when walked into, and never leave the car.
