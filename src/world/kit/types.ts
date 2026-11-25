@@ -78,6 +78,10 @@ export interface LightSlot {
   ry: number;
   /** A fixture swinging on a pendulum (flooded-tunnel spec: a tube hanging loose): its glow and light follow the swing. */
   swing?: SlotSwing;
+  /** Optional aim direction (piece space, unit vector) for a shadow spot; defaults to straight down (0, -1, 0). */
+  aim?: Vec3;
+  /** Optional dynamic Object3D (under the piece's object) whose world position this light follows each frame (no static diffuser). */
+  follow?: THREE.Object3D;
 }
 
 /** Pendulum swing about the X axis through `pivot` (piece space): `amp` radians, `period` seconds. */
@@ -313,8 +317,15 @@ export class PieceBuilder {
     this.sockets.push(kind ? { name, pos, dir, kind } : { name, pos, dir });
   }
 
-  light(pos: Vec3, kind: LightSlotKind, ry = 0, swing?: SlotSwing): void {
-    this.lightSlots.push(swing ? { pos, kind, ry, swing } : { pos, kind, ry });
+  light(pos: Vec3, kind: LightSlotKind, ry = 0, swing?: SlotSwing, opts?: { aim?: Vec3; follow?: THREE.Object3D }): void {
+    this.lightSlots.push({
+      pos,
+      kind,
+      ry,
+      ...(swing ? { swing } : {}),
+      ...(opts?.aim ? { aim: opts.aim } : {}),
+      ...(opts?.follow ? { follow: opts.follow } : {}),
+    });
   }
 
   /** An activity spot (ADR-0029): feet at (x, y, z), facing `yaw` (radians, 0 faces -Z); `seat` is the seat surface height. */

@@ -90,12 +90,23 @@ const side = new THREE.Vector3();
 const q = new THREE.Quaternion();
 
 /**
- * Fire one shot: `pellets` rays around `view` (normalised) from `origin`. `aimBlend` 0..1 narrows the
- * spread; `random` gives 0..1 values (Math.random in game, seeded in tests).
+ * Fire one shot: `pellets` rays around `view` (normalised) from `origin`. When `spreadRad` is provided
+ * it overrides the static `aimBlend` lerp so hitscan and dynamic reticle spread stay 1:1. `random`
+ * gives 0..1 values (Math.random in game, seeded in tests).
  */
-export function fireShot(spec: WeaponHitSpec, origin: THREE.Vector3, view: THREE.Vector3, aimBlend: number, world: ColliderQuery, targets: ShotTargets, random: () => number = Math.random, by = 'player'): ShotReport {
+export function fireShot(
+  spec: WeaponHitSpec,
+  origin: THREE.Vector3,
+  view: THREE.Vector3,
+  aimBlend: number,
+  world: ColliderQuery,
+  targets: ShotTargets,
+  random: () => number = Math.random,
+  by = 'player',
+  spreadRad?: number,
+): ShotReport {
   const report: ShotReport = { bodyHits: 0, perBody: new Map(), wall: null };
-  const spread = spec.hip + (spec.aim - spec.hip) * Math.min(1, Math.max(0, aimBlend));
+  const spread = spreadRad !== undefined ? Math.max(0, spreadRad) : spec.hip + (spec.aim - spec.hip) * Math.min(1, Math.max(0, aimBlend));
   side.crossVectors(view, up);
   if (side.lengthSq() < 1e-8) side.set(1, 0, 0);
   side.normalize();

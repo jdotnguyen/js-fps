@@ -17,6 +17,8 @@ export const FLASH_AHEAD = 0.06;
 export class SquadMuzzleLight {
   readonly light: THREE.PointLight;
   private t = Infinity;
+  private peak: number = SQUAD_FLASH_LIGHT.intensity;
+  private duration: number = MUZZLE_FLASH_TIME;
 
   constructor(parent: THREE.Object3D) {
     this.light = new THREE.PointLight(SQUAD_FLASH_LIGHT.color, 0, SQUAD_FLASH_LIGHT.distance, SQUAD_FLASH_LIGHT.decay);
@@ -26,24 +28,28 @@ export class SquadMuzzleLight {
   }
 
   /** A squad shot: light at the muzzle (world), a little way along the bore `dir` (world, unit) when given. */
-  fire(muzzle: { x: number; y: number; z: number }, dir?: { x: number; y: number; z: number }): void {
+  fire(muzzle: { x: number; y: number; z: number }, dir?: { x: number; y: number; z: number }, boost = 1): void {
     this.light.position.set(muzzle.x, muzzle.y, muzzle.z);
     if (dir) this.light.position.add(new THREE.Vector3(dir.x, dir.y, dir.z).multiplyScalar(FLASH_AHEAD));
     if (this.light.parent) this.light.parent.worldToLocal(this.light.position);
     this.t = 0;
-    this.light.intensity = SQUAD_FLASH_LIGHT.intensity;
+    const scale = Math.max(1, boost);
+    this.peak = SQUAD_FLASH_LIGHT.intensity * scale;
+    this.duration = scale > 1 ? MUZZLE_FLASH_TIME * 2.2 : MUZZLE_FLASH_TIME;
+    this.light.distance = scale > 1 ? 18 : SQUAD_FLASH_LIGHT.distance;
+    this.light.intensity = this.peak;
   }
 
-  /** Fade the flash: full at the shot, down to zero over MUZZLE_FLASH_TIME. */
+  /** Fade the flash: full at the shot, down to zero over `duration`. */
   update(dt: number): void {
     if (this.t === Infinity) return;
     this.t += Math.max(0, dt);
-    if (this.t >= MUZZLE_FLASH_TIME) {
+    if (this.t >= this.duration) {
       this.t = Infinity;
       this.light.intensity = 0;
       return;
     }
-    this.light.intensity = SQUAD_FLASH_LIGHT.intensity * (1 - this.t / MUZZLE_FLASH_TIME);
+    this.light.intensity = this.peak * (1 - this.t / this.duration);
   }
 
   /** Is the light lit right now (tests)? */

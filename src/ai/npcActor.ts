@@ -522,6 +522,28 @@ export class NpcActor {
     }
 
     const m = this.move;
+    if (m && this.body.spec.role === 'corpse') {
+      // Dead bodies dragged by script slide smoothly in their frozen corpse pose without gait or nav detours.
+      const dx = m.target.x - me.x;
+      const dz = m.target.z - me.z;
+      const toEnd = Math.hypot(dx, dz);
+      this.body.carried = this.basePose;
+      if (toEnd <= 0.05) {
+        this.motor.x = m.target.x;
+        this.motor.z = m.target.z;
+        this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
+        this.move = null;
+        this.lastPos.copy(this.body.group.position);
+        m.resolve();
+      } else {
+        const step = Math.min(toEnd, Math.max(0.1, m.speed) * dt);
+        this.motor.x = me.x + (dx / toEnd) * step;
+        this.motor.z = me.z + (dz / toEnd) * step;
+        this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
+        this.lastPos.copy(this.body.group.position);
+      }
+      return;
+    }
     if (m) {
       if (m.usePath) m.repathT -= dt;
       if (!m.follower || (m.usePath && m.repathT <= 0)) {

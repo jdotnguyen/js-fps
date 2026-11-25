@@ -22,7 +22,7 @@ export interface SquadShotDeps {
   /** The casing audio, when the level has one (casing-drop-audio's single entry point). */
   casings: () => { eject(ej: CasingEjection): unknown } | null;
   /** The shared squad muzzle light (SquadMuzzleLight), when there is one. */
-  light?: { fire(muzzle: Vec3, dir?: Vec3): void } | null;
+  light?: { fire(muzzle: Vec3, dir?: Vec3, boost?: number): void } | null;
   /** The firing mate's body, for the slide kick and the flash sprite. */
   body: (id: SquadId) => { kickSlide(): void } | null;
   /** Only while playing (not the title, not flying). */
@@ -44,7 +44,7 @@ export function wireSquadShots(d: SquadShotDeps): () => void {
       rate: 1 + (random() * 2 - 1) * RATE_JITTER,
     });
     d.body(shot.id)?.kickSlide();
-    d.light?.fire(muzzle, shot.forward);
+    d.light?.fire(muzzle, shot.forward, shot.boost);
     // The gun's horizontal right and forward (right = forward x up, so forward = (right.z, -right.x)).
     const len = Math.hypot(right.x, right.z) || 1;
     const rx = right.x / len;

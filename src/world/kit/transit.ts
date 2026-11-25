@@ -148,13 +148,13 @@ function trainShell(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
   const headY = 2.28;
   const doorHalf = 1.05;
   const doorH = 2.34;
-  // Car-only copies of the cabin surfaces with a faint cold emissive fill, so a dim cabin still shows its far end
-  // (design Decision 11). The shared palette materials stay untouched.
+  // Car-only copies of the cabin surfaces with a very faint warm emissive bounce, so deep shadows stay dark
+  // while the far bulkhead remains faintly readable. The shared palette materials stay untouched.
   const cabinFill = (src: THREE.Material): THREE.Material => {
     const c = src.clone();
     if (c instanceof THREE.MeshStandardMaterial) {
-      c.emissive = new THREE.Color(0x0b2a33);
-      c.emissiveIntensity = 0.38;
+      c.emissive = new THREE.Color(0x241508);
+      c.emissiveIntensity = 0.16;
     }
     return c;
   };
@@ -177,12 +177,52 @@ function trainShell(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
   for (let z = -hl + 1.4; z <= hl - 1.3; z += 2.2) {
     addMesh(slab(w - wallT * 2, 0.09, 0.12), trimMat, at(0, h - roofT - 0.045, z));
   }
-  const ceilingStripMat = fixtureMaterial(0xcfe6ee, 1.0);
+  const ceilingStripMat = fixtureMaterial(0xffcf94, 0.8);
   ceilingStripMat.name = 'cabin-ceiling-led';
   addMesh(slab(0.28, 0.024, len - 0.9), ceilingStripMat, at(0, h - roofT - 0.014, 0));
   addMesh(slab(0.38, 0.018, len - 0.8), trimMat, at(0, h - roofT - 0.006, 0));
   pb.light([0, h - roofT - 0.16 + lift, -hl * 0.38], 'ceiling', 0);
   pb.light([0, h - roofT - 0.16 + lift, hl * 0.38], 'ceiling', 0);
+
+  // Optional downward exterior auxiliary lights on the boarding (+X) eave (claimed by R16a to illuminate platform blood pools).
+  const auxLightLensMats: THREE.MeshStandardMaterial[] = [];
+  const auxLightPools: THREE.Mesh[] = [];
+  let auxLightsOn = false;
+  const applyAuxLights = (): void => {
+    for (const lm of auxLightLensMats) lm.emissiveIntensity = auxLightsOn ? 3.2 : 0;
+    for (const pl of auxLightPools) pl.visible = auxLightsOn;
+  };
+  if (p['auxLights'] === true) {
+    for (const sz of [-1.55, 1.55]) {
+      const lx = doorSign * (hw + 0.06);
+      const ly = h - 0.16;
+      addMesh(slab(0.14, 0.1, 0.32), trimMat, at(lx, ly, sz));
+      const lensMat = fixtureMaterial(0xdce8f6, 0);
+      lensMat.name = 'train-aux-light-lens';
+      auxLightLensMats.push(lensMat);
+      addMesh(slab(0.08, 0.03, 0.24), lensMat, at(lx + doorSign * 0.02, ly - 0.055, sz));
+      pb.light([lx + doorSign * 0.15, ly - 0.08 + lift, sz], 'wall', doorSign > 0 ? Math.PI / 2 : -Math.PI / 2, undefined, {
+        aim: [doorSign * 0.55, -0.84, 0],
+      });
+      const auxPoolMat = poolMaterial('train-aux-light-pool', 0xdce8f6, 0.24);
+      const auxPool = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.6), auxPoolMat);
+      auxPool.name = 'train_aux_light_pool';
+      auxPool.rotation.x = -Math.PI / 2;
+      auxPool.position.set(doorSign * (hw + 1.55), 0.018, sz);
+      auxPool.frustumCulled = false;
+      auxPool.renderOrder = 2;
+      auxPool.visible = false;
+      auxLightPools.push(auxPool);
+      addDynamicLow(auxPool);
+    }
+    pb.on('transit:train_aux_lights', (payload) => {
+      if (!payload || typeof payload !== 'object') return;
+      const rec = payload as Record<string, unknown>;
+      if (typeof rec['carId'] === 'string' && rec['carId'] !== carId) return;
+      auxLightsOn = rec['on'] === true;
+      applyAuxLights();
+    });
+  }
 
   // Overhead dual brushed-steel grab rails, vertical stanchions, and hanging hand-straps.
   for (const sx of [-1, 1]) {
@@ -442,6 +482,8 @@ function trainShell(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
     clearAhead = 8;
     headlightLevel = 0;
     applyHeadlights();
+    auxLightsOn = false;
+    applyAuxLights();
   });
   pb.tick((_t, dt) => {
     const target = doorTargetOpen ? 1 : 0;
@@ -514,12 +556,49 @@ function trainShell(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
     const commsHandset = new THREE.Mesh(rounded(0.1, 0.16, 0.035, 0.008), pal.pipeAccent);
     commsHandset.position.set(0.15, 1.24, rearFaceZ - 0.106);
     commsGroup.add(commsHandset);
-    const commsLedMat = fixtureMaterial(0x38e8b8, 2.0);
+    const commsLedMat = fixtureMaterial(0x38e8b8, 0.6);
     commsLedMat.name = 'train-comms-led';
     const commsLed = new THREE.Mesh(slab(0.03, 0.018, 0.015), commsLedMat);
     commsLed.position.set(0.24, 1.59, rearFaceZ - 0.1);
     commsGroup.add(commsLed);
     addDynamic(commsGroup);
+
+    type CommsState = 'idle' | 'ringing' | 'active' | 'lost';
+    let commsState: CommsState = 'idle';
+    const applyCommsLed = (t: number): void => {
+      if (commsState === 'ringing') {
+        commsLedMat.color.setHex(0xf0a020);
+        commsLedMat.emissive.setHex(0xf0a020);
+        commsLedMat.emissiveIntensity = flashingState.reduced ? 2.2 : 0.6 + 2.0 * (0.5 + 0.5 * Math.sin(t * 9));
+      } else if (commsState === 'active') {
+        commsLedMat.color.setHex(0x28f0a8);
+        commsLedMat.emissive.setHex(0x28f0a8);
+        commsLedMat.emissiveIntensity = 2.4;
+      } else if (commsState === 'lost') {
+        commsLedMat.color.setHex(0xd83028);
+        commsLedMat.emissive.setHex(0xd83028);
+        commsLedMat.emissiveIntensity = 1.2;
+      } else {
+        commsLedMat.color.setHex(0x38e8b8);
+        commsLedMat.emissive.setHex(0x38e8b8);
+        commsLedMat.emissiveIntensity = 0.6;
+      }
+    };
+    pb.on('transit:comms_state', (payload) => {
+      const rec = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+      const next = rec['state'];
+      if (next === 'idle' || next === 'ringing' || next === 'active' || next === 'lost') {
+        commsState = next;
+        applyCommsLed(0);
+      }
+    });
+    pb.on('level:reset', () => {
+      commsState = 'idle';
+      applyCommsLed(0);
+    });
+    pb.tick((t) => {
+      if (commsState === 'ringing') applyCommsLed(t);
+    });
   }
 
   // Transit infographic / info sign on the solid windowless door-pocket wall (north-west end at rot=180).
@@ -1507,14 +1586,33 @@ function transitTunnelShroud(p: PieceParams, _rng: Rng, m: Materials): PieceOutp
   roofLight.name = 'shroud-roof-light';
   const guideLight = fixtureMaterial(0x38e8d8, 2.0);
   guideLight.name = 'shroud-guide-light';
+  const wallMat = hallWall(pal);
   const ribs: number[] = [];
   for (let z = -len / 2 + 1.5; z <= len / 2 - 1.0; z += 3.0) ribs.push(z);
-  buildBore({ mesh: (g, mat, mx) => void pb.add(g, mat, mx) }, { len, ribs, roofLight, guideLight, wallMat: hallWall(pal), ceilingMat: pal.ceiling });
+  buildBore({ mesh: (g, mat, mx) => void pb.add(g, mat, mx) }, { len, ribs, roofLight, guideLight, wallMat, ceilingMat: pal.ceiling });
   pb.solid(-1.6, -0.04, -len / 2, 1.6, 0.02, len / 2, 'metal');
   // The open end (away from the blast gate) fades to black: 'south' (R15a's shroud), 'north' (R16a's) or 'both'.
   const fogEnd = strParam(p, 'fog', 'none');
   if (fogEnd === 'south' || fogEnd === 'both') pb.dynamic(hallFog(len / 2 - 0.05, 1, 1.0));
   if (fogEnd === 'north' || fogEnd === 'both') pb.dynamic(hallFog(-len / 2 + 0.05, -1, 1.0));
+  const applyTunnelPower = (emergency: boolean): void => {
+    roofLight.color.setHex(emergency ? 0xc81818 : 0x9fe8ff);
+    roofLight.emissive.setHex(emergency ? 0xc81818 : 0x9fe8ff);
+    roofLight.emissiveIntensity = emergency ? 0.85 : 2.4;
+    guideLight.color.setHex(emergency ? 0xb01414 : 0x38e8d8);
+    guideLight.emissive.setHex(emergency ? 0xb01414 : 0x38e8d8);
+    guideLight.emissiveIntensity = emergency ? 0.75 : 2.0;
+    if (wallMat instanceof THREE.MeshStandardMaterial) {
+      wallMat.emissive.setHex(emergency ? 0x240404 : 0x0b2a33);
+      wallMat.emissiveIntensity = emergency ? 0.35 : 0.5;
+    }
+  };
+  pb.on('transit:tunnel_power', (payload) => {
+    if (!payload || typeof payload !== 'object') return;
+    const mode = (payload as Record<string, unknown>)['mode'];
+    if (mode === 'emergency' || mode === 'normal') applyTunnelPower(mode === 'emergency');
+  });
+  pb.on('level:reset', () => applyTunnelPower(false));
   return pb.build();
 }
 
@@ -1656,9 +1754,46 @@ function transitSeaTunnelRig(p: PieceParams, _rng: Rng, m: Materials): PieceOutp
     });
   }
 
+  // Four dynamic passing rib lights (2 west, 2 east, staggered by 3 m = 1 rib) that ride past the car windows in
+  // lockstep with the scrolling ribs and aim inward through the glass so mullions and walls cast sweeping shadows.
+  const passSpan = 12.0; // 4 rib intervals of 3 m, wrapping smoothly past both ends of the 9 m car
+  const passHalf = passSpan / 2;
+  const passAnchors: Array<{ obj: THREE.Object3D; phase: number }> = [];
+  for (let i = 0; i < 4; i++) {
+    const sx = i % 2 === 0 ? -1 : 1;
+    const phase = 1.5 + i * 3.0; // aligns with buildBore ribs at ..., -4.5, -1.5, +1.5, +4.5, ...
+    const anchor = new THREE.Object3D();
+    anchor.name = `sea_tunnel_pass_light_${i}`;
+    anchor.position.set(sx * 1.82, 2.05, 0);
+    rigRoot.add(anchor);
+    passAnchors.push({ obj: anchor, phase });
+    pb.light([sx * 1.82, 2.05, 0], 'wall', sx > 0 ? Math.PI / 2 : -Math.PI / 2, undefined, {
+      aim: [-sx * 0.96, -0.28, 0],
+      follow: anchor,
+    });
+  }
+
   let active = p['autoScroll'] === true;
   let speed = numParam(p, 'speed', 20);
   let scrollOffset = 0;
+  let emergencyPower = false;
+
+  const applyEmergencyPower = (): void => {
+    for (const r of rings) {
+      const roof = r.lights[0]!;
+      const guide = r.lights[1]!;
+      roof.mat.color.setHex(emergencyPower ? 0xc81818 : 0x9fe8ff);
+      roof.mat.emissive.setHex(emergencyPower ? 0xc81818 : 0x9fe8ff);
+      roof.base = emergencyPower ? 0.85 : 2.4;
+      guide.mat.color.setHex(emergencyPower ? 0xb01414 : 0x38e8d8);
+      guide.mat.emissive.setHex(emergencyPower ? 0xb01414 : 0x38e8d8);
+      guide.base = emergencyPower ? 0.75 : 2.0;
+    }
+    if (wallMat instanceof THREE.MeshStandardMaterial) {
+      wallMat.emissive.setHex(emergencyPower ? 0x240404 : 0x0b2a33);
+      wallMat.emissiveIntensity = emergencyPower ? 0.35 : 0.5;
+    }
+  };
 
   const updatePositions = (): void => {
     for (let i = 0; i < segCount; i++) {
@@ -1668,6 +1803,10 @@ function transitSeaTunnelRig(p: PieceParams, _rng: Rng, m: Materials): PieceOutp
       // Lit strips fade into the dark at the far ends, hiding the wrap-around.
       const fade = Math.max(0, Math.min(1, 1 - Math.max(0, Math.abs(z) - (halfSpan - 10)) / 10));
       for (const l of r.lights) l.mat.emissiveIntensity = l.base * fade;
+    }
+    for (const pa of passAnchors) {
+      const m = ((pa.phase - scrollOffset) % passSpan + passSpan) % passSpan;
+      pa.obj.position.z = m - passHalf;
     }
   };
   updatePositions();
@@ -1692,10 +1831,21 @@ function transitSeaTunnelRig(p: PieceParams, _rng: Rng, m: Materials): PieceOutp
     }
     placeGate();
   });
+  pb.on('transit:tunnel_power', (payload) => {
+    if (!payload || typeof payload !== 'object') return;
+    const mode = (payload as Record<string, unknown>)['mode'];
+    if (mode === 'emergency' || mode === 'normal') {
+      emergencyPower = mode === 'emergency';
+      applyEmergencyPower();
+      updatePositions();
+    }
+  });
   pb.on('level:reset', () => {
     active = p['autoScroll'] === true;
     speed = numParam(p, 'speed', 20);
     scrollOffset = 0;
+    emergencyPower = false;
+    applyEmergencyPower();
     gateArmed = false;
     gateExplicit = false;
     gateWallZ = RIG_GATE_START_Z;

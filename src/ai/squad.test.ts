@@ -640,7 +640,7 @@ function shootingRange() {
   return { ...s, shots, enemy };
 }
 
-type Fired = { hit: boolean; muzzle: { x: number; y: number; z: number }; ejectPort: { x: number; y: number; z: number }; right: { x: number; y: number; z: number }; fromPistol: boolean };
+type Fired = { hit: boolean; muzzle: { x: number; y: number; z: number }; ejectPort: { x: number; y: number; z: number }; right: { x: number; y: number; z: number }; fromPistol: boolean; boost?: number };
 const firedOf = (events: Array<{ name: string; payload: unknown }>): Fired[] => events.filter((e) => e.name === 'squad:fired').map((e) => e.payload as Fired);
 
 test('squad shot without a pistol showing: from 1.4 m above the mate, as before (fallback)', () => {
@@ -724,4 +724,31 @@ test('squadmates lower their pistols to idle_pistol out of combat when gunDrawn 
   for (let i = 0; i < 40; i++) squad.update(1 / 60, null);
   assert.ok(m.body.idlePose === 'idle_pistol' || m.body.idlePose === 'giles_idle_pistol', 'out of combat: mate lowers to idle_pistol');
   assert.ok(m.body.pistol, 'pistol stays in hand at idle_pistol');
+});
+
+test('squad weapon-mounted flashlights toggle via setFlashlight and scriptedFire emits boosted shots even while scripted', () => {
+  const { squad, events } = setup();
+  for (const m of squad.mates) {
+    assert.equal(m.flashlightOn, false, 'weapon flashlight starts off');
+    assert.equal(m.weaponLight.intensity, 0, 'pre-allocated spotlight starts at 0 intensity');
+    m.scripted = true;
+  }
+
+  squad.setFlashlight(['giles', 'okafor'], true);
+  for (const m of squad.mates) {
+    assert.equal(m.flashlightOn, true, 'weapon flashlight turns on');
+    assert.ok(m.weaponLight.intensity > 0, 'pre-allocated spotlight lights up');
+  }
+
+  squad.scriptedFire({ ids: ['giles', 'okafor'], target: { x: -10, y: 1.4, z: 0 }, bursts: 2, interval: 0.2, boost: 3.5 });
+  for (let i = 0; i < 40; i++) squad.update(1 / 30, null);
+  const fired = firedOf(events);
+  assert.equal(fired.length, 4, 'two bursts per mate emitted while scripted');
+  assert.ok(fired.every((f) => f.boost === 3.5), 'boosted muzzle flash flag forwarded on scripted shots');
+
+  squad.setFlashlight(undefined, false);
+  for (const m of squad.mates) {
+    assert.equal(m.flashlightOn, false, 'weapon flashlight turns off');
+    assert.equal(m.weaponLight.intensity, 0, 'spotlight returns to 0 intensity');
+  }
 });

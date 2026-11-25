@@ -410,9 +410,16 @@ export class EnemyDirector implements EnemyHost {
    * The player fired (`weapon:fired`): hitscan against the level and enemy bodies (ADR-0005), a
    * shotgun blast of 3+ pellets knocks a body back, and the shot is heard 25 m away.
    */
-  playerShot(weapon: 'pistol' | 'shotgun', origin: THREE.Vector3, view: THREE.Vector3, aimBlend: number, random: () => number = Math.random): ShotReport {
+  playerShot(
+    weapon: 'pistol' | 'shotgun',
+    origin: THREE.Vector3,
+    view: THREE.Vector3,
+    aimBlend: number,
+    random: () => number = Math.random,
+    spreadRad?: number,
+  ): ShotReport {
     const spec = WEAPON_HITS[weapon];
-    const report = fireShot(spec, origin, view, aimBlend, this.colliders, this, random, 'player');
+    const report = fireShot(spec, origin, view, aimBlend, this.colliders, this, random, 'player', spreadRad);
     for (const [body, pellets] of report.perBody) {
       if (pellets < spec.staggerPellets) continue;
       const e = this.list.find((x) => x.body === body);

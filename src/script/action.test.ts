@@ -56,7 +56,7 @@ function walk(steps: Step[], visit: (s: Record<string, unknown>) => void): void 
 // ------------------------------------------------------------------------------- data checks
 
 test('the action sequences name only things that exist: lines, sounds, anchors, NPCs, doors, rooms, objectives, groups', () => {
-  assert.equal(actionDefs.length, 13);
+  assert.equal(actionDefs.length, 16);
   // `researcher_b_creature`: what grows out of Voss in the drop's kill (infection-kills spec), escapes through Lab B's ceiling vent at the end of the drop (trim-lab-wing-encounters).
   const npcSet = new Set([...npcIds, 'giles', 'okafor', 'r08_thing', 'researcher_b_creature', 'r09_flood_shambler']);
   for (const def of actionDefs) {
@@ -104,7 +104,7 @@ test('the checkpoint ladder: data checkpoints on room entry plus one sequence ch
   for (const id of ['cp_first_contact', 'cp_cover_me', 'cp_security', 'cp_flooded', 'cp_climax']) assert.ok(ids.has(id), id);
   const taken: string[] = [];
   for (const def of actionDefs) walk(def.steps, (s) => s['do'] === 'checkpoint' && taken.push(String(s['id'])));
-  assert.deepEqual(taken, ['cp_contact_clear', 'cp_cover_done', 'cp_security_done', 'cp_valve', 'cp_r11_powered']);
+  assert.deepEqual(taken, ['cp_contact_clear', 'cp_cover_done', 'cp_security_done', 'cp_valve', 'cp_r11_powered', 'cp_r16_arrived']);
 });
 
 test('slice01 level numbers: 0 + 1 + 0 enemies (R11 Power Bay has no combat spawns)', () => {
@@ -416,14 +416,14 @@ test('R05 first contact (trim-lab-wing-encounters): no fight; the creature passe
   assert.equal(g.log.some((e) => e.startsWith('group ')), false, 'no enemy in R05');
   assert.equal(at(g, 'door D_R04_R05 open'), -1, 'the Lab B door stays sealed');
   for (const l of ['contact_giles_01', 'contact_okafor_01', 'contact_okafor_02', 'contact_okafor_03']) assert.equal(said(g, l), 0, `${l} is not in R05`);
-  // The bangs walk along the ducts toward R06; Okafor's revive rule as they start.
+  // The bangs walk along the ducts toward R06.
   const bangs = g.log.filter((e) => e === 'sfx ductBang' || e === 'sfx ductScrape');
   assert.ok(bangs.length >= 5, `${bangs.length} duct sounds`);
-  inOrder(g, ['sfx ductBang', ...lines('okafor_revive_rule_01'), 'sfx ductScrape']);
+  inOrder(g, ['sfx ductBang', 'sfx ductScrape']);
   // station-power spec: the blackout follows the last bang, then the door closes and the checkpoint saves on backup power.
   const lastBang = g.log.lastIndexOf('sfx ductBang');
   assert.ok(lastBang < at(g, 'say blackout_radio_ops_01 overlap'));
-  inOrder(g, [...['blackout_radio_ops_01', 'blackout_radio_dock_01', 'blackout_radio_hydro_01', 'blackout_radio_launch_01', 'blackout_radio_ops_02'].map((l) => `say ${l} overlap`), 'say blackout_okafor_01', 'say blackout_pa_power_01 overlap', 'sfx powerDown', 'power backup', 'door D_R05_R06 closed', 'checkpoint cp_contact_clear']);
+  inOrder(g, [...['blackout_radio_ops_01', 'blackout_radio_dock_01', 'blackout_radio_launch_01', 'blackout_radio_ops_02'].map((l) => `say ${l} overlap`), 'say blackout_pa_power_01 overlap', 'sfx powerDown', 'power backup', 'door D_R05_R06 closed', 'checkpoint cp_contact_clear']);
   assert.equal(g.host.flags['contact_done'], true);
   assert.equal(count(g, 'checkpoint cp_contact_clear'), 1);
   assert.equal(g.host.flags['station_power'], 'backup');
@@ -1206,14 +1206,26 @@ async function playThrough(g: Game, events: string[]): Promise<void> {
   fire(g, 'trigger:r11_enter');
   await settle('r11_powered');
   await until(g, () => !g.m.isRunning('r11_power_bay'));
+  await until(g, () => !g.m.isRunning('r13d_transit_walk'));
+  // r13d_transit_walk opens the train door, walks Jay in on cutscene rails, releases control, and emits trigger:r15a_boarded.
+  await until(g, () => g.host.flags['r15a_boarded'] === true);
+  g.host.events.emit('transit:stage:pullout' as never, { stage: 'pullout' } as never);
+  await until(g, () => g.log.includes('sfx trainPullout'));
+  g.host.events.emit('transit:stage:sea_tunnel' as never, { stage: 'sea_tunnel' } as never);
+  await until(g, () => said(g, 'r15a_heins_04') >= 1);
+  g.host.events.emit('transit:stage:arrival' as never, { stage: 'arrival' } as never);
+  await until(g, () => said(g, 'r15a_okafor_03') >= 1);
+  g.host.events.emit('transit:stage:arrived' as never, { stage: 'arrived' } as never);
+  await settle('transit_ride_done');
+  await until(g, () => !g.m.isRunning('r15a_train_ride'));
 }
 
-test('the whole action half runs from drop:done through R11 Power Bay with every checkpoint, in order, no warnings, no Giles infection tells', async () => {
+test('the whole action half runs from drop:done through R16a arrival with every checkpoint, in order, no warnings, no Giles infection tells', async () => {
   const g = makeGame();
   const events: string[] = [];
   await playThrough(g, events);
   const cps = g.log.filter((e) => e.startsWith('checkpoint ')).map((e) => e.slice(11));
-  assert.deepEqual(cps, ['cp_contact_clear', 'cp_cover_done', 'cp_security_done', 'cp_valve', 'cp_r11_powered']);
+  assert.deepEqual(cps, ['cp_contact_clear', 'cp_cover_done', 'cp_security_done', 'cp_valve', 'cp_r11_powered', 'cp_r16_arrived']);
   assert.equal(g.host.flags['giles.infectionStage'], undefined);
   assert.equal(g.control.state.move, 'free');
   assert.equal(g.control.state.weapons, true);
@@ -1230,7 +1242,7 @@ test('every dialogue line of the action half is played at least once on the way 
   const used = new Set<string>();
   for (const def of actionDefs) walk(def.steps, (s) => s['do'] === 'say' && (Array.isArray(s['line']) ? [] : [String(s['line'])]).forEach((l) => used.add(l)));
   for (const l of used) assert.ok(said(g, l) >= 1, `${l} was said`);
-  for (const l of ['contact_okafor_03', 'okafor_revive_rule_01', 'r11_giles_03']) assert.ok(used.has(l), l);
+  for (const l of ['contact_okafor_03', 'blackout_radio_ops_01', 'r11_giles_03']) assert.ok(used.has(l), l);
 });
 
 // ------------------------------------------------------------------------------- loads and restarts
@@ -1280,7 +1292,7 @@ test('checkpoint-restore "Resume after a pause": returning from pause mid-scene 
 
 test('station-power "Panicked radio chatter": the calls come one after another, each letting the next start about 1 s before it ends', () => {
   const steps = byId.get('contact')!.steps as Array<Record<string, unknown>>;
-  const calls = ['blackout_radio_ops_01', 'blackout_radio_dock_01', 'blackout_radio_hydro_01', 'blackout_radio_launch_01'];
+  const calls = ['blackout_radio_ops_01', 'blackout_radio_dock_01', 'blackout_radio_launch_01'];
   for (const line of calls) {
     const i = steps.findIndex((s) => s['line'] === line);
     assert.ok(i >= 0 && steps[i]!['overlap'] === true && steps[i]!['wait'] === false, line);
@@ -1563,5 +1575,70 @@ test('detail-r11-power-bay: r11_power_cascade staggers Banks 1 -> 2 -> 3, flips 
   assert.ok(r.log.includes('namedLight r11_bank_3b steady power=1'));
   assert.ok(r.log.includes('namedLight r11_beacon_sw off power=0'));
   assert.deepEqual(restoredStates, [{ state: 'online', instant: true }]);
+  noWarnings(r);
+});
+
+test('r15a-train-ride-narrative: R13d walk-and-talk, R15a boarding, 3-stage Heins radio ride, and R16a arrival handoff', async () => {
+  const g = makeGame(['r13d_transit_walk', 'r15a_boarding', 'r15a_train_ride', 'action_restore']);
+  setFlags(g, { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, r11_powered: true });
+  const commsStates: string[] = [];
+  let startRidePayload: Record<string, unknown> | null = null;
+  let arrivedR16 = false;
+  g.host.events.on('transit:comms_state' as never, (p: unknown) => void commsStates.push((p as { state: string }).state));
+  g.host.events.on('transit:start_ride' as never, (p: unknown) => void (startRidePayload = p as Record<string, unknown>));
+  g.host.events.on('transit:arrived_r16' as never, () => void (arrivedR16 = true));
+
+  // R13d walk-and-talk banter fires after R11 finishes, keeping player free-roam:
+  // Train Car A door starts closed, Giles works the R15a platform console during the banter, then releases the door and both board on the same lane.
+  const doorOpens: Array<{ carId: string; open: boolean }> = [];
+  g.host.events.on('transit:train_door' as never, (p: unknown) => void doorOpens.push(p as { carId: string; open: boolean }));
+  g.host.events.emit('r11:walk_to_train' as never, {} as never);
+  // Entering R15a mid-walk must NOT start a second overlapping r15a_boarding lane.
+  g.host.events.emit('trigger:r15a_enter' as never, {} as never);
+  assert.equal(g.m.isRunning('r15a_boarding'), false, 'r15a_boarding does not overlap r13d_transit_walk');
+  await until(g, () => !g.m.isRunning('r13d_transit_walk'));
+  for (const id of ['r13d_okafor_01', 'r13d_giles_01', 'r13d_jay_01', 'r13d_giles_02', 'r13d_okafor_02', 'r15a_giles_01', 'r15a_okafor_01']) {
+    assert.ok(said(g, id) >= 1, `single-lane walk/boarding line ${id} played`);
+  }
+  assert.ok(g.log.some((e) => e.includes('door D_R13d_R15a open')), 'D_R13d_R15a opens as squad approaches');
+  assert.ok(doorOpens.some((d) => d.carId === 'r15a_train' && d.open === false), 'Car A door starts closed until Giles releases it');
+  assert.ok(doorOpens.some((d) => d.carId === 'r15a_train' && d.open === true), 'Giles opens Car A door after platform console work');
+  assert.ok(g.log.includes('npc npcAnim giles typing'), 'Giles works the R15a platform console');
+  assert.ok(g.log.includes('npc npcMoveTo giles'), 'Giles moves into Train Car A');
+  assert.ok(g.log.includes('npc npcMoveTo okafor'), 'Okafor moves into Train Car A');
+
+  // Boarding Train Car A launches the 3-stage ride with extended Stage 2 tunnelSeconds.
+  g.host.events.emit('trigger:r15a_boarded' as never, {} as never);
+  await until(g, () => g.host.flags['r15a_boarded'] === true);
+  assert.ok(startRidePayload && typeof startRidePayload['tunnelSeconds'] === 'number' && (startRidePayload['tunnelSeconds'] as number) >= 30, 'transit:start_ride extends Stage 2 tunnelSeconds');
+  assert.ok(g.log.some((e) => e.includes('door D_R13d_R15a locked')), 'D_R13d_R15a locks once boarded');
+
+  // Drive stage transitions and verify Heins radio exchange + comms LED state + R16a arrival handoff.
+  g.host.events.emit('transit:stage:pullout' as never, { stage: 'pullout' } as never);
+  await until(g, () => g.log.includes('sfx trainPullout'));
+  g.host.events.emit('transit:stage:sea_tunnel' as never, { stage: 'sea_tunnel' } as never);
+  await until(g, () => commsStates.includes('lost'));
+  for (const id of ['r15a_giles_03', 'r15a_heins_01', 'r15a_jay_01', 'r15a_heins_02', 'r15a_okafor_02', 'r15a_heins_03', 'r15a_jay_02', 'r15a_heins_04']) {
+    assert.ok(said(g, id) >= 1, `Stage 2 radio line ${id} played`);
+  }
+  assert.deepEqual(commsStates, ['ringing', 'active', 'lost'], 'rear-bulkhead comms LED transitions ringing -> active -> lost');
+
+  g.host.events.emit('transit:stage:arrival' as never, { stage: 'arrival' } as never);
+  await until(g, () => said(g, 'r15a_okafor_03') >= 1);
+  assert.ok(said(g, 'r15a_giles_04') >= 1 && said(g, 'r15a_okafor_03') >= 1, 'Stage 3 docking lines play');
+
+  g.host.events.emit('transit:stage:arrived' as never, { stage: 'arrived' } as never);
+  await until(g, () => !g.m.isRunning('r15a_train_ride'));
+  assert.equal(g.host.flags['transit_ride_done'], true);
+  assert.equal(arrivedR16, true, 'transit:arrived_r16 emitted for Part 3 handoff');
+  noWarnings(g);
+
+  // Restore with transit_ride_done seals r16a_north, keeps r16a_train door closed, and sets comms lost.
+  const r = makeGame(['action_restore']);
+  setFlags(r, { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, r11_powered: true, transit_ride_done: true });
+  const rComms: string[] = [];
+  r.host.events.on('transit:comms_state' as never, (p: unknown) => void rComms.push((p as { state: string }).state));
+  r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
+  assert.deepEqual(rComms, ['lost']);
   noWarnings(r);
 });

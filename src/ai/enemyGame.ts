@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
+import type { WeaponAccuracy } from '../actors/accuracy.ts';
 import type { HumanoidContext } from '../actors/humanoid.ts';
 import type { Player } from '../actors/player.ts';
 import type { AudioEngine } from '../audio/engine.ts';
@@ -39,6 +40,8 @@ export interface EnemyGameDeps {
   spawns?: SpawnPointData[];
   /** Squadmates (ADR-0011) as hunt targets and obstacles. */
   squad?: { mates: ReadonlyArray<{ id: string; position: THREE.Vector3 }> } | null;
+  /** Dynamic player weapon accuracy state (weapon-accuracy spec). */
+  accuracy?: WeaponAccuracy;
   search?: string;
 }
 
@@ -100,7 +103,9 @@ export function setupEnemies(d: EnemyGameDeps): EnemyGame {
   ev.on('weapon:fired', ({ weapon }) => {
     d.camera.getWorldPosition(tmp);
     d.camera.getWorldDirection(view);
-    const { wall } = director.playerShot(weapon, tmp, view, d.player.aimBlend);
+    const spreadRad = d.accuracy?.spreadRad;
+    const { wall } = director.playerShot(weapon, tmp, view, d.player.aimBlend, Math.random, spreadRad);
+    d.accuracy?.onShot(weapon);
     if (wall) ev.emit('weapon:impact', { weapon, x: wall.x, y: wall.y, z: wall.z, dx: view.x, dy: view.y, dz: view.z });
   });
   ev.on('player:footstep', (f) => director.noise(f.sprint ? 'sprint' : 'footstep', f, 'player'));

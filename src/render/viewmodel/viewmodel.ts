@@ -108,11 +108,10 @@ const SPECS: Record<WeaponId, Spec> = {
     mag: 12,
     startReserve: 36,
     interval: 0.24,
-    // The Shoot clip moves the gun a few millimetres (the old Fire clip threw it a third of a metre), so these springs carry the recoil:
-    // about 4 cm back and 3 degrees of muzzle lift (raised by half after the first playtest). Still to be tuned.
-    recoilZ: 1.1,
-    recoilRx: 15,
-    kick: 0.9,
+    // The Shoot clip moves the gun a few millimetres (the old Fire clip threw it a third of a metre), so these springs carry the recoil.
+    recoilZ: 1.6,
+    recoilRx: 24,
+    kick: 1.4,
     poses: {
       hip: { p: [0.012, -0.095, -0.126], r: [0, 0, 0] },
       aim: { p: [-0.004, -0.061, -0.126], r: [0, 0, 0] },
@@ -121,18 +120,17 @@ const SPECS: Record<WeaponId, Spec> = {
     },
   },
   shotgun: {
-    feel: { swayPos: -1.2, swayRot: 1.2, weight: 0.5, idle: 1, bob: 1.3, strafe: 0.6, twist: 2, soft: true },
+    feel: { swayPos: -1.2, swayRot: 1.2, weight: 0.5, idle: 1, bob: 1.3, strafe: 0.6, twist: 3, soft: true },
     mag: 6,
     startReserve: 18,
     // Shoot is the recoil and then the pump; the next shot waits for the pump to be home.
     interval: CUES.shotgun.ready,
-    // About 6 cm back and 4.5 degrees of lift (see the pistol's note).
-    recoilZ: 1.6,
-    recoilRx: 24,
-    kick: 2.4,
+    recoilZ: 2.1,
+    recoilRx: 38,
+    kick: 3.6,
     poses: {
-      hip: { p: [0.019, -0.064, -0.112], r: [0, 0, 0] },
-      aim: { p: [-0.036, -0.055, -0.115], r: [0, 0, 0] },
+      hip: { p: [0.019, -0.076, -0.025], r: [0, 0, 0] },
+      aim: { p: [-0.036, -0.055, -0.05], r: [0, 0, 0] },
       sprint: { p: [0.07, -0.1, -0.06], r: [-0.3, 0.55, -0.2] },
       lowered: { p: [0.029, -0.45, -0.06], r: [-0.9, 0.3, 0] },
     },
@@ -340,6 +338,11 @@ export class Viewmodel {
 
   get weapon(): WeaponId {
     return this.current;
+  }
+
+  /** True while a pistol or shotgun reload animation is in progress. */
+  get reloading(): boolean {
+    return this.reload !== null;
   }
 
   /** Is this weapon carried? (switching skips the others) */

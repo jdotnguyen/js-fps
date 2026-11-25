@@ -68,7 +68,7 @@ export interface SquadEvents {
    * One squad shot (squad-sidearms D4): `muzzle` (the hit origin), `ejectPort`, the gun's `right` and the bore's `forward` (world), read from the mate's
    * held pistol; `fromPistol` false when the body had no pistol showing, and the points fall back to 1.4 m above the mate.
    */
-  'squad:fired': { id: SquadId; enemy: string; hit: boolean; killed: boolean; muzzle: Vec3; ejectPort: Vec3; right: Vec3; forward: Vec3; fromPistol: boolean };
+  'squad:fired': { id: SquadId; enemy: string; hit: boolean; killed: boolean; muzzle: Vec3; ejectPort: Vec3; right: Vec3; forward: Vec3; fromPistol: boolean; boost?: number };
   'squad:infectionStage': { stage: number };
   /** A tell played (cough, rub_forearm, flex_hand), for audio and barks. */
   'squad:tell': { id: SquadId; tell: string };
@@ -176,6 +176,12 @@ export class SquadMate {
   scripted = false;
   /** Held in place on a moving train (transit ride): no follow, give-way, catch-up or regroup; only Jay's body can shove them. */
   rideLocked = false;
+  /** Pre-allocated weapon-mounted dynamic flashlight (zero scene light count change). */
+  flashlightOn = false;
+  readonly weaponLight: THREE.SpotLight;
+  private readonly weaponLightTarget: THREE.Object3D;
+  private readonly weaponBeam: THREE.Mesh;
+  private scriptedBurst: { target: THREE.Vector3; remaining: number; interval: number; t: number; boost: number } | null = null;
   hp: number = REVIVE.maxHp;
   /** Seconds left lying down. */
   downedT = 0;
@@ -237,6 +243,98 @@ export class SquadMate {
     this.rng = new Rng(`squad:${role.id}`);
     this.idleRng = new Rng(`squad-idle:${role.id}`);
     this.ambientT = this.idleRng.range(3, 8);
+    // Pre-allocated weapon-mounted spotlight + subtle volumetric cone (off by default, fixed light budget).
+    this.weaponLight = new THREE.SpotLight(0xdcecff, 0, 24, Math.PI / 6.2, 0.55, 1.4);
+    this.weaponLight.name = `squad_weapon_light_${role.id}`;
+    this.weaponLight.castShadow = false;
+    this.weaponLightTarget = new THREE.Object3D();
+    this.weaponLightTarget.name = `squad_weapon_light_target_${role.id}`;
+    this.weaponLight.target = this.weaponLightTarget;
+    this.body.group.add(this.weaponLight);
+    this.body.group.add(this.weaponLightTarget);
+    const beamLen = 7.5;
+    const beamGeo = new THREE.CylinderGeometry(0.05, 0.95, beamLen, 14, 1, true);
+    beamGeo.translate(0, -beamLen / 2, 0);
+    beamGeo.rotateX(Math.PI / 2); // apex at origin, flares along -Z (local forward)
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0xdcecff,
+      transparent: true,
+      opacity: 0.09,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      fog: false,
+    });
+    beamMat.name = 'squad-weapon-flashlight-beam';
+    this.weaponBeam = new THREE.Mesh(beamGeo, beamMat);
+    this.weaponBeam.name = `squad_flashlight_beam_${role.id}`;
+    this.weaponBeam.visible = false;
+    this.weaponBeam.frustumCulled = false;
+    this.weaponBeam.renderOrder = 4;
+    this.body.group.add(this.weaponBeam);
+  }
+
+  /** Toggle the pre-allocated weapon-mounted dynamic flashlight. */
+  setFlashlight(on: boolean): void {
+    this.flashlightOn = on;
+    this.weaponLight.intensity = on ? 42 : 0;
+    this.weaponBeam.visible = on;
+    if (on) this.updateWeaponFlashlight();
+  }
+
+  /** Keep the weapon flashlight positioned at the muzzle/hand and aimed along the gun bore (or heading). */
+  updateWeaponFlashlight(): void {
+    if (!this.flashlightOn) {
+      this.weaponLight.intensity = 0;
+      this.weaponBeam.visible = false;
+      return;
+    }
+    this.weaponLight.intensity = 42;
+    this.weaponBeam.visible = true;
+    const gun = shotPoints(this);
+    const inv = this.body.group.matrixWorld.clone().invert();
+    const localMuzzle = new THREE.Vector3(gun.muzzle.x, gun.muzzle.y, gun.muzzle.z).applyMatrix4(inv);
+    const worldTarget = new THREE.Vector3(
+      gun.muzzle.x + gun.forward.x * 8,
+      gun.muzzle.y + gun.forward.y * 8,
+      gun.muzzle.z + gun.forward.z * 8,
+    );
+    const localTarget = worldTarget.applyMatrix4(inv);
+    this.weaponLight.position.copy(localMuzzle);
+    this.weaponLightTarget.position.copy(localTarget);
+    this.weaponBeam.position.copy(localMuzzle);
+    this.weaponBeam.lookAt(worldTarget);
+  }
+
+  /** Queue timed scripted pistol bursts toward a world point (e.g. R16 surveillance finale). */
+  startScriptedFire(target: P3, bursts: number, interval: number, boost: number, delay: number): void {
+    const aim = this.aimPoint.set(target.x, target.y, target.z);
+    this.body.lookTarget = aim;
+    this.body.aimTarget = aim;
+    this.body.setPose('aim_pistol', 0.15);
+    const dx = target.x - this.position.x;
+    const dz = target.z - this.position.z;
+    if (Math.hypot(dx, dz) > 0.05) this.body.setHeading(Math.atan2(-dx, -dz));
+    this.scriptedBurst = { target: aim.clone(), remaining: Math.max(0, Math.round(bursts)), interval: Math.max(0.08, interval), t: Math.max(0, delay), boost };
+  }
+
+  /** Advance any active scripted pistol bursts (runs even while `scripted` is true). */
+  updateScriptedFire(dt: number, squad: Squad): void {
+    const b = this.scriptedBurst;
+    if (!b) return;
+    if (b.remaining <= 0) {
+      this.scriptedBurst = null;
+      return;
+    }
+    this.body.lookTarget = this.aimPoint.copy(b.target);
+    this.body.aimTarget = this.aimPoint;
+    b.t -= dt;
+    if (b.t <= 0) {
+      b.t += b.interval;
+      b.remaining--;
+      const gun = shotPoints(this);
+      squad.emit('squad:fired', { id: this.id, enemy: 'scripted', hit: false, killed: false, boost: b.boost, ...gun });
+    }
   }
 
   get downed(): boolean {
@@ -1364,7 +1462,33 @@ export class Squad {
     }
     for (const m of this.mates) {
       m.update(dt, this, this.player, cameraPos);
+      m.updateScriptedFire(dt, this);
+      m.updateWeaponFlashlight();
       this.catchUp(m);
+    }
+  }
+
+  /** Toggle weapon-mounted dynamic flashlights for the named squadmates (`giles`/`okafor` or `engineer`/`medic`). */
+  setFlashlight(ids: readonly string[] | undefined, on: boolean): void {
+    const targets = ids?.length ? ids : ['engineer', 'medic'];
+    for (const raw of targets) {
+      const sid: SquadId | null = raw === 'giles' || raw === 'engineer' ? 'engineer' : raw === 'okafor' || raw === 'medic' ? 'medic' : null;
+      if (sid) this.mate(sid).setFlashlight(on);
+    }
+  }
+
+  /** Fire timed scripted pistol bursts toward a world point with boosted CCTV-readable muzzle flashes. */
+  scriptedFire(opts: { ids?: readonly string[]; target: P3; bursts?: number; interval?: number; boost?: number }): void {
+    const targets = opts.ids?.length ? opts.ids : ['engineer', 'medic'];
+    const bursts = opts.bursts ?? 6;
+    const interval = opts.interval ?? 0.24;
+    const boost = opts.boost ?? 3.2;
+    let idx = 0;
+    for (const raw of targets) {
+      const sid: SquadId | null = raw === 'giles' || raw === 'engineer' ? 'engineer' : raw === 'okafor' || raw === 'medic' ? 'medic' : null;
+      if (!sid) continue;
+      this.mate(sid).startScriptedFire(opts.target, bursts, interval, boost, idx * (interval * 0.45));
+      idx++;
     }
   }
 
@@ -1390,7 +1514,11 @@ export class Squad {
 
   /** Dispose both squadmates' humanoid bodies and clear the group (session teardown). */
   dispose(): void {
-    for (const m of this.mates) m.body.dispose();
+    for (const m of this.mates) {
+      m.setFlashlight(false);
+      m.weaponLight.dispose();
+      m.body.dispose();
+    }
     this.group.clear();
   }
 }

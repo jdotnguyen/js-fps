@@ -75,20 +75,22 @@ const reach = new THREE.Sphere();
 const tmpCenter = new THREE.Vector3();
 
 /**
- * Bounding sphere of the region a downward cone lights: apex at the fixture, `range` long, `angleDeg`
- * half-angle. Used to ask whether the light's pool of light is in view, not just its fixture.
+ * Bounding sphere of the region a spot cone lights: apex at the fixture, `range` long, `angleDeg`
+ * half-angle, pointing along `aim` (or straight down when omitted). Used to ask whether the light's
+ * pool of light is in view, not just its fixture.
  */
-export function litSphere(position: THREE.Vector3, range: number, angleDeg: number, out: THREE.Sphere): THREE.Sphere {
+export function litSphere(position: THREE.Vector3, range: number, angleDeg: number, out: THREE.Sphere, aim?: THREE.Vector3): THREE.Sphere {
   const theta = THREE.MathUtils.degToRad(Math.min(89, Math.max(1, angleDeg)));
   const cos = Math.cos(theta);
   const sin = Math.sin(theta);
-  // Centre on the axis k·range below the apex: at the rim plane for wide cones, halfway for narrow ones.
+  // Centre on the axis k·range along the cone from the apex: at the rim plane for wide cones, halfway for narrow ones.
   const k = theta >= Math.PI / 4 ? cos : 0.5;
   const apex = k;
   const tip = 1 - k;
   const rim = Math.hypot(cos - k, sin);
   out.center.copy(position);
-  out.center.y -= k * range;
+  if (aim) out.center.addScaledVector(aim, k * range);
+  else out.center.y -= k * range;
   out.radius = range * Math.max(apex, tip, rim);
   return out;
 }
@@ -214,7 +216,7 @@ export class ShadowPool {
     for (const s of slots) {
       if (s.shadow !== true || s.pooled === false) continue;
       const angle = SHADOW_CONES[s.kind ?? 'ceiling'].angle;
-      const inView = frustum ? frustum.intersectsSphere(litSphere(s.position, s.range, angle, sphere)) : true;
+      const inView = frustum ? frustum.intersectsSphere(litSphere(s.position, s.range, angle, sphere, s.aim)) : true;
       s.score = (inView ? 0 : 2e8) + (s.priority >= 1 ? 0 : 1e8) + Math.min(s.position.distanceToSquared(camera), 9e7);
       s.item.light = null;
       c.push(s);
@@ -340,8 +342,10 @@ export class ShadowPool {
       const dy = p.y - l.position.y;
       const dz = p.z - l.position.z;
       const d = Math.hypot(dx, dy, dz);
-      if (dy >= 0 || d > l.distance || d === 0) continue;
-      if (-dy / d >= Math.cos(l.angle)) return true;
+      if (d > l.distance || d === 0) continue;
+      const aim = s.slot.aim;
+      const dot = aim ? (dx * aim.x + dy * aim.y + dz * aim.z) / d : -dy / d;
+      if (dot >= Math.cos(l.angle)) return true;
     }
     return false;
   }
@@ -418,7 +422,8 @@ export class ShadowPool {
       l.shadow.camera.up.set(Math.cos(s.spin), 0, Math.sin(s.spin));
     }
     l.position.copy(slot.position);
-    l.target.position.copy(slot.position).setY(slot.position.y - AIM_DROP);
+    if (slot.aim) l.target.position.copy(slot.position).addScaledVector(slot.aim, AIM_DROP);
+    else l.target.position.copy(slot.position).setY(slot.position.y - AIM_DROP);
     l.target.updateMatrixWorld();
     l.color.copy(slot.color);
     l.distance = slot.range;
@@ -459,5 +464,5 @@ export class ShadowPool {
 
 /** Centre of a slot's lit area (lighting overlay). */
 export function litCenter(slot: PooledSlot, out = tmpCenter): THREE.Vector3 {
-  return out.copy(litSphere(slot.position, slot.range, SHADOW_CONES[slot.kind ?? 'ceiling'].angle, sphere).center);
+  return out.copy(litSphere(slot.position, slot.range, SHADOW_CONES[slot.kind ?? 'ceiling'].angle, sphere, slot.aim).center);
 }

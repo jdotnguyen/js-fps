@@ -1170,7 +1170,7 @@ test('transit wing: solid Dive Bay wall, walkable departure bay and grand arriva
   level.setDoor('D_R13d_R15a', 'open');
   level.setDoor('D_R16b_R16c', 'open');
   const openEye = new THREE.Vector3(36, 1.62, 34);
-  for (let i = 0; i < 60; i++) level.update(i / 30, 1 / 30, openEye, false);
+  for (let i = 0; i < 120; i++) level.update(i / 30, 1 / 30, openEye, false);
   const nav = level.navGraph();
   const walkChain = (startAnchor: string, targets: string[]): void => {
     const start = level.anchor(startAnchor)!.pos;

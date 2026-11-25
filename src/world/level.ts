@@ -325,6 +325,10 @@ interface RawSlot {
   swing?: { pivot: THREE.Vector3; amp: number; period: number; jolt?: SwingJolt };
   /** Id of the movable prop this fixture belongs to (a train car's cabin lights): it follows the prop and never gets a static dead fixture. */
   owner?: string;
+  /** Optional unit aim direction in world space for a shadow spot; omitted aims straight down. */
+  aim?: THREE.Vector3;
+  /** Optional live Object3D whose world position this slot follows each frame (e.g. scrolling tunnel rib lights). */
+  follow?: THREE.Object3D;
 }
 
 /** Placement matrix for a grid cell and a rotation in degrees. */
@@ -1089,8 +1093,8 @@ export class Level implements World, CaptureHost {
       mesh.position.copy(slot.pos);
       mesh.rotation.y = slot.ry;
       room.group.add(mesh);
-      // A moving prop's own light keeps its pooled light but not the flat diffuser plate: the car has its own roof strip.
-      if (slot.owner) mesh.visible = false;
+      // A moving prop's or live-tracked light keeps its pooled light but not the flat diffuser plate.
+      if (slot.owner || slot.follow) mesh.visible = false;
       const followers: THREE.Object3D[] = slot.owner ? [mesh] : [];
       if (slot.swing) {
         // A swinging fixture: its glow rides a pivot and its pooled light follows (flooded-tunnel spec).
@@ -1149,9 +1153,19 @@ export class Level implements World, CaptureHost {
         ...(light.backup === true ? { backup: true } : {}),
         ...(light.ownColor === true ? { ownColor: true } : {}),
         ...(light.backupScale !== undefined ? { backupScale: light.backupScale, backup: true } : {}),
+        ...(slot.aim ? { aim: slot.aim } : {}),
         score: 0,
       });
       if (slot.swing) swingRefs.at(-1)!.ref = room.slots[room.slots.length - 1]!;
+      if (slot.follow) {
+        const pooled = room.slots[room.slots.length - 1]!;
+        const target = slot.follow;
+        room.ticks.push(() => {
+          target.updateWorldMatrix(true, false);
+          target.getWorldPosition(pooled.position);
+          if (drop !== 0) pooled.position.y -= drop;
+        });
+      }
       if (slot.owner) {
         // A cabin light rides with its prop: setPropTransform shifts the glow, the shaft and the pooled light together.
         const pooled = room.slots[room.slots.length - 1]!;
@@ -1168,7 +1182,7 @@ export class Level implements World, CaptureHost {
     }
     rawSlots.forEach((s, i) => {
       this.debug.slots.push({ pos: s.pos.clone(), kind: s.kind, claimed: claimed.has(i) });
-      if (!claimed.has(i) && !s.owner) {
+      if (!claimed.has(i) && !s.owner && !s.follow) {
         // A dead fixture: dark diffuser, merged with the room. (A moving prop's own unclaimed fixture stays out: it would be left behind.)
         const dead = glowGeometry(s.kind);
         room.merger.add(dead, this.deps.materials.black, at(s.pos.x, s.pos.y, s.pos.z, 0, s.ry, 0));
@@ -1381,7 +1395,13 @@ export class Level implements World, CaptureHost {
     for (const s of out.lightSlots) {
       const pos = new THREE.Vector3(...s.pos).applyMatrix4(matrix);
       const owner = movableObj ? { owner: movableObj.id } : {};
-      slots.push(s.swing ? { pos, kind: s.kind, ry: s.ry + ry, ...owner, swing: { ...s.swing, pivot: new THREE.Vector3(...s.swing.pivot).applyMatrix4(matrix) } } : { pos, kind: s.kind, ry: s.ry + ry, ...owner });
+      const aim = s.aim ? { aim: new THREE.Vector3(...s.aim).transformDirection(matrix).normalize() } : {};
+      const follow = s.follow ? { follow: s.follow } : {};
+      slots.push(
+        s.swing
+          ? { pos, kind: s.kind, ry: s.ry + ry, ...owner, ...aim, ...follow, swing: { ...s.swing, pivot: new THREE.Vector3(...s.swing.pivot).applyMatrix4(matrix) } }
+          : { pos, kind: s.kind, ry: s.ry + ry, ...owner, ...aim, ...follow },
+      );
     }
     for (const s of out.sockets) {
       const pos = new THREE.Vector3(...s.pos).applyMatrix4(matrix);

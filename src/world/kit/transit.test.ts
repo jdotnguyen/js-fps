@@ -370,7 +370,7 @@ test('an opened blast gate leaves the whole bore clear: nothing static crosses t
   assert.equal(crossing.length, 1, 'only the shutter collider (disabled when open) can cross the bore');
 });
 
-test('the cabin has a faint cold emissive fill of its own and a roof strip that does not blow out', () => {
+test('the cabin has a subtle warm emissive bounce of its own and a dimmed warm roof strip', () => {
   const m = stubMaterials();
   const reg = new KitRegistry({ glb: {} });
   const car = reg.create('transit_train_shell', { area: 'transit', length: 10.4, id: 'r15a_train', carId: 'r15a_train' }, new Rng('fill'), m);
@@ -379,12 +379,13 @@ test('the cabin has a faint cold emissive fill of its own and a roof strip that 
   car.object.traverse((c) => {
     if (!(c instanceof THREE.Mesh) || Array.isArray(c.material)) return;
     const mat = c.material;
-    if (mat instanceof THREE.MeshStandardMaterial && mat.emissiveIntensity > 0.3 && mat.emissiveIntensity < 1 && mat.emissive.getHex() === 0x0b2a33) filled++;
+    if (mat instanceof THREE.MeshStandardMaterial && mat.emissiveIntensity > 0.05 && mat.emissiveIntensity <= 0.2 && mat.emissive.getHex() === 0x241508) filled++;
     if (mat.name === 'cabin-ceiling-led') strip = mat as THREE.MeshStandardMaterial;
   });
-  assert.ok(filled > 20, `cabin surfaces carry the fill (${filled} meshes)`);
+  assert.ok(filled > 20, `cabin surfaces carry the subtle warm fill (${filled} meshes)`);
   assert.ok(strip, 'roof LED strip exists');
-  assert.ok((strip as THREE.MeshStandardMaterial).emissiveIntensity <= 1.2, 'roof strip is calm enough not to blow out close to the camera');
+  assert.ok((strip as THREE.MeshStandardMaterial).emissiveIntensity <= 0.8, 'roof strip is dimmed so the cabin reads dark and warm');
+  assert.equal((strip as THREE.MeshStandardMaterial).emissive.getHex(), 0xffcf94, 'roof strip uses warm amber-white glow');
   // The shared palette materials are untouched by the fill.
   assert.notEqual(m['steel' as keyof typeof m], undefined);
 });
@@ -560,6 +561,36 @@ test('transit_train_shell mounts a centred rear-bulkhead comms terminal and a do
   }
 });
 
+test('transit_train_shell comms terminal LED responds to transit:comms_state and resets on level:reset', () => {
+  const m = stubMaterials();
+  const def = TRANSIT_PROPS.find((d) => d.id === 'transit_train_shell')!;
+  const out = def.generate({ area: 'transit', length: 9, width: 3, height: 2.9, doorSide: 'right', id: 'r15b_train' }, new Rng('comms'), m);
+  let ledMat: THREE.MeshStandardMaterial | null = null;
+  out.object.traverse((c) => {
+    if (c instanceof THREE.Mesh && !Array.isArray(c.material) && c.material.name === 'train-comms-led') {
+      ledMat = c.material as THREE.MeshStandardMaterial;
+    }
+  });
+  assert.ok(ledMat, 'train-comms-led material exists');
+  const emit = (ev: string, payload?: unknown) => {
+    for (const l of out.listeners ?? []) if (l.event === ev) l.fn(payload);
+  };
+
+  assert.equal((ledMat as THREE.MeshStandardMaterial).emissive.getHex(), 0x38e8b8, 'starts idle teal');
+  emit('transit:comms_state', { state: 'ringing' });
+  assert.equal((ledMat as THREE.MeshStandardMaterial).emissive.getHex(), 0xf0a020, 'ringing switches LED to amber');
+  out.tick?.(0.2, 0.016);
+  const i1 = (ledMat as THREE.MeshStandardMaterial).emissiveIntensity;
+  out.tick?.(0.55, 0.016);
+  assert.notEqual((ledMat as THREE.MeshStandardMaterial).emissiveIntensity, i1, 'ringing pulses LED intensity');
+  emit('transit:comms_state', { state: 'active' });
+  assert.equal((ledMat as THREE.MeshStandardMaterial).emissive.getHex(), 0x28f0a8, 'active switches LED to bright green/teal');
+  emit('transit:comms_state', { state: 'lost' });
+  assert.equal((ledMat as THREE.MeshStandardMaterial).emissive.getHex(), 0xd83028, 'lost switches LED to dim red');
+  emit('level:reset');
+  assert.equal((ledMat as THREE.MeshStandardMaterial).emissive.getHex(), 0x38e8b8, 'level:reset returns LED to idle');
+});
+
 test('transit_depart_board supports departure (default) and arrival modes', () => {
   const m = stubMaterials();
   const def = TRANSIT_PROPS.find((d) => d.id === 'transit_depart_board')!;
@@ -648,4 +679,78 @@ test('R16b concourse dressing pieces (truss, monument sign, bench, stanchion, lu
 
   const luggage = TRANSIT_PROPS.find((d) => d.id === 'luggage_cluster')!.generate({ area: 'transit', tipped: true }, new Rng('lg'), m);
   assert.equal(luggage.colliders.length, 0, 'abandoned luggage cluster is uncollided');
+});
+
+test('transit_sea_tunnel_rig exposes four inward-aimed passing rib lights that scroll with the tunnel', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const out = reg.create('transit_sea_tunnel_rig', { area: 'transit', autoScroll: true, speed: 20 }, new Rng('pass'), m);
+  assert.equal(out.lightSlots.length, 4, 'rig provides four passing rib light slots');
+  for (const s of out.lightSlots) {
+    assert.ok(s.follow, 'each passing light follows a live anchor');
+    assert.ok(s.aim, 'each passing light specifies an inward aim vector');
+    assert.ok(Math.sign(s.aim[0]) === -Math.sign(s.pos[0]), 'aim points inward across the train windows');
+  }
+  const before = out.lightSlots.map((s) => s.follow!.position.z);
+  out.tick?.(0.1, 0.1); // moves 2.0 m along -Z (mod 12 m)
+  const after = out.lightSlots.map((s) => s.follow!.position.z);
+  for (let i = 0; i < 4; i++) {
+    assert.notEqual(after[i], before[i], `passing light ${i} moves as the tunnel scrolls`);
+    assert.ok(after[i]! >= -6 && after[i]! < 6, `passing light ${i} stays wrapped within [-6, 6)`);
+  }
+});
+
+test('transit:tunnel_power shifts sea-tunnel rig and shroud strips to emergency red and resets on level:reset', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const rig = reg.create('transit_sea_tunnel_rig', { area: 'transit' }, new Rng('em-rig'), m);
+  const shroud = reg.create('transit_tunnel_shroud', { area: 'transit', length: 18 }, new Rng('em-shroud'), m);
+  const findMat = (root: THREE.Object3D, name: string): THREE.MeshStandardMaterial => {
+    let found: THREE.MeshStandardMaterial | undefined;
+    root.traverse((c) => {
+      if (c instanceof THREE.Mesh && !Array.isArray(c.material) && c.material.name === name) {
+        found = c.material as THREE.MeshStandardMaterial;
+      }
+    });
+    assert.ok(found, `found material ${name}`);
+    return found;
+  };
+  const rigRoof = findMat(rig.object, 'rig-roof-light');
+  const shroudRoof = findMat(shroud.object, 'shroud-roof-light');
+  assert.equal(rigRoof.emissive.getHex(), 0x9fe8ff, 'rig starts cool white');
+  assert.equal(shroudRoof.emissive.getHex(), 0x9fe8ff, 'shroud starts cool white');
+
+  for (const out of [rig, shroud]) {
+    for (const l of out.listeners ?? []) if (l.event === 'transit:tunnel_power') l.fn({ mode: 'emergency' });
+  }
+  assert.equal(rigRoof.emissive.getHex(), 0xc81818, 'rig shifts to emergency red');
+  assert.equal(shroudRoof.emissive.getHex(), 0xc81818, 'shroud shifts to emergency red');
+
+  for (const out of [rig, shroud]) {
+    for (const l of out.listeners ?? []) if (l.event === 'level:reset') l.fn({});
+  }
+  assert.equal(rigRoof.emissive.getHex(), 0x9fe8ff, 'rig resets to cool white');
+  assert.equal(shroudRoof.emissive.getHex(), 0x9fe8ff, 'shroud resets to cool white');
+});
+
+test('transit_train_shell with auxLights exposes two downward light slots and toggles pools/lenses via transit:train_aux_lights', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const train = reg.create('transit_train_shell', { area: 'transit', length: 9, width: 3, height: 2.9, id: 'r16a_train', carId: 'r16a_train', auxLights: true }, new Rng('aux'), m);
+  assert.equal(train.lightSlots.length, 4, 'train with auxLights exposes 2 cabin + 2 downward exterior aux light slots');
+  let rawLights = 0;
+  const pools: THREE.Mesh[] = [];
+  train.object.traverse((c) => {
+    if (c instanceof THREE.Light) rawLights++;
+    if (c instanceof THREE.Mesh && c.name === 'train_aux_light_pool') pools.push(c);
+  });
+  assert.equal(rawLights, 0, 'no raw Three.js Lights inside train car (uses room light slots)');
+  assert.equal(pools.length, 2, 'two exterior downward aux light pools created');
+  assert.ok(pools.every((pl) => !pl.visible), 'aux pools start hidden');
+
+  for (const l of train.listeners ?? []) if (l.event === 'transit:train_aux_lights') l.fn({ carId: 'r16a_train', on: true });
+  assert.ok(pools.every((pl) => pl.visible), 'aux pools show when transit:train_aux_lights on=true');
+
+  for (const l of train.listeners ?? []) if (l.event === 'level:reset') l.fn({});
+  assert.ok(pools.every((pl) => !pl.visible), 'aux pools hide on level:reset');
 });

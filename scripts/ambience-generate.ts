@@ -1022,6 +1022,107 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     prompt:
       'loud deep resonant low-bass hum of massive industrial subsea electrical turbines and heavy high-voltage power transformers running at full load inside a steel generator hall, rich rumbling 60 hertz sub-bass drone with warm mechanical vibration and steady power-plant thrumming, seamless constant loop, no music, no voice',
   },
+  // R15a Departure Bay & 3-stage abyssal transit ride (r15a-train-ride-narrative).
+  {
+    id: 'trainDoorClose',
+    file: 'oneshot-train-door-close.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.8,
+    promptInfluence: 0.65,
+    prompt:
+      'heavy industrial pressurized subway transit train sliding door closing with a crisp pneumatic air hiss, metallic slide along steel rails, and a firm solid mechanical latch lock clunk inside a steel cabin, realistic foley, no music, no voice',
+  },
+  {
+    id: 'blastGateOpen',
+    file: 'oneshot-blast-gate-open.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2.5,
+    promptInfluence: 0.6,
+    prompt:
+      'massive armored subsea rail tunnel blast gate shutter retracting rapidly upward with heavy hydraulic pressure hiss, deep resonant steel track rumble, and solid upper lock thud, industrial sci-fi facility, no music, no voice',
+  },
+  {
+    id: 'blastGateClose',
+    file: 'oneshot-blast-gate-close.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2.2,
+    promptInfluence: 0.6,
+    prompt:
+      'massive armored subsea rail tunnel blast gate shutter slamming downward onto steel floor with deep heavy hydraulic descent, resonant metallic impact thud, and pressurized seal lock, industrial sci-fi facility, no music, no voice',
+  },
+  {
+    id: 'trainPullout',
+    file: 'oneshot-train-pullout.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 4.2,
+    promptInfluence: 0.6,
+    prompt:
+      'interior perspective of an electric subsea industrial transit train car accelerating smoothly out of a station dock, rising low electric traction motor hum, heavy steel wheels rolling and clacking faster over rail joints, deep resonant cabin rumble, no music, no voice',
+  },
+  {
+    id: 'trainTunnelCruise',
+    file: 'emitter-train-tunnel-cruise.mp3',
+    category: 'emitter',
+    loop: true,
+    duration: 8.0,
+    promptInfluence: 0.6,
+    prompt:
+      'interior perspective of an electric industrial transit train cruising steadily through a deep pressurized underwater steel tunnel, smooth low electric motor drone, rhythmic muted steel rail wheel clack, and soft muffled tunnel air whoosh, seamless constant loop, no music, no voice',
+  },
+  {
+    id: 'trainBrakeStop',
+    file: 'oneshot-train-brake-stop.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 5.0,
+    promptInfluence: 0.6,
+    prompt:
+      'interior perspective of a heavy electric industrial transit train smoothly decelerating to a complete stop at a station dock, descending traction motor pitch, deep pneumatic air brake hiss, soft metallic brake shoe groan, and final gentle settle, no music, no voice',
+  },
+  {
+    id: 'trainCommsRing',
+    file: 'oneshot-train-comms-ring.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.5,
+    promptInfluence: 0.7,
+    prompt:
+      'urgent retro-industrial two-tone electronic incoming radio hail chime ringing twice on a steel bulkhead comms terminal inside a quiet metal train cabin, crisp clear telemetry alert beep with subtle cabin reflection, no music, no voice',
+  },
+  {
+    id: 'trainPowerDown',
+    file: 'oneshot-train-power-down.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 2.8,
+    promptInfluence: 0.7,
+    prompt:
+      'heavy industrial electric train traction power failure, loud high-voltage circuit breaker clunk tripping off followed by deep electric traction motor pitch winding down and shutting off inside an underwater steel tunnel, ominous power outage drop, no music, no voice',
+  },
+  {
+    id: 'r16HorrorHit',
+    file: 'oneshot-r16-horror-hit.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 3.2,
+    promptInfluence: 0.75,
+    prompt:
+      'massive cinematic sci-fi horror low-end sub-bass impact hit and dark metallic hull slam reverberating in a cavernous concrete terminal, terrifying dread reveal stinger with deep echoing tail, no voice, no speech',
+  },
+  {
+    id: 'r16MonsterRoar',
+    file: 'oneshot-r16-monster-roar.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 1.8,
+    promptInfluence: 0.75,
+    prompt:
+      'terrifying close-range deep-sea abyssal horror monster guttural shriek and roaring snarl echoing inside a dark concrete terminal hall, wet organic predator roar layered with sub-bass weight, raw scary creature sound, no music, no human voice',
+  },
 ];
 
 function loadApiKey(): string {

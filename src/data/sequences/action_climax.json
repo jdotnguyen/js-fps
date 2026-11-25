@@ -346,6 +346,546 @@
     "do": "checkpoint",
     "id": "cp_r11_powered",
     "label": "Power Bay Online"
+   },
+   {
+    "do": "emit",
+    "event": "r11:walk_to_train"
+   }
+  ]
+ },
+ {
+  "id": "r13d_transit_walk",
+  "trigger": {
+   "event": "r11:walk_to_train",
+   "requires": "r11_powered",
+   "unless": "r15a_boarded"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "setFlag",
+    "flag": "r13d_walk_started",
+    "value": true
+   },
+   {
+    "do": "emit",
+    "event": "transit:train_door",
+    "payload": {
+     "carId": "r15a_train",
+     "open": false,
+     "instant": true
+    }
+   },
+   {
+    "parallel": [
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "npcMoveTo",
+        "npc": "giles",
+        "to": "anchor:dark_corridor",
+        "wait": false
+       },
+       {
+        "do": "wait",
+        "s": 0.9
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "okafor",
+        "to": "anchor:dark_corridor",
+        "wait": false
+       },
+       {
+        "do": "wait",
+        "s": 5.5
+       },
+       {
+        "do": "doorState",
+        "id": "D_R13d_R15a",
+        "state": "open"
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "okafor",
+        "to": "anchor:r15a_platform",
+        "wait": false
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "giles",
+        "to": "anchor:r15a_giles_console"
+       },
+       {
+        "do": "npcAnim",
+        "npc": "giles",
+        "anim": "typing"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 0.6
+       },
+       {
+        "do": "say",
+        "line": "r13d_okafor_01"
+       },
+       {
+        "do": "say",
+        "line": "r13d_giles_01"
+       },
+       {
+        "do": "say",
+        "line": "r13d_jay_01"
+       },
+       {
+        "do": "say",
+        "line": "r13d_giles_02"
+       },
+       {
+        "do": "say",
+        "line": "r13d_okafor_02"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "do": "npcAnim",
+    "npc": "giles",
+    "anim": "idle"
+   },
+   {
+    "do": "sfx",
+    "id": "doorUnlocked",
+    "at": "anchor:r15a_giles_console",
+    "gain": 1.4
+   },
+   {
+    "do": "emit",
+    "event": "transit:train_door",
+    "payload": {
+     "carId": "r15a_train",
+     "open": true
+    }
+   },
+   {
+    "do": "playerControl",
+    "move": "locked",
+    "look": "clamped",
+    "weapons": false,
+    "interact": false
+   },
+   {
+    "parallel": [
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "npcMoveTo",
+        "npc": "giles",
+        "to": "anchor:r15a_train_giles",
+        "wait": false
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "okafor",
+        "to": "anchor:r15a_train_okafor",
+        "wait": false
+       },
+       {
+        "do": "say",
+        "line": "r15a_giles_01"
+       },
+       {
+        "do": "say",
+        "line": "r15a_okafor_01"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "playerFrame",
+        "target": "anchor:r15a_train_look",
+        "duration": 1.0
+       },
+       {
+        "do": "wait",
+        "s": 2.4
+       },
+       {
+        "do": "playerWalkTo",
+        "to": "anchor:r15a_train_inside",
+        "speed": 1.45,
+        "timeout": 12,
+        "wait": true
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "do": "playerFrame"
+   },
+   {
+    "do": "playerControl",
+    "reset": true
+   },
+   {
+    "do": "setFlag",
+    "flag": "r15a_ready_to_depart",
+    "value": true
+   },
+   {
+    "do": "emit",
+    "event": "trigger:r15a_boarded"
+   }
+  ]
+ },
+ {
+  "id": "r15a_boarding",
+  "trigger": {
+   "event": "trigger:r15a_enter",
+   "requires": "r11_powered",
+   "unless": "r13d_walk_started"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "doorState",
+    "id": "D_R13d_R15a",
+    "state": "open"
+   },
+   {
+    "do": "emit",
+    "event": "transit:train_door",
+    "payload": {
+     "carId": "r15a_train",
+     "open": true
+    }
+   },
+   {
+    "do": "playerControl",
+    "move": "locked",
+    "look": "clamped",
+    "weapons": false,
+    "interact": false
+   },
+   {
+    "parallel": [
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "npcMoveTo",
+        "npc": "giles",
+        "to": "anchor:r15a_train_giles",
+        "wait": false
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "okafor",
+        "to": "anchor:r15a_train_okafor",
+        "wait": false
+       },
+       {
+        "do": "say",
+        "line": "r15a_giles_01"
+       },
+       {
+        "do": "say",
+        "line": "r15a_okafor_01"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "playerFrame",
+        "target": "anchor:r15a_train_look",
+        "duration": 1.0
+       },
+       {
+        "do": "wait",
+        "s": 2.4
+       },
+       {
+        "do": "playerWalkTo",
+        "to": "anchor:r15a_train_inside",
+        "speed": 1.45,
+        "timeout": 12,
+        "wait": true
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "do": "playerFrame"
+   },
+   {
+    "do": "playerControl",
+    "reset": true
+   },
+   {
+    "do": "setFlag",
+    "flag": "r15a_ready_to_depart",
+    "value": true
+   },
+   {
+    "do": "emit",
+    "event": "trigger:r15a_boarded"
+   }
+  ]
+ },
+ {
+  "id": "r15a_train_ride",
+  "trigger": {
+   "event": "trigger:r15a_boarded",
+   "requires": "r15a_ready_to_depart",
+   "unless": "transit_ride_done"
+  },
+  "once": true,
+  "steps": [
+   {
+    "do": "stopSequence",
+    "id": "r13d_transit_walk",
+    "speech": true
+   },
+   {
+    "do": "stopSequence",
+    "id": "r15a_boarding",
+    "speech": true
+   },
+   {
+    "do": "setFlag",
+    "flag": "r15a_boarded",
+    "value": true
+   },
+   {
+    "do": "completeObjective",
+    "id": "obj_transit_board"
+   },
+   {
+    "do": "doorState",
+    "id": "D_R13d_R15a",
+    "state": "locked"
+   },
+   {
+    "do": "sfx",
+    "id": "trainDoorClose",
+    "gain": 1.6
+   },
+   {
+    "do": "sfx",
+    "id": "blastGateOpen",
+    "gain": 1.8
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.03,
+    "s": 0.5
+   },
+   {
+    "do": "emit",
+    "event": "transit:start_ride",
+    "payload": {
+     "tunnelSeconds": 47
+    }
+   },
+   {
+    "do": "say",
+    "line": "r15a_giles_02",
+    "wait": false
+   },
+   {
+    "do": "waitFor",
+    "event": "transit:stage:pullout",
+    "timeout": 4
+   },
+   {
+    "do": "sfx",
+    "id": "trainPullout",
+    "gain": 1.5
+   },
+   {
+    "do": "cameraShake",
+    "amount": 0.025,
+    "s": 1.2
+   },
+   {
+    "do": "waitFor",
+    "event": "transit:stage:sea_tunnel",
+    "timeout": 8
+   },
+   {
+    "parallel": [
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 43
+       },
+       {
+        "do": "sfx",
+        "id": "trainBrakeStop",
+        "gain": 1.4
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 1.6
+       },
+       {
+        "do": "emit",
+        "event": "transit:comms_state",
+        "payload": {
+         "state": "ringing"
+        }
+       },
+       {
+        "do": "sfx",
+        "id": "trainCommsRing",
+        "gain": 1.4
+       },
+       {
+        "do": "say",
+        "line": "r15a_giles_03"
+       },
+       {
+        "do": "sfx",
+        "id": "intercomClick",
+        "gain": 1.2
+       },
+       {
+        "do": "emit",
+        "event": "transit:comms_state",
+        "payload": {
+         "state": "active"
+        }
+       },
+       {
+        "do": "wait",
+        "s": 0.25
+       },
+       {
+        "do": "say",
+        "line": "r15a_heins_01"
+       },
+       {
+        "do": "say",
+        "line": "r15a_jay_01"
+       },
+       {
+        "do": "say",
+        "line": "r15a_heins_02"
+       },
+       {
+        "do": "say",
+        "line": "r15a_okafor_02"
+       },
+       {
+        "do": "say",
+        "line": "r15a_heins_03"
+       },
+       {
+        "do": "wait",
+        "s": 0.4
+       },
+       {
+        "do": "say",
+        "line": "r15a_jay_02"
+       },
+       {
+        "do": "say",
+        "line": "r15a_heins_04"
+       },
+       {
+        "do": "sfx",
+        "id": "intercomStatic",
+        "gain": 1.5
+       },
+       {
+        "do": "emit",
+        "event": "transit:comms_state",
+        "payload": {
+         "state": "lost"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "do": "waitFor",
+    "event": "transit:stage:arrival",
+    "timeout": 20
+   },
+   {
+    "do": "wait",
+    "s": 0.1
+   },
+   {
+    "do": "sfx",
+    "id": "blastGateOpen",
+    "gain": 1.8
+   },
+   {
+    "do": "say",
+    "line": "r15a_giles_04"
+   },
+   {
+    "do": "wait",
+    "s": 0.6
+   },
+   {
+    "do": "say",
+    "line": "r15a_okafor_03"
+   },
+   {
+    "do": "waitFor",
+    "event": "transit:stage:arrived",
+    "timeout": 15
+   },
+   {
+    "do": "sfx",
+    "id": "blastGateClose",
+    "gain": 1.8
+   },
+   {
+    "do": "setFlag",
+    "flag": "transit_ride_done",
+    "value": true
+   },
+   {
+    "do": "checkpoint",
+    "id": "cp_r16_arrived",
+    "label": "Arrival Terminal"
+   },
+   {
+    "do": "emit",
+    "event": "transit:arrived_r16"
    }
   ]
  },

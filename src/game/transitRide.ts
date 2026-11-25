@@ -255,6 +255,7 @@ export class TransitRideController {
   private setStage(stage: RideStage): void {
     this.stage = stage;
     this.emit('transit:ride_state', { stage });
+    this.emit(`transit:stage:${stage}`, { stage });
   }
 
   private carryPlayerZ(dz: number): void {

@@ -84,10 +84,12 @@ import { CutsceneUi } from '../ui/hud/cutsceneUi.ts';
 import { TitleCard } from '../ui/titleCard.ts';
 import { Interactions } from '../actors/interaction.ts';
 import { Player, PLAYER_TUNING } from '../actors/player.ts';
+import { WeaponAccuracy } from '../actors/accuracy.ts';
 import { createGameHost } from '../script/gameHost.ts';
 import { loadSequences } from '../script/load.ts';
 import { SequenceManager } from '../script/runtime.ts';
 import { PlayerHud, keyLabel } from '../ui/hud/playerHud.ts';
+import { CrosshairHud } from '../ui/hud/crosshairHud.ts';
 import type { SaveData, SaveStore } from '../game/save.ts';
 import { clearSharedMocapLibrary, loadSharedMocapLibrary } from '../actors/mocap.ts';
 import { loadMocapPacks } from '../actors/mocapPacks.ts';
@@ -926,6 +928,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     });
     events.on('squad:infectionStage', ({ stage }) => motionScene.setStage(stage));
 
+    const accuracy = new WeaponAccuracy();
     enemies = setupEnemies({
       events,
       ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels, colliders: world.playerWorld.colliders, onFootstep: onCharacterFootstep, ...waterDepthCtx },
@@ -937,6 +940,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       audio,
       spawns: levelSpawns,
       squad,
+      accuracy,
       search: location.search,
     });
     player.stompEnabled = physics.switches.interact;
@@ -1280,9 +1284,21 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     events.on('player:damaged', () => audio.muffle(0.4));
 
     const crosshair = el<HTMLElement>('#crosshair');
+    const crosshairHud = new CrosshairHud(crosshair);
+    cleanups.push(() => crosshairHud.dispose());
     crosshair.hidden = true;
+    let accPrevYaw = player.yaw;
+    let accPrevPitch = player.pitch;
     events.on('game:mode', ({ mode }) => {
       crosshair.hidden = mode !== 'playing';
+      if (mode === 'title') accuracy.reset('pistol');
+      accPrevYaw = player.yaw;
+      accPrevPitch = player.pitch;
+    });
+    events.on('game:restarted', () => {
+      accuracy.reset(viewmodel?.weapon ?? 'pistol');
+      accPrevYaw = player.yaw;
+      accPrevPitch = player.pitch;
     });
 
     events.on('weapon:dryFire', ({ weapon }) => audio.play('dryFire', { bus: 'sfx', gain: 0.8, rate: weapon === 'shotgun' ? 0.88 : 1 }));
@@ -1362,6 +1378,31 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       body: (id) => squad?.mate(id).body ?? null,
       active: () => game.mode === 'playing' && !game.flying,
     });
+    if (squad) {
+      events.on('squad:flashlight' as never, ((p: { ids?: string[]; on?: boolean }) => {
+        squad!.setFlashlight(p?.ids, p?.on === true);
+      }) as never);
+      events.on('squad:scripted_fire' as never, ((p: { ids?: string[]; target?: string | [number, number, number]; bursts?: number; interval?: number; boost?: number }) => {
+        if (!p?.target) return;
+        let target: { x: number; y: number; z: number } | null = null;
+        if (typeof p.target === 'string' && p.target.startsWith('anchor:')) {
+          const a = level?.anchor(p.target.slice(7));
+          if (a) target = { x: a.pos.x, y: a.pos.y, z: a.pos.z };
+        } else if (Array.isArray(p.target) && p.target.length === 3) {
+          target = { x: p.target[0], y: p.target[1], z: p.target[2] };
+        }
+        if (target) {
+          squad!.scriptedFire({
+            target,
+            ...(p.ids !== undefined ? { ids: p.ids } : {}),
+            ...(p.bursts !== undefined ? { bursts: p.bursts } : {}),
+            ...(p.interval !== undefined ? { interval: p.interval } : {}),
+            ...(p.boost !== undefined ? { boost: p.boost } : {}),
+          });
+        }
+      }) as never);
+      events.on('level:reset' as never, (() => squad!.setFlashlight(undefined, false)) as never);
+    }
 
     let ambienceRoom: string | null = null;
     events.on('room:entered', (r) => {
@@ -1598,10 +1639,11 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           // Just before the valve and the flood cutscene (overhaul-flooded-tunnel): an anchor, not a checkpoint.
           ['r10_flood', 'anchor:r10_valve_stand', { tunnel_started: true }],
           ['r11', 'cp_climax', { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, 'weapon:shotgun': true }],
-          ['r15a', 'anchor:r15a_platform', { tunnel_started: true, valve_done: true }],
-          ['transit_ride', 'anchor:r15a_train_inside', { tunnel_started: true, valve_done: true }],
+          ['r15a', 'anchor:r15a_platform', { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, r11_powered: true, 'weapon:shotgun': true }],
+          ['transit_ride', 'anchor:r15a_train_inside', { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, r11_powered: true, r15a_ready_to_depart: true, 'weapon:shotgun': true }],
           ['r16', 'anchor:r16_train_exit', { tunnel_started: true, valve_done: true }],
           ['r16b', 'anchor:r16_concourse', { tunnel_started: true, valve_done: true }],
+          ['r16_finale', 'anchor:r16_train_inside', { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, r11_powered: true, r15a_ready_to_depart: true, r15a_boarded: true, transit_ride_done: true, 'weapon:shotgun': true }],
         ];
         const off = events.on('game:mode', ({ mode }) => {
           if (mode !== 'playing') return;
@@ -1637,7 +1679,20 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
                 }
               }
               player.placeAtEye(new THREE.Vector3(cp.pos[0], cp.pos[1] + PLAYER_TUNING.eyeHeight, cp.pos[2]), ((cp.yaw ?? 0) * Math.PI) / 180);
-              squad!.requestPlacement();
+              if (jump !== 'r16_finale') squad!.requestPlacement();
+              if (jump === 'r16_finale') {
+                // Place Giles and Okafor inside Train Car B with Jay, black out R16a/R16b, seal dock, and trigger finale.
+                level!.tintRoomLights('R16a', 'black');
+                level!.tintRoomLights('R16b', 'black');
+                for (const lid of ['r16a_light_nw', 'r16a_light_ne', 'r16a_light_mid', 'r16a_light_se', 'r16b_light_e1', 'r16b_light_e2', 'r16b_light_m1', 'r16b_light_m2', 'r16b_light_w1', 'r16b_light_w2']) {
+                  level!.setLight(lid, 'off', undefined, 0);
+                }
+                events.emit('transit:blast_gate' as never, { gateId: 'r16a_north', open: false } as never);
+                events.emit('transit:train_door' as never, { carId: 'r16a_train', open: false, instant: true } as never);
+                squad!.mate('engineer').place({ x: 88.2, y: -0.12, z: 33.4 }, Math.PI / 2);
+                squad!.mate('medic').place({ x: 88.2, y: -0.12, z: 36.6 }, Math.PI / 2);
+                events.emit('transit:arrived_r16' as never, {} as never);
+              }
               if (jump === 'transit_ride') {
                 // Debug only: `&door=open` opens Train Car B's door when the ride ends, since a script does that in the game.
                 if (new URLSearchParams(location.search).get('door') === 'open') {
@@ -1647,7 +1702,11 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
                     events.emit('transit:train_door' as never, { carId: 'r16a_train', open: true } as never);
                   }) as never);
                 }
-                events.emit('transit:start_ride' as never, {} as never);
+                if (new URLSearchParams(location.search).get('raw') === '1' || !sequences) {
+                  events.emit('transit:start_ride' as never, {} as never);
+                } else {
+                  events.emit('trigger:r15a_boarded' as never, {} as never);
+                }
               }
             }, 400),
           );
@@ -1729,6 +1788,28 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
 
     const transitRide = level ? new TransitRideController({ events, level, player, squad }) : null;
     if (transitRide) cleanups.push(() => transitRide.dispose());
+    let trainCruiseLoop: ReturnType<typeof audio.loop> | null = null;
+    const stopTrainCruise = (fadeSeconds = 0.8): void => {
+      if (!trainCruiseLoop) return;
+      trainCruiseLoop.stop(fadeSeconds);
+      trainCruiseLoop = null;
+    };
+    const offCruiseState = events.on('transit:ride_state' as never, ((p: { stage?: string }) => {
+      if (p?.stage === 'sea_tunnel') {
+        if (!trainCruiseLoop && audio.hasSound('trainTunnelCruise')) {
+          trainCruiseLoop = audio.loop('trainTunnelCruise', { bus: 'ambience', gain: 0.01 });
+          trainCruiseLoop.setGain(0.55, 0.35);
+        }
+      } else if (p?.stage === 'arrived' || p?.stage === 'idle') {
+        stopTrainCruise(p?.stage === 'arrived' ? 1.2 : 0.15);
+      }
+    }) as never);
+    const offCruiseReset = events.on('level:reset' as never, () => stopTrainCruise(0.1));
+    cleanups.push(() => {
+      offCruiseState();
+      offCruiseReset();
+      stopTrainCruise(0);
+    });
     const npcCamFwd = { x: 0, z: -1 };
     const scoreFeet = { x: 0, y: 0, z: 0 };
     let simTime = 0;
@@ -1776,6 +1857,33 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         }
         guidance!.render(frameDt);
         viewmodel!.update(frameDt);
+        if (game.mode === 'playing' && !game.flying) {
+          const dyaw = ((player.yaw - accPrevYaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+          const dpitch = player.pitch - accPrevPitch;
+          accPrevYaw = player.yaw;
+          accPrevPitch = player.pitch;
+          const turnRate = frameDt > 1e-4 ? Math.hypot(dyaw, dpitch) / frameDt : 0;
+          accuracy.step({
+            dt: frameDt,
+            weapon: viewmodel!.weapon,
+            aimBlend: player.aimBlend,
+            moveSpeed: Math.hypot(player.velocity.x, player.velocity.y),
+            turnRate,
+            sprinting: player.sprinting,
+            reloading: viewmodel!.reloading,
+            armed: sidearmUp(),
+          });
+          crosshairHud.update({
+            dt: frameDt,
+            spreadRad: accuracy.spreadRad,
+            fovDeg: camera.fov,
+            viewportHeight: window.innerHeight,
+            focused: accuracy.focused,
+            armed: accuracy.armed,
+            suppressed: accuracy.suppressed,
+            reducedMotion: settings.get().reducedMotion,
+          });
+        }
         squadMuzzleLight?.update(frameDt);
         flashlight.update(frameDt);
         world!.update(simTime, frameDt, camera.position, settings.get().reducedFlashing, camera);

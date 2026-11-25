@@ -9,7 +9,7 @@ import { RENDER_TIERS } from '../render/tiers.ts';
 import { Level } from './level.ts';
 import { KitRegistry } from './registry.ts';
 import { LightPool } from './lightPool.ts';
-import { SHADOW_CONES } from './shadowPool.ts';
+import { SHADOW_CONES, ShadowPool } from './shadowPool.ts';
 import { labLamps } from './labWorld.ts';
 import type { LightBudget } from './world.ts';
 
@@ -236,4 +236,32 @@ test('a level light with a cookie offers it to the pool, and a patterned spot pr
   const plain = a[0]!.light.light as THREE.SpotLight;
   assert.ok(plain instanceof THREE.SpotLight);
   assert.equal(plain.map, null);
+});
+
+test('a shadow slot with a custom aim direction points its spot sideways and redraws as it moves', () => {
+  const parent = new THREE.Group();
+  const pool = new ShadowPool(parent, 1, 512, 0);
+  const slot = {
+    item: { name: 'rib', light: null as THREE.Light | null, base: 8, pattern: 'steady' as const, seed: 1, emissives: [], emissiveBase: 0, shafts: [], shaftBase: 0, level: 1, power: 1 },
+    position: new THREE.Vector3(-2, 2, 0),
+    color: new THREE.Color(0x7ee4f5),
+    range: 7.5,
+    priority: 1,
+    kind: 'wall' as const,
+    shadow: true,
+    aim: new THREE.Vector3(1, 0, 0),
+    score: 0,
+  };
+  pool.assign([slot], new THREE.Vector3(0, 1.6, 0), { dt: 1 / 60 });
+  const spot = slot.item.light as THREE.SpotLight;
+  assert.ok(spot instanceof THREE.SpotLight);
+  assert.ok(spot.target.position.x > spot.position.x, 'spot aims along +X rather than straight down');
+  assert.equal(spot.target.position.y, spot.position.y);
+  assert.equal(pool.redraws, 1);
+  assert.ok(pool.covers(new THREE.Vector3(0, 2, 0)), 'covers points along the sideways cone');
+  assert.equal(pool.covers(new THREE.Vector3(-4, 2, 0)), false, 'does not cover points behind the sideways cone');
+  // Sliding the slot along Z forces a shadow redraw on the next frame.
+  slot.position.z += 0.5;
+  pool.assign([slot], new THREE.Vector3(0, 1.6, 0), { dt: 1 / 60 });
+  assert.equal(pool.redraws, 1, 'moving tunnel rib light redraws its shadow map');
 });

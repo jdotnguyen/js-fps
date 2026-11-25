@@ -117,27 +117,53 @@
   white-space: nowrap;
 }
 
-/* Static crosshair: a centre dot with four short ticks, outlined so it reads on any background. */
+/* Dynamic two-bracket SVG crosshair (weapon-accuracy spec): center dot + left/right curved brackets. */
 #crosshair {
   position: fixed;
   left: 50%;
   top: 50%;
-  width: 22px;
-  height: 22px;
-  margin: -11px 0 0 -11px;
+  width: 240px;
+  height: 240px;
+  margin: -120px 0 0 -120px;
   pointer-events: none;
-  --c: rgb(255 255 255 / 0.85);
-  background:
-    linear-gradient(var(--c), var(--c)) 50% 0 / 2px 6px no-repeat,
-    linear-gradient(var(--c), var(--c)) 50% 100% / 2px 6px no-repeat,
-    linear-gradient(var(--c), var(--c)) 0 50% / 6px 2px no-repeat,
-    linear-gradient(var(--c), var(--c)) 100% 50% / 6px 2px no-repeat,
-    radial-gradient(circle, var(--c) 0 1.2px, transparent 1.6px) 50% 50% / 100% 100% no-repeat;
-  filter: drop-shadow(0 0 1px rgb(0 0 0 / 0.9));
+  filter: drop-shadow(0 0 1.5px rgb(0 0 0 / 0.92));
 }
 #crosshair[hidden] { display: none; }
 /* Hidden while the player is on rails (letterbox bars up). */
 #ui:has(.cine.on) #crosshair { display: none; }
+#crosshair .crosshair-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+#crosshair .crosshair-dot {
+  fill: rgb(255 255 255 / 0.82);
+  transition: fill 0.1s ease, opacity 0.15s ease;
+}
+#crosshair .crosshair-bracket {
+  fill: none;
+  stroke: rgb(224 238 244 / 0.72);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  transition: stroke 0.1s ease, stroke-width 0.1s ease, opacity 0.15s ease;
+}
+#crosshair.focused .crosshair-dot {
+  fill: #ffffff;
+}
+#crosshair.focused .crosshair-bracket {
+  stroke: #ffffff;
+  stroke-width: 1.9;
+}
+#crosshair.unarmed .crosshair-bracket {
+  opacity: 0;
+}
+#crosshair.suppressed .crosshair-bracket {
+  opacity: 0;
+}
+#crosshair.suppressed .crosshair-dot {
+  opacity: 0.45;
+}
 
 /* Vitals (bottom-left) and ammo (bottom-right): no panel, slanted, 65% opacity. Numbers always shown, so colour is never the only cue. */
 .hud-vitals, .hud-ammo {

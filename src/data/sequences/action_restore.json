@@ -197,6 +197,36 @@
    },
    {
     "do": "if",
+    "flag": "transit_ride_done",
+    "then": [
+     {
+      "do": "emit",
+      "event": "transit:blast_gate",
+      "payload": {
+       "gateId": "r16a_north",
+       "open": false
+      }
+     },
+     {
+      "do": "emit",
+      "event": "transit:train_door",
+      "payload": {
+       "carId": "r16a_train",
+       "open": false,
+       "instant": true
+      }
+     },
+     {
+      "do": "emit",
+      "event": "transit:comms_state",
+      "payload": {
+       "state": "lost"
+      }
+     }
+    ]
+   },
+   {
+    "do": "if",
     "flag": "cover_done",
     "then": [
      {

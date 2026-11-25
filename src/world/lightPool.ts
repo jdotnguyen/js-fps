@@ -19,6 +19,8 @@ export interface PooledSlot {
   cookie?: CookieKind;
   /** Fixture kind, for the shadow spot's cone and bias. */
   kind?: LightSlotKind;
+  /** Optional unit aim direction in world space for a shadow spot; omitted aims straight down (0, -1, 0). */
+  aim?: THREE.Vector3;
   /** Scratch: score used while sorting. */
   score: number;
 }
