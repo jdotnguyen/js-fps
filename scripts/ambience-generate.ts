@@ -1123,6 +1123,16 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     prompt:
       'long terrifying close-range deep-sea abyssal juggernaut monster guttural roar and sustained echoing shriek inside a cavernous dark concrete terminal hall, massive organic predator bellow with deep sub-bass rumble and resonant reverb tail, raw scary creature sound, no music, no human voice',
   },
+  {
+    id: 'r16MonsterRoarBlackout',
+    file: 'oneshot-r16-monster-roar-blackout.mp3',
+    category: 'oneshot',
+    loop: false,
+    duration: 5.5,
+    promptInfluence: 0.78,
+    prompt:
+      'very long drawn-out ferocious angry close-range deep-sea abyssal juggernaut monster sustained guttural roar and extended violent raspy shriek inside a cavernous dark concrete hall, enraged massive organic predator bellow held for several seconds with heavy sub-bass rumble, snarling rage, and long echoing cavernous reverb tail, raw terrifying creature sound, no music, no human voice',
+  },
 ];
 
 function loadApiKey(): string {

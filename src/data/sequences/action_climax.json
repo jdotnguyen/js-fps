@@ -1690,10 +1690,6 @@
     "s": 0
    },
    {
-    "do": "hush",
-    "s": 0
-   },
-   {
     "do": "cameraFeed",
     "id": "r16_cam",
     "state": "off",
@@ -1732,6 +1728,23 @@
    },
    {
     "do": "playerFrame"
+   },
+   {
+    "do": "wait",
+    "s": 0.15
+   },
+   {
+    "do": "sfx",
+    "id": "r16MonsterRoarBlackout",
+    "gain": 4.8
+   },
+   {
+    "do": "wait",
+    "s": 6
+   },
+   {
+    "do": "hush",
+    "s": 0
    },
    {
     "do": "setFlag",

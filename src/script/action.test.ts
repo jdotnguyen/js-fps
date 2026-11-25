@@ -1683,6 +1683,11 @@ test('r16-arrival-finale: surveillance reveal, scream, blackout, and title card'
   await until(g, () => g.log.includes('sfx r16MonsterRoar'), 0.2);
   await advance(g, 2.8);
   assert.deepEqual(juggernautShows, [true], 'CAM 10 stays live for the scream');
+  assert.ok(!g.log.includes('sfx r16MonsterRoarBlackout'), 'the second roar waits for the cut to black');
+  await until(g, () => juggernautShows.length === 2, 0.3);
+  await until(g, () => g.log.includes('sfx r16MonsterRoarBlackout'), 0.3);
+  await advance(g, 5.8);
+  assert.equal(cliffhanger, false, 'screen holds on black to register the second roar before THALASSA');
   await until(g, () => !g.m.isRunning('r16_arrival_finale'));
 
   // Dialogue lines across PA, cabin banter, and radio-filtered surveillance.
@@ -1696,6 +1701,7 @@ test('r16-arrival-finale: surveillance reveal, scream, blackout, and title card'
     'score labB load', 'say r16_pa_02', 'sfx breakerClunk',
     'sfx r16HorrorHit', 'say r16_jay_01', 'score labB r16Build', 'sfx r16HorrorHit',
     'score labB r16Stalk', 'score labB r16Cut', 'feed r16_cam live fullscreen',
+    'sfx r16MonsterRoar', 'feed r16_cam off fullscreen', 'sfx r16MonsterRoarBlackout',
   ]);
   assert.equal(scores.labB.cues.r16Cut.cut, true);
 
