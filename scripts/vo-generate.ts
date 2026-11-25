@@ -26,6 +26,7 @@ import { recordBatch } from './lib/voTakes.ts';
 import { TIGHT_LINES } from './lib/voPauses.ts';
 import { tightenClip } from './lib/voTighten.ts';
 import { printReport, requestTts, runBatches, type SpeechConfig } from './lib/voTts.ts';
+import { manifestAudio } from './lib/voManifest.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const DIALOGUE_DIR = join(ROOT, 'src/data/dialogue');
@@ -398,10 +399,8 @@ function applyAudioManifest(chapters: ChapterFile[]): number {
     const raw = readFileSync(ch.path, 'utf8');
     let next = raw;
     for (const line of ch.data.lines) {
-      if (Array.isArray(line.audio)) continue;
-      const mp3 = join(OUT_DIR, `${line.id}.mp3`);
-      const target = existsSync(mp3) ? `assets/vo/${line.id}.mp3` : null;
-      if (line.audio === target) continue;
+      const target = manifestAudio(line.id, line.audio, (p) => existsSync(join(ROOT, 'public', p)));
+      if (target === undefined) continue;
       // Preserve existing compact JSON formatting by updating only this line's "audio" property.
       const escapedId = line.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const re = new RegExp(`("id":\\s*"${escapedId}"[\\s\\S]*?"audio":\\s*)(null|"[^"]*")`);
