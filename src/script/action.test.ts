@@ -56,9 +56,9 @@ function walk(steps: Step[], visit: (s: Record<string, unknown>) => void): void 
 // ------------------------------------------------------------------------------- data checks
 
 test('the action sequences name only things that exist: lines, sounds, anchors, NPCs, doors, rooms, objectives, groups', () => {
-  assert.equal(actionDefs.length, 16);
+  assert.equal(actionDefs.length, 17);
   // `researcher_b_creature`: what grows out of Voss in the drop's kill (infection-kills spec), escapes through Lab B's ceiling vent at the end of the drop (trim-lab-wing-encounters).
-  const npcSet = new Set([...npcIds, 'giles', 'okafor', 'r08_thing', 'researcher_b_creature', 'r09_flood_shambler']);
+  const npcSet = new Set([...npcIds, 'giles', 'okafor', 'r08_thing', 'researcher_b_creature', 'r09_flood_shambler', 'r16_finale_monster']);
   for (const def of actionDefs) {
     walk(def.steps, (s) => {
       const where = `${def.id}: ${String(s['do'])}`;
@@ -1212,23 +1212,28 @@ async function playThrough(g: Game, events: string[]): Promise<void> {
   g.host.events.emit('transit:stage:pullout' as never, { stage: 'pullout' } as never);
   await until(g, () => g.log.includes('sfx trainPullout'));
   g.host.events.emit('transit:stage:sea_tunnel' as never, { stage: 'sea_tunnel' } as never);
-  await until(g, () => said(g, 'r15a_heins_04') >= 1);
+  await until(g, () => said(g, 'r16_pa_01') >= 1);
   g.host.events.emit('transit:stage:arrival' as never, { stage: 'arrival' } as never);
   await until(g, () => said(g, 'r15a_okafor_03') >= 1);
   g.host.events.emit('transit:stage:arrived' as never, { stage: 'arrived' } as never);
   await settle('transit_ride_done');
   await until(g, () => !g.m.isRunning('r15a_train_ride'));
+  await settle('r16_finale_done');
+  await until(g, () => !g.m.isRunning('r16_arrival_finale'));
+  await until(g, () => !g.m.isRunning('title_card'));
+  await settle('reveal_done');
+  await until(g, () => !g.m.isRunning('stinger_priya'));
 }
 
-test('the whole action half runs from drop:done through R16a arrival with every checkpoint, in order, no warnings, no Giles infection tells', async () => {
+test('the whole action half runs from drop:done through R16 arrival finale, title card, and Priya stinger with every checkpoint, in order, no warnings, no Giles infection tells', async () => {
   const g = makeGame();
   const events: string[] = [];
   await playThrough(g, events);
   const cps = g.log.filter((e) => e.startsWith('checkpoint ')).map((e) => e.slice(11));
   assert.deepEqual(cps, ['cp_contact_clear', 'cp_cover_done', 'cp_security_done', 'cp_valve', 'cp_r11_powered', 'cp_r16_arrived']);
   assert.equal(g.host.flags['giles.infectionStage'], undefined);
-  assert.equal(g.control.state.move, 'free');
-  assert.equal(g.control.state.weapons, true);
+  assert.equal(g.host.flags['r16_finale_done'], true);
+  assert.equal(g.host.flags['reveal_done'], true);
   assert.equal(g.m.running().length, 0, 'nothing left running');
   assert.equal(at(g, 'npc npcAnim giles flex_hand'), -1);
   assert.equal(at(g, 'npc npcAnim giles rub_forearm'), -1);
@@ -1339,7 +1344,7 @@ test('medbay-attack "Restore after R08": Priya is put back dead where she was th
   assert.ok(g.log.lastIndexOf('npc npcMoveTo priya instant') > kill, 'then laid at her resting spot by the pane');
   assert.ok(g.log.includes('intercom medbay off') && g.log.includes('door D_R07_R08 sealed'), 'the intercom is dead and the door still sealed');
   assert.ok(g.log.includes('gore pool'), 'in her pool');
-  assert.ok(at(g, 'npc npcAnim priya corpseProne instant') > kill, 'dead, lying prone');
+  assert.ok(at(g, 'npc npcAnim priya corpseSlumped instant') > kill, 'dead, slumped as the scene leaves her');
   assert.equal(at(g, 'npc spawn r08_thing'), -1, 'no attacker comes back');
   noWarnings(g);
 });
@@ -1641,4 +1646,74 @@ test('r15a-train-ride-narrative: R13d walk-and-talk, R15a boarding, 3-stage Hein
   r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.deepEqual(rComms, ['lost']);
   noWarnings(r);
+});
+
+test('r16-arrival-finale: surveillance reveal, scream, blackout, and title card', async () => {
+  const g = makeGame(['r16_arrival_finale', 'title_card', 'action_restore']);
+  setFlags(g, { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, r11_powered: true, transit_ride_done: true });
+
+  const auxLights: boolean[] = [];
+  const squadFlashlights: boolean[] = [];
+  const juggernautShows: boolean[] = [];
+  const subtitles: string[] = [];
+  const showCard = g.host.titleCard!;
+  g.host.titleCard = (title, sub, seconds) => {
+    subtitles.push(sub);
+    showCard(title, sub, seconds);
+  };
+  let scriptedFired = false;
+  let cliffhanger = false;
+  g.host.events.on('transit:train_aux_lights' as never, (p: unknown) => void auxLights.push((p as { on: boolean }).on));
+  g.host.events.on('squad:flashlight' as never, (p: unknown) => void squadFlashlights.push((p as { on: boolean }).on));
+  g.host.events.on('transit:juggernaut_reveal' as never, (p: unknown) => {
+    const rec = p as { show?: boolean };
+    if (typeof rec.show === 'boolean') juggernautShows.push(rec.show);
+  });
+  g.host.events.on('squad:scripted_fire' as never, () => void (scriptedFired = true));
+  g.host.events.on('story:cliffhanger' as never, () => void (cliffhanger = true));
+
+  g.host.events.emit('transit:arrived_r16' as never, {} as never);
+  assert.equal(g.m.isRunning('r16_arrival_finale'), true);
+  await until(g, () => auxLights.includes(true));
+  assert.equal(g.control.state.move, 'locked', 'cutscene locks player movement once auxiliary lights engage');
+
+  await until(g, () => juggernautShows.includes(true));
+  await advance(g, 1.65);
+  assert.ok(!g.log.includes('sfx r16MonsterRoar'), 'the scream waits for the Juggernaut to enter the frame');
+  await until(g, () => g.log.includes('sfx r16MonsterRoar'), 0.2);
+  await advance(g, 2.8);
+  assert.deepEqual(juggernautShows, [true], 'CAM 10 stays live for the scream');
+  await until(g, () => !g.m.isRunning('r16_arrival_finale'));
+
+  // Dialogue lines across PA, cabin banter, and radio-filtered surveillance.
+  for (const id of ['r16_pa_02', 'r16_jay_01', 'r16_giles_01', 'r16_okafor_01', 'r16_jay_02', 'r16_giles_02', 'r16_okafor_02', 'r16_giles_03', 'r16_okafor_03', 'r16_giles_04']) {
+    assert.ok(said(g, id) >= 1, `R16 finale line ${id} played`);
+  }
+  assert.equal(said(g, 'r16_jay_03'), 0, 'Jay stays quiet during the squad advance');
+  const arrivalScore = ['score labB load', 'score labB r16Build', 'score labB r16Stalk', 'score labB r16Cut'];
+  assert.deepEqual(g.log.filter((entry) => entry.startsWith('score ')), arrivalScore);
+  inOrder(g, [
+    'score labB load', 'say r16_pa_02', 'sfx breakerClunk',
+    'sfx r16HorrorHit', 'say r16_jay_01', 'score labB r16Build', 'sfx r16HorrorHit',
+    'score labB r16Stalk', 'score labB r16Cut', 'feed r16_cam live fullscreen',
+  ]);
+  assert.equal(scores.labB.cues.r16Cut.cut, true);
+
+  // Lighting, horror hit, surveillance feeds, squad flashlights, gunfire, monster roar, and dead-silence cut.
+  assert.deepEqual(auxLights, [true, false], 'Train Car B downward auxiliary lights turn on then off on blackout');
+  assert.deepEqual(squadFlashlights, [true, false], 'Giles and Okafor weapon flashlights turn on then off on blackout');
+  assert.equal(scriptedFired, true, 'scripted squad gunfire fires before CAM 10');
+  assert.ok(g.log.includes('sfx r16HorrorHit'), 'bass horror impact plays on massacre reveal');
+  assert.deepEqual(juggernautShows, [true, false], 'juggernaut model reveals briefly on CAM 10 then hides on blackout');
+  assert.equal(g.feeds.at(-1)?.state, 'off');
+  assert.equal(g.host.flags['r16_finale_done'], true);
+  assert.equal(cliffhanger, true, 'story:cliffhanger emitted to chain into title_card -> stinger_priya -> endSlice');
+  assert.equal(g.m.isRunning('title_card'), true, 'title_card triggers immediately on story:cliffhanger');
+  assert.equal(g.control.state.move, 'locked', 'the player stays locked during the blackout');
+  await advance(g, 0.9);
+  assert.deepEqual(g.cards, [], 'the frame stays black before the splash');
+  await until(g, () => g.cards.length > 0, 0.2);
+  assert.deepEqual(g.cards, ['THALASSA']);
+  assert.deepEqual(subtitles, ['']);
+  noWarnings(g);
 });

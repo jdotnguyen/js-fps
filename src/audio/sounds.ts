@@ -936,7 +936,7 @@ export const SAMPLE_URLS = {
   trainCommsRing: 'assets/audio/ambience/oneshot-train-comms-ring.mp3',
   trainPowerDown: 'assets/audio/ambience/oneshot-train-power-down.mp3',
   r16HorrorHit: 'assets/audio/ambience/oneshot-r16-horror-hit.mp3',
-  r16MonsterRoar: 'assets/audio/ambience/oneshot-r16-monster-roar.mp3',
+  r16MonsterRoar: 'assets/audio/ambience/oneshot-r16-monster-roar-cctv.wav',
 
   // Door motion and access feedback (ElevenLabs, scripts/doors-generate.ts).
   doorPressureOpen: 'assets/audio/doors/door-pressure-open.mp3',

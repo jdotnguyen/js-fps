@@ -44,15 +44,7 @@
    },
    {
     "do": "wait",
-    "s": 0.6
-   },
-   {
-    "do": "say",
-    "line": "okafor_revive_rule_01"
-   },
-   {
-    "do": "wait",
-    "s": 1.1
+    "s": 1
    },
    {
     "do": "sfx",
@@ -126,16 +118,6 @@
    },
    {
     "do": "say",
-    "line": "blackout_radio_hydro_01",
-    "wait": false,
-    "overlap": true
-   },
-   {
-    "do": "wait",
-    "s": 7.8
-   },
-   {
-    "do": "say",
     "line": "blackout_radio_launch_01",
     "wait": false,
     "overlap": true
@@ -148,10 +130,6 @@
     "do": "say",
     "line": "blackout_radio_ops_02",
     "overlap": true
-   },
-   {
-    "do": "say",
-    "line": "blackout_okafor_01"
    },
    {
     "do": "say",

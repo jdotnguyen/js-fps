@@ -222,6 +222,35 @@
       "payload": {
        "state": "lost"
       }
+     },
+     {
+      "do": "emit",
+      "event": "transit:tunnel_power",
+      "payload": {
+       "mode": "emergency"
+      }
+     },
+     {
+      "do": "if",
+      "flag": "r16_finale_done",
+      "then": [
+       {
+        "do": "emit",
+        "event": "squad:flashlight",
+        "payload": {
+         "ids": "giles,okafor",
+         "on": false
+        }
+       },
+       {
+        "do": "emit",
+        "event": "transit:train_aux_lights",
+        "payload": {
+         "carId": "r16a_train",
+         "on": false
+        }
+       }
+      ]
      }
     ]
    },
@@ -283,14 +312,38 @@
        {
         "do": "npcAnim",
         "npc": "priya",
-        "anim": "corpseProne",
+        "anim": "corpseSlumped",
         "instant": true
        },
        {
         "do": "gore",
         "at": "anchor:priya_rest",
         "kind": "pool",
-        "size": 1.2
+        "size": 1.0
+       },
+       {
+        "do": "gore",
+        "at": "anchor:priya_rest",
+        "kind": "pool",
+        "size": 1.4
+       },
+       {
+        "do": "gore",
+        "at": "anchor:priya_rest",
+        "kind": "pool",
+        "size": 1.8
+       },
+       {
+        "do": "gore",
+        "at": "anchor:r08_impale",
+        "kind": "pool",
+        "size": 0.8
+       },
+       {
+        "do": "gore",
+        "at": "anchor:r08_slam_spot",
+        "kind": "pool",
+        "size": 0.5
        }
       ],
       "else": [

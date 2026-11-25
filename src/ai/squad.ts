@@ -180,8 +180,8 @@ export class SquadMate {
   flashlightOn = false;
   readonly weaponLight: THREE.SpotLight;
   private readonly weaponLightTarget: THREE.Object3D;
-  private readonly weaponBeam: THREE.Mesh;
   private scriptedBurst: { target: THREE.Vector3; remaining: number; interval: number; t: number; boost: number } | null = null;
+  private scriptedAimGet: (() => P3 | null) | null = null;
   hp: number = REVIVE.maxHp;
   /** Seconds left lying down. */
   downedT = 0;
@@ -243,7 +243,7 @@ export class SquadMate {
     this.rng = new Rng(`squad:${role.id}`);
     this.idleRng = new Rng(`squad-idle:${role.id}`);
     this.ambientT = this.idleRng.range(3, 8);
-    // Pre-allocated weapon-mounted spotlight + subtle volumetric cone (off by default, fixed light budget).
+    // Pre-allocated weapon-mounted spotlight (off by default, fixed light budget).
     this.weaponLight = new THREE.SpotLight(0xdcecff, 0, 24, Math.PI / 6.2, 0.55, 1.4);
     this.weaponLight.name = `squad_weapon_light_${role.id}`;
     this.weaponLight.castShadow = false;
@@ -252,33 +252,12 @@ export class SquadMate {
     this.weaponLight.target = this.weaponLightTarget;
     this.body.group.add(this.weaponLight);
     this.body.group.add(this.weaponLightTarget);
-    const beamLen = 7.5;
-    const beamGeo = new THREE.CylinderGeometry(0.05, 0.95, beamLen, 14, 1, true);
-    beamGeo.translate(0, -beamLen / 2, 0);
-    beamGeo.rotateX(Math.PI / 2); // apex at origin, flares along -Z (local forward)
-    const beamMat = new THREE.MeshBasicMaterial({
-      color: 0xdcecff,
-      transparent: true,
-      opacity: 0.09,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-      fog: false,
-    });
-    beamMat.name = 'squad-weapon-flashlight-beam';
-    this.weaponBeam = new THREE.Mesh(beamGeo, beamMat);
-    this.weaponBeam.name = `squad_flashlight_beam_${role.id}`;
-    this.weaponBeam.visible = false;
-    this.weaponBeam.frustumCulled = false;
-    this.weaponBeam.renderOrder = 4;
-    this.body.group.add(this.weaponBeam);
   }
 
   /** Toggle the pre-allocated weapon-mounted dynamic flashlight. */
   setFlashlight(on: boolean): void {
     this.flashlightOn = on;
     this.weaponLight.intensity = on ? 42 : 0;
-    this.weaponBeam.visible = on;
     if (on) this.updateWeaponFlashlight();
   }
 
@@ -286,11 +265,9 @@ export class SquadMate {
   updateWeaponFlashlight(): void {
     if (!this.flashlightOn) {
       this.weaponLight.intensity = 0;
-      this.weaponBeam.visible = false;
       return;
     }
     this.weaponLight.intensity = 42;
-    this.weaponBeam.visible = true;
     const gun = shotPoints(this);
     const inv = this.body.group.matrixWorld.clone().invert();
     const localMuzzle = new THREE.Vector3(gun.muzzle.x, gun.muzzle.y, gun.muzzle.z).applyMatrix4(inv);
@@ -302,8 +279,41 @@ export class SquadMate {
     const localTarget = worldTarget.applyMatrix4(inv);
     this.weaponLight.position.copy(localMuzzle);
     this.weaponLightTarget.position.copy(localTarget);
-    this.weaponBeam.position.copy(localMuzzle);
-    this.weaponBeam.lookAt(worldTarget);
+  }
+
+  /** Hold pistol drawn forward tracking a live world target (or null to release). */
+  setScriptedAim(get: (() => P3 | null) | null): void {
+    this.scriptedAimGet = get;
+    if (get) {
+      this.body.setPose('aim_pistol', 0.2);
+      this.updateScriptedAim(0);
+    } else if (!this.scriptedBurst) {
+      this.body.aimTarget = null;
+    }
+  }
+
+  /** Keep pistol and gaze tracking `scriptedAimGet` (runs even while `scripted` is true). */
+  updateScriptedAim(dt: number): void {
+    if (!this.scriptedAimGet || this.scriptedBurst) return;
+    const t = this.scriptedAimGet();
+    if (!t) return;
+    const aim = this.aimPoint.set(t.x, t.y, t.z);
+    this.body.lookTarget = aim;
+    this.body.aimTarget = aim;
+    if (this.body.idlePose !== 'aim_pistol') this.body.setPose('aim_pistol', 0.2);
+    // Gently turn toward the aim target only when completely stationary, without calling setHeading() (which zeroes speed/velocity).
+    if (this.body.speed < 0.005) {
+      const dx = t.x - this.position.x;
+      const dz = t.z - this.position.z;
+      if (Math.hypot(dx, dz) > 0.05) {
+        const want = Math.atan2(-dx, -dz);
+        const diff = Math.atan2(Math.sin(want - this.body.heading), Math.cos(want - this.body.heading));
+        if (Math.abs(diff) > 0.02) {
+          this.body.heading += diff * (dt > 0 ? Math.min(1, dt * 5) : 1);
+          this.body.group.rotation.y = this.body.heading;
+        }
+      }
+    }
   }
 
   /** Queue timed scripted pistol bursts toward a world point (e.g. R16 surveillance finale). */
@@ -1462,9 +1472,19 @@ export class Squad {
     }
     for (const m of this.mates) {
       m.update(dt, this, this.player, cameraPos);
+      m.updateScriptedAim(dt);
       m.updateScriptedFire(dt, this);
       m.updateWeaponFlashlight();
       this.catchUp(m);
+    }
+  }
+
+  /** Aim named squadmates' pistols and weapon flashlights at a live world target (or null to clear). */
+  setAim(ids: readonly string[] | undefined, get: (() => P3 | null) | null): void {
+    const targets = ids?.length ? ids : ['engineer', 'medic'];
+    for (const raw of targets) {
+      const sid: SquadId | null = raw === 'giles' || raw === 'engineer' ? 'engineer' : raw === 'okafor' || raw === 'medic' ? 'medic' : null;
+      if (sid) this.mate(sid).setScriptedAim(get);
     }
   }
 

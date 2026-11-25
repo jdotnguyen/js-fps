@@ -869,7 +869,7 @@ test('slice-stinger: her corpse lies still at least 3 s, twitches, gets up infec
   let headAtFace = 0;
   let facing = Infinity;
   g.step(12, () => {
-    if (head() < 0.5) lyingUntil = g.time();
+    if (head() < 0.95) lyingUntil = g.time();
     const f = g.beatAt('face');
     if (f > 0 && Math.abs(g.time() - (f + 1.2)) < 1 / 120) {
       headAtFace = head();

@@ -60,3 +60,10 @@ A feed SHALL render the world only while one of its screens is visible or it cov
 #### Scenario: The stinger replaces the player's view
 - **WHEN** a live feed covers the whole view
 - **THEN** each display frame renders the world at most once, from the feed's camera
+
+### Requirement: Remote feeds keep viewed NPCs visible and awake
+An NPC within `hideDistance` or `sleepDistance` of any live, currently seen security camera feed (or currently in a scripted kill) SHALL remain visible and animated even when the player camera is further away.
+
+#### Scenario: Priya on CAM 04 while Jay is in R16a
+- **WHEN** `stinger_priya` shows `CAM 04 MEDBAY` while the player camera is in `R16a` (~88 m from `priya_rest`)
+- **THEN** Priya's body stays visible and animates normally on the feed instead of being hidden by `hideDistance`

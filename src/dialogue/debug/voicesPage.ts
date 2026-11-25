@@ -745,7 +745,7 @@ const SCENARIO_IDS = [
   'pa_quarantine_01',
   'okafor_legs_01',
   'giles_panel_01',
-  'okafor_revive_rule_01',
+  'okafor_quiet_01',
 ] as const;
 
 let scenariosPreloaded = false;
@@ -778,7 +778,7 @@ $('sc-drop').addEventListener('click', () => {
 $('sc-queue').addEventListener('click', () => {
   void ensureScenarioAudio().then(() => {
     say('giles_panel_01');
-    say('okafor_revive_rule_01');
+    say('okafor_quiet_01');
   });
 });
 $('sc-stop').addEventListener('click', () => stopAudition(true));

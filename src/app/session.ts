@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Keymap } from '../data/types/keymap.ts';
 import type { DifficultyId, DifficultyTable } from '../data/types/difficulty.ts';
 import type { ItemTable } from '../data/types/items.ts';
@@ -1159,7 +1160,14 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         return null;
       }
       if (dialogue.line(id).channel === 'pa') {
-        return speech!.say(id, { ...opts, at: () => level?.paSpeakerAt(camera.position, opts?.fixture) ?? null });
+        const onboardTrainPa = id === 'r16_pa_01' || id === 'r16_pa_02';
+        return speech!.say(id, {
+          ...opts,
+          at: () =>
+            onboardTrainPa
+              ? new THREE.Vector3(camera.position.x, camera.position.y + 0.8, camera.position.z)
+              : (level?.paSpeakerAt(camera.position, opts?.fixture) ?? null),
+        });
       }
       const line = dialogue.line(id);
       if (line.channel === 'local' && !opts?.at && speakerHeadAt(line.speaker)) {
@@ -1379,10 +1387,12 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       active: () => game.mode === 'playing' && !game.flying,
     });
     if (squad) {
-      events.on('squad:flashlight' as never, ((p: { ids?: string[]; on?: boolean }) => {
-        squad!.setFlashlight(p?.ids, p?.on === true);
+      const parseSquadIds = (raw: string | string[] | undefined): string[] | undefined =>
+        typeof raw === 'string' ? raw.split(',').map((s) => s.trim()).filter(Boolean) : Array.isArray(raw) ? raw : undefined;
+      events.on('squad:flashlight' as never, ((p: { ids?: string | string[]; on?: boolean }) => {
+        squad!.setFlashlight(parseSquadIds(p?.ids), p?.on === true);
       }) as never);
-      events.on('squad:scripted_fire' as never, ((p: { ids?: string[]; target?: string | [number, number, number]; bursts?: number; interval?: number; boost?: number }) => {
+      events.on('squad:scripted_fire' as never, ((p: { ids?: string | string[]; target?: string | [number, number, number]; bursts?: number; interval?: number; boost?: number }) => {
         if (!p?.target) return;
         let target: { x: number; y: number; z: number } | null = null;
         if (typeof p.target === 'string' && p.target.startsWith('anchor:')) {
@@ -1392,17 +1402,126 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           target = { x: p.target[0], y: p.target[1], z: p.target[2] };
         }
         if (target) {
+          const ids = parseSquadIds(p.ids);
           squad!.scriptedFire({
             target,
-            ...(p.ids !== undefined ? { ids: p.ids } : {}),
+            ...(ids !== undefined ? { ids } : {}),
             ...(p.bursts !== undefined ? { bursts: p.bursts } : {}),
             ...(p.interval !== undefined ? { interval: p.interval } : {}),
             ...(p.boost !== undefined ? { boost: p.boost } : {}),
           });
         }
       }) as never);
-      events.on('level:reset' as never, (() => squad!.setFlashlight(undefined, false)) as never);
+      events.on('squad:aim' as never, ((p: { ids?: string | string[]; target?: string | null }) => {
+        const ids = parseSquadIds(p?.ids);
+        const ref = p?.target;
+        if (!ref) {
+          squad!.setAim(ids, null);
+          return;
+        }
+        if (ref.startsWith('npc:')) {
+          const npcId = ref.slice(4);
+          squad!.setAim(ids, () => {
+            const a = npcs?.actor(npcId, false);
+            return a ? { x: a.position.x, y: a.position.y + 0.35, z: a.position.z } : null;
+          });
+        } else if (ref.startsWith('anchor:')) {
+          const a = level?.anchor(ref.slice(7));
+          squad!.setAim(ids, a ? () => ({ x: a.pos.x, y: a.pos.y, z: a.pos.z }) : null);
+        }
+      }) as never);
+      events.on('level:reset' as never, (() => {
+        squad!.setFlashlight(undefined, false);
+        squad!.setAim(undefined, null);
+      }) as never);
     }
+
+    // Preload the Juggernaut during the arrival, ahead of its CAM 10 entrance.
+    let juggernautRoot: THREE.Group | null = null;
+    let juggernautHead: THREE.Object3D | undefined;
+    let juggernautLoading = false;
+    let juggernautActive = false;
+    let juggernautT = 0;
+    let juggernautYaw = 0;
+    const juggernautStart = new THREE.Vector3();
+    const juggernautEnd = new THREE.Vector3();
+    const juggernautAim = new THREE.Vector3();
+    const ensureJuggernaut = (): void => {
+      if (juggernautRoot || juggernautLoading) return;
+      juggernautLoading = true;
+      const loader = new GLTFLoader();
+      const base = (import.meta.env?.BASE_URL ?? '/').replace(/\/?$/, '/');
+      loader.load(
+        `${base}assets/models/infected/monster_juggernaut.glb`,
+        (gltf) => {
+          juggernautLoading = false;
+          const wrap = new THREE.Group();
+          wrap.name = 'r16_juggernaut';
+          const model = gltf.scene;
+          model.updateMatrixWorld(true);
+          const box = new THREE.Box3();
+          model.traverse((c) => {
+            if (c instanceof THREE.Mesh) {
+              // This export's detail meshes are bound hundreds of units above the body.
+              if (!Array.isArray(c.material) && c.material.name === 'details') {
+                c.visible = false;
+                return;
+              }
+              box.expandByObject(c);
+              c.frustumCulled = false;
+              c.castShadow = true;
+              c.receiveShadow = true;
+            }
+          });
+          const scale = 6 / Math.max(0.01, box.max.y - box.min.y);
+          const center = box.getCenter(new THREE.Vector3());
+          model.scale.setScalar(scale);
+          model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
+          // The forward head marker stays on the exposed face as it peeks around the pillar.
+          juggernautHead = model.getObjectByName('head_ik_094');
+          wrap.add(model);
+          wrap.visible = juggernautActive;
+          wrap.position.copy(juggernautStart);
+          wrap.rotation.y = juggernautYaw;
+          scene.add(wrap);
+          juggernautRoot = wrap;
+        },
+        undefined,
+        (err) => {
+          juggernautLoading = false;
+          console.warn('[r16] failed to load monster_juggernaut.glb', err);
+        },
+      );
+    };
+    events.on('transit:juggernaut_reveal' as never, ((p: { preload?: boolean; show?: boolean }) => {
+      if (p?.preload) ensureJuggernaut();
+      if (typeof p?.show === 'boolean') {
+        juggernautActive = p.show;
+        if (p.show) {
+          ensureJuggernaut();
+          const hide = level?.anchor('r16_monster_hide');
+          const rev = level?.anchor('r16_monster_reveal');
+          if (hide) juggernautStart.set(hide.pos.x, hide.pos.y, hide.pos.z);
+          if (rev) {
+            juggernautEnd.set(rev.pos.x, rev.pos.y, rev.pos.z);
+            juggernautYaw = rev.yaw;
+          }
+          juggernautT = 0;
+          squad?.setAim(['giles', 'okafor'], () => juggernautHead?.getWorldPosition(juggernautAim) ?? null);
+          if (juggernautRoot) {
+            juggernautRoot.position.copy(juggernautStart);
+            juggernautRoot.rotation.y = juggernautYaw;
+            juggernautRoot.visible = true;
+          }
+        } else if (juggernautRoot) {
+          juggernautRoot.visible = false;
+        }
+      }
+    }) as never);
+    events.on('level:reset' as never, (() => {
+      juggernautActive = false;
+      if (juggernautRoot) juggernautRoot.visible = false;
+    }) as never);
 
     let ambienceRoom: string | null = null;
     events.on('room:entered', (r) => {
@@ -1644,6 +1763,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           ['r16', 'anchor:r16_train_exit', { tunnel_started: true, valve_done: true }],
           ['r16b', 'anchor:r16_concourse', { tunnel_started: true, valve_done: true }],
           ['r16_finale', 'anchor:r16_train_inside', { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, r11_powered: true, r15a_ready_to_depart: true, r15a_boarded: true, transit_ride_done: true, 'weapon:shotgun': true }],
+          ['stinger_priya', 'anchor:r16_train_inside', { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, r11_powered: true, r15a_ready_to_depart: true, r15a_boarded: true, transit_ride_done: true, r16_finale_done: true, 'weapon:shotgun': true }],
         ];
         const off = events.on('game:mode', ({ mode }) => {
           if (mode !== 'playing') return;
@@ -1679,14 +1799,20 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
                 }
               }
               player.placeAtEye(new THREE.Vector3(cp.pos[0], cp.pos[1] + PLAYER_TUNING.eyeHeight, cp.pos[2]), ((cp.yaw ?? 0) * Math.PI) / 180);
-              if (jump !== 'r16_finale') squad!.requestPlacement();
+              if (jump !== 'r16_finale' && jump !== 'stinger_priya') squad!.requestPlacement();
+              if (jump === 'stinger_priya') {
+                hud.setFade(1, 0);
+                sequences?.start('stinger_priya');
+              }
               if (jump === 'r16_finale') {
-                // Place Giles and Okafor inside Train Car B with Jay, black out R16a/R16b, seal dock, and trigger finale.
+                // Place Giles and Okafor inside Train Car B with Jay, black out R16a/R16b completely (keep only cabin lights), seal dock, and trigger finale.
+                level!.setRoomLights('R16a', 'off');
                 level!.tintRoomLights('R16a', 'black');
+                level!.setRoomLights('R16b', 'off');
                 level!.tintRoomLights('R16b', 'black');
-                for (const lid of ['r16a_light_nw', 'r16a_light_ne', 'r16a_light_mid', 'r16a_light_se', 'r16b_light_e1', 'r16b_light_e2', 'r16b_light_m1', 'r16b_light_m2', 'r16b_light_w1', 'r16b_light_w2']) {
-                  level!.setLight(lid, 'off', undefined, 0);
-                }
+                level!.setLight('r16a_train_cabin_a', 'steady', '#ffb974', 1);
+                level!.setLight('r16a_train_cabin_b', 'steady', '#ffb974', 1);
+                events.emit('transit:r16_beacons' as never, { on: false } as never);
                 events.emit('transit:blast_gate' as never, { gateId: 'r16a_north', open: false } as never);
                 events.emit('transit:train_door' as never, { carId: 'r16a_train', open: false, instant: true } as never);
                 squad!.mate('engineer').place({ x: 88.2, y: -0.12, z: 33.4 }, Math.PI / 2);
@@ -1828,8 +1954,13 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           stepPhysics(dt);
           sequences?.update(dt);
           enemies!.update(dt);
+          if (juggernautActive && juggernautRoot) {
+            juggernautT = Math.min(1, juggernautT + dt / 2.3);
+            const ease = juggernautT * juggernautT * (3 - 2 * juggernautT);
+            juggernautRoot.position.lerpVectors(juggernautStart, juggernautEnd, ease);
+          }
           squad!.update(dt, camera.position);
-          npcs!.update(dt, camera.position, cameraForwardXZ(camera, npcCamFwd));
+          npcs!.update(dt, camera.position, cameraForwardXZ(camera, npcCamFwd), cameraFeeds?.liveCameras());
           gore!.update(dt);
           guidance!.update(dt);
           scoreFeet.x = player.body.x;

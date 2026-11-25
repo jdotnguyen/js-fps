@@ -754,3 +754,20 @@ test('transit_train_shell with auxLights exposes two downward light slots and to
   for (const l of train.listeners ?? []) if (l.event === 'level:reset') l.fn({});
   assert.ok(pools.every((pl) => !pl.visible), 'aux pools hide on level:reset');
 });
+
+test('transit_tunnel_shroud exposes inward-aimed rib lights when ribLights is set', () => {
+  const m = stubMaterials();
+  const reg = new KitRegistry({ glb: {} });
+  const plain = reg.create('transit_tunnel_shroud', { area: 'transit', length: 36, fog: 'south' }, new Rng('plain'), m);
+  assert.equal(plain.lightSlots.length, 0, 'shroud without ribLights exposes no light slots');
+
+  const lit = reg.create('transit_tunnel_shroud', { area: 'transit', length: 36, fog: 'south', ribLights: 4 }, new Rng('lit'), m);
+  assert.equal(lit.lightSlots.length, 4, 'shroud with ribLights: 4 exposes four inward-aimed rib light slots');
+  const expectedZ = [-16.5, -13.5, -10.5, -7.5];
+  lit.lightSlots.forEach((s, i) => {
+    assert.ok(s.follow, `rib light ${i} attaches to an anchor (no flat diffuser plate)`);
+    assert.ok(s.aim, `rib light ${i} specifies an inward aim vector`);
+    assert.ok(Math.sign(s.aim[0]) === -Math.sign(s.pos[0]), `rib light ${i} aims inward across the track`);
+    assert.equal(s.pos[2], expectedZ[i], `rib light ${i} aligns with rib ${i}`);
+  });
+});

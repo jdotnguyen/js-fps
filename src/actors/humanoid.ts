@@ -1842,7 +1842,7 @@ export class Humanoid {
     if (loc.mode === 'crawl') pose = 'crawl';
     else if (loc.mode === 'drag') pose = 'dragging';
     else if (loc.blind) pose = 'blindFlail';
-    else if (this.spec.role === 'npc' && this.speed > (this.idlePose === 'idle' ? 0.05 : 0.35)) pose = 'walk';
+    else if (this.spec.role === 'npc' && this.idlePose !== 'aim_pistol' && this.speed > (this.idlePose === 'idle' ? 0.05 : 0.35)) pose = 'walk';
     else if (this.spec.role === 'enemy') pose = this.spec.pose ?? 'shamble';
     if (this.carried) pose = this.carried;
     if (this.kill) pose = this.idlePose; // a kill stagger keeps its authored upper body; the legs still step

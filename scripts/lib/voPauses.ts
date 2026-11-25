@@ -41,6 +41,7 @@ export const TIGHT_LINES: Readonly<Record<string, number>> = {
   sec_priya_19: PAUSE_CAP,
   sec_priya_20: PAUSE_CAP,
   r15a_heins_03: PAUSE_CAP,
+  r15a_jay_01: PAUSE_CAP,
 };
 
 /** A half-open sample range [start, end) to keep. */

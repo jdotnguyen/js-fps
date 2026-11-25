@@ -89,6 +89,8 @@ export interface NpcEnv {
   playerHead: THREE.Vector3;
   playerFeet: THREE.Vector3;
   camera: THREE.Vector3 | null;
+  /** Additional active camera positions (e.g. live CCTV feeds) that also keep NPCs visible and awake. */
+  extraCameras?: readonly THREE.Vector3[] | undefined;
   /** Unit XZ direction Jay is trying to move this step (zero = not moving); absent = never gives way. */
   playerWish?: { x: number; z: number };
   /** Is another body standing in this circle (give-way spots)? `self` is excluded. */
@@ -473,8 +475,14 @@ export class NpcActor {
 
   update(dt: number, env: NpcEnv): void {
     const me = this.position;
-    const camD = env.camera ? me.distanceTo(env.camera) : 0;
-    this.body.group.visible = camD < NPC_TUNING.hideDistance;
+    let camD = env.camera ? me.distanceTo(env.camera) : 0;
+    if (env.extraCameras && env.extraCameras.length > 0) {
+      for (const c of env.extraCameras) {
+        const d = me.distanceTo(c);
+        if (d < camD) camD = d;
+      }
+    }
+    this.body.group.visible = camD < NPC_TUNING.hideDistance || this.body.killing;
     let speed = 0;
     const desired = tmpB.set(0, 0, 0);
 

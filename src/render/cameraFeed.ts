@@ -80,6 +80,7 @@ export class CameraFeeds {
   private readonly d: CameraFeedsDeps;
   private readonly feeds = new Map<string, Feed>();
   private readonly warned = new Set<string>();
+  private readonly liveCamPos: THREE.Vector3[] = [];
   /** Counters for tests and the debug overlay. */
   sceneRenders = 0;
   lookPasses = 0;
@@ -100,6 +101,17 @@ export class CameraFeeds {
   get fullscreen(): Feed | null {
     for (const f of this.feeds.values()) if (f.fullscreen && f.state !== 'off') return f;
     return null;
+  }
+
+  /** World positions of every live, currently seen feed camera (keeps remote NPCs visible and awake on CCTV). */
+  liveCameras(): readonly THREE.Vector3[] {
+    this.liveCamPos.length = 0;
+    for (const f of this.feeds.values()) {
+      if (f.state === 'live' && (f.fullscreen || f.meshes.some(isShown))) {
+        this.liveCamPos.push(f.camera.position);
+      }
+    }
+    return this.liveCamPos;
   }
 
   /** `SequenceHost.cameraFeed`: create the feed on first use, then set its state and view. */

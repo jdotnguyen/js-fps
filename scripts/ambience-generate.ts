@@ -1118,10 +1118,10 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     file: 'oneshot-r16-monster-roar.mp3',
     category: 'oneshot',
     loop: false,
-    duration: 1.8,
+    duration: 4.0,
     promptInfluence: 0.75,
     prompt:
-      'terrifying close-range deep-sea abyssal horror monster guttural shriek and roaring snarl echoing inside a dark concrete terminal hall, wet organic predator roar layered with sub-bass weight, raw scary creature sound, no music, no human voice',
+      'long terrifying close-range deep-sea abyssal juggernaut monster guttural roar and sustained echoing shriek inside a cavernous dark concrete terminal hall, massive organic predator bellow with deep sub-bass rumble and resonant reverb tail, raw scary creature sound, no music, no human voice',
   },
 ];
 

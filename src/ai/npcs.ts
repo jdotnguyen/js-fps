@@ -467,7 +467,7 @@ export class NpcDirector {
         a?.place(s.pos, s.yaw);
       } else {
         this.levelSpawns.set(s.id, s);
-        this.create(s.id, s.look, s.pos, s.yaw, s.pose, s.transformable === true, s.model);
+        this.create(s.id, s.look, s.pos, s.yaw, s.pose, s.transformable === true, s.model, s.dead === true, s.blood === true);
         created++;
         if (created % batchSize === 0) await yieldFrame();
       }
@@ -1107,7 +1107,7 @@ export class NpcDirector {
 
   // ------------------------------------------------------------------ per step
 
-  update(dt: number, camera: THREE.Vector3 | null, cameraForward: { x: number; z: number } | null = null): void {
+  update(dt: number, camera: THREE.Vector3 | null, cameraForward: { x: number; z: number } | null = null, extraCameras?: readonly THREE.Vector3[]): void {
     const p = this.deps.player();
     this.env.playerFeet.copy(p.feet);
     this.env.playerHead.copy(p.head);
@@ -1115,6 +1115,7 @@ export class NpcDirector {
     wish.x = p.wish?.x ?? 0;
     wish.z = p.wish?.z ?? 0;
     this.env.camera = camera;
+    this.env.extraCameras = extraCameras;
     if (this.timers.length) {
       const due: Array<() => void> = [];
       this.timers = this.timers.filter((t) => {

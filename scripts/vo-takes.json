@@ -2026,5 +2026,96 @@
     ],
     "at": "2026-11-25T03:47:03.722Z",
     "source": "generated"
+  },
+  {
+    "batch": "retake_player_01",
+    "speakers": [
+      "player"
+    ],
+    "voices": [
+      "Orus"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "r16_jay_01",
+      "r16_jay_02"
+    ],
+    "at": "2026-11-25T03:48:19.488Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_player_01",
+    "speakers": [
+      "player"
+    ],
+    "voices": [
+      "Orus"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "r15a_jay_01"
+    ],
+    "at": "2026-11-25T04:08:29.325Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_engineer_01",
+    "speakers": [
+      "engineer"
+    ],
+    "voices": [
+      "Algenib"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "r16_giles_01"
+    ],
+    "at": "2026-11-25T05:29:51.051Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_engineer_02",
+    "speakers": [
+      "engineer"
+    ],
+    "voices": [
+      "Algenib"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "r16_giles_02"
+    ],
+    "at": "2026-11-25T05:30:11.731Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_engineer_03",
+    "speakers": [
+      "engineer"
+    ],
+    "voices": [
+      "Algenib"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "r16_giles_03"
+    ],
+    "at": "2026-11-25T05:30:33.066Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_engineer_04",
+    "speakers": [
+      "engineer"
+    ],
+    "voices": [
+      "Algenib"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "r16_giles_04"
+    ],
+    "at": "2026-11-25T05:30:52.433Z",
+    "source": "generated"
   }
 ]

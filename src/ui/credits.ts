@@ -225,7 +225,8 @@ export class EndCredits {
   /**
    * Open the credits. The returned promise settles once they fully cover the screen (their fade-in is done), so a
    * caller can change what is underneath without it showing through. `instant` skips the fade-in: for a screen that
-   * is already black (the end of the slice), so nothing above the black shows through while they would fade in.
+   * is already black at the end of the slice. The cutscene has already shown the title, so this path starts on the
+   * director credit.
    */
   show(onClose?: () => void, opts: { instant?: boolean } = {}): Promise<void> {
     if (this.active) return Promise.resolve();
@@ -253,7 +254,8 @@ export class EndCredits {
     this.root.addEventListener('wheel', this.onWheel, { passive: true });
 
     this.startVisorLoop();
-    void this.runSequence();
+    const cards = opts.instant ? HEADLINE_CREDITS.slice(1) : HEADLINE_CREDITS;
+    void this.runSequence(cards);
     if (opts.instant) return Promise.resolve();
     return new Promise<void>((resolve) => {
       const done = (): void => {
@@ -304,13 +306,13 @@ export class EndCredits {
     });
   }
 
-  private async runSequence(): Promise<void> {
+  private async runSequence(cards: readonly HeadlineCredit[]): Promise<void> {
     const reduced = this.isReducedMotion();
     const fadeInMs = reduced ? 250 : CARD_IN_MS;
     const holdMs = reduced ? 1500 : CARD_HOLD_MS;
     const fadeOutMs = reduced ? 250 : CARD_OUT_MS;
 
-    for (const card of HEADLINE_CREDITS) {
+    for (const card of cards) {
       if (!this.active) return;
       const el = h(
         'div',

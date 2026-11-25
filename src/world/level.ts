@@ -1391,6 +1391,9 @@ export class Level implements World, CaptureHost {
         localColliders: out.colliders.map((c) => ({ min: [...c.min], max: [...c.max], ...(c.acoustic ? { acoustic: c.acoustic } : {}) })),
         colliders: addedColliders.slice(0, out.colliders.length),
       });
+      if (!this.dynamicProps.has(movableObj.id)) {
+        this.offs.push(this.casters.add(new RigidCaster(movableObj.object)));
+      }
     }
     for (const s of out.lightSlots) {
       const pos = new THREE.Vector3(...s.pos).applyMatrix4(matrix);

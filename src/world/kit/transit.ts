@@ -1595,6 +1595,27 @@ function transitTunnelShroud(p: PieceParams, _rng: Rng, m: Materials): PieceOutp
   const fogEnd = strParam(p, 'fog', 'none');
   if (fogEnd === 'south' || fogEnd === 'both') pb.dynamic(hallFog(len / 2 - 0.05, 1, 1.0));
   if (fogEnd === 'north' || fogEnd === 'both') pb.dynamic(hallFog(-len / 2 + 0.05, -1, 1.0));
+  // Optional inward-aimed dynamic rib lights (same placement and aim as transit_sea_tunnel_rig) so a train
+  // pulling through the shroud gets sweeping mullion shadows before the Stage 2 handoff.
+  const ribLightCount = Math.max(0, Math.min(ribs.length, Math.round(numParam(p, 'ribLights', 0))));
+  if (ribLightCount > 0) {
+    const anchorRoot = new THREE.Group();
+    anchorRoot.name = 'tunnel_shroud_light_root';
+    pb.dynamic(anchorRoot);
+    const fromSouth = fogEnd === 'north';
+    for (let i = 0; i < ribLightCount; i++) {
+      const z = fromSouth ? ribs[ribs.length - 1 - i]! : ribs[i]!;
+      const sx = i % 2 === 0 ? -1 : 1;
+      const anchor = new THREE.Object3D();
+      anchor.name = `tunnel_shroud_rib_light_${i}`;
+      anchor.position.set(sx * 1.82, 2.05, z);
+      anchorRoot.add(anchor);
+      pb.light([sx * 1.82, 2.05, z], 'wall', sx > 0 ? Math.PI / 2 : -Math.PI / 2, undefined, {
+        aim: [-sx * 0.96, -0.28, 0],
+        follow: anchor,
+      });
+    }
+  }
   const applyTunnelPower = (emergency: boolean): void => {
     roofLight.color.setHex(emergency ? 0xc81818 : 0x9fe8ff);
     roofLight.emissive.setHex(emergency ? 0xc81818 : 0x9fe8ff);

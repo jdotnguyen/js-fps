@@ -2,23 +2,70 @@
   "convertedRise": {
     "kind": "converted",
     "beats": [
-      { "id": "still", "poses": ["corpseProne"], "convulse": 0, "until": "time", "s": 3.4, "max": 3.4 },
+      { "id": "still", "poses": ["corpseSlumped"], "convulse": 0, "until": "time", "s": 3.4, "max": 3.4 },
       {
         "id": "twitch",
-        "poses": ["corpseProne"],
-        "convulse": 0.15,
+        "poses": ["corpseSlumped"],
+        "convulse": 0.2,
+        "rate": 3,
         "until": "time",
         "s": 1.6,
         "max": 1.6,
         "lines": ["stinger_priya_06"],
         "events": [
           { "t": 0.1, "do": "kick", "joint": "hand_R", "dir": "up", "strength": 0.9 },
-          { "t": 0.9, "do": "kick", "joint": "shin_L", "dir": "up", "strength": 1.1 }
+          { "t": 0.55, "do": "kick", "joint": "head", "dir": "left", "strength": 1.0 },
+          { "t": 1.05, "do": "kick", "joint": "shin_L", "dir": "up", "strength": 1.1 }
         ]
       },
-      { "id": "turn", "poses": ["writhingProne"], "blend": 0.3, "convulse": 0.7, "rate": 3, "until": "time", "s": 2.2, "max": 2.2, "events": [{ "t": 0.4, "do": "infect", "stage": 3 }] },
-      { "id": "rise", "poses": ["getUp_0", "getUp_1", "getUp_2", "idle"], "period": 0.38, "blend": 0.3, "clip": "priya_rise", "speed": [[0, 0.6], [1.3, 0.6], [1.55, 1.35], [1.85, 0.65], [3.6, 0.7], [3.8, 1.25], [4.05, 0.8]], "convulse": 0.1, "rate": 2, "until": "clip", "s": 1.5, "max": 9, "events": [{ "t": 0.9, "do": "kick", "joint": "shoulder_R", "dir": "back", "strength": 0.8 }, { "t": 2.6, "do": "kick", "joint": "head", "dir": "left", "strength": 0.9 }, { "t": 4.4, "do": "kick", "joint": "shoulder_L", "dir": "up", "strength": 0.7 }] },
-      { "id": "face", "poses": ["idle"], "blend": 0.6, "convulse": 0.1, "until": "time", "s": 1.0, "max": 1.0, "events": [{ "t": 0, "do": "face", "mark": "camera" }] }
+      {
+        "id": "turn",
+        "poses": ["slumpedWrithe"],
+        "blend": 0.22,
+        "convulse": 0.55,
+        "rate": 3.5,
+        "until": "time",
+        "s": 2.0,
+        "max": 2.0,
+        "events": [
+          { "t": 0.3, "do": "kick", "joint": "head", "dir": "back", "strength": 1.1 },
+          { "t": 0.4, "do": "infect", "stage": 3 },
+          { "t": 1.1, "do": "kick", "joint": "shoulder_L", "dir": "up", "strength": 0.95 },
+          { "t": 1.6, "do": "kick", "joint": "head", "dir": "right", "strength": 1.0 }
+        ]
+      },
+      {
+        "id": "rise",
+        "poses": ["slumpedRise_0", "slumpedRise_1", "slumpedStand"],
+        "period": 1.2,
+        "blend": 0.22,
+        "convulse": 0.35,
+        "rate": 3.2,
+        "until": "time",
+        "s": 3.6,
+        "max": 3.6,
+        "events": [
+          { "t": 0.35, "do": "kick", "joint": "shoulder_R", "dir": "back", "strength": 1.0 },
+          { "t": 0.95, "do": "kick", "joint": "head", "dir": "left", "strength": 1.15 },
+          { "t": 1.55, "do": "kick", "joint": "chest", "dir": "fwd", "strength": 0.9 },
+          { "t": 2.15, "do": "kick", "joint": "shoulder_L", "dir": "up", "strength": 1.05 },
+          { "t": 2.85, "do": "kick", "joint": "head", "dir": "right", "strength": 1.1 }
+        ]
+      },
+      {
+        "id": "face",
+        "poses": ["slumpedStand"],
+        "blend": 0.25,
+        "convulse": 0.25,
+        "rate": 3,
+        "until": "time",
+        "s": 1.0,
+        "max": 1.0,
+        "events": [
+          { "t": 0, "do": "face", "mark": "camera" },
+          { "t": 0.25, "do": "kick", "joint": "head", "dir": "right", "strength": 1.0 }
+        ]
+      }
     ]
   },
   "mauled": {

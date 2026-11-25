@@ -593,3 +593,32 @@ test('externally scripted squadmate (e.g. transit ride) stays solid to the playe
   const solids = [...npcs.solidBodies()];
   assert.ok(solids.some((b) => Math.hypot(b.x - 0.5, b.z) < 0.01), 'still reported as a solid body for player collision');
 });
+
+test('remote CCTV feed camera and body.killing keep an NPC visible past hideDistance (R16a -> CAM 04 Priya stinger)', () => {
+  const { npcs } = setup();
+  npcs.spawnFromLevel([{ id: 'priya', look: 'priya', pos: new THREE.Vector3(1, 0, 46.33), yaw: 0 }]);
+  const priya = npcs.actor('priya')!;
+  const farPlayerCam = new THREE.Vector3(88, 1.6, 35); // R16a train (~87.7 m from R08 Medbay)
+  const cam04 = new THREE.Vector3(2.5, 2.4, 48.5); // CAM 04 in R08
+
+  npcs.update(1 / 60, farPlayerCam);
+  assert.equal(priya.body.group.visible, false, 'hidden when only the far player camera sees the scene');
+
+  npcs.update(1 / 60, farPlayerCam, null, [cam04]);
+  assert.equal(priya.body.group.visible, true, 'visible when a live CCTV feed camera is nearby');
+
+  priya.body.beginKill();
+  npcs.update(1 / 60, farPlayerCam);
+  assert.equal(priya.body.group.visible, true, 'a body in a scripted kill stays visible even without extraCameras');
+  priya.body.endKill();
+});
+
+test('spawnFromLevelAsync forwards dead corpses as role corpse with ambient disabled (matching spawnFromLevel)', async () => {
+  const { npcs } = setup();
+  await npcs.spawnFromLevelAsync([
+    { id: 'r16b_corpse_test', look: 'botanist', pos: new THREE.Vector3(70, 0, 36), yaw: 0, pose: 'corpseProne', dead: true, blood: true },
+  ]);
+  const corpse = npcs.actor('r16b_corpse_test')!;
+  assert.equal(corpse.body.spec.role, 'corpse', 'spawned as a corpse, not a living NPC');
+  assert.equal(corpse.ambient, false, 'ambient life disabled on dead corpses');
+});

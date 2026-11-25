@@ -802,6 +802,18 @@ export class Animator {
         this.mocapPose,
         this.locoInfo,
       );
+      if (poseName === 'aim_pistol') {
+        // Tactical walk with pistol drawn forward: legs follow locomotion while upper body holds aimPistol.
+        const aimClip = this.mocap.get(this.motion.clips.aimPistol);
+        const aimPhase = (this.idlePhase * (idleClip.duration / Math.max(0.1, aimClip.duration))) % 1;
+        sampleClip(aimClip, aimPhase, this.talkPose);
+        for (const jName of UPPER_BODY) {
+          const idx = J[jName];
+          const a = this.mocapPose.joints[idx];
+          const b = this.talkPose.joints[idx];
+          if (a && b) a.copy(b);
+        }
+      }
       // When speaking while standing still, subtly blend in the natural weight-shift/torso motion from idle_talk
       // without overriding the speechActing emote arm gestures (keep idle_talk subtle on arms).
       if (this.speechW > 0.01 && this.speed < 0.15 && !Animator.ARMS_BUSY.has(poseName)) {
@@ -1051,7 +1063,7 @@ export class Animator {
     if (this.mocapW > 0.05 && (mode === 'loco' || mode === 'pistol' || mode === 'kneel' || mode === 'crouch')) {
       const moving = this.locoInfo.moveWeight > 0.5;
       const id =
-        mode === 'pistol' ? this.motion.clips.aimPistol : mode === 'kneel' ? this.motion.clips.kneel : mode === 'crouch' ? this.motion.clips.crouch
+        mode === 'pistol' || this.to.name === 'aim_pistol' ? this.motion.clips.aimPistol : mode === 'kneel' ? this.motion.clips.kneel : mode === 'crouch' ? this.motion.clips.crouch
           : moving ? (this.locoInfo.jogWeight > 0.5 ? this.motions.jog : this.motions.walk)
             : this.speechW > 0.3 ? this.motions.talk : this.motions.idle;
       const clip = this.mocap.has(id) ? this.mocap.get(id) : null;

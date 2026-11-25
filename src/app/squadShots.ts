@@ -36,9 +36,12 @@ export function wireSquadShots(d: SquadShotDeps): () => void {
   return d.events.on('squad:fired', (shot: SquadEvents['squad:fired']) => {
     if (d.active && !d.active()) return;
     const { muzzle, ejectPort, right } = shot;
+    // Scripted bursts (the R16 surveillance finale) are heard through the CCTV feed, so they play in the head at full
+    // level instead of fading out with distance from the player's seat in the train.
+    const scripted = shot.enemy === 'scripted';
     d.audio.play('squadPistolShot', {
       bus: 'sfx',
-      position: new THREE.Vector3(muzzle.x, muzzle.y, muzzle.z),
+      ...(scripted ? {} : { position: new THREE.Vector3(muzzle.x, muzzle.y, muzzle.z) }),
       gain: SQUAD_SHOT.gain,
       reverb: SQUAD_SHOT.reverb,
       rate: 1 + (random() * 2 - 1) * RATE_JITTER,

@@ -163,6 +163,27 @@
       "floodOut": {
         "fade": 5,
         "release": 7
+      },
+      "r16Build": {
+        "fade": 3.8,
+        "layers": {
+          "drone": 0.55,
+          "heartSlow": 0.42,
+          "pulse": 0.28,
+          "rise": 0.45
+        }
+      },
+      "r16Stalk": {
+        "fade": 1.2,
+        "layers": {
+          "drone": 0.72,
+          "heartSlow": 0.6,
+          "voice": 0.25
+        }
+      },
+      "r16Cut": {
+        "cut": true,
+        "release": 0.15
       }
     },
     "resume": [
