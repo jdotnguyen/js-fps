@@ -3,7 +3,7 @@ import { buildStumpParts, STUMP_JOINTS, type BodyGeometry, type ExtraBoneDef, ty
 import type { SurfaceDef } from './bodyMaterial.ts';
 import { FINGER_NAMES, type FingerBoneDef, type FingerBoneName, type FingerName, type HandDetailBone, type PhalanxIndex, type TwistBoneDef, type TwistBoneName } from './handPhysics.ts';
 import type { TorsoHullDef } from './limbContact.ts';
-import { JOINT_INDEX, JOINTS, REFERENCE_HEIGHT, type JointName, type Side, type Vec3T } from './skeleton.ts';
+import { JOINT_INDEX, JOINTS, REFERENCE_HEIGHT, type CapsuleDef, type JointName, type Side, type Vec3T } from './skeleton.ts';
 
 /**
  * Imported character models as humanoid bodies (ADR-0026). A rigged GLB is re-posed into the game's rest
@@ -29,6 +29,12 @@ export interface PreparedBodyModel {
   jointOffsets: Record<JointName, Vec3T>;
   /** Optional preserved finger and forearm-twist bones (indexed at JOINTS.length + k in skinIndex). */
   handBones: HandDetailBone[];
+  /** A creature's segment and limb bones, indexed after the hand bones in skinIndex. */
+  creatureBones: CreatureBoneDef[];
+  /** Hit capsules fitted to the drawn body, replacing the reference ones (creatures only), in joint rest space. */
+  capsules?: Partial<Record<JointName, CapsuleDef>>;
+  /** Each blade's tip in its hand joint's rest space, at the reference height (creatures with blades only). */
+  bladeTips?: Record<Side, Vec3T>;
   /** Mesh-fitted elliptical torso hulls (pelvis, spine, chest) measured directly from the GLB vertices. */
   torsoHulls: TorsoHullDef[];
   /** Wound-cap radius per severable joint, measured from the mesh. */
@@ -46,7 +52,28 @@ export interface PrepareOptions {
   sickTint?: number;
   /** Preserve individual finger and forearm-twist bones for biomechanical hand physics. Default false. */
   detailHands?: boolean;
+  /** A creature's extra bones (openspec rig-necromorph, design D3). */
+  creature?: CreatureRigOptions;
 }
+
+/** Which of a creature model's bones to keep as detail bones (from its profile, e.g. data/blade-creature.json). */
+export interface CreatureRigOptions {
+  /** Bones in one game joint's chain, root first: each but the last gets a segment bone taking a share of the joint's bend. */
+  segments: ReadonlyArray<{ joint: JointName; bones: readonly string[] }>;
+  /** Limbs that move on their own bones: the root bone and every weighted bone below it, riding the joint they grow from. */
+  limbs: ReadonlyArray<{ name: string; root: string }>;
+  /** Fit the hit capsules to the drawn body; the hands are blades and get a thin capsule out to the blade's tip. */
+  hits?: { bladeRadius: number; maxRadius: number };
+}
+
+/**
+ * A creature detail bone. `segment`: sits at `joint`'s pivot under that joint's parent and takes `fraction` of the joint's
+ * rotation each frame, so the chain curves instead of kinking. `limb`: one bone of a limb with motion of its own, under the
+ * host joint or the limb's previous bone, at rest unless the creature's layer turns it.
+ */
+export type CreatureBoneDef =
+  | { kind: 'segment'; name: `seg_${JointName}_${number}`; parent: JointName; joint: JointName; fraction: number; offset: Vec3T }
+  | { kind: 'limb'; name: `limb_${string}_${number}`; parent: JointName | `limb_${string}_${number}`; limb: string; source: string; offset: Vec3T };
 
 // ---------------------------------------------------------------- bone mapping
 
@@ -447,6 +474,78 @@ export function prepareBodyModel(root: THREE.Object3D, opts: PrepareOptions = {}
         });
         // Any trailing tip-end bones (e.g. *4 on Mixamo) follow phalanx 3 cleanly.
         for (const tip of extraTips) skinSlotOf[tip.i] = prevSlot;
+      }
+    }
+  }
+
+  // Creature detail bones (design D3 of rig-necromorph): segment shares and limbs with their own bones. Their slots come after
+  // the hand's, so the bones are emitted in the same order.
+  interface PendingCreature {
+    boneIdx: number;
+    slot: number;
+    def: { kind: 'segment'; joint: JointName; fraction: number; k: number } | { kind: 'limb'; limb: string; k: number; parentBone: number | null; host: JointName };
+  }
+  const pendingCreature: PendingCreature[] = [];
+  if (opts.creature) {
+    const byName = new Map(bones.map((b, i) => [b.name, i]));
+    const need = (name: string): number => {
+      const i = byName.get(name);
+      if (i === undefined) throw new Error(`body model: creature rig names bone "${name}", which the model does not have`);
+      return i;
+    };
+    for (const seg of opts.creature.segments) {
+      const chain = seg.bones.map(need);
+      chain.forEach((b, k) => {
+        if (rig.jointOf[b] !== seg.joint) throw new Error(`body model: segment bone "${bones[b]!.name}" maps to ${rig.jointOf[b]}, not ${seg.joint}`);
+        if (k === chain.length - 1) return; // the last bone is the joint itself
+        const slot = slotOwner.length;
+        slotOwner.push(seg.joint);
+        skinSlotOf[b] = slot;
+        pendingCreature.push({ boneIdx: b, slot, def: { kind: 'segment', joint: seg.joint, fraction: (k + 1) / chain.length, k } });
+      });
+    }
+    // Bones that carry skin, so a limb keeps only the bones that move something (and the bones above them).
+    const weighted = new Set<number>();
+    for (const mesh of meshes) {
+      const si = mesh.geometry.getAttribute('skinIndex');
+      const sw = mesh.geometry.getAttribute('skinWeight');
+      const map = mesh.skeleton.bones.map((b) => bones.indexOf(b));
+      for (let v = 0; v < si.count; v++) for (let k = 0; k < 4; k++) if (sw.getComponent(v, k) > 0) weighted.add(map[si.getComponent(v, k)] ?? -1);
+    }
+    const index = new Map(bones.map((b, i) => [b, i]));
+    for (const limb of opts.creature.limbs) {
+      const root = need(limb.root);
+      const host = rig.jointOf[root]!;
+      const order = poser.subtree(root);
+      const keep = new Set<number>();
+      for (const b of order) {
+        if (!weighted.has(b)) continue;
+        for (let a: number | undefined = b; a !== undefined; a = a === root ? undefined : index.get(bones[a]!.parent as THREE.Bone)) keep.add(a);
+      }
+      let k = 0;
+      const slotOfBone = new Map<number, number>();
+      for (const b of order) {
+        if (!keep.has(b)) continue;
+        let parentBone: number | null = null;
+        for (let a = index.get(bones[b]!.parent as THREE.Bone); a !== undefined && b !== root; a = index.get(bones[a]!.parent as THREE.Bone)) {
+          if (slotOfBone.has(a)) {
+            parentBone = a;
+            break;
+          }
+        }
+        const slot = slotOwner.length;
+        slotOwner.push(host);
+        skinSlotOf[b] = slot;
+        slotOfBone.set(b, slot);
+        pendingCreature.push({ boneIdx: b, slot, def: { kind: 'limb', limb: limb.name, k: k++, parentBone, host } });
+      }
+      // Unweighted bones below the limb (tip markers) follow the bone above them.
+      for (const b of order) if (!keep.has(b)) for (let a = index.get(bones[b]!.parent as THREE.Bone); a !== undefined; a = index.get(bones[a]!.parent as THREE.Bone)) {
+        const s = slotOfBone.get(a);
+        if (s !== undefined) {
+          skinSlotOf[b] = s;
+          break;
+        }
       }
     }
   }
@@ -977,6 +1076,28 @@ export function prepareBodyModel(root: THREE.Object3D, opts: PrepareOptions = {}
     }
   }
 
+  // Creature detail bones, in slot order (after the hand's).
+  const creatureBones: CreatureBoneDef[] = [];
+  {
+    const posNorm = (i: number): THREE.Vector3 => poser.pos(i).applyMatrix4(norm);
+    const nameOf = new Map<number, `limb_${string}_${number}`>();
+    for (const pc of [...pendingCreature].sort((a, b) => a.slot - b.slot)) {
+      const d = pc.def;
+      if (d.kind === 'segment') {
+        const parent = JOINTS[JOINT_INDEX[d.joint]]!.parent!;
+        const o = jointOffsets[d.joint];
+        creatureBones.push({ kind: 'segment', name: `seg_${d.joint}_${d.k}`, parent, joint: d.joint, fraction: d.fraction, offset: [o[0], o[1], o[2]] });
+        continue;
+      }
+      const name = `limb_${d.limb}_${d.k}` as const;
+      nameOf.set(pc.boneIdx, name);
+      const at = posNorm(pc.boneIdx);
+      const from = d.parentBone !== null ? posNorm(d.parentBone) : world[d.host];
+      const off = at.sub(from);
+      creatureBones.push({ kind: 'limb', name, parent: d.parentBone !== null ? nameOf.get(d.parentBone)! : d.host, limb: d.limb, source: bones[pc.boneIdx]!.name, offset: [off.x, off.y, off.z] });
+    }
+  }
+
   // Split triangles by the core joint that carries most of their weight (finger/twist weights belong to hand/foreArm).
   const groups = new Map<string, { joint: JointName; surface: string; tris: Array<[Vert, Vert, Vert]> }>();
   for (const t of tris) {
@@ -1063,7 +1184,85 @@ export function prepareBodyModel(root: THREE.Object3D, opts: PrepareOptions = {}
     });
   }
 
-  return { parts, jointOffsets, handBones, torsoHulls, stumpRadius, surfaceSick, surfaces, triangles: tris.length, unmapped: rig.unmapped };
+  const fitted = opts.creature?.hits ? fitCapsules(parts, jointOffsets, opts.creature.hits) : null;
+  return { ...(fitted ? { capsules: fitted.capsules, bladeTips: fitted.tips } : {}), parts, jointOffsets, handBones, creatureBones, torsoHulls, stumpRadius, surfaceSick, surfaces, triangles: tris.length, unmapped: rig.unmapped };
+}
+
+/** The joint whose offset ends each capsule joint's segment; joints not listed are fitted from their piece's own extent. */
+const CAPSULE_END: Partial<Record<JointName, JointName>> = {
+  spine: 'chest',
+  chest: 'neck',
+  neck: 'head',
+  upperArm_L: 'foreArm_L',
+  foreArm_L: 'hand_L',
+  thigh_L: 'shin_L',
+  shin_L: 'foot_L',
+  upperArm_R: 'foreArm_R',
+  foreArm_R: 'hand_R',
+  thigh_R: 'shin_R',
+  shin_R: 'foot_R',
+};
+
+/**
+ * Hit capsules that follow a creature's drawn body (rig-necromorph design D7). Each capsule runs along its joint's bone (to the
+ * next joint) or along its piece's longest extent, with the radius that holds most of the piece's skin. A hand is a blade: a
+ * thin capsule from the wrist to the blade's tip, the piece's farthest point.
+ */
+function fitCapsules(
+  parts: readonly ModelPart[],
+  offsets: Record<JointName, Vec3T>,
+  opts: { bladeRadius: number; maxRadius: number },
+): { capsules: Partial<Record<JointName, CapsuleDef>>; tips: Record<Side, Vec3T> } {
+  const pts = new Map<JointName, THREE.Vector3[]>();
+  for (const p of parts) {
+    const pos = p.geometry.getAttribute('position');
+    const list = pts.get(p.joint) ?? [];
+    for (let i = 0; i < pos.count; i++) list.push(new THREE.Vector3().fromBufferAttribute(pos, i));
+    pts.set(p.joint, list);
+  }
+  const seg = new THREE.Line3();
+  const tmp = new THREE.Vector3();
+  const radiusFor = (list: THREE.Vector3[], a: THREE.Vector3, b: THREE.Vector3, q: number): number => {
+    seg.set(a, b);
+    const d = list.map((v) => seg.closestPointToPoint(v, true, tmp).distanceTo(v)).sort((x, y) => x - y);
+    return THREE.MathUtils.clamp(d[Math.min(d.length - 1, Math.floor(d.length * q))] ?? 0.05, 0.02, opts.maxRadius);
+  };
+  const capsules: Partial<Record<JointName, CapsuleDef>> = {};
+  const tips = {} as Record<Side, Vec3T>;
+  for (const j of JOINTS) {
+    if (!j.capsule) continue;
+    const list = pts.get(j.name);
+    if (!list || list.length < 8) continue;
+    let a: THREE.Vector3;
+    let b: THREE.Vector3;
+    let r: number;
+    const end = CAPSULE_END[j.name];
+    if (j.name === 'hand_L' || j.name === 'hand_R') {
+      const tip = list.reduce((far, v) => (v.lengthSq() > far.lengthSq() ? v : far), new THREE.Vector3());
+      tips[j.name === 'hand_L' ? 'L' : 'R'] = [tip.x, tip.y, tip.z];
+      a = new THREE.Vector3();
+      b = tip.clone();
+      r = opts.bladeRadius;
+    } else if (end) {
+      a = new THREE.Vector3();
+      b = new THREE.Vector3(...offsets[end]);
+      r = radiusFor(list, a, b, 0.8);
+    } else {
+      // From the piece's own extent: its longest axis through the middle of its box.
+      const box = new THREE.Box3().setFromPoints(list);
+      const size = box.getSize(new THREE.Vector3());
+      const mid = box.getCenter(new THREE.Vector3());
+      const axis = size.x >= size.y && size.x >= size.z ? 'x' : size.y >= size.z ? 'y' : 'z';
+      a = mid.clone();
+      b = mid.clone();
+      const half = Math.max(0, size[axis] / 2 - Math.min(size.x, size.y, size.z) / 2);
+      a[axis] -= half;
+      b[axis] += half;
+      r = radiusFor(list, a, b, 0.8);
+    }
+    capsules[j.name] = { a: [a.x, a.y, a.z], b: [b.x, b.y, b.z], r };
+  }
+  return { capsules, tips };
 }
 
 function buildPart(tris: Array<[Vert, Vert, Vert]>, origin: THREE.Vector3): THREE.BufferGeometry {
@@ -1129,15 +1328,19 @@ export function bodyGeometryFromModel(model: PreparedBodyModel, height: number, 
     offset: b.offset,
     kind: b.kind,
   }));
+  // Creature bones come after the hand's: their skin slots were given out in that order.
+  const creatureExtra: ExtraBoneDef[] = (model.creatureBones ?? []).map((b) => ({ name: b.name, parent: b.parent, offset: b.offset, kind: b.kind }));
   const stumps = buildStumpParts(seed, 1, model.jointOffsets, (j) => model.stumpRadius[j] ?? 0.05);
   return {
     parts: [...parts, ...stumps.parts],
-    extraBones: [...detailExtra, ...stumps.extra],
+    extraBones: [...detailExtra, ...creatureExtra, ...stumps.extra],
     scale: { y: height / REFERENCE_HEIGHT, w: 1 },
     jointOffsets: model.jointOffsets,
     skinTone: new THREE.Color(0x8a7f74),
     surfaces: model.surfaces,
     ...(model.handBones.length > 0 ? { handBones: model.handBones } : {}),
+    ...(model.creatureBones?.length ? { creatureBones: model.creatureBones } : {}),
+    ...(model.capsules ? { capsules: model.capsules } : {}),
     ...(model.torsoHulls.length > 0 ? { torsoHulls: model.torsoHulls } : {}),
   };
 }

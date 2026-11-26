@@ -794,6 +794,9 @@ export const SAMPLE_URLS = {
   waterSplashLand: [1, 2, 3].map((i) => `assets/audio/water/splash-land-${i}.mp3`),
   waterSplashTakeoff: [1, 2].map((i) => `assets/audio/water/splash-takeoff-${i}.mp3`),
   waterSplashBody: [1, 2].map((i) => `assets/audio/water/splash-body-${i}.mp3`),
+  // Heavy charging-creature water splashes (rig-necromorph design D6c; ElevenLabs, scripts/ambience-generate.ts).
+  waterSplashStomp: [1, 2, 3].map((i) => `assets/audio/ambience/oneshot-water-stomp-${i}.mp3`),
+  waterSplashKick: [1, 2].map((i) => `assets/audio/ambience/oneshot-water-kick-${i}.mp3`),
   // The flooded tunnel and pump room (overhaul-flooded-tunnel; ElevenLabs, scripts/ambience-generate.ts).
   waterSlosh: 'assets/audio/ambience/emitter-water-slosh.mp3',
   pipePour: 'assets/audio/ambience/emitter-pipe-pour.mp3',
@@ -807,6 +810,8 @@ export const SAMPLE_URLS = {
   // The flood cutscene: the alarm with the beacon, and the sting as the shambler charges the door.
   valveTurn: 'assets/audio/ambience/oneshot-valve-turn.mp3',
   creatureCharge: 'assets/audio/ambience/oneshot-creature-charge.mp3',
+  // The elite's sustained raging roar while charging down the flooded R09 hall (ElevenLabs, scripts/ambience-generate.ts).
+  creatureChargeRage: 'assets/audio/ambience/oneshot-creature-charge-rage.mp3',
   // The elite's scream from far down the R09 hall as the flood cutscene opens (overhaul-valve-cutscene; downloaded, see CREDITS.md).
   creatureScreamFar: 'assets/audio/ambience/oneshot-creature-scream-far.mp3',
   creatureSeverShriek: 'assets/audio/ambience/oneshot-creature-sever-shriek.mp3',

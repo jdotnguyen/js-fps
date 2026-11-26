@@ -13,7 +13,7 @@ declare module '../core/events.ts' {
  * pouring pipe) into stamps on the water bodies. Pure game-side code: the ripple simulation consumes the stamps.
  */
 
-export type StepKind = 'walk' | 'sprint' | 'land' | 'shamble' | 'heavy' | 'jog' | 'pivot';
+export type StepKind = 'walk' | 'sprint' | 'land' | 'shamble' | 'heavy' | 'jog' | 'pivot' | 'lift';
 
 /** An authored disturbance that repeats: a drip (rare, sharp) or a pouring pipe (constant churn). */
 export interface WaterEmitter {
@@ -32,12 +32,12 @@ export interface SplashEvent {
   x: number;
   y: number;
   z: number;
-  kind: 'step' | 'takeoff' | 'land' | 'bullet' | 'body' | 'part' | 'drip' | 'spark';
+  kind: 'step' | 'takeoff' | 'land' | 'bullet' | 'body' | 'part' | 'drip' | 'spark' | 'stomp' | 'kick';
   /** 0..1 */
   size: number;
 }
 
-const STEP_STRENGTH: Record<StepKind, number> = { pivot: 0.5, walk: 1, jog: 1.3, shamble: 1.1, sprint: 1.6, heavy: 2.2, land: 3 };
+const STEP_STRENGTH: Record<StepKind, number> = { pivot: 0.5, walk: 1, jog: 1.3, shamble: 1.1, sprint: 1.6, heavy: 2.2, land: 3, lift: 1.4 };
 /** Metres a wading body moves between wake stamps. */
 const WAKE_SPACING = 0.22;
 
@@ -62,8 +62,22 @@ export class WaterDisturbances {
     return depth > 0.02 ? { body, depth } : null;
   }
 
-  /** A foot coming down at (x, y, z): a ring, and a short wake back to this actor's last step. */
-  footstep(x: number, y: number, z: number, kind: StepKind, actor: string): void {
+  /**
+   * A foot coming down (or tearing out on `'lift'`) at (x, y, z): a ring, and a short wake back to this actor's last step.
+   * When `splash > 0` (rig-necromorph design D6c), the surface churns harder and throws a large `stomp` (landing) or `kick`
+   * (lift) spray at any water depth.
+   */
+  footstep(x: number, y: number, z: number, kind: StepKind, actor: string, splash = 0): void {
+    const heavy = Math.max(0, Math.min(1, splash));
+    if (kind === 'lift') {
+      const hit = this.bodyUnder(x, y, z);
+      if (!hit || heavy <= 0) return;
+      const { body, depth } = hit;
+      const d = Math.min(depth, 0.9);
+      body.disturb(x, z, 0.22 + d * 0.16, (0.03 + d * 0.035) * (0.6 + 0.8 * heavy));
+      this.onSplash?.({ x, y: body.level, z, kind: 'kick', size: heavy });
+      return;
+    }
     const hit = this.bodyUnder(x, y, z);
     const last = this.lastStep.get(actor);
     this.lastStep.set(actor, { x, z });
@@ -71,15 +85,22 @@ export class WaterDisturbances {
     const { body, depth } = hit;
     const k = STEP_STRENGTH[kind];
     const d = Math.min(depth, 0.9);
-    body.disturb(x, z, 0.14 + d * 0.16, -(0.012 + d * 0.02) * k);
+    const boost = 1 + heavy * 1.6;
+    body.disturb(x, z, (0.14 + d * 0.16) * (1 + heavy * 0.65), -(0.012 + d * 0.02) * k * boost);
     // The leg dragged through the water since the last step leaves a wake along the way.
     if (last) {
       const dist = Math.hypot(x - last.x, z - last.z);
       if (dist > 0.1 && dist < 2.5) {
-        for (const u of [0.25, 0.5, 0.75]) body.disturb(last.x + (x - last.x) * u, last.z + (z - last.z) * u, 0.12 + d * 0.12, -0.008 * k * Math.max(d, 0.2));
+        for (const u of [0.25, 0.5, 0.75]) {
+          body.disturb(last.x + (x - last.x) * u, last.z + (z - last.z) * u, (0.12 + d * 0.12) * (1 + heavy * 0.5), -0.008 * k * boost * Math.max(d, 0.2));
+        }
       }
     }
-    if (kind === 'land' || depth < 0.35) this.onSplash?.({ x, y: body.level, z, kind: kind === 'land' ? 'land' : 'step', size: kind === 'land' ? 1 : 0.3 });
+    if (heavy > 0) {
+      this.onSplash?.({ x, y: body.level, z, kind: 'stomp', size: heavy });
+    } else if (kind === 'land' || depth < 0.35) {
+      this.onSplash?.({ x, y: body.level, z, kind: kind === 'land' ? 'land' : 'step', size: kind === 'land' ? 1 : 0.3 });
+    }
   }
 
   /** A body wading continuously (Jay, every frame): stamps every WAKE_SPACING metres moved. */

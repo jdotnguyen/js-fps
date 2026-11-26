@@ -1,0 +1,34 @@
+{
+  "model": "necromorph",
+  "notes": [
+    "The blade creature's profile (openspec rig-necromorph, docs/blade-creature.md).",
+    "ankleHeight was measured from the prepared model (src/actors/blade/measure.test.ts)."
+  ],
+  "ankleHeight": 0.172,
+  "jaw": { "bone": "Jaw_066", "openDeg": 35, "rest": 0.15 },
+  "segments": [
+    { "joint": "neck", "bones": ["Neck1_010", "Neck2_011", "Neck3_012"] },
+    { "joint": "chest", "bones": ["Spine2_04", "Spine3_05"] }
+  ],
+  "limbs": [
+    { "name": "belly_L", "root": "Left_Minihandbase_018" },
+    { "name": "belly_R", "root": "Right_MinihandBase_032" }
+  ],
+  "blades": {
+    "L": { "hand": "Left_Hand_09" },
+    "R": { "hand": "Right_Hand_017" }
+  },
+  "hits": { "bladeRadius": 0.04, "maxRadius": 0.22 },
+  "poseMap": {
+    "idle": "blade_stance",
+    "walk": "blade_stance",
+    "walk_formal": "blade_stance",
+    "hulk": "blade_stance",
+    "shamble": "blade_stance",
+    "stare": "blade_stance",
+    "pry_reach": "blade_pry_reach",
+    "pry_clamp": "blade_pry_clamp",
+    "pry_wrench": "blade_pry_wrench",
+    "pry_thrust": "blade_pry_thrust"
+  }
+}

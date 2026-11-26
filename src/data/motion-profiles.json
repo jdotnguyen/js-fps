@@ -108,6 +108,24 @@
             "tempo": 0.9,
             "fidgetRate": 2
           }
+        },
+        "flood": {
+          "when": {
+            "sequence": [
+              "valve_turn",
+              "r10_ambush"
+            ]
+          },
+          "clips": {
+            "jog": "giles_panic_run"
+          },
+          "poses": {
+            "panic_brace": "giles_panic_brace"
+          },
+          "style": {
+            "tempo": 1.25,
+            "fidgetRate": 2.2
+          }
         }
       },
       "holds": {
@@ -197,6 +215,25 @@
           "style": {
             "tempo": 1.1,
             "fidgetRate": 0.2
+          }
+        },
+        "flood": {
+          "when": {
+            "sequence": [
+              "valve_turn",
+              "r10_ambush"
+            ]
+          },
+          "clips": {
+            "jog": "okafor_panic_run"
+          },
+          "poses": {
+            "alarm_watch": "okafor_alarm_watch",
+            "panic_brace": "okafor_panic_brace"
+          },
+          "style": {
+            "tempo": 1.25,
+            "fidgetRate": 1.8
           }
         }
       },

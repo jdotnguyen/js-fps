@@ -38,6 +38,14 @@ export const NPC_ANIMS: Readonly<Record<string, { pose: string; hold: number; bl
   wand_attend: { pose: 'wand_attend', hold: Infinity, blend: 0.45 },
   wand_up: { pose: 'wand_up', hold: 0.55, blend: 0.45 },
   wand_down: { pose: 'wand_down', hold: 0.8, blend: 0.65 },
+  // flooded-tunnel / rig-necromorph: R10 ambush door pry, timed to match `doorPry` so the blades track the leaf edges without clipping.
+  pry_reach: { pose: 'pry_reach', hold: Infinity, blend: 0.18 },
+  pry_clamp: { pose: 'pry_clamp', hold: Infinity, blend: 0.25 },
+  pry_wrench: { pose: 'pry_wrench', hold: Infinity, blend: 1.28 },
+  pry_thrust: { pose: 'pry_thrust', hold: Infinity, blend: 0.35 },
+  // flooded-tunnel: squad urgent doorway-watching and panicked recoil stances.
+  alarm_watch: { pose: 'alarm_watch', hold: Infinity, blend: 0.35 },
+  panic_brace: { pose: 'panic_brace', hold: Infinity, blend: 0.3 },
 };
 
 /** Small ambient gestures by base pose, picked now and then while an NPC is idle. */

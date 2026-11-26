@@ -5,7 +5,7 @@ import { Animator, type GaitStyle } from './animator.ts';
 import { planSpeech } from './speechActing.ts';
 import type { Emote } from '../data/types/dialogue.ts';
 import { bodyGeometryFromModel } from './bodyModel.ts';
-import type { BodyModelLibrary } from './bodyModelLibrary.ts';
+import { bladeCreatureProfile, type BodyModelLibrary } from './bodyModelLibrary.ts';
 import { buildBodyGeometry, triangleCount, woundCap, type BodyGeometry, type ExtraBone, type ExtraBoneDef, type Look, type Outfit, type PartGeometry } from './bodyGeometry.ts';
 import { createBodyMaterials, DRY, MAX_BONES, MAX_BULGES, type BodyMaterials } from './bodyMaterial.ts';
 import { stepWetHeight, wetLine } from './wetness.ts';
@@ -33,7 +33,9 @@ import { HELD_GRIP_RADIUS, heldDuringBlend, heldItemFor, heldTiltFor, levelHeld,
 import { AIM_CLAMP, aimSwing, ARM_AIM_CLAMP, ARM_AIM_EASE, MUZZLE_FLASH_TIME, pistolParts, SLIDE_CYCLE, slideOffset, type HeldPistolParts } from './squadPistol.ts';
 import { settleUprightTurn, Spring1D, stepUprightTurn, type UprightTurnState } from './springs.ts';
 import { CRAWL_TURN, DRAG_TURN, newTurnState, settleTurn, stepTurn, type TurnState } from './turning.ts';
-import { JOINT_INDEX, JOINTS, SEVER_JOINT, subtree, type JointName, type Region, type SeverableRegion, type Side } from './skeleton.ts';
+import { JOINT_INDEX, JOINTS, SEVER_JOINT, subtree, type JointName, type Region, type SeverableRegion, type Side, type Vec3T } from './skeleton.ts';
+import { bladeLayerFor, type BladeLayer } from './blade/layer.ts';
+import { BladeMotion, legGeometry } from './blade/motion.ts';
 
 /**
  * One procedural humanoid (ADR-0006): crew, squadmates, corpses and infected share this.
@@ -96,7 +98,7 @@ export interface HumanoidSpec {
   gender?: Gender;
 }
 
-export type FootstepKind = 'walk' | 'jog' | 'pivot' | 'shamble' | 'heavy';
+export type FootstepKind = 'walk' | 'jog' | 'pivot' | 'shamble' | 'heavy' | 'lift';
 
 export interface FootstepEvent {
   x: number;
@@ -106,6 +108,8 @@ export interface FootstepEvent {
   speed: number;
   kind: FootstepKind;
   actor: string;
+  /** Extra water splash amount 0..1 (blade creature stomps and lifts throw large sprays at any depth; design D6c). */
+  splash?: number;
 }
 
 export interface HumanoidContext {
@@ -174,6 +178,8 @@ export class Humanoid {
   readonly triangles: number;
   /** Imported body model in use, or null for a procedural body. */
   readonly modelId: string | null;
+  /** The blade creature's layer (jaw, belly arms), or null for every other body (openspec rig-necromorph). */
+  readonly blade: BladeLayer | null;
   readonly bones: Readonly<Record<JointName, THREE.Bone>>;
 
   state: LifeState;
@@ -270,6 +276,14 @@ export class Humanoid {
     this.buildMeshes();
     this.buildCapsules();
     this.animator = new Animator(this.jointBones(), ctx.poses, this.idlePose, this.rng.fork('anim'), ctx.mocap);
+    // A creature body's own layer (rig-necromorph): its jaw and belly arms, driven over the animated joints.
+    const rig = spec.model ? ctx.bodyModels?.table?.[spec.model]?.rig : undefined;
+    if (rig === 'blade') {
+      this.animator.creature = new BladeMotion(spec.seed, legGeometry(this.geo.jointOffsets as Record<JointName, Vec3T>, bladeCreatureProfile().ankleHeight), this.geo.scale.y);
+      this.animator.poseMap = bladeCreatureProfile().poseMap;
+      this.animator.setPose(this.idlePose, 0);
+    }
+    this.blade = rig === 'blade' ? bladeLayerFor(bladeCreatureProfile(), this.geo.creatureBones, (n) => (this.bones as Record<string, THREE.Bone>)[n] ?? this.extras.get(n as ExtraBone), spec.seed) : null;
     this.motionGender = (spec.model ? ctx.bodyModels?.table?.[spec.model]?.gender : undefined) ?? spec.gender ?? 'm';
     this.motionFormal = spec.role === 'npc' && (spec.outfit === 'medic' || spec.seed === 'director-hale');
     this.hasVariants = Boolean(spec.profile && (ctx.motionProfiles ?? sharedMotionProfiles()).profiles[spec.profile]?.variants);
@@ -1015,9 +1029,10 @@ export class Humanoid {
     this.animator.setWound(this.locomotion.limpSide, this.locomotion.limp);
     this.animator.infect = this.infectionLevel / 3;
     this.animator.twitchy = moving && (this.spec.role === 'enemy' || this.infectionLevel >= 1);
-    this.animator.idleLife = this.state === 'alive' && this.spec.role === 'npc' && !this.locomotion.blind && !lying && !this.kill ? 1 : 0;
+    this.animator.idleLife = this.state === 'alive' && this.spec.role === 'npc' && !this.locomotion.blind && !lying && !this.kill && !this.blade ? 1 : 0;
     const uprightAlive = this.state === 'alive' && this.locomotion.mode === 'walk' && !lying && this.spec.role !== 'corpse';
-    this.animator.useMocap = uprightAlive && !(this.spec.role === 'npc' && this.locomotion.blind) && this.slam?.busy !== true && !this.kill;
+    // The blade creature never plays captured human motion (rig-necromorph).
+    this.animator.useMocap = uprightAlive && !this.blade && !(this.spec.role === 'npc' && this.locomotion.blind) && this.slam?.busy !== true && !this.kill;
     this.animator.charge = this.state === 'alive' && this.locomotion.mode === 'walk' ? Math.max(this.charge, this.speedScale > 1.2 ? 1 : 0) : 0;
     this.updateBloodTrail(dt);
     if (this.lookTarget && this.state === 'alive' && !this.locomotion.blind) {
@@ -1025,6 +1040,20 @@ export class Humanoid {
       this.animator.lookLocal = this.group.worldToLocal(this.rayTmpA.copy(this.lookTarget)).divideScalar(this.geo.scale.y);
     } else {
       this.animator.lookLocal = null;
+    }
+    if (this.blade) {
+      // The creature's gait keeps its planted feet where they landed from how the body actually moved (design D6a).
+      const m = this.animator.moved;
+      const dx = this.group.position.x - this.bladeLast.x;
+      const dz = this.group.position.z - this.bladeLast.y;
+      const c = Math.cos(this.heading);
+      const s = Math.sin(this.heading);
+      // World to body frame (the body faces -Z and turns by heading about +Y).
+      m.x = dx * c - dz * s;
+      m.z = dx * s + dz * c;
+      m.yaw = Math.atan2(Math.sin(this.heading - this.bladeLast.z), Math.cos(this.heading - this.bladeLast.z));
+      if (!(Math.hypot(dx, dz) < 1)) m.x = m.z = m.yaw = 0; // placed (or the first frame), not moved
+      this.bladeLast.set(this.group.position.x, this.group.position.z, this.heading);
     }
     this.animator.update(dt);
     const cameraDist = cameraPosition ? this.group.position.distanceTo(cameraPosition) : null;
@@ -1039,6 +1068,10 @@ export class Humanoid {
     this.applyBoneScales();
     this.updateTendrils();
     this.updateCloth(dt);
+    this.updateSegments();
+    // Each heavy footfall jolts the belly arms (rig-necromorph design D6b).
+    if (this.blade && this.animator.footfall) this.blade.bump(0.3 + 0.12 * Math.min(4, this.speed));
+    this.blade?.apply(this.time, dt);
     // Living, falling or rising bodies animate every frame; a settled corpse only when it is moved.
     const moved = !this.casterPos.equals(this.group.position) || !this.casterQuat.equals(this.group.quaternion);
     if (this.state !== 'dead' || moved || this.animator.clipPlaying) {
@@ -1058,7 +1091,10 @@ export class Humanoid {
       !this.transformAnim &&
       !this.kill &&
       this.locomotion.mode === 'walk' &&
-      this.near;
+      this.near &&
+      // The blade creature's 1.1 m forearms and blades are posed clear of its body; the human contact solve would push them
+      // off its torso hulls and flatten every raised pose (rig-necromorph design, risks).
+      !this.blade;
     this.limbContact.solve({
       group: this.group,
       bones: this.bones,
@@ -1299,6 +1335,8 @@ export class Humanoid {
   private static readonly SEATED_POSE = /^sit_/;
   private readonly uprightTurn: UprightTurnState = { vel: 0, error: 0 };
   private readonly prevWorldPos = new THREE.Vector3();
+  /** The blade creature's last-frame position x, position z and heading (as x, y, z). */
+  private readonly bladeLast = new THREE.Vector3(Number.NaN, 0, 0);
   private readonly prevWorldVel = new THREE.Vector3();
   private readonly curWorldVel = new THREE.Vector3();
   private smoothAccelX = 0;
@@ -1359,7 +1397,7 @@ export class Humanoid {
       return;
     }
 
-    const emitStep = (side: Side, kind: FootstepKind): void => {
+    const emitStep = (side: Side, kind: FootstepKind, splash?: number, cooldown = true): void => {
       const idx = side === 'L' ? 0 : 1;
       this.bones[`foot_${side}`].getWorldPosition(this.footPosTmp);
       onFootstep({
@@ -1370,9 +1408,34 @@ export class Humanoid {
         speed: this.speed,
         kind,
         actor: this.spec.seed,
+        ...(splash !== undefined ? { splash } : {}),
       });
-      this.footCooldown[idx] = 0.22;
+      if (cooldown) this.footCooldown[idx] = 0.22;
     };
+
+    // Blade creature footsteps (rig-necromorph design D6c): driven directly from its foot contacts — a heavy stomp
+    // on each landing and a lift on each foot leaving the ground, each with a splash amount that grows with speed.
+    if (this.blade) {
+      const splash = THREE.MathUtils.clamp(0.25 + this.speed / 3.5, 0.25, 1);
+      for (let idx = 0; idx < 2; idx++) {
+        const side: Side = idx === 0 ? 'L' : 'R';
+        if (!this.limbAttached(side, false)) {
+          this.footPlanted[idx] = false;
+          continue;
+        }
+        const down = contacts[idx]! >= 0.5;
+        if (down === this.footPlanted[idx]) continue;
+        this.footPlanted[idx] = down;
+        const stepping = this.speed > 0.15 || Math.abs(this.animator.turnRate) > 0.35;
+        if (!stepping) continue;
+        if (down) {
+          if (this.footCooldown[idx]! <= 0) emitStep(side, 'heavy', splash);
+        } else {
+          emitStep(side, 'lift', splash, false);
+        }
+      }
+      return;
+    }
 
     // Hero heavy gait drives its own stomp timing via `animator.footfall`.
     if (this.animator.gait === 'heavy') {
@@ -1488,6 +1551,22 @@ export class Humanoid {
       const rest = this.tendrilRest.get(e.name);
       if (rest) bone.quaternion.copy(rest).multiply(this.swayQ);
       else bone.quaternion.copy(this.swayQ);
+    }
+  }
+
+  private static readonly NO_TURN = new THREE.Quaternion();
+
+  /**
+   * A creature's segment bones (rig-necromorph design D3) take their share of their joint's rotation, so a neck or back
+   * made of several bones curves instead of kinking at one joint. Each sits at its joint's pivot under the joint's parent.
+   */
+  private updateSegments(): void {
+    const segs = this.geo.creatureBones;
+    if (!segs) return;
+    for (const d of segs) {
+      if (d.kind !== 'segment') continue;
+      const bone = this.extras.get(d.name);
+      if (bone) bone.quaternion.slerpQuaternions(Humanoid.NO_TURN, this.bones[d.joint].quaternion, d.fraction);
     }
   }
 
@@ -1804,11 +1883,12 @@ export class Humanoid {
     const w = this.geo.scale.w;
     const mat = new THREE.LineBasicMaterial({ color: 0x4fd6d0, transparent: true, opacity: 0.7, depthTest: false });
     for (const j of JOINTS) {
-      if (!j.capsule || !j.region) continue;
+      const cap = this.geo.capsules?.[j.name] ?? j.capsule;
+      if (!cap || !j.region) continue;
       const bone = this.bones[j.name];
-      const a = new THREE.Vector3(...j.capsule.a);
-      const b = new THREE.Vector3(...j.capsule.b);
-      const r = j.capsule.r * w;
+      const a = new THREE.Vector3(...cap.a);
+      const b = new THREE.Vector3(...cap.b);
+      const r = cap.r * w;
       this.capsules.push({ joint: j.name, bone, region: j.region, a, b, r });
       // Debug draw (ADR-0006 step 2).
       const len = a.distanceTo(b);
@@ -2050,7 +2130,7 @@ export class Humanoid {
       else if (e.kind === 'shards') s = shards;
       else if (e.kind === 'ribs') s = smooth(1.9, 2.7, inf);
       else if (e.kind === 'tendril') s = e.name.endsWith('_0') ? (this.near ? smooth(1.3, 2.8, inf) : 0) : 1;
-      else if (e.kind === 'cloth' || e.kind === 'finger' || e.kind === 'twist') s = 1;
+      else if (e.kind === 'cloth' || e.kind === 'finger' || e.kind === 'twist' || e.kind === 'segment' || e.kind === 'limb') s = 1;
       else s = this.stumpsOn.has(e.name.slice('stump_'.length) as JointName) ? 1 : 0;
       bone.scale.setScalar(Math.max(TINY, s));
     }
@@ -2065,7 +2145,8 @@ export class Humanoid {
   }
 
   private solveIk(dt: number): void {
-    if (this.state !== 'alive' || this.transformAnim || this.kill) {
+    // The blade creature keeps its feet planted through a kill too (rig-necromorph design D6a): its scenes are kills.
+    if (this.state !== 'alive' || this.transformAnim || (this.kill && !this.blade)) {
       this.footIk.reset();
       return;
     }
@@ -2083,9 +2164,12 @@ export class Humanoid {
       contactR: this.animator.footContacts[1],
       attachedL: this.limbAttached('L', false),
       attachedR: this.limbAttached('R', false),
-      enabled: uprightAlive && this.near,
+      // The blade creature plants its feet at any distance: the R10 charge is seen from far down the hall (design D6a).
+      enabled: uprightAlive && (this.near || this.blade !== null),
       forcePlant,
       dt,
+      // The blade creature holds each planted foot where it landed, through corners and changes of speed (design D6a).
+      ...(this.blade ? { ankleHeight: this.blade.ankleHeight, holdPlanted: 0.45 } : {}),
     });
 
     if (this.speed <= 0.1) {

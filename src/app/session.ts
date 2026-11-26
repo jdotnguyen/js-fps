@@ -861,16 +861,27 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     splashes = waterFx ? new WaterSplashes() : null;
     if (waterFx && splashes) {
       scene.add(splashes.points);
-      const SPLASH_SOUND: Partial<Record<SplashEvent['kind'], { name: SoundName; gain: number }>> = {
+      const SPLASH_SOUND: Partial<Record<SplashEvent['kind'], { name: SoundName; gain: number; reverb?: number; yOff?: number }>> = {
         bullet: { name: 'waterSplashBullet', gain: 0.55 },
         body: { name: 'waterSplashBody', gain: 0.9 },
         part: { name: 'waterSplashBullet', gain: 0.4 },
         spark: { name: 'sparkHiss', gain: 0.35 },
+        // Heavy creature charging splashes: high gain carries down the 18 m R09 flooded hall past inverse distance rolloff.
+        stomp: { name: 'waterSplashStomp', gain: 24, reverb: 0.45, yOff: 0.6 },
+        kick: { name: 'waterSplashKick', gain: 18, reverb: 0.4, yOff: 0.5 },
       };
       waterFx.onSplash = (e) => {
         splashes!.burst(e);
         const snd = SPLASH_SOUND[e.kind];
-        if (snd && game.mode === 'playing' && audio.hasSound(snd.name)) audio.play(snd.name, { bus: 'sfx', position: new THREE.Vector3(e.x, e.y + 0.1, e.z), gain: snd.gain * (0.6 + 0.4 * e.size), reverb: 0.3, rate: 0.94 + Math.random() * 0.12 });
+        if (snd && game.mode === 'playing' && audio.hasSound(snd.name)) {
+          audio.play(snd.name, {
+            bus: 'sfx',
+            position: new THREE.Vector3(e.x, e.y + (snd.yOff ?? 0.1), e.z),
+            gain: snd.gain * (0.6 + 0.4 * e.size),
+            reverb: snd.reverb ?? 0.3,
+            rate: 0.94 + Math.random() * 0.12,
+          });
+        }
       };
     }
     scene.add(gore.group);
@@ -939,7 +950,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           }
         : {};
     const onCharacterFootstep = (step: FootstepEvent): void => {
-      waterFx?.footstep(step.x, step.y, step.z, step.kind as StepKind, step.actor);
+      waterFx?.footstep(step.x, step.y, step.z, step.kind as StepKind, step.actor, step.splash);
       if (game.mode === 'playing' && !game.flying) footsteps!.playCharacter(step);
     };
 
@@ -1507,7 +1518,13 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       events.on('squad:flashlight' as never, ((p: { ids?: string | string[]; on?: boolean }) => {
         squad!.setFlashlight(parseSquadIds(p?.ids), p?.on === true);
       }) as never);
-      events.on('squad:scripted_fire' as never, ((p: { ids?: string | string[]; target?: string | [number, number, number]; bursts?: number; interval?: number; boost?: number; gain?: number }) => {
+      const npcAimPoint = (npcId: string, out = new THREE.Vector3()): { x: number; y: number; z: number } | null => {
+        const a = npcs?.actor(npcId, false);
+        if (!a) return null;
+        const p = a.body.jointWorld('chest', out);
+        return { x: p.x, y: p.y, z: p.z };
+      };
+      events.on('squad:scripted_fire' as never, ((p: { ids?: string | string[]; target?: string | [number, number, number]; bursts?: number; interval?: number; boost?: number; gain?: number; positional?: boolean }) => {
         if (p?.bursts === 0) {
           const ids = parseSquadIds(p.ids);
           squad!.scriptedFire({ bursts: 0, ...(ids !== undefined ? { ids } : {}) });
@@ -1518,6 +1535,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         if (typeof p.target === 'string' && p.target.startsWith('anchor:')) {
           const a = level?.anchor(p.target.slice(7));
           if (a) target = { x: a.pos.x, y: a.pos.y, z: a.pos.z };
+        } else if (typeof p.target === 'string' && p.target.startsWith('npc:')) {
+          target = npcAimPoint(p.target.slice(4));
         } else if (Array.isArray(p.target) && p.target.length === 3) {
           target = { x: p.target[0], y: p.target[1], z: p.target[2] };
         }
@@ -1530,6 +1549,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
             ...(p.interval !== undefined ? { interval: p.interval } : {}),
             ...(p.boost !== undefined ? { boost: p.boost } : {}),
             ...(p.gain !== undefined ? { gain: p.gain } : {}),
+            ...(p.positional === true ? { positional: true } : {}),
           });
         }
       }) as never);
@@ -1542,10 +1562,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         }
         if (ref.startsWith('npc:')) {
           const npcId = ref.slice(4);
-          squad!.setAim(ids, () => {
-            const a = npcs?.actor(npcId, false);
-            return a ? { x: a.position.x, y: a.position.y + 0.35, z: a.position.z } : null;
-          });
+          const scratch = new THREE.Vector3();
+          squad!.setAim(ids, () => npcAimPoint(npcId, scratch));
         } else if (ref.startsWith('anchor:')) {
           const a = level?.anchor(ref.slice(7));
           squad!.setAim(ids, a ? () => ({ x: a.pos.x, y: a.pos.y, z: a.pos.z }) : null);

@@ -5,8 +5,9 @@ import type { SurfaceDef } from './bodyMaterial.ts';
 import { clothPatch, heroColor, heroFace, heroScalpTorn, sculptHeroHead, sculptHero, tatterColor, tatterStrip } from './heroSculpt.ts';
 import { fbm3, noise3 } from './noise3.ts';
 import type { FingerBoneName, HandDetailBone, TwistBoneName } from './handPhysics.ts';
+import type { CreatureBoneDef } from './bodyModel.ts';
 import type { TorsoHullDef } from './limbContact.ts';
-import { HERO_NECK, HERO_NECK_EXTRA, JOINTS, jointDef, type JointName, type SegmentDef, type Side, type Vec3T } from './skeleton.ts';
+import { HERO_NECK, HERO_NECK_EXTRA, JOINTS, jointDef, type CapsuleDef, type JointName, type SegmentDef, type Side, type Vec3T } from './skeleton.ts';
 
 /**
  * Procedural body meshes (ADR-0006). Every piece is built in the local space of the bone
@@ -81,6 +82,8 @@ export type ExtraBone =
   | `tendril_${number}_${number}`
   | `cloth_${number}_${number}`
   | `stump_${JointName}`
+  | `seg_${JointName}_${number}`
+  | `limb_${string}_${number}`
   | FingerBoneName
   | TwistBoneName;
 
@@ -88,7 +91,7 @@ export interface ExtraBoneDef {
   name: ExtraBone;
   parent: JointName | ExtraBone;
   offset: Vec3T;
-  kind: 'growth' | 'shards' | 'ribs' | 'tendril' | 'cloth' | 'stump' | 'finger' | 'twist';
+  kind: 'growth' | 'shards' | 'ribs' | 'tendril' | 'cloth' | 'stump' | 'finger' | 'twist' | 'segment' | 'limb';
   /** Rest rotation (radians, XYZ) for bones that aim somewhere (tendril roots). */
   rest?: Vec3T;
 }
@@ -130,6 +133,10 @@ export interface BodyGeometry {
   surfaces?: Readonly<Record<string, SurfaceDef>>;
   /** Optional preserved finger and forearm-twist bone metadata for biomechanical hand physics. */
   handBones?: readonly HandDetailBone[];
+  /** A creature's segment and limb bones (rig-necromorph). */
+  creatureBones?: readonly CreatureBoneDef[];
+  /** Hit capsules replacing the reference skeleton's, per joint (rig-necromorph: fitted to a creature's drawn body). */
+  capsules?: Partial<Record<JointName, CapsuleDef>>;
   /** Optional mesh-fitted torso hulls for accurate hand/forearm self-collision on imported models. */
   torsoHulls?: readonly TorsoHullDef[];
 }

@@ -724,6 +724,73 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     prompt:
       'a horrifying infected human creature shrieking as it charges, wet torn throat, raw guttural scream rising to a screech, splashing through water as it runs, echoing in a concrete tunnel, horror, no music',
   },
+  // The blade creature's sustained raging roar as it charges down the R09 flooded hall, plus heavy stomp/kick water splashes (rig-necromorph).
+  {
+    id: 'creatureChargeRage',
+    file: 'oneshot-creature-charge-rage.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 5.0,
+    promptInfluence: 0.72,
+    prompt:
+      'continuous furious raging mutated horror monster snarling, roaring, and raspy guttural shrieking with violent aggression as it charges forward down an echoing wet concrete tunnel, feral wet throat bellows building to a savage rage roar, terrifying creature sound, no music, no human words',
+  },
+  {
+    id: 'waterSplashStomp1',
+    file: 'oneshot-water-stomp-1.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 1.0,
+    promptInfluence: 0.7,
+    prompt:
+      'loud heavy violent splash of a massive creature stomping hard into knee-deep flooded tunnel water, big booming water impact and heavy bursting spray, crisp close splash inside a concrete corridor, no music, no voice',
+  },
+  {
+    id: 'waterSplashStomp2',
+    file: 'oneshot-water-stomp-2.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 1.0,
+    promptInfluence: 0.7,
+    prompt:
+      'heavy powerful crash of a giant wet foot slamming down into deep standing water on a concrete floor, explosive churning splash and scattering water spray, loud raw foley, no music, no voice',
+  },
+  {
+    id: 'waterSplashStomp3',
+    file: 'oneshot-water-stomp-3.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 1.0,
+    promptInfluence: 0.72,
+    prompt:
+      'loud crisp splashing stomp of a heavy boot slamming into knee-deep standing water in a concrete hallway, huge explosive splash spray and surging water waves, bright sharp wet foley, no music, no voice',
+  },
+  {
+    id: 'waterSplashKick1',
+    file: 'oneshot-water-kick-1.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 0.8,
+    promptInfluence: 0.7,
+    prompt:
+      'loud forceful splash of a heavy leg tearing upward out of knee-deep flooded water while sprinting, sharp sloshing surge and thrown water spray in a concrete corridor, crisp raw foley, no music, no voice',
+  },
+  {
+    id: 'waterSplashKick2',
+    file: 'oneshot-water-kick-2.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 0.8,
+    promptInfluence: 0.7,
+    prompt:
+      'violent rushing water churn and sharp kicking splash as a heavy foot rips out of deep standing water at high speed, energetic splashing spray in a flooded tunnel, raw foley, no music, no voice',
+  },
   {
     id: 'doorPound',
     file: 'oneshot-door-pound.mp3',

@@ -1,0 +1,60 @@
+{
+  "r06": {
+    "a": {
+      "resolved": true,
+      "seconds": 8.12,
+      "shots": 19,
+      "hits": 15,
+      "shotsToSever": 5,
+      "shotsToKill": 19,
+      "dealt": 0
+    },
+    "b": {
+      "resolved": true,
+      "seconds": 7.23,
+      "shots": 17,
+      "hits": 14,
+      "shotsToSever": 7,
+      "shotsToKill": 17,
+      "dealt": 0
+    },
+    "c": {
+      "resolved": true,
+      "seconds": 10.37,
+      "shots": 24,
+      "hits": 22,
+      "shotsToSever": 16,
+      "shotsToKill": 24,
+      "dealt": 0
+    }
+  },
+  "r11": {
+    "a": {
+      "resolved": true,
+      "seconds": 31.53,
+      "shots": 36,
+      "hits": 183,
+      "shotsToSever": 20,
+      "shotsToKill": 36,
+      "dealt": 0
+    },
+    "b": {
+      "resolved": true,
+      "seconds": 21.62,
+      "shots": 25,
+      "hits": 130,
+      "shotsToSever": 15,
+      "shotsToKill": 25,
+      "dealt": 0
+    },
+    "c": {
+      "resolved": true,
+      "seconds": 24.33,
+      "shots": 28,
+      "hits": 136,
+      "shotsToSever": 17,
+      "shotsToKill": 28,
+      "dealt": 46.4
+    }
+  }
+}

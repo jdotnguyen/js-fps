@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WaterBodies, WaterBody } from './water.ts';
 import { WaterDisturbances, type SplashEvent } from './waterDisturbances.ts';
+import { SPLASH_PRESETS, burstCount } from '../render/water/splashes.ts';
 
 // standing-water spec (overhaul-flooded-tunnel D6/D7): what disturbs the water.
 
@@ -82,4 +83,56 @@ test('a drip emitter rings the water now and then; a pour churns it steadily', (
   assert.ok(drips >= 1 && drips <= 15, `drips over 10 s: ${drips}`);
   assert.equal(body.pending.length, 64, 'the queue keeps the newest stamps');
   assert.ok(pours > 40, `pour stamps kept: ${pours}`);
+});
+
+// rig-necromorph task 7.5a (design D6c; spec flooded-tunnel "It tears through the water"):
+// in R09's 0.75 m water, a person's step throws no spray, while the charging creature throws a stomp spray larger than a
+// body landing on every landing and a kick spray on every lift.
+test('a creature charging in 0.75 m water throws stomp and kick sprays larger than a body landing; a person step is unchanged', () => {
+  const { body, fx, splashes } = setup();
+  // A person wading in 0.75 m water: pushes the surface, throws no spray (depth >= 0.35 m).
+  fx.footstep(2, -1.2, 2, 'walk', 'okafor');
+  assert.equal(splashes.length, 0, 'a person step in 0.75 m water throws no spray');
+  const personStrength = Math.abs(body.pending[0]!.strength);
+  const personRadius = body.pending[0]!.radius;
+  body.takeStamps();
+
+  // A body landing in the same water, for comparison.
+  fx.land(3, -1.2, 2, 1, 'body');
+  const bodySplash = splashes.at(-1)!;
+  assert.equal(bodySplash.kind, 'body');
+  body.takeStamps();
+
+  // The creature landing in 0.75 m water: churns harder and wider and throws a stomp spray larger than a body landing.
+  fx.footstep(4, -1.2, 2, 'heavy', 'r09-flood-elite', 1);
+  assert.equal(body.pending.length, 1);
+  assert.ok(Math.abs(body.pending[0]!.strength) > personStrength * 3, 'creature stomp churns much harder than a person step');
+  assert.ok(body.pending[0]!.radius > personRadius * 1.4, 'creature stomp churns wider');
+  const stompSplash = splashes.at(-1)!;
+  assert.equal(stompSplash.kind, 'stomp');
+  assert.equal(stompSplash.y, body.level);
+  assert.ok(burstCount(stompSplash.kind, stompSplash.size) > burstCount(bodySplash.kind, bodySplash.size), 'stomp throws more droplets than a body landing');
+  assert.ok(SPLASH_PRESETS.stomp.spread > SPLASH_PRESETS.body.spread && SPLASH_PRESETS.stomp.up[1] > SPLASH_PRESETS.body.up[1]);
+  body.takeStamps();
+
+  // The creature pulling a foot out of 0.75 m water: lifts the surface and throws a kick spray.
+  fx.footstep(4, -1.2, 2, 'lift', 'r09-flood-elite', 1);
+  assert.equal(body.pending.length, 1);
+  assert.ok(body.pending[0]!.strength > 0, 'a lift pulls the surface up');
+  const kickSplash = splashes.at(-1)!;
+  assert.equal(kickSplash.kind, 'kick');
+  assert.equal(kickSplash.y, body.level);
+  assert.ok(burstCount(kickSplash.kind, kickSplash.size) > burstCount('step', 0.3) * 5, 'kick spray is far larger than a shallow person step');
+
+  // Shallow water: a person's step still throws the small 'step' spray unchanged.
+  const shallow = new WaterBodies();
+  const puddle = new WaterBody({ room: 'R09', level: -1.0, floor: -1.2, cells: [{ minX: 0, maxX: 8, minZ: 0, maxZ: 4 }] });
+  shallow.add(puddle);
+  const shallowSplashes: SplashEvent[] = [];
+  const sfx = new WaterDisturbances(shallow, () => 0.5);
+  sfx.onSplash = (s) => shallowSplashes.push(s);
+  sfx.footstep(2, -1.2, 2, 'walk', 'okafor');
+  assert.equal(shallowSplashes.length, 1);
+  assert.equal(shallowSplashes[0]!.kind, 'step');
+  assert.equal(shallowSplashes[0]!.size, 0.3);
 });

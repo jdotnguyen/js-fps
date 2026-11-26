@@ -20,6 +20,7 @@ import { gesture, hash01, mouthOpenAt, type SpeechPlan } from './speechActing.ts
 import { solveTwoBone } from './ik.ts';
 import { detailPass } from './detailPass.ts';
 import { Spring1D } from './springs.ts';
+import type { BladeMotion } from './blade/motion.ts';
 
 /**
  * Hybrid mocap + procedural-physics animation for one humanoid (ADR-0006 + Tier B upgrade):
@@ -182,6 +183,17 @@ export class Animator {
   infect = 0;
   /** Infected movement layer on (enemies; not scripted npcs until they turn). */
   twitchy = false;
+  /** How far the body moved in the last frame, in its own frame (m; x right, z back) and turned (rad, + left); set by the body. */
+  readonly moved = { x: 0, z: 0, yaw: 0 };
+  /** A creature body's own motion (the blade creature, rig-necromorph), or null for every human body. */
+  creature: BladeMotion | null = null;
+  private readonly addJoint = (name: JointName, x: number, y: number, z: number): void => this.add(name, x, y, z);
+  private readonly baseE = new THREE.Euler();
+  /** A joint's X angle (degrees) in the current blended pose, before any layer. */
+  private readonly baseX = (name: JointName): number => {
+    const q = this.current.joints[J[name]];
+    return q ? THREE.MathUtils.radToDeg(this.baseE.setFromQuaternion(q, 'XYZ').x) : 0;
+  };
   /** 0..1 lunge: lean in, arms out, jaw wide (AI lurch bursts, attacks). */
   charge = 0;
   /** Seconds of post-mortem twitching left. */
@@ -410,7 +422,29 @@ export class Animator {
   }
 
   /** Blend to a pose from wherever the body is now. `blend <= 0` snaps immediately. */
-  setPose(name: string, blend = 0.4): void {
+  /**
+   * A creature's own pose for the one asked for (rig-necromorph design D4): its pose map's entry, or the pose itself when it
+   * maps nothing. A mapped pose that is missing falls back to the creature's stance, with one warning.
+   */
+  ownPose(name: string): string {
+    const map = this.poseMap;
+    const to = map?.[name];
+    if (!to) return name;
+    if (this.poses.has(to)) return to;
+    const key = `${name}->${to}`;
+    if (!Animator.warnedMaps.has(key)) {
+      Animator.warnedMaps.add(key);
+      console.warn(`[blade] pose map: "${name}" maps to "${to}", which is not in poses.json; using ${map['idle'] ?? 'idle'}`);
+    }
+    return map['idle'] && this.poses.has(map['idle']) ? map['idle'] : name;
+  }
+
+  /** The creature's pose map (data/blade-creature.json `poseMap`), or null for every human body. */
+  poseMap: Readonly<Record<string, string>> | null = null;
+  private static readonly warnedMaps = new Set<string>();
+
+  setPose(asked: string, blend = 0.4): void {
+    const name = this.ownPose(asked);
     if (this.to.name === name && !this.seq) return;
     this.seq = null;
     this.oneShot = null;
@@ -432,7 +466,7 @@ export class Animator {
     if (!first) return;
     this.oneShot = null;
     this.seq = { steps, index: 0, timer: first.blend + first.hold, onDone };
-    this.startBlend(this.poses.get(first.pose), first.blend);
+    this.startBlend(this.poses.get(this.ownPose(first.pose)), first.blend);
   }
 
   /** Additive reaction: `dir` is the hit direction in group space, `strength` in radians. */
@@ -480,21 +514,36 @@ export class Animator {
       const k = 1 - this.fadeT / this.fadeLen;
       blendPose(this.fadeFrom, this.finalPose, k * k * (3 - 2 * k), this.finalPose);
     }
-    this.distributeSpine();
-    this.updateHold(dt);
+    if (!this.creature) {
+      this.distributeSpine();
+      this.updateHold(dt);
+    }
     this.updateGait(dt, mocapActive);
-    // Turned bodies ignore their living profile, including its damped arm layers.
-    const arms = this.twitchy ? 1 : this.armLayer;
-    this.armScale = arms;
-    this.updateInertialPhysics(dt);
-    this.armScale = 1;
-    this.updateTurnInPlace(dt);
-    this.armScale = arms;
-    this.updateIdleLife(dt);
-    // A calm line's forearm gesture is the only speech motion on the arms (its talk capture plays on the trunk), so it is not
-    // damped under the body's own clips the way the whole-arm gestures of heightened lines are.
-    if (this.speech?.style.forearmOnly && !this.twitchy) this.armScale = 1;
-    this.updateSpeech(dt);
+    if (this.creature) {
+      // A creature body (rig-necromorph design D6): its own motion replaces the human layers (sway, turn steps, idle life, speech).
+      const out = this.creature.update(this.addJoint, { dt, time: this.time, speed: this.speed, gaitRate: this.gaitRate, baseX: this.baseX, pelvisY: this.current.pelvis.y, turnRate: this.turnRate, moved: this.moved, locked: this.to.name.startsWith('blade_pry_') });
+      if (this.gait !== 'crawl' && this.gait !== 'drag') {
+        this.footContacts[0] = out.contacts[0];
+        this.footContacts[1] = out.contacts[1];
+        this.footfall = out.footfall;
+        this.bob.y += out.bob;
+        this.bob.x += out.bobX;
+        this.bob.z += out.bobZ;
+      }
+    } else {
+      // Turned bodies ignore their living profile, including its damped arm layers.
+      const arms = this.twitchy ? 1 : this.armLayer;
+      this.armScale = arms;
+      this.updateInertialPhysics(dt);
+      this.armScale = 1;
+      this.updateTurnInPlace(dt);
+      this.armScale = arms;
+      this.updateIdleLife(dt);
+      // A calm line's forearm gesture is the only speech motion on the arms (its talk capture plays on the trunk), so it is not
+      // damped under the body's own clips the way the whole-arm gestures of heightened lines are.
+      if (this.speech?.style.forearmOnly && !this.twitchy) this.armScale = 1;
+      this.updateSpeech(dt);
+    }
     this.armScale = 1;
     this.updateLook(dt);
     this.updateInjury(dt);
@@ -700,7 +749,7 @@ export class Animator {
       return;
     }
     seq.timer = step.blend + step.hold;
-    this.startBlend(this.poses.get(step.pose), step.blend);
+    this.startBlend(this.poses.get(this.ownPose(step.pose)), step.blend);
   }
 
   // ---------------------------------------------------------------- Tier B mocap base layer
@@ -1295,6 +1344,11 @@ export class Animator {
 
   private updateGait(dt: number, mocapActive: boolean): void {
     const style = this.gait;
+    // A creature walks its own way (BladeMotion); only crawling and dragging are shared.
+    if (this.creature && style !== 'crawl' && style !== 'drag') {
+      this.footfall = false;
+      return;
+    }
     // Pivoting crawlers pull themselves around: the turn speed drives the limbs as if it were ground speed.
     const pivot = style === 'crawl' ? PIVOT_DRIVE_CRAWL : style === 'drag' ? PIVOT_DRIVE_DRAG : 0;
     const drive = style === 'none' ? 0 : Math.max(this.speed, pivot * Math.abs(this.turnRate));
@@ -1544,6 +1598,24 @@ export class Animator {
    */
   private updateInfected(dt: number): void {
     const t = this.time;
+    if (this.creature) {
+      // A creature keeps the infected jaw and spasms; its posture, head and lunges are its own (BladeMotion, its poses).
+      const inf = this.twitchy ? this.infect : 0;
+      const chatter = inf * (0.5 + 0.5 * Math.sin(t * 0.9 + this.noiseSeed)) * 6 * Math.sin(t * 38 + this.noiseSeed);
+      this.add('jaw', -chatter, 0, 0);
+      if (inf > 0) {
+        this.spasmTimer -= dt;
+        if (this.spasmTimer <= 0) {
+          this.spasmTimer = this.rng.range(0.6, 2.6) / (0.4 + inf);
+          this.spasm(0.25 + 0.4 * inf);
+        }
+      }
+      if (this.deathTwitch > 0) {
+        this.deathTwitch -= dt;
+        if (this.rng.chance(dt * 6 * Math.min(1, this.deathTwitch / 2))) this.spasm(0.5 * Math.min(1, this.deathTwitch / 3));
+      }
+      return;
+    }
     const inf = this.twitchy ? this.infect : 0;
     this.chargeCur += (this.charge - this.chargeCur) * Math.min(1, dt * 6);
     const c = this.chargeCur;

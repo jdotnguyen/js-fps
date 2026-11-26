@@ -36,12 +36,12 @@ export function wireSquadShots(d: SquadShotDeps): () => void {
   return d.events.on('squad:fired', (shot: SquadEvents['squad:fired']) => {
     if (d.active && !d.active()) return;
     const { muzzle, ejectPort, right } = shot;
-    // Scripted bursts (the R16 surveillance finale) are heard through the CCTV feed, so they play in the head at full
-    // level instead of fading out with distance from the player's seat in the train.
-    const scripted = shot.enemy === 'scripted';
+    // Scripted CCTV bursts (the R16 surveillance finale) play in the head at full level instead of fading out with distance
+    // from the player's seat; in-room scripted shots (`positional: true`, e.g. R10) stay spatialized at each mate's muzzle.
+    const inHead = shot.enemy === 'scripted' && !shot.positional;
     d.audio.play('squadPistolShot', {
       bus: 'sfx',
-      ...(scripted ? {} : { position: new THREE.Vector3(muzzle.x, muzzle.y, muzzle.z) }),
+      ...(inHead ? {} : { position: new THREE.Vector3(muzzle.x, muzzle.y, muzzle.z) }),
       // A scripted volley can be quieter than a normal shot (the R16 finale fires under the long roar).
       gain: SQUAD_SHOT.gain * (shot.gain ?? 1),
       reverb: SQUAD_SHOT.reverb,

@@ -4,7 +4,9 @@ import { SPLASH_PRESETS, WaterSplashes, burstCount } from './splashes.ts';
 
 // standing-water spec "Splashes" (overhaul-flooded-tunnel D7).
 
-test('bigger impacts throw more spray: a body over a bullet over a step over a drip', () => {
+test('bigger impacts throw more spray: a creature stomp over a body over a bullet over a step over a drip', () => {
+  assert.ok(burstCount('stomp', 1) > burstCount('body', 1));
+  assert.ok(burstCount('kick', 1) > burstCount('takeoff', 0.6));
   assert.ok(burstCount('body', 1) > burstCount('bullet', 0.4));
   assert.ok(burstCount('bullet', 0.4) > burstCount('step', 0.3));
   assert.ok(burstCount('step', 0.3) > burstCount('drip', 0.1));

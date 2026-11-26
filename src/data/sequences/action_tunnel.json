@@ -281,18 +281,88 @@
    },
    {
     "do": "wait",
-    "s": 0.4
+    "s": 0.15
    },
    {
-    "do": "playerWalkTo",
-    "to": "anchor:r10_run_stop",
-    "speed": 3.8,
-    "timeout": 5,
-    "wait": true
-   },
-   {
-    "do": "playerFlashlight",
-    "on": true
+    "parallel": [
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 0.25
+       },
+       {
+        "do": "playerWalkTo",
+        "to": "anchor:r10_run_stop",
+        "speed": 3.8,
+        "timeout": 5,
+        "wait": true
+       },
+       {
+        "do": "playerFlashlight",
+        "on": true
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "npcLookAt",
+        "npc": "okafor",
+        "target": "npc:r09_flood_shambler"
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "okafor",
+        "to": "anchor:r10_door_okafor",
+        "speed": 3.5,
+        "wait": true
+       },
+       {
+        "do": "emit",
+        "event": "squad:aim",
+        "payload": {
+         "ids": "okafor",
+         "target": "npc:r09_flood_shambler"
+        }
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 0.12
+       },
+       {
+        "do": "npcLookAt",
+        "npc": "giles",
+        "target": "npc:r09_flood_shambler"
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "giles",
+        "to": "anchor:r10_door_giles",
+        "speed": 3.2,
+        "wait": true
+       },
+       {
+        "do": "emit",
+        "event": "squad:aim",
+        "payload": {
+         "ids": "giles",
+         "target": "npc:r09_flood_shambler"
+        }
+       }
+      ]
+     }
+    ]
    },
    {
     "do": "wait",
@@ -306,7 +376,24 @@
       "steps": [
        {
         "do": "wait",
-        "s": 1.2
+        "s": 0.45
+       },
+       {
+        "do": "emit",
+        "event": "squad:scripted_fire",
+        "payload": {
+         "ids": "okafor,giles",
+         "target": "npc:r09_flood_shambler",
+         "bursts": 4,
+         "interval": 1.05,
+         "boost": 1.6,
+         "gain": 1.1,
+         "positional": true
+        }
+       },
+       {
+        "do": "wait",
+        "s": 0.75
        },
        {
         "do": "say",
@@ -320,6 +407,14 @@
        {
         "do": "wait",
         "s": 0.5
+       },
+       {
+        "do": "emit",
+        "event": "squad:scripted_fire",
+        "payload": {
+         "ids": "okafor,giles",
+         "bursts": 0
+        }
        },
        {
         "do": "doorState",
@@ -380,13 +475,43 @@
       ]
      },
      {
-      "do": "npcMoveTo",
-      "npc": "r09_flood_shambler",
-      "to": "anchor:r09_flood_behind",
-      "speed": 3.2,
-      "wait": true
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "sfx",
+        "id": "creatureChargeRage",
+        "at": "anchor:r09_flood_shambler",
+        "gain": 12
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "r09_flood_shambler",
+        "to": "anchor:r09_flood_behind",
+        "speed": 3.2,
+        "wait": true
+       }
+      ]
      }
     ]
+   },
+   {
+    "do": "emit",
+    "event": "squad:aim",
+    "payload": {
+     "ids": "okafor,giles",
+     "target": "anchor:r10_porthole"
+    }
+   },
+   {
+    "do": "npcLookAt",
+    "npc": "okafor",
+    "target": "anchor:r10_porthole"
+   },
+   {
+    "do": "npcLookAt",
+    "npc": "giles",
+    "target": "anchor:r10_porthole"
    },
    {
     "do": "sfx",
@@ -427,6 +552,24 @@
    {
     "do": "wait",
     "s": 1.2
+   },
+   {
+    "do": "emit",
+    "event": "squad:aim",
+    "payload": {
+     "ids": "okafor,giles",
+     "target": ""
+    }
+   },
+   {
+    "do": "npcAnim",
+    "npc": "okafor",
+    "anim": "idle"
+   },
+   {
+    "do": "npcAnim",
+    "npc": "giles",
+    "anim": "idle"
    },
    {
     "do": "score",
@@ -519,6 +662,22 @@
     "speech": true
    },
    {
+    "do": "emit",
+    "event": "squad:scripted_fire",
+    "payload": {
+     "ids": "okafor,giles",
+     "bursts": 0
+    }
+   },
+   {
+    "do": "emit",
+    "event": "squad:aim",
+    "payload": {
+     "ids": "okafor,giles",
+     "target": ""
+    }
+   },
+   {
     "do": "setFlag",
     "flag": "ambush_done",
     "value": true
@@ -541,6 +700,18 @@
     "interact": false
    },
    {
+    "do": "npcLookAt",
+    "npc": "okafor",
+    "target": "anchor:r10_porthole",
+    "turn": true
+   },
+   {
+    "do": "npcLookAt",
+    "npc": "giles",
+    "target": "anchor:r10_porthole",
+    "turn": true
+   },
+   {
     "do": "npcAnim",
     "npc": "r09_flood_shambler",
     "anim": "pry_reach"
@@ -559,8 +730,8 @@
    {
     "do": "doorPry",
     "id": "D_R09_R10",
-    "open": 0.06,
-    "s": 0.15
+    "open": 0.16,
+    "s": 0.18
    },
    {
     "do": "cameraShake",
@@ -573,8 +744,18 @@
     "duration": 0.35
    },
    {
+    "do": "npcAnim",
+    "npc": "okafor",
+    "anim": "panic_brace"
+   },
+   {
+    "do": "npcAnim",
+    "npc": "giles",
+    "anim": "panic_brace"
+   },
+   {
     "do": "wait",
-    "s": 0.5
+    "s": 0.42
    },
    {
     "do": "npcAnim",
@@ -583,7 +764,7 @@
    },
    {
     "do": "wait",
-    "s": 0.4
+    "s": 0.36
    },
    {
     "do": "npcAnim",
@@ -615,7 +796,7 @@
    },
    {
     "do": "wait",
-    "s": 1
+    "s": 1.25
    },
    {
     "do": "npcAnim",
@@ -624,7 +805,7 @@
    },
    {
     "do": "wait",
-    "s": 0.7
+    "s": 0.5
    },
    {
     "do": "sfx",
@@ -634,7 +815,7 @@
    },
    {
     "do": "wait",
-    "s": 0.63
+    "s": 0.45
    },
    {
     "do": "doorState",
@@ -643,7 +824,7 @@
    },
    {
     "do": "wait",
-    "s": 0.1
+    "s": 0.38
    },
    {
     "do": "npcSever",
@@ -654,7 +835,7 @@
     ],
     "dir": [
      1,
-     0.3,
+     0.25,
      0
     ]
    },

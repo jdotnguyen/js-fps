@@ -933,8 +933,12 @@ test('the valve cutscene: on rails at the wheel, the squad placed unseen, beacon
   // during the charge; the camera is released with the controls (not held on the door through the lines).
   // The door stands open from the start (the stairs seen through it), the creature shrieks as it charges, the door slams,
   // it pounds on the door, then the hand. The pump room goes red with three beacons before the turn.
-  inOrder(g, ['door D_R09_R10 open', 'npc spawn r09_flood_shambler', 'namedLight r09_charge_light steady', 'sfx creatureScreamFar', 'player walkTo', 'flashlight on', 'npc npcMoveTo r09_flood_shambler', ...lines('flood_okafor_01'), 'door D_R09_R10 sealed', 'sfx floodSlamHit', 'sfx floodDoorSlam', 'sfx doorPound']);
+  inOrder(g, ['door D_R09_R10 open', 'npc spawn r09_flood_shambler', 'namedLight r09_charge_light steady', 'sfx creatureScreamFar', 'npc npcMoveTo okafor', 'event squad:aim', 'sfx creatureChargeRage', 'event squad:scripted_fire', ...lines('flood_okafor_01'), 'door D_R09_R10 sealed', 'sfx floodSlamHit', 'sfx floodDoorSlam', 'sfx doorPound']);
+  inOrder(g, ['sfx creatureScreamFar', 'npc npcMoveTo giles', 'event squad:aim', 'sfx creatureChargeRage']);
+  inOrder(g, ['sfx creatureScreamFar', 'player walkTo', 'flashlight on', 'sfx creatureChargeRage']);
+  assert.equal(count(g, 'event squad:scripted_fire'), 2, 'deliberate aimed fire starts during the charge and stops at the seal');
   assert.equal(count(g, 'sfx creatureScreamFar'), 1, 'one scream from far down the hall, before anyone speaks');
+  assert.equal(count(g, 'sfx creatureChargeRage'), 1, 'the raging monster roar plays as it charges');
   assert.equal(count(g, 'sfx creatureCharge'), 0, 'the old shriek is not used in the cutscene');
   assert.equal(g.log.includes('event flood:handslap'), false, 'no hand at the porthole: its arms come later');
   assert.equal(g.log.filter((e) => e === 'sfx doorPound').length, 2, 'two rounds of pounding');
@@ -1054,7 +1058,7 @@ test('the ambush at the R11 door: only after the valve, once; the elite pries th
   assert.equal(g.m.isRunning('r10_ambush'), true);
   assert.equal(g.control.state.look, 'locked', 'the view is pulled to the door');
   await until(g, () => !g.m.isRunning('r10_ambush'));
-  inOrder(g, ['npc spawn r09_flood_shambler', 'npc npcAnim r09_flood_shambler pry_reach', 'sfx ambushSting', 'pry D_R09_R10 0.06', 'npc npcAnim r09_flood_shambler pry_clamp', 'npc npcAnim r09_flood_shambler pry_wrench', 'sfx doorPry', 'pry D_R09_R10 0.5', 'npc npcAnim r09_flood_shambler pry_thrust', 'sfx floodDoorSlam', 'door D_R09_R10 sealed', 'npc npcSever r09_flood_shambler', 'sfx creatureSeverShriek', ...lines('flood_okafor_03')]);
+  inOrder(g, ['npc spawn r09_flood_shambler', 'npc npcAnim r09_flood_shambler pry_reach', 'sfx ambushSting', 'pry D_R09_R10 0.16', 'npc npcAnim r09_flood_shambler pry_clamp', 'npc npcAnim r09_flood_shambler pry_wrench', 'sfx doorPry', 'pry D_R09_R10 0.5', 'npc npcAnim r09_flood_shambler pry_thrust', 'sfx floodDoorSlam', 'door D_R09_R10 sealed', 'npc npcSever r09_flood_shambler', 'sfx creatureSeverShriek', ...lines('flood_okafor_03')]);
   assert.equal(g.log.includes('door D_R09_R10 open'), false, 'the door is forced, never opened');
   assert.equal(g.control.state.move, 'free', 'controls back');
   assert.equal(g.host.flags['ambush_done'], true);

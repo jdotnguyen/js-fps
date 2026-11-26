@@ -11,7 +11,8 @@ import type { JointName, Side } from './skeleton.ts';
  * flush with the deck while letting swing legs follow the animation arc cleanly.
  */
 
-const ANKLE_CLEARANCE = 0.065;
+/** A human ankle's height above the sole at the 1.78 m reference height (m); a body may give its own (FootIkParams). */
+export const ANKLE_CLEARANCE = 0.065;
 /** Max horizontal distance a pinned foot may trail its FK ankle (tight enough to prevent whole-body leaning over glued feet). */
 const MAX_PIN_DRIFT = 0.14;
 /** Idle deadzone (m) below which a planted foot stays rock-solid; excess drift smoothly relaxes back under the hip. */
@@ -60,6 +61,10 @@ export interface FootIkParams {
   /** True for forced crouching/kneeling floor-plant poses (legacy plantFeet). */
   forcePlant: boolean;
   dt: number;
+  /** This body's ankle height above the sole at the reference height (m); default ANKLE_CLEARANCE (rig-necromorph). */
+  ankleHeight?: number;
+  /** Hold a planted foot exactly where it landed (no settling toward the animated foot), up to this far from it (m); default MAX_PIN_DRIFT with settling. */
+  holdPlanted?: number;
 }
 
 const qParentInv = new THREE.Quaternion();
@@ -100,8 +105,9 @@ export class FootIkSolver {
     p.group.updateMatrixWorld(true);
 
     const floorY = p.group.position.y;
-    const ankleY = floorY + ANKLE_CLEARANCE * p.scaleY;
-    const maxDrift = MAX_PIN_DRIFT * p.scaleY;
+    const ankle = p.ankleHeight ?? ANKLE_CLEARANCE;
+    const ankleY = floorY + ankle * p.scaleY;
+    const maxDrift = (p.holdPlanted ?? MAX_PIN_DRIFT) * p.scaleY;
     const teleportDist = TELEPORT_DIST * p.scaleY;
 
     const contacts: Record<Side, number> = {
@@ -130,7 +136,7 @@ export class FootIkSolver {
 
       if (p.forcePlant) {
         const x = (s === 'L' ? -1 : 1) * 0.11 * p.scaleW;
-        p.group.localToWorld(f.pinPos.set(x, ANKLE_CLEARANCE * p.scaleY, s === 'L' ? -0.05 : 0.12));
+        p.group.localToWorld(f.pinPos.set(x, ankle * p.scaleY, s === 'L' ? -0.05 : 0.12));
         f.pinned = true;
         f.lockWeight = 1;
         activeCount++;
@@ -165,7 +171,7 @@ export class FootIkSolver {
           const pull = (d - maxDrift) / d;
           f.pinPos.x += dx * pull;
           f.pinPos.z += dz * pull;
-        } else if (d > deadzone) {
+        } else if (d > deadzone && p.holdPlanted === undefined) {
           const excess = d - deadzone;
           const relax = (excess * (1 - Math.exp(-RELAX_RATE * h))) / d;
           f.pinPos.x += dx * relax;
@@ -228,8 +234,10 @@ export class FootIkSolver {
       solveTwoBone(thigh, shin, foot, f.target, f.pole, f.lockWeight);
 
       // Keep planted foot flat on the deck (smoothly preserving heel-strike/toe-off as lockWeight tapers).
+      // For a body that holds planted feet where they landed (`holdPlanted`), stop flattening once the foot lifts so
+      // a tucked swing shin does not wrench the airborne ankle upward.
       const parent = foot.parent;
-      if (parent) {
+      if (parent && (f.pinned || p.forcePlant || p.holdPlanted === undefined)) {
         parent.getWorldQuaternion(qParentInv).invert();
         qFlat.copy(qParentInv).multiply(p.group.quaternion);
         const flatW = p.forcePlant ? 1 : f.lockWeight * 0.82;

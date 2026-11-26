@@ -664,6 +664,22 @@ function rigBones(url: URL): THREE.Bone[] {
   return json.skins[0]!.joints.map((i) => node[i]!);
 }
 
+// rig-necromorph (imported-body-models "Secondary limbs never drive a primary limb joint"): with its creature profile the
+// belly arms get bones of their own, rooted on the joint they grow from (the spine), never on an arm.
+test('with its creature profile the necromorph\'s belly arms move on their own bones, rooted on the spine', async () => {
+  const { prepareOptionsFor } = await import('./bodyModelLibrary.ts');
+  const defs = JSON.parse(readFileSync(new URL('../data/body-models.json', import.meta.url), 'utf8'));
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/infected/necromorph_slasher.glb', import.meta.url)), prepareOptionsFor(defs.necromorph));
+  const limbs = m.creatureBones.filter((b) => b.kind === 'limb');
+  assert.ok(limbs.length >= 28);
+  for (const b of limbs) assert.ok(b.parent === 'spine' || b.parent.startsWith('limb_'), `${b.name} hangs from ${b.parent}`);
+  assert.ok(limbs.every((b) => /mini/i.test(b.source)), 'only belly-arm bones');
+  for (const p of m.parts.filter((p) => p.joint.startsWith('hand_'))) {
+    const size = new THREE.Box3().setFromBufferAttribute(p.geometry.getAttribute('position') as THREE.BufferAttribute).getSize(new THREE.Vector3());
+    assert.ok([size.x, size.y, size.z].sort((a, b) => a - b)[1]! < HAND_PIECE_MID_MAX, `${p.joint} holds no belly-arm skin`);
+  }
+});
+
 test('the secondary-limb rule changes no rig except the necromorph', () => {
   const models = JSON.parse(readFileSync(new URL('../data/body-models.json', import.meta.url), 'utf8')) as Record<string, { url: string }>;
   for (const [id, { url }] of Object.entries(models)) {

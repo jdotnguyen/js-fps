@@ -112,6 +112,8 @@ function baseGainForKind(kind: FootstepKind, speed: number): number {
       return 0.72;
     case 'heavy':
       return 1.2;
+    case 'lift':
+      return 0;
   }
 }
 
@@ -127,6 +129,8 @@ function rateScaleForKind(kind: FootstepKind): number {
       return 0.92;
     case 'heavy':
       return 0.76;
+    case 'lift':
+      return 1.0;
   }
 }
 
@@ -209,6 +213,8 @@ export class FootstepAudio {
 
   /** Play one spatialized footstep from an NPC, squadmate, or enemy. */
   playCharacter(ev: FootstepEvent): void {
+    // Foot lifts only drive water kick sprays (not dry-floor footsteps).
+    if (ev.kind === 'lift') return;
     const listener = this.deps.listener();
     const dx = ev.x - listener.x;
     const dy = ev.y - listener.y;

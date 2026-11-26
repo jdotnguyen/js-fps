@@ -1,7 +1,9 @@
 import { arr, bool, numRange, obj, oneOf, optional, record, str, type Infer, type Validator } from '../core/validate.ts';
 import type { Rng } from '../core/rng.ts';
 import { disposeTexture } from '../render/materials.ts';
-import { prepareBodyModel, type PreparedBodyModel } from './bodyModel.ts';
+import { prepareBodyModel, type PrepareOptions, type PreparedBodyModel } from './bodyModel.ts';
+import bladeCreatureJson from '../data/blade-creature.json' with { type: 'json' };
+import { loadBladeCreature, type BladeCreatureProfile } from '../data/types/bladeCreature.ts';
 
 /**
  * Imported body models (ADR-0026, `data/body-models.json`): loaded once at boot, then shared by every body
@@ -21,6 +23,8 @@ const modelShape = {
   sickTint: optional(numRange(0, 1)),
   /** Preserve individual finger and forearm-twist bones for biomechanical hand physics (main cast). */
   handRig: optional(bool),
+  /** A creature profile the body is prepared and driven with (`blade`: data/blade-creature.json, openspec rig-necromorph). */
+  rig: optional(oneOf(['blade'] as const)),
   /** Attribution for CREDITS.md and the credits screen (CC-BY and friends require it). */
   credit: obj({ title: str, author: str, source: str, license: str }),
 };
@@ -28,6 +32,25 @@ const modelShape = {
 export type BodyModelDef = Infer<typeof modelShape>;
 export type BodyModelTable = Record<string, BodyModelDef>;
 export const validateBodyModelTable: Validator<BodyModelTable> = record(obj(modelShape));
+
+let blade: BladeCreatureProfile | null = null;
+/** The blade creature's profile (data/blade-creature.json), validated once. */
+export function bladeCreatureProfile(): BladeCreatureProfile {
+  blade ??= loadBladeCreature(bladeCreatureJson);
+  return blade;
+}
+
+/** How a model is prepared: its tint, its hand rig, and its creature profile's extra bones. */
+export function prepareOptionsFor(def: BodyModelDef): PrepareOptions {
+  const out: PrepareOptions = {};
+  if (def.sickTint !== undefined) out.sickTint = def.sickTint;
+  if (def.handRig) out.detailHands = true;
+  if (def.rig === 'blade') {
+    const p = bladeCreatureProfile();
+    out.creature = { segments: p.segments, limbs: p.limbs, hits: p.hits };
+  }
+  return out;
+}
 
 export class BodyModelLibrary {
   readonly table: Readonly<BodyModelTable>;
@@ -61,12 +84,12 @@ export class BodyModelLibrary {
             await mine;
             await yieldTo();
             try {
-              model = prepareBodyModel(gltf.scene, { ...(def.sickTint === undefined ? {} : { sickTint: def.sickTint }), ...(def.handRig ? { detailHands: true } : {}) });
+              model = prepareBodyModel(gltf.scene, prepareOptionsFor(def));
             } finally {
               done();
             }
           } else {
-            model = prepareBodyModel(gltf.scene, { ...(def.sickTint === undefined ? {} : { sickTint: def.sickTint }), ...(def.handRig ? { detailHands: true } : {}) });
+            model = prepareBodyModel(gltf.scene, prepareOptionsFor(def));
           }
           this.loaded.set(id, model);
           console.info(`[body-models] ${id}: ${model.triangles} triangles, ${model.parts.length} pieces in ${(performance.now() - t0).toFixed(0)} ms`);

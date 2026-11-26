@@ -98,6 +98,11 @@ test('a scripted volley with a gain plays its shots that much quieter, in the he
   assert.equal(shots[0]!.opts!.gain, SQUAD_SHOT.gain);
   assert.ok(Math.abs(shots[1]!.opts!.gain! - SQUAD_SHOT.gain * 0.6) < 1e-9, 'quieter by its gain');
   assert.equal(shots[1]!.opts!.position, undefined, 'heard through the feed, not placed');
+
+  // An in-room scripted volley (`positional: true`, e.g. R10) stays spatialized at each mate's muzzle.
+  r.emit({ id: 'medic', enemy: 'scripted', hit: false, killed: false, positional: true, ...shotPoints(m) });
+  const posShot = r.played.filter((p) => p.name === 'squadPistolShot')[2]!;
+  assert.ok(posShot.opts!.position, 'positional scripted shot plays in 3D world space at the muzzle');
 });
 
 test('consecutive squad shots vary in pitch within ±4%', () => {
