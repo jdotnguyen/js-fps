@@ -12,7 +12,7 @@ Dr. Voss's death in the Lab B drop is the slice's first horror beat, and it does
 
 ## What Changes
 
-- **Holding it together.** While she waits for Okafor's question, which takes longer or shorter depending on Jay's arrival, her hands scratch fast but the rest of her moves slowly: laboured breathing, weight shifts, glances at the people behind the glass. The shimmy goes. Her first line stays as recorded.
+- **Holding it together.** From the end of the rounds, while her breathing already comes through the intercom, she stops typing and shows it: hunched, holding her arm. While she waits for Okafor's question, which takes longer or shorter depending on how Jay's squad arrives, her hands scratch fast but the rest of her moves slowly: laboured breathing, weight shifts, glances at the people behind the glass. The shimmy goes. Her first line stays as recorded.
 - **A fixed-length death.** From the end of Okafor's question, the rest of her kill runs on a fixed clock of about 13 s, the same on every run, so every movement, prop, sound and line lands on its frame. The beats keep their names and order, and the drop's lines, lights and alarm keep waiting on them.
 - **A staged run through the lab.** A jolt from inside throws her forward into the bench beside her. She sweeps it clear, doubles over, pushes off, stumbles and nearly goes down, recovers, grabs the prep cart, drags it over and reaches the glass. She follows an authored route with her feet planted and her footsteps heard. Captured stumble, hurt-walk and scared takes from free sources carry her travel; hand-authored poses carry the contacts.
 - **Clips that travel.** A kill beat can move its victim along an authored route while it plays a clip, instead of holding her in place.
@@ -49,6 +49,6 @@ None.
   - `src/data/sequences/drop.json`, and `quiet_restore.json` for the aftermath.
 - **Audio and credits:** new files under `public/assets/audio/` and entries in `src/audio/sounds.ts`, following `docs/audio-assets.md`. Her gasps and grunts follow `docs/voice-casting-standard.md`. New sounds and capture takes are credited in `CREDITS.md`, and the takes in `docs/mocap-sources.md`.
 - **Order with other work:**
-  - rig-necromorph has uncommitted work in `humanoid.ts`, `animator.ts`, `npcKills.ts`, `kills.json` and `poses.json`. The motion and kill work waits until that is committed and its review of the drop (its task 8.1) is done.
-  - The creature's unfold is cued from Voss's burst, and her final resting place must leave its stand point clear.
-  - The sounds, the scratch fix, the bench props, the sealed glass and the clip bake can start first.
+  - rig-necromorph is committed and archived, so its blade creature is the one Voss's burst hands over to. Its pose map borrows Voss's `kill_glass_0` and `kill_glass_1`, its unfold is cued from her burst, and her final resting place must leave its stand point clear.
+  - `src/ai/npcKills.ts` has another agent's uncommitted edits; the kill work there has to be committed around them.
+  - The drop now starts as Jay walks into the gallery, after her breathing has played over the intercom since the end of the rounds (`gallery-drop`). The fixed clock starts at the end of Okafor's question, which this does not move.

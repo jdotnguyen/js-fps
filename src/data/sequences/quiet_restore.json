@@ -139,6 +139,17 @@
        "state": "up",
        "instant": true
       }
+     },
+     {
+      "do": "if",
+      "flag": "drop_started",
+      "is": false,
+      "then": [
+       {
+        "do": "emit",
+        "event": "drop:approach"
+       }
+      ]
      }
     ]
    },

@@ -1886,12 +1886,16 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
             setTimeout(() => {
               sequences?.cancelAll();
               Object.assign(game.flags, { introSeen: true, briefingSeen: true, rounds_done: true });
-              // The rounds sequence raises the Lab B blinds as it ends; the jump skips it.
+              // The rounds sequence raises the Lab B blinds and starts Voss's breathing over the intercom as it ends; the
+              // jump skips it. Jay starts in the Commons, so the walk back to the gallery (where the drop starts) is heard.
               events.emit('blinds:set' as never, { id: 'labb', state: 'up', instant: true } as never);
+              events.emit('drop:approach' as never, {} as never);
               hud.setFade(0, 0.4);
-              const at = level!.anchor('gallery_enter');
-              if (!at) return console.warn('[debug] jump=drop: no anchor gallery_enter');
-              player.placeAtEye(new THREE.Vector3(at.pos.x - 3, at.pos.y + PLAYER_TUNING.eyeHeight, at.pos.z + 1), Math.PI / 4);
+              const at = level!.anchor('kitchen_stand');
+              const door = level!.anchor('gallery_door');
+              if (!at || !door) return console.warn('[debug] jump=drop: no anchor kitchen_stand or gallery_door');
+              const yaw = Math.atan2(-(door.pos.x - at.pos.x), -(door.pos.z - at.pos.z));
+              player.placeAtEye(new THREE.Vector3(at.pos.x, at.pos.y + PLAYER_TUNING.eyeHeight, at.pos.z), yaw);
             }, 400),
           );
         });

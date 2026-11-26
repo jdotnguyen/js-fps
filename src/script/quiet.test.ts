@@ -423,7 +423,7 @@ test('the admin glimpse: a figure spawns, the feed goes live then static, the fi
 test('the drop does not start before the rounds are done, nor from the wrong door', async () => {
   const g = makeGame();
   g.host.flags['briefingSeen'] = true;
-  fire(g, 'trigger:drop_spot');
+  fire(g, 'trigger:gallery_enter');
   assert.equal(g.m.isRunning('drop'), false);
   assert.equal(g.host.flags['drop_started'], undefined);
 });
@@ -434,7 +434,7 @@ test('the drop: seals the door, blinds up, the bloom kills Voss, red lights, the
   for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
   await advance(g, 30);
   assert.equal(g.host.flags['rounds_done'], true);
-  fire(g, 'trigger:drop_spot');
+  fire(g, 'trigger:gallery_enter');
   assert.equal(g.m.isRunning('drop'), true);
   assert.equal(g.m.skippable, false);
   assert.equal(g.m.skip(), false, 'the drop cannot be skipped');
@@ -466,21 +466,21 @@ test('the drop: seals the door, blinds up, the bloom kills Voss, red lights, the
   assert.equal(g.control.state.move, 'free');
   assert.equal(g.control.state.weapons, true);
   // And never twice.
-  fire(g, 'trigger:drop_spot');
+  fire(g, 'trigger:gallery_enter');
   assert.equal(g.m.isRunning('drop'), false);
   noWarnings(g);
 });
 
-test('the drop (gallery-drop spec): starts on the mark with no walk or bars, Voss already distressed, free through the kill without a forced look, a short unbarred hold at the ambush', async () => {
+test('the drop (gallery-drop spec): starts as Jay walks in with no walk or bars, Voss already distressed, free through the kill without a forced look, a short unbarred hold at the ambush', async () => {
   const g = makeGame();
   g.host.flags['briefingSeen'] = true;
   for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
   await advance(g, 30);
   assert.ok(g.log.includes('event blinds:set'), 'the blinds went up when the rounds finished');
   const before = count(g, 'event blinds:set');
-  fire(g, 'trigger:drop_spot');
+  fire(g, 'trigger:gallery_enter');
   assert.equal(g.m.isRunning('drop'), true);
-  assert.equal(g.control.state.move, 'free', 'no rails: Jay walked onto the mark himself');
+  assert.equal(g.control.state.move, 'free', 'no rails: Jay keeps walking in himself');
   assert.equal(g.control.state.look, 'free');
   assert.equal(g.control.state.weapons, false, 'weapons off from the start');
   assert.equal(g.control.state.interact, false);
@@ -517,47 +517,66 @@ test('the drop (gallery-drop spec): starts on the mark with no walk or bars, Vos
   noWarnings(g);
 });
 
-test('the drop starts on the mark, not in the doorway or a few steps in; the squad is caught up as Jay walks in (gallery-drop spec)', async () => {
+test('after the rounds Voss breathes hard over the Lab B intercom until Jay walks into the gallery; then her plea starts and the squad is caught up (gallery-drop spec)', async () => {
   const g = makeGame();
   const caughtUp: string[] = [];
   g.host.squadCatchUpIn = (room: string) => (caughtUp.push(room), []);
   g.host.flags['briefingSeen'] = true;
   for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
   await advance(g, 30);
-  assert.equal(g.host.flags['obj:round_return'], 'active', 'the return objective marks the spot');
-  fire(g, 'trigger:gallery_enter');
-  assert.equal(g.m.isRunning('drop'), false, 'not from the doorway');
+  assert.equal(g.host.flags['obj:round_return'], 'active', 'the return objective leads to the gallery');
+  // Before Jay is back: the intercom is live and her breathing repeats from her, nothing else of the drop.
+  assert.equal(g.m.isRunning('drop_approach'), true);
+  assert.ok(g.log.includes('intercom labb on'), 'the Lab B intercom carries her into the gallery');
+  const early = count(g, 'sfx voss_panic_breath');
+  await advance(g, 12);
+  const breaths = count(g, 'sfx voss_panic_breath');
+  assert.ok(breaths - early >= 3, `she keeps breathing hard while Jay walks back (${breaths - early} breaths in 12 s)`);
+  assert.equal(g.m.isRunning('drop'), false);
+  assert.equal(g.log.includes('say drop_voss_01'), false, 'no plea until Jay walks in');
   assert.deepEqual(caughtUp, []);
-  fire(g, 'trigger:gallery_brief_spot');
-  await advance(g, 0.1);
-  assert.equal(g.m.isRunning('drop'), false, 'not a few steps in');
-  assert.equal(g.host.flags['drop_started'], undefined);
-  const walkedIn = caughtUp.length;
-  assert.ok(walkedIn > 0 && caughtUp.every((r) => r === 'R03'), 'stragglers are brought in, unseen, as Jay walks in');
+  // He walks into the gallery: the drop starts at once and her plea begins with the scratch beat.
+  fire(g, 'trigger:gallery_enter');
+  assert.equal(g.m.isRunning('drop'), true, 'on walking in');
+  assert.equal(g.m.isRunning('drop_approach'), false, 'the waiting breaths stop; the kill breathes for her now');
   assert.equal(g.control.state.move, 'free');
-  fire(g, 'trigger:drop_spot');
-  assert.equal(g.m.isRunning('drop'), true, 'on the mark');
+  await until(g, () => g.log.some((e) => e.startsWith('npc kill researcher_b')), 5);
+  g.host.events.emit('kill:scratch', { npc: 'researcher_b', beat: 'scratch' });
   await advance(g, 0.1);
-  assert.ok(caughtUp.length > walkedIn, 'and again as the drop starts');
-  // Once the drop has started, walking back in does not catch the squad up again.
-  const started = caughtUp.length;
+  assert.ok(g.log.includes('say drop_voss_01'), 'she says it is under her skin as he walks in');
+  assert.ok(caughtUp.length > 0 && caughtUp.every((r) => r === 'R03'), 'stragglers are brought in, unseen, as the drop starts');
+  const atStart = caughtUp.length;
   fire(g, 'trigger:gallery_brief_spot');
   await advance(g, 0.1);
-  assert.equal(caughtUp.length, started);
+  assert.ok(caughtUp.length > atStart, 'and again once he is a few steps in');
+  assert.equal(count(g, 'sfx voss_panic_breath'), breaths, 'no waiting breaths after the drop starts');
 });
 
-test('the drop spot crossed before the rounds are done does not start the drop from afar when they finish (sequence-triggers spec)', async () => {
+test('a load between the rounds and the drop brings the breathing back; a load after the drop starts does not', () => {
+  const waiting = makeGame(['quiet_restore', 'drop_approach']);
+  Object.assign(waiting.host.flags, { introSeen: true, briefingSeen: true, rounds_done: true });
+  waiting.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
+  assert.equal(waiting.m.isRunning('drop_approach'), true);
+  assert.ok(waiting.log.includes('intercom labb on') && waiting.log.includes('sfx voss_panic_breath'));
+  const after = makeGame(['quiet_restore', 'drop_approach']);
+  Object.assign(after.host.flags, { introSeen: true, briefingSeen: true, rounds_done: true, drop_started: true, drop_done: true });
+  after.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
+  assert.equal(after.m.isRunning('drop_approach'), false);
+  assert.equal(after.log.includes('sfx voss_panic_breath'), false);
+});
+
+test('the gallery entered before the rounds are done does not start the drop from afar when they finish (sequence-triggers spec)', async () => {
   const g = makeGame();
   const caughtUp: string[] = [];
   g.host.squadCatchUpIn = (room: string) => (caughtUp.push(room), []);
   g.host.flags['briefingSeen'] = true;
-  // The morning briefing stands Jay on the spot; the gallery's triggers fire again on every entry (`once: false`).
+  // The morning briefing walks Jay into the gallery; its triggers fire again on every entry (`once: false`).
   const enter = (emit: string): void => {
     g.host.events.emit('trigger:fired', { id: `t_${emit}`, event: emit, once: false });
     g.host.events.emit(emit, { id: `t_${emit}` });
   };
+  enter('trigger:gallery_enter');
   enter('trigger:gallery_brief_spot');
-  enter('trigger:drop_spot');
   await advance(g, 0.1);
   // The last round ends elsewhere in the station.
   for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
@@ -567,8 +586,8 @@ test('the drop spot crossed before the rounds are done does not start the drop f
   assert.equal(g.host.flags['drop_started'], undefined);
   assert.equal(g.log.includes('say drop_voss_01'), false, 'no plea heard from afar');
   assert.deepEqual(caughtUp, [], 'the squad is not pulled into the gallery while Jay is away');
-  enter('trigger:drop_spot');
-  assert.equal(g.m.isRunning('drop'), true, 'walking back onto the spot starts it');
+  enter('trigger:gallery_enter');
+  assert.equal(g.m.isRunning('drop'), true, 'walking back into the gallery starts it');
 });
 
 test('holster-until-the-drop: Jay is unarmed on every load until the drop raises the pistol, and armed after', async () => {
@@ -594,7 +613,7 @@ test('holster-until-the-drop: Jay is unarmed on every load until the drop raises
   await advance(g, 30);
   assert.equal(g.host.flags['rounds_done'], true);
   assert.equal(armed(g), false, 'after the rounds (a cp_round_* load)');
-  fire(g, 'trigger:drop_spot');
+  fire(g, 'trigger:gallery_enter');
   await until(g, () => g.log.includes('npc despawn researcher_b_creature'), 120);
   assert.equal(armed(g), false, 'at the reveal, a mid-drop restart returns to a pre-drop checkpoint');
   await until(g, () => g.log.includes('sfx ductBang'), 20);
@@ -630,7 +649,7 @@ test('the drop follows the kill: each line and light change waits for its beat, 
   g.host.flags['briefingSeen'] = true;
   for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
   await advance(g, 30);
-  fire(g, 'trigger:drop_spot');
+  fire(g, 'trigger:gallery_enter');
   await until(g, () => g.log.some((e) => e.startsWith('npc kill researcher_b')), 30);
   await advance(g, 0.2);
   const beat = async (id: string): Promise<void> => {
@@ -662,7 +681,7 @@ test('the Lab B escape (trim-lab-wing-encounters): it hammers, the lab goes dark
   g.host.flags['briefingSeen'] = true;
   for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
   await advance(g, 30);
-  fire(g, 'trigger:drop_spot');
+  fire(g, 'trigger:gallery_enter');
   await until(g, () => !g.m.isRunning('drop'), 120);
   const at = (e: string): number => g.log.indexOf(e);
   const order = [

@@ -2,22 +2,47 @@
  {
   "id": "drop_approach",
   "trigger": {
-   "event": "trigger:gallery_brief_spot",
-   "requires": "rounds_done",
+   "event": "drop:approach",
    "unless": "drop_started"
   },
   "steps": [
    {
-    "do": "squadCatchUpIn",
-    "room": "R03",
-    "at": "anchor:gallery_enter"
+    "do": "intercom",
+    "id": "labb",
+    "state": "on"
+   },
+   {
+    "do": "loop",
+    "until": "trigger:gallery_enter",
+    "steps": [
+     {
+      "do": "sfx",
+      "id": "voss_panic_breath",
+      "at": "npc:researcher_b",
+      "gain": 0.25
+     },
+     {
+      "do": "wait",
+      "s": 2.7
+     },
+     {
+      "do": "sfx",
+      "id": "voss_panic_breath",
+      "at": "npc:researcher_b",
+      "gain": 0.25
+     },
+     {
+      "do": "wait",
+      "s": 3.2
+     }
+    ]
    }
   ]
  },
  {
   "id": "drop",
   "trigger": {
-   "event": "trigger:drop_spot",
+   "event": "trigger:gallery_enter",
    "requires": "rounds_done",
    "unless": "drop_done"
   },
@@ -28,6 +53,11 @@
     "do": "setFlag",
     "flag": "drop_started",
     "value": true
+   },
+   {
+    "do": "stopSequence",
+    "id": "drop_approach",
+    "speech": false
    },
    {
     "do": "score",
@@ -86,6 +116,32 @@
         "npc": "okafor",
         "to": "anchor:brief_okafor"
        },
+       {
+        "do": "waitFor",
+        "event": "trigger:gallery_brief_spot",
+        "timeout": 4
+       },
+       {
+        "do": "squadCatchUpIn",
+        "room": "R03",
+        "at": "anchor:gallery_enter"
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "giles",
+        "to": "anchor:brief_giles"
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "okafor",
+        "to": "anchor:brief_okafor"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
        {
         "do": "waitFor",
         "event": "kill:scratch",

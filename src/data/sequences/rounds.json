@@ -740,6 +740,10 @@
    {
     "do": "setObjective",
     "id": "round_return"
+   },
+   {
+    "do": "emit",
+    "event": "drop:approach"
    }
   ]
  },

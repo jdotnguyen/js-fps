@@ -6,7 +6,7 @@ Defines how a scripted scene waits for Jay and the squad to be inside a room bef
 ## Requirements
 
 ### Requirement: Scene waits for everyone before sealing
-A scene that seals or locks the door Jay came in by SHALL first make sure Jay and both squadmates are inside the room. A scene that leaves Jay free SHALL wait for them (`gatherIn`). The Observation Gallery drop is the exception: it starts only once Jay has walked onto its spot in the middle of the gallery, and brings the squad in out of his sight as he walks in and again as it starts (see `gallery-drop`). It does not wait on a timeout. It seals `D_R02_R03` only while all three are inside, trying after Voss's plea, again after Okafor's first line, and again at the lockdown announcement, so a Jay who stepped out is never shut out.
+A scene that seals or locks the door Jay came in by SHALL first make sure Jay and both squadmates are inside the room. A scene that leaves Jay free SHALL wait for them (`gatherIn`). The Observation Gallery drop is the exception: it starts as Jay walks into the gallery, and brings the squad in out of his sight as it starts and again once he is a few steps in (see `gallery-drop`). It does not wait on a timeout. It seals `D_R02_R03` only while all three are inside, trying after Voss's plea, again after Okafor's first line, and again at the lockdown announcement, so a Jay who stepped out is never shut out.
 
 #### Scenario: Jay runs ahead into the gallery
 - **WHEN** Jay enters a scene room several metres ahead of Giles and Okafor and the scene waits with `gatherIn`
@@ -17,7 +17,7 @@ A scene that seals or locks the door Jay came in by SHALL first make sure Jay an
 - **THEN** the door does not seal and the scene does not go on until he is back inside
 
 #### Scenario: The gallery drop seals once all three are in
-- **WHEN** Jay walks into the gallery and onto the drop's spot with Giles and Okafor still outside
+- **WHEN** Jay walks into the gallery after the rounds with Giles and Okafor still outside
 - **THEN** they are brought inside out of his sight, and `D_R02_R03` seals only after all three are in
 
 #### Scenario: Jay steps out during the drop

@@ -40,10 +40,10 @@ An event that is not a one-shot level trigger SHALL NOT be held when a sequence'
 - **WHEN** Jay tries D_R07_R09 and the door answers `door:denied`
 - **THEN** `medlab_door` does not start then or later from that try, and a later try after `sec_done` starts it
 
-#### Scenario: The drop spot crossed during the briefing
+#### Scenario: The gallery entered for the briefing
 - **GIVEN** `rounds_done` is not set
-- **WHEN** Jay stands on the drop spot during the morning briefing, and later finishes the last round elsewhere in the station
-- **THEN** the drop does not start when the rounds finish, and starts when he next walks onto the spot
+- **WHEN** Jay walks into the Observation Gallery for the morning briefing, and later finishes the last round elsewhere in the station
+- **THEN** the drop does not start when the rounds finish, and starts when he next walks into the gallery
 
 ### Requirement: A held trigger lasts until it runs or the checkpoint restarts
 A held trigger SHALL start its sequence at most once. Restarting from a checkpoint SHALL drop every held trigger, since the level re-arms its triggers on restart.
