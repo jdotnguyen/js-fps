@@ -354,11 +354,13 @@ In... and out.", and she SHALL answer "...Okay. Okay." on a shaky breath.
 
 ### Requirement: She turns around when asked
 When Okafor asks her to turn around, Priya SHALL turn on the spot with her hands still raised: slowly, after a hesitation.
+She SHALL do neither before he has asked: her hands come up after "Show me your hands." ends, and the turn starts after
+"Turn around." ends.
 With her back to the glass she SHALL freeze briefly, facing the surgery door, then turn back more quickly. She SHALL lower
 her hands when she answers.
 
 #### Scenario: She turns around
-- **WHEN** Okafor says "Turn around."
+- **WHEN** Okafor has said "Turn around."
 - **THEN** Priya, hands raised, turns until her back is to the glass, holds facing the surgery door, and turns back to face
   him before "Anything scratch you?" ends
 - **AND** her feet step through the turn rather than her body spinning in place

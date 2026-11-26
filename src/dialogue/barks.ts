@@ -86,7 +86,8 @@ export const BARK_RULES: readonly BarkRule[] = [
   { event: 'player:lowAmmo', pool: 'low_ammo', cooldown: 40, who: 'engineer' },
   { event: 'player:lowHealth', pool: 'low_health', cooldown: 30, who: 'medic' },
   { event: 'group:cleared', pool: 'cleared', cooldown: 12, who: 'squad' },
-  { event: 'squad:taskProgress', pool: 'task', cooldown: 14, who: 'engineer', chance: 0.7 },
+  // Giles grumbles about his own work only, never while Okafor is the one on a panel.
+  { event: 'squad:taskProgress', pool: 'task', cooldown: 14, who: 'engineer', chance: 0.7, when: (p) => whoOf(p) === 'engineer' },
   { event: 'bark:idle', pool: 'idle', cooldown: 90, who: 'squad' },
 ];
 

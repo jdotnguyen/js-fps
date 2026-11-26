@@ -82,7 +82,6 @@
     "model": "gemini-2.5-flash-preview-tts",
     "lines": [
       "bark_task_01",
-      "bark_task_03",
       "bark_idle_01",
       "bark_idle_03",
       "hint_hydro_1a",

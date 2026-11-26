@@ -146,3 +146,15 @@ Entering or lingering in morning rounds wings (`R01`, `R12`, `R13`, `R14`) and q
 #### Scenario: Room remark yields to scripted scene
 - **WHEN** the player enters `R12b Grow Hall` while `hydro_moment` is running
 - **THEN** no room-commentary bark interrupts `hydro_moment`
+
+### Requirement: Panel barks only for Giles's own work
+Giles's panel-work barks SHALL play only while Giles himself is working a panel job. A job Okafor is working SHALL NOT
+prompt one.
+
+#### Scenario: Okafor works the med-lab lock
+- **WHEN** Okafor is working the biometric lock on `D_R07_R09`
+- **THEN** Giles says no panel-work bark
+
+#### Scenario: Giles works a bypass
+- **WHEN** Giles is working a door bypass and a panel-work bark is due
+- **THEN** he may say one

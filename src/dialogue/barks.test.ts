@@ -65,6 +65,14 @@ test('squad events pick the right speaker', () => {
   assert.equal(whoOf({ id: 'e12' }), null);
 });
 
+test('Giles barks about a panel only while he is the one working it', () => {
+  const s = setup();
+  s.b.emit('squad:taskProgress', { id: 'medic', task: 'biometric', panel: null, progress: 0.5 });
+  assert.deepEqual(s.said, [], 'quiet while Okafor works');
+  s.b.emit('squad:taskProgress', { id: 'engineer', task: 'bypass', panel: null, progress: 0.5 });
+  assert.deepEqual(s.said, [['bark_task_01', 'engineer']]);
+});
+
 test('per-bark cooldown and global cooldown', () => {
   const s = setup();
   s.b.emit('enemy:died', { id: 'e1', x: 0, y: 0, z: 0 });
