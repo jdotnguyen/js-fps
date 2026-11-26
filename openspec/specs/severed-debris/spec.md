@@ -1,10 +1,10 @@
-# Spec Delta
+# severed-debris Specification
 
 ## Purpose
 
 Defines how severed limbs and gore chunks move once they leave a body: colliding with the level and each other, settling, leaving marks where they land, and staying within the existing gore budgets.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Severed pieces collide with the level
 With severed debris on, a severed limb, head or gore chunk SHALL collide with walls, floors, ceilings, props, glass, closed doors and other pieces, and SHALL NOT pass through any of them, including at the highest launch speed weapons produce.
@@ -34,6 +34,13 @@ Pools, splats and smears made by a piece landing SHALL be placed at the point an
 #### Scenario: Splat on a wall
 - **WHEN** a severed head strikes a wall
 - **THEN** a splat appears on the wall where it struck
+
+### Requirement: A landing piece is heard
+When a severed piece first strikes the level or a prop fast enough to be heard, a wet thud SHALL play from that point, once for the piece.
+
+#### Scenario: Arm hits the floor
+- **WHEN** a severed arm falls to the floor
+- **THEN** one thud is heard where it lands
 
 ### Requirement: Debris budget is unchanged
 The number of live severed pieces SHALL stay within the existing debris cap. When the cap is exceeded, the oldest piece SHALL fade out as it does today.

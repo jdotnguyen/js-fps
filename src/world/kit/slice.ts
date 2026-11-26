@@ -2620,7 +2620,8 @@ const GEN: Record<string, Gen> = {
     pb.add(slab(w, 0.7, 0.03), bodyMat, at(0, 1.45, 0.36));
     pb.add(slab(w, 0.03, 0.3), m.steel, at(0, 1.6, 0.22));
     const glassy = [MAT.ceramic(), MAT.ceramicTeal(), MAT.plastic()];
-    for (let i = 0; i < 7; i++) {
+    // `clutter`: how many plain jars stand on the top (0 where the level dresses it with its own lab items).
+    for (let i = 0; i < numParam(p, 'clutter', 7); i++) {
       const x = rng.range(-w / 2 + 0.2, w / 2 - 0.2);
       const r = rng.range(0.03, 0.06);
       const h = rng.range(0.08, 0.22);

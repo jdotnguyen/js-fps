@@ -165,6 +165,11 @@ function prop(r, kit, pos, rot = 0, params, extra) {
   if (extra) Object.assign(p, extra);
   r.props.push(p);
 }
+/** `prop` without the centimetre rounding of its position: small objects standing on a bench or a cart. */
+function item(r, kit, pos, rot, params, extra) {
+  prop(r, kit, pos, rot, params, extra);
+  r.props.at(-1).pos = pos;
+}
 function wallProp(r, kit, x, z, s, along = 0, params, inset) {
   const w = onWall(x, z, s, along, inset);
   prop(r, kit, w.pos, w.rot, params);
@@ -564,8 +569,43 @@ prop(R03, 'pendant_light', [12, 0, 19.9], 0, { drop: 1.55, count: 2, spacing: 0.
 // Lab B (rebuild-lab-wing D4): Voss's culture lab, composed for the gallery glass. Voss's spot (labb_victim), her benches,
 // the gurney, chair and desk console stay where voss-burst-death expects them; the culture column takes the specimen
 // tank's place behind her; the rest of the equipment stands against the east and south walls, out of the glass sight lines.
-prop(R04, 'lab_bench', [5.5, 0, 26.8], 90, { width: 3 });
-prop(R04, 'lab_bench', [12.2, 0, 29.4], 0, { width: 3 });
+prop(R04, 'lab_bench', [5.5, 0, 26.8], 90, { width: 3, clutter: 0 });
+prop(R04, 'lab_bench', [12.2, 0, 29.4], 0, { width: 3, clutter: 0 });
+// A loaded prep cart beside Voss's walk to the glass, which she knocks over (adopt-physics-engine D14, D15), and fixed
+// dressing on both benches.
+prop(R04, 'prep_cart', [6.78, 0, 23.4], 60, { id: 'labb_cart' }, { dynamic: { mass: 14, loose: true, sound: 'cart' } });
+item(R04, 'lab_item', [6.653, 0.9, 23.581], 60, { id: 'labb_cart_tray', type: 'tray' }, { dynamic: { mass: 0.8, loose: true, sound: 'metal' } });
+item(R04, 'lab_item', [6.701, 0.9, 23.297], 60, { id: 'labb_cart_flask_a', type: 'flask', liquid: 'teal' }, { dynamic: { mass: 0.4, loose: true, sound: 'glass' } });
+item(R04, 'lab_item', [6.898, 0.9, 23.295], 60, { id: 'labb_cart_flask_b', type: 'flask', liquid: 'amber' }, { dynamic: { mass: 0.4, loose: true, sound: 'glass' } });
+item(R04, 'lab_item', [6.835, 0.9, 23.085], 60, { id: 'labb_cart_bottle_a', type: 'bottle', liquid: 'red' }, { dynamic: { mass: 0.6, loose: true, sound: 'glass' } });
+item(R04, 'lab_item', [7.04, 0.9, 23.169], 60, { id: 'labb_cart_beaker', type: 'beaker', liquid: 'teal' }, { dynamic: { mass: 0.25, loose: true, sound: 'glass' } });
+item(R04, 'lab_item', [6.92, 0.9, 23.527], 64, { id: 'labb_cart_rack', type: 'rack', liquid: 'red' }, { dynamic: { mass: 0.35, loose: true, sound: 'metal' } });
+item(R04, 'lab_item', [6.68, 0.3, 23.573], 75, { id: 'labb_cart_scope', type: 'scope' }, { dynamic: { mass: 3, loose: true, sound: 'thud' } });
+item(R04, 'lab_item', [6.782, 0.3, 23.216], 60, { id: 'labb_cart_bottle_b', type: 'bottle', liquid: 'amber' }, { dynamic: { mass: 0.6, loose: true, sound: 'glass' } });
+item(R04, 'lab_item', [6.989, 0.3, 23.198], 60, { id: 'labb_cart_bottle_c', type: 'bottle', liquid: 'teal' }, { dynamic: { mass: 0.6, loose: true, sound: 'glass' } });
+item(R04, 'lab_item', [5.38, 0.925, 28.05], 90, { type: 'flask', fixed: true, liquid: 'amber' });
+item(R04, 'lab_item', [5.58, 0.925, 27.88], 90, { type: 'bottle', fixed: true, liquid: 'teal' });
+item(R04, 'lab_item', [5.4, 0.925, 27.15], 82, { type: 'tray', fixed: true });
+item(R04, 'lab_item', [5.58, 0.925, 26.78], 90, { type: 'beaker', fixed: true, liquid: 'red' });
+item(R04, 'lab_item', [5.42, 0.925, 26.52], 90, { type: 'flask', fixed: true, liquid: 'teal' });
+item(R04, 'lab_item', [5.4, 0.925, 25.64], 90, { type: 'bottle', fixed: true, liquid: 'amber' });
+item(R04, 'lab_item', [5.58, 0.925, 25.47], 90, { type: 'flask', fixed: true, liquid: 'red' });
+item(R04, 'lab_item', [5.72, 1.615, 27.75], 90, { type: 'bottle', fixed: true, liquid: 'amber' });
+item(R04, 'lab_item', [5.74, 1.615, 27.62], 90, { type: 'bottle', fixed: true, liquid: 'teal' });
+item(R04, 'lab_item', [5.72, 1.615, 26.95], 90, { type: 'flask', fixed: true, liquid: 'teal' });
+item(R04, 'lab_item', [5.72, 1.615, 26.35], 90, { type: 'rack', fixed: true, liquid: 'amber' });
+item(R04, 'lab_item', [5.73, 1.615, 25.75], 90, { type: 'bottle', fixed: true, liquid: 'red' });
+item(R04, 'lab_item', [10.9, 0.925, 29.32], 0, { type: 'bottle', fixed: true, liquid: 'red' });
+item(R04, 'lab_item', [11.08, 0.925, 29.46], 0, { type: 'flask', fixed: true, liquid: 'teal' });
+item(R04, 'lab_item', [11.92, 0.925, 29.26], 6, { type: 'rack', fixed: true, liquid: 'teal' });
+item(R04, 'lab_item', [12.32, 0.925, 29.35], 0, { type: 'beaker', fixed: true, liquid: 'amber' });
+item(R04, 'lab_item', [12.54, 0.925, 29.48], 0, { type: 'flask', fixed: true, liquid: 'amber' });
+item(R04, 'lab_item', [13.38, 0.925, 29.34], 12, { type: 'tray', fixed: true });
+item(R04, 'lab_item', [11.3, 1.615, 29.62], 0, { type: 'flask', fixed: true, liquid: 'red' });
+item(R04, 'lab_item', [12, 1.615, 29.63], 0, { type: 'bottle', fixed: true, liquid: 'teal' });
+item(R04, 'lab_item', [12.14, 1.615, 29.62], 0, { type: 'bottle', fixed: true, liquid: 'teal' });
+item(R04, 'lab_item', [12.9, 1.615, 29.62], 0, { type: 'rack', fixed: true, liquid: 'red' });
+item(R04, 'lab_item', [13.4, 1.615, 29.63], 0, { type: 'bottle', fixed: true, liquid: 'amber' });
 prop(R04, 'culture_column', [9.5, 0, 28.6]);
 prop(R04, 'gurney', [8, 0, 25.2], 90);
 prop(R04, 'console', [12.8, 0, 25.6], 270, { screen: 'log' });

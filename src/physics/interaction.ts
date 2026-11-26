@@ -14,6 +14,7 @@
  * the level has just restored.
  */
 import * as THREE from 'three';
+import type { PropSound } from '../data/types/level.ts';
 import type { BoxSpec } from '../world/kit/types.ts';
 import type { BodyHandle, Quat, Transform, V3 } from './engine.ts';
 import type { PhysicsWorld } from './world.ts';
@@ -71,6 +72,10 @@ export interface PropSource {
   physicsProps(): ReadonlyArray<{
     id: string;
     mass: number;
+    /** No `CollisionWorld` boxes (design D14); small and fast when knocked, and what a scripted kill knocks over. */
+    loose?: boolean;
+    /** What it sounds like when it hits something (design D16); silent without one. */
+    sound?: PropSound | null;
     object: THREE.Object3D;
     localColliders: readonly BoxSpec[];
     colliders: ReadonlyArray<{ readonly id: number }>;
@@ -81,9 +86,43 @@ export interface PropSource {
 /** Friction of a physics prop's boxes: metal and plastic on station floors. */
 export const PROP_FRICTION = 0.5;
 
+/**
+ * A knock (design D15): the speed (m/s) it gives a prop at strength 1, how much it carries along the mover's travel
+ * and upward (against 1 out to the side), and how far above the prop's centre it lands (as a share of the prop's
+ * height), so things topple and tumble instead of sliding.
+ */
+export const KNOCK = { speed: 1.6, along: 0.4, up: 0.25, above: 0.45 } as const;
+
+/**
+ * Changes of velocity in one step smaller than this (m/s) are not reported: it clears the step of gravity a resting
+ * prop cancels. What is loud enough to hear is the audio's choice (`IMPACT_MIN_SPEED`).
+ */
+export const IMPACT_NOISE = 0.35;
+const GRAVITY = 9.81;
+
+/** A sounding prop's motion changed sharply: it struck something or was struck (design D16). */
+export interface PropImpact {
+  id: string;
+  material: PropSound;
+  /** The prop's centre. */
+  x: number;
+  y: number;
+  z: number;
+  /** Size of the change in velocity, gravity apart (m/s). */
+  speed: number;
+}
+
 interface LiveProp {
   id: string;
   body: BodyHandle;
+  mass: number;
+  loose: boolean;
+  /** Centre and height of the prop's boxes, in its own frame. */
+  center: THREE.Vector3;
+  height: number;
+  sound: PropSound | null;
+  /** Velocity after the last step, to measure the change over the next one. */
+  velocity: V3;
 }
 
 export class PhysicsProps {
@@ -92,10 +131,13 @@ export class PhysicsProps {
   private live: LiveProp[] = [];
   private generation = -1;
   private readonly t: Transform = { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } };
+  private readonly v: V3 = { x: 0, y: 0, z: 0 };
+  private readonly onImpact: ((impact: PropImpact) => void) | undefined;
 
-  constructor(world: PhysicsWorld, source: PropSource) {
+  constructor(world: PhysicsWorld, source: PropSource, onImpact?: (impact: PropImpact) => void) {
     this.world = world;
     this.source = source;
+    this.onImpact = onImpact;
     const ids: number[] = [];
     for (const p of source.physicsProps()) for (const c of p.colliders) ids.push(c.id);
     world.exclude(ids);
@@ -122,16 +164,66 @@ export class PhysicsProps {
     return out;
   }
 
-  /** Write each moving prop's pose back to the level. Call once per fixed step, after the physics step. */
-  sync(): void {
+  /**
+   * Knock over the loose props within `reach` m (over the floor) of `from`, off to whichever side of `travel` they
+   * stand and a little along it. Each prop is hit once per `done` set, so a caller can sweep a moving body past them
+   * step by step. Returns how many it hit.
+   */
+  knock(from: V3, travel: V3, reach: number, strength: number, done: Set<string>): number {
+    if (this.world.resetting || this.generation !== this.world.generation) return 0;
+    const e = this.world.engine;
+    let hits = 0;
+    for (const p of this.live) {
+      if (!p.loose || done.has(p.id)) continue;
+      const t = e.transform(p.body, this.t);
+      const q = new THREE.Quaternion(t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w);
+      const c = p.center.clone().applyQuaternion(q).add(t.position as THREE.Vector3Like);
+      const away = new THREE.Vector3(c.x - from.x, 0, c.z - from.z);
+      if (away.length() > reach) continue;
+      done.add(p.id);
+      hits++;
+      const ahead = new THREE.Vector3(travel.x, 0, travel.z).normalize();
+      // Sideways, not straight ahead: a prop is first in reach while still in front of a walker.
+      const side = away.clone().addScaledVector(ahead, -away.dot(ahead));
+      const dir = (side.lengthSq() > 1e-4 ? side.normalize() : away.normalize()).addScaledVector(ahead, KNOCK.along);
+      dir.y = KNOCK.up;
+      const j = dir.multiplyScalar(p.mass * KNOCK.speed * strength);
+      e.applyImpulse(p.body, { x: j.x, y: j.y, z: j.z }, { x: c.x, y: c.y + p.height * KNOCK.above, z: c.z });
+    }
+    return hits;
+  }
+
+  /**
+   * Write each moving prop's pose back to the level and report impacts. Call once per fixed step, after the physics
+   * step, with that step's length.
+   */
+  sync(dt = 1 / 60): void {
     if (this.world.resetting) return; // the level has just restored its props; the old bodies must not overwrite them
     if (this.generation !== this.world.generation) this.build();
     const e = this.world.engine;
     for (const p of this.live) {
-      if (e.isSleeping(p.body)) continue;
+      if (e.isSleeping(p.body)) {
+        p.velocity.x = p.velocity.y = p.velocity.z = 0;
+        continue;
+      }
       e.transform(p.body, this.t);
       this.source.setPropPose(p.id, this.t.position, this.t.rotation);
+      this.listen(p, dt);
     }
+  }
+
+  /** `this.t` holds the prop's pose. */
+  private listen(p: LiveProp, dt: number): void {
+    if (!p.sound || !this.onImpact) return;
+    const v = this.world.engine.linvel(p.body, this.v);
+    const speed = Math.hypot(v.x - p.velocity.x, v.y - p.velocity.y + GRAVITY * dt, v.z - p.velocity.z);
+    p.velocity.x = v.x;
+    p.velocity.y = v.y;
+    p.velocity.z = v.z;
+    if (speed < IMPACT_NOISE) return;
+    const r = this.t.rotation;
+    const c = p.center.clone().applyQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w)).add(this.t.position as THREE.Vector3Like);
+    this.onImpact({ id: p.id, material: p.sound, x: c.x, y: c.y, z: c.z, speed });
   }
 
   /** One body per physics prop, at the pose its group has now. */
@@ -152,8 +244,15 @@ export class PhysicsProps {
         rotation: { x: quat.x, y: quat.y, z: quat.z, w: quat.w },
         linearDamping: 0.3,
         angularDamping: 0.4,
+        // Small things thrown by a knock must not pass through the glass or a bench top.
+        ccd: p.loose === true,
       });
       let volume = 0;
+      const bounds = new THREE.Box3();
+      for (const b of p.localColliders) {
+        bounds.expandByPoint(new THREE.Vector3(...b.min));
+        bounds.expandByPoint(new THREE.Vector3(...b.max));
+      }
       for (const b of p.localColliders) volume += (b.max[0] - b.min[0]) * (b.max[1] - b.min[1]) * (b.max[2] - b.min[2]);
       const density = p.mass / Math.max(volume, 1e-4);
       for (const b of p.localColliders) {
@@ -168,7 +267,16 @@ export class PhysicsProps {
           body,
         );
       }
-      this.live.push({ id: p.id, body });
+      this.live.push({
+        id: p.id,
+        body,
+        mass: p.mass,
+        loose: p.loose === true,
+        center: bounds.getCenter(new THREE.Vector3()),
+        height: bounds.max.y - bounds.min.y,
+        sound: p.sound ?? null,
+        velocity: { x: 0, y: 0, z: 0 },
+      });
     }
   }
 }

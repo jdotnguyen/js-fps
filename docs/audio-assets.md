@@ -28,6 +28,7 @@ add an entry there, then generate it:
 | Footsteps | `npm run footsteps:generate -- --id <id>` | `public/assets/audio/footsteps/` |
 | Infected-kill body sounds (bone crunches, tearing, the burst, blood on glass, drips, the creature) | `npm run gore:generate -- --id <id>` | `public/assets/audio/gore/` |
 | Spent-casing landings (brass and shotgun hulls, per floor surface). Its manifest mixes CC0 cuts, whose raw downloads live in `../audio-src/casings/`, with ElevenLabs prompts | `npm run casings:generate -- --id <id>` | `public/assets/audio/weapons/casings/` |
+| Physics impacts (loose props hitting things, severed pieces landing), all cut from CC0 recordings whose raw downloads live in `../audio-src/physics/` | `npm run impacts:generate -- --id <id>` | `public/assets/audio/physics/` |
 
 `--list` shows the manifest, `--all` generates everything missing, and `--force` regenerates.
 

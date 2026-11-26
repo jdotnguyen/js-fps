@@ -195,6 +195,19 @@ test('over the cap the oldest piece fades and its body is freed; reduced mode ma
   world.destroy();
 });
 
+test('each piece reports its landing once, for its sound', async () => {
+  const world = await PhysicsWorld.create(createRapierEngine, room());
+  const gore = new GoreSystem(new Rng('debris-landed'));
+  const landed: Array<{ speed: number }> = [];
+  gore.setDebrisBackend(physicsDebris(world, (hit) => void landed.push(hit)));
+  world.step(STEP);
+  sever(gore, new THREE.Vector3(-1, 1.5, 0), new THREE.Vector3(), 0.5, 0.05);
+  run(world, gore, 3);
+  assert.equal(landed.length, 1);
+  assert.ok(landed[0]!.speed > 2, `it fell 1.5 m (${landed[0]!.speed.toFixed(1)} m/s)`);
+  world.destroy();
+});
+
 test('a restart drops the old bodies, leaves their pieces lying, and new pieces simulate again', async () => {
   const { world, gore } = await setup();
   const old = sever(gore, new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 0.5, 0.05);

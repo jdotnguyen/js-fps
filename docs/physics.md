@@ -1,9 +1,10 @@
 # Physics
 
-Rigid-body physics for severed limbs, ragdolls and pushable things. The plan is the
-[`adopt-physics-engine`](../openspec/changes/adopt-physics-engine/) OpenSpec change, delivered in blocks that each
-ship behind their own switch. The behaviour is specified in its `physics-world`, `severed-debris`, `ragdoll` and
-`physical-interaction` specs.
+Rigid-body physics for severed limbs and pushable things. The plan is the
+`adopt-physics-engine` OpenSpec change (specs [`physics-world`](../openspec/specs/physics-world/spec.md), [`severed-debris`](../openspec/specs/severed-debris/spec.md) and [`physical-interaction`](../openspec/specs/physical-interaction/spec.md)), delivered in blocks that each
+ship behind their own switch. The behaviour is specified in its `physics-world`, `severed-debris` and
+`physical-interaction` specs. Ragdolls are planned separately and parked, in
+[`add-physics-ragdolls`](../openspec/changes/add-physics-ragdolls/).
 
 ## Engine
 
@@ -29,14 +30,17 @@ details the adapter handles:
 
 ## Switches
 
-Each feature has its own switch, stored in the settings and off by default until its block's gate passes:
-`debris`, `ragdoll`, `powered`, `interact`. A URL flag overrides them for one session:
+Each feature has its own switch, stored in the settings: `debris`, `ragdoll`, `powered`, `interact`. `debris` and
+`interact` are on by default (`PHYSICS_DEFAULT`); `ragdoll` and `powered` are off and do nothing until ragdolls are
+built. They were switched on by the author without the planned playtest, step-time and memory measurements, so measure
+before relying on the budgets below. A settings save records `PHYSICS_REVISION`; switches saved without it (while
+everything defaulted off) are ignored. A URL flag overrides the switches for one session:
 
 | URL | Effect |
 | --- | --- |
 | `?physics=off` | Every feature off. The engine is never downloaded. |
 | `?physics` | Every feature on. |
-| `?physics=debris,ragdoll` | Exactly those features on. Unknown names log one warning. |
+| `?physics=debris,interact` | Exactly those features on. Unknown names log one warning. |
 
 With every switch off the game behaves exactly as before. With a feature on, its fallback still applies until
 the engine has loaded, and for good if the engine fails to load (one `[physics]` warning).
@@ -104,7 +108,7 @@ little, then dips with the boot. A stomp:
 - plays an existing boot thud (`footConcrete`) and, on flesh, `kill_crunch`. No new audio asset, so no new
   `CREDITS.md` row.
 
-Corpses themselves are not physics bodies until Block 3 (ragdolls), so for now a stomp doesn't move the corpse.
+Corpses themselves are not physics bodies until ragdolls are built, so a stomp doesn't move the corpse.
 With the switch off, C does nothing.
 
 **Physics props.** A level prop marked `"dynamic": { "mass": 40 }` becomes one rigid body built from its own
@@ -114,6 +118,34 @@ enemies collide with it where it is now. The static physics copy of those boxes 
 (`PhysicsWorld.exclude`). A dynamic prop isn't merged into its room's mesh, so it costs its own draw calls; mark
 only a few. Restarts put props back where the level placed them. With the switch off, a marked prop stays
 static like any other.
+
+**Loose props.** Small dressing is marked `"dynamic": { "mass": 0.4, "loose": true }`. Its boxes shape the rigid
+body but never enter `CollisionWorld`, so the player, enemies and the navmesh pass it standing or fallen: a flask on
+the floor never snags a scripted walk. It still lands on the level mirror and other bodies, and has CCD so a thrown
+one can't pass through glass. With the switch off it just stands there. Because nothing stops a body walking through
+it, place a loose prop beside a walk, not across it.
+
+- Each loose prop costs about two draw calls plus its shadow, so keep a room to around ten. Build its mesh with one
+  part per material (`addMerged` in `kit/labWing.ts`).
+- Place it flush on its support. `src/physics/labB.test.ts` checks that nothing in Lab B moves on its own.
+- Dressing that nothing can reach doesn't need a body: `lab_item` takes `"fixed": true` and merges into the room.
+
+**Knocks.** A kill beat's `{ "t": 0, "do": "knock", "reach": 0.9, "strength": 1 }` event (`data/kills.json`) makes
+the victim knock over loose props for the rest of that beat: each one that comes within `reach` m of them over the
+floor is hit once, out to its side of their path and a little ahead and up, high enough to topple it
+(`KNOCK` in `interaction.ts`; strength 1 is about 1.6 m/s). Skipped and restored kills knock nothing, and neither
+does a session without the switch. A restart stands everything up again; so does loading a save made after the kill.
+
+Lab B uses both: a loaded `prep_cart` stands beside Dr. Voss's walk to the glass, and she takes it over in the
+`panic` beat. Its two benches carry fixed `lab_item` dressing (`lab_bench` with `"clutter": 0`).
+
+**Impact sounds.** A dynamic prop with `"sound": "cart" | "glass" | "metal" | "thud"` is heard when it hits something;
+without one it is silent. `PhysicsProps` reports any step in which such a prop's velocity changes by more than
+`IMPACT_NOISE`, gravity apart, and `physicsDebris` reports each severed piece's first impact (a wet thud, with the
+`debris` switch). `ImpactAudio` (`src/audio/impacts.ts`) turns a report into a sound: nothing below 0.5 m/s, louder
+with speed, a separate recording for a cart crash (2.2 m/s and up) and a hard glass drop, a short rest per object, six
+voices at most, silent past 16 m. Clips are built by `npm run impacts:generate` from the CC0 downloads in
+`../audio-src/physics/`.
 
 ## Debug view
 

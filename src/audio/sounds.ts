@@ -733,6 +733,10 @@ function casingFiles(bank: string, count: number): string[] {
   return Array.from({ length: count }, (_, i) => `assets/audio/weapons/casings/casing-${bank}-${i + 1}.mp3`);
 }
 
+function impactFiles(bank: string, count: number): string[] {
+  return Array.from({ length: count }, (_, i) => `assets/audio/physics/${bank}-${i + 1}.mp3`);
+}
+
 /**
  * Recorded one-shots loaded from public/assets/audio/. A sample with the same name as a procedural
  * sound replaces it once loaded (the procedural version stays as the fallback until then). An array
@@ -824,6 +828,16 @@ export const SAMPLE_URLS = {
   murmurA: 'assets/audio/ambience/emitter-murmur-a.mp3',
   murmurB: 'assets/audio/ambience/emitter-murmur-b.mp3',
   murmurC: 'assets/audio/ambience/emitter-murmur-c.mp3',
+
+  // Loose props and severed pieces hitting things (adopt-physics-engine D16; src/audio/impacts.ts). CC0 cuts built by
+  // scripts/impacts-generate.ts (see CREDITS.md), every clip peaking at -6 dB; play gain sets the level.
+  propCartCrash: impactFiles('prop-cart-crash', 3),
+  propCartKnock: impactFiles('prop-cart-knock', 4),
+  propGlass: impactFiles('prop-glass', 8),
+  propGlassHard: impactFiles('prop-glass-hard', 4),
+  propMetal: impactFiles('prop-metal', 6),
+  propThud: impactFiles('prop-thud', 4),
+  limbThud: impactFiles('limb-thud', 1),
 
   // Infected-kill body sounds (ElevenLabs, scripts/gore-generate.ts; infection-kills spec, data/kills.json).
   kill_crunch: ['assets/audio/gore/kill-crunch-1.mp3', 'assets/audio/gore/kill-crunch-2.mp3', 'assets/audio/gore/kill-crunch-3.mp3', 'assets/audio/gore/kill-crunch-4.mp3'],

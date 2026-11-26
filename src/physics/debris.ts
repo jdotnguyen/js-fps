@@ -87,7 +87,8 @@ export interface PhysicsDebrisBackend extends DebrisBackend {
   wakeNear(center: V3, radius: number): void;
 }
 
-export function physicsDebris(world: PhysicsWorld): PhysicsDebrisBackend {
+/** `landed`: told of each piece's first impact as well (its sound, design D16). */
+export function physicsDebris(world: PhysicsWorld, landed?: (hit: DebrisImpact) => void): PhysicsDebrisBackend {
   const tracked = new Map<DebrisPiece, Tracked>();
   const byCollider = new Map<number, Tracked>();
   let generation = world.generation;
@@ -209,7 +210,9 @@ export function physicsDebris(world: PhysicsWorld): PhysicsDebrisBackend {
         // Contact normals point from a toward b; the surface's outward normal points toward the piece.
         const n = ta ? { x: -c.normal.x, y: -c.normal.y, z: -c.normal.z } : c.normal;
         const hit = impact(t, c.point, n, c.exact);
-        if (hit) impacts(hit);
+        if (!hit) continue;
+        impacts(hit);
+        landed?.(hit);
       }
       for (const piece of pieces) {
         const t = tracked.get(piece);

@@ -39,7 +39,7 @@ Then open http://localhost:4300/. Run the first command again to pick up newer c
 ## Debug flags
 
 Add to the URL: `?debug` (stats, lil-gui), later `?seq=<sequence id>` and `?cp=<checkpoint id>`.
-`?physics=off`, `?physics` or `?physics=debris,ragdoll` switch physics features for one session; the debug panel's
+`?physics=off`, `?physics` or `?physics=debris,interact` switch physics features for one session; the debug panel's
 Physics folder draws the colliders ([docs/physics.md](docs/physics.md)).
 
 ## Current state
@@ -63,7 +63,7 @@ ADR-0016: autosave at checkpoints, manual saves at the green save terminal, thre
 | Shift | Faster |
 | F | Flashlight |
 | E | Use (save terminal) |
-| C | Stomp (with `?physics=interact`; see [docs/physics.md](docs/physics.md)) |
+| C | Stomp (physical interaction, on by default; see [docs/physics.md](docs/physics.md)) |
 | Esc | Pause menu |
 
 `npm run textures:preview` writes PNG contact sheets of every texture to `previews/`.

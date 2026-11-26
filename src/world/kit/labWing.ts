@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Rng } from '../../core/rng.ts';
 import { fixtureMaterial, type Materials } from '../../render/materials.ts';
 import { SCREEN_FONT } from '../../render/screens.ts';
-import { at, cylinderBetween, rounded } from './geom.ts';
+import { at, cylinderBetween, MergeBuilder, rounded } from './geom.ts';
 import { slab } from './shapes.ts';
 import { boolParam, numParam, strParam, PieceBuilder, type PieceDef, type PieceParams } from './types.ts';
 
@@ -77,6 +77,20 @@ function canvasFace(w: number, h: number, draw: (ctx: CanvasRenderingContext2D, 
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
   return new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: glow, roughness: 0.4 });
+}
+
+/** `prep_cart` size (m): width, depth, and the heights of the two surfaces things stand on. */
+export const PREP_CART = { w: 0.9, d: 0.5, top: 0.9, shelf: 0.3 } as const;
+
+const LIQUIDS: Readonly<Record<string, () => THREE.MeshStandardMaterial>> = {
+  teal: () => paint('sampleTeal', 0x2fb8a4, 0.25),
+  amber: () => paint('sampleAmber', 0xc98a1c, 0.25),
+  red: () => P.red(),
+};
+
+/** Add a small prop's parts as one mesh per material: a physics prop is not merged into its room. */
+function addMerged(pb: PieceBuilder, parts: MergeBuilder): void {
+  for (const mesh of [...parts.build('lab-prop').children] as THREE.Mesh[]) pb.add(mesh.geometry, mesh.material as THREE.Material);
 }
 
 /** Parse `x,y,z;x,y,z;...` (piece space). */
@@ -427,6 +441,75 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
       }
       pb.solid(-0.42, 0, -0.85, 0.42, 0.33, -0.0, 'metal');
     } else pb.solid(-0.42, 0, -0.22, 0.42, 0.82, 0.22, 'metal');
+  },
+
+  /**
+   * Open prep cart, 0.9 x 0.5 m: a top at `PREP_CART.top`, a lower shelf at `PREP_CART.shelf`, four legs on casters.
+   * Its boxes follow the frame (not one block), so what stands on it and under it behaves when it topples (Lab B,
+   * adopt-physics-engine task 6.8).
+   */
+  prep_cart(_p, _rng, _m, pb) {
+    const { w, d, top, shelf } = PREP_CART;
+    const parts = new MergeBuilder();
+    for (const y of [shelf, top]) {
+      parts.add(slab(w, 0.03, d, 1), P.steel(), at(0, y - 0.015, 0));
+      pb.solid(-w / 2, y - 0.03, -d / 2, w / 2, y, d / 2, 'metal');
+    }
+    for (const x of [-w / 2 + 0.025, w / 2 - 0.025]) for (const z of [-d / 2 + 0.025, d / 2 - 0.025]) {
+      parts.add(new THREE.CylinderGeometry(0.014, 0.014, top - 0.09, 8), P.steel(), at(x, (top - 0.09) / 2 + 0.07, z));
+      parts.add(new THREE.CylinderGeometry(0.04, 0.04, 0.03, 12), P.black(), at(x, 0.04, z, PI / 2, 0, 0));
+      pb.solid(x - 0.025, 0, z - 0.025, x + 0.025, top - 0.03, z + 0.025, 'metal');
+    }
+    for (const x of [-w / 2 + 0.025, w / 2 - 0.025]) parts.add(cylinderBetween(V(x, top + 0.03, -d / 2 + 0.03), V(x, top + 0.03, d / 2 - 0.03), 0.01, 6), P.steel());
+    addMerged(pb, parts);
+  },
+
+  /**
+   * One small lab object standing on its base: `type` flask | bottle | beaker | rack | tray | scope, `liquid` teal |
+   * amber | red. Two materials at most, so a loose one costs two draw calls. `fixed` leaves out its box (bench dressing
+   * that nothing ever moves, merged into the room).
+   */
+  lab_item(p, _rng, _m, pb) {
+    const type = strParam(p, 'type', 'flask');
+    const liquid = (LIQUIDS[strParam(p, 'liquid', 'teal')] ?? LIQUIDS['teal']!)();
+    const ware = glass('labware', 0xd6eaee, 0.34);
+    const turned = (pts: ReadonlyArray<readonly [number, number]>): THREE.LatheGeometry => new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), 14);
+    const parts = new MergeBuilder();
+    let half: [number, number, number];
+    if (type === 'bottle') {
+      parts.add(turned([[0, 0], [0.042, 0], [0.045, 0.01], [0.045, 0.15], [0.018, 0.19], [0.018, 0.21]]), ware);
+      parts.add(new THREE.CylinderGeometry(0.037, 0.037, 0.11, 14), liquid, at(0, 0.062, 0));
+      parts.add(new THREE.CylinderGeometry(0.022, 0.022, 0.03, 12), liquid, at(0, 0.222, 0));
+      half = [0.045, 0.12, 0.045];
+    } else if (type === 'beaker') {
+      parts.add(turned([[0, 0], [0.048, 0], [0.05, 0.008], [0.05, 0.12], [0.056, 0.128]]), ware);
+      parts.add(new THREE.CylinderGeometry(0.043, 0.043, 0.055, 14), liquid, at(0, 0.034, 0));
+      half = [0.052, 0.064, 0.052];
+    } else if (type === 'rack') {
+      for (const y of [0.012, 0.085]) parts.add(slab(0.28, 0.012, 0.07, 1), P.steel(), at(0, y, 0));
+      for (const x of [-0.134, 0.134]) parts.add(slab(0.012, 0.09, 0.07, 1), P.steel(), at(x, 0.048, 0));
+      for (let i = 0; i < 6; i++) parts.add(new THREE.CylinderGeometry(0.011, 0.011, 0.14, 8), liquid, at(-0.1 + i * 0.04, 0.09, 0));
+      half = [0.14, 0.08, 0.035];
+    } else if (type === 'tray') {
+      parts.add(slab(0.34, 0.008, 0.22, 1), P.steel(), at(0, 0.004, 0));
+      for (const z of [-0.106, 0.106]) parts.add(slab(0.34, 0.028, 0.008, 1), P.steel(), at(0, 0.014, z));
+      for (const x of [-0.166, 0.166]) parts.add(slab(0.008, 0.028, 0.22, 1), P.steel(), at(x, 0.014, 0));
+      for (let i = 0; i < 5; i++) parts.add(slab(0.15, 0.008, 0.012, 1), P.black(), at(-0.04 + i * 0.012, 0.014, -0.07 + i * 0.035, 0, (i - 2) * 0.18, 0));
+      half = [0.17, 0.016, 0.11];
+    } else if (type === 'scope') {
+      parts.add(rounded(0.18, 0.05, 0.22, 0.012), P.offWhite(), at(0, 0.025, 0));
+      parts.add(cylinderBetween(V(0, 0.04, 0.07), V(0, 0.27, 0.04), 0.028, 10), P.offWhite());
+      parts.add(slab(0.12, 0.012, 0.1, 1), P.black(), at(0, 0.13, -0.025));
+      parts.add(cylinderBetween(V(0, 0.27, 0.04), V(0, 0.2, -0.04), 0.024, 10), P.black());
+      parts.add(cylinderBetween(V(0, 0.27, 0.04), V(0, 0.34, 0.085), 0.02, 10), P.black());
+      half = [0.09, 0.17, 0.11];
+    } else {
+      parts.add(turned([[0, 0], [0.07, 0], [0.072, 0.012], [0.022, 0.13], [0.02, 0.18], [0.026, 0.188]]), ware);
+      parts.add(turned([[0, 0.006], [0.064, 0.006], [0.042, 0.062], [0, 0.062]]), liquid);
+      half = [0.072, 0.094, 0.072];
+    }
+    addMerged(pb, parts);
+    if (!boolParam(p, 'fixed', false)) pb.solid(-half[0], 0, -half[2], half[0], half[1] * 2, half[2], 'metal');
   },
 
   /** Dogging wheel for a watertight bulkhead (wall): hub, 0.6 m rim, six spokes, a red handle knob. */

@@ -58,6 +58,7 @@ import { AMBIENCE_PRESETS, AmbienceDirector } from '../audio/ambience.ts';
 import { DoorAudio } from '../audio/doorAudio.ts';
 import type { AudioEngine } from '../audio/engine.ts';
 import { CasingAudio, ejectOnWeaponEvents } from '../audio/casings.ts';
+import { ImpactAudio } from '../audio/impacts.ts';
 import { wireSquadShots } from './squadShots.ts';
 import { SquadMuzzleLight } from '../render/squadMuzzleLight.ts';
 import { FootstepAudio } from '../audio/footsteps.ts';
@@ -286,6 +287,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
   let doorAudio: DoorAudio | null = null;
   let footsteps: FootstepAudio | null = null;
   let casings: CasingAudio | null = null;
+  let impacts: ImpactAudio | null = null;
   let squadMuzzleLight: SquadMuzzleLight | null = null;
   let voicePlayer: WebAudioVoicePlayer | null = null;
   let storyDucker: StoryDucker | null = null;
@@ -350,6 +352,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     footsteps = null;
     casings?.stopAll();
     casings = null;
+    impacts?.stopAll();
+    impacts = null;
     squadMuzzleLight?.dispose();
     squadMuzzleLight = null;
     voicePlayer?.dispose();
@@ -876,11 +880,16 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       await yieldFrame();
       physicsWorld = await PhysicsWorld.create(physicsFactory, collisionWorld);
       console.info(`[physics] ${physicsWorld.engine.name}: ${physicsWorld.staticCount} level colliders mirrored`);
-      const debris = physics.switches.debris ? physicsDebris(physicsWorld) : null;
+      // Loose props and severed pieces are heard when they hit something (adopt-physics-engine D16).
+      const hits = new ImpactAudio({ audio, listener: () => camera.position });
+      impacts = hits;
+      const debris = physics.switches.debris
+        ? physicsDebris(physicsWorld, ({ piece, point, speed }) => void hits.play({ id: piece.object.uuid, material: 'flesh', x: point.x, y: point.y, z: point.z, speed }))
+        : null;
       if (debris) gore.setDebrisBackend(debris);
       if (physics.switches.interact) {
         pusher = new PlayerPusher(physicsWorld, DEFAULT_MOTOR.radius);
-        if (level) physicsProps = new PhysicsProps(physicsWorld, level);
+        if (level) physicsProps = new PhysicsProps(physicsWorld, level, (impact) => void hits.play(impact));
         wakeDebris = debris;
       }
     }
@@ -891,9 +900,12 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         pusher.update(player.body);
       }
       physicsWorld.step(dt);
-      physicsProps?.sync();
+      physicsProps?.sync(dt);
     };
-    const resetPhysics = (): void => void physicsWorld?.reset();
+    const resetPhysics = (): void => {
+      impacts?.stopAll();
+      void physicsWorld?.reset();
+    };
     events.on('level:reset', resetPhysics);
     events.on('game:restarted', resetPhysics);
 
@@ -999,6 +1011,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       propState: (id) => level?.propState(id) ?? null,
       panelDevice: (panel, near) => level?.panelDevice(panel, near) ?? null,
       kills: validate(validateKillTable, killsJson, 'data/kills.json'),
+      knock: (from, travel, reach, strength, done) => void physicsProps?.knock(from, travel, reach, strength, done),
       listen: (name, fn) => events.on(name as never, fn as never),
       sfx: (ids, at, gain) => {
         const id = ids.find((n) => audio.hasSound(n as SoundName));

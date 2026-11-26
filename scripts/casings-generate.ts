@@ -162,7 +162,7 @@ function duration(file: string): number {
 const ff = (args: string[]): void => void execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
 
 /** Mono, leading silence trimmed, capped at `maxSeconds` with a short fade, peak at PEAK_DB, 128 kbps MP3. */
-function polish(input: string, out: string, maxSeconds: number, span?: { start: number; end: number }): string {
+export function polish(input: string, out: string, maxSeconds: number, span?: { start: number; end: number }): string {
   const wav = `${out}.tmp.wav`;
   const pre = span ? [`atrim=${span.start.toFixed(3)}:${span.end.toFixed(3)}`, 'asetpts=PTS-STARTPTS'] : [];
   ff(['-i', input, '-ac', '1', '-ar', '44100', '-af', [...pre, 'highpass=f=60', 'silenceremove=start_periods=1:start_duration=0:start_threshold=-40dB', `atrim=0:${maxSeconds.toFixed(3)}`].join(','), wav]);

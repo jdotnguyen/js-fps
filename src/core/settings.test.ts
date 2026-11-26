@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_SETTINGS, mergeSettings } from './settings.ts';
+import { DEFAULT_SETTINGS, mergeSettings, PHYSICS_REVISION } from './settings.ts';
 
 test('garbage storage falls back to defaults', () => {
   assert.deepEqual(mergeSettings('nope'), DEFAULT_SETTINGS);
@@ -31,18 +31,25 @@ test('bus volumes keep valid values and drop out-of-range ones', () => {
   assert.equal(s.voiceVolume, 1);
 });
 
-test('physics switches default off and merge field by field (adopt-physics-engine D9)', () => {
-  assert.deepEqual(DEFAULT_SETTINGS.physics, { debris: false, ragdoll: false, powered: false, interact: false });
-  const s = mergeSettings({ physics: { debris: true, ragdoll: 'yes', cloth: true } });
-  assert.deepEqual(s.physics, { debris: true, ragdoll: false, powered: false, interact: false });
+test('debris and interaction default on, and stored switches merge field by field (adopt-physics-engine D9)', () => {
+  assert.deepEqual(DEFAULT_SETTINGS.physics, { debris: true, ragdoll: false, powered: false, interact: true });
+  const s = mergeSettings({ physicsRevision: PHYSICS_REVISION, physics: { debris: false, ragdoll: 'yes', cloth: true } });
+  assert.deepEqual(s.physics, { debris: false, ragdoll: false, powered: false, interact: true });
   assert.ok(!('cloth' in s.physics));
-  assert.deepEqual(mergeSettings({ physics: 'on' }).physics, DEFAULT_SETTINGS.physics);
+  assert.deepEqual(mergeSettings({ physicsRevision: PHYSICS_REVISION, physics: 'on' }).physics, DEFAULT_SETTINGS.physics);
   assert.notEqual(mergeSettings(null).physics, DEFAULT_SETTINGS.physics, 'a fresh object, never the frozen default');
 });
 
-test('physics switches survive a save round trip', () => {
-  const saved = JSON.parse(JSON.stringify({ ...DEFAULT_SETTINGS, physics: { debris: true, ragdoll: true, powered: false, interact: false } }));
-  assert.deepEqual(mergeSettings(saved).physics, { debris: true, ragdoll: true, powered: false, interact: false });
+test('a save written while physics defaulted off loads with the new defaults', () => {
+  const old = mergeSettings({ fov: 90, physics: { debris: false, ragdoll: false, powered: false, interact: false } });
+  assert.deepEqual(old.physics, DEFAULT_SETTINGS.physics);
+  assert.equal(old.fov, 90);
+});
+
+test('physics switches survive a save round trip, including switched off', () => {
+  const physics = { debris: false, ragdoll: true, powered: false, interact: false };
+  const saved = JSON.parse(JSON.stringify({ ...DEFAULT_SETTINGS, physics, physicsRevision: PHYSICS_REVISION }));
+  assert.deepEqual(mergeSettings(saved).physics, physics);
 });
 
 test('eye adaptation defaults on, and settings saved before it existed load with it on (post-processing spec)', () => {

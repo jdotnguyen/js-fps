@@ -3,7 +3,7 @@ import type { EventBus, EventName } from '../core/events.ts';
 import { Rng } from '../core/rng.ts';
 import { yieldFrame } from '../core/yieldFrame.ts';
 import { TimeSlicer, runSteps, runStepsSliced } from '../core/timeSlice.ts';
-import { isKeyPickup, type SpotKind, type AmbientPreset, type DoorData, type DoorKit, type DoorState, type KeyPickupData, type LevelData, type RoomData, type TriggerData, type UnlockSource, type VentData } from '../data/types/level.ts';
+import { isKeyPickup, type SpotKind, type AmbientPreset, type DoorData, type DoorKit, type DoorState, type KeyPickupData, type LevelData, type PropSound, type RoomData, type TriggerData, type UnlockSource, type VentData } from '../data/types/level.ts';
 import type { UiText } from '../data/types/uiText.ts';
 import type { Inventory } from '../game/inventory.ts';
 import { accessOpen, checkAccess, type AccessHint, type GateKind } from './access.ts';
@@ -441,7 +441,7 @@ export class Level implements World, CaptureHost {
   /** Fixtures (glow, shaft, pooled light) that belong to a movable prop and move with it, keyed by prop id. */
   private readonly propLights = new Map<string, Array<{ objects: Array<{ object: THREE.Object3D; base: THREE.Vector3 }>; slotPos: THREE.Vector3; slotBase: THREE.Vector3 }>>();
   /** Props marked `dynamic` in the level data (a subset of `movableProps`), with their mass. */
-  private readonly dynamicProps = new Map<string, { mass: number; room: string }>();
+  private readonly dynamicProps = new Map<string, { mass: number; loose: boolean; sound: PropSound | null; room: string }>();
   private readonly npcList: LevelNpc[] = [];
   private readonly named = new Map<string, Set<() => void>>();
   /** Authored walks by id (ADR-0028). */
@@ -1061,7 +1061,7 @@ export class Level implements World, CaptureHost {
         grp.userData.dynamic = true;
         for (const child of [...out.object.children]) grp.add(child);
         out.object.add(grp);
-        this.dynamicProps.set(id, { mass: prop.dynamic.mass, room: r.id });
+        this.dynamicProps.set(id, { mass: prop.dynamic.mass, loose: prop.dynamic.loose === true, sound: prop.dynamic.sound ?? null, room: r.id });
         this.offs.push(this.casters.add(new RigidCaster(grp)));
       }
       this.integrate(room, out, matrix, ry, rawSlots);
@@ -1377,7 +1377,9 @@ export class Level implements World, CaptureHost {
         });
       }
     }
-    const addedColliders = this.addColliders(out, matrix, `room:${room.data.id}`);
+    // A loose prop (design D14) keeps its boxes for its rigid body only: movement never sees it.
+    const loose = movableObj !== null && this.dynamicProps.get(movableObj.id)?.loose === true;
+    const addedColliders = loose ? [] : this.addColliders(out, matrix, `room:${room.data.id}`);
     if (movableObj) {
       movableObj.object.rotation.order = 'YXZ';
       movableObj.object.rotation.set(0, ry, 0);
@@ -1485,13 +1487,14 @@ export class Level implements World, CaptureHost {
 
   /**
    * Props the level data marks `dynamic` (adopt-physics-engine D11): their group, mass, collision boxes in the prop's
-   * own frame, and the live `CollisionWorld` colliders that follow it. Empty for a level with none.
+   * own frame, and the live `CollisionWorld` colliders that follow it (none for a loose prop). Empty for a level with
+   * none.
    */
-  physicsProps(): Array<{ id: string; mass: number; object: THREE.Object3D; localColliders: readonly BoxSpec[]; colliders: readonly Collider[] }> {
+  physicsProps(): Array<{ id: string; mass: number; loose: boolean; sound: PropSound | null; object: THREE.Object3D; localColliders: readonly BoxSpec[]; colliders: readonly Collider[] }> {
     const out = [];
     for (const [id, d] of this.dynamicProps) {
       const mp = this.movableProps.get(id);
-      if (mp) out.push({ id, mass: d.mass, object: mp.object, localColliders: mp.localColliders, colliders: mp.colliders });
+      if (mp) out.push({ id, mass: d.mass, loose: d.loose, sound: d.sound, object: mp.object, localColliders: mp.localColliders, colliders: mp.colliders });
     }
     return out;
   }

@@ -48,6 +48,8 @@ export interface KillWorld {
   find: (id: string) => NpcActor | null;
   /** Jay's eye (a `noticed` stare's target). */
   playerEye: () => Vec3Like | null;
+  /** Knock over loose props near a point (physics on only); `done` holds the ones already hit. */
+  knock?: ((from: Vec3Like, travel: Vec3Like, reach: number, strength: number, done: Set<string>) => void) | undefined;
 }
 
 /** The creature behind the glass after a kill: it hammers on the pane until the level lets it out (the contact scene). */
@@ -134,6 +136,8 @@ interface ActiveKill {
   stare: { t: number; done: boolean; active: boolean };
   /** Where the current `drag` is taking her (a streak from her hand runs that way). */
   dragTo: THREE.Vector3 | null;
+  /** A `knock` sweeping for the rest of its beat: what it has hit, and where she was a frame ago (her travel). */
+  knock: { beat: string | null; reach: number; strength: number; done: Set<string>; from: THREE.Vector3 } | null;
   glass: Glass | null;
   arrived: boolean;
   creature: NpcActor | null;
@@ -273,6 +277,7 @@ export class KillDirector {
       approach: null,
       stare: { t: 0, done: false, active: false },
       dragTo: null,
+      knock: null,
       pinning: false,
       gripDrawn: false,
       backing: null,
@@ -337,6 +342,7 @@ export class KillDirector {
       if (k.slam) this.updateSlam(k, dt);
       this.updateStare(k, dt);
       if (k.backing) this.updateBacking(k, dt);
+      if (k.knock) this.updateKnock(k);
       if (k.pinning && k.attacker && !k.attacker.busy) k.pinning = false;
       const ap = k.approach;
       if (ap && ap.via.length > 0 && k.attacker && Math.hypot(ap.via[0]!.x - k.attacker.position.x, ap.via[0]!.z - k.attacker.position.z) < 0.6) ap.via.shift();
@@ -847,6 +853,10 @@ export class KillDirector {
       case 'light':
         this.setLight(k, e.state ?? 'on');
         return;
+      case 'knock':
+        // A skipped or restored kill moves nothing (physical-interaction "Restored kill").
+        if (!k.instant) k.knock = { beat: k.run.beatId, reach: e.reach ?? 1, strength: e.strength ?? 1, done: new Set(), from: k.actor.position.clone() };
+        return;
       case 'toGlass': {
         const g = k.glass;
         if (!g || k.instant) {
@@ -964,6 +974,20 @@ export class KillDirector {
         return;
       }
     }
+  }
+
+  private updateKnock(k: ActiveKill): void {
+    const n = k.knock!;
+    if (k.run.beatId !== n.beat) {
+      k.knock = null;
+      return;
+    }
+    const p = k.actor.position;
+    // Her travel since the last frame; standing still, the way she faces (toward the glass).
+    const travel = tmpQv.copy(p).sub(n.from).setY(0);
+    if (travel.lengthSq() < 1e-8) this.forward(k, travel);
+    this.w.knock?.(p, travel, n.reach, n.strength, n.done);
+    n.from.copy(p);
   }
 
   private glassMark(k: ActiveKill, e: KillEvent): void {

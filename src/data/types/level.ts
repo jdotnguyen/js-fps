@@ -25,6 +25,10 @@ import { COOKIE_KINDS } from '../../render/cookies.ts';
  * ADR-0024 adds door/vent `access` (key items or sealed), `vents` and key-item `pickups`.
  */
 
+/** What a dynamic prop sounds like when it hits something (adopt-physics-engine D16). */
+export const PROP_SOUNDS = ['cart', 'glass', 'metal', 'thud'] as const;
+export type PropSound = (typeof PROP_SOUNDS)[number];
+
 export const DOOR_KITS = ['pressure_slide', 'bulkhead', 'glass_slide'] as const;
 export type DoorKit = (typeof DOOR_KITS)[number];
 export const DOOR_STATES = ['open', 'closed', 'locked', 'jammed', 'sealed'] as const;
@@ -128,8 +132,13 @@ const propShape = {
    * Opt in to physics (adopt-physics-engine D11, spec physical-interaction "Only named props move"): the prop's
    * collision boxes become one rigid body of this mass (kg) that the player, blasts and kills can push. Unmarked props
    * never move.
+   *
+   * `loose` (design D14): small dressing that physics moves but movement ignores. Its boxes shape the rigid body and
+   * never enter `CollisionWorld`, so the player, enemies and the navmesh pass it standing or fallen.
+   *
+   * `sound` (design D16): what it sounds like when it hits something; without one it is silent.
    */
-  dynamic: optional(obj({ mass: numRange(0.5, 500) })),
+  dynamic: optional(obj({ mass: numRange(0.05, 500), loose: optional(bool), sound: optional(oneOf(PROP_SOUNDS)) })),
 };
 
 const lightShape = {

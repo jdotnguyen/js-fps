@@ -61,7 +61,7 @@ export function clipSpeedAt(speed: ClipSpeed | undefined, t: number): number {
  * she backs away to a mark, facing the attacker (overhaul-priya-r08-death D16). `walkTo` walks the attacker to a mark with
  * nothing held, faster than a haul (it leaving, D37), and `attackerLook` turns its head to a mark (none: straight ahead).
  */
-export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'haulTo', 'slam', 'throw', 'drag', 'infect', 'backTo', 'walkTo', 'attackerLook'] as const;
+export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'haulTo', 'slam', 'throw', 'drag', 'infect', 'backTo', 'walkTo', 'attackerLook', 'knock'] as const;
 
 /** The `mauled` events that need an attacker on the kill step. */
 export const ATTACKER_EVENTS: readonly KillEventKind[] = ['pin', 'grip', 'attackerPose', 'haulTo', 'slam', 'throw', 'drag', 'walkTo', 'attackerLook'];
@@ -88,7 +88,13 @@ const eventShape = {
   joint: optional(joint),
   /** `kick`: push direction in the victim's own frame (she faces forward); `glass streak`: `pull` runs it along the pane the way she is dragged. */
   dir: optional(oneOf(['back', 'fwd', 'left', 'right', 'up', 'pull'] as const)),
+  /** `kick`: how hard the joint jolts; `knock`: how hard loose props are thrown (1 = about 1.6 m/s). */
   strength: optional(numRange(0, 3)),
+  /**
+   * `knock` (adopt-physics-engine D15): for the rest of the beat, every loose prop that comes within this many metres of
+   * the victim over the floor is knocked over, once. Does nothing without physics, or in a skipped or restored kill.
+   */
+  reach: optional(numRange(0.2, 2)),
   /** `gore`: burst | chunks | spurt | pool; `glass`: print | splat | streak | crack. */
   kind: optional(str),
   count: optional(numRange(1, 400)),
@@ -239,6 +245,8 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
         if (e.do === 'glass' && !['print', 'splat', 'streak', 'crack'].includes(e.kind ?? '')) throw new ValidationError(ep, 'glass kind is print | splat | streak | crack');
         if (e.dir === 'pull' && !(e.do === 'glass' && e.kind === 'streak')) throw new ValidationError(ep, '"dir": "pull" is only for a glass streak');
         if (e.do === 'stinger' && e.id?.length !== 1) throw new ValidationError(ep, 'stinger needs one "id"');
+        if (e.do === 'knock' && e.reach === undefined) throw new ValidationError(ep, 'knock needs "reach"');
+        if (e.do !== 'knock' && e.reach !== undefined) throw new ValidationError(`${ep} > reach`, '"reach" is for a knock');
         if ((e.do === 'pose' || e.do === 'die' || e.do === 'attackerPose') && !e.pose) throw new ValidationError(ep, `${e.do} needs "pose"`);
         if (e.do === 'grip' && !e.release && !e.joint) throw new ValidationError(ep, 'grip needs "joint" (or "release": true)');
         if ((e.do === 'haulTo' || e.do === 'walkTo' || e.do === 'slam' || e.do === 'throw' || e.do === 'drag' || e.do === 'backTo') && !e.mark) throw new ValidationError(ep, `${e.do} needs "mark"`);

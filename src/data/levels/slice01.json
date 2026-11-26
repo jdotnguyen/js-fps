@@ -3797,7 +3797,8 @@
           ],
           "rot": 90,
           "params": {
-            "width": 3
+            "width": 3,
+            "clutter": 0
           }
         },
         {
@@ -3808,7 +3809,514 @@
             29.4
           ],
           "params": {
-            "width": 3
+            "width": 3,
+            "clutter": 0
+          }
+        },
+        {
+          "kit": "prep_cart",
+          "pos": [
+            6.78,
+            0,
+            23.4
+          ],
+          "rot": 60,
+          "params": {
+            "id": "labb_cart"
+          },
+          "dynamic": {
+            "mass": 14,
+            "loose": true,
+            "sound": "cart"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            6.653,
+            0.9,
+            23.581
+          ],
+          "rot": 60,
+          "params": {
+            "id": "labb_cart_tray",
+            "type": "tray"
+          },
+          "dynamic": {
+            "mass": 0.8,
+            "loose": true,
+            "sound": "metal"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            6.701,
+            0.9,
+            23.297
+          ],
+          "rot": 60,
+          "params": {
+            "id": "labb_cart_flask_a",
+            "type": "flask",
+            "liquid": "teal"
+          },
+          "dynamic": {
+            "mass": 0.4,
+            "loose": true,
+            "sound": "glass"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            6.898,
+            0.9,
+            23.295
+          ],
+          "rot": 60,
+          "params": {
+            "id": "labb_cart_flask_b",
+            "type": "flask",
+            "liquid": "amber"
+          },
+          "dynamic": {
+            "mass": 0.4,
+            "loose": true,
+            "sound": "glass"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            6.835,
+            0.9,
+            23.085
+          ],
+          "rot": 60,
+          "params": {
+            "id": "labb_cart_bottle_a",
+            "type": "bottle",
+            "liquid": "red"
+          },
+          "dynamic": {
+            "mass": 0.6,
+            "loose": true,
+            "sound": "glass"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            7.04,
+            0.9,
+            23.169
+          ],
+          "rot": 60,
+          "params": {
+            "id": "labb_cart_beaker",
+            "type": "beaker",
+            "liquid": "teal"
+          },
+          "dynamic": {
+            "mass": 0.25,
+            "loose": true,
+            "sound": "glass"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            6.92,
+            0.9,
+            23.527
+          ],
+          "rot": 64,
+          "params": {
+            "id": "labb_cart_rack",
+            "type": "rack",
+            "liquid": "red"
+          },
+          "dynamic": {
+            "mass": 0.35,
+            "loose": true,
+            "sound": "metal"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            6.68,
+            0.3,
+            23.573
+          ],
+          "rot": 75,
+          "params": {
+            "id": "labb_cart_scope",
+            "type": "scope"
+          },
+          "dynamic": {
+            "mass": 3,
+            "loose": true,
+            "sound": "thud"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            6.782,
+            0.3,
+            23.216
+          ],
+          "rot": 60,
+          "params": {
+            "id": "labb_cart_bottle_b",
+            "type": "bottle",
+            "liquid": "amber"
+          },
+          "dynamic": {
+            "mass": 0.6,
+            "loose": true,
+            "sound": "glass"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            6.989,
+            0.3,
+            23.198
+          ],
+          "rot": 60,
+          "params": {
+            "id": "labb_cart_bottle_c",
+            "type": "bottle",
+            "liquid": "teal"
+          },
+          "dynamic": {
+            "mass": 0.6,
+            "loose": true,
+            "sound": "glass"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            5.38,
+            0.925,
+            28.05
+          ],
+          "rot": 90,
+          "params": {
+            "type": "flask",
+            "fixed": true,
+            "liquid": "amber"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            5.58,
+            0.925,
+            27.88
+          ],
+          "rot": 90,
+          "params": {
+            "type": "bottle",
+            "fixed": true,
+            "liquid": "teal"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            5.4,
+            0.925,
+            27.15
+          ],
+          "rot": 82,
+          "params": {
+            "type": "tray",
+            "fixed": true
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            5.58,
+            0.925,
+            26.78
+          ],
+          "rot": 90,
+          "params": {
+            "type": "beaker",
+            "fixed": true,
+            "liquid": "red"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            5.42,
+            0.925,
+            26.52
+          ],
+          "rot": 90,
+          "params": {
+            "type": "flask",
+            "fixed": true,
+            "liquid": "teal"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            5.4,
+            0.925,
+            25.64
+          ],
+          "rot": 90,
+          "params": {
+            "type": "bottle",
+            "fixed": true,
+            "liquid": "amber"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            5.58,
+            0.925,
+            25.47
+          ],
+          "rot": 90,
+          "params": {
+            "type": "flask",
+            "fixed": true,
+            "liquid": "red"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            5.72,
+            1.615,
+            27.75
+          ],
+          "rot": 90,
+          "params": {
+            "type": "bottle",
+            "fixed": true,
+            "liquid": "amber"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            5.74,
+            1.615,
+            27.62
+          ],
+          "rot": 90,
+          "params": {
+            "type": "bottle",
+            "fixed": true,
+            "liquid": "teal"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            5.72,
+            1.615,
+            26.95
+          ],
+          "rot": 90,
+          "params": {
+            "type": "flask",
+            "fixed": true,
+            "liquid": "teal"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            5.72,
+            1.615,
+            26.35
+          ],
+          "rot": 90,
+          "params": {
+            "type": "rack",
+            "fixed": true,
+            "liquid": "amber"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            5.73,
+            1.615,
+            25.75
+          ],
+          "rot": 90,
+          "params": {
+            "type": "bottle",
+            "fixed": true,
+            "liquid": "red"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            10.9,
+            0.925,
+            29.32
+          ],
+          "rot": 0,
+          "params": {
+            "type": "bottle",
+            "fixed": true,
+            "liquid": "red"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            11.08,
+            0.925,
+            29.46
+          ],
+          "rot": 0,
+          "params": {
+            "type": "flask",
+            "fixed": true,
+            "liquid": "teal"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            11.92,
+            0.925,
+            29.26
+          ],
+          "rot": 6,
+          "params": {
+            "type": "rack",
+            "fixed": true,
+            "liquid": "teal"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            12.32,
+            0.925,
+            29.35
+          ],
+          "rot": 0,
+          "params": {
+            "type": "beaker",
+            "fixed": true,
+            "liquid": "amber"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            12.54,
+            0.925,
+            29.48
+          ],
+          "rot": 0,
+          "params": {
+            "type": "flask",
+            "fixed": true,
+            "liquid": "amber"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            13.38,
+            0.925,
+            29.34
+          ],
+          "rot": 12,
+          "params": {
+            "type": "tray",
+            "fixed": true
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            11.3,
+            1.615,
+            29.62
+          ],
+          "rot": 0,
+          "params": {
+            "type": "flask",
+            "fixed": true,
+            "liquid": "red"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            12,
+            1.615,
+            29.63
+          ],
+          "rot": 0,
+          "params": {
+            "type": "bottle",
+            "fixed": true,
+            "liquid": "teal"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            12.14,
+            1.615,
+            29.62
+          ],
+          "rot": 0,
+          "params": {
+            "type": "bottle",
+            "fixed": true,
+            "liquid": "teal"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            12.9,
+            1.615,
+            29.62
+          ],
+          "rot": 0,
+          "params": {
+            "type": "rack",
+            "fixed": true,
+            "liquid": "red"
+          }
+        },
+        {
+          "kit": "lab_item",
+          "pos": [
+            13.4,
+            1.615,
+            29.63
+          ],
+          "rot": 0,
+          "params": {
+            "type": "bottle",
+            "fixed": true,
+            "liquid": "amber"
           }
         },
         {

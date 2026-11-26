@@ -90,6 +90,8 @@ export interface NpcDirectorDeps {
   /** Play the first of `ids` that exists, at a world point; false when none does. */
   sfx?: (ids: readonly string[], at: Vec3Like, gain?: number) => boolean;
   growl?: (at: Vec3Like) => void;
+  /** A kill's `knock`: throw loose physics props near a point (`PhysicsProps.knock`). Absent: nothing moves. */
+  knock?: (from: Vec3Like, travel: Vec3Like, reach: number, strength: number, done: Set<string>) => void;
   /** Controllable level props (dock_chair, dock_wand) driven by scripted NPC routines. */
   setPropTransform?: (id: string, pos: { x: number; y: number; z: number }, yaw: number) => boolean;
   setPropVisible?: (id: string, visible: boolean) => boolean;
@@ -278,6 +280,7 @@ export class NpcDirector {
         listen: deps.listen,
         sfx: deps.sfx,
         growl: deps.growl,
+        knock: deps.knock,
         warn: (m) => this.warnOnce(m),
         resolve: (ref) => this.resolver?.(ref) ?? (Array.isArray(ref) ? { pos: { x: ref[0] as number, y: ref[1] as number, z: ref[2] as number } } : null),
         spawn: (id, look, at, yaw, pose) => {
