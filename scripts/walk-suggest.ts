@@ -4,7 +4,7 @@
  *   npm run walks:suggest -- <id> <start> [via...] <end>
  *
  * Points are anchor ids or "x,z" feet positions. Doors count as open. Prints a `walks` entry
- * to paste into the room in src/data/levels/slice01.json (then tweak by hand; the slice01 walk
+ * to paste into the room's file, src/data/levels/slice01/rooms/<id>.json (then tweak by hand; the slice01 walk
  * test checks every authored curve stays clear of walls).
  */
 import { suggestWalk } from '../src/ai/walkAuthor.ts';

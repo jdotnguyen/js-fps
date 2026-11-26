@@ -1,0 +1,269 @@
+{
+  "id": "R14c",
+  "name": "Director's Office",
+  "area": "admin",
+  "atmosphere": {
+    "fog": "#14100c",
+    "fogDensity": 0.012,
+    "ambient": "admin",
+    "reverb": "small_office",
+    "ambience": "directors_office"
+  },
+  "visibleFrom": [
+    "R14b"
+  ],
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        13,
+        0,
+        1
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        13,
+        0,
+        2
+      ]
+    },
+    {
+      "kit": "floor_carpet",
+      "cells": [
+        [
+          13,
+          0,
+          1
+        ],
+        [
+          13,
+          0,
+          2
+        ]
+      ]
+    },
+    {
+      "kit": "wall_sanity_screen",
+      "cells": [
+        [
+          13,
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "kit": "wall_sanity_screen",
+      "cells": [
+        [
+          13,
+          0,
+          1
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_wood",
+      "cells": [
+        [
+          13,
+          0,
+          2
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_wood",
+      "cells": [
+        [
+          13,
+          0,
+          2
+        ]
+      ],
+      "rot": 180
+    }
+  ],
+  "props": [
+    {
+      "kit": "office_desk",
+      "pos": [
+        52.4,
+        0,
+        6.2
+      ],
+      "rot": 270,
+      "params": {
+        "width": 2.2,
+        "exec": true,
+        "papers": 4
+      }
+    },
+    {
+      "kit": "chair",
+      "pos": [
+        53.12,
+        0,
+        6.2
+      ],
+      "rot": 90,
+      "params": {
+        "fixed": true
+      }
+    },
+    {
+      "kit": "bookshelf",
+      "pos": [
+        53.52,
+        0,
+        8.6
+      ],
+      "rot": 90,
+      "params": {
+        "width": 1.6,
+        "height": 2.2
+      }
+    },
+    {
+      "kit": "sofa",
+      "pos": [
+        51.4,
+        0,
+        9.28
+      ],
+      "params": {
+        "width": 1.8,
+        "tone": "warm"
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        50.65,
+        0,
+        2.65
+      ],
+      "params": {
+        "kind": "palm",
+        "pot": "dark",
+        "size": 1.2
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        53.35,
+        0,
+        2.65
+      ],
+      "params": {
+        "kind": "fern",
+        "pot": "dark"
+      }
+    },
+    {
+      "kit": "tag_poster",
+      "pos": [
+        52,
+        0,
+        9.69
+      ],
+      "params": {
+        "slogan": "TAG INDUSTRIES - 40 YEARS DEEP",
+        "width": 1.1
+      }
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        51,
+        0,
+        9.74
+      ],
+      "params": {
+        "id": "pa_director"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#ffd8a6",
+      "intensity": 10,
+      "range": 11,
+      "shaft": 0.015,
+      "emissive": 1.9
+    },
+    {
+      "slot": 1,
+      "pattern": "steady",
+      "color": "#ffd096",
+      "intensity": 14,
+      "range": 12,
+      "drop": 0.4,
+      "shaft": 0.015,
+      "emissive": 2.1
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trig_hale_office",
+      "box": [
+        [
+          50.3,
+          0,
+          2.3
+        ],
+        [
+          53.7,
+          2.6,
+          9.7
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:hale_office",
+      "once": false
+    }
+  ],
+  "anchors": [
+    {
+      "id": "hale_desk",
+      "pos": [
+        52.4,
+        0.8,
+        6.2
+      ]
+    },
+    {
+      "id": "hale_stand",
+      "pos": [
+        52.4,
+        0,
+        8.3
+      ],
+      "yaw": 90
+    },
+    {
+      "id": "cp_round_admin",
+      "pos": [
+        51,
+        0,
+        5.4
+      ],
+      "yaw": 270
+    }
+  ],
+  "npcs": [
+    {
+      "id": "hale",
+      "look": "hale",
+      "at": "hale_stand",
+      "pose": "idle_hips"
+    }
+  ]
+}

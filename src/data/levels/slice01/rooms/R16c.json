@@ -1,0 +1,153 @@
+{
+  "id": "R16c",
+  "name": "Arrival Dispatch",
+  "area": "transit",
+  "height": 3.6,
+  "atmosphere": {
+    "fog": "#060a0e",
+    "fogDensity": 0.014,
+    "reverb": "small_office",
+    "ambience": "transit_dispatch"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        16,
+        0,
+        12
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        17,
+        0,
+        12
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        18,
+        0,
+        12
+      ]
+    },
+    {
+      "kit": "floor",
+      "cells": [
+        [
+          16,
+          0,
+          12
+        ],
+        [
+          17,
+          0,
+          12
+        ],
+        [
+          18,
+          0,
+          12
+        ]
+      ]
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          16,
+          0,
+          12
+        ],
+        [
+          18,
+          0,
+          12
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          16,
+          0,
+          12
+        ],
+        [
+          18,
+          0,
+          12
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          16,
+          0,
+          12
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          17,
+          0,
+          12
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          18,
+          0,
+          12
+        ]
+      ],
+      "rot": 270
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#dce6f2",
+      "intensity": 12,
+      "range": 14,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 2,
+      "pattern": "steady",
+      "color": "#dce6f2",
+      "intensity": 12,
+      "range": 14,
+      "backupScale": 1,
+      "ownColor": true
+    }
+  ],
+  "anchors": [
+    {
+      "id": "r16_dispatch",
+      "pos": [
+        68,
+        0,
+        48
+      ],
+      "yaw": 0
+    }
+  ]
+}

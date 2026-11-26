@@ -1,7 +1,7 @@
 /**
  * Hand-rolled runtime validators that narrow `unknown` JSON to typed data and
  * throw errors with a readable path (ADR-0001), e.g.
- *   data/levels/slice01.json > rooms[2] > pieces[3] > kit: unknown value "corrdor_straight"
+ *   data/levels/kit_test.json > rooms[2] > pieces[3] > kit: unknown value "corrdor_straight"
  */
 export class ValidationError extends Error {
   readonly path: string;

@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { levelFileIds, loadLevel } from './headlessSlice.ts';
 import { edgeDir } from './kit/grid.ts';
+import { readLevel } from '../data/levels/readLevel.ts';
 
 // room-visibility spec, "Level data declares glass visibility both ways": every glass partition joins two
 // rooms that are each in the other's `visibleFrom`, so either side draws the other (and the glass) when
@@ -44,7 +44,7 @@ export function glassVisibilityGaps(rooms: readonly Room[]): string[] {
 
 for (const id of levelFileIds()) {
   test(`${id}: glass partitions are see-through from both sides`, () => {
-    const data = JSON.parse(readFileSync(new URL(`../data/levels/${id}.json`, import.meta.url), 'utf8')) as { rooms: Room[] };
+    const data = readLevel(id) as { rooms: Room[] };
     assert.deepEqual(glassVisibilityGaps(data.rooms), []);
   });
 }

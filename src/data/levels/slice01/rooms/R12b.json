@@ -1,0 +1,526 @@
+{
+  "id": "R12b",
+  "name": "Grow Hall",
+  "area": "hydroponics",
+  "height": 4.5,
+  "atmosphere": {
+    "fog": "#141e1b",
+    "fogDensity": 0.018,
+    "ambient": "hydro",
+    "reverb": "metal_hall",
+    "ambience": "hydro_misters"
+  },
+  "visibleFrom": [
+    "R12c"
+  ],
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        10,
+        0,
+        4
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        11,
+        0,
+        4
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        12,
+        0,
+        4
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        10,
+        0,
+        5
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        11,
+        0,
+        5
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        12,
+        0,
+        5
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        10,
+        0,
+        6
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        11,
+        0,
+        6
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        12,
+        0,
+        6
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "floor_grate",
+      "cells": [
+        [
+          10,
+          0,
+          4
+        ],
+        [
+          12,
+          0,
+          4
+        ],
+        [
+          10,
+          0,
+          5
+        ],
+        [
+          12,
+          0,
+          5
+        ],
+        [
+          10,
+          0,
+          6
+        ],
+        [
+          12,
+          0,
+          6
+        ]
+      ]
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          10,
+          0,
+          4
+        ],
+        [
+          12,
+          0,
+          4
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          10,
+          0,
+          4
+        ],
+        [
+          10,
+          0,
+          6
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "floor_tiles",
+      "cells": [
+        [
+          11,
+          0,
+          4
+        ],
+        [
+          11,
+          0,
+          5
+        ],
+        [
+          11,
+          0,
+          6
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          11,
+          0,
+          4
+        ]
+      ]
+    },
+    {
+      "kit": "wall_glass_partition",
+      "cells": [
+        [
+          12,
+          0,
+          5
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          11,
+          0,
+          6
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_window",
+      "cells": [
+        [
+          12,
+          0,
+          6
+        ]
+      ],
+      "rot": 270
+    }
+  ],
+  "props": [
+    {
+      "kit": "plant_rack",
+      "pos": [
+        41.2,
+        0,
+        17.6
+      ],
+      "params": {
+        "length": 3,
+        "tiers": 3,
+        "light": "magenta",
+        "crop": "tomatoes"
+      }
+    },
+    {
+      "kit": "plant_rack",
+      "pos": [
+        46.8,
+        0,
+        17.6
+      ],
+      "params": {
+        "length": 3,
+        "tiers": 3,
+        "light": "magenta",
+        "crop": "tomatoes"
+      }
+    },
+    {
+      "kit": "plant_rack",
+      "pos": [
+        41.2,
+        0,
+        22.4
+      ],
+      "params": {
+        "length": 3,
+        "tiers": 3,
+        "light": "white",
+        "crop": "greens"
+      }
+    },
+    {
+      "kit": "plant_rack",
+      "pos": [
+        46.8,
+        0,
+        22.4
+      ],
+      "params": {
+        "length": 3,
+        "tiers": 3,
+        "light": "magenta",
+        "crop": "herbs"
+      }
+    },
+    {
+      "kit": "plant_rack",
+      "pos": [
+        44,
+        0,
+        24.4
+      ],
+      "params": {
+        "length": 2.6,
+        "tiers": 3,
+        "light": "white",
+        "crop": "greens"
+      }
+    },
+    {
+      "kit": "hydro_trough",
+      "pos": [
+        40.6,
+        0,
+        14.95
+      ],
+      "params": {
+        "length": 2.6
+      }
+    },
+    {
+      "kit": "hydro_trough",
+      "pos": [
+        47.4,
+        0,
+        14.95
+      ],
+      "params": {
+        "length": 2.6
+      }
+    },
+    {
+      "kit": "hydro_workstation",
+      "pos": [
+        44,
+        0,
+        14.8
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "harvest_cart",
+      "pos": [
+        48.9,
+        0,
+        20.6
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "mister",
+      "pos": [
+        44,
+        0,
+        16.4
+      ],
+      "params": {
+        "length": 8,
+        "period": 9.6,
+        "offset": 0.4
+      }
+    },
+    {
+      "kit": "mister",
+      "pos": [
+        44,
+        0,
+        18.8
+      ],
+      "params": {
+        "length": 8,
+        "period": 11.4,
+        "offset": 3.8,
+        "sputter": true
+      }
+    },
+    {
+      "kit": "mister",
+      "pos": [
+        44,
+        0,
+        21.2
+      ],
+      "params": {
+        "length": 8,
+        "period": 12.8,
+        "offset": 7.1
+      }
+    },
+    {
+      "kit": "mister",
+      "pos": [
+        44,
+        0,
+        23.6
+      ],
+      "params": {
+        "length": 8,
+        "period": 10.5,
+        "offset": 5.2
+      }
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        38.26,
+        0,
+        17
+      ],
+      "rot": 270,
+      "params": {
+        "id": "pa_grow",
+        "serves": "R12a"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#f0f7f2",
+      "intensity": 13,
+      "range": 12,
+      "shaft": 0.03
+    },
+    {
+      "slot": 1,
+      "pattern": "steady",
+      "color": "#edf5ff",
+      "intensity": 12,
+      "range": 12,
+      "shaft": 0.025
+    },
+    {
+      "slot": 2,
+      "pattern": "steady",
+      "color": "#edf5ff",
+      "intensity": 12,
+      "range": 12,
+      "shaft": 0.025
+    },
+    {
+      "slot": 3,
+      "pattern": "steady",
+      "color": "#f2f8f4",
+      "intensity": 13,
+      "range": 12,
+      "shaft": 0.03
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trig_hydro_log",
+      "box": [
+        [
+          43.15,
+          0,
+          14.85
+        ],
+        [
+          44.85,
+          2,
+          16.55
+        ]
+      ],
+      "on": "use",
+      "emit": "round:hydro_log",
+      "prompt": "Sign irrigation log"
+    }
+  ],
+  "anchors": [
+    {
+      "id": "hydro_log",
+      "pos": [
+        44,
+        1.2,
+        14.8
+      ]
+    },
+    {
+      "id": "cp_round_hydro",
+      "pos": [
+        44,
+        0,
+        19.8
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "botanist_1_spot",
+      "pos": [
+        43.8,
+        0,
+        17.8
+      ],
+      "yaw": 90
+    },
+    {
+      "id": "botanist_2_spot",
+      "pos": [
+        44.2,
+        0,
+        22.4
+      ],
+      "yaw": 270
+    }
+  ],
+  "npcs": [
+    {
+      "id": "botanist_1",
+      "look": "botanist",
+      "at": "botanist_1_spot",
+      "roam": [
+        "R12b",
+        "R12d"
+      ],
+      "pose": "crouchWork",
+      "chat": "hydro_grow"
+    },
+    {
+      "id": "botanist_2",
+      "look": "botanist",
+      "at": "botanist_2_spot",
+      "roam": [
+        "R12b"
+      ],
+      "pose": "clipboard",
+      "chat": "hydro_grow"
+    }
+  ]
+}

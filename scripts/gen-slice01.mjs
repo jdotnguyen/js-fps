@@ -1,25 +1,24 @@
 #!/usr/bin/env node
 /**
- * Generates src/data/levels/slice01.json (ADR-0014 map as amended, intro-sequence spec, ADR-0023 hubs).
+ * FROZEN (openspec change split-level-data): this script no longer writes the level. slice01 is authored in
+ * src/data/levels/slice01/ (one file per room, plus level.json and doors.json); edit those files.
+ * The room tables below stay until the change's phase 1b turns them into each room's layout and deletes the script.
  *
- *   node scripts/gen-slice01.mjs            write the level
- *   node scripts/gen-slice01.mjs --check    print the room/cell table only
- *
- * Layout is authored here as rooms of grid cells (4 m, deck 0). The script places floor,
- * ceiling and wall tiles on every outside edge (walls skip edges that hold a door or that a
- * neighbour fills with glass), turns `door(...)` calls into doors, and converts wall-mounted
- * prop placements (`wallProp`) into positions + rotations. Edit the tables below and re-run.
+ *   node scripts/gen-slice01.mjs --check    print the room/cell table
  *
  * Grid: cell (x, z) is centred on world (4x, 0, 4z); +x east, +z south. Sides n/e/s/w.
  * Wall tiles: rot n=0, w=90, s=180, e=270. Wall props face into the room:
  * n wall -> rot 180, s -> 0, e -> 90, w -> 270 (props.ts / slice.ts convention).
  * Anchor and NPC yaw: degrees, 0 faces -Z (north), 90 faces -X (west).
  */
-import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const OUT = join(dirname(fileURLToPath(import.meta.url)), '../src/data/levels/slice01.json');
+if (!process.argv.includes('--check')) {
+  console.error('scripts/gen-slice01.mjs is frozen (openspec change split-level-data): it writes nothing. Edit the room files in src/data/levels/slice01/.');
+  process.exit(1);
+}
+
 const C = 4;
 const WALL_FACE = 2 - 0.25; // cell centre to the inner face of a wall tile
 const SIDES = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };
@@ -1842,11 +1841,5 @@ prop(R08, 'emergency_beacon', [-5.7, 2.6, 50], 90, { wall: true });
 for (const [r, n] of [[R02, 1], [R05, 1], [R06, 2], [R07, 1], [R08, 1]]) for (let i = 0; i < n; i++) r.lights.push(L('emergency', 'off'));
 
 SPAWN_FIELDS = await detectSpawnFields();
-const level = build();
-if (process.argv.includes('--check')) {
-  for (const r of rooms) console.log(r.id.padEnd(5), r.name.padEnd(28), r.cells.map((c) => c.join(',')).join(' '));
-} else {
-  writeFileSync(OUT, `${JSON.stringify(level, null, 1)}\n`);
-  const n = (k) => level.rooms.reduce((a, r) => a + (r[k]?.length ?? 0), 0);
-  console.log(`wrote slice01.json: ${level.rooms.length} rooms, ${level.doors.length} doors, ${n('props')} props, ${n('anchors')} anchors, ${n('npcs')} npcs, ${n('triggers')} triggers, ${n('spawns')} spawns; spawn extras kept: ${[...SPAWN_FIELDS].join(', ') || 'none (schema has no group yet)'}`);
-}
+build(); // checks the doors against the rooms' cells
+for (const r of rooms) console.log(r.id.padEnd(5), r.name.padEnd(28), r.cells.map((c) => c.join(',')).join(' '));

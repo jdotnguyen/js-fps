@@ -17,6 +17,7 @@ import type { CameraFeedOptions, SequenceHost } from './host.ts';
 import { SequenceManager } from './runtime.ts';
 import { validateSequences } from './schema.ts';
 import type { Flags, Step } from './types.ts';
+import { readLevel } from '../data/levels/readLevel.ts';
 
 const json = (rel: string): any => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
 const dir = new URL('../data/sequences/', import.meta.url);
@@ -29,7 +30,7 @@ const library = new DialogueLibrary(json('../data/dialogue/speakers.json'), {
   slice01_action: json('../data/dialogue/slice01_action.json'),
   slice01_rounds: json('../data/dialogue/slice01_rounds.json'),
 });
-const level = json('../data/levels/slice01.json');
+const level = readLevel('slice01') as any;
 const anchors = new Set<string>(level.rooms.flatMap((r: any) => (r.anchors ?? []).map((a: any) => a.id)));
 const npcIds = new Set<string>(level.rooms.flatMap((r: any) => (r.npcs ?? []).map((n: any) => n.id)));
 const doorIds = new Set<string>(level.doors.map((d: any) => d.id));

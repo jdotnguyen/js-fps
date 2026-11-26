@@ -1,0 +1,590 @@
+{
+  "id": "R13b",
+  "name": "Launch Hall",
+  "area": "dive_bay",
+  "height": 5,
+  "atmosphere": {
+    "fog": "#0b1316",
+    "fogDensity": 0.015,
+    "reverb": "metal_hall",
+    "ambience": "launch_bay"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        5,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        6,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        7,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        5,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        6,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        7,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        5,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        6,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        7,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "floor_grate",
+      "cells": [
+        [
+          5,
+          0,
+          8
+        ],
+        [
+          6,
+          0,
+          8
+        ],
+        [
+          7,
+          0,
+          8
+        ],
+        [
+          5,
+          0,
+          9
+        ],
+        [
+          7,
+          0,
+          9
+        ],
+        [
+          5,
+          0,
+          10
+        ],
+        [
+          6,
+          0,
+          10
+        ],
+        [
+          7,
+          0,
+          10
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          5,
+          0,
+          8
+        ],
+        [
+          7,
+          0,
+          8
+        ]
+      ]
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          7,
+          0,
+          8
+        ],
+        [
+          7,
+          0,
+          10
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          5,
+          0,
+          9
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "floor_moonpool",
+      "cells": [
+        [
+          6,
+          0,
+          9
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          7,
+          0,
+          9
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          5,
+          0,
+          10
+        ],
+        [
+          7,
+          0,
+          10
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          6,
+          0,
+          10
+        ]
+      ],
+      "rot": 180
+    }
+  ],
+  "props": [
+    {
+      "kit": "gantry_crane",
+      "pos": [
+        24,
+        0,
+        36
+      ],
+      "params": {
+        "width": 10.2,
+        "length": 10,
+        "height": 4.5,
+        "bridge": 2.4,
+        "trolley": 4.4,
+        "hook": 2.15
+      }
+    },
+    {
+      "kit": "rov",
+      "pos": [
+        28.4,
+        0,
+        38.4
+      ],
+      "rot": 90,
+      "params": {
+        "name": "NEREUS"
+      }
+    },
+    {
+      "kit": "tether_winch",
+      "pos": [
+        28.7,
+        0,
+        40.55
+      ]
+    },
+    {
+      "kit": "pilot_console",
+      "pos": [
+        28,
+        0,
+        30.75
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "whiteboard",
+      "pos": [
+        19.6,
+        0,
+        30.31
+      ],
+      "rot": 180,
+      "params": {
+        "lines": "DIVE 214 · TRENCH WALL|ROV: NEREUS   PILOT: SUNG|TASK: 6 CORES FOR LAB B|RECOVERED 06:42 · CASE TO COLD STORE|NEXT: DIVE 215 — TBC|!KEEP TRUNK GATE SHUT"
+      }
+    },
+    {
+      "kit": "wet_bench",
+      "pos": [
+        18.26,
+        0,
+        36
+      ],
+      "rot": 270,
+      "params": {
+        "width": 2.2
+      }
+    },
+    {
+      "kit": "core_rack",
+      "pos": [
+        18.26,
+        0,
+        38
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "eyewash_station",
+      "pos": [
+        19.3,
+        0,
+        41.74
+      ]
+    },
+    {
+      "kit": "shadow_board",
+      "pos": [
+        24,
+        0,
+        41.74
+      ]
+    },
+    {
+      "kit": "pipe_run",
+      "pos": [
+        24.5,
+        0,
+        41.4
+      ],
+      "params": {
+        "length": 8,
+        "height": 0.4,
+        "paint": "teal"
+      }
+    },
+    {
+      "kit": "crate",
+      "pos": [
+        26.5,
+        0,
+        40.65
+      ],
+      "rot": 10,
+      "params": {
+        "size": 0.6
+      }
+    },
+    {
+      "kit": "room_sign",
+      "pos": [
+        21.3,
+        0,
+        30.26
+      ],
+      "rot": 180,
+      "params": {
+        "code": "R13B",
+        "name": "LAUNCH HALL",
+        "warn": "KEEP TRUNK GATE SHUT",
+        "co2": 650,
+        "rh": 81
+      }
+    },
+    {
+      "kit": "pipe_labels",
+      "pos": [
+        24.5,
+        0,
+        41.4
+      ],
+      "params": {
+        "length": 8,
+        "y": 0.4,
+        "radius": 0.1,
+        "labels": "SEAWATER COOLING:#2f7a3a|HYDRAULIC RETURN:#b4551c"
+      }
+    },
+    {
+      "kit": "floor_wear",
+      "pos": [
+        24,
+        0,
+        33.9
+      ],
+      "params": {
+        "kind": "puddle",
+        "width": 2.6,
+        "depth": 0.7
+      }
+    },
+    {
+      "kit": "floor_wear",
+      "pos": [
+        21.8,
+        0,
+        36
+      ],
+      "rot": 90,
+      "params": {
+        "kind": "puddle",
+        "width": 2.4,
+        "depth": 0.6
+      }
+    },
+    {
+      "kit": "floor_wear",
+      "pos": [
+        24,
+        0,
+        38.15
+      ],
+      "rot": 180,
+      "params": {
+        "kind": "puddle",
+        "width": 2.4,
+        "depth": 0.6
+      }
+    },
+    {
+      "kit": "floor_wear",
+      "pos": [
+        27.3,
+        0,
+        38.4
+      ],
+      "params": {
+        "kind": "puddle",
+        "width": 1.4,
+        "depth": 1
+      }
+    },
+    {
+      "kit": "floor_wear",
+      "pos": [
+        22.4,
+        0,
+        31.6
+      ],
+      "rot": 20,
+      "params": {
+        "kind": "prints",
+        "width": 0.9,
+        "depth": 2.4
+      }
+    },
+    {
+      "kit": "floor_wear",
+      "pos": [
+        19.5,
+        0,
+        36.6
+      ],
+      "params": {
+        "kind": "salt",
+        "width": 0.9,
+        "depth": 0.8
+      }
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        27.1,
+        0,
+        30.26
+      ],
+      "rot": 180,
+      "params": {
+        "id": "pa_moon_pool",
+        "serves": "R13a"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#eef4f6",
+      "intensity": 13,
+      "shaft": 0.01
+    },
+    {
+      "slot": 2,
+      "pattern": "steady",
+      "color": "#eef4f6",
+      "intensity": 13,
+      "shaft": 0.01
+    },
+    {
+      "slot": 4,
+      "pattern": "steady",
+      "color": "#eef4f6",
+      "intensity": 14,
+      "shaft": 0.01
+    },
+    {
+      "slot": 6,
+      "pattern": "steady",
+      "color": "#eef4f6",
+      "intensity": 13,
+      "shaft": 0.01
+    },
+    {
+      "slot": 8,
+      "pattern": "steady",
+      "color": "#eef4f6",
+      "intensity": 13,
+      "shaft": 0.01
+    },
+    {
+      "slot": "wall",
+      "pattern": "steady",
+      "color": "#58c8e0",
+      "intensity": 7,
+      "range": 9
+    }
+  ],
+  "anchors": [
+    {
+      "id": "moon_pool",
+      "pos": [
+        24,
+        0,
+        36
+      ]
+    },
+    {
+      "id": "cp_round_dive",
+      "pos": [
+        24,
+        0,
+        33
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "diver_1_spot",
+      "pos": [
+        21.4,
+        0,
+        36
+      ],
+      "yaw": 270
+    },
+    {
+      "id": "dive_crew_sit",
+      "pos": [
+        27.4,
+        0,
+        31.5
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "dive_crew_lean",
+      "pos": [
+        26.24,
+        0,
+        30.75
+      ],
+      "yaw": 270
+    },
+    {
+      "id": "dive_case_pickup",
+      "pos": [
+        21.4,
+        0,
+        37.2
+      ],
+      "yaw": 270
+    }
+  ],
+  "npcs": [
+    {
+      "id": "diver_1",
+      "look": "diver",
+      "at": [
+        26.4,
+        0,
+        35.4
+      ],
+      "pose": "idle_hips",
+      "chat": "dive_launch"
+    },
+    {
+      "id": "maint_1",
+      "look": "maintenance",
+      "at": [
+        26.6,
+        0,
+        37.9
+      ],
+      "yaw": 270,
+      "pose": "crouchWork",
+      "chat": "dive_launch"
+    }
+  ]
+}

@@ -1,0 +1,4259 @@
+{
+  "id": "R16b",
+  "name": "Arrival Concourse",
+  "area": "transit",
+  "height": 8,
+  "atmosphere": {
+    "fog": "#060a0e",
+    "fogDensity": 0.012,
+    "reverb": "metal_hall",
+    "ambience": "transit_concourse"
+  },
+  "visibleFrom": [
+    "R16a"
+  ],
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        19,
+        0,
+        7
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        19,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        19,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        19,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        19,
+        0,
+        11
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        18,
+        0,
+        7
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        18,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        18,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        18,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        18,
+        0,
+        11
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        17,
+        0,
+        7
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        17,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        17,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        17,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        17,
+        0,
+        11
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        16,
+        0,
+        7
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        16,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        16,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        16,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        16,
+        0,
+        11
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        15,
+        0,
+        7
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        15,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        15,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        15,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        15,
+        0,
+        11
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        14,
+        0,
+        7
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        14,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        14,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        14,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        14,
+        0,
+        11
+      ]
+    },
+    {
+      "kit": "floor",
+      "cells": [
+        [
+          19,
+          0,
+          7
+        ],
+        [
+          19,
+          0,
+          8
+        ],
+        [
+          19,
+          0,
+          9
+        ],
+        [
+          19,
+          0,
+          10
+        ],
+        [
+          19,
+          0,
+          11
+        ],
+        [
+          18,
+          0,
+          7
+        ],
+        [
+          18,
+          0,
+          8
+        ],
+        [
+          18,
+          0,
+          9
+        ],
+        [
+          18,
+          0,
+          10
+        ],
+        [
+          18,
+          0,
+          11
+        ],
+        [
+          17,
+          0,
+          7
+        ],
+        [
+          17,
+          0,
+          8
+        ],
+        [
+          17,
+          0,
+          9
+        ],
+        [
+          17,
+          0,
+          10
+        ],
+        [
+          17,
+          0,
+          11
+        ],
+        [
+          16,
+          0,
+          7
+        ],
+        [
+          16,
+          0,
+          8
+        ],
+        [
+          16,
+          0,
+          9
+        ],
+        [
+          16,
+          0,
+          10
+        ],
+        [
+          16,
+          0,
+          11
+        ],
+        [
+          15,
+          0,
+          7
+        ],
+        [
+          15,
+          0,
+          8
+        ],
+        [
+          15,
+          0,
+          9
+        ],
+        [
+          15,
+          0,
+          10
+        ],
+        [
+          15,
+          0,
+          11
+        ],
+        [
+          14,
+          0,
+          7
+        ],
+        [
+          14,
+          0,
+          8
+        ],
+        [
+          14,
+          0,
+          9
+        ],
+        [
+          14,
+          0,
+          10
+        ],
+        [
+          14,
+          0,
+          11
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          19,
+          0,
+          7
+        ],
+        [
+          19,
+          0,
+          11
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          19,
+          0,
+          7
+        ],
+        [
+          17,
+          0,
+          7
+        ],
+        [
+          15,
+          0,
+          7
+        ]
+      ],
+      "params": {
+        "material": "cleanSlate"
+      }
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          19,
+          0,
+          11
+        ],
+        [
+          15,
+          0,
+          11
+        ]
+      ],
+      "rot": 180,
+      "params": {
+        "material": "cleanSlate"
+      }
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          18,
+          0,
+          7
+        ],
+        [
+          16,
+          0,
+          7
+        ],
+        [
+          14,
+          0,
+          7
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          18,
+          0,
+          11
+        ],
+        [
+          16,
+          0,
+          11
+        ],
+        [
+          14,
+          0,
+          11
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          14,
+          0,
+          7
+        ],
+        [
+          14,
+          0,
+          11
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          14,
+          0,
+          8
+        ],
+        [
+          14,
+          0,
+          9
+        ],
+        [
+          14,
+          0,
+          10
+        ]
+      ],
+      "rot": 90,
+      "params": {
+        "material": "cleanSlate"
+      }
+    }
+  ],
+  "props": [
+    {
+      "kit": "seam_header",
+      "pos": [
+        78,
+        0,
+        36
+      ],
+      "params": {
+        "width": 12,
+        "bottom": 5,
+        "top": 8,
+        "depth": 0.4
+      },
+      "rot": 270
+    },
+    {
+      "kit": "concourse_pillar",
+      "pos": [
+        73.5,
+        0,
+        31.2
+      ],
+      "params": {
+        "width": 1.5,
+        "height": 8
+      },
+      "rot": 270
+    },
+    {
+      "kit": "concourse_pillar",
+      "pos": [
+        73.5,
+        0,
+        40.8
+      ],
+      "params": {
+        "width": 1.5,
+        "height": 8
+      },
+      "rot": 270
+    },
+    {
+      "kit": "concourse_pillar",
+      "pos": [
+        68.5,
+        0,
+        31.2
+      ],
+      "params": {
+        "width": 1.5,
+        "height": 8
+      },
+      "rot": 270
+    },
+    {
+      "kit": "concourse_pillar",
+      "pos": [
+        68.5,
+        0,
+        40.8
+      ],
+      "params": {
+        "width": 1.5,
+        "height": 8
+      },
+      "rot": 270
+    },
+    {
+      "kit": "concourse_pillar",
+      "pos": [
+        63.5,
+        0,
+        31.2
+      ],
+      "params": {
+        "width": 1.5,
+        "height": 8
+      },
+      "rot": 270
+    },
+    {
+      "kit": "concourse_pillar",
+      "pos": [
+        63.5,
+        0,
+        40.8
+      ],
+      "params": {
+        "width": 1.5,
+        "height": 8
+      },
+      "rot": 270
+    },
+    {
+      "kit": "checkin_booth",
+      "pos": [
+        60.5,
+        0,
+        27.45
+      ],
+      "rot": 180,
+      "params": {
+        "width": 3.6,
+        "depth": 2.2,
+        "height": 3.2,
+        "label": "CHECK-IN 01 // ARRIVALS"
+      }
+    },
+    {
+      "kit": "checkin_booth",
+      "pos": [
+        60.5,
+        0,
+        44.55
+      ],
+      "params": {
+        "width": 3.6,
+        "depth": 2.2,
+        "height": 3.2,
+        "label": "CHECK-IN 02 // CUSTOMS"
+      }
+    },
+    {
+      "kit": "checkin_booth",
+      "pos": [
+        56.5,
+        0,
+        27.45
+      ],
+      "rot": 180,
+      "params": {
+        "width": 3.6,
+        "depth": 2.2,
+        "height": 3.2,
+        "label": "CHECK-IN 03 // CREW CLEARANCE"
+      }
+    },
+    {
+      "kit": "checkin_booth",
+      "pos": [
+        56.5,
+        0,
+        44.55
+      ],
+      "params": {
+        "width": 3.6,
+        "depth": 2.2,
+        "height": 3.2,
+        "label": "CHECK-IN 04 // CARGO MANIFEST"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.2,
+        0,
+        38.2
+      ],
+      "rot": 80,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_02",
+        "width": 3,
+        "height": 2.7
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69.5,
+        0,
+        33.7
+      ],
+      "rot": 24,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_01",
+        "width": 3.1,
+        "height": 2.8
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        67.8,
+        0,
+        38.2
+      ],
+      "rot": -55,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_03",
+        "width": 2.9,
+        "height": 2.6
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        72.6,
+        0,
+        36.2
+      ],
+      "rot": 15,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_02",
+        "width": 3.2,
+        "height": 2.9
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        77,
+        0,
+        33.4
+      ],
+      "rot": 112,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_03",
+        "width": 2.7,
+        "height": 2.5
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        77.1,
+        0,
+        37.6
+      ],
+      "rot": -18,
+      "params": {
+        "surface": "floor",
+        "tex": "smear_01",
+        "width": 2.6,
+        "height": 2.8
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        66.4,
+        0,
+        35.5
+      ],
+      "rot": 42,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_01",
+        "width": 3,
+        "height": 2.8
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        63.5,
+        0,
+        31.97
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_01",
+        "width": 1.35,
+        "height": 2,
+        "y": 1.3
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        63.5,
+        0,
+        40.03
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_05",
+        "width": 1.35,
+        "height": 1.9,
+        "y": 1.25
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        73.6,
+        0,
+        33.4
+      ],
+      "rot": 15,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_04",
+        "width": 2.8,
+        "height": 2.5
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        73,
+        0,
+        31.7
+      ],
+      "rot": 65,
+      "params": {
+        "surface": "floor",
+        "tex": "smear_03",
+        "width": 2.2,
+        "height": 2.8
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        76.6,
+        0,
+        35.4
+      ],
+      "rot": 92,
+      "params": {
+        "surface": "floor",
+        "tex": "smear_04",
+        "width": 2.5,
+        "height": 3
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        75.8,
+        0,
+        38.4
+      ],
+      "rot": -40,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_04",
+        "width": 2.8,
+        "height": 2.5
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        71.4,
+        0,
+        36.1
+      ],
+      "rot": 128,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_05",
+        "width": 2.9,
+        "height": 2.6
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.6,
+        0,
+        34.9
+      ],
+      "rot": -22,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_05",
+        "width": 2.6,
+        "height": 2.4
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        76.3,
+        0,
+        32.1
+      ],
+      "rot": 44,
+      "params": {
+        "surface": "floor",
+        "tex": "drop_02",
+        "width": 2.2,
+        "height": 2.2
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        73.5,
+        0,
+        31.97
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_03",
+        "width": 1.35,
+        "height": 2.1,
+        "y": 1.35
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        73.5,
+        0,
+        40.03
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_01",
+        "width": 1.35,
+        "height": 2,
+        "y": 1.3
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        68.5,
+        0,
+        31.97
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_01",
+        "width": 1.3,
+        "height": 1.8,
+        "y": 1.25
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        68.5,
+        0,
+        40.03
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_02",
+        "width": 1.3,
+        "height": 1.9,
+        "y": 1.25
+      }
+    },
+    {
+      "kit": "concourse_truss",
+      "pos": [
+        73.5,
+        0,
+        36
+      ],
+      "rot": 90,
+      "params": {
+        "span": 19.4,
+        "height": 8,
+        "depth": 0.44
+      }
+    },
+    {
+      "kit": "concourse_truss",
+      "pos": [
+        68.5,
+        0,
+        36
+      ],
+      "rot": 90,
+      "params": {
+        "span": 19.4,
+        "height": 8,
+        "depth": 0.44
+      }
+    },
+    {
+      "kit": "concourse_truss",
+      "pos": [
+        63.5,
+        0,
+        36
+      ],
+      "rot": 90,
+      "params": {
+        "span": 19.4,
+        "height": 8,
+        "depth": 0.44
+      }
+    },
+    {
+      "kit": "concourse_truss",
+      "pos": [
+        58.5,
+        0,
+        36
+      ],
+      "rot": 90,
+      "params": {
+        "span": 19.4,
+        "height": 8,
+        "depth": 0.44
+      }
+    },
+    {
+      "kit": "concourse_monument_sign",
+      "pos": [
+        54.25,
+        0,
+        36
+      ],
+      "rot": 270,
+      "params": {
+        "width": 8.6,
+        "height": 2.1,
+        "y": 5.1,
+        "title": "THALASSA TRANSIT TERMINAL",
+        "sub": "ARRIVAL CONCOURSE  //  SECTOR 01  //  CUSTOMS & DISPATCH"
+      }
+    },
+    {
+      "kit": "transit_sign",
+      "pos": [
+        68,
+        0,
+        45.74
+      ],
+      "rot": 0,
+      "params": {
+        "title": "ARRIVAL DISPATCH",
+        "sub": "R16C // SECTOR CONTROL",
+        "y": 3.1,
+        "width": 2.2,
+        "height": 0.72
+      }
+    },
+    {
+      "kit": "transit_sign",
+      "pos": [
+        68,
+        0,
+        26.26
+      ],
+      "rot": 180,
+      "params": {
+        "title": "ARRIVAL CONCOURSE",
+        "sub": "LINE 01 // CUSTOMS WEST ->",
+        "y": 3.1,
+        "width": 2.4,
+        "height": 0.72
+      }
+    },
+    {
+      "kit": "transit_sign",
+      "pos": [
+        77.74,
+        0,
+        28
+      ],
+      "rot": 90,
+      "params": {
+        "title": "PLATFORM B",
+        "sub": "R16A ARRIVAL TRACK DOCK",
+        "y": 2.8,
+        "width": 2,
+        "height": 0.68
+      }
+    },
+    {
+      "kit": "transit_sign",
+      "pos": [
+        77.74,
+        0,
+        44
+      ],
+      "rot": 90,
+      "params": {
+        "title": "TERMINAL EXIT",
+        "sub": "CHECK-IN BOOTHS WEST",
+        "y": 2.8,
+        "width": 2,
+        "height": 0.68
+      }
+    },
+    {
+      "kit": "concourse_bench",
+      "pos": [
+        74,
+        0,
+        27.1
+      ],
+      "rot": 180,
+      "params": {
+        "width": 2.6
+      }
+    },
+    {
+      "kit": "concourse_bench",
+      "pos": [
+        66.2,
+        0,
+        27.1
+      ],
+      "rot": 180,
+      "params": {
+        "width": 2.6
+      }
+    },
+    {
+      "kit": "concourse_bench",
+      "pos": [
+        74,
+        0,
+        44.9
+      ],
+      "rot": 0,
+      "params": {
+        "width": 2.6
+      }
+    },
+    {
+      "kit": "concourse_bench",
+      "pos": [
+        55.1,
+        0,
+        32
+      ],
+      "rot": 270,
+      "params": {
+        "width": 2.4
+      }
+    },
+    {
+      "kit": "concourse_bench",
+      "pos": [
+        55.1,
+        0,
+        40
+      ],
+      "rot": 270,
+      "params": {
+        "width": 2.4
+      }
+    },
+    {
+      "kit": "stanchion_barrier",
+      "pos": [
+        58.5,
+        0,
+        29.8
+      ],
+      "rot": 0,
+      "params": {
+        "length": 5.2,
+        "posts": 4
+      }
+    },
+    {
+      "kit": "stanchion_barrier",
+      "pos": [
+        58.5,
+        0,
+        42.2
+      ],
+      "rot": 0,
+      "params": {
+        "length": 5.2,
+        "posts": 4
+      }
+    },
+    {
+      "kit": "luggage_cluster",
+      "pos": [
+        75.6,
+        0,
+        29.8
+      ],
+      "rot": 22,
+      "params": {
+        "tipped": true
+      }
+    },
+    {
+      "kit": "luggage_cluster",
+      "pos": [
+        71.2,
+        0,
+        39.2
+      ],
+      "rot": -35,
+      "params": {
+        "tipped": true
+      }
+    },
+    {
+      "kit": "luggage_cluster",
+      "pos": [
+        66.4,
+        0,
+        28.4
+      ],
+      "rot": 110,
+      "params": {
+        "tipped": true
+      }
+    },
+    {
+      "kit": "luggage_cluster",
+      "pos": [
+        60.2,
+        0,
+        30.8
+      ],
+      "rot": -15,
+      "params": {
+        "tipped": false
+      }
+    },
+    {
+      "kit": "luggage_cluster",
+      "pos": [
+        58.8,
+        0,
+        40.8
+      ],
+      "rot": 148,
+      "params": {
+        "tipped": true
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.8,
+        0,
+        36.2
+      ],
+      "rot": 25,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_01",
+        "width": 3.1,
+        "height": 2.8,
+        "seed": "r16b_c_p1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        71.8,
+        0,
+        34.8
+      ],
+      "rot": -42,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_01",
+        "width": 2.8,
+        "height": 2.6,
+        "seed": "r16b_c_s1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        71,
+        0,
+        37.6
+      ],
+      "rot": 88,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_02",
+        "width": 2.9,
+        "height": 2.5,
+        "seed": "r16b_c_p2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69.2,
+        0,
+        35.8
+      ],
+      "rot": 140,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_02",
+        "width": 3,
+        "height": 2.7,
+        "seed": "r16b_c_s2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        67.3,
+        0,
+        39.1
+      ],
+      "rot": -18,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_03",
+        "width": 2.8,
+        "height": 2.6,
+        "seed": "r16b_body2_p3"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        66.2,
+        0,
+        34.2
+      ],
+      "rot": 64,
+      "params": {
+        "surface": "floor",
+        "tex": "smear_01",
+        "width": 2,
+        "height": 3.2,
+        "seed": "r16b_c_sm1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        64.4,
+        0,
+        36.8
+      ],
+      "rot": -75,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_04",
+        "width": 2.7,
+        "height": 2.4,
+        "seed": "r16b_c_p4"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        62.2,
+        0,
+        35.2
+      ],
+      "rot": 12,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_03",
+        "width": 2.9,
+        "height": 2.5,
+        "seed": "r16b_c_s3"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        59.8,
+        0,
+        34.4
+      ],
+      "rot": 52,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_05",
+        "width": 2.9,
+        "height": 2.6,
+        "seed": "r16b_body3_p5"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        57.6,
+        0,
+        37.4
+      ],
+      "rot": -115,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_04",
+        "width": 2.7,
+        "height": 2.4,
+        "seed": "r16b_w_s4"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        56.2,
+        0,
+        35.6
+      ],
+      "rot": 33,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_05",
+        "width": 2.6,
+        "height": 2.3,
+        "seed": "r16b_w_s5"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        73.4,
+        0,
+        33.8
+      ],
+      "rot": 112,
+      "params": {
+        "surface": "floor",
+        "tex": "drop_01",
+        "width": 1.9,
+        "height": 1.9,
+        "seed": "r16b_d1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        70.2,
+        0,
+        32.8
+      ],
+      "rot": 48,
+      "params": {
+        "surface": "floor",
+        "tex": "smear_02",
+        "width": 1.8,
+        "height": 3.1,
+        "seed": "r16b_sm2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        68.4,
+        0,
+        38
+      ],
+      "rot": -28,
+      "params": {
+        "surface": "floor",
+        "tex": "drop_02",
+        "width": 2,
+        "height": 2,
+        "seed": "r16b_d2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        65.2,
+        0,
+        39
+      ],
+      "rot": 95,
+      "params": {
+        "surface": "floor",
+        "tex": "smear_03",
+        "width": 1.9,
+        "height": 3,
+        "seed": "r16b_sm3"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        61.4,
+        0,
+        37.6
+      ],
+      "rot": -62,
+      "params": {
+        "surface": "floor",
+        "tex": "drop_03",
+        "width": 2.1,
+        "height": 2,
+        "seed": "r16b_d3"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        58.4,
+        0,
+        32.4
+      ],
+      "rot": 18,
+      "params": {
+        "surface": "floor",
+        "tex": "smear_04",
+        "width": 1.7,
+        "height": 2.9,
+        "seed": "r16b_sm4"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        60.4,
+        0,
+        29.2
+      ],
+      "rot": 14,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_02",
+        "width": 2.3,
+        "height": 2,
+        "seed": "r16b_bth_n1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        56.8,
+        0,
+        29.4
+      ],
+      "rot": -55,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_02",
+        "width": 2.2,
+        "height": 2,
+        "seed": "r16b_bth_n2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        60.2,
+        0,
+        42.6
+      ],
+      "rot": 72,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_04",
+        "width": 2.4,
+        "height": 2.1,
+        "seed": "r16b_bth_s1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        56.6,
+        0,
+        42.4
+      ],
+      "rot": -20,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_05",
+        "width": 2.2,
+        "height": 2,
+        "seed": "r16b_bth_s2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        68,
+        0,
+        44.2
+      ],
+      "rot": 5,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_01",
+        "width": 2.5,
+        "height": 2.2,
+        "seed": "r16b_disp_p1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69.8,
+        0,
+        43.2
+      ],
+      "rot": -38,
+      "params": {
+        "surface": "floor",
+        "tex": "smear_01",
+        "width": 1.6,
+        "height": 2.6,
+        "seed": "r16b_disp_sm1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.28,
+        0,
+        31.2
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_01",
+        "width": 1.35,
+        "height": 1.75,
+        "y": 1.45,
+        "seed": "r16b_p1n_e"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.28,
+        0,
+        40.8
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_01",
+        "width": 1.25,
+        "height": 2.1,
+        "y": 1.65,
+        "seed": "r16b_p1s_e"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69.28,
+        0,
+        31.2
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_02",
+        "width": 1.3,
+        "height": 2.2,
+        "y": 1.7,
+        "seed": "r16b_p2n_e"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        68.5,
+        0,
+        31.98
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_03",
+        "width": 1.35,
+        "height": 1.7,
+        "y": 1.35,
+        "seed": "r16b_p2n_i"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69.28,
+        0,
+        40.8
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "smear_02",
+        "width": 1.35,
+        "height": 1.9,
+        "y": 1.35,
+        "seed": "r16b_p2s_e"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        68.5,
+        0,
+        40.02
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_03",
+        "width": 1.3,
+        "height": 2.1,
+        "y": 1.6,
+        "seed": "r16b_p2s_i"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        64.28,
+        0,
+        31.2
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "smear_03",
+        "width": 1.35,
+        "height": 1.85,
+        "y": 1.4,
+        "seed": "r16b_p3n_e"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        63.5,
+        0,
+        31.98
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_01",
+        "width": 1.25,
+        "height": 2,
+        "y": 1.6,
+        "seed": "r16b_p3n_i"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        64.28,
+        0,
+        40.8
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_04",
+        "width": 1.35,
+        "height": 1.75,
+        "y": 1.45,
+        "seed": "r16b_p3s_e"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        63.5,
+        0,
+        40.02
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "tex": "smear_04",
+        "width": 1.35,
+        "height": 1.85,
+        "y": 1.35,
+        "seed": "r16b_p3s_i"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.35,
+        0,
+        36.2
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_05",
+        "width": 2.4,
+        "height": 2.2,
+        "y": 1.65,
+        "seed": "r16b_west_s5"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.35,
+        0,
+        34
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_02",
+        "width": 1.8,
+        "height": 2.4,
+        "y": 1.8,
+        "seed": "r16b_west_l2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.35,
+        0,
+        38.4
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "smear_01",
+        "width": 2,
+        "height": 1.9,
+        "y": 1.4,
+        "seed": "r16b_west_sm1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        66.6,
+        0,
+        45.73
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "tex": "smear_04",
+        "width": 1.5,
+        "height": 1.8,
+        "y": 1.25,
+        "seed": "r16b_disp_w1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69.4,
+        0,
+        45.73
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_03",
+        "width": 1.4,
+        "height": 2.1,
+        "y": 1.55,
+        "seed": "r16b_disp_w2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        76.9,
+        0,
+        33.2
+      ],
+      "rot": 35,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_01",
+        "width": 2.6,
+        "height": 2.4,
+        "seed": "r16b_x_f1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        76.5,
+        0,
+        39.8
+      ],
+      "rot": -60,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_03",
+        "width": 2.7,
+        "height": 2.4,
+        "seed": "r16b_x_f2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        75,
+        0,
+        34
+      ],
+      "rot": 115,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_04",
+        "width": 2.9,
+        "height": 2.5,
+        "seed": "r16b_x_f3"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        73.6,
+        0,
+        37.8
+      ],
+      "rot": -25,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_02",
+        "width": 2.8,
+        "height": 2.5,
+        "seed": "r16b_x_f4"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        72.4,
+        0,
+        36.2
+      ],
+      "rot": 78,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_05",
+        "width": 3,
+        "height": 2.7,
+        "seed": "r16b_x_f5"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        70.4,
+        0,
+        34.4
+      ],
+      "rot": -82,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_05",
+        "width": 2.8,
+        "height": 2.6,
+        "seed": "r16b_x_f6"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69,
+        0,
+        37.2
+      ],
+      "rot": 14,
+      "params": {
+        "surface": "floor",
+        "tex": "drop_01",
+        "width": 2.3,
+        "height": 2.2,
+        "seed": "r16b_x_f7"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        67.8,
+        0,
+        34.6
+      ],
+      "rot": 132,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_01",
+        "width": 3.2,
+        "height": 2.8,
+        "seed": "r16b_x_f8"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        66.6,
+        0,
+        37.4
+      ],
+      "rot": -48,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_03",
+        "width": 2.9,
+        "height": 2.6,
+        "seed": "r16b_x_f9"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        65,
+        0,
+        35
+      ],
+      "rot": 56,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_01",
+        "width": 2.8,
+        "height": 2.5,
+        "seed": "r16b_x_f10"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        63.2,
+        0,
+        38.2
+      ],
+      "rot": -104,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_02",
+        "width": 2.8,
+        "height": 2.5,
+        "seed": "r16b_x_f11"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        61.6,
+        0,
+        33.4
+      ],
+      "rot": 42,
+      "params": {
+        "surface": "floor",
+        "tex": "smear_02",
+        "width": 2,
+        "height": 3.1,
+        "seed": "r16b_x_f12"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        60.8,
+        0,
+        36.6
+      ],
+      "rot": -16,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_04",
+        "width": 2.7,
+        "height": 2.5,
+        "seed": "r16b_x_f13"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        58.6,
+        0,
+        35.8
+      ],
+      "rot": 94,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_03",
+        "width": 3,
+        "height": 2.6,
+        "seed": "r16b_x_f14"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        57.2,
+        0,
+        33.8
+      ],
+      "rot": -70,
+      "params": {
+        "surface": "floor",
+        "tex": "drop_02",
+        "width": 2.2,
+        "height": 2.1,
+        "seed": "r16b_x_f15"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        55.8,
+        0,
+        38
+      ],
+      "rot": 22,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_04",
+        "width": 2.6,
+        "height": 2.3,
+        "seed": "r16b_x_f16"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.4,
+        0,
+        29
+      ],
+      "rot": 65,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_02",
+        "width": 2.6,
+        "height": 2.3,
+        "seed": "r16b_x_n1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        70.8,
+        0,
+        28.6
+      ],
+      "rot": -35,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_01",
+        "width": 2.7,
+        "height": 2.4,
+        "seed": "r16b_x_n2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        66.4,
+        0,
+        29
+      ],
+      "rot": 118,
+      "params": {
+        "surface": "floor",
+        "tex": "smear_03",
+        "width": 1.9,
+        "height": 3,
+        "seed": "r16b_x_n3"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        63.2,
+        0,
+        28.8
+      ],
+      "rot": 12,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_05",
+        "width": 2.5,
+        "height": 2.2,
+        "seed": "r16b_x_n4"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.6,
+        0,
+        43
+      ],
+      "rot": -52,
+      "params": {
+        "surface": "floor",
+        "tex": "pool_05",
+        "width": 2.7,
+        "height": 2.4,
+        "seed": "r16b_x_s1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        71.2,
+        0,
+        42.8
+      ],
+      "rot": 84,
+      "params": {
+        "surface": "floor",
+        "tex": "spatter_03",
+        "width": 2.6,
+        "height": 2.3,
+        "seed": "r16b_x_s2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        65.2,
+        0,
+        43.4
+      ],
+      "rot": -18,
+      "params": {
+        "surface": "floor",
+        "tex": "drop_03",
+        "width": 2.2,
+        "height": 2.2,
+        "seed": "r16b_x_s3"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        62.6,
+        0,
+        43
+      ],
+      "rot": 44,
+      "params": {
+        "surface": "floor",
+        "tex": "smear_04",
+        "width": 1.8,
+        "height": 2.8,
+        "seed": "r16b_x_s4"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.29,
+        0,
+        31.2
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_02",
+        "width": 1.35,
+        "height": 2,
+        "y": 2.75,
+        "seed": "r16b_xp_1ne"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        73.5,
+        0,
+        31.99
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_02",
+        "width": 1.35,
+        "height": 1.7,
+        "y": 2.45,
+        "seed": "r16b_xp_1ni"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.29,
+        0,
+        40.8
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_04",
+        "width": 1.35,
+        "height": 1.8,
+        "y": 2.65,
+        "seed": "r16b_xp_1se"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        73.5,
+        0,
+        40.01
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_05",
+        "width": 1.35,
+        "height": 1.75,
+        "y": 2.4,
+        "seed": "r16b_xp_1si"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69.29,
+        0,
+        31.2
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_01",
+        "width": 1.35,
+        "height": 1.8,
+        "y": 2.6,
+        "seed": "r16b_xp_2ne"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        68.5,
+        0,
+        31.99
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_01",
+        "width": 1.3,
+        "height": 2,
+        "y": 2.7,
+        "seed": "r16b_xp_2ni"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69.29,
+        0,
+        40.8
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_03",
+        "width": 1.35,
+        "height": 1.8,
+        "y": 2.55,
+        "seed": "r16b_xp_2se"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        68.5,
+        0,
+        40.01
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_01",
+        "width": 1.35,
+        "height": 1.7,
+        "y": 2.5,
+        "seed": "r16b_xp_2si"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        64.29,
+        0,
+        31.2
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_05",
+        "width": 1.35,
+        "height": 1.8,
+        "y": 2.65,
+        "seed": "r16b_xp_3ne"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        64.29,
+        0,
+        40.8
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_03",
+        "width": 1.3,
+        "height": 2,
+        "y": 2.75,
+        "seed": "r16b_xp_3se"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.36,
+        0,
+        31.2
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_01",
+        "width": 2.6,
+        "height": 2.3,
+        "y": 1.7,
+        "seed": "r16b_xw_1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.36,
+        0,
+        35.4
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_02",
+        "width": 2.8,
+        "height": 2.5,
+        "y": 2.6,
+        "seed": "r16b_xw_2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.36,
+        0,
+        37.6
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_01",
+        "width": 2.1,
+        "height": 2.6,
+        "y": 2.2,
+        "seed": "r16b_xw_3"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.36,
+        0,
+        40.8
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_03",
+        "width": 2.6,
+        "height": 2.3,
+        "y": 1.65,
+        "seed": "r16b_xw_4"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.36,
+        0,
+        33
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "tex": "smear_02",
+        "width": 2.2,
+        "height": 2.1,
+        "y": 1.35,
+        "seed": "r16b_xw_5"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.2,
+        0,
+        26.27
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_04",
+        "width": 2.4,
+        "height": 2.1,
+        "y": 1.6,
+        "seed": "r16b_xn_1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        70.4,
+        0,
+        26.27
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_03",
+        "width": 1.9,
+        "height": 2.4,
+        "y": 1.85,
+        "seed": "r16b_xn_2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        65.6,
+        0,
+        26.27
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "tex": "smear_03",
+        "width": 2.3,
+        "height": 2,
+        "y": 1.45,
+        "seed": "r16b_xn_3"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.4,
+        0,
+        45.73
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_05",
+        "width": 2.4,
+        "height": 2.2,
+        "y": 1.65,
+        "seed": "r16b_xs_1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        71.4,
+        0,
+        45.73
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "tex": "leak_02",
+        "width": 1.9,
+        "height": 2.4,
+        "y": 1.8,
+        "seed": "r16b_xs_2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        64.6,
+        0,
+        45.73
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_01",
+        "width": 2.2,
+        "height": 2,
+        "y": 1.5,
+        "seed": "r16b_xs_3"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        77.73,
+        0,
+        28.2
+      ],
+      "rot": 90,
+      "params": {
+        "surface": "wall",
+        "tex": "spatter_02",
+        "width": 2.2,
+        "height": 2,
+        "y": 1.55,
+        "seed": "r16b_xe_1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        77.73,
+        0,
+        43.8
+      ],
+      "rot": 90,
+      "params": {
+        "surface": "wall",
+        "tex": "smear_01",
+        "width": 2.2,
+        "height": 2,
+        "y": 1.45,
+        "seed": "r16b_xe_2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.5,
+        0,
+        29.5
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_0"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.5,
+        0,
+        36
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_1"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.5,
+        0,
+        42.5
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_2"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69.5,
+        0,
+        29.5
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_3"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69.5,
+        0,
+        36
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_4"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69.5,
+        0,
+        42.5
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_5"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        64.5,
+        0,
+        29.5
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_6"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        64.5,
+        0,
+        36
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_7"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        64.5,
+        0,
+        42.5
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_8"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        59.5,
+        0,
+        29.5
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_9"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        59.5,
+        0,
+        36
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_10"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        59.5,
+        0,
+        42.5
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_11"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        56.2,
+        0,
+        29.5
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_12"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        56.2,
+        0,
+        36
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_13"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        56.2,
+        0,
+        42.5
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "floor",
+        "width": 2.6,
+        "height": 2.5,
+        "count": 60,
+        "spreadW": 4.8,
+        "spreadH": 5.6,
+        "seed": "r16b_cf_14"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.35,
+        0,
+        29.5
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "width": 2.3,
+        "height": 2.2,
+        "y": 2.1,
+        "count": 55,
+        "spreadW": 4.4,
+        "spreadH": 2.8,
+        "seed": "r16b_cw_lo_15"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.35,
+        0,
+        34
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "width": 2.3,
+        "height": 2.2,
+        "y": 2.1,
+        "count": 55,
+        "spreadW": 4.4,
+        "spreadH": 2.8,
+        "seed": "r16b_cw_lo_16"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.35,
+        0,
+        38
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "width": 2.3,
+        "height": 2.2,
+        "y": 2.1,
+        "count": 55,
+        "spreadW": 4.4,
+        "spreadH": 2.8,
+        "seed": "r16b_cw_lo_17"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.35,
+        0,
+        42.5
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "width": 2.3,
+        "height": 2.2,
+        "y": 2.1,
+        "count": 55,
+        "spreadW": 4.4,
+        "spreadH": 2.8,
+        "seed": "r16b_cw_lo_18"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.35,
+        0,
+        28.8
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "width": 2.4,
+        "height": 2.4,
+        "y": 5.4,
+        "count": 55,
+        "spreadW": 4.6,
+        "spreadH": 3.4,
+        "seed": "r16b_cw_hi_19"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.35,
+        0,
+        43.2
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "width": 2.4,
+        "height": 2.4,
+        "y": 5.4,
+        "count": 55,
+        "spreadW": 4.6,
+        "spreadH": 3.4,
+        "seed": "r16b_cw_hi_20"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        54.35,
+        0,
+        36
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "width": 2.2,
+        "height": 1.6,
+        "y": 7,
+        "count": 40,
+        "spreadW": 9,
+        "spreadH": 1.1,
+        "seed": "r16b_cw_top_21"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.5,
+        0,
+        26.27
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "width": 2.3,
+        "height": 2.3,
+        "y": 3.8,
+        "count": 90,
+        "spreadW": 4.8,
+        "spreadH": 6,
+        "seed": "r16b_cn_22"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69.5,
+        0,
+        26.27
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "width": 2.3,
+        "height": 2.3,
+        "y": 3.8,
+        "count": 90,
+        "spreadW": 4.8,
+        "spreadH": 6,
+        "seed": "r16b_cn_23"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        64.5,
+        0,
+        26.27
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "width": 2.3,
+        "height": 2.3,
+        "y": 3.8,
+        "count": 90,
+        "spreadW": 4.8,
+        "spreadH": 6,
+        "seed": "r16b_cn_24"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        59.8,
+        0,
+        26.27
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "width": 2.3,
+        "height": 2.2,
+        "y": 5.4,
+        "count": 70,
+        "spreadW": 4.2,
+        "spreadH": 3.2,
+        "seed": "r16b_cn_w_25"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        56.2,
+        0,
+        26.27
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "width": 2.3,
+        "height": 2.2,
+        "y": 5.4,
+        "count": 70,
+        "spreadW": 4.2,
+        "spreadH": 3.2,
+        "seed": "r16b_cn_w_26"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.5,
+        0,
+        45.73
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "width": 2.3,
+        "height": 2.3,
+        "y": 3.8,
+        "count": 90,
+        "spreadW": 4.6,
+        "spreadH": 6,
+        "seed": "r16b_cs_27"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        64.5,
+        0,
+        45.73
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "width": 2.3,
+        "height": 2.3,
+        "y": 3.8,
+        "count": 90,
+        "spreadW": 4.6,
+        "spreadH": 6,
+        "seed": "r16b_cs_28"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        68,
+        0,
+        45.73
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "width": 2.2,
+        "height": 2,
+        "y": 5.5,
+        "count": 70,
+        "spreadW": 4.4,
+        "spreadH": 2.8,
+        "seed": "r16b_cs_mid_29"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        59.8,
+        0,
+        45.73
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "width": 2.3,
+        "height": 2.2,
+        "y": 5.4,
+        "count": 70,
+        "spreadW": 4.2,
+        "spreadH": 3.2,
+        "seed": "r16b_cs_w_30"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        56.2,
+        0,
+        45.73
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "width": 2.3,
+        "height": 2.2,
+        "y": 5.4,
+        "count": 70,
+        "spreadW": 4.2,
+        "spreadH": 3.2,
+        "seed": "r16b_cs_w_31"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        77.73,
+        0,
+        28
+      ],
+      "rot": 90,
+      "params": {
+        "surface": "wall",
+        "width": 2.1,
+        "height": 2.2,
+        "y": 3.8,
+        "count": 55,
+        "spreadW": 3.2,
+        "spreadH": 6,
+        "seed": "r16b_ce_32"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        77.73,
+        0,
+        44
+      ],
+      "rot": 90,
+      "params": {
+        "surface": "wall",
+        "width": 2.1,
+        "height": 2.2,
+        "y": 3.8,
+        "count": 55,
+        "spreadW": 3.2,
+        "spreadH": 6,
+        "seed": "r16b_ce_33"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        77.78,
+        0,
+        36
+      ],
+      "rot": 90,
+      "params": {
+        "surface": "wall",
+        "width": 2.2,
+        "height": 1.8,
+        "y": 6.4,
+        "count": 50,
+        "spreadW": 11.2,
+        "spreadH": 1.8,
+        "seed": "r16b_ce_hdr_34"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.285,
+        0,
+        31.2
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_35"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        72.715,
+        0,
+        31.2
+      ],
+      "rot": 90,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_36"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        73.5,
+        0,
+        31.985
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_37"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        73.5,
+        0,
+        30.415
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_38"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        74.285,
+        0,
+        40.8
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_39"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        72.715,
+        0,
+        40.8
+      ],
+      "rot": 90,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_40"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        73.5,
+        0,
+        41.585
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_41"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        73.5,
+        0,
+        40.015
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_42"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69.285,
+        0,
+        31.2
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_43"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        67.715,
+        0,
+        31.2
+      ],
+      "rot": 90,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_44"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        68.5,
+        0,
+        31.985
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_45"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        68.5,
+        0,
+        30.415
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_46"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        69.285,
+        0,
+        40.8
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_47"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        67.715,
+        0,
+        40.8
+      ],
+      "rot": 90,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_48"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        68.5,
+        0,
+        41.585
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_49"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        68.5,
+        0,
+        40.015
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_50"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        64.285,
+        0,
+        31.2
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_51"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        62.715,
+        0,
+        31.2
+      ],
+      "rot": 90,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_52"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        63.5,
+        0,
+        31.985
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_53"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        63.5,
+        0,
+        30.415
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_54"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        64.285,
+        0,
+        40.8
+      ],
+      "rot": 270,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_55"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        62.715,
+        0,
+        40.8
+      ],
+      "rot": 90,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_56"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        63.5,
+        0,
+        41.585
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_57"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        63.5,
+        0,
+        40.015
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "width": 1.25,
+        "height": 1.7,
+        "y": 3.9,
+        "count": 28,
+        "spreadW": 0.45,
+        "spreadH": 5.8,
+        "seed": "r16b_cp_58"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        60.5,
+        0,
+        28.57
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "width": 1.2,
+        "height": 0.75,
+        "y": 0.56,
+        "count": 16,
+        "spreadW": 2.8,
+        "spreadH": 0.35,
+        "seed": "r16b_cb_59"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        60.5,
+        0,
+        43.43
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "width": 1.2,
+        "height": 0.75,
+        "y": 0.56,
+        "count": 16,
+        "spreadW": 2.8,
+        "spreadH": 0.35,
+        "seed": "r16b_cb_60"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        56.5,
+        0,
+        28.57
+      ],
+      "rot": 180,
+      "params": {
+        "surface": "wall",
+        "width": 1.2,
+        "height": 0.75,
+        "y": 0.56,
+        "count": 16,
+        "spreadW": 2.8,
+        "spreadH": 0.35,
+        "seed": "r16b_cb_61"
+      }
+    },
+    {
+      "kit": "blood_decal",
+      "pos": [
+        56.5,
+        0,
+        43.43
+      ],
+      "rot": 0,
+      "params": {
+        "surface": "wall",
+        "width": 1.2,
+        "height": 0.75,
+        "y": 0.56,
+        "count": 16,
+        "spreadW": 2.8,
+        "spreadH": 0.35,
+        "seed": "r16b_cb_62"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 2,
+      "id": "r16b_light_e1",
+      "pattern": "flicker",
+      "color": "#dce6f2",
+      "intensity": 24,
+      "range": 26,
+      "backupScale": 1,
+      "ownColor": true,
+      "shadow": true
+    },
+    {
+      "slot": 7,
+      "id": "r16b_light_e2",
+      "pattern": "failing",
+      "color": "#dce6f2",
+      "intensity": 24,
+      "range": 26,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 12,
+      "id": "r16b_light_m1",
+      "pattern": "flicker",
+      "color": "#dce6f2",
+      "intensity": 24,
+      "range": 26,
+      "backupScale": 1,
+      "ownColor": true,
+      "shadow": true
+    },
+    {
+      "slot": 17,
+      "id": "r16b_light_m2",
+      "pattern": "flicker",
+      "color": "#dce6f2",
+      "intensity": 24,
+      "range": 26,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 22,
+      "id": "r16b_light_w1",
+      "pattern": "failing",
+      "color": "#dce6f2",
+      "intensity": 24,
+      "range": 26,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 27,
+      "id": "r16b_light_w2",
+      "pattern": "flicker",
+      "color": "#dce6f2",
+      "intensity": 24,
+      "range": 26,
+      "backupScale": 1,
+      "ownColor": true
+    }
+  ],
+  "anchors": [
+    {
+      "id": "r16_concourse",
+      "pos": [
+        76,
+        0,
+        36
+      ],
+      "yaw": 90
+    },
+    {
+      "id": "r16_concourse_look",
+      "pos": [
+        70,
+        1.5,
+        36
+      ]
+    },
+    {
+      "id": "r16_north_pillar_look",
+      "pos": [
+        62.8,
+        0.5,
+        32.4
+      ]
+    },
+    {
+      "id": "r16_body_drag_to",
+      "pos": [
+        60.2,
+        0,
+        29.4
+      ]
+    },
+    {
+      "id": "r16_pillar_body_dragged",
+      "pos": [
+        71.8,
+        0,
+        29.6
+      ]
+    },
+    {
+      "id": "r16_squad_giles_advance",
+      "pos": [
+        75.2,
+        0,
+        34.6
+      ],
+      "yaw": 90
+    },
+    {
+      "id": "r16_squad_okafor_advance",
+      "pos": [
+        75.2,
+        0,
+        37.2
+      ],
+      "yaw": 90
+    },
+    {
+      "id": "r16_cam10_pos",
+      "pos": [
+        71.2,
+        2,
+        28.8
+      ]
+    },
+    {
+      "id": "r16_cam10_look",
+      "pos": [
+        70,
+        1.5,
+        38.6
+      ]
+    },
+    {
+      "id": "r16_fire_target",
+      "pos": [
+        63.5,
+        1.8,
+        31.2
+      ]
+    },
+    {
+      "id": "r16_monster_face_aim",
+      "pos": [
+        68.2,
+        5.4,
+        34.6
+      ]
+    },
+    {
+      "id": "r16_monster_hide",
+      "pos": [
+        64.8,
+        0,
+        34.6
+      ],
+      "yaw": 95
+    },
+    {
+      "id": "r16_monster_reveal",
+      "pos": [
+        68.2,
+        0,
+        34.6
+      ],
+      "yaw": 95
+    }
+  ],
+  "npcs": [
+    {
+      "id": "r16_pillar_body",
+      "look": "botanist",
+      "model": "botanist2",
+      "at": [
+        73.6,
+        0,
+        33.4
+      ],
+      "yaw": 265,
+      "pose": "corpseProne",
+      "dead": true,
+      "blood": true
+    },
+    {
+      "id": "r16b_corpse_south1",
+      "look": "office",
+      "model": "office2",
+      "at": [
+        74.2,
+        0,
+        38.2
+      ],
+      "yaw": 75,
+      "pose": "corpseTwisted",
+      "dead": true,
+      "blood": true
+    },
+    {
+      "id": "r16b_corpse_north2",
+      "look": "botanist",
+      "model": "botanist1",
+      "at": [
+        69.5,
+        0,
+        33.7
+      ],
+      "yaw": -95,
+      "pose": "corpseReaching",
+      "dead": true,
+      "blood": true
+    },
+    {
+      "id": "r16b_corpse_south2",
+      "look": "office",
+      "model": "office3",
+      "at": [
+        67.8,
+        0,
+        38.2
+      ],
+      "yaw": 110,
+      "pose": "corpseProne",
+      "dead": true,
+      "blood": true
+    },
+    {
+      "id": "r16b_corpse_east_center",
+      "look": "exec",
+      "model": "office1",
+      "at": [
+        75.6,
+        0,
+        36.2
+      ],
+      "yaw": 140,
+      "pose": "corpseReaching",
+      "dead": true,
+      "blood": true
+    },
+    {
+      "id": "r16b_corpse_north_aisle1",
+      "look": "assistant",
+      "model": "assistant",
+      "at": [
+        71.5,
+        0,
+        29
+      ],
+      "yaw": 35,
+      "pose": "corpseProne",
+      "dead": true,
+      "blood": true
+    },
+    {
+      "id": "r16b_corpse_south_aisle1",
+      "look": "lab",
+      "model": "botanist3",
+      "at": [
+        71.4,
+        0,
+        43.2
+      ],
+      "yaw": 215,
+      "pose": "corpseTwisted",
+      "dead": true,
+      "blood": true
+    },
+    {
+      "id": "r16b_corpse_mid_center",
+      "look": "exec",
+      "model": "office1",
+      "at": [
+        71.2,
+        0,
+        35.8
+      ],
+      "yaw": -30,
+      "pose": "corpseTwisted",
+      "dead": true,
+      "blood": true
+    },
+    {
+      "id": "r16b_corpse_west_north1",
+      "look": "botanist",
+      "model": "botanist3",
+      "at": [
+        64.2,
+        0,
+        33.8
+      ],
+      "yaw": 165,
+      "pose": "corpseTwisted",
+      "dead": true,
+      "blood": true
+    },
+    {
+      "id": "r16b_corpse_west_south1",
+      "look": "assistant",
+      "model": "office2",
+      "at": [
+        64.8,
+        0,
+        38.6
+      ],
+      "yaw": -125,
+      "pose": "corpseProne",
+      "dead": true,
+      "blood": true
+    },
+    {
+      "id": "r16b_corpse_west_center",
+      "look": "lab",
+      "model": "botanist2",
+      "at": [
+        65.6,
+        0,
+        35.9
+      ],
+      "yaw": 45,
+      "pose": "corpseReaching",
+      "dead": true,
+      "blood": true
+    },
+    {
+      "id": "r16b_corpse_north_aisle2",
+      "look": "exec",
+      "model": "office3",
+      "at": [
+        65.5,
+        0,
+        29.2
+      ],
+      "yaw": -60,
+      "pose": "corpseProne",
+      "dead": true,
+      "blood": true
+    },
+    {
+      "id": "r16b_corpse_dispatch",
+      "look": "assistant",
+      "model": "office2",
+      "at": [
+        68.2,
+        0,
+        43.8
+      ],
+      "yaw": 15,
+      "pose": "corpseReaching",
+      "dead": true,
+      "blood": true
+    },
+    {
+      "id": "r16b_corpse_booth_north",
+      "look": "botanist",
+      "model": "botanist2",
+      "at": [
+        60.4,
+        0,
+        31
+      ],
+      "yaw": 187,
+      "pose": "corpseProne",
+      "dead": true,
+      "blood": true
+    },
+    {
+      "id": "r16b_corpse_booth_south",
+      "look": "assistant",
+      "model": "assistant",
+      "at": [
+        60.8,
+        0,
+        39.4
+      ],
+      "yaw": 120,
+      "pose": "corpseTwisted",
+      "dead": true,
+      "blood": true
+    }
+  ]
+}

@@ -50,5 +50,8 @@ None.
 - **Audio and credits:** new files under `public/assets/audio/` and entries in `src/audio/sounds.ts`, following `docs/audio-assets.md`. Her gasps and grunts follow `docs/voice-casting-standard.md`. New sounds and capture takes are credited in `CREDITS.md`, and the takes in `docs/mocap-sources.md`.
 - **Order with other work:**
   - rig-necromorph is committed and archived, so its blade creature is the one Voss's burst hands over to. Its pose map borrows Voss's `kill_glass_0` and `kill_glass_1`, its unfold is cued from her burst, and her final resting place must leave its stand point clear.
+  - `split-level-data` phase 1a (2026-11-26) replaced `slice01.json` with `src/data/levels/slice01/`. Route marks and loose
+    bench items go in `rooms/R04.json` (Lab B) or `rooms/R03.json` (the gallery), shell pieces such as the sealed pane in
+    that room's `pieces`, and doors in `doors.json`. `scripts/gen-slice01.mjs` is frozen: don't edit or run it.
   - `src/ai/npcKills.ts` has another agent's uncommitted edits; the kill work there has to be committed around them.
   - The drop now starts as Jay walks into the gallery, after her breathing has played over the intercom since the end of the rounds (`gallery-drop`). The fixed clock starts at the end of Okafor's question, which this does not move.

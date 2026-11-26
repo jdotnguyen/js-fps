@@ -34,7 +34,7 @@ export interface AmbienceAssetSpec {
 }
 
 export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
-  // ---- Room ambient beds (10 presets authored in src/data/levels/slice01.json) ----
+  // ---- Room ambient beds (10 presets authored in src/data/levels/slice01/rooms/) ----
   {
     id: 'hull_hum',
     file: 'bed-hull-hum.mp3',

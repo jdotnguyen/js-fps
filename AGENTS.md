@@ -6,6 +6,22 @@ Thalassa is a browser FPS built with Three.js, TypeScript, and Vite. `src/main.t
 
 Check `openspec/specs/` (OpenSpec) before changing architectural decisions. Follow `docs/audio-assets.md` when adding or replacing sounds, and `docs/imported-props.md` when adding a downloaded 3D prop. Follow `docs/mocap-sources.md` when adding motion capture, and review character motion in the cast motion sandbox (`docs/cast-motion-sandbox.md`). Follow `docs/modular-grid-standard.md` and `docs/surface-dressing-standard.md` when editing levels, and `docs/voice-casting-standard.md` when adding or regenerating dialogue VO. Read `docs/physics.md` before touching `src/physics/` or anything that creates physical bodies. Record third-party asset attribution in `CREDITS.md`.
 
+## Where Things Live
+
+Edit the file that owns what you are working on, so agents on different work stay out of each other's way.
+
+| Work | Where |
+| --- | --- |
+| A room: pieces, props, lights, atmosphere, water, NPCs, anchors, walks, spawns, triggers | `src/data/levels/slice01/rooms/<id>.json` (for example `R02.json`) |
+| Doors and vents, which span two rooms | `src/data/levels/slice01/doors.json` |
+| The level: room list and order, player and squad starts, pickups, map stations, checkpoints | `src/data/levels/slice01/level.json` |
+| A scene sequence | `src/data/sequences/<scene>.json` |
+| A character's poses | `src/data/poses.json` |
+| Character body models | `src/data/body-models.json` |
+| Sounds | `src/audio/sounds.ts` |
+
+Read a level in tests and tools with `readLevel` (`src/data/levels/readLevel.ts`), not by opening its files. No script writes the level files (`scripts/gen-slice01.mjs` is frozen). OpenSpec change `split-level-data` splits the pose, body and sound files per owner in later phases.
+
 ## Build, Test, and Development Commands
 
 Use Node.js 22.6 or later for the test runner.

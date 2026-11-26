@@ -4,6 +4,7 @@
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import * as THREE from 'three';
+import { levelFileIds, readLevel } from '../data/levels/readLevel.ts';
 
 const noop = (): void => undefined;
 const ctx = new Proxy({} as Record<string | symbol, unknown>, {
@@ -41,20 +42,14 @@ export function loadSlice01(): { level: HeadlessLevel; events: InstanceType<type
   return loadLevel('slice01');
 }
 
-/** Every level file id under `data/levels/` (`slice01`, `kit_test`, ...). */
-export function levelFileIds(): string[] {
-  return readdirSync(new URL('../data/levels/', import.meta.url))
-    .filter((f) => f.endsWith('.json'))
-    .map((f) => f.slice(0, -'.json'.length))
-    .sort();
-}
+export { levelFileIds };
 
-/** Build any level under `data/levels/<id>.json` headlessly. */
+/** Build any level under `data/levels/` headlessly. */
 export function loadLevel(id: string): { level: HeadlessLevel; events: InstanceType<typeof EventBus>; doors: DoorHandle[] } {
   const items = validate(validateItemTable, json('items.json'), 'data/items.json');
   const ui = validate(validateUiText, json('dialogue/ui.json'), 'data/dialogue/ui.json');
   const registry = new KitRegistry({ glb: {} });
-  const data = validate(levelValidator(registry.ids(), { items: new Set(Object.keys(items)), uiText: new Set(Object.keys(ui)) }), json(`levels/${id}.json`), id);
+  const data = validate(levelValidator(registry.ids(), { items: new Set(Object.keys(items)), uiText: new Set(Object.keys(ui)) }), readLevel(id), id);
   const mats = new Proxy({} as Record<string | symbol, THREE.Material>, {
     get: (t, k) => (t[k] ??= k === 'glass' ? new THREE.MeshPhysicalMaterial({ transparent: true }) : new THREE.MeshStandardMaterial()),
   });

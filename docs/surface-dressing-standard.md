@@ -3,6 +3,8 @@
 > How textures, trim, decals and props are placed on `js-fps` rooms.
 > Companion to [modular-grid-standard.md](modular-grid-standard.md) (geometry and scale).
 > Status column: **live** = enforced in code today, **rule** = follow by hand until tooling exists.
+> A `slice01` room is dressed in its own file, `src/data/levels/slice01/rooms/<id>.json`
+> ([where a level is authored](modular-grid-standard.md#where-a-level-is-authored)).
 
 ## 1. UV contract
 

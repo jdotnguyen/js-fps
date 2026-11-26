@@ -1,0 +1,510 @@
+{
+  "doors": [
+    {
+      "id": "D_dock",
+      "kit": "pressure_slide",
+      "between": [
+        "R01",
+        "R01a"
+      ],
+      "cell": [
+        0,
+        0,
+        0
+      ],
+      "rot": 0,
+      "state": "closed"
+    },
+    {
+      "id": "D_R01_R02",
+      "kit": "pressure_slide",
+      "between": [
+        "R02",
+        "R01w"
+      ],
+      "cell": [
+        6,
+        0,
+        3
+      ],
+      "rot": 0,
+      "state": "closed"
+    },
+    {
+      "id": "D_R02_R03",
+      "kit": "pressure_slide",
+      "between": [
+        "R02",
+        "R03"
+      ],
+      "cell": [
+        4,
+        0,
+        4
+      ],
+      "rot": 90,
+      "state": "closed"
+    },
+    {
+      "id": "D_R03_R05",
+      "kit": "pressure_slide",
+      "between": [
+        "R03",
+        "R05"
+      ],
+      "cell": [
+        1,
+        0,
+        4
+      ],
+      "rot": 90,
+      "state": "locked",
+      "unlockBy": "script",
+      "unlockOn": "drop:done"
+    },
+    {
+      "id": "D_R04_R05",
+      "kit": "bulkhead",
+      "between": [
+        "R04",
+        "R05"
+      ],
+      "cell": [
+        1,
+        0,
+        6
+      ],
+      "rot": 90,
+      "state": "closed",
+      "access": {
+        "sealed": true,
+        "text": "lockdown"
+      }
+    },
+    {
+      "id": "D_R05_R06",
+      "kit": "pressure_slide",
+      "between": [
+        "R05",
+        "R06"
+      ],
+      "cell": [
+        0,
+        0,
+        6
+      ],
+      "rot": 180,
+      "state": "closed"
+    },
+    {
+      "id": "D_R06_R07",
+      "kit": "bulkhead",
+      "between": [
+        "R06",
+        "R07"
+      ],
+      "cell": [
+        0,
+        0,
+        9
+      ],
+      "rot": 180,
+      "state": "locked",
+      "unlockBy": "engineer",
+      "task": "bypass_short"
+    },
+    {
+      "id": "D_R07_R07a",
+      "kit": "pressure_slide",
+      "between": [
+        "R07",
+        "R07a"
+      ],
+      "cell": [
+        1,
+        0,
+        10
+      ],
+      "rot": 270,
+      "state": "locked",
+      "unlockBy": "engineer",
+      "task": "bypass_short"
+    },
+    {
+      "id": "D_R07_R09",
+      "kit": "pressure_slide",
+      "between": [
+        "R07",
+        "R09"
+      ],
+      "cell": [
+        1,
+        0,
+        11
+      ],
+      "rot": 270,
+      "state": "locked",
+      "unlockBy": "medic",
+      "task": "biometric"
+    },
+    {
+      "id": "D_R08_R08b",
+      "kit": "pressure_slide",
+      "between": [
+        "R08",
+        "R08b"
+      ],
+      "cell": [
+        1,
+        0,
+        13
+      ],
+      "rot": 270,
+      "state": "closed",
+      "access": {
+        "sealed": true,
+        "text": "lockdown"
+      }
+    },
+    {
+      "id": "D_R07_R08",
+      "kit": "glass_slide",
+      "between": [
+        "R07",
+        "R08"
+      ],
+      "cell": [
+        1,
+        0,
+        11
+      ],
+      "rot": 180,
+      "state": "closed",
+      "access": {
+        "sealed": true,
+        "text": "lockdown"
+      }
+    },
+    {
+      "id": "D_R09_R10",
+      "kit": "pressure_slide",
+      "between": [
+        "R09",
+        "R10"
+      ],
+      "cell": [
+        7,
+        0,
+        12
+      ],
+      "rot": 270,
+      "state": "closed",
+      "params": {
+        "porthole": true
+      }
+    },
+    {
+      "id": "D_R10_R11",
+      "kit": "bulkhead",
+      "between": [
+        "R10",
+        "R11"
+      ],
+      "cell": [
+        8,
+        0,
+        12
+      ],
+      "rot": 0,
+      "state": "locked",
+      "unlockBy": "script",
+      "unlockOn": "valve:r10_main"
+    },
+    {
+      "id": "D_R16b_R16c",
+      "kit": "pressure_slide",
+      "between": [
+        "R16b",
+        "R16c"
+      ],
+      "cell": [
+        17,
+        0,
+        11
+      ],
+      "rot": 180,
+      "state": "closed"
+    },
+    {
+      "id": "D_R02_R12a",
+      "kit": "pressure_slide",
+      "between": [
+        "R02",
+        "R12a"
+      ],
+      "cell": [
+        8,
+        0,
+        5
+      ],
+      "rot": 270,
+      "state": "closed"
+    },
+    {
+      "id": "D_R12a_R12b",
+      "kit": "glass_slide",
+      "between": [
+        "R12a",
+        "R12b"
+      ],
+      "cell": [
+        9,
+        0,
+        5
+      ],
+      "rot": 270,
+      "state": "closed"
+    },
+    {
+      "id": "D_R12b_R12c",
+      "kit": "glass_slide",
+      "between": [
+        "R12b",
+        "R12c"
+      ],
+      "cell": [
+        12,
+        0,
+        4
+      ],
+      "rot": 270,
+      "state": "closed"
+    },
+    {
+      "id": "D_R12b_R12d",
+      "kit": "pressure_slide",
+      "between": [
+        "R12b",
+        "R12d"
+      ],
+      "cell": [
+        12,
+        0,
+        6
+      ],
+      "rot": 180,
+      "state": "closed"
+    },
+    {
+      "id": "hydro_store",
+      "kit": "pressure_slide",
+      "between": [
+        "R12b",
+        "R12e"
+      ],
+      "cell": [
+        10,
+        0,
+        6
+      ],
+      "rot": 180,
+      "state": "closed",
+      "access": {
+        "requires": "card_l2"
+      }
+    },
+    {
+      "id": "D_R02_R13a",
+      "kit": "pressure_slide",
+      "between": [
+        "R02",
+        "R13a"
+      ],
+      "cell": [
+        6,
+        0,
+        6
+      ],
+      "rot": 180,
+      "state": "closed"
+    },
+    {
+      "id": "D_R13a_R13b",
+      "kit": "pressure_slide",
+      "between": [
+        "R13a",
+        "R13b"
+      ],
+      "cell": [
+        6,
+        0,
+        7
+      ],
+      "rot": 180,
+      "state": "closed"
+    },
+    {
+      "id": "D_R13b_R13c",
+      "kit": "pressure_slide",
+      "between": [
+        "R13b",
+        "R13c"
+      ],
+      "cell": [
+        5,
+        0,
+        8
+      ],
+      "rot": 90,
+      "state": "closed"
+    },
+    {
+      "id": "D_R13b_R13e",
+      "kit": "pressure_slide",
+      "between": [
+        "R13b",
+        "R13e"
+      ],
+      "cell": [
+        5,
+        0,
+        10
+      ],
+      "rot": 90,
+      "state": "closed"
+    },
+    {
+      "id": "D_R13d_R11",
+      "kit": "bulkhead",
+      "between": [
+        "R13d",
+        "R11"
+      ],
+      "cell": [
+        9,
+        0,
+        8
+      ],
+      "rot": 180,
+      "state": "closed",
+      "params": {
+        "travelTime": 3.4
+      },
+      "access": {
+        "sealed": true,
+        "text": "lockdown"
+      }
+    },
+    {
+      "id": "D_R13d_R15a",
+      "kit": "bulkhead",
+      "between": [
+        "R13d",
+        "R15a"
+      ],
+      "cell": [
+        10,
+        0,
+        8
+      ],
+      "rot": 270,
+      "state": "closed"
+    },
+    {
+      "id": "D_R02_R14a",
+      "kit": "glass_slide",
+      "between": [
+        "R02",
+        "R14a"
+      ],
+      "cell": [
+        8,
+        0,
+        3
+      ],
+      "rot": 270,
+      "state": "closed"
+    },
+    {
+      "id": "D_R14a_R14b",
+      "kit": "glass_slide",
+      "between": [
+        "R14a",
+        "R14b"
+      ],
+      "cell": [
+        9,
+        0,
+        2
+      ],
+      "rot": 270,
+      "state": "closed"
+    },
+    {
+      "id": "D_R14b_R14c",
+      "kit": "glass_slide",
+      "between": [
+        "R14b",
+        "R14c"
+      ],
+      "cell": [
+        12,
+        0,
+        1
+      ],
+      "rot": 270,
+      "state": "closed"
+    },
+    {
+      "id": "D_R14b_R14d",
+      "kit": "glass_slide",
+      "between": [
+        "R14b",
+        "R14d"
+      ],
+      "cell": [
+        11,
+        0,
+        1
+      ],
+      "rot": 0,
+      "state": "closed"
+    },
+    {
+      "id": "D_R14a_R14e",
+      "kit": "pressure_slide",
+      "between": [
+        "R14a",
+        "R14e"
+      ],
+      "cell": [
+        9,
+        0,
+        2
+      ],
+      "rot": 0,
+      "state": "closed"
+    }
+  ],
+  "vents": [
+    {
+      "id": "hydro_vent",
+      "room": "R12d",
+      "box": [
+        [
+          49.4,
+          0.2,
+          27
+        ],
+        [
+          50,
+          0.9,
+          28.8
+        ]
+      ],
+      "access": {
+        "requires": "vent_driver"
+      }
+    }
+  ]
+}

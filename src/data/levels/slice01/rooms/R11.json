@@ -1,0 +1,696 @@
+{
+  "id": "R11",
+  "name": "Power Bay",
+  "area": "transit",
+  "height": 5,
+  "atmosphere": {
+    "fog": "#060a0e",
+    "fogDensity": 0.018,
+    "reverb": "metal_hall",
+    "ambience": "power_bay"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        8,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        9,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        10,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        8,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        9,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        10,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        8,
+        0,
+        11
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        9,
+        0,
+        11
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        10,
+        0,
+        11
+      ]
+    },
+    {
+      "kit": "floor",
+      "cells": [
+        [
+          8,
+          0,
+          9
+        ],
+        [
+          9,
+          0,
+          9
+        ],
+        [
+          10,
+          0,
+          9
+        ],
+        [
+          8,
+          0,
+          10
+        ],
+        [
+          9,
+          0,
+          10
+        ],
+        [
+          10,
+          0,
+          10
+        ],
+        [
+          8,
+          0,
+          11
+        ],
+        [
+          9,
+          0,
+          11
+        ],
+        [
+          10,
+          0,
+          11
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          8,
+          0,
+          9
+        ],
+        [
+          10,
+          0,
+          9
+        ]
+      ]
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          8,
+          0,
+          9
+        ],
+        [
+          8,
+          0,
+          11
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          10,
+          0,
+          9
+        ],
+        [
+          10,
+          0,
+          11
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          8,
+          0,
+          10
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          10,
+          0,
+          10
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          9,
+          0,
+          11
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          10,
+          0,
+          11
+        ]
+      ],
+      "rot": 180
+    }
+  ],
+  "props": [
+    {
+      "kit": "power_terminal",
+      "pos": [
+        31.1,
+        0,
+        38
+      ],
+      "rot": 270,
+      "params": {}
+    },
+    {
+      "kit": "electrical_box",
+      "pos": [
+        30.42,
+        0.9,
+        35.8
+      ],
+      "rot": 270,
+      "params": {}
+    },
+    {
+      "kit": "power_box",
+      "pos": [
+        30.46,
+        0.9,
+        40.3
+      ],
+      "rot": 270,
+      "params": {}
+    },
+    {
+      "kit": "cable_drum",
+      "pos": [
+        31.1,
+        0,
+        42.6
+      ],
+      "rot": 20,
+      "params": {}
+    },
+    {
+      "kit": "transit_sign",
+      "pos": [
+        30.31,
+        0,
+        44.9
+      ],
+      "rot": 270,
+      "params": {
+        "title": "POWER BAY 11",
+        "sub": "AUXILIARY TURBINE PLANT · DECK 0",
+        "y": 2
+      }
+    },
+    {
+      "kit": "transit_sign",
+      "pos": [
+        33.2,
+        0,
+        34.31
+      ],
+      "rot": 180,
+      "params": {
+        "title": "TRANSIT RAIL",
+        "sub": "BOARDING PLATFORM ->",
+        "y": 1.9
+      }
+    },
+    {
+      "kit": "power_generator",
+      "pos": [
+        39.5,
+        0,
+        38.2
+      ],
+      "rot": 90,
+      "params": {
+        "ceiling": 5
+      }
+    },
+    {
+      "kit": "power_generator",
+      "pos": [
+        39.5,
+        0,
+        42
+      ],
+      "rot": 90,
+      "params": {
+        "ceiling": 5
+      }
+    },
+    {
+      "kit": "switchgear_bank",
+      "pos": [
+        39.5,
+        0,
+        34.78
+      ],
+      "rot": 180,
+      "params": {
+        "ceiling": 5
+      }
+    },
+    {
+      "kit": "electrical_box_02",
+      "pos": [
+        39.8,
+        0,
+        45.1
+      ],
+      "params": {}
+    },
+    {
+      "kit": "gas_cylinder",
+      "pos": [
+        38,
+        0,
+        44.9
+      ],
+      "rot": 15,
+      "params": {}
+    },
+    {
+      "kit": "gas_cylinder",
+      "pos": [
+        38.5,
+        0,
+        45.1
+      ],
+      "rot": -20,
+      "params": {}
+    },
+    {
+      "kit": "platform_trolley",
+      "pos": [
+        35.6,
+        0,
+        44.7
+      ],
+      "rot": 12,
+      "params": {}
+    },
+    {
+      "kit": "transit_sign",
+      "pos": [
+        41.69,
+        0,
+        40.1
+      ],
+      "rot": 90,
+      "params": {
+        "title": "HIGH VOLTAGE",
+        "sub": "4.16 kV SWITCHGEAR · AUTHORIZED ONLY",
+        "y": 2.1,
+        "accent": "#d93b2b",
+        "width": 1.15,
+        "height": 0.4
+      }
+    },
+    {
+      "kit": "rib_frame",
+      "pos": [
+        36,
+        0,
+        36.2
+      ],
+      "params": {
+        "width": 11.4,
+        "height": 5
+      }
+    },
+    {
+      "kit": "rib_frame",
+      "pos": [
+        36,
+        0,
+        43.8
+      ],
+      "params": {
+        "width": 11.4,
+        "height": 5
+      }
+    },
+    {
+      "kit": "pipe_run",
+      "pos": [
+        36,
+        0,
+        38.2
+      ],
+      "params": {
+        "length": 7.4,
+        "height": 4.55,
+        "ceiling": 5,
+        "hung": true,
+        "paint": "teal"
+      }
+    },
+    {
+      "kit": "pipe_run",
+      "pos": [
+        36,
+        0,
+        42
+      ],
+      "params": {
+        "length": 7.4,
+        "height": 4.55,
+        "ceiling": 5,
+        "hung": true,
+        "paint": "dark"
+      }
+    },
+    {
+      "kit": "cable_bundle",
+      "pos": [
+        31.2,
+        0,
+        40
+      ],
+      "rot": 90,
+      "params": {
+        "length": 8.8,
+        "height": 4.4
+      }
+    },
+    {
+      "kit": "ambient_loop",
+      "pos": [
+        39.5,
+        1.2,
+        40.1
+      ],
+      "params": {
+        "sound": "generatorHum",
+        "gain": 0.42,
+        "range": 16,
+        "on": "r11:hum_on"
+      }
+    },
+    {
+      "kit": "emergency_beacon",
+      "pos": [
+        41.7,
+        3.2,
+        36
+      ],
+      "rot": 270,
+      "params": {
+        "wall": true
+      }
+    },
+    {
+      "kit": "emergency_beacon",
+      "pos": [
+        30.3,
+        3.2,
+        42
+      ],
+      "rot": 90,
+      "params": {
+        "wall": true
+      }
+    },
+    {
+      "kit": "fluid_trail",
+      "pos": [
+        32.6,
+        0,
+        38.5
+      ],
+      "rot": 203.6,
+      "params": {
+        "length": 8,
+        "width": 1,
+        "seed": 2
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 14,
+      "range": 18,
+      "id": "r11_bank_1a"
+    },
+    {
+      "slot": 6,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 14,
+      "range": 18,
+      "id": "r11_bank_1b"
+    },
+    {
+      "slot": 1,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 16,
+      "range": 20,
+      "id": "r11_bank_2a",
+      "shadow": true
+    },
+    {
+      "slot": 7,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 16,
+      "range": 20,
+      "id": "r11_bank_2b"
+    },
+    {
+      "slot": 2,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 15,
+      "range": 18,
+      "id": "r11_bank_3a"
+    },
+    {
+      "slot": 8,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 15,
+      "range": 18,
+      "id": "r11_bank_3b",
+      "shadow": true
+    },
+    {
+      "slot": 3,
+      "pattern": "steady",
+      "color": "#ffb870",
+      "intensity": 7,
+      "range": 8,
+      "id": "r11_desk_lamp",
+      "backup": true,
+      "backupScale": 0.25,
+      "ownColor": true
+    },
+    {
+      "slot": "emergency",
+      "pattern": "off",
+      "color": "#ff3b24",
+      "intensity": 10,
+      "range": 14,
+      "id": "r11_beacon_ne",
+      "ownColor": true
+    },
+    {
+      "slot": "emergency",
+      "pattern": "off",
+      "color": "#ff3b24",
+      "intensity": 10,
+      "range": 14,
+      "id": "r11_beacon_sw",
+      "ownColor": true
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trig_r11_enter",
+      "box": [
+        [
+          30.3,
+          0,
+          42.3
+        ],
+        [
+          33.7,
+          2.6,
+          45.7
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:r11_enter"
+    }
+  ],
+  "anchors": [
+    {
+      "id": "giles_final",
+      "pos": [
+        32.4,
+        0,
+        38
+      ],
+      "yaw": 270
+    },
+    {
+      "id": "final_console",
+      "pos": [
+        31.2,
+        1.2,
+        38
+      ]
+    },
+    {
+      "id": "r11_hold",
+      "pos": [
+        36,
+        0,
+        40
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "ammo_r11",
+      "pos": [
+        32.6,
+        0,
+        44.4
+      ]
+    },
+    {
+      "id": "r11_giles_task",
+      "pos": [
+        31.78,
+        0,
+        37.72
+      ],
+      "yaw": 90
+    },
+    {
+      "id": "r11_okafor_end",
+      "pos": [
+        35.4,
+        0,
+        40.4
+      ],
+      "yaw": 70
+    },
+    {
+      "id": "r11_okafor_step",
+      "pos": [
+        34,
+        0,
+        39.3
+      ],
+      "yaw": 70
+    },
+    {
+      "id": "r11_jay_end",
+      "pos": [
+        35.8,
+        0,
+        38.3
+      ],
+      "yaw": 90
+    },
+    {
+      "id": "ammo_r11_b",
+      "pos": [
+        38.8,
+        0,
+        43.6
+      ]
+    },
+    {
+      "id": "ammo_r11_c",
+      "pos": [
+        40.2,
+        0,
+        37.2
+      ]
+    }
+  ]
+}

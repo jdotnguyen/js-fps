@@ -1,0 +1,240 @@
+{
+  "id": "R12d",
+  "name": "Nutrient Room",
+  "area": "hydroponics",
+  "atmosphere": {
+    "fog": "#141e1b",
+    "fogDensity": 0.016,
+    "ambient": "hydro",
+    "reverb": "metal_corridor",
+    "ambience": "hydro_plant_room"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        11,
+        0,
+        7
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        12,
+        0,
+        7
+      ]
+    },
+    {
+      "kit": "floor_tiles",
+      "cells": [
+        [
+          11,
+          0,
+          7
+        ],
+        [
+          12,
+          0,
+          7
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          11,
+          0,
+          7
+        ]
+      ],
+      "params": {
+        "material": "tileWall"
+      }
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          11,
+          0,
+          7
+        ]
+      ],
+      "params": {
+        "material": "tileWall"
+      },
+      "rot": 180
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          11,
+          0,
+          7
+        ]
+      ],
+      "params": {
+        "material": "tileWall"
+      },
+      "rot": 90
+    },
+    {
+      "kit": "wall_vent",
+      "cells": [
+        [
+          12,
+          0,
+          7
+        ]
+      ],
+      "params": {
+        "material": "tileWall"
+      },
+      "rot": 270
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          12,
+          0,
+          7
+        ]
+      ],
+      "params": {
+        "material": "tileWall"
+      },
+      "rot": 180
+    }
+  ],
+  "props": [
+    {
+      "kit": "fertigation_tank",
+      "pos": [
+        43.8,
+        0,
+        28.9
+      ],
+      "params": {
+        "label": "TANK A · NITROGEN",
+        "fluid": "blue"
+      }
+    },
+    {
+      "kit": "fertigation_tank",
+      "pos": [
+        45.6,
+        0,
+        28.9
+      ],
+      "params": {
+        "label": "TANK B · MINERALS",
+        "fluid": "amber"
+      }
+    },
+    {
+      "kit": "hvac_dehumidifier",
+      "pos": [
+        42.78,
+        0,
+        27.15
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "pipe_run",
+      "pos": [
+        44.8,
+        0,
+        26.52
+      ],
+      "params": {
+        "length": 3,
+        "height": 0.55,
+        "paint": "teal"
+      }
+    },
+    {
+      "kit": "valve",
+      "pos": [
+        46.5,
+        0,
+        26.75
+      ]
+    },
+    {
+      "kit": "console",
+      "pos": [
+        48.6,
+        0,
+        29.28
+      ],
+      "params": {
+        "screen": "hydro"
+      }
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        43,
+        0,
+        29.74
+      ],
+      "params": {
+        "id": "pa_nutrients"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#eef6f4",
+      "intensity": 10,
+      "range": 10,
+      "shaft": 0.02
+    },
+    {
+      "slot": 1,
+      "pattern": "flicker",
+      "color": "#eef6f4",
+      "intensity": 9,
+      "range": 10,
+      "shaft": 0.02
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trig_hydro_alarm",
+      "box": [
+        [
+          47.75,
+          0,
+          27.55
+        ],
+        [
+          49.45,
+          2,
+          29.25
+        ]
+      ],
+      "on": "use",
+      "emit": "round:hydro_alarm",
+      "prompt": "Reset humidity alarm"
+    }
+  ],
+  "anchors": [
+    {
+      "id": "hydro_alarm",
+      "pos": [
+        48.6,
+        1.2,
+        29.28
+      ]
+    }
+  ]
+}

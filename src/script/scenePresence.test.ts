@@ -9,6 +9,7 @@ import type { SequenceHost } from './host.ts';
 import { SequenceManager } from './runtime.ts';
 import { validateSequences } from './schema.ts';
 import type { Flags } from './types.ts';
+import { readLevel } from '../data/levels/readLevel.ts';
 
 // scene-presence spec: a scene tied to a room ends for everyone when the player leaves it.
 
@@ -279,7 +280,7 @@ test('a sequence room that is not a room of the level warns at load', () => {
 // ---- the shipped scene, against the shipped level: Hale's office (R14c) and rounds.json's `admin_hale`
 
 const readJson = (rel: string): unknown => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
-const level = readJson('../data/levels/slice01.json') as { rooms: Array<Record<string, unknown> & { id: string; pieces: never; anchors?: Array<{ id: string; pos: [number, number, number] }> }> };
+const level = readLevel('slice01') as { rooms: Array<Record<string, unknown> & { id: string; pieces: never; anchors?: Array<{ id: string; pos: [number, number, number] }> }> };
 const room = (id: string) => level.rooms.find((r) => r.id === id)!;
 const anchor = (id: string): [number, number, number] => level.rooms.flatMap((r) => r.anchors ?? []).find((a) => a.id === id)!.pos;
 /** Feet raised half a metre, as the game host tests rooms. */

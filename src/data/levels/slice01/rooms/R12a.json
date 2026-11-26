@@ -1,0 +1,156 @@
+{
+  "id": "R12a",
+  "name": "Hydroponics Vestibule",
+  "area": "hydroponics",
+  "atmosphere": {
+    "fog": "#141e1b",
+    "fogDensity": 0.016,
+    "ambient": "hydro",
+    "reverb": "small_office",
+    "ambience": "hydro_vestibule"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        9,
+        0,
+        5
+      ],
+      "params": {
+        "material": "officeCeiling"
+      }
+    },
+    {
+      "kit": "floor_tiles",
+      "cells": [
+        [
+          9,
+          0,
+          5
+        ]
+      ]
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          9,
+          0,
+          5
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          9,
+          0,
+          5
+        ]
+      ],
+      "rot": 180
+    }
+  ],
+  "props": [
+    {
+      "kit": "map_station",
+      "pos": [
+        35.55,
+        0,
+        18.31
+      ],
+      "rot": 180,
+      "params": {
+        "area": "HYDROPONICS"
+      }
+    },
+    {
+      "kit": "bio_wash_station",
+      "pos": [
+        37.05,
+        0,
+        18.52
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "locker",
+      "pos": [
+        34.65,
+        0,
+        18.58
+      ],
+      "rot": 180,
+      "params": {
+        "count": 1,
+        "label": "HYDRO"
+      }
+    },
+    {
+      "kit": "coat_rack",
+      "pos": [
+        36,
+        0,
+        21.48
+      ],
+      "params": {
+        "width": 1.6
+      }
+    },
+    {
+      "kit": "boot_wash_mat",
+      "pos": [
+        36,
+        0,
+        20
+      ],
+      "params": {
+        "width": 1.6,
+        "depth": 1.2
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#f0f7f4",
+      "intensity": 11,
+      "range": 10,
+      "shaft": 0.02
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trig_hydro_enter",
+      "box": [
+        [
+          34.3,
+          0,
+          18.3
+        ],
+        [
+          37.7,
+          2.6,
+          21.7
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:hydro_enter",
+      "once": false
+    }
+  ],
+  "anchors": [
+    {
+      "id": "hydro_entry",
+      "pos": [
+        36,
+        0,
+        20
+      ],
+      "yaw": 270
+    }
+  ]
+}

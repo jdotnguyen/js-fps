@@ -4,6 +4,7 @@ import { ctx } from '../ai/enemyTestKit.ts';
 import type { Animator } from './animator.ts';
 import type { BodyModelLibrary } from './bodyModelLibrary.ts';
 import { Humanoid, type HumanoidSpec } from './humanoid.ts';
+import { readLevel } from '../data/levels/readLevel.ts';
 
 /**
  * The gendered crew defaults (per-character-motion task 6.9, character-motion "Generic crew use a gendered default profile"):
@@ -73,7 +74,7 @@ test('named characters ignore the crew pools', () => {
 });
 
 test('the R02 mess room: every generic crew member plays its body\'s default, on a spread of takes, out of step', async () => {
-  const level = (await import('../data/levels/slice01.json', { with: { type: 'json' } })).default as unknown as { rooms: { id: string; npcs?: { id: string; look: string; pose?: string }[] }[] };
+  const level = readLevel('slice01') as { rooms: { id: string; npcs?: { id: string; look: string; pose?: string }[] }[] };
   const table = (await import('../data/body-models.json', { with: { type: 'json' } })).default as unknown as Record<string, { gender: 'm' | 'f' }>;
   const { castSpec } = await import('./castLooks.ts');
   // The bodies' genders as the game reads them (body-models.json); the meshes themselves aren't needed to pick the motion.

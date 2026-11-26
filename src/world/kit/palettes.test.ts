@@ -1,6 +1,5 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import type { Materials } from '../../render/materials.ts';
 import { PHOTO_SLOT_KEYS } from '../../render/tex/manifest.ts';
@@ -9,6 +8,7 @@ import { Rng } from '../../core/rng.ts';
 import { STRUCTURE_PIECES } from './structure.ts';
 import { PROP_PIECES } from './props.ts';
 import { SLICE_PROPS, SLICE_STRUCTURE } from './slice.ts';
+import { readLevel } from '../../data/levels/readLevel.ts';
 
 // Area palettes (openspec adopt-photoscanned-textures, group 5): every slice01 area has one, every entry names a
 // real Materials key, hazard stripes are rusty only in the tunnel (the dive bay went clean in rebuild-dive-bay), and `params.material` overrides.
@@ -24,7 +24,7 @@ function stubMaterials(): Materials {
   return out as unknown as Materials;
 }
 
-const level = JSON.parse(readFileSync(new URL('../../data/levels/slice01.json', import.meta.url), 'utf8')) as {
+const level = readLevel('slice01') as {
   rooms: Array<{ id: string; area?: string; pieces: Array<{ kit: string; params?: Record<string, unknown> }> }>;
 };
 

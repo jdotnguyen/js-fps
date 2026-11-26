@@ -16,6 +16,7 @@ import {
 } from '../../core/validate.ts';
 import { LIGHT_PATTERNS } from '../../render/lights.ts';
 import { COOKIE_KINDS } from '../../render/cookies.ts';
+import { inLevelFile } from '../levels/assembleLevel.ts';
 
 /**
  * Level JSON (ADR-0003). All positions are world metres; `cell` values are grid indices
@@ -477,8 +478,22 @@ export interface LevelRefs {
   uiText?: ReadonlySet<string>;
 }
 
-/** Shape check plus cross-references (room ids, kit ids, unique ids, item ids). */
+/**
+ * Shape check plus cross-references (room ids, kit ids, unique ids, item ids). For a level assembled from a folder,
+ * errors name the part file the field is in (`rooms/R16b.json > props[3] > kit`) rather than the caller's source.
+ */
 export function levelValidator(kits: KitIds, refs: LevelRefs = {}): Validator<LevelData> {
+  const check = levelCheck(kits, refs);
+  return (v, p) => {
+    try {
+      return check(v, p);
+    } catch (err) {
+      throw inLevelFile(err, v, p);
+    }
+  };
+}
+
+function levelCheck(kits: KitIds, refs: LevelRefs): Validator<LevelData> {
   const shape = obj(levelShape);
   return (v, p) => {
     const level = shape(v, p);

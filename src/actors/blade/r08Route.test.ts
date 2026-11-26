@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { NpcActor, type NpcEnv } from '../../ai/npcActor.ts';
 import { creatureBody, lowestPoint } from './bladeTestKit.ts';
+import { readLevel } from '../../data/levels/readLevel.ts';
 
 /**
  * rig-necromorph task 5.4c (design D6a; spec blade-creature "Priya's death, start to finish"): the creature walks R08's route
@@ -23,7 +24,7 @@ const want = new Set(['r08_lurk', 'r08_surgery_out', 'r08_surgery_in', 'r08_back
     if (r.id && r.pos && want.has(r.id)) marks[r.id] = r.pos;
     Object.values(o).forEach(walk);
   }
-})(JSON.parse(readFileSync(new URL('../../data/levels/slice01.json', import.meta.url), 'utf8')));
+})(readLevel('slice01'));
 
 const KILLS = JSON.parse(readFileSync(new URL('../../data/kills.json', import.meta.url), 'utf8')) as {
   mauled: { beats: Array<{ id: string; events: Array<{ do: string; mark?: string; via?: string[]; speed?: number; gait?: number }> }> };

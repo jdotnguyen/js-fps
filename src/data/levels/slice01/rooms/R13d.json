@@ -1,0 +1,234 @@
+{
+  "id": "R13d",
+  "name": "Maintenance Corridor",
+  "area": "transit",
+  "atmosphere": {
+    "fog": "#020405",
+    "fogDensity": 0.05,
+    "ambient": "dark",
+    "reverb": "metal_corridor",
+    "ambience": "hull_groan"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        8,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        9,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        10,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "floor",
+      "cells": [
+        [
+          8,
+          0,
+          8
+        ],
+        [
+          9,
+          0,
+          8
+        ],
+        [
+          10,
+          0,
+          8
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          8,
+          0,
+          8
+        ],
+        [
+          9,
+          0,
+          8
+        ],
+        [
+          10,
+          0,
+          8
+        ]
+      ]
+    },
+    {
+      "kit": "wall_vent",
+      "cells": [
+        [
+          8,
+          0,
+          8
+        ],
+        [
+          10,
+          0,
+          8
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          8,
+          0,
+          8
+        ]
+      ],
+      "rot": 90
+    }
+  ],
+  "props": [
+    {
+      "kit": "room_sign",
+      "pos": [
+        30.8,
+        0,
+        30.26
+      ],
+      "rot": 180,
+      "params": {
+        "code": "R13D",
+        "name": "TRANSIT CORRIDOR",
+        "panel": false
+      }
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        31.9,
+        0,
+        30.26
+      ],
+      "rot": 180,
+      "params": {
+        "id": "pa_maintenance"
+      }
+    },
+    {
+      "kit": "cable_bundle",
+      "pos": [
+        36,
+        0,
+        30.45
+      ],
+      "params": {
+        "length": 10.8,
+        "height": 2.75
+      }
+    },
+    {
+      "kit": "cable_tray",
+      "pos": [
+        36,
+        0,
+        33.45
+      ],
+      "params": {
+        "length": 7.2,
+        "ceiling": 3.2,
+        "drop": 0.35
+      }
+    },
+    {
+      "kit": "transit_sign",
+      "pos": [
+        36,
+        0,
+        30.28
+      ],
+      "rot": 180,
+      "params": {
+        "title": "BOARDING BAY ->",
+        "sub": "PLATFORM A · LINE 01",
+        "y": 1.85,
+        "accent": "#e0a82e",
+        "width": 1.75,
+        "height": 0.48
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 9,
+      "range": 12,
+      "backup": true,
+      "backupScale": 0.4,
+      "ownColor": true
+    },
+    {
+      "slot": 1,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 9,
+      "range": 12,
+      "backup": true,
+      "backupScale": 0.4,
+      "ownColor": true
+    },
+    {
+      "slot": 2,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 9,
+      "range": 12
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trig_dive_dark",
+      "box": [
+        [
+          30.3,
+          0,
+          30.3
+        ],
+        [
+          33.7,
+          2.6,
+          33.7
+        ]
+      ],
+      "on": "enter",
+      "emit": "area:dark"
+    }
+  ],
+  "anchors": [
+    {
+      "id": "dark_corridor",
+      "pos": [
+        32,
+        0,
+        32
+      ],
+      "yaw": 270
+    }
+  ]
+}

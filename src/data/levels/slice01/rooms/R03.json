@@ -1,0 +1,621 @@
+{
+  "id": "R03",
+  "name": "Observation Gallery",
+  "area": "gallery",
+  "height": 3.6,
+  "atmosphere": {
+    "fog": "#06090b",
+    "fogDensity": 0.03,
+    "reverb": "metal_hall",
+    "ambience": "obs_gallery",
+    "ambient": "gallery"
+  },
+  "visibleFrom": [
+    "R04"
+  ],
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        1,
+        0,
+        4
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        2,
+        0,
+        4
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        3,
+        0,
+        4
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        1,
+        0,
+        5
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        2,
+        0,
+        5
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        3,
+        0,
+        5
+      ]
+    },
+    {
+      "kit": "floor_carpet",
+      "cells": [
+        [
+          1,
+          0,
+          4
+        ],
+        [
+          2,
+          0,
+          4
+        ],
+        [
+          3,
+          0,
+          4
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          1,
+          0,
+          4
+        ],
+        [
+          2,
+          0,
+          4
+        ],
+        [
+          3,
+          0,
+          4
+        ]
+      ]
+    },
+    {
+      "kit": "floor_carpet",
+      "cells": [
+        [
+          1,
+          0,
+          5
+        ],
+        [
+          2,
+          0,
+          5
+        ],
+        [
+          3,
+          0,
+          5
+        ]
+      ],
+      "params": {
+        "bareEdge": "s",
+        "bareWidth": 1.25
+      }
+    },
+    {
+      "kit": "wall_glass_partition",
+      "cells": [
+        [
+          1,
+          0,
+          5
+        ],
+        [
+          2,
+          0,
+          5
+        ],
+        [
+          3,
+          0,
+          5
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          1,
+          0,
+          5
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          3,
+          0,
+          5
+        ]
+      ],
+      "rot": 270
+    }
+  ],
+  "props": [
+    {
+      "kit": "wall_screen",
+      "pos": [
+        8,
+        0,
+        14.31
+      ],
+      "rot": 180,
+      "params": {
+        "id": "brief_screen",
+        "channel": "briefing",
+        "width": 2.8,
+        "y": 1.85
+      }
+    },
+    {
+      "kit": "glass_cracks",
+      "pos": [
+        4,
+        0,
+        21.73
+      ],
+      "params": {
+        "id": "labb",
+        "seed": 1
+      }
+    },
+    {
+      "kit": "glass_cracks",
+      "pos": [
+        8,
+        0,
+        21.73
+      ],
+      "params": {
+        "id": "labb",
+        "seed": 2
+      }
+    },
+    {
+      "kit": "glass_cracks",
+      "pos": [
+        12,
+        0,
+        21.73
+      ],
+      "params": {
+        "id": "labb",
+        "seed": 3
+      }
+    },
+    {
+      "kit": "credenza",
+      "pos": [
+        4.2,
+        0,
+        14.53
+      ],
+      "rot": 180,
+      "params": {
+        "width": 2
+      }
+    },
+    {
+      "kit": "wall_clock",
+      "pos": [
+        8,
+        0,
+        14.31
+      ],
+      "rot": 180,
+      "params": {
+        "y": 3.05
+      }
+    },
+    {
+      "kit": "tag_poster",
+      "pos": [
+        11.8,
+        0,
+        14.31
+      ],
+      "rot": 180,
+      "params": {
+        "slogan": "OBSERVE. RECORD. REPORT."
+      }
+    },
+    {
+      "kit": "console",
+      "pos": [
+        3.9,
+        0,
+        20.75
+      ],
+      "params": {
+        "screen": "status"
+      }
+    },
+    {
+      "kit": "chair",
+      "pos": [
+        3.9,
+        0,
+        19.75
+      ],
+      "rot": 180,
+      "params": {
+        "fixed": true
+      }
+    },
+    {
+      "kit": "notice_board",
+      "pos": [
+        2.31,
+        0,
+        19.6
+      ],
+      "rot": 270,
+      "params": {
+        "text": "OBSERVATION GALLERY",
+        "detail": "DO NOT TAP THE GLASS"
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        2.65,
+        0,
+        21.35
+      ],
+      "params": {
+        "kind": "fern"
+      }
+    },
+    {
+      "kit": "sofa",
+      "pos": [
+        12,
+        0,
+        18.7
+      ],
+      "rot": 180,
+      "params": {
+        "width": 2
+      }
+    },
+    {
+      "kit": "coffee_table",
+      "pos": [
+        12,
+        0,
+        19.9
+      ],
+      "params": {
+        "width": 1.2,
+        "depth": 0.6
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        13.35,
+        0,
+        21.3
+      ],
+      "params": {
+        "kind": "tall",
+        "pot": "white"
+      }
+    },
+    {
+      "kit": "pendant_light",
+      "pos": [
+        3.9,
+        0,
+        20.35
+      ],
+      "params": {
+        "drop": 1.55,
+        "slots": true
+      }
+    },
+    {
+      "kit": "pendant_light",
+      "pos": [
+        12,
+        0,
+        19.9
+      ],
+      "params": {
+        "drop": 1.55,
+        "count": 2,
+        "spacing": 0.9,
+        "slots": true,
+        "sway": true
+      }
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        5,
+        0,
+        14.26
+      ],
+      "rot": 180,
+      "params": {
+        "id": "pa_gallery"
+      }
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        11,
+        0,
+        14.26
+      ],
+      "rot": 180,
+      "params": {
+        "intercom": "labb",
+        "sources": "R04",
+        "level": 2.2
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#eef1f4",
+      "intensity": 3,
+      "range": 6
+    },
+    {
+      "slot": 2,
+      "pattern": "steady",
+      "color": "#eef1f4",
+      "intensity": 3,
+      "range": 6
+    },
+    {
+      "slot": 3,
+      "pattern": "steady",
+      "color": "#eef1f4",
+      "intensity": 3,
+      "range": 6
+    },
+    {
+      "slot": 5,
+      "pattern": "steady",
+      "color": "#eef1f4",
+      "intensity": 3,
+      "range": 6
+    },
+    {
+      "slot": 1,
+      "pattern": "steady",
+      "color": "#eef1f4",
+      "intensity": 5,
+      "range": 8,
+      "shadow": true
+    },
+    {
+      "slot": 4,
+      "pattern": "steady",
+      "color": "#eef1f4",
+      "intensity": 5,
+      "range": 8,
+      "shadow": true,
+      "cookie": "grille"
+    },
+    {
+      "slot": 6,
+      "pattern": "steady",
+      "color": "#ffcf99",
+      "intensity": 20,
+      "range": 6,
+      "shadow": true
+    },
+    {
+      "slot": 7,
+      "pattern": "steady",
+      "color": "#ffcf99",
+      "intensity": 20,
+      "range": 6,
+      "shadow": true
+    },
+    {
+      "slot": 8,
+      "pattern": "steady",
+      "color": "#ffcf99",
+      "intensity": 20,
+      "range": 6
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trig_gallery_enter",
+      "box": [
+        [
+          2.3,
+          0,
+          14.3
+        ],
+        [
+          13.7,
+          2.6,
+          21.7
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:gallery_enter",
+      "once": false
+    },
+    {
+      "id": "trig_gallery_brief",
+      "box": [
+        [
+          2.3,
+          0,
+          14.3
+        ],
+        [
+          11.8,
+          2.6,
+          21.7
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:gallery_brief_spot",
+      "once": false
+    }
+  ],
+  "anchors": [
+    {
+      "id": "brief_screen",
+      "pos": [
+        8,
+        1.85,
+        14.4
+      ]
+    },
+    {
+      "id": "labb_blinds",
+      "pos": [
+        8,
+        1.5,
+        22.3
+      ]
+    },
+    {
+      "id": "labb_glass",
+      "pos": [
+        8,
+        1.5,
+        21.8
+      ]
+    },
+    {
+      "id": "brief_jay",
+      "pos": [
+        8,
+        0,
+        17.4
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "brief_giles",
+      "pos": [
+        6.4,
+        0,
+        17.8
+      ],
+      "yaw": 160
+    },
+    {
+      "id": "brief_okafor",
+      "pos": [
+        9.7,
+        0,
+        17.8
+      ],
+      "yaw": 200
+    },
+    {
+      "id": "brief_sung",
+      "pos": [
+        5.2,
+        0,
+        18.8
+      ],
+      "yaw": 135
+    },
+    {
+      "id": "brief_heins",
+      "pos": [
+        8,
+        0,
+        20.4
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "gallery_enter",
+      "pos": [
+        13,
+        0,
+        16
+      ],
+      "yaw": 90
+    },
+    {
+      "id": "drop_jay",
+      "pos": [
+        8,
+        0,
+        18.6
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "cp_briefing",
+      "pos": [
+        8,
+        0,
+        17.4
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "priya_walkout",
+      "pos": [
+        5.6,
+        0,
+        15.4
+      ],
+      "yaw": 99.46
+    }
+  ],
+  "npcs": [
+    {
+      "id": "heins",
+      "look": "heins",
+      "at": "brief_heins",
+      "pose": "idle_crossed"
+    }
+  ]
+}

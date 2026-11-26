@@ -1,0 +1,271 @@
+{
+  "id": "R13e",
+  "name": "Sample Store",
+  "area": "dive_bay",
+  "atmosphere": {
+    "fog": "#0b1316",
+    "fogDensity": 0.015,
+    "reverb": "small_office",
+    "ambience": "sample_store"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        4,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "floor_tiles",
+      "cells": [
+        [
+          4,
+          0,
+          10
+        ]
+      ]
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          4,
+          0,
+          10
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          4,
+          0,
+          10
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          4,
+          0,
+          10
+        ]
+      ],
+      "rot": 90
+    }
+  ],
+  "props": [
+    {
+      "kit": "room_sign",
+      "pos": [
+        17.05,
+        0,
+        41.74
+      ],
+      "params": {
+        "code": "R13E",
+        "name": "SAMPLE STORE",
+        "warn": "LAB B CHAIN OF CUSTODY",
+        "co2": 590,
+        "rh": 55
+      }
+    },
+    {
+      "kit": "floor_wear",
+      "pos": [
+        15.2,
+        0,
+        38.95
+      ],
+      "params": {
+        "kind": "puddle",
+        "width": 0.9,
+        "depth": 0.5
+      }
+    },
+    {
+      "kit": "floor_wear",
+      "pos": [
+        15.4,
+        0,
+        41
+      ],
+      "params": {
+        "kind": "puddle",
+        "width": 1.4,
+        "depth": 0.45
+      }
+    },
+    {
+      "kit": "floor_wear",
+      "pos": [
+        17.2,
+        0,
+        40
+      ],
+      "rot": 90,
+      "params": {
+        "kind": "prints",
+        "width": 0.9,
+        "depth": 1.2
+      }
+    },
+    {
+      "kit": "floor_wear",
+      "pos": [
+        15.6,
+        0,
+        40
+      ],
+      "params": {
+        "kind": "salt",
+        "width": 0.8,
+        "depth": 0.8
+      }
+    },
+    {
+      "kit": "cold_store",
+      "pos": [
+        14.26,
+        0,
+        40
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "core_fridge",
+      "pos": [
+        15.4,
+        0,
+        41.74
+      ]
+    },
+    {
+      "kit": "freezer",
+      "pos": [
+        15,
+        0,
+        38.26
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "pressure_cabinet",
+      "pos": [
+        16.1,
+        0,
+        38.26
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "survival_suits",
+      "pos": [
+        17.15,
+        0,
+        38.26
+      ],
+      "rot": 180,
+      "params": {
+        "count": 3
+      }
+    },
+    {
+      "kit": "crate",
+      "pos": [
+        17.4,
+        0,
+        41.4
+      ],
+      "params": {
+        "size": 0.6
+      }
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        15,
+        0,
+        41.74
+      ],
+      "params": {
+        "id": "pa_sample_store"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#eef4f6",
+      "intensity": 7
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trig_dive_case",
+      "box": [
+        [
+          14.8,
+          0,
+          39.2
+        ],
+        [
+          16.4,
+          2,
+          40.8
+        ]
+      ],
+      "on": "use",
+      "emit": "round:dive_case",
+      "once": false,
+      "prompt": "Stow sample case"
+    },
+    {
+      "id": "trig_dive_lockers",
+      "box": [
+        [
+          14.3,
+          0,
+          38.3
+        ],
+        [
+          17.7,
+          2.6,
+          41.7
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:dive_lockers_enter",
+      "once": false
+    }
+  ],
+  "anchors": [
+    {
+      "id": "dive_case_locker",
+      "pos": [
+        15,
+        1,
+        40
+      ]
+    }
+  ],
+  "npcs": [
+    {
+      "id": "diver_2",
+      "look": "diver",
+      "at": [
+        16.6,
+        0,
+        39.4
+      ],
+      "pose": "idle_weight"
+    }
+  ]
+}

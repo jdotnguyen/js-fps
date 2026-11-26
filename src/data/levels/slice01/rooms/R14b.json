@@ -1,0 +1,423 @@
+{
+  "id": "R14b",
+  "name": "Open Office",
+  "area": "admin",
+  "atmosphere": {
+    "fog": "#14110e",
+    "fogDensity": 0.012,
+    "ambient": "admin",
+    "reverb": "small_office",
+    "ambience": "admin_open_office"
+  },
+  "visibleFrom": [
+    "R14d",
+    "R14c"
+  ],
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        10,
+        0,
+        1
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        11,
+        0,
+        1
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        12,
+        0,
+        1
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        10,
+        0,
+        2
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        11,
+        0,
+        2
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        12,
+        0,
+        2
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "floor_carpet",
+      "cells": [
+        [
+          10,
+          0,
+          1
+        ],
+        [
+          11,
+          0,
+          1
+        ],
+        [
+          12,
+          0,
+          1
+        ],
+        [
+          10,
+          0,
+          2
+        ],
+        [
+          11,
+          0,
+          2
+        ],
+        [
+          12,
+          0,
+          2
+        ]
+      ]
+    },
+    {
+      "kit": "wall_glass_partition",
+      "cells": [
+        [
+          10,
+          0,
+          1
+        ],
+        [
+          12,
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "kit": "wall_wood",
+      "cells": [
+        [
+          10,
+          0,
+          1
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_wood",
+      "cells": [
+        [
+          10,
+          0,
+          2
+        ],
+        [
+          11,
+          0,
+          2
+        ],
+        [
+          12,
+          0,
+          2
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_glass_partition",
+      "cells": [
+        [
+          12,
+          0,
+          2
+        ]
+      ],
+      "rot": 270
+    }
+  ],
+  "props": [
+    {
+      "kit": "office_desk",
+      "pos": [
+        40.6,
+        0,
+        3.2
+      ],
+      "rot": 180,
+      "params": {
+        "width": 1.6,
+        "papers": 2
+      }
+    },
+    {
+      "kit": "chair",
+      "pos": [
+        40.6,
+        0,
+        3.92
+      ],
+      "params": {
+        "fixed": true
+      }
+    },
+    {
+      "kit": "office_desk",
+      "pos": [
+        46.8,
+        0,
+        3.2
+      ],
+      "rot": 180,
+      "params": {
+        "width": 1.6,
+        "papers": 2
+      }
+    },
+    {
+      "kit": "chair",
+      "pos": [
+        46.8,
+        0,
+        3.92
+      ]
+    },
+    {
+      "kit": "office_desk",
+      "pos": [
+        41.6,
+        0,
+        7.4
+      ],
+      "rot": 180,
+      "params": {
+        "width": 1.6,
+        "papers": 2
+      }
+    },
+    {
+      "kit": "chair",
+      "pos": [
+        41.6,
+        0,
+        8.12
+      ]
+    },
+    {
+      "kit": "office_desk",
+      "pos": [
+        45.6,
+        0,
+        7.4
+      ],
+      "rot": 180,
+      "params": {
+        "width": 1.6,
+        "papers": 2
+      }
+    },
+    {
+      "kit": "chair",
+      "pos": [
+        45.6,
+        0,
+        8.12
+      ],
+      "params": {
+        "fixed": true
+      }
+    },
+    {
+      "kit": "bookshelf",
+      "pos": [
+        48.4,
+        0,
+        9.52
+      ],
+      "params": {
+        "width": 1.6
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        38.65,
+        0,
+        2.65
+      ],
+      "params": {
+        "kind": "tall",
+        "pot": "white"
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        49.35,
+        0,
+        2.65
+      ],
+      "params": {
+        "kind": "fern",
+        "pot": "white"
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        38.65,
+        0,
+        9.35
+      ],
+      "params": {
+        "kind": "shrub",
+        "pot": "white"
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        43.6,
+        0,
+        9.35
+      ],
+      "params": {
+        "kind": "palm",
+        "pot": "white"
+      }
+    },
+    {
+      "kit": "hanging_plant",
+      "pos": [
+        43.6,
+        0,
+        5.6
+      ],
+      "params": {
+        "drop": 0.7,
+        "pot": "white"
+      }
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        41,
+        0,
+        9.74
+      ],
+      "params": {
+        "id": "pa_office"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#fff0d8",
+      "intensity": 14,
+      "range": 13,
+      "shaft": 0.01,
+      "emissive": 2.2
+    },
+    {
+      "slot": 1,
+      "pattern": "steady",
+      "color": "#fff0d8",
+      "intensity": 14,
+      "range": 13,
+      "shaft": 0.01,
+      "emissive": 2.2
+    },
+    {
+      "slot": 2,
+      "pattern": "steady",
+      "color": "#ffebd0",
+      "intensity": 14,
+      "range": 13,
+      "shaft": 0.01,
+      "emissive": 2.2
+    }
+  ],
+  "npcs": [
+    {
+      "id": "exec_2",
+      "look": "exec",
+      "at": [
+        40.6,
+        0,
+        3.92
+      ],
+      "yaw": 0,
+      "model": "office1",
+      "pose": "sit_typing"
+    },
+    {
+      "id": "exec_4",
+      "look": "exec",
+      "at": [
+        45.6,
+        0,
+        8.12
+      ],
+      "yaw": 0,
+      "model": "office3",
+      "pose": "sit_typing"
+    },
+    {
+      "id": "exec_1",
+      "look": "exec",
+      "at": [
+        44.2,
+        0,
+        5.6
+      ],
+      "yaw": 90,
+      "chat": "admin_hall",
+      "model": "botanist2",
+      "pose": "idle"
+    },
+    {
+      "id": "exec_3",
+      "look": "exec",
+      "at": [
+        43.2,
+        0,
+        5.6
+      ],
+      "yaw": 270,
+      "chat": "admin_hall",
+      "model": "office2",
+      "pose": "clipboard"
+    }
+  ]
+}

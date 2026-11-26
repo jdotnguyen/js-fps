@@ -1,0 +1,739 @@
+{
+  "id": "R15a",
+  "name": "Departure Boarding Bay",
+  "area": "transit",
+  "height": 5,
+  "atmosphere": {
+    "fog": "#060a0e",
+    "fogDensity": 0.014,
+    "reverb": "metal_hall",
+    "ambience": "transit_boarding"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        11,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        12,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        13,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        11,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        12,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        13,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        11,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        12,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        13,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        11,
+        0,
+        11
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        12,
+        0,
+        11
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        13,
+        0,
+        11
+      ]
+    },
+    {
+      "kit": "floor",
+      "cells": [
+        [
+          11,
+          0,
+          8
+        ],
+        [
+          12,
+          0,
+          8
+        ],
+        [
+          13,
+          0,
+          8
+        ],
+        [
+          11,
+          0,
+          9
+        ],
+        [
+          12,
+          0,
+          9
+        ],
+        [
+          13,
+          0,
+          9
+        ],
+        [
+          11,
+          0,
+          10
+        ],
+        [
+          12,
+          0,
+          10
+        ],
+        [
+          13,
+          0,
+          10
+        ],
+        [
+          11,
+          0,
+          11
+        ],
+        [
+          12,
+          0,
+          11
+        ],
+        [
+          13,
+          0,
+          11
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          11,
+          0,
+          8
+        ],
+        [
+          13,
+          0,
+          8
+        ]
+      ]
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          12,
+          0,
+          8
+        ]
+      ]
+    },
+    {
+      "kit": "wall_window",
+      "cells": [
+        [
+          13,
+          0,
+          8
+        ],
+        [
+          13,
+          0,
+          9
+        ],
+        [
+          13,
+          0,
+          10
+        ],
+        [
+          13,
+          0,
+          11
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          11,
+          0,
+          9
+        ],
+        [
+          11,
+          0,
+          10
+        ],
+        [
+          11,
+          0,
+          11
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          11,
+          0,
+          11
+        ],
+        [
+          13,
+          0,
+          11
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "transit_blast_gate",
+      "cell": [
+        12,
+        0,
+        11
+      ],
+      "rot": 180,
+      "params": {
+        "gateId": "r15a_south",
+        "height": 5
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        12,
+        0,
+        12
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        12,
+        0,
+        13
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        12,
+        0,
+        14
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        12,
+        0,
+        15
+      ]
+    }
+  ],
+  "props": [
+    {
+      "kit": "track_bed",
+      "pos": [
+        48,
+        0,
+        38
+      ],
+      "params": {
+        "length": 15.4
+      }
+    },
+    {
+      "kit": "transit_train_shell",
+      "pos": [
+        48,
+        0,
+        38
+      ],
+      "rot": 180,
+      "params": {
+        "id": "r15a_train",
+        "length": 9,
+        "width": 3,
+        "height": 2.9,
+        "doorSide": "right",
+        "carId": "r15a_train"
+      }
+    },
+    {
+      "kit": "transit_tunnel_shroud",
+      "pos": [
+        48,
+        0,
+        64.2
+      ],
+      "params": {
+        "length": 36,
+        "fog": "south",
+        "ribLights": 4
+      }
+    },
+    {
+      "kit": "rib_frame",
+      "pos": [
+        48,
+        0,
+        34.4
+      ],
+      "params": {
+        "width": 11.4,
+        "height": 5
+      }
+    },
+    {
+      "kit": "rib_frame",
+      "pos": [
+        48,
+        0,
+        38
+      ],
+      "params": {
+        "width": 11.4,
+        "height": 5
+      }
+    },
+    {
+      "kit": "rib_frame",
+      "pos": [
+        48,
+        0,
+        43.8
+      ],
+      "params": {
+        "width": 11.4,
+        "height": 5
+      }
+    },
+    {
+      "kit": "platform_railing",
+      "pos": [
+        45.75,
+        0,
+        33.4
+      ],
+      "params": {
+        "length": 5.6
+      }
+    },
+    {
+      "kit": "platform_railing",
+      "pos": [
+        45.75,
+        0,
+        42.6
+      ],
+      "params": {
+        "length": 5.6
+      }
+    },
+    {
+      "kit": "transit_depart_board",
+      "pos": [
+        44.3,
+        0,
+        35.6
+      ],
+      "params": {
+        "width": 2.4,
+        "height": 1.1,
+        "y": 3.15
+      }
+    },
+    {
+      "kit": "room_sign",
+      "pos": [
+        42.26,
+        0,
+        33.66
+      ],
+      "rot": 270,
+      "params": {
+        "code": "R15A",
+        "name": "DEPARTURE BAY",
+        "sub": "DECK 0 · TRANSIT",
+        "panel": false,
+        "width": 0.48
+      }
+    },
+    {
+      "kit": "transit_sign",
+      "pos": [
+        42.27,
+        0,
+        39.8
+      ],
+      "rot": 270,
+      "params": {
+        "title": "PLATFORM A",
+        "sub": "BOARDING ZONE · KEEP CLEAR OF EDGE",
+        "y": 2.05,
+        "accent": "#e0a82e",
+        "width": 1.6,
+        "height": 0.48
+      }
+    },
+    {
+      "kit": "console",
+      "pos": [
+        42.75,
+        0,
+        41.8
+      ],
+      "rot": 270,
+      "params": {}
+    },
+    {
+      "kit": "electrical_box_02",
+      "pos": [
+        42.3,
+        0,
+        44.4
+      ],
+      "rot": 270,
+      "params": {}
+    },
+    {
+      "kit": "pipe_run",
+      "pos": [
+        44,
+        0,
+        38
+      ],
+      "params": {
+        "length": 14,
+        "height": 4.55,
+        "ceiling": 5,
+        "hung": true,
+        "paint": "teal"
+      }
+    },
+    {
+      "kit": "transit_boarding_step",
+      "pos": [
+        46.5,
+        0,
+        38
+      ],
+      "params": {
+        "width": 2.2
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 14,
+      "range": 18,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 2,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 14,
+      "range": 18,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 4,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 16,
+      "range": 20,
+      "backupScale": 1,
+      "ownColor": true,
+      "shaft": 0
+    },
+    {
+      "slot": 7,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 16,
+      "range": 20,
+      "backupScale": 1,
+      "ownColor": true,
+      "shaft": 0
+    },
+    {
+      "slot": 9,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 14,
+      "range": 18,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 11,
+      "pattern": "steady",
+      "color": "#dce8f4",
+      "intensity": 14,
+      "range": 18,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 16,
+      "id": "r15a_train_cabin_a",
+      "pattern": "steady",
+      "color": "#ffb974",
+      "intensity": 3.6,
+      "range": 7.5,
+      "drop": 0.08,
+      "shadow": true,
+      "emissive": 0.35,
+      "shaft": 0,
+      "backupScale": 0.85,
+      "ownColor": true
+    },
+    {
+      "slot": 17,
+      "id": "r15a_train_cabin_b",
+      "pattern": "steady",
+      "color": "#ffb974",
+      "intensity": 3.6,
+      "range": 7.5,
+      "drop": 0.08,
+      "shadow": true,
+      "emissive": 0.35,
+      "shaft": 0,
+      "backupScale": 0.85,
+      "ownColor": true
+    },
+    {
+      "slot": 18,
+      "id": "r15a_tunnel_pass_0",
+      "pattern": "steady",
+      "color": "#7ee4f5",
+      "intensity": 9,
+      "range": 7.5,
+      "drop": 0,
+      "shadow": true,
+      "shaft": 0,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 19,
+      "id": "r15a_tunnel_pass_1",
+      "pattern": "steady",
+      "color": "#7ee4f5",
+      "intensity": 9,
+      "range": 7.5,
+      "drop": 0,
+      "shadow": true,
+      "shaft": 0,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 20,
+      "id": "r15a_tunnel_pass_2",
+      "pattern": "steady",
+      "color": "#7ee4f5",
+      "intensity": 9,
+      "range": 7.5,
+      "drop": 0,
+      "shadow": true,
+      "shaft": 0,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 21,
+      "id": "r15a_tunnel_pass_3",
+      "pattern": "steady",
+      "color": "#7ee4f5",
+      "intensity": 9,
+      "range": 7.5,
+      "drop": 0,
+      "shadow": true,
+      "shaft": 0,
+      "backupScale": 1,
+      "ownColor": true
+    }
+  ],
+  "triggers": [
+    {
+      "id": "r15a_enter",
+      "box": [
+        [
+          42.3,
+          0,
+          30.2
+        ],
+        [
+          45.7,
+          2.6,
+          35.8
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:r15a_enter"
+    },
+    {
+      "id": "r15a_boarded",
+      "box": [
+        [
+          46.7,
+          0.3,
+          33.8
+        ],
+        [
+          49.3,
+          2.8,
+          42.2
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:r15a_boarded"
+    }
+  ],
+  "anchors": [
+    {
+      "id": "r15a_platform",
+      "pos": [
+        44,
+        0,
+        32
+      ],
+      "yaw": 225
+    },
+    {
+      "id": "r15a_giles_console",
+      "pos": [
+        43.35,
+        0,
+        41.8
+      ],
+      "yaw": 90
+    },
+    {
+      "id": "r15a_okafor_console",
+      "pos": [
+        44.2,
+        0,
+        40.4
+      ],
+      "yaw": 145
+    },
+    {
+      "id": "r15a_train_inside",
+      "pos": [
+        48,
+        0.48,
+        38
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "r15a_train_look",
+      "pos": [
+        53.5,
+        2.05,
+        38
+      ]
+    },
+    {
+      "id": "r15a_train_giles",
+      "pos": [
+        47.55,
+        0.48,
+        35.5
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "r15a_train_okafor",
+      "pos": [
+        48.45,
+        0.48,
+        35.8
+      ],
+      "yaw": 225
+    }
+  ]
+}

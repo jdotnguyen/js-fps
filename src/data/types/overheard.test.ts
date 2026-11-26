@@ -5,6 +5,7 @@ import { npcIdForSpeaker } from '../../ai/speakerBodies.ts';
 import { validate } from '../../core/validate.ts';
 import { validateChapter } from './dialogue.ts';
 import { validateOverheard } from './overheard.ts';
+import { readLevel } from '../levels/readLevel.ts';
 
 const json = (rel: string): unknown => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
 const data = validate(validateOverheard, json('../overheard.json'), 'data/overheard.json');
@@ -12,7 +13,7 @@ const commonsChapter = validate(validateChapter, json('../dialogue/commons_overh
 const stationChapter = validate(validateChapter, json('../dialogue/station_overheard.json'), 'station_overheard');
 const allLines = [...commonsChapter.lines, ...stationChapter.lines];
 const lines = new Map(allLines.map((l) => [l.id, l]));
-const level = json('../levels/slice01.json') as { rooms: Array<{ id: string; npcs?: Array<{ id: string; chat?: string }> }> };
+const level = readLevel('slice01') as { rooms: Array<{ id: string; npcs?: Array<{ id: string; chat?: string }> }> };
 const roomNpcs = (roomId: string) => level.rooms.find((r) => r.id === roomId)?.npcs ?? [];
 
 test('every exchange names real lines, a real chat group or solo speaker in its room, and valid speakers', () => {

@@ -1,0 +1,446 @@
+{
+  "id": "R05",
+  "name": "Lab Junction",
+  "area": "labs",
+  "atmosphere": {
+    "fog": "#0a0607",
+    "fogDensity": 0.025,
+    "reverb": "metal_corridor",
+    "ambience": "hull_groan"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        -1,
+        0,
+        4
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        0,
+        0,
+        4
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        -1,
+        0,
+        5
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        0,
+        0,
+        5
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        -1,
+        0,
+        6
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        0,
+        0,
+        6
+      ]
+    },
+    {
+      "kit": "floor",
+      "cells": [
+        [
+          -1,
+          0,
+          4
+        ],
+        [
+          0,
+          0,
+          4
+        ],
+        [
+          -1,
+          0,
+          5
+        ],
+        [
+          0,
+          0,
+          5
+        ],
+        [
+          -1,
+          0,
+          6
+        ],
+        [
+          0,
+          0,
+          6
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          -1,
+          0,
+          4
+        ],
+        [
+          0,
+          0,
+          4
+        ]
+      ]
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          -1,
+          0,
+          4
+        ],
+        [
+          -1,
+          0,
+          6
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_vent",
+      "cells": [
+        [
+          -1,
+          0,
+          5
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          0,
+          0,
+          5
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          -1,
+          0,
+          6
+        ]
+      ],
+      "rot": 180
+    }
+  ],
+  "props": [
+    {
+      "kit": "emergency_shower",
+      "pos": [
+        -5.15,
+        0,
+        14.85
+      ]
+    },
+    {
+      "kit": "ppe_locker",
+      "pos": [
+        -3,
+        0,
+        14.25
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "ppe_locker",
+      "pos": [
+        -2.38,
+        0,
+        14.25
+      ],
+      "rot": 180,
+      "params": {
+        "open": true
+      }
+    },
+    {
+      "kit": "ppe_locker",
+      "pos": [
+        -1.76,
+        0,
+        14.25
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "directory_sign",
+      "pos": [
+        0.7,
+        0,
+        14.31
+      ],
+      "rot": 180,
+      "params": {
+        "y": 1.8
+      }
+    },
+    {
+      "kit": "hazmat_rack",
+      "pos": [
+        -5.75,
+        0,
+        21.2
+      ],
+      "rot": 270,
+      "params": {
+        "count": 3
+      }
+    },
+    {
+      "kit": "sample_cart",
+      "pos": [
+        -5.3,
+        0,
+        18
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "sample_cart",
+      "pos": [
+        -1.4,
+        0,
+        20.6
+      ],
+      "rot": 30,
+      "params": {
+        "tipped": true
+      }
+    },
+    {
+      "kit": "floor_drain",
+      "pos": [
+        -4.6,
+        0,
+        24.6
+      ]
+    },
+    {
+      "kit": "console",
+      "pos": [
+        1.2,
+        0,
+        19.4
+      ],
+      "rot": 270,
+      "params": {
+        "screen": "log"
+      }
+    },
+    {
+      "kit": "emergency_beacon",
+      "pos": [
+        -5.7,
+        2.6,
+        20
+      ],
+      "params": {
+        "wall": true
+      }
+    },
+    {
+      "kit": "cable_bundle",
+      "pos": [
+        -2,
+        0,
+        18
+      ],
+      "rot": 90,
+      "params": {
+        "length": 10,
+        "height": 2.9
+      }
+    },
+    {
+      "kit": "coolant_line",
+      "pos": [
+        0,
+        0,
+        0
+      ],
+      "params": {
+        "path": "2.0,2.8,25.3;1.55,2.8,25.3;-3.5,2.8,25.3;-3.5,2.8,26.0",
+        "collars": "0;3",
+        "valves": "1",
+        "sight": "2"
+      }
+    },
+    {
+      "kit": "bloom_growth_a",
+      "pos": [
+        -2.6,
+        0,
+        25.15
+      ],
+      "rot": 15,
+      "params": {
+        "material": "bloom"
+      }
+    },
+    {
+      "kit": "bloom_decal",
+      "pos": [
+        -1.6,
+        0,
+        25.75
+      ],
+      "params": {
+        "w": 1,
+        "h": 0.7,
+        "y": 2.45,
+        "seed": 2
+      }
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        1.4,
+        0,
+        14.26
+      ],
+      "rot": 180,
+      "params": {
+        "id": "pa_lab_junction",
+        "serves": "R04"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "alarm",
+      "color": "#ff2a1c",
+      "intensity": 6
+    },
+    {
+      "slot": 3,
+      "pattern": "steady",
+      "color": "#eef2f4",
+      "intensity": 8
+    },
+    {
+      "slot": 4,
+      "pattern": "alarm",
+      "color": "#ff2a1c",
+      "intensity": 6
+    },
+    {
+      "slot": 1,
+      "pattern": "alarm",
+      "color": "#ff2a1c",
+      "pool": false
+    },
+    {
+      "slot": 2,
+      "pattern": "alarm",
+      "color": "#ff2a1c",
+      "pool": false
+    },
+    {
+      "slot": 5,
+      "pattern": "alarm",
+      "color": "#ff2a1c",
+      "pool": false
+    },
+    {
+      "slot": "emergency",
+      "pattern": "off"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trig_r05_enter",
+      "box": [
+        [
+          -5.7,
+          0,
+          14.3
+        ],
+        [
+          1.7,
+          2.6,
+          17.7
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:r05_enter"
+    }
+  ],
+  "anchors": [
+    {
+      "id": "r05_entry",
+      "pos": [
+        -1.6,
+        0,
+        16.2
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "ammo_r05",
+      "pos": [
+        -5.3,
+        0.84,
+        18
+      ]
+    },
+    {
+      "id": "duct_r05_1",
+      "pos": [
+        1,
+        3.55,
+        24.6
+      ]
+    },
+    {
+      "id": "duct_r05_2",
+      "pos": [
+        -1.5,
+        3.55,
+        25.2
+      ]
+    },
+    {
+      "id": "duct_r05_3",
+      "pos": [
+        -3.5,
+        3.55,
+        25.6
+      ]
+    }
+  ]
+}

@@ -1,0 +1,929 @@
+{
+  "id": "R01",
+  "name": "Docking Ring",
+  "area": "dock",
+  "atmosphere": {
+    "fog": "#0a1014",
+    "fogDensity": 0.018,
+    "ambient": "dock",
+    "reverb": "metal_hall",
+    "ambience": "dock_ring"
+  },
+  "visibleFrom": [
+    "R01w"
+  ],
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        2,
+        0,
+        0
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        3,
+        0,
+        0
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        0,
+        0,
+        1
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        1,
+        0,
+        1
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        3,
+        0,
+        1
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "floor",
+      "cells": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          3,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          1
+        ],
+        [
+          2,
+          0,
+          1
+        ],
+        [
+          3,
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_window",
+      "cells": [
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          3,
+          0,
+          0
+        ]
+      ],
+      "params": {
+        "flicker": true
+      }
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          2,
+          0,
+          1
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          0,
+          0,
+          1
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          1,
+          0,
+          1
+        ],
+        [
+          3,
+          0,
+          1
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          3,
+          0,
+          1
+        ]
+      ],
+      "rot": 270
+    }
+  ],
+  "props": [
+    {
+      "kit": "supply_sub",
+      "pos": [
+        2.5,
+        0.4,
+        -9
+      ],
+      "params": {
+        "state": "away",
+        "dockTime": 10
+      }
+    },
+    {
+      "kit": "half_wall",
+      "pos": [
+        5.9,
+        0,
+        1.8
+      ],
+      "params": {
+        "width": 3,
+        "height": 1.08,
+        "material": "cleanTeal"
+      }
+    },
+    {
+      "kit": "half_wall",
+      "pos": [
+        4.5,
+        0,
+        3.78
+      ],
+      "rot": 90,
+      "params": {
+        "width": 4.15,
+        "height": 1.08,
+        "material": "cleanTeal"
+      }
+    },
+    {
+      "kit": "mug",
+      "pos": [
+        6.75,
+        1.08,
+        1.86
+      ],
+      "params": {
+        "color": "teal"
+      }
+    },
+    {
+      "kit": "office_desk",
+      "pos": [
+        6.95,
+        0,
+        5.1
+      ],
+      "params": {
+        "width": 1.8,
+        "monitor": false,
+        "keyboards": 2,
+        "papers": 2,
+        "top": "panel"
+      }
+    },
+    {
+      "kit": "cctv_wall",
+      "pos": [
+        6.95,
+        0,
+        5.69
+      ],
+      "params": {
+        "id": "dock_post",
+        "camera": "CAM 02  DOCK AIRLOCK",
+        "width": 1.84
+      }
+    },
+    {
+      "kit": "chair",
+      "pos": [
+        5.45,
+        0,
+        4.55
+      ],
+      "rot": 150,
+      "params": {
+        "id": "dock_chair",
+        "fixed": true
+      }
+    },
+    {
+      "kit": "desk_wand",
+      "pos": [
+        7.02,
+        0.78,
+        5.14
+      ],
+      "rot": 108,
+      "params": {
+        "id": "dock_wand",
+        "hidden": true
+      }
+    },
+    {
+      "kit": "metal_detector",
+      "pos": [
+        7.68,
+        0,
+        1.17
+      ],
+      "rot": 90,
+      "params": {
+        "id": "dock_arch",
+        "opening": 1.2
+      }
+    },
+    {
+      "kit": "rail",
+      "pos": [
+        7.68,
+        0,
+        0.26
+      ],
+      "rot": 90,
+      "params": {
+        "length": 0.3
+      }
+    },
+    {
+      "kit": "staff_gate",
+      "pos": [
+        7.68,
+        0,
+        -0.49
+      ],
+      "rot": 90,
+      "params": {
+        "width": 1.2
+      }
+    },
+    {
+      "kit": "rail",
+      "pos": [
+        7.68,
+        0,
+        -1.48
+      ],
+      "rot": 90,
+      "params": {
+        "length": 0.76
+      }
+    },
+    {
+      "kit": "tray_table",
+      "pos": [
+        7,
+        0,
+        0.12
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "tag_poster",
+      "pos": [
+        0.9,
+        0,
+        5.69
+      ],
+      "params": {
+        "slogan": "WELCOME TO THALASSA"
+      }
+    },
+    {
+      "kit": "notice_board",
+      "pos": [
+        2.9,
+        0,
+        5.69
+      ],
+      "params": {
+        "text": "SHIFT ROSTER",
+        "detail": "06:40 CHANGEOVER"
+      }
+    },
+    {
+      "kit": "crate",
+      "pos": [
+        -1.2,
+        0,
+        4.4
+      ],
+      "params": {
+        "size": 0.7
+      }
+    },
+    {
+      "kit": "vending_machine",
+      "pos": [
+        10.6,
+        0,
+        5.35
+      ]
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        11.6,
+        0,
+        5.3
+      ],
+      "params": {
+        "kind": "palm",
+        "pot": "dark"
+      }
+    },
+    {
+      "kit": "crate_stack",
+      "pos": [
+        12.9,
+        0,
+        5.2
+      ],
+      "rot": 15
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        13.2,
+        0,
+        3.2
+      ],
+      "params": {
+        "kind": "palm",
+        "pot": "dark"
+      }
+    },
+    {
+      "kit": "cable_bundle",
+      "pos": [
+        8,
+        0,
+        5.6
+      ],
+      "params": {
+        "length": 12,
+        "height": 2.9
+      }
+    },
+    {
+      "kit": "locker",
+      "pos": [
+        -1.45,
+        0,
+        3
+      ],
+      "rot": 270,
+      "params": {
+        "count": 2,
+        "label": "DOCK SEC"
+      }
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        -1.74,
+        0,
+        -1
+      ],
+      "rot": 270,
+      "params": {
+        "id": "pa_dock",
+        "serves": "R01a"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#cfe8ff",
+      "intensity": 13,
+      "range": 12,
+      "shaft": 0.045,
+      "emissive": 2.6
+    },
+    {
+      "slot": 1,
+      "pattern": "steady",
+      "color": "#d8eeff",
+      "intensity": 12,
+      "range": 12,
+      "shaft": 0.04,
+      "emissive": 2.6
+    },
+    {
+      "slot": 2,
+      "pattern": "steady",
+      "color": "#cfe8ff",
+      "intensity": 13,
+      "range": 12,
+      "shaft": 0.04,
+      "emissive": 2.6
+    },
+    {
+      "slot": 3,
+      "pattern": "steady",
+      "color": "#ffddb3",
+      "intensity": 15,
+      "range": 12,
+      "drop": 0.45,
+      "shaft": 0.025,
+      "emissive": 2.8
+    },
+    {
+      "slot": 4,
+      "pattern": "steady",
+      "color": "#ffe8cc",
+      "intensity": 13,
+      "range": 12,
+      "shaft": 0.02,
+      "emissive": 2.5
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trig_dock_arch",
+      "box": [
+        [
+          7.42,
+          0,
+          0.6
+        ],
+        [
+          7.93,
+          2.2,
+          1.74
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:dock_arch",
+      "once": false
+    }
+  ],
+  "anchors": [
+    {
+      "id": "post_front",
+      "pos": [
+        6.95,
+        0,
+        4.3
+      ],
+      "yaw": 2
+    },
+    {
+      "id": "dock_window",
+      "pos": [
+        5.8,
+        1.5,
+        -2.2
+      ]
+    },
+    {
+      "id": "dock_door",
+      "pos": [
+        0,
+        1.2,
+        -2
+      ]
+    },
+    {
+      "id": "walkby_stop",
+      "pos": [
+        6,
+        0,
+        1.15
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "walkby_queue",
+      "pos": [
+        4.7,
+        0,
+        0.45
+      ],
+      "yaw": 241.7
+    },
+    {
+      "id": "arch",
+      "pos": [
+        7.68,
+        1.6,
+        1.17
+      ]
+    },
+    {
+      "id": "arch_scan",
+      "pos": [
+        8.6,
+        0,
+        1.25
+      ],
+      "yaw": 270
+    },
+    {
+      "id": "guard_post",
+      "pos": [
+        9.75,
+        0,
+        1.25
+      ],
+      "yaw": 90
+    },
+    {
+      "id": "arch_exit",
+      "pos": [
+        10.6,
+        0,
+        -0.3
+      ],
+      "yaw": 270
+    },
+    {
+      "id": "guard_desk_approach",
+      "pos": [
+        7.02,
+        0,
+        4.32
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "guard_wand_spot",
+      "pos": [
+        7.02,
+        0.78,
+        5.14
+      ],
+      "yaw": 108
+    },
+    {
+      "id": "guard_chair_grip",
+      "pos": [
+        5.8,
+        0,
+        3.88
+      ],
+      "yaw": 152.42
+    },
+    {
+      "id": "guard_seat",
+      "pos": [
+        6.45,
+        0,
+        4.38
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "post_okafor",
+      "pos": [
+        8.2,
+        0,
+        2.9
+      ],
+      "yaw": 138.24
+    },
+    {
+      "id": "post_giles",
+      "pos": [
+        9.6,
+        0,
+        3.4
+      ],
+      "yaw": 108.76
+    },
+    {
+      "id": "walk_mid",
+      "pos": [
+        14,
+        0,
+        0.6
+      ],
+      "yaw": 270
+    },
+    {
+      "id": "sub_dock",
+      "pos": [
+        2.5,
+        0.4,
+        -9
+      ]
+    }
+  ],
+  "npcs": [
+    {
+      "id": "dock_guard",
+      "look": "security",
+      "at": "guard_post",
+      "model": "guard1",
+      "pose": "idle_wand"
+    }
+  ],
+  "walks": [
+    {
+      "id": "checkpoint_exit",
+      "points": [
+        "arch_scan",
+        [
+          9,
+          0,
+          0.35
+        ],
+        "arch_exit"
+      ]
+    },
+    {
+      "id": "guard_return_desk",
+      "points": [
+        "guard_post",
+        [
+          8.6,
+          0,
+          1.85
+        ],
+        [
+          7.75,
+          0,
+          2.25
+        ],
+        [
+          6.95,
+          0,
+          2.75
+        ],
+        [
+          6.75,
+          0,
+          3.5
+        ],
+        "guard_desk_approach"
+      ]
+    },
+    {
+      "id": "intro_jay_kitchen",
+      "points": [
+        "post_front",
+        [
+          7.85,
+          0,
+          3.5
+        ],
+        [
+          10.8,
+          0,
+          2.7
+        ],
+        [
+          14.3,
+          0,
+          0
+        ],
+        [
+          22.1,
+          0,
+          0.3
+        ],
+        [
+          23.4,
+          0,
+          2
+        ],
+        [
+          24,
+          0,
+          10.5
+        ],
+        "kitchen_stand"
+      ]
+    },
+    {
+      "id": "intro_okafor_arrive",
+      "points": [
+        "okafor_start",
+        [
+          0.35,
+          0,
+          -0.95
+        ],
+        "walkby_stop"
+      ]
+    },
+    {
+      "id": "intro_giles_arrive",
+      "points": [
+        "giles_start",
+        [
+          0.05,
+          0,
+          -2.85
+        ],
+        [
+          0.25,
+          0,
+          -1.05
+        ],
+        "walkby_queue"
+      ]
+    },
+    {
+      "id": "intro_okafor_counter",
+      "points": [
+        "post_okafor",
+        [
+          10.6,
+          0,
+          2.5
+        ],
+        [
+          14.2,
+          0,
+          0.05
+        ],
+        [
+          21.6,
+          0,
+          0.05
+        ],
+        [
+          22.9,
+          0,
+          1.05
+        ],
+        [
+          24,
+          0,
+          3.25
+        ],
+        [
+          24.2,
+          0,
+          10.85
+        ],
+        [
+          25.8,
+          0,
+          11.95
+        ],
+        [
+          27,
+          0,
+          11.95
+        ],
+        "counter_okafor"
+      ]
+    },
+    {
+      "id": "intro_giles_counter",
+      "points": [
+        "post_giles",
+        [
+          14.5,
+          0,
+          -0.75
+        ],
+        [
+          20.5,
+          0,
+          -0.75
+        ],
+        [
+          22,
+          0,
+          0.15
+        ],
+        [
+          23.4,
+          0,
+          2.05
+        ],
+        [
+          24.2,
+          0,
+          10.85
+        ],
+        [
+          26,
+          0,
+          12.2
+        ],
+        [
+          27.7,
+          0,
+          12.35
+        ],
+        [
+          28.45,
+          0,
+          11.85
+        ],
+        "counter_giles"
+      ]
+    }
+  ]
+}

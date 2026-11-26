@@ -1,0 +1,198 @@
+{
+  "id": "R15b",
+  "name": "Abyssal Sea-Tunnel",
+  "area": "transit",
+  "height": 5,
+  "atmosphere": {
+    "fog": "#02090d",
+    "fogDensity": 0.026,
+    "reverb": "metal_hall",
+    "ambience": "transit_tunnel"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        32,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        32,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        32,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        32,
+        0,
+        11
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        32,
+        0,
+        12
+      ]
+    }
+  ],
+  "props": [
+    {
+      "kit": "transit_train_shell",
+      "pos": [
+        128,
+        0,
+        40
+      ],
+      "rot": 180,
+      "params": {
+        "id": "r15b_train",
+        "length": 9,
+        "width": 3,
+        "height": 2.9,
+        "doorSide": "right",
+        "carId": "r15b_train"
+      }
+    },
+    {
+      "kit": "transit_sea_tunnel_rig",
+      "pos": [
+        128,
+        0,
+        40
+      ],
+      "params": {
+        "autoScroll": true,
+        "speed": 20
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#a8c8d8",
+      "intensity": 1.5,
+      "range": 10,
+      "shaft": 0,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 1,
+      "pattern": "steady",
+      "color": "#a8c8d8",
+      "intensity": 1.5,
+      "range": 10,
+      "backupScale": 1,
+      "ownColor": true,
+      "shaft": 0
+    },
+    {
+      "slot": 5,
+      "id": "r15b_train_cabin_a",
+      "pattern": "steady",
+      "color": "#ffb974",
+      "intensity": 3.6,
+      "range": 7.5,
+      "drop": 0.08,
+      "shadow": true,
+      "emissive": 0.35,
+      "shaft": 0,
+      "backupScale": 0.85,
+      "ownColor": true
+    },
+    {
+      "slot": 6,
+      "id": "r15b_train_cabin_b",
+      "pattern": "steady",
+      "color": "#ffb974",
+      "intensity": 3.6,
+      "range": 7.5,
+      "drop": 0.08,
+      "shadow": true,
+      "emissive": 0.35,
+      "shaft": 0,
+      "backupScale": 0.85,
+      "ownColor": true
+    },
+    {
+      "slot": 7,
+      "id": "r15b_tunnel_pass_0",
+      "pattern": "steady",
+      "color": "#7ee4f5",
+      "intensity": 9,
+      "range": 7.5,
+      "drop": 0,
+      "shadow": true,
+      "shaft": 0,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 8,
+      "id": "r15b_tunnel_pass_1",
+      "pattern": "steady",
+      "color": "#7ee4f5",
+      "intensity": 9,
+      "range": 7.5,
+      "drop": 0,
+      "shadow": true,
+      "shaft": 0,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 9,
+      "id": "r15b_tunnel_pass_2",
+      "pattern": "steady",
+      "color": "#7ee4f5",
+      "intensity": 9,
+      "range": 7.5,
+      "drop": 0,
+      "shadow": true,
+      "shaft": 0,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 10,
+      "id": "r15b_tunnel_pass_3",
+      "pattern": "steady",
+      "color": "#7ee4f5",
+      "intensity": 9,
+      "range": 7.5,
+      "drop": 0,
+      "shadow": true,
+      "shaft": 0,
+      "backupScale": 1,
+      "ownColor": true
+    }
+  ],
+  "anchors": [
+    {
+      "id": "r15b_train_inside",
+      "pos": [
+        128,
+        0.48,
+        40
+      ],
+      "yaw": 180
+    }
+  ]
+}

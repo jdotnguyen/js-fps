@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import posesJson from '../data/poses.json' with { type: 'json' };
-import levelJson from '../data/levels/slice01.json' with { type: 'json' };
 import speakersJson from '../data/dialogue/speakers.json' with { type: 'json' };
 import { INFECTION_LADDER, REVIVE_TASK, TASKS } from '../ai/squadBrain.ts';
 import { CAST } from './castLooks.ts';
 import { GILES, OKAFOR } from './squadLooks.ts';
 import { sharedMotionProfiles, type MotionProfileFile } from './motionProfiles.ts';
 import { checkCoverage, gatherRequests, needFor, type MotionRequest } from './castMotionCoverage.ts';
+import { readLevel } from '../data/levels/readLevel.ts';
 
 /** Named characters (everyone with a name) by look id -> profile id. `cook` is Bram's level look. */
 const NAMED: Record<string, string | undefined> = { giles: GILES.profile, okafor: OKAFOR.profile };
@@ -112,7 +112,7 @@ const D11_ROWS: readonly (readonly [look: string, source: string, poses: readonl
 
 function requests(): MotionRequest[] {
   const speakers = speakerLooks();
-  return gatherRequests(levelJson as never, sequences(), TASKS, new Set(Object.keys(NAMED)), SQUAD_LOOKS, {
+  return gatherRequests(readLevel('slice01') as never, sequences(), TASKS, new Set(Object.keys(NAMED)), SQUAD_LOOKS, {
     speakerOf: (line) => speakers.get(line),
     behaviours: SQUAD_BEHAVIOURS,
   });

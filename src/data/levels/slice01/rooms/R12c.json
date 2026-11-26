@@ -1,0 +1,187 @@
+{
+  "id": "R12c",
+  "name": "Seed Lab",
+  "area": "hydroponics",
+  "atmosphere": {
+    "fog": "#141e1b",
+    "fogDensity": 0.016,
+    "ambient": "hydro",
+    "reverb": "small_office",
+    "ambience": "hydro_seed_lab"
+  },
+  "visibleFrom": [
+    "R12b"
+  ],
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        13,
+        0,
+        4
+      ],
+      "params": {
+        "material": "officeCeiling"
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        13,
+        0,
+        5
+      ],
+      "params": {
+        "material": "officeCeiling"
+      }
+    },
+    {
+      "kit": "floor_tiles",
+      "cells": [
+        [
+          13,
+          0,
+          4
+        ],
+        [
+          13,
+          0,
+          5
+        ]
+      ]
+    },
+    {
+      "kit": "wall_tiles",
+      "cells": [
+        [
+          13,
+          0,
+          4
+        ]
+      ]
+    },
+    {
+      "kit": "wall_sanity_screen",
+      "cells": [
+        [
+          13,
+          0,
+          4
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_tiles",
+      "cells": [
+        [
+          13,
+          0,
+          5
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_tiles",
+      "cells": [
+        [
+          13,
+          0,
+          5
+        ]
+      ],
+      "rot": 180
+    }
+  ],
+  "props": [
+    {
+      "kit": "germination_cabinet",
+      "pos": [
+        52,
+        0,
+        14.68
+      ],
+      "rot": 180,
+      "params": {
+        "width": 1.8
+      }
+    },
+    {
+      "kit": "lab_bench",
+      "pos": [
+        53.32,
+        0,
+        19.5
+      ],
+      "rot": 270,
+      "params": {
+        "width": 2.6
+      }
+    },
+    {
+      "kit": "seed_vault",
+      "pos": [
+        52.2,
+        0,
+        21.38
+      ],
+      "params": {
+        "width": 1.4
+      }
+    },
+    {
+      "kit": "harvest_cart",
+      "pos": [
+        50.95,
+        0,
+        20.6
+      ]
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        51,
+        0,
+        21.74
+      ],
+      "params": {
+        "id": "pa_seed"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#f4faf6",
+      "intensity": 11,
+      "range": 10,
+      "shaft": 0.02
+    },
+    {
+      "slot": 1,
+      "pattern": "steady",
+      "color": "#f4faf6",
+      "intensity": 10,
+      "range": 10,
+      "shaft": 0.02
+    }
+  ],
+  "npcs": [
+    {
+      "id": "botanist_3",
+      "look": "botanist",
+      "at": [
+        52.35,
+        0,
+        19.5
+      ],
+      "yaw": 270,
+      "roam": [
+        "R12c"
+      ],
+      "pose": "typing"
+    }
+  ]
+}

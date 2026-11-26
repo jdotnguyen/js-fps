@@ -1,0 +1,518 @@
+{
+  "id": "R10",
+  "name": "Pump Room",
+  "area": "tunnel",
+  "atmosphere": {
+    "fog": "#040a0a",
+    "fogDensity": 0.05,
+    "reverb": "metal_corridor",
+    "ambience": "pipes_knock"
+  },
+  "visibleFrom": [
+    "R09"
+  ],
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        8,
+        0,
+        12
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        9,
+        0,
+        12
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        8,
+        0,
+        13
+      ]
+    },
+    {
+      "kit": "ceiling_pipes",
+      "cell": [
+        9,
+        0,
+        13
+      ]
+    },
+    {
+      "kit": "floor",
+      "cells": [
+        [
+          8,
+          0,
+          12
+        ],
+        [
+          9,
+          0,
+          12
+        ],
+        [
+          8,
+          0,
+          13
+        ],
+        [
+          9,
+          0,
+          13
+        ]
+      ]
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          9,
+          0,
+          12
+        ]
+      ],
+      "params": {
+        "material": "concrete"
+      }
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          9,
+          0,
+          12
+        ]
+      ],
+      "params": {
+        "material": "concrete"
+      },
+      "rot": 270
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          8,
+          0,
+          13
+        ]
+      ],
+      "params": {
+        "material": "concrete"
+      },
+      "rot": 180
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          9,
+          0,
+          13
+        ]
+      ],
+      "params": {
+        "material": "concrete"
+      },
+      "rot": 270
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          9,
+          0,
+          13
+        ]
+      ],
+      "params": {
+        "material": "concrete"
+      },
+      "rot": 180
+    }
+  ],
+  "props": [
+    {
+      "kit": "valve_wheel",
+      "pos": [
+        37.69,
+        0,
+        52.6
+      ],
+      "rot": 90,
+      "params": {
+        "id": "r10_main"
+      }
+    },
+    {
+      "kit": "pump_unit",
+      "pos": [
+        35.6,
+        0,
+        47.2
+      ],
+      "params": {}
+    },
+    {
+      "kit": "pump_unit",
+      "pos": [
+        35.6,
+        0,
+        50
+      ],
+      "params": {
+        "paint": "dark"
+      }
+    },
+    {
+      "kit": "console",
+      "pos": [
+        31.4,
+        0,
+        49.8
+      ],
+      "rot": 270,
+      "params": {
+        "screen": "status"
+      }
+    },
+    {
+      "kit": "pipe_run",
+      "pos": [
+        36,
+        0,
+        46.6
+      ],
+      "params": {
+        "length": 7,
+        "height": 2.6,
+        "paint": "dark"
+      }
+    },
+    {
+      "kit": "crate_stack",
+      "pos": [
+        33,
+        0,
+        54.6
+      ]
+    },
+    {
+      "kit": "emergency_beacon",
+      "pos": [
+        30.3,
+        2.7,
+        48
+      ],
+      "rot": 90,
+      "params": {
+        "wall": true
+      }
+    },
+    {
+      "kit": "emergency_beacon",
+      "pos": [
+        32.8,
+        2.7,
+        46.27
+      ],
+      "rot": 180,
+      "params": {
+        "wall": true
+      }
+    },
+    {
+      "kit": "emergency_beacon",
+      "pos": [
+        35.2,
+        2.7,
+        53.73
+      ],
+      "params": {
+        "wall": true
+      }
+    },
+    {
+      "kit": "pressure_gauge",
+      "pos": [
+        35.2,
+        0,
+        46.31
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "tag_stencil",
+      "pos": [
+        32,
+        0,
+        53.69
+      ],
+      "params": {
+        "y": 1.7
+      }
+    },
+    {
+      "kit": "cable_tray",
+      "pos": [
+        34,
+        0,
+        54.9
+      ],
+      "params": {
+        "length": 7.2,
+        "drop": 0.3
+      }
+    },
+    {
+      "kit": "pipe_run",
+      "pos": [
+        34,
+        0,
+        45.4
+      ],
+      "params": {
+        "length": 7.2,
+        "height": 2.85,
+        "paint": "teal",
+        "hung": true
+      }
+    },
+    {
+      "kit": "pressure_gauge",
+      "pos": [
+        36.2,
+        0,
+        46.31
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "ambient_loop",
+      "pos": [
+        36.6,
+        2.6,
+        49
+      ],
+      "params": {
+        "sound": "klaxon",
+        "gain": 0.9,
+        "range": 20,
+        "on": "flood:klaxon"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#ffe2b8",
+      "intensity": 10,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 3,
+      "pattern": "steady",
+      "color": "#ffe2b8",
+      "intensity": 9,
+      "backupScale": 1,
+      "ownColor": true
+    },
+    {
+      "slot": 4,
+      "pattern": "off",
+      "color": "#ff2a1a",
+      "intensity": 12,
+      "range": 14,
+      "id": "r10_beacon",
+      "ownColor": true
+    },
+    {
+      "slot": "emergency",
+      "pattern": "off",
+      "color": "#ff2a1a",
+      "intensity": 12,
+      "range": 14,
+      "id": "r10_beacon_n",
+      "ownColor": true
+    },
+    {
+      "slot": "emergency",
+      "pattern": "off",
+      "color": "#ff2a1a",
+      "intensity": 12,
+      "range": 14,
+      "id": "r10_beacon_s",
+      "ownColor": true
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trig_r10_enter",
+      "box": [
+        [
+          30.3,
+          0,
+          46.3
+        ],
+        [
+          33.7,
+          2.6,
+          49.7
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:r10_enter"
+    },
+    {
+      "id": "trig_r10_ambush",
+      "box": [
+        [
+          30.3,
+          0,
+          45.8
+        ],
+        [
+          33.6,
+          2.2,
+          50.2
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:r10_ambush"
+    },
+    {
+      "id": "trig_r10_valve",
+      "box": [
+        [
+          36.1,
+          0,
+          51.8
+        ],
+        [
+          37.7,
+          2.2,
+          53.4
+        ]
+      ],
+      "on": "use",
+      "emit": "valve:r10_main",
+      "prompt": "Turn valve"
+    }
+  ],
+  "anchors": [
+    {
+      "id": "valve_r10",
+      "pos": [
+        37.4,
+        1.3,
+        52.6
+      ]
+    },
+    {
+      "id": "r10_valve_stand",
+      "pos": [
+        36.3,
+        0,
+        52.6
+      ],
+      "yaw": 270
+    },
+    {
+      "id": "r10_giles",
+      "pos": [
+        35.4,
+        0,
+        52.2
+      ],
+      "yaw": 270
+    },
+    {
+      "id": "r10_okafor",
+      "pos": [
+        34.2,
+        0,
+        50.6
+      ],
+      "yaw": 300
+    },
+    {
+      "id": "health_r10",
+      "pos": [
+        33,
+        1,
+        54.6
+      ]
+    },
+    {
+      "id": "r10_flood_giles",
+      "pos": [
+        33.8,
+        0,
+        52.1
+      ],
+      "yaw": 50
+    },
+    {
+      "id": "r10_flood_okafor",
+      "pos": [
+        33.2,
+        0,
+        51
+      ],
+      "yaw": 50
+    },
+    {
+      "id": "r10_door_giles",
+      "pos": [
+        32.65,
+        0,
+        49
+      ],
+      "yaw": 82
+    },
+    {
+      "id": "r10_door_okafor",
+      "pos": [
+        31.7,
+        0,
+        47.15
+      ],
+      "yaw": 100
+    },
+    {
+      "id": "r10_flood_view",
+      "pos": [
+        31,
+        1.5,
+        48
+      ]
+    },
+    {
+      "id": "r10_porthole",
+      "pos": [
+        30,
+        1.6,
+        48.5
+      ]
+    },
+    {
+      "id": "r10_run_stop",
+      "pos": [
+        35.2,
+        0,
+        48.6
+      ],
+      "yaw": 270
+    }
+  ]
+}

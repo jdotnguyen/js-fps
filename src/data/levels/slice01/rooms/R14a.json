@@ -1,0 +1,270 @@
+{
+  "id": "R14a",
+  "name": "TAG Reception",
+  "area": "admin",
+  "atmosphere": {
+    "fog": "#14110e",
+    "fogDensity": 0.012,
+    "ambient": "admin",
+    "reverb": "small_office",
+    "ambience": "admin_reception"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        9,
+        0,
+        2
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        9,
+        0,
+        3
+      ]
+    },
+    {
+      "kit": "floor_carpet",
+      "cells": [
+        [
+          9,
+          0,
+          2
+        ],
+        [
+          9,
+          0,
+          3
+        ]
+      ]
+    },
+    {
+      "kit": "wall_wood",
+      "cells": [
+        [
+          9,
+          0,
+          2
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_wood",
+      "cells": [
+        [
+          9,
+          0,
+          3
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_wood",
+      "cells": [
+        [
+          9,
+          0,
+          3
+        ]
+      ],
+      "rot": 180
+    }
+  ],
+  "props": [
+    {
+      "kit": "map_station",
+      "pos": [
+        36,
+        0,
+        13.69
+      ],
+      "params": {
+        "area": "ADMIN"
+      }
+    },
+    {
+      "kit": "office_desk",
+      "pos": [
+        36.5,
+        0,
+        10.7
+      ],
+      "rot": 270,
+      "params": {
+        "width": 2,
+        "papers": 4
+      }
+    },
+    {
+      "kit": "chair",
+      "pos": [
+        37.22,
+        0,
+        10.7
+      ],
+      "rot": 90,
+      "params": {
+        "fixed": true
+      }
+    },
+    {
+      "kit": "sofa",
+      "pos": [
+        34.72,
+        0,
+        8.4
+      ],
+      "rot": 270,
+      "params": {
+        "width": 1.8,
+        "tone": "warm"
+      }
+    },
+    {
+      "kit": "tag_poster",
+      "pos": [
+        34.31,
+        0,
+        7.6
+      ],
+      "rot": 270,
+      "params": {
+        "slogan": "THE FUTURE IS DEEP."
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        34.65,
+        0,
+        6.65
+      ],
+      "params": {
+        "kind": "palm",
+        "pot": "white",
+        "size": 1
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        37.35,
+        0,
+        13.35
+      ],
+      "params": {
+        "kind": "fern",
+        "pot": "white",
+        "size": 1
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        37.35,
+        0,
+        6.65
+      ],
+      "params": {
+        "kind": "tall",
+        "pot": "white",
+        "size": 1
+      }
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        34.26,
+        0,
+        7
+      ],
+      "rot": 270,
+      "params": {
+        "id": "pa_reception",
+        "serves": "R14e"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#ffebd0",
+      "intensity": 13,
+      "range": 12,
+      "shaft": 0.01,
+      "emissive": 2.2
+    },
+    {
+      "slot": 1,
+      "pattern": "steady",
+      "color": "#ffebd0",
+      "intensity": 13,
+      "range": 12,
+      "shaft": 0.01,
+      "emissive": 2.2
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trig_admin_enter",
+      "box": [
+        [
+          34.3,
+          0,
+          10.3
+        ],
+        [
+          37.7,
+          2.6,
+          13.7
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:admin_enter",
+      "once": false
+    }
+  ],
+  "anchors": [
+    {
+      "id": "admin_entry",
+      "pos": [
+        35,
+        0,
+        12
+      ],
+      "yaw": 90
+    }
+  ],
+  "npcs": [
+    {
+      "id": "assistant",
+      "look": "assistant",
+      "at": [
+        37.22,
+        0,
+        10.7
+      ],
+      "yaw": 90,
+      "pose": "sit_typing",
+      "chat": "admin_reception"
+    },
+    {
+      "id": "admin_visitor",
+      "look": "lab",
+      "at": [
+        34.72,
+        0,
+        8.4
+      ],
+      "spot": "sit_sofa",
+      "model": "botanist1",
+      "chat": "admin_reception"
+    }
+  ]
+}

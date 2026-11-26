@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { prepareBodyModel, type PreparedBodyModel } from './bodyModel.ts';
 import { JOINT_NAMES, JOINTS, type JointName } from './skeleton.ts';
+import { readLevel } from '../data/levels/readLevel.ts';
 
 /**
  * Crowd variety bodies (ADR-0026, ADR-0029): three Renderpeople scans (office1-3, bones renamed by scripts/prep-crew-glb.py),
@@ -77,7 +78,7 @@ for (const id of NEW) {
 }
 
 test('every model a level NPC names exists, and named characters keep their own bodies', () => {
-  const level = JSON.parse(readFileSync(new URL('../data/levels/slice01.json', import.meta.url), 'utf8')) as { rooms: Array<{ npcs?: Array<{ id: string; model?: string }> }> };
+  const level = readLevel('slice01') as { rooms: Array<{ npcs?: Array<{ id: string; model?: string }> }> };
   const NAMED = new Set(['mechanic', 'doctor', 'priya', 'heins', 'hale', 'ruiz', 'sung']);
   for (const r of level.rooms) {
     for (const n of r.npcs ?? []) {
@@ -90,7 +91,7 @@ test('every model a level NPC names exists, and named characters keep their own 
 
 test('exactly one NPC in slice01 wears the guard1 body: the dock guard (dock-checkpoint)', async () => {
   const { castSpec } = await import('./castLooks.ts');
-  const level = JSON.parse(readFileSync(new URL('../data/levels/slice01.json', import.meta.url), 'utf8')) as { rooms: Array<{ npcs?: Array<{ id: string; look: string; model?: string }> }> };
+  const level = readLevel('slice01') as { rooms: Array<{ npcs?: Array<{ id: string; look: string; model?: string }> }> };
   const wearers: string[] = [];
   for (const r of level.rooms) for (const n of r.npcs ?? []) if ((n.model ?? castSpec(n.look, n.id).model) === 'guard1') wearers.push(n.id);
   assert.deepEqual(wearers, ['dock_guard']);

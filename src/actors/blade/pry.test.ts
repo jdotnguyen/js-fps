@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import levelJson from '../../data/levels/slice01.json' with { type: 'json' };
 import { NPC_ANIMS } from '../../ai/npcActor.ts';
 import { loadSharedMocapLibrary } from '../mocap.ts';
 import { creatureBody, necromorphModel } from './bladeTestKit.ts';
+import { readLevel } from '../../data/levels/readLevel.ts';
 
 /**
  * rig-necromorph + flooded-tunnel: R10 ambush door pry geometry and timing sync, plus Okafor/Giles doorway sightlines.
@@ -33,7 +33,7 @@ function crossZ(a: THREE.Vector3, b: THREE.Vector3, x: number): number | null {
 }
 
 function anchorOf(id: string): { pos: [number, number, number]; yaw?: number } {
-  for (const r of (levelJson as { rooms: Array<{ anchors?: Array<{ id: string; pos: [number, number, number]; yaw?: number }> }> }).rooms) {
+  for (const r of (readLevel('slice01') as { rooms: Array<{ anchors?: Array<{ id: string; pos: [number, number, number]; yaw?: number }> }> }).rooms) {
     const hit = r.anchors?.find((a) => a.id === id);
     if (hit) return hit;
   }

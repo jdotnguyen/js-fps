@@ -1,0 +1,1007 @@
+{
+  "id": "R04",
+  "name": "Lab B",
+  "area": "labs",
+  "height": 3.6,
+  "atmosphere": {
+    "fog": "#05080a",
+    "fogDensity": 0.02,
+    "reverb": "small_office",
+    "ambience": "lab_hum"
+  },
+  "visibleFrom": [
+    "R03"
+  ],
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        1,
+        0,
+        6
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        2,
+        0,
+        6
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        3,
+        0,
+        6
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        1,
+        0,
+        7
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        2,
+        0,
+        7
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        3,
+        0,
+        7
+      ]
+    },
+    {
+      "kit": "floor_tiles",
+      "cells": [
+        [
+          1,
+          0,
+          6
+        ],
+        [
+          2,
+          0,
+          6
+        ],
+        [
+          3,
+          0,
+          6
+        ],
+        [
+          1,
+          0,
+          7
+        ],
+        [
+          2,
+          0,
+          7
+        ],
+        [
+          3,
+          0,
+          7
+        ]
+      ]
+    },
+    {
+      "kit": "wall_tiles",
+      "cells": [
+        [
+          3,
+          0,
+          6
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          1,
+          0,
+          7
+        ],
+        [
+          3,
+          0,
+          7
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          1,
+          0,
+          7
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_tiles",
+      "cells": [
+        [
+          2,
+          0,
+          7
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          3,
+          0,
+          7
+        ]
+      ],
+      "rot": 270
+    }
+  ],
+  "props": [
+    {
+      "kit": "blinds",
+      "pos": [
+        4,
+        0,
+        22.32
+      ],
+      "params": {
+        "id": "labb",
+        "width": 3.8,
+        "height": 2.25,
+        "top": 2.6,
+        "state": "down"
+      }
+    },
+    {
+      "kit": "blinds",
+      "pos": [
+        8,
+        0,
+        22.32
+      ],
+      "params": {
+        "id": "labb",
+        "width": 3.8,
+        "height": 2.25,
+        "top": 2.6,
+        "state": "down"
+      }
+    },
+    {
+      "kit": "blinds",
+      "pos": [
+        12,
+        0,
+        22.32
+      ],
+      "params": {
+        "id": "labb",
+        "width": 3.8,
+        "height": 2.25,
+        "top": 2.6,
+        "state": "down"
+      }
+    },
+    {
+      "kit": "lab_bench",
+      "pos": [
+        5.5,
+        0,
+        26.8
+      ],
+      "rot": 90,
+      "params": {
+        "width": 3,
+        "clutter": 0
+      }
+    },
+    {
+      "kit": "lab_bench",
+      "pos": [
+        12.2,
+        0,
+        29.4
+      ],
+      "params": {
+        "width": 3,
+        "clutter": 0
+      }
+    },
+    {
+      "kit": "prep_cart",
+      "pos": [
+        6.78,
+        0,
+        23.4
+      ],
+      "rot": 60,
+      "params": {
+        "id": "labb_cart"
+      },
+      "dynamic": {
+        "mass": 14,
+        "loose": true,
+        "sound": "cart"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        6.653,
+        0.9,
+        23.581
+      ],
+      "rot": 60,
+      "params": {
+        "id": "labb_cart_tray",
+        "type": "tray"
+      },
+      "dynamic": {
+        "mass": 0.8,
+        "loose": true,
+        "sound": "metal"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        6.701,
+        0.9,
+        23.297
+      ],
+      "rot": 60,
+      "params": {
+        "id": "labb_cart_flask_a",
+        "type": "flask",
+        "liquid": "teal"
+      },
+      "dynamic": {
+        "mass": 0.4,
+        "loose": true,
+        "sound": "glass"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        6.898,
+        0.9,
+        23.295
+      ],
+      "rot": 60,
+      "params": {
+        "id": "labb_cart_flask_b",
+        "type": "flask",
+        "liquid": "amber"
+      },
+      "dynamic": {
+        "mass": 0.4,
+        "loose": true,
+        "sound": "glass"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        6.835,
+        0.9,
+        23.085
+      ],
+      "rot": 60,
+      "params": {
+        "id": "labb_cart_bottle_a",
+        "type": "bottle",
+        "liquid": "red"
+      },
+      "dynamic": {
+        "mass": 0.6,
+        "loose": true,
+        "sound": "glass"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        7.04,
+        0.9,
+        23.169
+      ],
+      "rot": 60,
+      "params": {
+        "id": "labb_cart_beaker",
+        "type": "beaker",
+        "liquid": "teal"
+      },
+      "dynamic": {
+        "mass": 0.25,
+        "loose": true,
+        "sound": "glass"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        6.92,
+        0.9,
+        23.527
+      ],
+      "rot": 64,
+      "params": {
+        "id": "labb_cart_rack",
+        "type": "rack",
+        "liquid": "red"
+      },
+      "dynamic": {
+        "mass": 0.35,
+        "loose": true,
+        "sound": "metal"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        6.68,
+        0.3,
+        23.573
+      ],
+      "rot": 75,
+      "params": {
+        "id": "labb_cart_scope",
+        "type": "scope"
+      },
+      "dynamic": {
+        "mass": 3,
+        "loose": true,
+        "sound": "thud"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        6.782,
+        0.3,
+        23.216
+      ],
+      "rot": 60,
+      "params": {
+        "id": "labb_cart_bottle_b",
+        "type": "bottle",
+        "liquid": "amber"
+      },
+      "dynamic": {
+        "mass": 0.6,
+        "loose": true,
+        "sound": "glass"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        6.989,
+        0.3,
+        23.198
+      ],
+      "rot": 60,
+      "params": {
+        "id": "labb_cart_bottle_c",
+        "type": "bottle",
+        "liquid": "teal"
+      },
+      "dynamic": {
+        "mass": 0.6,
+        "loose": true,
+        "sound": "glass"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        5.38,
+        0.925,
+        28.05
+      ],
+      "rot": 90,
+      "params": {
+        "type": "flask",
+        "fixed": true,
+        "liquid": "amber"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        5.58,
+        0.925,
+        27.88
+      ],
+      "rot": 90,
+      "params": {
+        "type": "bottle",
+        "fixed": true,
+        "liquid": "teal"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        5.4,
+        0.925,
+        27.15
+      ],
+      "rot": 82,
+      "params": {
+        "type": "tray",
+        "fixed": true
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        5.58,
+        0.925,
+        26.78
+      ],
+      "rot": 90,
+      "params": {
+        "type": "beaker",
+        "fixed": true,
+        "liquid": "red"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        5.42,
+        0.925,
+        26.52
+      ],
+      "rot": 90,
+      "params": {
+        "type": "flask",
+        "fixed": true,
+        "liquid": "teal"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        5.4,
+        0.925,
+        25.64
+      ],
+      "rot": 90,
+      "params": {
+        "type": "bottle",
+        "fixed": true,
+        "liquid": "amber"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        5.58,
+        0.925,
+        25.47
+      ],
+      "rot": 90,
+      "params": {
+        "type": "flask",
+        "fixed": true,
+        "liquid": "red"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        5.72,
+        1.615,
+        27.75
+      ],
+      "rot": 90,
+      "params": {
+        "type": "bottle",
+        "fixed": true,
+        "liquid": "amber"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        5.74,
+        1.615,
+        27.62
+      ],
+      "rot": 90,
+      "params": {
+        "type": "bottle",
+        "fixed": true,
+        "liquid": "teal"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        5.72,
+        1.615,
+        26.95
+      ],
+      "rot": 90,
+      "params": {
+        "type": "flask",
+        "fixed": true,
+        "liquid": "teal"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        5.72,
+        1.615,
+        26.35
+      ],
+      "rot": 90,
+      "params": {
+        "type": "rack",
+        "fixed": true,
+        "liquid": "amber"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        5.73,
+        1.615,
+        25.75
+      ],
+      "rot": 90,
+      "params": {
+        "type": "bottle",
+        "fixed": true,
+        "liquid": "red"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        10.9,
+        0.925,
+        29.32
+      ],
+      "rot": 0,
+      "params": {
+        "type": "bottle",
+        "fixed": true,
+        "liquid": "red"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        11.08,
+        0.925,
+        29.46
+      ],
+      "rot": 0,
+      "params": {
+        "type": "flask",
+        "fixed": true,
+        "liquid": "teal"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        11.92,
+        0.925,
+        29.26
+      ],
+      "rot": 6,
+      "params": {
+        "type": "rack",
+        "fixed": true,
+        "liquid": "teal"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        12.32,
+        0.925,
+        29.35
+      ],
+      "rot": 0,
+      "params": {
+        "type": "beaker",
+        "fixed": true,
+        "liquid": "amber"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        12.54,
+        0.925,
+        29.48
+      ],
+      "rot": 0,
+      "params": {
+        "type": "flask",
+        "fixed": true,
+        "liquid": "amber"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        13.38,
+        0.925,
+        29.34
+      ],
+      "rot": 12,
+      "params": {
+        "type": "tray",
+        "fixed": true
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        11.3,
+        1.615,
+        29.62
+      ],
+      "rot": 0,
+      "params": {
+        "type": "flask",
+        "fixed": true,
+        "liquid": "red"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        12,
+        1.615,
+        29.63
+      ],
+      "rot": 0,
+      "params": {
+        "type": "bottle",
+        "fixed": true,
+        "liquid": "teal"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        12.14,
+        1.615,
+        29.62
+      ],
+      "rot": 0,
+      "params": {
+        "type": "bottle",
+        "fixed": true,
+        "liquid": "teal"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        12.9,
+        1.615,
+        29.62
+      ],
+      "rot": 0,
+      "params": {
+        "type": "rack",
+        "fixed": true,
+        "liquid": "red"
+      }
+    },
+    {
+      "kit": "lab_item",
+      "pos": [
+        13.4,
+        1.615,
+        29.63
+      ],
+      "rot": 0,
+      "params": {
+        "type": "bottle",
+        "fixed": true,
+        "liquid": "amber"
+      }
+    },
+    {
+      "kit": "culture_column",
+      "pos": [
+        9.5,
+        0,
+        28.6
+      ]
+    },
+    {
+      "kit": "gurney",
+      "pos": [
+        8,
+        0,
+        25.2
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "console",
+      "pos": [
+        12.8,
+        0,
+        25.6
+      ],
+      "rot": 270,
+      "params": {
+        "screen": "log"
+      }
+    },
+    {
+      "kit": "chair",
+      "pos": [
+        7.4,
+        0,
+        27.2
+      ]
+    },
+    {
+      "kit": "sign_danger",
+      "pos": [
+        2.25,
+        0,
+        25.66
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "lab_cabinet",
+      "pos": [
+        4,
+        0,
+        29.48
+      ]
+    },
+    {
+      "kit": "freezer_ultra",
+      "pos": [
+        6.6,
+        0,
+        29.75
+      ]
+    },
+    {
+      "kit": "biosafety_cabinet",
+      "pos": [
+        13.75,
+        0,
+        27.9
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "incubator_stack",
+      "pos": [
+        13.75,
+        0,
+        23
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "pressure_gauge",
+      "pos": [
+        2.31,
+        0,
+        22.55
+      ],
+      "rot": 270,
+      "params": {
+        "y": 1.7
+      }
+    },
+    {
+      "kit": "service_panel",
+      "pos": [
+        2.31,
+        0,
+        28
+      ],
+      "rot": 270,
+      "params": {
+        "y": 1.25
+      }
+    },
+    {
+      "kit": "ceiling_vent",
+      "pos": [
+        10,
+        0,
+        24.6
+      ],
+      "params": {
+        "id": "labb_vent",
+        "ceiling": 3.6,
+        "size": 0.8
+      }
+    },
+    {
+      "kit": "coolant_line",
+      "pos": [
+        0,
+        0,
+        0
+      ],
+      "params": {
+        "path": "9.85,2.9,29.25;2.45,2.9,29.25;2.45,2.9,28;2.45,2.9,25.3;2.0,2.9,25.3",
+        "valves": "2",
+        "sight": "1",
+        "collars": "4"
+      }
+    },
+    {
+      "kit": "coolant_line",
+      "pos": [
+        0,
+        0,
+        0
+      ],
+      "params": {
+        "path": "2.45,2.9,28;2.45,1.75,28"
+      }
+    },
+    {
+      "kit": "bloom_growth_c",
+      "pos": [
+        9.3,
+        0,
+        29.45
+      ],
+      "rot": 20,
+      "params": {
+        "material": "bloom",
+        "reveal": "spread",
+        "breathe": true
+      }
+    },
+    {
+      "kit": "bloom_growth_a",
+      "pos": [
+        3.1,
+        0,
+        28.6
+      ],
+      "rot": 70,
+      "params": {
+        "material": "bloom",
+        "reveal": "spread"
+      }
+    },
+    {
+      "kit": "bloom_growth_d",
+      "pos": [
+        2.7,
+        0,
+        27.2
+      ],
+      "params": {
+        "material": "bloom",
+        "reveal": "spread"
+      }
+    },
+    {
+      "kit": "bloom_decal",
+      "pos": [
+        2.31,
+        0,
+        27.85
+      ],
+      "rot": 270,
+      "params": {
+        "w": 1.4,
+        "h": 1.2,
+        "y": 1.6,
+        "seed": 0,
+        "reveal": "spread"
+      }
+    },
+    {
+      "kit": "bloom_decal",
+      "pos": [
+        6,
+        0,
+        29.25
+      ],
+      "params": {
+        "w": 2,
+        "h": 0.8,
+        "y": 2.95,
+        "ceiling": true,
+        "seed": 1,
+        "reveal": "spread"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#e8f4ff",
+      "intensity": 9
+    },
+    {
+      "slot": 2,
+      "pattern": "steady",
+      "color": "#e8f4ff",
+      "intensity": 9
+    },
+    {
+      "slot": 4,
+      "pattern": "flicker",
+      "color": "#e8f4ff",
+      "intensity": 7
+    }
+  ],
+  "anchors": [
+    {
+      "id": "labb_victim",
+      "pos": [
+        8,
+        0,
+        26.5
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "labb_vent",
+      "pos": [
+        10,
+        3.5,
+        24.6
+      ]
+    },
+    {
+      "id": "duct_r04",
+      "pos": [
+        5,
+        3.95,
+        27
+      ]
+    }
+  ],
+  "npcs": [
+    {
+      "id": "researcher_b",
+      "look": "voss",
+      "at": "labb_victim",
+      "transformable": true,
+      "pose": "typing"
+    }
+  ]
+}

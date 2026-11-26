@@ -1,0 +1,1547 @@
+{
+  "id": "R02",
+  "name": "Commons",
+  "area": "commons",
+  "height": 4,
+  "atmosphere": {
+    "fog": "#121312",
+    "fogDensity": 0.012,
+    "ambient": "commons",
+    "reverb": "metal_hall",
+    "ambience": "commons_murmur"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        4,
+        0,
+        3
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        5,
+        0,
+        3
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        6,
+        0,
+        3
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        7,
+        0,
+        3
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        8,
+        0,
+        3
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        4,
+        0,
+        4
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        5,
+        0,
+        4
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        6,
+        0,
+        4
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        7,
+        0,
+        4
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        8,
+        0,
+        4
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        4,
+        0,
+        5
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        5,
+        0,
+        5
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        6,
+        0,
+        5
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        7,
+        0,
+        5
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        8,
+        0,
+        5
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        4,
+        0,
+        6
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        5,
+        0,
+        6
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        6,
+        0,
+        6
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        7,
+        0,
+        6
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        8,
+        0,
+        6
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "floor",
+      "cells": [
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          5,
+          0,
+          3
+        ],
+        [
+          6,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          4
+        ],
+        [
+          5,
+          0,
+          4
+        ],
+        [
+          6,
+          0,
+          4
+        ],
+        [
+          7,
+          0,
+          4
+        ],
+        [
+          8,
+          0,
+          4
+        ],
+        [
+          4,
+          0,
+          5
+        ],
+        [
+          5,
+          0,
+          5
+        ],
+        [
+          6,
+          0,
+          5
+        ],
+        [
+          7,
+          0,
+          5
+        ],
+        [
+          8,
+          0,
+          5
+        ],
+        [
+          4,
+          0,
+          6
+        ],
+        [
+          5,
+          0,
+          6
+        ],
+        [
+          6,
+          0,
+          6
+        ],
+        [
+          7,
+          0,
+          6
+        ],
+        [
+          8,
+          0,
+          6
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          4,
+          0,
+          3
+        ]
+      ]
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          5
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          5,
+          0,
+          3
+        ]
+      ]
+    },
+    {
+      "kit": "floor_tiles",
+      "cells": [
+        [
+          7,
+          0,
+          3
+        ],
+        [
+          8,
+          0,
+          3
+        ]
+      ]
+    },
+    {
+      "kit": "wall_tiles",
+      "cells": [
+        [
+          7,
+          0,
+          3
+        ],
+        [
+          8,
+          0,
+          3
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          8,
+          0,
+          4
+        ],
+        [
+          8,
+          0,
+          6
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_sanity_screen",
+      "cells": [
+        [
+          4,
+          0,
+          6
+        ],
+        [
+          5,
+          0,
+          6
+        ],
+        [
+          7,
+          0,
+          6
+        ],
+        [
+          8,
+          0,
+          6
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          4,
+          0,
+          6
+        ]
+      ],
+      "rot": 90
+    }
+  ],
+  "props": [
+    {
+      "kit": "kitchen_counter",
+      "pos": [
+        29.2,
+        0,
+        10.59
+      ],
+      "rot": 180,
+      "params": {
+        "width": 6.4,
+        "sink": true
+      }
+    },
+    {
+      "kit": "coffee_machine",
+      "pos": [
+        26.8,
+        0.92,
+        10.57
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "tray",
+      "pos": [
+        29,
+        0.92,
+        10.64
+      ],
+      "rot": 180,
+      "params": {
+        "mugs": 3
+      }
+    },
+    {
+      "kit": "radio",
+      "pos": [
+        31.6,
+        0.92,
+        10.69
+      ],
+      "rot": 200
+    },
+    {
+      "kit": "mug",
+      "pos": [
+        27.6,
+        0.92,
+        10.47
+      ],
+      "params": {
+        "color": "teal"
+      }
+    },
+    {
+      "kit": "servery",
+      "pos": [
+        30.3,
+        0,
+        13.7
+      ],
+      "rot": 180,
+      "params": {
+        "width": 3.8,
+        "pans": 5
+      }
+    },
+    {
+      "kit": "menu_board",
+      "pos": [
+        29.2,
+        0,
+        10.31
+      ],
+      "rot": 180,
+      "params": {
+        "width": 3.6,
+        "height": 1,
+        "y": 3,
+        "title": "GALLEY"
+      }
+    },
+    {
+      "kit": "wall_clock",
+      "pos": [
+        32.9,
+        0,
+        10.31
+      ],
+      "rot": 180,
+      "params": {
+        "y": 2.95
+      }
+    },
+    {
+      "kit": "drink_station",
+      "pos": [
+        16.3,
+        0,
+        10.58
+      ],
+      "rot": 180,
+      "params": {
+        "width": 1.8
+      }
+    },
+    {
+      "kit": "notice_board",
+      "pos": [
+        19.05,
+        0,
+        10.31
+      ],
+      "rot": 180,
+      "params": {
+        "text": "QUARANTINE NOTICE",
+        "detail": "LAB B - ROUTINE"
+      }
+    },
+    {
+      "kit": "bin_station",
+      "pos": [
+        21.45,
+        0,
+        10.55
+      ],
+      "rot": 180,
+      "params": {
+        "count": 2
+      }
+    },
+    {
+      "kit": "tag_poster",
+      "pos": [
+        14.31,
+        0,
+        12.6
+      ],
+      "rot": 270,
+      "params": {
+        "slogan": "DEEPER. FURTHER. TOGETHER."
+      }
+    },
+    {
+      "kit": "tag_poster",
+      "pos": [
+        33.69,
+        0,
+        16
+      ],
+      "rot": 90,
+      "params": {
+        "slogan": "SAFETY IS A SHIFT, NOT A DAY."
+      }
+    },
+    {
+      "kit": "dining_table",
+      "pos": [
+        16.6,
+        0,
+        13
+      ],
+      "params": {
+        "width": 2.2,
+        "seats": 6,
+        "mugs": 2,
+        "caddy": true
+      }
+    },
+    {
+      "kit": "pendant_light",
+      "pos": [
+        16.6,
+        0,
+        13
+      ],
+      "params": {
+        "ceiling": 4,
+        "drop": 1.7,
+        "count": 2,
+        "spacing": 1.1
+      }
+    },
+    {
+      "kit": "dining_table",
+      "pos": [
+        17.2,
+        0,
+        18.6
+      ],
+      "params": {
+        "width": 2.2,
+        "seats": 6,
+        "mugs": 1,
+        "caddy": true
+      }
+    },
+    {
+      "kit": "pendant_light",
+      "pos": [
+        17.2,
+        0,
+        18.6
+      ],
+      "params": {
+        "ceiling": 4,
+        "drop": 1.7,
+        "count": 2,
+        "spacing": 1.1
+      }
+    },
+    {
+      "kit": "dining_table",
+      "pos": [
+        20.9,
+        0,
+        18.6
+      ],
+      "params": {
+        "width": 2.2,
+        "seats": 6,
+        "mugs": 2,
+        "caddy": true
+      }
+    },
+    {
+      "kit": "pendant_light",
+      "pos": [
+        20.9,
+        0,
+        18.6
+      ],
+      "params": {
+        "ceiling": 4,
+        "drop": 1.7,
+        "count": 2,
+        "spacing": 1.1
+      }
+    },
+    {
+      "kit": "dining_table",
+      "pos": [
+        17.2,
+        0,
+        21.8
+      ],
+      "params": {
+        "width": 2.2,
+        "seats": 6,
+        "mugs": 0,
+        "caddy": true
+      }
+    },
+    {
+      "kit": "pendant_light",
+      "pos": [
+        17.2,
+        0,
+        21.8
+      ],
+      "params": {
+        "ceiling": 4,
+        "drop": 1.7,
+        "count": 2,
+        "spacing": 1.1
+      }
+    },
+    {
+      "kit": "dining_table",
+      "pos": [
+        20.9,
+        0,
+        21.8
+      ],
+      "params": {
+        "width": 2.2,
+        "seats": 6,
+        "mugs": 1,
+        "caddy": true
+      }
+    },
+    {
+      "kit": "pendant_light",
+      "pos": [
+        20.9,
+        0,
+        21.8
+      ],
+      "params": {
+        "ceiling": 4,
+        "drop": 1.7,
+        "count": 2,
+        "spacing": 1.1
+      }
+    },
+    {
+      "kit": "dining_table",
+      "pos": [
+        27,
+        0,
+        16.9
+      ],
+      "params": {
+        "width": 2.2,
+        "seats": 6,
+        "mugs": 1,
+        "caddy": true
+      }
+    },
+    {
+      "kit": "pendant_light",
+      "pos": [
+        27,
+        0,
+        16.9
+      ],
+      "params": {
+        "ceiling": 4,
+        "drop": 1.7,
+        "count": 2,
+        "spacing": 1.1
+      }
+    },
+    {
+      "kit": "dining_table",
+      "pos": [
+        30.9,
+        0,
+        16.9
+      ],
+      "params": {
+        "width": 2.2,
+        "seats": 6,
+        "mugs": 2,
+        "caddy": true
+      }
+    },
+    {
+      "kit": "pendant_light",
+      "pos": [
+        30.9,
+        0,
+        16.9
+      ],
+      "params": {
+        "ceiling": 4,
+        "drop": 1.7,
+        "count": 2,
+        "spacing": 1.1
+      }
+    },
+    {
+      "kit": "vending_machine",
+      "pos": [
+        14.67,
+        0,
+        19.7
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "bar_counter",
+      "pos": [
+        18.3,
+        0,
+        25.32
+      ],
+      "params": {
+        "width": 4.6,
+        "stools": 6,
+        "mugs": 2
+      }
+    },
+    {
+      "kit": "pendant_light",
+      "pos": [
+        18.3,
+        0,
+        25.1
+      ],
+      "params": {
+        "ceiling": 4,
+        "drop": 1.75,
+        "count": 4,
+        "spacing": 1.15,
+        "shade": "dark"
+      }
+    },
+    {
+      "kit": "planter",
+      "pos": [
+        28.6,
+        0,
+        21.35
+      ],
+      "params": {
+        "width": 4.4
+      }
+    },
+    {
+      "kit": "rug",
+      "pos": [
+        29.6,
+        0,
+        23.75
+      ],
+      "params": {
+        "width": 5.2,
+        "depth": 3.2,
+        "tone": "teal"
+      }
+    },
+    {
+      "kit": "sofa",
+      "pos": [
+        29.6,
+        0,
+        22.6
+      ],
+      "rot": 180,
+      "params": {
+        "width": 2.6,
+        "tone": "warm"
+      }
+    },
+    {
+      "kit": "coffee_table",
+      "pos": [
+        29.6,
+        0,
+        23.9
+      ],
+      "params": {
+        "width": 1.4,
+        "depth": 0.7
+      }
+    },
+    {
+      "kit": "mug",
+      "pos": [
+        29.3,
+        0.44,
+        23.8
+      ],
+      "params": {
+        "color": "red"
+      }
+    },
+    {
+      "kit": "sofa",
+      "pos": [
+        27.5,
+        0,
+        24.1
+      ],
+      "rot": 225,
+      "params": {
+        "width": 1
+      }
+    },
+    {
+      "kit": "sofa",
+      "pos": [
+        31.7,
+        0,
+        24.1
+      ],
+      "rot": 135,
+      "params": {
+        "width": 1
+      }
+    },
+    {
+      "kit": "wall_screen",
+      "pos": [
+        33.69,
+        0,
+        23.6
+      ],
+      "rot": 90,
+      "params": {
+        "id": "commons_tv",
+        "width": 2.2,
+        "channel": "commons",
+        "state": "on"
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        14.8,
+        0,
+        10.8
+      ],
+      "params": {
+        "kind": "palm",
+        "pot": "white"
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        14.9,
+        0,
+        25.2
+      ],
+      "params": {
+        "kind": "tall",
+        "pot": "white"
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        21.2,
+        0,
+        25.25
+      ],
+      "params": {
+        "kind": "shrub",
+        "pot": "white"
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        33.2,
+        0,
+        25.2
+      ],
+      "params": {
+        "kind": "fern",
+        "pot": "white"
+      }
+    },
+    {
+      "kit": "hanging_plant",
+      "pos": [
+        26.2,
+        0,
+        24.9
+      ],
+      "params": {
+        "ceiling": 4,
+        "drop": 1.1
+      }
+    },
+    {
+      "kit": "hanging_plant",
+      "pos": [
+        32.9,
+        0,
+        22.4
+      ],
+      "params": {
+        "ceiling": 4,
+        "drop": 1
+      }
+    },
+    {
+      "kit": "map_station",
+      "pos": [
+        14.31,
+        0,
+        24
+      ],
+      "rot": 270,
+      "params": {
+        "area": "COMMONS"
+      }
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        29,
+        0,
+        10.26
+      ],
+      "rot": 180,
+      "params": {
+        "id": "pa_commons"
+      }
+    },
+    {
+      "kit": "emergency_beacon",
+      "pos": [
+        14.3,
+        3,
+        20
+      ],
+      "rot": 90,
+      "params": {
+        "wall": true
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#fff0da",
+      "intensity": 16,
+      "range": 14,
+      "drop": 0.4,
+      "shaft": 0.015,
+      "emissive": 2.6
+    },
+    {
+      "slot": 1,
+      "pattern": "steady",
+      "color": "#fff4e4",
+      "intensity": 18,
+      "range": 13,
+      "drop": 0.35,
+      "shaft": 0.01,
+      "emissive": 2.8
+    },
+    {
+      "slot": 2,
+      "pattern": "steady",
+      "color": "#ffe4bd",
+      "intensity": 16,
+      "range": 12,
+      "drop": 0.55,
+      "shaft": 0.01,
+      "emissive": 2.6
+    },
+    {
+      "slot": 3,
+      "pattern": "steady",
+      "color": "#ffe0b2",
+      "intensity": 17,
+      "range": 13,
+      "drop": 1.25,
+      "shaft": 0.012,
+      "emissive": 2.2
+    },
+    {
+      "slot": 4,
+      "pattern": "steady",
+      "color": "#ffe2b8",
+      "intensity": 17,
+      "range": 13,
+      "drop": 1.25,
+      "shaft": 0.012,
+      "emissive": 2.2
+    },
+    {
+      "slot": 5,
+      "pattern": "steady",
+      "color": "#ffe4bc",
+      "intensity": 15,
+      "range": 13,
+      "drop": 1,
+      "shaft": 0.01,
+      "emissive": 2.2
+    },
+    {
+      "slot": 6,
+      "pattern": "steady",
+      "color": "#ffd096",
+      "intensity": 15,
+      "range": 12,
+      "drop": 1.35,
+      "shaft": 0.01,
+      "emissive": 2
+    },
+    {
+      "slot": 7,
+      "pattern": "steady",
+      "color": "#ffcca0",
+      "intensity": 16,
+      "range": 13,
+      "drop": 1.1,
+      "shaft": 0.01,
+      "emissive": 2.2
+    },
+    {
+      "slot": "emergency",
+      "pattern": "off"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trig_commons_enter",
+      "box": [
+        [
+          22.3,
+          0,
+          10.3
+        ],
+        [
+          25.7,
+          2.6,
+          13.7
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:commons_enter",
+      "once": false
+    },
+    {
+      "id": "trig_commons_to_gallery",
+      "box": [
+        [
+          14.3,
+          0,
+          14.3
+        ],
+        [
+          17.7,
+          2.6,
+          17.7
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:commons_to_gallery",
+      "once": false
+    },
+    {
+      "id": "trig_commons_radio",
+      "box": [
+        [
+          31,
+          0,
+          9.59
+        ],
+        [
+          32.2,
+          1.6,
+          10.79
+        ]
+      ],
+      "on": "use",
+      "emit": "commons:radio",
+      "once": false,
+      "prompt": "Listen"
+    },
+    {
+      "id": "trig_commons_coffee",
+      "box": [
+        [
+          26.3,
+          0,
+          9.69
+        ],
+        [
+          27.3,
+          1.6,
+          10.69
+        ]
+      ],
+      "on": "use",
+      "emit": "commons:coffee",
+      "once": false,
+      "prompt": "Pour coffee"
+    },
+    {
+      "id": "trig_commons_notice",
+      "box": [
+        [
+          18.25,
+          0,
+          9.8
+        ],
+        [
+          19.85,
+          2.2,
+          11.4
+        ]
+      ],
+      "on": "use",
+      "emit": "commons:notice",
+      "once": false,
+      "prompt": "Read notice"
+    }
+  ],
+  "anchors": [
+    {
+      "id": "kitchen_door",
+      "pos": [
+        24,
+        1.2,
+        10
+      ]
+    },
+    {
+      "id": "counter",
+      "pos": [
+        29.2,
+        0.95,
+        10.59
+      ]
+    },
+    {
+      "id": "coffee_machine",
+      "pos": [
+        26.8,
+        1.2,
+        10.59
+      ]
+    },
+    {
+      "id": "radio",
+      "pos": [
+        31.6,
+        1.05,
+        10.69
+      ]
+    },
+    {
+      "id": "cook_stand",
+      "pos": [
+        30.6,
+        0,
+        11.7
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "counter_okafor",
+      "pos": [
+        27.65,
+        0,
+        11.27
+      ],
+      "yaw": 200
+    },
+    {
+      "id": "counter_giles",
+      "pos": [
+        28.65,
+        0,
+        11.27
+      ],
+      "yaw": 160
+    },
+    {
+      "id": "cook_coffee",
+      "pos": [
+        26.75,
+        0,
+        11.32
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "cook_turn_okafor",
+      "pos": [
+        26.75,
+        0,
+        11.32
+      ],
+      "yaw": 270
+    },
+    {
+      "id": "cook_serve_giles",
+      "pos": [
+        29.3,
+        0,
+        11.85
+      ],
+      "yaw": 48.26
+    },
+    {
+      "id": "kitchen_stand",
+      "pos": [
+        25.6,
+        0,
+        13.4
+      ],
+      "yaw": 308.37
+    },
+    {
+      "id": "priya_enter",
+      "pos": [
+        24,
+        0,
+        24.6
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "priya_stand",
+      "pos": [
+        27.4,
+        0,
+        13.6
+      ],
+      "yaw": 83.66
+    },
+    {
+      "id": "priya_offer",
+      "pos": [
+        26.5,
+        0,
+        13
+      ],
+      "yaw": 113.96
+    },
+    {
+      "id": "priya_chair",
+      "pos": [
+        26.1,
+        0,
+        18.6
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "gallery_door",
+      "pos": [
+        14,
+        1.2,
+        16
+      ]
+    },
+    {
+      "id": "cp_intro",
+      "pos": [
+        25.6,
+        0,
+        13.4
+      ],
+      "yaw": 308.37
+    },
+    {
+      "id": "commons_tv",
+      "pos": [
+        33.6,
+        1.75,
+        23.6
+      ]
+    },
+    {
+      "id": "dawdle_call",
+      "pos": [
+        16.2,
+        0,
+        15.2
+      ],
+      "yaw": 270
+    },
+    {
+      "id": "crew_ruiz_commons",
+      "pos": [
+        19.6,
+        0,
+        12
+      ],
+      "yaw": 253.3
+    },
+    {
+      "id": "crew_sung_commons",
+      "pos": [
+        21.6,
+        0,
+        12.6
+      ],
+      "yaw": 73.3
+    }
+  ],
+  "npcs": [
+    {
+      "id": "cook",
+      "look": "cook",
+      "at": "cook_stand",
+      "pose": "idle"
+    },
+    {
+      "id": "crew_2",
+      "look": "lab",
+      "at": [
+        18.7,
+        0,
+        24.8
+      ],
+      "spot": "sit_stool",
+      "chat": "commons_bar",
+      "model": "botanist3"
+    },
+    {
+      "id": "bar_1",
+      "look": "crew",
+      "at": [
+        19.4,
+        0,
+        24.8
+      ],
+      "spot": "sit_stool",
+      "chat": "commons_bar",
+      "model": "office2"
+    },
+    {
+      "id": "crew_3",
+      "look": "maintenance",
+      "at": [
+        29.9,
+        0,
+        22.6
+      ],
+      "spot": "sit_sofa",
+      "model": "office1"
+    },
+    {
+      "id": "diner_1",
+      "look": "crew",
+      "at": [
+        20.1,
+        0,
+        17.8
+      ],
+      "spot": "sit_chair",
+      "chat": "commons_t17",
+      "model": "botanist2"
+    },
+    {
+      "id": "diner_3",
+      "look": "crew",
+      "at": [
+        20.9,
+        0,
+        19.4
+      ],
+      "spot": "sit_chair",
+      "chat": "commons_t17",
+      "model": "assistant"
+    },
+    {
+      "id": "diner_7",
+      "look": "crew",
+      "at": [
+        21.7,
+        0,
+        17.8
+      ],
+      "spot": "sit_chair",
+      "chat": "commons_t17",
+      "model": "office1"
+    },
+    {
+      "id": "diner_6",
+      "look": "crew",
+      "at": [
+        16.5,
+        0,
+        22.6
+      ],
+      "spot": "sit_chair",
+      "chat": "commons_t19",
+      "model": "botanist3"
+    },
+    {
+      "id": "diner_2",
+      "look": "lab",
+      "at": [
+        17.2,
+        0,
+        21
+      ],
+      "spot": "sit_chair",
+      "chat": "commons_t19",
+      "model": "office3"
+    },
+    {
+      "id": "tea_1",
+      "look": "lab",
+      "at": [
+        30.9,
+        0,
+        17.7
+      ],
+      "spot": "sit_chair",
+      "model": "botanist1"
+    },
+    {
+      "id": "wall_1",
+      "look": "crew",
+      "at": [
+        14.7,
+        0,
+        22.6
+      ],
+      "spot": "lean_wall",
+      "yaw": 270,
+      "chat": "commons_wall",
+      "model": "office3"
+    },
+    {
+      "id": "chat_5",
+      "look": "engineer",
+      "at": [
+        15.55,
+        0,
+        22.75
+      ],
+      "yaw": 90,
+      "chat": "commons_wall",
+      "model": "botanist1",
+      "pose": "idle"
+    }
+  ],
+  "walks": [
+    {
+      "id": "cook_to_giles",
+      "points": [
+        "cook_turn_okafor",
+        [
+          27.45,
+          0,
+          11.98
+        ],
+        [
+          28.65,
+          0,
+          12.02
+        ],
+        "cook_serve_giles"
+      ]
+    }
+  ]
+}

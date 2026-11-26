@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import type { LevelData } from '../data/types/level.ts';
 import { AREA_PALETTES } from './kit/palettes.ts';
+import { readLevel } from '../data/levels/readLevel.ts';
 
 // lab-wing spec (openspec rebuild-lab-wing): R04 Lab B, R05 Lab Junction, R06 Pressure Door Hall.
 
-const data = JSON.parse(readFileSync(new URL('../data/levels/slice01.json', import.meta.url), 'utf8')) as LevelData;
+const data = readLevel('slice01') as LevelData;
 const room = (id: string) => data.rooms.find((r) => r.id === id)!;
 const WING = ['R04', 'R05', 'R06'] as const;
 const WORN = new Set(['rustHeavy', 'rustDrip', 'rustBlotch', 'diamondRusty', 'hazard', 'servicePaint', 'labPanel', 'paintBone', 'paintTeal', 'paintDark']);

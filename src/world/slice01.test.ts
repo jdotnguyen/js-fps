@@ -16,6 +16,7 @@ import type { Interactable, Interactions } from '../actors/interaction.ts';
 import { DEFAULT_MOTOR, moveBody, type MotorState } from '../actors/motor.ts';
 import type { P3 } from '../ai/nav.ts';
 import { GIVE_WAY } from '../ai/giveWay.ts';
+import { readLevel } from '../data/levels/readLevel.ts';
 
 // slice01 (ADR-0014/0023, intro-sequence spec): the level validates, builds headlessly (no WebGL, a stub 2D
 // canvas), provides every anchor the draft sequences use, reports each room's draw calls,
@@ -39,7 +40,7 @@ const json = (path: string): unknown => JSON.parse(readFileSync(new URL(path, im
 const items = validate(validateItemTable, json('../data/items.json'), 'data/items.json');
 const ui = validate(validateUiText, json('../data/dialogue/ui.json'), 'data/dialogue/ui.json');
 const registry = new KitRegistry({ glb: {} });
-const data: LevelData = validate(levelValidator(registry.ids(), { items: new Set(Object.keys(items)), uiText: new Set(Object.keys(ui)) }), json('../data/levels/slice01.json'), 'slice01');
+const data: LevelData = validate(levelValidator(registry.ids(), { items: new Set(Object.keys(items)), uiText: new Set(Object.keys(ui)) }), readLevel('slice01'), 'slice01');
 
 function fakeMaterials(): Materials {
   const s = (color: number): THREE.MeshStandardMaterial => new THREE.MeshStandardMaterial({ color });
@@ -1558,7 +1559,7 @@ test('each train car claims its two cabin lights, they ride with the car, and th
     const lightY = y0 + 0.4 + 2.9 - 0.18 - 0.16;
     const mine = slots.filter((s) => s.claimed && Math.abs(s.pos.x - x) < 0.05 && Math.abs(s.pos.y - lightY) < 0.05 && Math.abs(s.pos.z - z) < len / 2);
     assert.equal(mine.length, 2, `${name} has both cabin light slots claimed`);
-    // 8 m range from each slot (see slice01.json) covers the far bulkhead from either side of the car.
+    // 8 m range from each slot (see rooms/R16a.json and R16b.json) covers the far bulkhead from either side of the car.
     for (const end of [z - len / 2, z + len / 2]) {
       const nearest = Math.min(...mine.map((s) => Math.abs(s.pos.z - end)));
       assert.ok(nearest <= 8, `${name}: the bulkhead at z ${end} is within 8 m of a cabin light (${nearest.toFixed(1)} m)`);

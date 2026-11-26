@@ -15,9 +15,10 @@ import type { SequenceHost } from './host.ts';
 import { SequenceManager } from './runtime.ts';
 import { validateSequences } from './schema.ts';
 import type { Flags, SequenceDef, Step } from './types.ts';
+import { readLevel } from '../data/levels/readLevel.ts';
 
 const json = (rel: string): unknown => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
-const level = json('../data/levels/slice01.json') as { rooms: Array<{ id: string; anchors?: Array<{ id: string; pos: number[] }> }> };
+const level = readLevel('slice01') as { rooms: Array<{ id: string; anchors?: Array<{ id: string; pos: number[] }> }> };
 const draft = json('../data/sequences/intro_shift_change.json');
 const [intro] = validateSequences({ 'intro_shift_change.json': draft }) as [SequenceDef];
 
@@ -559,7 +560,7 @@ test('Priya walks out by the gallery door and is taken off-stage only once she i
   assert.equal((last[1] as Record<string, unknown>)['whenUnseen'], true, 'the move off-stage waits until Jay cannot see her');
   assert.ok(!JSON.stringify(intro).includes('priya_exit'), 'no one is sent to the old doorway spot');
   // The walk-out spot is in the gallery, through D_R02_R03, and clear of its doors.
-  const level = json('../data/levels/slice01.json') as { rooms: Array<{ id: string; anchors?: Array<{ id: string; pos: number[] }> }> };
+  const level = readLevel('slice01') as { rooms: Array<{ id: string; anchors?: Array<{ id: string; pos: number[] }> }> };
   const walkout = level.rooms.find((r) => r.id === 'R03')?.anchors?.find((a) => a.id === 'priya_walkout');
   assert.ok(walkout, 'priya_walkout is an R03 anchor');
   for (const door of [[14, 16], [2, 16]]) assert.ok(Math.hypot(walkout.pos[0]! - door[0]!, walkout.pos[2]! - door[1]!) > 2, `walk-out spot clear of the door at ${door.join(',')}`);

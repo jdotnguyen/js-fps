@@ -1,0 +1,265 @@
+{
+  "id": "slice01",
+  "name": "Slice 01: Thalassa Deep",
+  "seed": 1337,
+  "playerStart": {
+    "room": "R01",
+    "pos": [
+      6.95,
+      0,
+      4.3
+    ],
+    "yaw": 2
+  },
+  "squadStart": {
+    "engineer": [
+      0.65,
+      0,
+      -4.55
+    ],
+    "medic": [
+      -0.65,
+      0,
+      -4.55
+    ]
+  },
+  "rooms": [
+    "R01",
+    "R01w",
+    "R01a",
+    "R02",
+    "R03",
+    "R04",
+    "R05",
+    "R06",
+    "R07",
+    "R07a",
+    "R08",
+    "R08b",
+    "R09",
+    "R10",
+    "R11",
+    "R15a",
+    "R15b",
+    "R16a",
+    "R16b",
+    "R16c",
+    "R12a",
+    "R12b",
+    "R12c",
+    "R12d",
+    "R12e",
+    "R13a",
+    "R13b",
+    "R13c",
+    "R13d",
+    "R13e",
+    "R14a",
+    "R14b",
+    "R14c",
+    "R14d",
+    "R14e"
+  ],
+  "pickups": [
+    {
+      "id": "P_card_l2",
+      "room": "R14c",
+      "item": "card_l2",
+      "pos": [
+        52.4,
+        0.78,
+        5.5
+      ],
+      "rot": 15
+    },
+    {
+      "id": "P_sample_case",
+      "room": "R13b",
+      "item": "sample_case",
+      "pos": [
+        21.4,
+        0.02,
+        37.2
+      ],
+      "rot": 80
+    },
+    {
+      "id": "S_ammo_r05",
+      "room": "R05",
+      "kind": "ammo_pistol",
+      "pos": [
+        -5.3,
+        0.84,
+        18
+      ]
+    },
+    {
+      "id": "S_health_r07",
+      "room": "R07",
+      "kind": "medkit",
+      "pos": [
+        -5.3,
+        0.8,
+        42.6
+      ]
+    },
+    {
+      "id": "S_ammo_r07a",
+      "room": "R07a",
+      "kind": "ammo_shotgun",
+      "pos": [
+        7.9,
+        0.78,
+        41.4
+      ]
+    },
+    {
+      "id": "S_health_r10",
+      "room": "R10",
+      "kind": "medkit",
+      "pos": [
+        33,
+        1,
+        54.6
+      ]
+    },
+    {
+      "id": "S_ammo_r11",
+      "room": "R11",
+      "kind": "ammo_shotgun",
+      "pos": [
+        32.6,
+        0,
+        44.4
+      ]
+    },
+    {
+      "id": "S_ammo_r11_b",
+      "room": "R11",
+      "kind": "ammo_shotgun",
+      "pos": [
+        38.8,
+        0,
+        43.6
+      ]
+    },
+    {
+      "id": "S_ammo_r11_c",
+      "room": "R11",
+      "kind": "ammo_pistol",
+      "pos": [
+        40.2,
+        0,
+        37.2
+      ]
+    },
+    {
+      "id": "S_shotgun_pickup",
+      "room": "R07a",
+      "kind": "weapon_shotgun",
+      "pos": [
+        9.4,
+        1.25,
+        40
+      ]
+    }
+  ],
+  "mapStations": [
+    {
+      "id": "commons_map",
+      "pos": [
+        14.31,
+        0,
+        24
+      ],
+      "reveals": "commons",
+      "rot": 90,
+      "room": "R02"
+    },
+    {
+      "id": "hydro_map",
+      "pos": [
+        35.55,
+        0,
+        18.31
+      ],
+      "reveals": "hydroponics",
+      "rot": 0,
+      "room": "R12a"
+    },
+    {
+      "id": "dive_map",
+      "pos": [
+        22.31,
+        0,
+        28
+      ],
+      "reveals": "dive_bay",
+      "rot": 90,
+      "room": "R13a"
+    },
+    {
+      "id": "admin_map",
+      "pos": [
+        36,
+        0,
+        13.69
+      ],
+      "reveals": "admin",
+      "rot": 180,
+      "room": "R14a"
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "cp_first_contact",
+      "room": "R05",
+      "pos": [
+        -1.6,
+        0,
+        16.4
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "cp_cover_me",
+      "room": "R06",
+      "pos": [
+        -2,
+        0,
+        28.6
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "cp_security",
+      "room": "R07",
+      "pos": [
+        0,
+        0,
+        40.2
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "cp_flooded",
+      "room": "R09",
+      "pos": [
+        6.9,
+        0,
+        44
+      ],
+      "yaw": 270
+    },
+    {
+      "id": "cp_climax",
+      "room": "R11",
+      "pos": [
+        32,
+        0,
+        43
+      ],
+      "yaw": 0
+    }
+  ]
+}

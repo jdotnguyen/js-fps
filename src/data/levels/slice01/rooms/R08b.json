@@ -1,0 +1,124 @@
+{
+  "id": "R08b",
+  "name": "Surgery",
+  "area": "medbay",
+  "hidden": true,
+  "atmosphere": {
+    "fog": "#081012",
+    "fogDensity": 0.022,
+    "reverb": "small_office",
+    "ambience": "surgery"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        2,
+        0,
+        13
+      ]
+    },
+    {
+      "kit": "floor_tiles",
+      "cells": [
+        [
+          2,
+          0,
+          13
+        ]
+      ]
+    },
+    {
+      "kit": "wall_tiles",
+      "cells": [
+        [
+          2,
+          0,
+          13
+        ]
+      ]
+    },
+    {
+      "kit": "wall_tiles",
+      "cells": [
+        [
+          2,
+          0,
+          13
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_tiles",
+      "cells": [
+        [
+          2,
+          0,
+          13
+        ]
+      ],
+      "rot": 180
+    }
+  ],
+  "props": [
+    {
+      "kit": "med_bed",
+      "pos": [
+        8,
+        0,
+        52
+      ]
+    },
+    {
+      "kit": "storage_shelf",
+      "pos": [
+        7.3,
+        0,
+        50.55
+      ],
+      "rot": 180,
+      "params": {
+        "width": 1.6
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "dying",
+      "color": "#eef8ff",
+      "intensity": 7.5,
+      "range": 9
+    }
+  ],
+  "anchors": [
+    {
+      "id": "r08_lurk",
+      "pos": [
+        7,
+        0,
+        51.35
+      ],
+      "yaw": 90
+    },
+    {
+      "id": "r08_surgery_out",
+      "pos": [
+        7,
+        0,
+        52
+      ],
+      "yaw": 90
+    },
+    {
+      "id": "priya_offstage",
+      "pos": [
+        9.3,
+        0,
+        50.9
+      ],
+      "yaw": 0
+    }
+  ]
+}

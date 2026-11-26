@@ -1,0 +1,153 @@
+{
+  "id": "R01a",
+  "name": "Dock Airlock",
+  "area": "dock",
+  "atmosphere": {
+    "fog": "#070b0d",
+    "fogDensity": 0.028,
+    "reverb": "small_office",
+    "ambience": "dock_airlock"
+  },
+  "visibleFrom": [
+    "R01",
+    "R01w"
+  ],
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        0,
+        0,
+        -1
+      ],
+      "params": {
+        "material": "boltPanel"
+      }
+    },
+    {
+      "kit": "floor",
+      "cells": [
+        [
+          0,
+          0,
+          -1
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          0,
+          0,
+          -1
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          0,
+          0,
+          -1
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_vent",
+      "cells": [
+        [
+          0,
+          0,
+          -1
+        ]
+      ],
+      "rot": 90
+    }
+  ],
+  "props": [
+    {
+      "kit": "locker",
+      "pos": [
+        0,
+        0,
+        -5.5
+      ],
+      "rot": 180,
+      "params": {
+        "count": 2,
+        "label": "EVA"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#ffe9c8",
+      "intensity": 7
+    }
+  ],
+  "anchors": [
+    {
+      "id": "giles_start",
+      "pos": [
+        0.65,
+        0,
+        -4.55
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "okafor_start",
+      "pos": [
+        -0.65,
+        0,
+        -4.55
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "ruiz_start",
+      "pos": [
+        0.75,
+        0,
+        -3.25
+      ],
+      "yaw": 180
+    },
+    {
+      "id": "sung_start",
+      "pos": [
+        -0.75,
+        0,
+        -3.25
+      ],
+      "yaw": 180
+    }
+  ],
+  "npcs": [
+    {
+      "id": "giles",
+      "look": "giles",
+      "at": "giles_start"
+    },
+    {
+      "id": "okafor",
+      "look": "okafor",
+      "at": "okafor_start"
+    },
+    {
+      "id": "ruiz",
+      "look": "ruiz",
+      "at": "ruiz_start"
+    },
+    {
+      "id": "sung",
+      "look": "sung",
+      "at": "sung_start"
+    }
+  ]
+}

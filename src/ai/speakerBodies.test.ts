@@ -4,6 +4,7 @@ import { EventBus } from '../core/events.ts';
 import { npcCandidatesForSpeaker, npcIdForSpeaker, wireListenLook, wireSpeechActing } from './speakerBodies.ts';
 import type { Humanoid } from '../actors/humanoid.ts';
 import '../dialogue/speech.ts';
+import { readLevel } from '../data/levels/readLevel.ts';
 
 test('speakers map to the NPCs that say their lines', () => {
   assert.equal(npcIdForSpeaker('engineer'), 'giles');
@@ -41,7 +42,7 @@ test('every local line in slice01 has a body to speak from, or a deliberately di
   const { readFileSync, readdirSync } = await import('node:fs');
   const { DISEMBODIED } = await import('./speakerBodies.ts');
   const json = (rel: string): unknown => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
-  const level = json('../data/levels/slice01.json') as { rooms: Array<{ npcs?: Array<{ id: string }> }> };
+  const level = readLevel('slice01') as { rooms: Array<{ npcs?: Array<{ id: string }> }> };
   const npcIds = new Set(level.rooms.flatMap((r) => (r.npcs ?? []).map((n) => n.id)));
   const missing: string[] = [];
   for (const file of readdirSync(new URL('../data/dialogue/', import.meta.url))) {

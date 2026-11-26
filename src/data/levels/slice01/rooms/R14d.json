@@ -1,0 +1,377 @@
+{
+  "id": "R14d",
+  "name": "Boardroom",
+  "area": "admin",
+  "atmosphere": {
+    "fog": "#14110e",
+    "fogDensity": 0.011,
+    "ambient": "admin",
+    "reverb": "small_office",
+    "ambience": "admin_boardroom"
+  },
+  "visibleFrom": [
+    "R14b"
+  ],
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        10,
+        0,
+        -1
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        11,
+        0,
+        -1
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        12,
+        0,
+        -1
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        10,
+        0,
+        0
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        11,
+        0,
+        0
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        12,
+        0,
+        0
+      ],
+      "params": {
+        "fixture": false
+      }
+    },
+    {
+      "kit": "floor_carpet",
+      "cells": [
+        [
+          10,
+          0,
+          -1
+        ],
+        [
+          11,
+          0,
+          -1
+        ],
+        [
+          12,
+          0,
+          -1
+        ],
+        [
+          10,
+          0,
+          0
+        ],
+        [
+          11,
+          0,
+          0
+        ],
+        [
+          12,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "kit": "wall_sanity_screen",
+      "cells": [
+        [
+          10,
+          0,
+          -1
+        ],
+        [
+          11,
+          0,
+          -1
+        ],
+        [
+          12,
+          0,
+          -1
+        ]
+      ]
+    },
+    {
+      "kit": "wall_wood",
+      "cells": [
+        [
+          10,
+          0,
+          -1
+        ],
+        [
+          10,
+          0,
+          0
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_wood",
+      "cells": [
+        [
+          12,
+          0,
+          -1
+        ],
+        [
+          12,
+          0,
+          0
+        ]
+      ],
+      "rot": 270
+    }
+  ],
+  "props": [
+    {
+      "kit": "conference_table",
+      "pos": [
+        44,
+        0,
+        -2
+      ],
+      "params": {
+        "width": 4.4,
+        "depth": 1.3,
+        "sideSeats": 3,
+        "endEast": true
+      }
+    },
+    {
+      "kit": "pendant_light",
+      "pos": [
+        44,
+        0,
+        -2
+      ],
+      "params": {
+        "ceiling": 3.2,
+        "drop": 1.05,
+        "count": 3,
+        "spacing": 1.4,
+        "shade": "brass"
+      }
+    },
+    {
+      "kit": "wall_screen",
+      "pos": [
+        38.31,
+        0,
+        -2
+      ],
+      "rot": 270,
+      "params": {
+        "id": "admin_tv",
+        "width": 3,
+        "channel": "boardroom",
+        "state": "on"
+      }
+    },
+    {
+      "kit": "credenza",
+      "pos": [
+        49.45,
+        0,
+        -2
+      ],
+      "rot": 90,
+      "params": {
+        "width": 2.6
+      }
+    },
+    {
+      "kit": "bookshelf",
+      "pos": [
+        49.55,
+        0,
+        0.35
+      ],
+      "rot": 90,
+      "params": {
+        "width": 1.4,
+        "height": 2.2
+      }
+    },
+    {
+      "kit": "tag_poster",
+      "pos": [
+        49.69,
+        0,
+        -4.4
+      ],
+      "rot": 90,
+      "params": {
+        "slogan": "DEEPER. FURTHER. TOGETHER.",
+        "width": 1
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        38.7,
+        0,
+        -5.25
+      ],
+      "params": {
+        "kind": "palm",
+        "pot": "dark",
+        "size": 1.1
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        49.25,
+        0,
+        -5.25
+      ],
+      "params": {
+        "kind": "tall",
+        "pot": "white",
+        "size": 1
+      }
+    },
+    {
+      "kit": "potted_plant",
+      "pos": [
+        38.7,
+        0,
+        1.25
+      ],
+      "params": {
+        "kind": "fern",
+        "pot": "white",
+        "size": 1
+      }
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        49.74,
+        0,
+        -3
+      ],
+      "rot": 90,
+      "params": {
+        "id": "pa_boardroom"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#ffebd0",
+      "intensity": 13,
+      "range": 13,
+      "shaft": 0.01,
+      "emissive": 2.1
+    },
+    {
+      "slot": 1,
+      "pattern": "steady",
+      "color": "#ffe4be",
+      "intensity": 13,
+      "range": 13,
+      "shaft": 0.01,
+      "emissive": 2.1
+    },
+    {
+      "slot": 2,
+      "pattern": "steady",
+      "color": "#ffdcad",
+      "intensity": 16,
+      "range": 14,
+      "drop": 0.85,
+      "shaft": 0.018,
+      "emissive": 2.2
+    }
+  ],
+  "npcs": [
+    {
+      "id": "board_1",
+      "look": "exec",
+      "at": [
+        42.5,
+        0,
+        -3.07
+      ],
+      "spot": "sit_chair",
+      "chat": "admin_boardroom",
+      "model": "office3"
+    },
+    {
+      "id": "board_2",
+      "look": "exec",
+      "at": [
+        45.5,
+        0,
+        -3.07
+      ],
+      "spot": "sit_chair",
+      "chat": "admin_boardroom",
+      "model": "office2"
+    },
+    {
+      "id": "board_3",
+      "look": "lab",
+      "at": [
+        44,
+        0,
+        -0.93
+      ],
+      "spot": "sit_chair",
+      "chat": "admin_boardroom",
+      "model": "botanist2"
+    },
+    {
+      "id": "board_4",
+      "look": "exec",
+      "at": [
+        40.5,
+        0,
+        -2
+      ],
+      "yaw": 270,
+      "chat": "admin_boardroom",
+      "model": "office1",
+      "pose": "idle"
+    }
+  ]
+}

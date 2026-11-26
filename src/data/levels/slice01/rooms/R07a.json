@@ -1,0 +1,190 @@
+{
+  "id": "R07a",
+  "name": "Armory",
+  "area": "security",
+  "atmosphere": {
+    "fog": "#0c1014",
+    "fogDensity": 0.018,
+    "reverb": "small_office",
+    "ambience": "armory"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        2,
+        0,
+        10
+      ]
+    },
+    {
+      "kit": "floor",
+      "cells": [
+        [
+          2,
+          0,
+          10
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          2,
+          0,
+          10
+        ]
+      ],
+      "params": {
+        "material": "cleanWall"
+      }
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          2,
+          0,
+          10
+        ]
+      ],
+      "params": {
+        "material": "cleanWall"
+      },
+      "rot": 270
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          2,
+          0,
+          10
+        ]
+      ],
+      "params": {
+        "material": "cleanWall"
+      },
+      "rot": 180
+    }
+  ],
+  "props": [
+    {
+      "kit": "armory_rack",
+      "pos": [
+        9.45,
+        0,
+        40
+      ],
+      "rot": 90,
+      "params": {
+        "width": 2.4,
+        "empty": 2
+      }
+    },
+    {
+      "kit": "armory_rack",
+      "pos": [
+        8.2,
+        0,
+        38.55
+      ],
+      "rot": 180,
+      "params": {
+        "width": 1.6,
+        "empty": 3
+      }
+    },
+    {
+      "kit": "storage_shelf",
+      "pos": [
+        7.9,
+        0,
+        41.45
+      ],
+      "params": {
+        "width": 1.6
+      }
+    },
+    {
+      "kit": "pendant_light",
+      "pos": [
+        8.8,
+        0,
+        40
+      ],
+      "params": {
+        "ceiling": 3.2,
+        "drop": 0.72,
+        "count": 1,
+        "slots": true
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#f4f8ff",
+      "intensity": 12,
+      "range": 10,
+      "shaft": 0.03,
+      "emissive": 2.8
+    },
+    {
+      "slot": 1,
+      "pattern": "steady",
+      "color": "#fff4e0",
+      "intensity": 9,
+      "range": 7,
+      "emissive": 3
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trig_r07_armory",
+      "box": [
+        [
+          6.3,
+          0,
+          38.3
+        ],
+        [
+          9.7,
+          2.6,
+          41.7
+        ]
+      ],
+      "on": "enter",
+      "emit": "trigger:r07_armory"
+    }
+  ],
+  "anchors": [
+    {
+      "id": "shotgun_pickup",
+      "pos": [
+        9.4,
+        1.25,
+        40
+      ]
+    },
+    {
+      "id": "r07_panel",
+      "pos": [
+        6.9,
+        0,
+        38.9
+      ],
+      "yaw": 0
+    },
+    {
+      "id": "ammo_r07a",
+      "pos": [
+        7.9,
+        0.78,
+        41.4
+      ]
+    }
+  ]
+}

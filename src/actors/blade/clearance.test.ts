@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { readFileSync } from 'node:fs';
 import { EventBus } from '../../core/events.ts';
 import type { LevelData } from '../../data/types/level.ts';
 import { createMaterials, disposeMaterials } from '../../render/materials.ts';
@@ -9,6 +8,7 @@ import { CollisionWorld } from '../../world/collision.ts';
 import { NpcActor } from '../../ai/npcActor.ts';
 import { measureBladePenetration } from './clearance.ts';
 import { creatureBody, stepBody } from './bladeTestKit.ts';
+import { readLevel } from '../../data/levels/readLevel.ts';
 
 // Headless canvas stub for door status screens in Node (matches src/world/doorPry.test.ts).
 const noop = (): void => undefined;
@@ -32,7 +32,7 @@ const { Level } = await import('../../world/level.ts');
 /** rig-necromorph tasks 7.2, 7.4, 7.5 (design D9, spec "Its blades stay out of the world"): blade clearance against colliders. */
 
 function buildSubset(roomIds: readonly string[], doorIds: readonly string[]): { lvl: InstanceType<typeof Level>; cleanup: () => void } {
-  const full = JSON.parse(readFileSync(new URL('../../data/levels/slice01.json', import.meta.url), 'utf8')) as LevelData;
+  const full = readLevel('slice01') as LevelData;
   const keepRooms = new Set(roomIds);
   const keepDoors = new Set(doorIds);
   const rooms = full.rooms.filter((r) => keepRooms.has(r.id)).map((r) => ({ ...r, props: [] }));

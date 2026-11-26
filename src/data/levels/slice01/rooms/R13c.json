@@ -1,0 +1,259 @@
+{
+  "id": "R13c",
+  "name": "ROV Workshop",
+  "area": "dive_bay",
+  "atmosphere": {
+    "fog": "#0b1316",
+    "fogDensity": 0.015,
+    "reverb": "small_office",
+    "ambience": "rov_workshop"
+  },
+  "pieces": [
+    {
+      "kit": "ceiling",
+      "cell": [
+        4,
+        0,
+        8
+      ]
+    },
+    {
+      "kit": "ceiling",
+      "cell": [
+        4,
+        0,
+        9
+      ]
+    },
+    {
+      "kit": "floor_tiles",
+      "cells": [
+        [
+          4,
+          0,
+          8
+        ],
+        [
+          4,
+          0,
+          9
+        ]
+      ]
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          4,
+          0,
+          8
+        ]
+      ]
+    },
+    {
+      "kit": "wall_plain",
+      "cells": [
+        [
+          4,
+          0,
+          8
+        ]
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          4,
+          0,
+          9
+        ]
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          4,
+          0,
+          9
+        ]
+      ],
+      "rot": 180
+    },
+    {
+      "kit": "wall_panel",
+      "cells": [
+        [
+          4,
+          0,
+          9
+        ]
+      ],
+      "rot": 90
+    }
+  ],
+  "props": [
+    {
+      "kit": "room_sign",
+      "pos": [
+        17.74,
+        0,
+        35.05
+      ],
+      "rot": 90,
+      "params": {
+        "code": "R13C",
+        "name": "ROV WORKSHOP",
+        "co2": 720,
+        "rh": 64
+      }
+    },
+    {
+      "kit": "floor_wear",
+      "pos": [
+        14.9,
+        0,
+        35.5
+      ],
+      "params": {
+        "kind": "oil",
+        "width": 0.9,
+        "depth": 1.6
+      }
+    },
+    {
+      "kit": "floor_wear",
+      "pos": [
+        17.2,
+        0,
+        36.6
+      ],
+      "params": {
+        "kind": "puddle",
+        "width": 0.7,
+        "depth": 0.7
+      }
+    },
+    {
+      "kit": "floor_wear",
+      "pos": [
+        17.2,
+        0,
+        32
+      ],
+      "rot": 90,
+      "params": {
+        "kind": "prints",
+        "width": 0.9,
+        "depth": 1.4
+      }
+    },
+    {
+      "kit": "floor_wear",
+      "pos": [
+        16.5,
+        0,
+        33.6
+      ],
+      "rot": 30,
+      "params": {
+        "kind": "oil",
+        "width": 0.6,
+        "depth": 0.5
+      }
+    },
+    {
+      "kit": "workbench",
+      "pos": [
+        14.26,
+        0,
+        35.5
+      ],
+      "rot": 270,
+      "params": {
+        "width": 2.4
+      }
+    },
+    {
+      "kit": "battery_charger",
+      "pos": [
+        14.26,
+        0,
+        31.5
+      ],
+      "rot": 270
+    },
+    {
+      "kit": "platform_trolley",
+      "pos": [
+        16.4,
+        0,
+        34.9
+      ],
+      "params": {
+        "id": "rov_trolley"
+      },
+      "dynamic": {
+        "mass": 45
+      }
+    },
+    {
+      "kit": "parts_bins",
+      "pos": [
+        16,
+        0,
+        30.26
+      ],
+      "rot": 180,
+      "params": {
+        "width": 1.6
+      }
+    },
+    {
+      "kit": "gas_cylinder_rack",
+      "pos": [
+        17,
+        0,
+        37.74
+      ]
+    },
+    {
+      "kit": "hose_reel",
+      "pos": [
+        17.74,
+        0,
+        36.6
+      ],
+      "rot": 90
+    },
+    {
+      "kit": "pa_speaker",
+      "pos": [
+        17,
+        0,
+        30.26
+      ],
+      "rot": 180,
+      "params": {
+        "id": "pa_workshop"
+      }
+    }
+  ],
+  "lights": [
+    {
+      "slot": 0,
+      "pattern": "steady",
+      "color": "#eef4f6",
+      "intensity": 7
+    },
+    {
+      "slot": 1,
+      "pattern": "steady",
+      "color": "#eef4f6",
+      "intensity": 6
+    }
+  ]
+}

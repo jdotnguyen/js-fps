@@ -19,7 +19,7 @@
 | --- | --- | --- |
 | **Cell Footprint (`CELL`)** | `4.0 m × 4.0 m` (`x, z ∈ [-2.0, +2.0]`) | **Locked `4.0 m × 4.0 m`**. Multi-cell rooms use integer multiples. |
 | **Deck Step (`DECK_H`)** | `4.0 m` per `cell[1]` | **Locked `4.0 m`** vertical deck pitch (`0.4–0.8 m` plenum above ceiling). |
-| **Wall / Room Height** | `3.2 m` default (`slice01.json` uses `3.2–5.0 m`) | **`3.2 m` standard** (or `3.5 m` / `4.0 m` for tall/hero bays; ceiling slab sits at `[H, H + 0.12]`). |
+| **Wall / Room Height** | `3.2 m` default (`slice01` rooms use `3.2–8.0 m`) | **`3.2 m` standard** (or `3.5 m` / `4.0 m` for tall/hero bays; ceiling slab sits at `[H, H + 0.12]`). |
 | **Wall Thickness (`WALL_T`)** | `0.25 m` (inward from cell edge) | **Inward-only:** `z ∈ [-2.000, -1.750]` on `-Z` edge. Never straddle unless it is a shared door frame. |
 | **Corridor Clear Bore** | `3.0 m` wide × `3.2 m` high (`HW = 1.5 m`) | **Minimum `2.4 m` clear width** (`3.0 m` standard) for 2× `0.35 m` capsules + squad passing. |
 | **Doorway Socket** | `2.0 m` wide × `2.4 m` tall (`DOOR_W × DOOR_H`) | **Standardized Socket:** centred at `[0, 0, -2.0]`, dir `[0, 0, -1]`, clear opening `x ∈ [-1.0, +1.0]`, `y ∈ [0.0, 2.4]`. |
@@ -32,6 +32,18 @@ Any GLB replacing a kit piece must sit on the `4 m` pivot (`y = 0` floor, `x, z 
 - `SOCKET_<name>` — empty at boundary centre (e.g. `[0, 0, -2]`), `-Z` pointing outward.
 - `LIGHT_<ceiling|wall|emergency>_*` — empty at fixture diffuser origin.
 - `NAV_*` — walkable nav nodes at `y = 0` (`[0, 0, 0]` for tiles, `[0, 0, -2 ± 0.9]` for doors).
+
+---
+
+### Where a level is authored
+
+| File in `src/data/levels/slice01/` | Holds |
+| --- | --- |
+| `rooms/<id>.json` | One room: its `pieces` (floors, walls, ceilings), `height`, props, lights, atmosphere, water, NPCs, anchors, walks, spawns and triggers. |
+| `doors.json` | `doors` and `vents`, which span two rooms. |
+| `level.json` | Id, seed, player and squad starts, `rooms` (every room id, in level order), pickups, map stations and checkpoints. |
+
+A new room needs its file and its id in `level.json`. No script writes these files. A single-file level (`kit_test.json`) also loads.
 
 ---
 
@@ -52,7 +64,7 @@ Any GLB replacing a kit piece must sit on the `4 m` pivot (`y = 0` floor, `x, z 
 
 ### Level Files Inspected (Unmodified)
 - [kit_test.json](../src/data/levels/kit_test.json): `5` rooms, `4` doors (`pressure_slide`, `bulkhead`, `glass_slide`), uniform `3.2 m` height, deck `0`.
-- [slice01.json](../src/data/levels/slice01.json): `30` rooms, `28` doors, deck `0`, room heights `3.2 / 3.6 / 4.0 / 4.5 / 5.0 m` (uses `wall_*`, `floor_*`, `ceiling_*` kit pieces).
+- [slice01/](../src/data/levels/slice01/): `35` rooms, `30` doors, deck `0`, room heights `3.2 / 3.6 / 4.0 / 4.5 / 5.0 / 8.0 m` (uses `wall_*`, `floor_*`, `ceiling_*` kit pieces).
 - [demoRoom.ts](../src/world/demoRoom.ts): Hand-built `6 m × 3.2 m × 20 m` corridor (pre-kit showcase).
 - [labWorld.ts](../src/world/labWorld.ts): Standalone `?level=lab` sandbox using `underground_lab.glb` + voxelized `int16` colliders.
 

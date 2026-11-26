@@ -12,7 +12,7 @@ Nothing below is committed to git; Justin reviews and commits himself. Never run
   time out at 180 s). Justin does all visual playtesting (`npm run dev`).
 - Edit files in place with small exact-string replacements; never retype a file from tool output.
   Files can't be deleted from the device shell without asking Justin for permission.
-- Level data is generated: edit `scripts/gen-slice01.mjs`, then `node scripts/gen-slice01.mjs`.
+- Level data is authored by hand, one file per room in `src/data/levels/slice01/` (the generator is frozen).
 - Running many parallel subagents burns Justin's usage limit fast; prefer one or two at a time.
 
 ## Done (all tests passed at 352/352 before wave 2 started)
@@ -30,7 +30,7 @@ Nothing below is committed to git; Justin reviews and commits himself. Never run
   combat/tasks/revive/biometric/reveal hooks + scripted NPCs + cast looks (`src/ai/squad*.ts`,
   `npcs.ts`, `castLooks.ts`), map/objectives/hints/barks/pickups (`src/ui/map*`,
   `src/game/guidance.ts`), speech + subtitles wired in main.ts, whole level
-  `src/data/levels/slice01.json` (try `?level=slice01`; names in ADR-0014's "map as built" note).
+  `src/data/levels/slice01/` (try `?level=slice01`; names in ADR-0014's "map as built" note).
 - [Assumed 2026-11-17] enemies and squadmates push open unlocked auto doors
   (`Level.setActors`, `src/world/level.ts`); locked/sealed/card doors still stop them.
 

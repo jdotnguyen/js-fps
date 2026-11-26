@@ -6,6 +6,7 @@ import type { LevelData, RoomData } from '../data/types/level.ts';
 import type { Materials } from '../render/materials.ts';
 import { BACKUP_LIGHT, Level } from './level.ts';
 import { KitRegistry } from './registry.ts';
+import { readLevel } from '../data/levels/readLevel.ts';
 
 // render-lighting spec "Backup lights", "Station power reaches every room", "Scripted light changes under backup power".
 
@@ -129,8 +130,7 @@ test('a light with backupScale stays lit at that strength on backup power', () =
 // overhaul-priya-r08-death D24 (station-power "Medical bay on its own circuit", render-lighting "A light on its own
 // circuit"): the medical bay's front row is on the medical circuit; the security office and the surgery are not.
 test('slice01: the medical bay front row stays lit on backup power, the security office and surgery go to backup', async () => {
-  const { readFileSync } = await import('node:fs');
-  const data = JSON.parse(readFileSync(new URL('../data/levels/slice01.json', import.meta.url), 'utf8')) as LevelData;
+  const data = readLevel('slice01') as LevelData;
   const lights = (id: string) => data.rooms.find((r) => r.id === id)!.lights ?? [];
   const front = lights('R08').filter((l) => l.slot === 0 || l.slot === 1 || l.slot === 2);
   assert.equal(front.length, 3);

@@ -1,17 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import type { SpawnPointData } from '../ai/spawner.ts';
 import { director, run, stubTarget } from '../ai/enemyTestKit.ts';
 import { initNavmesh } from '../ai/navmesh.ts';
 import { loadSlice01 } from './headlessSlice.ts';
+import { readLevel } from '../data/levels/readLevel.ts';
 
 // lab-wing spec, "The fight still resolves" (openspec rebuild-lab-wing 5.1, trim-lab-wing-encounters): the R06 cover
 // group, the escaped Lab B creature dropping out of the duct, simulated on the real slice01 geometry and navmesh against
 // Jay and Giles standing where the fight puts them.
 
 await initNavmesh();
-const LEVEL = JSON.parse(readFileSync(new URL('../data/levels/slice01.json', import.meta.url), 'utf8')) as { rooms: Array<{ spawns?: SpawnPointData[] }> };
+const LEVEL = readLevel('slice01') as { rooms: Array<{ spawns?: SpawnPointData[] }> };
 
 function fight(group: string, open: string[], targets: Array<{ id: string; at: [number, number, number]; kind: 'player' | 'squad' }>) {
   const { level, doors } = loadSlice01();

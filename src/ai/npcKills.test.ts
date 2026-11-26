@@ -15,6 +15,7 @@ import type { BodyModelLibrary } from '../actors/bodyModelLibrary.ts';
 import { CollisionWorld } from '../world/collision.ts';
 import { measureBladePenetration } from '../actors/blade/clearance.ts';
 import { creatureLib, necromorphModel } from '../actors/blade/bladeTestKit.ts';
+import { readLevel } from '../data/levels/readLevel.ts';
 
 /** The Lab B kill on Voss (optional bodyModels for real blade creature): glass at z = 0, she starts 4.7 m behind it. */
 function setup(opts: { bodyModels?: BodyModelLibrary } = {}) {
@@ -804,10 +805,8 @@ test('mauled: nothing on Jay\'s side - every spray, spurt and chunk is clipped a
 
 // ---- The R08 kill itself (kills.json "mauled") on the real slice01 anchors (medbay-attack spec, task 9.3).
 
-import levelJson from '../data/levels/slice01.json' with { type: 'json' };
-
 const LEVEL_ANCHORS: Record<string, Spot> = Object.fromEntries(
-  (levelJson as { rooms: Array<{ anchors?: Array<{ id: string; pos: number[] }> }> }).rooms.flatMap((r) => (r.anchors ?? []).map((a) => [a.id, { x: a.pos[0]!, y: a.pos[1]!, z: a.pos[2]! }])),
+  (readLevel('slice01') as { rooms: Array<{ anchors?: Array<{ id: string; pos: number[] }> }> }).rooms.flatMap((r) => (r.anchors ?? []).map((a) => [a.id, { x: a.pos[0]!, y: a.pos[1]!, z: a.pos[2]! }])),
 );
 /** The marks `sec_glass` passes (the parent's contract). */
 const R08_MARKS = {

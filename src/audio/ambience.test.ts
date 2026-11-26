@@ -1,12 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import * as THREE from 'three';
 import { Rng } from '../core/rng.ts';
 import type { LoopHandle, VoiceOptions } from './engine.ts';
 import { SOUND_SPECS, type SampleName, type SoundName } from './sounds.ts';
 import { AMBIENCE_PRESETS, AmbienceDirector, isAmbiencePreset, resolveAmbience, type AmbienceAudio } from './ambience.ts';
+import { readLevel } from '../data/levels/readLevel.ts';
 
 interface MockLoop {
   name: SoundName;
@@ -55,15 +54,15 @@ class MockAmbienceAudio implements AmbienceAudio {
   }
 }
 
-test('every ambience id authored in slice01.json resolves to an explicit preset', () => {
-  const raw = JSON.parse(readFileSync(resolve(import.meta.dirname, '../data/levels/slice01.json'), 'utf8')) as {
+test('every ambience id authored in slice01 resolves to an explicit preset', () => {
+  const raw = readLevel('slice01') as {
     rooms: Array<{ id: string; atmosphere?: { ambience?: string } }>;
   };
   const ids = new Set<string>();
   for (const room of raw.rooms) {
     if (room.atmosphere?.ambience) ids.add(room.atmosphere.ambience);
   }
-  assert.ok(ids.size >= 8, `expected authored ambience presets in slice01.json, found ${ids.size}`);
+  assert.ok(ids.size >= 8, `expected authored ambience presets in slice01, found ${ids.size}`);
   for (const id of ids) {
     assert.ok(isAmbiencePreset(id), `slice01 ambience "${id}" missing from AMBIENCE_PRESETS`);
   }
