@@ -377,8 +377,8 @@ function auditionBatches(byId: Map<string, DialogueLine>): BatchSpec[] {
       speakers: ['engineer', 'medic'],
       sceneNote: 'Deep-sea research station Thalassa, 3000m underwater. Starts with warm tired morning banter, shifts into tense combat callouts, hushed horror whisper, and heavy dread.',
       lines: pick([
-        'intro_giles_02',
-        'intro_okafor_02',
+        'intro_giles_09',
+        'intro_okafor_06',
         'giles_cover_01',
         'okafor_legs_01',
         'okafor_quiet_01',

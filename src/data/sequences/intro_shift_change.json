@@ -609,28 +609,6 @@
           "wait": true
         },
         {
-          "do": "loop",
-          "count": 1,
-          "steps": [
-            {
-              "do": "say",
-              "line": "intro_jay_04"
-            },
-            {
-              "do": "say",
-              "line": "intro_giles_02"
-            },
-            {
-              "do": "say",
-              "line": "intro_okafor_02"
-            },
-            {
-              "do": "say",
-              "line": "intro_giles_03"
-            }
-          ]
-        },
-        {
           "do": "npcMoveTo",
           "npc": "giles",
           "to": "anchor:arch_scan",
@@ -1041,29 +1019,9 @@
       "anim": "drink"
     },
     {
-      "do": "say",
-      "line": "intro_jay_06"
-    },
-    {
-      "do": "say",
-      "line": "intro_cook_02"
-    },
-    {
       "do": "npcAnim",
       "npc": "giles",
       "anim": "drink"
-    },
-    {
-      "do": "say",
-      "line": "intro_giles_16"
-    },
-    {
-      "do": "say",
-      "line": "intro_cook_04"
-    },
-    {
-      "do": "say",
-      "line": "intro_okafor_11"
     },
     {
       "do": "npcMoveTo",
@@ -1124,23 +1082,6 @@
     {
       "do": "say",
       "line": "intro_giles_11"
-    },
-    {
-      "do": "say",
-      "line": "intro_jay_07"
-    },
-    {
-      "do": "say",
-      "line": "intro_giles_12"
-    },
-    {
-      "do": "say",
-      "line": "intro_giles_13"
-    },
-    {
-      "do": "setFlag",
-      "flag": "mara_mentioned",
-      "value": true
     },
     {
       "do": "npcMoveTo",

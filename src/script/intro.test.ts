@@ -464,7 +464,7 @@ test('watched to the end, the intro sets its flags, hands back control and takes
   assert.equal(host.flags['introSeen'], true);
   assert.equal(host.flags['pa_quarantine_played'], true);
   assert.equal(host.flags['giles_forearm_seen'], undefined);
-  assert.equal(host.flags['mara_mentioned'], true);
+  assert.equal(host.flags['mara_mentioned'], undefined);
   assert.equal(host.flags['priya_met'], true);
   assert.equal(control.state.move, 'free');
   assert.equal(log.filter((e) => e === 'checkpoint cp_intro').length, 1);
@@ -482,7 +482,7 @@ test('skipping the intro from the first second lands in the same end state', () 
   assert.equal(host.flags['introSeen'], true);
   assert.equal(host.flags['pa_quarantine_played'], true);
   assert.equal(host.flags['giles_forearm_seen'], undefined);
-  assert.equal(host.flags['mara_mentioned'], true);
+  assert.equal(host.flags['mara_mentioned'], undefined);
   assert.equal(host.flags['priya_met'], true);
   assert.equal(control.state.move, 'free');
   assert.equal(log.filter((e) => e === 'checkpoint cp_intro').length, 1);
@@ -790,8 +790,6 @@ test('Bram serves Okafor then walks to Giles far side in parallel with kitchen b
     intro_giles_10: 'okafor',
     intro_priya_04: 'giles',
     intro_giles_11: 'priya',
-    intro_giles_12: 'player',
-    intro_giles_13: 'player',
     intro_priya_05: 'player',
     intro_okafor_09: 'player',
     intro_giles_14: 'player',

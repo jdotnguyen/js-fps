@@ -132,7 +132,7 @@ test('gate: accepted clips are recorded against their batch; re-cuts and re-spli
 test('gate: accepting an id with no held clip moves nothing', () => {
   inTempDirs((d) => {
     gateClip(input(d, 'A misheard line.'));
-    assert.throws(() => acceptClips(['intro_jay_05', 'intro_jay_06'], d.staging, d.out), /intro_jay_06/);
+    assert.throws(() => acceptClips(['intro_jay_05', 'intro_jay_08'], d.staging, d.out), /intro_jay_08/);
     assert.ok(!existsSync(join(d.out, 'intro_jay_05.mp3')));
   });
 });
