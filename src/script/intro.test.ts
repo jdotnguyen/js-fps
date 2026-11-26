@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ControlStack } from '../actors/control.ts';
+import { COOK_BREW_TUNING } from '../ai/cookBrew.ts';
 import { SAMPLE_URLS, SOUND_SPECS } from '../audio/sounds.ts';
 import { DialogueLibrary } from '../dialogue/library.ts';
 import { isParallel } from './actions.ts';
@@ -808,4 +809,46 @@ test('intro voice mix lowers the guard scanning Ruiz during Sung talk and boosts
   const priyaFirst = library.line('intro_priya_01').gain ?? 1;
   assert.ok(okaforFirst >= 3, `intro_okafor_01 gain (${okaforFirst}) should boost Okafor calling out from the airlock`);
   assert.ok(priyaFirst >= 2.5, `intro_priya_01 gain (${priyaFirst}) should boost Priya calling out across the Commons`);
+});
+
+// ---- in-world-audio "The coffee machine sounds in the intro" (commons-room-sounds)
+
+/** The step that follows each time the intro puts Bram to work at the machine, in whichever step list holds it. */
+function afterCoffeeBeats(steps: Step[]): Array<Record<string, unknown> | undefined> {
+  return steps.flatMap((step, i) => {
+    if (isParallel(step)) return afterCoffeeBeats(step.parallel);
+    const here = step['do'] === 'npcAnim' && step['npc'] === 'cook' && step['anim'] === 'typing' ? [steps[i + 1] as Record<string, unknown> | undefined] : [];
+    const inner = step['steps'];
+    return Array.isArray(inner) ? [...here, ...afterCoffeeBeats(inner as Step[])] : here;
+  });
+}
+
+test('the machine sounds beside each coffee beat, from where it stands and under the free-play level', () => {
+  const next = afterCoffeeBeats(intro.steps);
+  assert.equal(next.length, 2, 'Bram works the machine twice');
+  for (const s of next) {
+    assert.deepEqual([s?.['do'], s?.['id'], s?.['at']], ['sfx', 'coffeeBrew', 'anchor:coffee_machine']);
+    assert.ok((s!['gain'] as number) < COOK_BREW_TUNING.sound.gain, 'quiet enough for the lines over it');
+  }
+  assert.ok(level.rooms.some((r) => r.anchors?.some((a) => a.id === 'coffee_machine')), 'the anchor exists');
+});
+
+test('a watched intro plays both brews; skipping before Bram reaches the machine plays none', async () => {
+  for (const skip of [false, true]) {
+    const { host } = makeHost();
+    const heard: string[] = [];
+    host.sfx = (id) => void heard.push(id);
+    const m = new SequenceManager(host, [intro]);
+    m.start('intro_shift_change');
+    if (skip) {
+      for (let i = 0; i < 60; i++) m.update(1 / 60);
+      assert.equal(m.skip(), true);
+    }
+    for (let i = 0; i < 60 * 400 && m.running().length > 0; i++) {
+      m.update(1 / 60);
+      if (i % 4 === 0) await Promise.resolve();
+    }
+    assert.deepEqual(m.running(), []);
+    assert.equal(heard.filter((id) => id === 'coffeeBrew').length, skip ? 0 : 2);
+  }
 });

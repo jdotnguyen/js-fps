@@ -24,7 +24,21 @@ data checkpoints `cp_first_contact`, `cp_cover_me`, `cp_security`, `cp_flooded`,
 - Walk off mid-line: that line finishes, nothing follows, and coming back repeats nothing. Let Giles's "come on" or a hint land during an exchange: it cuts the exchange off at once.
 - After the briefing each pair has two more, at least 20 s apart. None starts while the researcher walks through. Listen over the radio for mush.
 - From hydroponics, the dive bay and Admin with the Commons door closed, the murmur is faint or gone. Pausing lowers it. Stay five minutes: both pairs are still in their places.
+- Load the autosave made as the intro ends: both pairs still have their pre-briefing exchange.
 - From the drop on, and after loading `cp_drop`, there is no written exchange and no murmur.
+
+**Commons room sounds** (openspec commons-room-sounds; wear headphones, New game with `?slot=scratch`)
+- Watch a diner get up and sit down at another table: that seat scrapes as they leave and the next as they sit. Crew walking between the bar stools, sofas and wall make no scrape. Loading a save puts everyone back without a sound.
+- Stand by a table with people at it for a minute: cups and cutlery clink irregularly (about every 4-10 s) from in front of one of them.
+- After the intro, with Bram at the servery, pans, plates and the tap are heard along the counter every 8-20 s. None during the intro, none while the researcher walks through, none while Bram is away from the station.
+- Start a pair's exchange or take a squad line: sounds that start meanwhile are quieter and every word is easy to follow.
+- From a neighbouring room with the Commons door closed, the sounds are muffled and faint, or gone. Quit to title: silence.
+- From the drop on, and after loading `cp_drop`, nothing scrapes, clinks or clatters.
+- Bram's brew: after the intro, stay in the Commons. Within a minute Bram walks to the coffee machine, works it for about 8 s (grinding, then pouring, from the machine), walks back and faces as before. The next one is two to three minutes of Commons time later; none starts while you are elsewhere. Check the walk and the hands-busy pose from the room and from beside the machine.
+- Keep a pair talking, or let a squad line play, when a brew is due: Bram waits until the talk has ended. Leave mid-brew: Bram finishes and goes back.
+- Stand between Bram and the machine: after about 12 s Bram gives up with no sound and goes home once you step aside.
+- Load the autosave made as the intro ends: kitchen sounds and brews still happen.
+- Load a checkpoint mid-brew (die, or load from the menu): silence, and Bram is at the station. Get a rounds change or the drop mid-brew: the sound stops at once and Bram does not walk back to the machine.
 
 **The drop opening** (gallery-drop-walk-to-heins)
 - After the third round the Lab B blinds are already up (check from the gallery with the lights as they are): Voss is typing behind the glass. Stand in the doorway and peek in: nothing starts. Walk a few steps in (as for the briefing): bars come on and Jay walks to the middle of the gallery facing Voss. Try the door side, the middle and the north walkway, with Giles and Okafor close behind and again left far back in the Commons: they end up beside Jay without ever popping into view, and the door seals only once all three are inside.

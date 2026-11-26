@@ -131,6 +131,8 @@ import { WebAudioVoicePlayer } from '../dialogue/voicePlayer.ts';
 import { StoryDucker } from '../audio/storyDuck.ts';
 import { OverheardDirector } from '../ai/overheard.ts';
 import { ConversationMurmur } from '../audio/murmur.ts';
+import { COMMONS_OPEN_FLAG, CommonsSounds } from '../audio/commonsSounds.ts';
+import { COOK_BREW_TUNING, CookBrew } from '../ai/cookBrew.ts';
 import overheardJson from '../data/overheard.json';
 import { validateOverheard } from '../data/types/overheard.ts';
 import { Subtitles } from '../ui/hud/subtitles.ts';
@@ -296,6 +298,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
   let speech: SpeechManager | null = null;
   let overheard: OverheardDirector | null = null;
   let murmur: ConversationMurmur | null = null;
+  let commonsSounds: CommonsSounds | null = null;
+  let cookBrew: CookBrew | null = null;
   let sequences: SequenceManager | null = null;
   let cutscene: CutsceneController | null = null;
   let guidance: Guidance | null = null;
@@ -337,6 +341,10 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     overheard = null;
     murmur?.dispose();
     murmur = null;
+    commonsSounds?.reset();
+    commonsSounds = null;
+    cookBrew?.reset();
+    cookBrew = null;
     if (score && !shell.releaseActiveScore(score)) score.stopAll();
     score = null;
     storyDucker?.dispose();
@@ -1234,6 +1242,13 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       storyDucker!.reset();
     });
 
+    // Jay can act: not on rails or in a cutscene.
+    const freeControl = (): boolean => player.alive && !player.onRails && !(sequences?.skippable ?? false);
+    /** A line is audible or a Commons pair is saying an exchange. */
+    const commonsTalk = (): boolean => speech!.speaking() !== null || overheard!.current !== null;
+    /** The intro is over, so the Commons is Jay's to walk round. */
+    const commonsOpen = (): boolean => !!game.flags[COMMONS_OPEN_FLAG];
+
     // The voiced Commons pairs (in-world-audio: Overheard exchanges in the Commons).
     const overheardData = validate(validateOverheard, overheardJson, 'data/overheard.json');
     npcs!.keepInPlace(overheardData.exchanges.map((x) => x.chat), () => !game.flags['drop_started']);
@@ -1244,7 +1259,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       flag: (name) => !!game.flags[name],
       setFlag: (name) => void (game.flags[name] = true),
       playerRoom: () => level?.roomAt(camera.position)?.data.id ?? null,
-      freeControl: () => player.alive && !player.onRails && !(sequences?.skippable ?? false),
+      freeControl,
       sceneRunning: (room) => sequences?.runningIn(room) ?? false,
       higherSpeech: () => speech!.speaking() !== null,
       pair: (chat) => {
@@ -1258,10 +1273,39 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     events.on('game:restarted', () => overheard!.reset());
     // The other Commons conversations, and the pairs between exchanges (in-world-audio: Conversation murmur).
     murmur = new ConversationMurmur(audio, (at) => (level ? voiceAudibility(level.voicePath(at, camera.position)).gain : 1));
+    // The room itself (in-world-audio: Chairs scrape, Cups and cutlery, Kitchen sounds, Bram makes a brew).
+    commonsSounds = new CommonsSounds(audio, { room: overheardData.room, counter: level?.anchor('counter')?.pos ?? null });
+    npcs!.watchSpots((_, spot) => commonsSounds?.chair(spot));
+    const cookStand = level?.anchor('cook_stand');
+    const cookCoffee = level?.anchor('cook_coffee');
+    const machine = level?.anchor('coffee_machine')?.pos;
+    if (cookStand && cookCoffee && machine) {
+      cookBrew = new CookBrew(
+        {
+          cook: npcs!.routineBody(COOK_BREW_TUNING.npc),
+          introOver: commonsOpen,
+          over: () => !!game.flags['drop_started'],
+          playerFree: () => level?.roomAt(camera.position)?.data.id === overheardData.room && freeControl(),
+          talking: commonsTalk,
+          sceneRunning: () => sequences?.runningIn(overheardData.room) ?? false,
+          soundReady: () => audio.hasSample('coffeeBrew'),
+          playSound: () => audio.play('coffeeBrew', { bus: 'sfx', position: machine, ...COOK_BREW_TUNING.sound }),
+        },
+        cookStand,
+        cookCoffee,
+      );
+      npcs!.onScripted((id) => cookBrew?.interrupt(id));
+    }
+    events.on('game:restarted', () => {
+      commonsSounds?.reset();
+      cookBrew?.reset();
+    });
     // A new game or a title load puts the level back without a death restart.
     events.on('level:reset', () => {
       overheard?.reset();
       murmur?.reset();
+      commonsSounds?.reset();
+      cookBrew?.reset();
     });
 
     guidance = new Guidance({
@@ -1330,6 +1374,10 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       ambience?.setMode(mode);
       propAudio?.setMode(mode);
       murmur?.setMode(mode);
+      if (mode === 'title') {
+        commonsSounds?.reset();
+        cookBrew?.reset();
+      }
       if (mode !== 'title') {
         shellEvents.emit('game:mode', from === undefined ? { mode } : { mode, from });
       }
@@ -1989,6 +2037,16 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           squad!.syncWeaponLights();
           overheard!.update(dt);
           murmur!.update(npcs!.conversations(overheardData.room), overheard!.speakingChat, !!game.flags['drop_started']);
+          cookBrew?.update(dt);
+          commonsSounds!.update(dt, {
+            listener: camera.position,
+            over: !!game.flags['drop_started'],
+            talking: commonsTalk(),
+            seats: npcs!.seated(overheardData.room, 'sit_chair'),
+            introOver: commonsOpen(),
+            cookAtStation: cookBrew?.atStation() ?? false,
+            sceneRunning: sequences?.runningIn(overheardData.room) ?? false,
+          });
           gore!.update(dt);
           guidance!.update(dt);
           scoreFeet.x = player.body.x;

@@ -12,7 +12,7 @@ const linesOf = (id: string): string[] => data.exchanges.find((x) => x.id === id
 const LINE_S = 2;
 
 function setup(init: { flags?: string[]; bar?: number; wall?: number } = {}) {
-  const flags = new Set(init.flags ?? ['commons_free']);
+  const flags = new Set(init.flags ?? ['introSeen']);
   const state = {
     room: 'R02' as string | null,
     free: true,
@@ -91,9 +91,19 @@ test('nothing starts during the intro, and after the briefing only the after-bri
   intro.run(10);
   assert.deepEqual(intro.said, []);
 
-  const after = setup({ flags: ['commons_free', 'briefingSeen'] });
+  const after = setup({ flags: ['introSeen', 'briefingSeen'] });
   after.run(0.1);
   assert.equal(after.director.current, 'overheard_bar_after_1', 'the unheard pre-briefing exchange is skipped');
+});
+
+test('a game loaded from the save made as the intro ends still has its pre-briefing exchanges', () => {
+  const intro = JSON.parse(readFileSync(new URL('../data/sequences/intro_shift_change.json', import.meta.url), 'utf8')) as { steps: Array<Record<string, unknown>> };
+  // The flags such a save holds: those the intro sets before its autosave (`commons_free` is set only afterwards).
+  const upToSave = intro.steps.slice(0, intro.steps.findIndex((s) => s['do'] === 'checkpoint' && s['id'] === 'cp_intro'));
+  const saved = upToSave.filter((s) => s['do'] === 'setFlag' && s['value'] === true).map((s) => String(s['flag']));
+  const g = setup({ flags: saved });
+  g.run(0.1);
+  assert.equal(g.director.current, 'overheard_bar_before');
 });
 
 test('each condition holds an exchange back: room, range, speakers, control, a Commons scene, a recording', () => {
@@ -134,7 +144,7 @@ test('between the two pairs only the nearer one speaks', () => {
 });
 
 test('an exchange plays once, and the second after-briefing one waits 20 s', () => {
-  const g = setup({ flags: ['commons_free', 'briefingSeen'] });
+  const g = setup({ flags: ['introSeen', 'briefingSeen'] });
   g.run(0.05);
   while (g.director.current) g.run(0.05);
   g.run(19.8);
@@ -146,7 +156,7 @@ test('an exchange plays once, and the second after-briefing one waits 20 s', () 
 });
 
 test('a heard flag keeps an exchange from playing again after a load', () => {
-  const g = setup({ flags: ['commons_free', heardFlag('overheard_bar_before')] });
+  const g = setup({ flags: ['introSeen', heardFlag('overheard_bar_before')] });
   g.director.reset();
   g.run(30);
   assert.deepEqual(g.said, []);
@@ -201,7 +211,7 @@ test('a line the speech manager cuts off or drops ends the exchange without a re
 });
 
 test('nothing starts once the drop has begun', () => {
-  const g = setup({ flags: ['commons_free', 'briefingSeen', 'drop_started'] });
+  const g = setup({ flags: ['introSeen', 'briefingSeen', 'drop_started'] });
   g.run(30);
   assert.deepEqual(g.said, []);
 });

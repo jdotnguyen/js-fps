@@ -178,3 +178,53 @@ test('AmbientDirector supports single-NPC work rooms (R12c) and multi-room roami
   assert.deepEqual([...bot3Rooms], ['R12c'], 'botanist_3 stays in R12c');
   assert.ok(['crouchWork', 'clipboard', 'typing'].includes(bot1.pose), `botanist_1 settles in work pose (${bot1.pose})`);
 });
+
+test('AmbientDirector reports an agent getting up from a spot and sitting on the next, and stays silent otherwise', () => {
+  const spots = [
+    makeSpot('s0', 'R02', 't1', 'sit_chair', 0, 0),
+    makeSpot('s1', 'R02', 't2', 'sit_chair', 4, 0),
+    makeSpot('s2', 'R02', 't3', 'sit_chair', 8, 0),
+    makeSpot('s3', 'R02', 't4', 'sit_chair', 12, 0),
+  ];
+  const agents = [makeAgent('a0', 'R02', spots[0]!, 0, 0), makeAgent('a1', 'R02', spots[1]!, 4, 0)];
+  const dir = new AmbientDirector(spots, agents);
+  const events: string[] = [];
+  dir.watch((event, spot) => events.push(`${event} ${spot.id}`));
+  const before = new Map(agents.map((a) => [a.id, dir.spotOf(a.id)!.id]));
+  // Until the first move starts: the one event is that agent leaving its seat.
+  for (let t = 0; t < 120 && events.length === 0; t += 0.2) step(dir, agents, 0.2, { x: 4, y: 1.6, z: 2 });
+  const mover = agents.find((a) => a.walksStarted === 1)!;
+  const dest = dir.spotOf(mover.id)!.id;
+  assert.deepEqual(events, [`leave ${before.get(mover.id)}`]);
+  // It arrives: the second event is it settling where it was headed.
+  for (let t = 0; t < 30 && mover.settles === 0; t += 0.2) step(dir, agents, 0.2, { x: 4, y: 1.6, z: 2 });
+  assert.deepEqual(events.slice(0, 2), [`leave ${before.get(mover.id)}`, `settle ${dest}`]);
+
+  const quiet = events.length;
+  dir.interrupt('a0');
+  dir.interrupt('a1');
+  dir.reset();
+  assert.equal(events.length, quiet, 'a script taking over and a reset report nothing');
+});
+
+test('AmbientDirector lists the spots of a kind that free agents are settled on', () => {
+  const spots = [
+    makeSpot('c0', 'R02', 't1', 'sit_chair', 0, 0),
+    makeSpot('c1', 'R02', 't1', 'sit_chair', 1, 0),
+    makeSpot('t0', 'R02', 'b1', 'sit_stool', 4, 0),
+    makeSpot('x0', 'R05', 't9', 'sit_chair', 40, 0),
+  ];
+  const agents = [
+    makeAgent('a0', 'R02', spots[0]!, 0, 0),
+    makeAgent('a1', 'R02', spots[1]!, 1, 0),
+    makeAgent('a2', 'R02', spots[2]!, 4, 0),
+    makeAgent('a3', 'R05', spots[3]!, 40, 0),
+  ];
+  const dir = new AmbientDirector(spots, agents);
+  const ids = () => dir.seated('R02', 'sit_chair').map((s) => s.id);
+  assert.deepEqual(ids(), ['c0', 'c1'], 'chairs in the room asked for, not stools or other rooms');
+  agents[1]!.free = false;
+  assert.deepEqual(ids(), ['c0'], 'an agent held by a script is not counted');
+  dir.interrupt('a0');
+  assert.deepEqual(ids(), [], 'nor is one whose spot was released');
+});

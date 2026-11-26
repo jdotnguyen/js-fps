@@ -56,9 +56,12 @@ play over their talk.*
 `1:34` **GILES**: Anyway. The pump in ring three's making that noise again.
 
 *Okafor and Giles lean on the kitchen counter. Bram's greeting waits for Jay to walk into the Commons. The TAG FM
-radio starts when Jay reaches the kitchen.*
+radio starts when Jay reaches the kitchen. Bram starts the coffee machine as the other two arrive.*
 
 `1:49` **BRAM** (laugh): Morning, all. Coffee's terrible again, before anyone asks.
+
+*While they answer, Bram goes back to the machine and it grinds and pours again.*
+
 `1:54` **GILES** (laugh): Terrible is generous. I'll take two.
 `1:57` **OKAFOR**: One. Caffeine isn't a food group.
 `1:59` **BRAM** (laugh): One each, then. Doctor's orders.

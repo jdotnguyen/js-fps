@@ -698,6 +698,12 @@
       "instant": true
     },
     {
+      "do": "sfx",
+      "id": "coffeeBrew",
+      "at": "anchor:coffee_machine",
+      "gain": 0.35
+    },
+    {
       "do": "wait",
       "s": 0.35
     },
@@ -874,6 +880,12 @@
                       "do": "npcAnim",
                       "npc": "cook",
                       "anim": "typing"
+                    },
+                    {
+                      "do": "sfx",
+                      "id": "coffeeBrew",
+                      "at": "anchor:coffee_machine",
+                      "gain": 0.35
                     },
                     {
                       "do": "wait",

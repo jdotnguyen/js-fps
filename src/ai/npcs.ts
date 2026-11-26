@@ -12,7 +12,9 @@ import { PLAYER_RADIUS } from './giveWay.ts';
 import type { Navigator, P3 } from './nav.ts';
 import { NpcActor, type NpcEnv } from './npcActor.ts';
 import { ChatGroup, type ChatMember } from './chatter.ts';
-import { AmbientDirector, isAmbientEligible, type AmbientAgent, type AmbientSpot } from './ambientLife.ts';
+import { AmbientDirector, isAmbientEligible, type AmbientAgent, type AmbientSpot, type SpotMoveListener } from './ambientLife.ts';
+import type { SpotKind } from '../data/types/level.ts';
+import type { RoutineBody } from './cookBrew.ts';
 import type { Squad, SquadId, SquadMate } from './squad.ts';
 import type { KillTable } from '../data/types/kills.ts';
 import { DockGuardRoutine } from './dockGuardRoutine.ts';
@@ -253,6 +255,8 @@ export class NpcDirector {
   private readonly authoredEngaged = new Set<string>();
   /** Chat groups whose members keep their places while `when` holds (the overheard pairs). */
   private stayPut: { chats: ReadonlySet<string>; when: () => boolean } | null = null;
+  private spotListener: SpotMoveListener | null = null;
+  private scriptListener: ((npc: string) => void) | null = null;
   private readonly headScratch = new THREE.Vector3();
   /** Listen-look (ADR-0029): who is speaking a story line now and who spoke before ('player' for Jay). */
   private talker: string | null = null;
@@ -597,6 +601,42 @@ export class NpcDirector {
     this.stayPut = { chats: new Set(chats), when };
   }
 
+  /** Hear the crew get up from their spots and settle on others (in-world-audio: Chairs scrape in the Commons). */
+  watchSpots(listener: SpotMoveListener): void {
+    this.spotListener = listener;
+    this.ambientLife?.watch(listener);
+  }
+
+  /** The spots of a kind in a room that wandering crew are settled on now. */
+  seated(room: string, kind: SpotKind): ReadonlyArray<Readonly<AmbientSpot>> {
+    return this.ambientLife?.seated(room, kind) ?? [];
+  }
+
+  /** One NPC's body for a routine that walks them about on its own (the cook's brew), looked up each time. */
+  routineBody(npc: string): RoutineBody {
+    const get = (): NpcActor | null => this.actors.get(npc) ?? null;
+    return {
+      free: () => {
+        const a = get();
+        return !!a && !a.busy && !a.offering && a.body.state === 'alive' && a.body.infection < 1;
+      },
+      feet: () => get()?.position ?? null,
+      walk: (pos, yaw, speed, onDone) => {
+        const a = get();
+        if (!a) onDone();
+        else void a.moveTo(pos, { yaw, speed }).then(onDone);
+      },
+      stop: () => get()?.stopMove(),
+      pose: (name) => void get()?.playAnim(name, { has: (p) => this.deps.ctx.poses.has(p) }),
+      rest: () => get()?.resetPose('idle'),
+    };
+  }
+
+  /** Hear which NPC a script is about to command, before the command is applied. */
+  onScripted(listener: (npc: string) => void): void {
+    this.scriptListener = listener;
+  }
+
   /** Where a chat group is (the middle of its heads) and whether all of it is gathered and free to talk. */
   chatGroup(chat: string): { position: THREE.Vector3; free: boolean } | null {
     const g = this.chats.get(chat);
@@ -678,6 +718,7 @@ export class NpcDirector {
       });
     }
     this.ambientLife = agents.length ? new AmbientDirector(spots, agents) : null;
+    this.ambientLife?.watch(this.spotListener);
   }
 
   /** Back to the level's starting layout (new game, load): scripted spawns go, cast return. */
@@ -842,6 +883,7 @@ export class NpcDirector {
     const a = this.actor(npc);
     if (!a) return Promise.resolve();
     this.ambientLife?.interrupt(npc);
+    this.scriptListener?.(npc);
     switch (action) {
       case 'npcMoveTo': {
         const at = this.target(step['to'], action, npc);

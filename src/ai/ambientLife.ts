@@ -118,6 +118,9 @@ interface AgentState {
   defers: number;
 }
 
+/** Told when an agent gets up from a spot to walk elsewhere, and when it settles on one. */
+export type SpotMoveListener = (event: 'leave' | 'settle', spot: Readonly<AmbientSpot>) => void;
+
 export function poseForSpotKind(kind: SpotKind): string {
   if (kind === 'work_crouch') return 'crouchWork';
   if (kind === 'work_clipboard') return 'clipboard';
@@ -131,6 +134,7 @@ export class AmbientDirector {
   private readonly initialTaken = new Map<string, string | null>();
   private readonly states = new Map<string, AgentState>();
   private readonly byRoom = new Map<string, AgentState[]>();
+  private listener: SpotMoveListener | null = null;
 
   constructor(spots: readonly AmbientSpot[], agents: readonly AmbientAgent[]) {
     // Work on our own mutable records synced with the initial `taken` state.
@@ -161,6 +165,21 @@ export class AmbientDirector {
       this.states.set(agent.id, st);
       this.byRoom.set(agent.room, [...(this.byRoom.get(agent.room) ?? []), st]);
     }
+  }
+
+  /** Report real moves between spots (`reset` and `interrupt` report nothing, so loads and scripts are silent). */
+  watch(listener: SpotMoveListener | null): void {
+    this.listener = listener;
+  }
+
+  /** The spots of `kind` in `room` that an agent is settled on now, free of any script. */
+  seated(room: string, kind: SpotKind): Array<Readonly<AmbientSpot>> {
+    const out: AmbientSpot[] = [];
+    for (const st of this.states.values()) {
+      if (st.movingTo || st.spot?.room !== room || st.spot.kind !== kind || !st.agent.available()) continue;
+      out.push(st.spot);
+    }
+    return out;
   }
 
   /** Current spot held or targeted by an NPC (for tests, debug, dynamic chatter). */
@@ -305,6 +324,7 @@ export class AmbientDirector {
 
   private startMove(st: AgentState, dest: AmbientSpot): void {
     const id = st.agent.id;
+    const from = st.spot;
     if (st.spot && st.spot.taken === id) st.spot.taken = null;
     st.lastGroup = st.spot?.group ?? st.lastGroup;
     st.spot = null;
@@ -312,6 +332,7 @@ export class AmbientDirector {
     st.movingTo = dest;
     st.defers = 0;
     const trip = ++st.trip;
+    if (from) this.listener?.('leave', from);
     st.agent.walkTo(dest.pos, dest.yaw, AMBIENT_TUNING.walkSpeed, () => {
       if (st.trip !== trip || st.movingTo !== dest) return;
       st.movingTo = null;
@@ -320,6 +341,7 @@ export class AmbientDirector {
       if (st.agent.available() && close) {
         st.spot = dest;
         st.agent.settle(dest.pos, dest.yaw, poseForSpotKind(dest.kind));
+        this.listener?.('settle', dest);
         const dwellRange = st.workMode ? AMBIENT_TUNING.workDwell : AMBIENT_TUNING.dwell;
         st.dwell = st.rng.range(dwellRange[0], dwellRange[1]);
       } else {

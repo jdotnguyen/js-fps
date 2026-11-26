@@ -1,3 +1,4 @@
+import { COMMONS_OPEN_FLAG } from '../audio/commonsSounds.ts';
 import { Rng } from '../core/rng.ts';
 import type { OverheardData, OverheardExchange } from '../data/types/overheard.ts';
 
@@ -138,7 +139,7 @@ export class OverheardDirector {
   private tryStart(): void {
     const h = this.host;
     if (this.quietFor < OVERHEARD_TUNING.quiet || h.flag('drop_started')) return;
-    const phase = h.flag('briefingSeen') ? 'after' : h.flag('commons_free') ? 'before' : null;
+    const phase = h.flag('briefingSeen') ? 'after' : h.flag(COMMONS_OPEN_FLAG) ? 'before' : null;
     if (!phase) return;
     if (h.playerRoom() !== this.data.room || !h.freeControl() || h.sceneRunning(this.data.room)) return;
     let best: { exchange: OverheardExchange; distance: number } | null = null;

@@ -17,8 +17,8 @@ import type { SampleName } from './sounds.ts';
 export const MURMUR_SOUNDS: readonly SampleName[] = ['murmurA', 'murmurB', 'murmurC'];
 
 export const MURMUR_TUNING = {
-  /** Level of one group's loop, before distance. */
-  gain: 0.2,
+  /** Level of one group's loop, before distance. At 0.2 it arrived 20 dB under the room bed and nobody heard it. */
+  gain: 0.9,
   /** Other groups' share of that level while an exchange is being said. */
   makeWay: 0.45,
   /** Gain time constant (s): about a second to fade in or settle. */
