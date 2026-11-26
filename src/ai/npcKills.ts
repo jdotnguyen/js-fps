@@ -70,18 +70,10 @@ interface Pounder {
   hits: number;
   rest: number;
   windup: boolean;
-  /**
-   * A blade creature's exact pounding spot, which it squares up to once its walk ends (a walk stops up to a quarter metre
-   * off its goal, and its forearms must meet the glass), and the seconds spent squaring up. Null when it is on the spot.
-   */
-  mark: THREE.Vector3 | null;
-  markT: number;
 }
 
-/** Seconds per half-swing, hits per flurry, and the pause between flurries. */
-const POUND = { swing: 0.28, flurry: [3, 6] as const, rest: [0.8, 2.2] as const };
-/** Squaring up to the pounding spot: slide speed (m/s), close enough (m), and the most time it may take (s). */
-const SQUARE_UP = { speed: 0.6, within: 0.01, maxT: 1.5 };
+/** Seconds per half-swing, the pause before the first flurry (just the windup), hits per flurry, and between flurries. */
+const POUND = { swing: 0.28, first: 0.2, flurry: [3, 6] as const, rest: [0.8, 2.2] as const };
 
 interface Glass {
   /** Unit normal from the pane toward the victim's side. */
@@ -1194,20 +1186,17 @@ export class KillDirector {
     const c = k.creature;
     const g = k.glass;
     if (!c || !g || this.pounding(k.creatureId)) return;
-    // Beside her body, not on it. A profiled blade creature stands at its profile distance from the pane, so its forearms bang flat on the glass without clipping through (design D9).
-    const side = new THREE.Vector3(-g.n.z, 0, g.n.x);
-    const bladeDist = c.body.blade ? bladeCreatureProfile().poundDistance : undefined;
-    // Walking away from Voss's body stops ~0.2 m shy of the target (NPC_TUNING.arrive), so bias the walk goal slightly
-    // deeper into the room while instant restore places directly at `poundDistance`.
-    const dist = bladeDist !== undefined ? bladeDist + (k.instant ? 0 : 0.2) : undefined;
-    const spot =
-      dist !== undefined
-        ? g.at.clone().addScaledVector(g.n, dist).addScaledVector(side, 0.75).setY(g.stand.y)
-        : g.stand.clone().addScaledVector(side, 0.75).addScaledVector(g.n, -0.05);
-    if (k.instant) c.place(spot, g.yaw);
-    else void c.moveTo(spot, { speed: 1.1, yaw: g.yaw });
-    const mark = bladeDist !== undefined && !k.instant ? g.at.clone().addScaledVector(g.n, bladeDist).addScaledVector(side, 0.75).setY(g.stand.y) : null;
-    this.pounders.push({ id: k.creatureId, actor: c, glass: g, t: 0, hits: 0, rest: k.instant ? 0.5 : 1.2, windup: true, mark, markT: 0 });
+    this.pounders.push({ id: k.creatureId, actor: c, glass: g, t: 0, hits: 0, rest: POUND.first, windup: true });
+  }
+
+  /**
+   * Where the creature appears and pounds from, without a step: square to the pane where she stood at it. A profiled
+   * blade creature stands at its profile distance, so its forearms bang flat on the glass without clipping through
+   * (design D9).
+   */
+  private poundSpot(c: NpcActor, g: Glass): THREE.Vector3 {
+    const dist = c.body.blade ? bladeCreatureProfile().poundDistance : undefined;
+    return dist !== undefined ? g.at.clone().addScaledVector(g.n, dist).setY(g.stand.y) : g.stand.clone();
   }
 
   private updatePounders(dt: number): void {
@@ -1218,20 +1207,7 @@ export class KillDirector {
         continue;
       }
       const body = p.actor.body;
-      if (p.actor.busy || !body.alive) continue; // still walking to the glass
-      if (p.mark) {
-        // Square up to the exact spot before the first blow: a short slide, as a separation push moves a body.
-        const dx = p.mark.x - p.actor.position.x;
-        const dz = p.mark.z - p.actor.position.z;
-        const d = Math.hypot(dx, dz);
-        p.markT += dt;
-        if (d <= SQUARE_UP.within || p.markT > SQUARE_UP.maxT) p.mark = null;
-        else {
-          const step = Math.min(d, SQUARE_UP.speed * dt);
-          p.actor.nudge((dx / d) * step, (dz / d) * step, null);
-          continue;
-        }
-      }
+      if (body.state !== 'alive') continue; // still unfolding: a pose now would cut the get-up off for good
       if (p.rest > 0) {
         p.rest -= dt;
         if (p.rest <= 0) {
@@ -1281,6 +1257,8 @@ export class KillDirector {
     const c = this.w.spawn(k.creatureId, k.creatureLook, at, yaw, 'shamble');
     if (!c) return;
     k.creature = c;
+    // Behind a pane it appears on the spot it will pound from, a few centimetres off her chest.
+    if (k.glass) c.place(this.poundSpot(c, k.glass), yaw);
     if (k.instant) {
       k.creatureT = CREATURE_GROW;
       return;

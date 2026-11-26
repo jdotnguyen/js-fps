@@ -124,14 +124,14 @@ floor, and the creature. Each sound SHALL be played by name, and crunches and gl
 - **THEN** the kill plays without it and one warning names the missing sound
 
 ### Requirement: The creature stays behind the glass until it breaks out
-After a `grownInside` kill behind a glass partition, the creature SHALL hammer on the glass beside the victim's body, in
+After a `grownInside` kill behind a glass partition, the creature SHALL hammer on the glass where the victim stood, in
 flurries of blows that are heard on the glass, until the level makes it escape. The escape SHALL happen in the dark: the
 room's lights die, the creature is gone when they come back, and the room's ceiling vent is left open. The enemy the
 player later fights SHALL be that creature (the same body), not a different infected.
 
 #### Scenario: Pounding on the glass
 - **WHEN** the Lab B kill has ended and the player watches from the gallery
-- **THEN** the creature stands at the glass beside Voss's body and hits it again and again, each blow sounding on the glass
+- **THEN** the creature stands at the glass where Voss stood and hits it again and again, each blow sounding on the glass
 
 #### Scenario: Forearms bang on the pane
 - **WHEN** a blow of the pounding lands
@@ -145,6 +145,18 @@ player later fights SHALL be that creature (the same body), not a different infe
 - **WHEN** the creature drops into R06 during the cover-me fight
 - **THEN** it has the creature's body
 - **AND** no other body is left in Lab B
+
+### Requirement: The creature pounds from where it appears
+Behind a glass partition, the creature SHALL appear on the spot it hammers from, square to the pane where the victim
+stood, and SHALL NOT walk or slide before hammering. Its first blow SHALL follow as soon as it is on its feet.
+
+#### Scenario: No step to the glass
+- **WHEN** the creature has unfolded out of Voss's chest
+- **THEN** it has not moved from the spot where it appeared, and its first blow lands within 1 s
+
+#### Scenario: Clear of the window frames
+- **WHEN** the creature hammers on the Lab B glass
+- **THEN** it stands in the middle window bay, and its blades meet the pane between that bay's two frames
 
 ### Requirement: Voss looks and sounds like Voss
 The Lab B researcher SHALL be Dr. Lena Voss on every run: one fixed female body. Lines spoken by her speaker SHALL move

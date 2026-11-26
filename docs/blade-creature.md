@@ -48,7 +48,7 @@ Close the tab when you are done; each game tab holds a lot of memory on the shar
 
 - `model`: body-model id (`"necromorph"`).
 - `ankleHeight`: ankle height above the sole at the 1.78 m reference height (m), passed to `FootIkSolver`.
-- `poundDistance`: standing distance from a glass pane's face when pounding (m, Lab B). It is the `blade_pound_hit` wrists' reach plus a few centimetres, so the wrists meet the pane on each blow; retune it with the poses. After its walk the creature slides onto this exact spot before the first blow.
+- `poundDistance`: standing distance from a glass pane's face when pounding (m, Lab B). It is the `blade_pound_hit` wrists' reach plus a few centimetres, so the wrists meet the pane on each blow; retune it with the poses. The creature appears on this spot at the burst and pounds from it without a step.
 - `jaw`: `{ bone, openDeg, rest }` — mandible bone name, full open angle (degrees), and resting hang (0..1).
 - `segments`: `[{ joint, bones }]` — extra spine/neck bones that split a game joint's bend equally.
 - `limbs`: `[{ name, root }]` — belly-arm root bones preserved as detail chains under the torso.

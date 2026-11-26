@@ -183,16 +183,32 @@ test('a converted kill turns the victim herself and spawns no creature', () => {
   assert.equal(g.npcs.actor('researcher_b_creature', false), null);
 });
 
-test('after the kill the creature hammers on the glass beside her body until the level lets it out', () => {
+test('the creature hammers on the glass from where it appears, until the level lets it out', () => {
   const g = setup();
-  playThrough(g);
+  let spawn: THREE.Vector3 | null = null;
+  let moved = 0;
+  let firstBlow = -1;
+  let blowsBeforeDone = 0;
+  const watch = (): void => {
+    const c = g.npcs.actor('researcher_b_creature', false);
+    if (!c) return;
+    spawn ??= c.position.clone();
+    moved = Math.max(moved, c.position.distanceTo(spawn));
+    const blows = g.sounds.filter((x) => x === 'glassThud').length;
+    if (g.beatAt('done') < 0) blowsBeforeDone = blows;
+    else if (firstBlow < 0 && blows > blowsBeforeDone) firstBlow = g.time();
+  };
+  playThrough(g, watch);
   assert.ok(g.npcs.kills.pounding('researcher_b_creature'), 'it is at the glass');
   const before = g.sounds.filter((x) => x === 'glassThud').length;
-  g.step(8);
+  g.step(8, watch);
   const creature = g.npcs.actor('researcher_b_creature', false)!;
-  assert.ok(Math.abs(creature.position.z - 0.66) < 0.4, `it stands at the pane (z ${creature.position.z.toFixed(2)})`);
-  const voss = g.npcs.actor('researcher_b')!;
-  assert.ok(creature.position.distanceTo(voss.position) > 0.5, 'beside her body, not on it');
+  assert.equal(creature.body.state, 'alive', 'it finished getting up before the first blow');
+  assert.ok(moved < 0.01, `it never takes a step (moved ${moved.toFixed(2)} m)`);
+  assert.ok(Math.abs(creature.position.x) < 0.05, `square to where she stood at the pane (x ${creature.position.x.toFixed(2)})`);
+  assert.ok(Math.abs(creature.position.z - 0.71) < 0.4, `it stands at the pane (z ${creature.position.z.toFixed(2)})`);
+  const wait = firstBlow - g.beatAt('done');
+  assert.ok(firstBlow > 0 && wait < 0.8, `the first blow lands as soon as it stands (${wait.toFixed(2)} s)`);
   assert.ok(g.sounds.filter((x) => x === 'glassThud').length - before >= 4, 'the blows land on the glass');
   void g.npcs.command('despawn', { npc: 'researcher_b_creature' });
   g.step(1);
@@ -219,11 +235,16 @@ test('the glass beat fires a score stinger on each of her palm hits (adaptive-mu
 test('each flurry on the glass reports one pound event, at its first blow', () => {
   const g = setup();
   playThrough(g);
-  const blowsBefore = g.sounds.filter((x) => x === 'glassThud').length;
-  const poundsBefore = g.emitted.filter((e) => e.name === 'creature:pound').length;
-  g.step(10);
-  const blows = g.sounds.filter((x) => x === 'glassThud').length - blowsBefore;
-  const pounds = g.emitted.filter((e) => e.name === 'creature:pound').length - poundsBefore;
+  const thuds = (): number => g.sounds.filter((x) => x === 'glassThud').length;
+  const events = (): number => g.emitted.filter((e) => e.name === 'creature:pound').length;
+  const poundsBefore = events();
+  // Count blows from the next flurry's start: one may already be under way.
+  let blowsBefore = -1;
+  g.step(10, () => {
+    if (blowsBefore < 0 && events() > poundsBefore) blowsBefore = thuds();
+  });
+  const blows = thuds() - blowsBefore;
+  const pounds = events() - poundsBefore;
   assert.ok(pounds >= 2, `${pounds} flurries`);
   // 3-6 blows a flurry; the last one may still be under way.
   assert.ok(blows >= (pounds - 1) * 3 && blows <= pounds * 6, `${blows} blows in ${pounds} flurries`);
