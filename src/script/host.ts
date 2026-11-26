@@ -73,6 +73,8 @@ export interface FrameOptions {
   hold?: number;
   /** Spring-back time constant, seconds. Default about 0.12 (settles in ~0.4 s). */
   returnTime?: number;
+  /** Magnification (1: none), a squint at something far off. Eased in, and out again when the shot ends or changes. */
+  zoom?: number;
 }
 
 export interface SequenceHost {

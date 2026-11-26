@@ -73,12 +73,15 @@ export interface SayOptions {
   to?: string;
   /** The conversation this line belongs to (dialogue-channels). Lines without one share the `default` channel. */
   channel?: string;
+  /** A PA source that travels with the listener, such as a train's own announcement: `at` is read every frame. */
+  follow?: boolean;
 }
 
 export interface PlayRequest {
   line: DialogueLine;
   profile: VoiceProfile;
   at: SayOptions['at'];
+  follow?: boolean;
   /** Runtime rasp override for this speaker, or null to use the profile. */
   rasp: number | null;
   babble: boolean;
@@ -424,6 +427,7 @@ export class SpeechManager {
       line: e.line,
       profile: e.profile,
       at: e.opts.at,
+      ...(e.opts.follow ? { follow: true } : {}),
       rasp: this.rasp.get(e.line.speaker) ?? null,
       babble: e.line.babble ?? this.babble,
     });

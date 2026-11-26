@@ -56,7 +56,7 @@ function walk(steps: Step[], visit: (s: Record<string, unknown>) => void): void 
 // ------------------------------------------------------------------------------- data checks
 
 test('the action sequences name only things that exist: lines, sounds, anchors, NPCs, doors, rooms, objectives, groups', () => {
-  assert.equal(actionDefs.length, 17);
+  assert.equal(actionDefs.length, 18);
   // `researcher_b_creature`: what grows out of Voss in the drop's kill (infection-kills spec), escapes through Lab B's ceiling vent at the end of the drop (trim-lab-wing-encounters).
   const npcSet = new Set([...npcIds, 'giles', 'okafor', 'r08_thing', 'researcher_b_creature', 'r09_flood_shambler', 'r16_finale_monster']);
   for (const def of actionDefs) {
@@ -1645,10 +1645,13 @@ test('r15a-train-ride-narrative: R13d walk-and-talk, R15a boarding, 3-stage Hein
     assert.ok(said(g, id) >= 1, `Stage 2 radio line ${id} played`);
   }
   assert.deepEqual(commsStates, ['ringing', 'active', 'lost'], 'rear-bulkhead comms LED transitions ringing -> active -> lost');
+  // Giles answers the lost call over the power-loss announcement, before the glide.
+  await until(g, () => g.log.includes('say r15a_giles_04 overlap'));
+  inOrder(g, ['say r15a_heins_04', 'say r16_pa_01', 'say r15a_giles_04 overlap']);
 
   g.host.events.emit('transit:stage:arrival' as never, { stage: 'arrival' } as never);
   await until(g, () => said(g, 'r15a_okafor_03') >= 1);
-  assert.ok(said(g, 'r15a_giles_04') >= 1 && said(g, 'r15a_okafor_03') >= 1, 'Stage 3 docking lines play');
+  assert.equal(said(g, 'r15a_giles_04'), 1, 'said once');
 
   g.host.events.emit('transit:stage:arrived' as never, { stage: 'arrived' } as never);
   await until(g, () => !g.m.isRunning('r15a_train_ride'));
@@ -1664,6 +1667,48 @@ test('r15a-train-ride-narrative: R13d walk-and-talk, R15a boarding, 3-stage Hein
   r.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
   assert.deepEqual(rComms, ['lost']);
   noWarnings(r);
+});
+
+// transit-wing "Restoring the Arrival Terminal checkpoint starts the finale" (fix-r13d-r16-finale).
+test('a load at cp_r16_arrived replays the arrival finale once, from a dark R16 with the squad in the car', async () => {
+  const only = ['action_restore', 'r16_restore', 'r16_arrival_finale'];
+  const saved: Flags = { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, r11_powered: true, transit_ride_done: true };
+  const started = (g: Game): number => count(g, 'event transit:arrived_r16');
+  // A load as the game does it: play begins from the title (restore scripts start), then the restart cancels and re-runs them.
+  const load = async (g: Game): Promise<void> => {
+    g.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
+    g.host.events.emit('game:restarted', { checkpoint: 'cp_r16_arrived' });
+    await advance(g, 0.5);
+  };
+  const g = makeGame(only);
+  setFlags(g, saved);
+  await load(g);
+  assert.equal(started(g), 1);
+  assert.equal(g.m.isRunning('r16_arrival_finale'), true);
+  inOrder(g, ['light R16a off black', 'npc npcMoveTo giles instant', 'npc npcMoveTo okafor instant', 'event transit:arrived_r16']);
+  assert.ok(g.log.includes('light R16b off black') && g.log.includes('namedLight r16a_train_cabin_a steady #ffb974 power=1'));
+  g.host.events.emit('game:mode', { mode: 'paused', from: 'playing' });
+  g.host.events.emit('game:mode', { mode: 'playing', from: 'paused' });
+  await advance(g, 0.5);
+  assert.equal(started(g), 1, 'a pause and resume does not start it again');
+  // Quit to title during the finale, then Continue: the same save plays it again.
+  g.host.events.emit('game:mode', { mode: 'title' });
+  g.m.cancelAll();
+  for (const key of Object.keys(g.host.flags)) delete g.host.flags[key];
+  setFlags(g, saved);
+  await load(g);
+  assert.equal(started(g), 2);
+  assert.equal(g.m.isRunning('r16_arrival_finale'), true);
+
+  const done = makeGame(only);
+  setFlags(done, { ...saved, r16_finale_done: true });
+  await load(done);
+  assert.equal(started(done), 0, 'a finished finale does not play again');
+  assert.equal(done.m.isRunning('r16_arrival_finale'), false);
+  const early = makeGame(only);
+  setFlags(early, { station_power: 'backup', r11_powered: true });
+  await load(early);
+  assert.equal(started(early), 0, 'nothing before the ride has finished');
 });
 
 test('r16-arrival-finale: surveillance reveal, the Juggernaut walks out and roars twice on camera, cut to black, title card', async () => {
@@ -1738,6 +1783,14 @@ test('r16-arrival-finale: surveillance reveal, the Juggernaut walks out and roar
     assert.ok(!lastHush || lastHush === 'hush off' || lastHush.slice(5).split(',').includes(speaker), `${line} is heard through "${lastHush}"`);
   }
   await until(g, () => !g.m.isRunning('r16_arrival_finale'));
+
+  // transit-wing "A body is dragged away before Jay's warning" (fix-r13d-r16-finale): between Okafor's order and Jay's
+  // warning, R16b flashes once while a body is pulled behind the far north-west pillar. The creature is not shown.
+  const scare = g.log.slice(g.log.indexOf('say r16_okafor_01'), g.log.indexOf('say r16_jay_02') + 1);
+  assert.deepEqual(
+    scare.filter((e) => /^(say|light R16|npc npcMoveTo|event transit:juggernaut|event squad:aim)/.test(e)),
+    ['say r16_okafor_01', 'light R16b steady none', 'npc npcMoveTo r16b_corpse_booth_north', 'light R16b off black', 'say r16_jay_02'],
+  );
 
   // Dialogue lines across PA, cabin banter, and radio-filtered surveillance.
   for (const id of ['r16_pa_02', 'r16_jay_01', 'r16_giles_01', 'r16_okafor_01', 'r16_jay_02', 'r16_giles_02', 'r16_okafor_02', 'r16_giles_03', 'r16_okafor_03', 'r16_giles_04', 'r16_giles_05', 'r16_okafor_04']) {

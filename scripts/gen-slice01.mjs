@@ -1229,6 +1229,7 @@ prop(R15a, 'track_bed', [48, 0, 38], 0, { length: 15.4 });
 // Train Car A: nose facing south (+Z, rot 180), open west boarding doorway facing the X=11 platform.
 prop(R15a, 'transit_train_shell', [48, 0, 38], 180, { length: 10.4, width: 3.0, height: 2.9, doorSide: 'right' });
 anchor(R15a, 'r15a_platform', [44.0, 0, 32.0], 225);
+anchor(R15a, 'r15a_okafor_console', [44.2, 0, 40.4], 145); // Beside Giles at the console, clear of the boarding gap.
 anchor(R15a, 'r15a_train_inside', [48.0, 0.08, 38.0], 180);
 
 // ---------------------------------------------------------------- R16a/b/c arrival terminal (isolated on grid)
@@ -1294,7 +1295,13 @@ for (const z of [59.5, 63.5]) {
 anchor(R16a, 'r16_train_inside', [88.0, ARRIVAL_SINK + 0.08, 35.0], 180);
 // Exiting west out of Train Car B facing the west wall (~2.75 m ahead); turn left (south) to climb the stairs.
 anchor(R16a, 'r16_train_exit', [85.0, ARRIVAL_SINK, 35.0], 90);
+// Where Giles and Okafor stand in Car B when a load at `cp_r16_arrived` replays the finale.
+anchor(R16a, 'r16_cabin_giles', [88.2, ARRIVAL_SINK + 0.48, 33.4], 90);
+anchor(R16a, 'r16_cabin_okafor', [88.2, ARRIVAL_SINK + 0.48, 36.6], 90);
 anchor(R16b, 'r16_concourse', [88.0, 0, 44.0], 180);
+// The north-pillar scare: the view turns to the far north-west pillar as a body is dragged away behind it.
+anchor(R16b, 'r16_north_pillar_look', [62.8, 0.5, 32.4]);
+anchor(R16b, 'r16_body_drag_to', [60.2, 0, 29.4]);
 anchor(R16c, 'r16_dispatch', [88.0, 0, 68.0], 0);
 
 // ---------------------------------------------------------------- R12 hydroponics hub

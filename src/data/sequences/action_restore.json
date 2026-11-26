@@ -364,5 +364,94 @@
     ]
    }
   ]
+ },
+ {
+  "id": "r16_restore",
+  "trigger": {
+   "event": "game:mode",
+   "match": {
+    "mode": "playing",
+    "from": "title"
+   },
+   "requires": "transit_ride_done",
+   "unless": "r16_finale_done"
+  },
+  "steps": [
+   {
+    "do": "wait",
+    "s": 0.1
+   },
+   {
+    "do": "emit",
+    "event": "transit:blast_gate",
+    "payload": {
+     "gateId": "r16a_north",
+     "open": false
+    }
+   },
+   {
+    "do": "emit",
+    "event": "transit:train_door",
+    "payload": {
+     "carId": "r16a_train",
+     "open": false,
+     "instant": true
+    }
+   },
+   {
+    "do": "lightState",
+    "room": "R16a",
+    "pattern": "off",
+    "tint": "black"
+   },
+   {
+    "do": "lightState",
+    "room": "R16b",
+    "pattern": "off",
+    "tint": "black"
+   },
+   {
+    "do": "emit",
+    "event": "transit:r16_beacons",
+    "payload": {
+     "on": false
+    }
+   },
+   {
+    "do": "light",
+    "id": "r16a_train_cabin_a",
+    "pattern": "steady",
+    "tint": "#ffb974",
+    "power": 1
+   },
+   {
+    "do": "light",
+    "id": "r16a_train_cabin_b",
+    "pattern": "steady",
+    "tint": "#ffb974",
+    "power": 1
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "giles",
+    "to": "anchor:r16_cabin_giles",
+    "instant": true
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "okafor",
+    "to": "anchor:r16_cabin_okafor",
+    "instant": true
+   },
+   {
+    "do": "setFlag",
+    "flag": "seq:r16_arrival_finale",
+    "value": false
+   },
+   {
+    "do": "emit",
+    "event": "transit:arrived_r16"
+   }
+  ]
  }
 ]

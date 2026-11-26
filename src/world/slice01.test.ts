@@ -1253,6 +1253,68 @@ test('the valve cutscene run stops outside the ambush trigger and sees the charg
   }
 });
 
+// transit-wing "Okafor waits with Giles at the departure console" (fix-r13d-r16-finale).
+test('Okafor’s console spot is beside Giles, facing him, standable and clear of the boarding gap', () => {
+  const { level } = build();
+  const giles = level.anchor('r15a_giles_console')!;
+  const okafor = level.anchor('r15a_okafor_console');
+  assert.ok(okafor, 'the anchor exists');
+  const dx = giles.pos.x - okafor.pos.x;
+  const dz = giles.pos.z - okafor.pos.z;
+  const apart = Math.hypot(dx, dz);
+  assert.ok(apart <= 2 && apart >= 1, `beside him, not on him (${apart.toFixed(2)} m)`);
+  const facing = (-Math.sin(okafor.yaw) * dx - Math.cos(okafor.yaw) * dz) / apart;
+  assert.ok(facing > Math.cos(Math.PI / 6), 'turned toward Giles and the console');
+  const { x, y, z } = okafor.pos;
+  assert.ok(Math.abs(y - level.floorAt(x, z)) < 0.05, 'on the floor');
+  const r = DEFAULT_MOTOR.radius;
+  const inside = level.collision
+    .find(x - r, z - r, x + r, z + r)
+    .filter((c) => c.maxY > y + 0.15 && c.minY < y + 1.7 && c.minX < x + r && c.maxX > x - r && c.minZ < z + r && c.maxZ > z - r);
+  assert.deepEqual(inside.map((c) => [c.minX, c.minZ, c.maxX, c.maxZ]), [], 'nothing solid where Okafor stands');
+  // The boarding gap is the space between the two platform railings.
+  const rails = data.rooms
+    .find((room) => room.id === 'R15a')!
+    .props!.filter((p) => p.kit === 'platform_railing')
+    .map((p) => ({ z: p.pos[2], half: (p.params!['length'] as number) / 2 }))
+    .sort((a, b) => a.z - b.z);
+  assert.equal(rails.length, 2);
+  const [gapFrom, gapTo] = [rails[0]!.z + rails[0]!.half, rails[1]!.z - rails[1]!.half];
+  assert.ok(z + r < gapFrom || z - r > gapTo, `outside the boarding gap ${gapFrom.toFixed(1)}..${gapTo.toFixed(1)}`);
+  const nav = level.navGraph();
+  for (const [from, to] of [['r15a_platform', 'r15a_okafor_console'], ['r15a_okafor_console', 'r15a_train_okafor']] as const) {
+    assert.ok(nav.findPath(level.anchor(from)!.pos, level.anchor(to)!.pos, { radius: 0.3 }), `a route from ${from} to ${to}`);
+  }
+});
+
+// transit-wing "A body is dragged away before Jay's warning" (fix-r13d-r16-finale): it lies beside the far north-west
+// pillar with its legs already behind it as seen from Car B, and is dragged the rest of the way out of sight.
+test('the dragged body starts partly behind the far north-west pillar and ends wholly out of sight', () => {
+  const { level } = build();
+  const r16b = data.rooms.find((room) => room.id === 'R16b')!;
+  const pillars = r16b.props!.filter((p) => p.kit === 'concourse_pillar').map((p) => ({ x: p.pos[0], z: p.pos[2], half: (p.params!['width'] as number) / 2 }));
+  const northWest = pillars.reduce((best, p) => (p.x + p.z < best.x + best.z ? p : best));
+  const jay = level.anchor('r16_train_back')!.pos;
+  /** The pillars crossing the plan-view line from Jay to a point. */
+  const between = (x: number, z: number) =>
+    pillars.filter((p) => Array.from({ length: 800 }, (_, i) => i / 800).some((t) => Math.abs(jay.x + (x - jay.x) * t - p.x) < p.half && Math.abs(jay.z + (z - jay.z) * t - p.z) < p.half));
+  const body = level.npcSpawns().find((n) => n.id === 'r16b_corpse_booth_north')!;
+  const end = level.anchor('r16_body_drag_to')!.pos;
+  assert.equal(body.dead, true);
+  // Lying prone, its position is at its feet; the pelvis is about 1 m and the head and hands up to 1.85 m the other way
+  // from where it is dragged.
+  const length = Math.hypot(end.x - body.pos.x, end.z - body.pos.z);
+  const [ax, az] = [(body.pos.x - end.x) / length, (body.pos.z - end.z) / length];
+  const part = (root: { x: number; z: number }, m: number) => between(root.x + ax * m, root.z + az * m);
+  assert.ok(part(body.pos, 0).includes(northWest), 'its legs start behind the pillar');
+  assert.deepEqual(part(body.pos, 1.6), [], 'its head and shoulders start in sight');
+  for (const m of [0, 1, 1.85]) assert.ok(part(end, m).length > 0, `nothing is left in sight ${m} m up the body`);
+  assert.ok(length / 0.3 > 3.4, 'the drag is slow enough to follow for as long as the light lasts');
+  assert.ok(end.x < northWest.x, 'it ends beyond the pillar');
+  const look = level.anchor('r16_north_pillar_look')!.pos;
+  assert.ok(Math.hypot(look.x - northWest.x, look.z - northWest.z) < 1.5, 'Jay turns to that pillar');
+});
+
 // station-power spec "A squad reaction and the PA notice": the notice is heard where the blackout finds the player.
 test('the power-failure notice has a PA speaker in the Lab Junction and in Lab B', () => {
   const { level } = build();

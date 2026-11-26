@@ -79,6 +79,30 @@ test('duration 0 snaps at once, and releasing keeps the view where it is', () =>
   assert.ok(Math.abs(player.yaw - -Math.PI / 2) < 1e-6);
 });
 
+test('a magnified shot eases in, doubles what is in the middle, and eases back out on the next shot', () => {
+  const { player } = makePlayer();
+  const camera = (player as unknown as { d: PlayerDeps }).d.camera;
+  const frames = (s: number): void => {
+    for (let t = 0; t < s; t += 1 / 60) player.applyCamera(1 / 60);
+  };
+  const size = (): number => 1 / Math.tan((camera.fov * DEG) / 2);
+  frames(0.1);
+  const plain = size();
+  player.frameView(ahead, { duration: 0, zoom: 2 });
+  frames(1 / 60);
+  assert.ok(size() > plain && size() < 1.5 * plain, 'it eases rather than snapping');
+  frames(1.5);
+  assert.ok(Math.abs(size() / plain - 2) < 0.01, `magnified ${(size() / plain).toFixed(2)}x`);
+  player.frameView(right, { duration: 0 });
+  frames(1.5);
+  assert.ok(Math.abs(size() / plain - 1) < 0.01, 'the next shot is unmagnified');
+  player.frameView(ahead, { duration: 0, zoom: 2 });
+  frames(1.5);
+  player.frameView(null);
+  frames(1.5);
+  assert.ok(Math.abs(camera.fov - 75) < 0.1, 'released with the shot');
+});
+
 test('reduced motion turns more slowly', () => {
   const normal = makePlayer(false).player;
   const reduced = makePlayer(true).player;

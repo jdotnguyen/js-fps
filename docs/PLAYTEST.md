@@ -7,15 +7,15 @@ Nothing here has been seen in a browser. Automated checks only prove the sequenc
 | URL | What it does |
 |---|---|
 | `/?level=slice01` | The full slice from the intro (about 25-30 min). New game plays the intro. |
-| `/?level=slice01&debug&jump=r05` | Skips the quiet half; flags and position of that beat's data checkpoint. `jump` = `drop` (the Commons after the rounds, Voss breathing over the Lab B intercom; walk into the gallery to start the drop; needs `&debug`, without it the URL only opens the title and New game starts the intro), `r05` (first contact), `r06` (cover me), `r07` (armory + Priya), `r09` (med-lab door, tunnel, valve; you get the shotgun), `r10_flood` (in front of the valve: the flood cutscene), `r11` (climax + reveal + end). Press New game, the jump happens 0.4 s after play starts. |
+| `/?level=slice01&debug&slot=scratch&jump=r11` | Skips to that point with the flags it needs. `jump` = `drop` (the Commons after the rounds, Voss breathing over the Lab B intercom; walk into the gallery to start the drop; needs `&debug`, without it the URL only opens the title and New game starts the intro), `r05` (first contact), `r06` (cover me), `r07` (armory + Priya), `r09` (med-lab door, tunnel, valve; you get the shotgun), `r10_flood` (in front of the valve: the flood cutscene), `r11` (Power Bay to the end of the slice), `r15a` (the powered departure bay; walk aboard), `transit_ride` (in Train Car A, the ride starts), `r16` and `r16b` (walk the lit arrival dock and concourse, no scene), `r16_finale` (the arrival finale), `stinger_priya` (the CAM 04 stinger). Press New game, the jump happens 0.4 s after play starts. `&slot=scratch` keeps the jump out of your saves. |
 | `&debug` | Stats, lil-gui, the running-sequence overlay (shows the current step of each sequence), F1 fly cam. |
-| `&seq=<id>` | Runs one sequence 1.2 s after play starts, applying its `debugSetup` flags. Useful: `cliffhanger`, `stinger_priya`, `title_card`, `sec_glass`, `climax`. Stand in the right room first (fly with F1), or combine with `jump`. |
+| `&seq=<id>` | Runs one sequence 1.2 s after play starts, applying its `debugSetup` flags. Useful: `stinger_priya`, `title_card`, `sec_glass`. Stand in the right room first (fly with F1), or combine with `jump`. |
 | `&enemies=shambler:3,hero,playDead` | Debug-spawn enemies (existing). |
 | `&give=card_l2` | Key items at the start (existing). |
 
-Skip: hold the skip key during the reveal (`cliffhanger`) or the stinger. The rest cannot be skipped. Death restarts at the last checkpoint:
+Skip: hold the skip key during the stinger. The rest of the R11 to finale run cannot be skipped. Death restarts at the last checkpoint:
 data checkpoints `cp_first_contact`, `cp_cover_me`, `cp_security`, `cp_flooded`, `cp_climax` (on room entry) plus sequence ones
-`cp_contact_clear`, `cp_cover_done`, `cp_security_done`, `cp_valve` (end of each beat).
+`cp_contact_clear`, `cp_cover_done`, `cp_security_done`, `cp_valve`, `cp_r11_powered`, `cp_r16_arrived` (end of each beat).
 
 ## Tomas’s squad arrival
 
@@ -127,17 +127,17 @@ In the demo corridor (`?level=demo&slot=scratch&physics=off`), walking from z = 
 - The ambush: walk into the area beside the two doors (the R09 door and the R11 bulkhead), even while the pounding or Giles's line is still going: every line is cut and the music ends at once. A bang and a jump-scare sting, the view whips round to the R09 door while Okafor and Giles recoil into brace poses: the elite's blades stab cleanly into the seam, clamp and track the opening leaves without clipping as it wrenches them apart from the middle (the door stays sealed, screen red, gap still too narrow to pass); it leans in and thrusts both blades deep into the pump room; the door slams back and shears both forearms (with their blades) off into the pump room (they stay on the floor); it shrieks; Okafor: "Its arms...". Once per save. R10 stays fully lit on backup power.
 - Reload after `cp_valve`: the door sealed, beacons and klaxon on, no cutscene (the ambush still to come if it had not played).
 
-**R11 climax** (`jump=r11`)
-- Both entrances open. Giles works at the console for 30 s, 14 enemies, never more than 8 alive, one hero (Okafor: "Big one. Shotgun, Jay. Now."). Check the shotgun feels good, ammo is enough (3 pickups in the room), and the fight is winnable on Hard. "Halfway!" at 50 %.
-- Won when the job AND all 14 are done: doors seal.
-
-**Reveal, title card, stinger** (`jump=r11`, or `&seq=cliffhanger` in R11)
-- Banter, "Lights in three, two...", the lights come up, the teal fluid trail is on the floor behind Giles, you cannot look far from him, "I didn't want you to see this", the plain confession, Okafor steps toward him, "Stay back, Tomas." as his arm begins to change, black.
-- Title card "THALASSA / SLICE ONE" (placeholder). Then a fullscreen security feed of the medical bay (CAM 04): Priya's body by the centre pane lies still for about 3 s, twitches (one wet breath), writhes, gets up the wrong way and turns her face to the camera; static 1.2 s later, off, "End of slice" toast, back to the title after 5 s. Nobody else is in the room and she says nothing.
-- Try skipping both: the end state must match (lights up, trail, black, then the stinger plays the last frame and ends).
+**R11 to the end of the slice** (`/?level=slice01&debug&slot=scratch&jump=r11`; openspec `fix-r13d-r16-finale`)
+- The one URL that plays everything from the Power Bay: the power-up, the walk through R13d, boarding, the train ride, the R16 arrival finale, the title card and the stinger. Click to start. It needs no other parameter, and every `jump=` URL should carry `&slot=scratch` so your saves are left alone. `&power=on` is for looking at the energised Power Bay only: by the script's conditions it skips the Power Bay scene.
+- Power Bay: no enemies. Jay and Okafor whisper on the way in, Giles diagnoses the terminal, three generator phases light the banks, `D_R13d_R11` opens.
+- Departure Boarding Bay: Giles works the console with Okafor beside him, and you hear both. You can follow or not; the script boards you.
+- Ride: R16 is never lit from here on, except the flickers. The power-loss announcement is heard in full, ending before the train appears at the R16 dock. About 5 s into it, just after it says traction power is lost, Giles says they have lost her, over the announcement.
+- Arrival: the gate sounds and Okafor speaks during the glide ("Lost her" is not repeated), and the finale starts as the train stops, with no long silence.
+- After Okafor orders Jay to stay: the view turns to the far north-west pillar (on the right) and magnifies. One flicker of about 4 s shows the white-coated body beside it, legs already behind the pillar, dragged slowly out of sight. Then dark and Jay's warning, and the magnification releases as the view returns to the cabin. The creature is not seen before CAM 10, and Giles and Okafor do not aim at the concourse.
+- Title card "THALASSA", then the CAM 04 medbay stinger, "End of slice" and back to the title.
 
 **Transit ride and the R16a arrival** (`jump=transit_ride`, `jump=r16`; openspec `r16a-perpendicular-train-arrival`)
-- `/?level=slice01&debug&jump=transit_ride&slot=scratch&door=open`: you start in Train Car A in R15a and the 3-stage ride runs (14 m pull-out, a lit closed hallway that slows early to a bright gate, a 9 s glide into R16a). The game starts paused: click to resume, or the ride never advances. `&door=open` is debug-only and opens Car B's door when the ride ends; without it the door stays closed, because a script opens it in the game (none yet), so you stay in the car.
+- `/?level=slice01&debug&slot=scratch&jump=transit_ride`: you start in Train Car A in R15a and the 3-stage ride runs (14 m pull-out, a lit closed hallway that slows early to a bright gate, a 9 s glide into R16a), then the arrival finale takes over. The game starts paused: click to resume, or the ride never advances.
 - R16 is turned so the train never has to turn: R16b (the concourse) lies WEST of the R16a dock, R16c south of R16b. In R16a the track runs north to south along the east edge, the platform is 4 m wide, and wide stairs on the west edge climb 0.6 m onto R16b. Check: standing in R16b between the first pillar pair (on the dock's centre line) looking east, you see the whole right side of the train across the platform, the entry gate on your left (north) and a dark, unlit tunnel bore on your right (south) that fades to black within a few metres. The platform rail has a gap at the car door and reaches both walls; you cannot reach the track at the car's tail or nose.
 - `/?level=slice01&debug&jump=r16`: you stand on the R16a platform beside the car facing west up the stairs (no ride needed). `jump=r16b` stands you in the concourse on the dock's centre line. Walk along R16b to the south wall door (east of the booth bays) into R16c.
 - `/?level=slice01&debug&slot=scratch&jump=r16_finale` (openspec `juggernaut-walk-and-roar`): press a key at the loading screen and F at the flashlight tip, and the arrival finale runs from inside Train Car B. On CAM 10, about 33 s in:
@@ -145,14 +145,14 @@ In the demo corridor (`?level=demo&slot=scratch&physics=off`), walking from z = 
   - It stops and rears up: head down, then up and forward, jaw wide, hands off the floor, trembling. It roars the long roar on camera. As it walks out, Giles and Okafor back away about 1.6 m toward the stairs, still facing it with their lights on its face, firing slowly and quietly. As it rears up, Giles yells "What the fuck is that?!" and Okafor yells it over him, both loud, before the long roar drowns them and their quieter shots.
   - On the roar's last loud beat the feed cuts hard to black and dead silence, with no roar in the dark. About a second later the THALASSA card comes up.
   - The console shows no `[shaders]` line.
+- **Continue at Arrival Terminal:** reach the finale, reload the page and Continue. You are in the parked car with Giles and Okafor, R16 dark, and the finale plays again from the start.
 
 ## Load from title, squad gathering (unify-checkpoint-restore)
-- **Continue after a page reload:** play to the Valve Room (`cp_valve` toast), reload the page, Continue. Giles and Okafor should stand a few metres from Jay in R10 and follow him. Walk into R11: Giles says "Thirty seconds..." nearby (not a far whisper), enemies come through both entrances, and the climax ends in the reveal.
+- **Continue after a page reload:** play to the Valve Room (`cp_valve` toast), reload the page, Continue. Giles and Okafor should stand a few metres from Jay in R10 and follow him. Walk into R11: the Power Bay scene plays with the squad nearby (not a far whisper) and no enemies.
 - **Quit to title, then load an earlier save:** doors, lights and room triggers should match that save, not the session you quit (for example, load a save from before R05 and the R05 fight plays again when you walk in).
-- **Death restart still works as before:** die mid-fight in R06 and in R11; the fight replays from its checkpoint with the squad beside you.
+- **Death restart still works as before:** die mid-fight in R06; the fight replays from its checkpoint with the squad beside you.
 - **Running ahead into the Observation Gallery:** sprint in ahead of the squad. `D_R02_R03` stays open until Giles and Okafor are inside, then seals. Step back out before it seals: it waits for you. If a squadmate is stuck, after 8 s he appears inside near you (watch he does not pop in where you are looking).
-- **Regroup:** leave Giles far behind out of sight (for example, run through the tunnel), then start cover-me, the med-lab door or the climax. He should be near you when the scene starts, never teleporting in view.
-- **Climax arena:** during the R11 fight, step out through the north entrance into the maintenance corridor: the door to the Launch Hall must be sealed. Kill the last enemy from the corridor: "Power! Doors sealing" and the seal wait until you walk back into R11, then the reveal plays with Giles in front of you.
+- **Regroup:** leave Giles far behind out of sight (for example, run through the tunnel), then start cover-me, the med-lab door or the Power Bay scene. He should be near you when the scene starts, never teleporting in view.
 - **Debug jumps:** `?level=slice01&debug&jump=r11` and the other `jump=` values show the room instead of a black screen, with the squad beside you.
 
 ## [Assumed] choices to confirm or change
@@ -163,13 +163,11 @@ Giles opens the armory himself during the rescue; Jay walks slowly with no weapo
 - Gore near the glass: the R08 kill takes its clip from the centre pane (`medbay_c_glass`, face z 45.72, clip at 45.78), so spray stops on the bay side. Check no red shows on Jay's side. There is no drag any more: after the throw she lies where she landed at the base of the pane.
 - The attacker is the creature body (`lab_creature`). The stinger films from `cam04_pos` toward `cam04_stinger_look` (her resting spot `priya_rest`); adjust anchors in `scripts/gen-slice01.mjs` and re-run it.
 - Voice: the rescue lines (decision 29 in `openspec/changes/overhaul-priya-r08-death/design.md`) carry their delivery in `direction`. Any line without a recording plays the synth voice; check the clips flagged by `vo-generate` by ear and trim dead air.
-- Enemy pathing with the new open bulkheads (R11 entrances) and Giles's task safety: watch for enemies ignoring Jay and chewing Giles, or Giles never finishing.
 - Checkpoint restore: doors come back from flags (`action_restore`) but enemies/NPC positions come from the beat replay. After a death in R07 the scene replays from the start. After `sec_done`, the restore plays the kill instantly: Priya dead in the surgery, no creature, and the centre pane's end marks (two prints, the crack and splat, the streak) from an authored set.
-- Reload after the climax win (`cp_climax_won`, taken just before the reveal): load the autosave from the title or reload the page; the reveal (`reveal_restore` -> `cliffhanger`) should replay with no fight, R11 lights dying, Giles/Okafor placed at the console, Giles at stage 3 with bandage. Pause/resume mid-reveal must not restart it. Also test: save manually during the reveal (pause menu) and load it: the reveal should start over (not a dead scene); pausing and resuming during the reveal, the title card or the stinger must not restart it; a death restart into `cp_climax_won` replays the reveal too.
 - Quiet half after a load (`quiet_restore`, `src/data/sequences/quiet_restore.json`): the TAG FM radio comes back in the room named by `radio_place`, the commons TV/cook/seat changes, blinds up, Voss transformed, red lights and cracked glass after the drop. Pausing and resuming must not restart the song (the host keeps a same-track-same-spot radio playing).
 - Silent researcher (`researcher_walkby`): after the first round, the next commons entry sends a `lab` crew member from the south door to the gallery side; Jay says "Morning, Doctor." and "...Rough night, I guess." with no answer. Check the walk path and that she despawns out of sight.
 - TAG FM in the ruined junction: the radio on the R05 console starts when the first fight ends and stops on entering R06 (`trigger:r06_enter`). Check it is audible but not overpowering, and its position on the console.
-- Performance: R07 has 2 extra overlay meshes (pane cracks, unused by the R08 scene), R11 one (trail); check frame rate in R11 with 8 enemies and the hero, and in the tunnel.
+- Performance: R07 has 2 extra overlay meshes (pane cracks, unused by the R08 scene), R11 one (trail); check frame rate in the tunnel.
 - The `loop` skip change (counted loops apply their body) touches the earlier skippable scenes too; re-skip the intro and the briefing once to be sure.
 
 ## Shader compiles during play (openspec `stop-midgame-shader-stalls`)

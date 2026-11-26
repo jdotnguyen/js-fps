@@ -1236,6 +1236,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         const onboardTrainPa = id === 'r16_pa_01' || id === 'r16_pa_02';
         return speech!.say(id, {
           ...opts,
+          // The train's own announcements stay overhead of Jay, wherever the ride carries him (voice-playback: Station PA).
+          ...(onboardTrainPa ? { follow: true } : {}),
           at: () =>
             onboardTrainPa
               ? new THREE.Vector3(camera.position.x, camera.position.y + 0.8, camera.position.z)
@@ -1972,30 +1974,9 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
                 hud.setFade(1, 0);
                 sequences?.start('stinger_priya');
               }
-              if (jump === 'r16_finale') {
-                // Place Giles and Okafor inside Train Car B with Jay, black out R16a/R16b completely (keep only cabin lights), seal dock, and trigger finale.
-                level!.setRoomLights('R16a', 'off');
-                level!.tintRoomLights('R16a', 'black');
-                level!.setRoomLights('R16b', 'off');
-                level!.tintRoomLights('R16b', 'black');
-                level!.setLight('r16a_train_cabin_a', 'steady', '#ffb974', 1);
-                level!.setLight('r16a_train_cabin_b', 'steady', '#ffb974', 1);
-                events.emit('transit:r16_beacons' as never, { on: false } as never);
-                events.emit('transit:blast_gate' as never, { gateId: 'r16a_north', open: false } as never);
-                events.emit('transit:train_door' as never, { carId: 'r16a_train', open: false, instant: true } as never);
-                squad!.mate('engineer').place({ x: 88.2, y: -0.12, z: 33.4 }, Math.PI / 2);
-                squad!.mate('medic').place({ x: 88.2, y: -0.12, z: 36.6 }, Math.PI / 2);
-                events.emit('transit:arrived_r16' as never, {} as never);
-              }
+              // The same scene a load at `cp_r16_arrived` plays: the squad in Car B, R16 dark, then the finale.
+              if (jump === 'r16_finale') sequences?.start('r16_restore');
               if (jump === 'transit_ride') {
-                // Debug only: `&door=open` opens Train Car B's door when the ride ends, since a script does that in the game.
-                if (new URLSearchParams(location.search).get('door') === 'open') {
-                  const offArrived = events.on('transit:ride_state' as never, ((p: { stage?: string }) => {
-                    if (p.stage !== 'arrived') return;
-                    offArrived();
-                    events.emit('transit:train_door' as never, { carId: 'r16a_train', open: true } as never);
-                  }) as never);
-                }
                 if (new URLSearchParams(location.search).get('raw') === '1' || !sequences) {
                   events.emit('transit:start_ride' as never, {} as never);
                 } else {

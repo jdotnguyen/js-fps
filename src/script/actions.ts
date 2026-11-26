@@ -405,10 +405,11 @@ export const ACTIONS: Record<string, ActionDef> = {
    * The shot runs until the sequence ends or a later `playerFrame` (any target, or `clear`) replaces it.
    * `"target": "heading"` (intro-sequence spec) faces along Jay's scripted walk instead, with `give` default 35 deg of
    * leeway that holds `hold` s (default 0.5) before settling back. `hold` and `returnTime` (the spring-back time
-   * constant) also widen a normal shot into a soft nudge (`give: 35, hold: 0.5`).
+   * constant) also widen a normal shot into a soft nudge (`give: 35, hold: 0.5`). `zoom` magnifies a shot of something
+   * far off (2 doubles its size on screen) until the shot ends or the next one begins.
    */
   playerFrame: act(
-    { target: optional(target), initial: optional(target), duration: optional(numRange(0, 30)), give: optional(numRange(0, 60)), hold: optional(numRange(0, 5)), returnTime: optional(numRange(0.02, 3)), clear: optional(bool), wait },
+    { target: optional(target), initial: optional(target), duration: optional(numRange(0, 30)), give: optional(numRange(0, 60)), hold: optional(numRange(0, 5)), returnTime: optional(numRange(0.02, 3)), zoom: optional(numRange(1, 4)), clear: optional(bool), wait },
     (s, ctx) => {
       if (!ctx.host.frame) return ctx.missing('playerFrame');
       endConversation(ctx);
@@ -416,7 +417,7 @@ export const ACTIONS: Record<string, ActionDef> = {
         ctx.host.frame(null, 0, 0);
         return;
       }
-      const opts: FrameOptions = { ...(s.hold !== undefined ? { hold: s.hold } : {}), ...(s.returnTime !== undefined ? { returnTime: s.returnTime } : {}) };
+      const opts: FrameOptions = { ...(s.hold !== undefined ? { hold: s.hold } : {}), ...(s.returnTime !== undefined ? { returnTime: s.returnTime } : {}), ...(s.zoom !== undefined ? { zoom: s.zoom } : {}) };
       if (s.target === 'heading') {
         if (!ctx.host.frameHeading) return ctx.missing('playerFrame heading');
         const duration = s.duration ?? 0.8;

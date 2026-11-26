@@ -127,6 +127,8 @@ interface Framing {
   hold: number;
   /** Spring-back time constant, seconds. */
   returnTime: number;
+  /** Magnification of the view (1: none). */
+  zoom: number;
   yaw: number;
   pitch: number;
 }
@@ -146,6 +148,8 @@ interface WalkTarget {
 
 /** Spring-back time constant for the give, seconds (~0.4 s to settle). */
 const GIVE_RETURN = 0.12;
+/** How quickly a framed shot's magnification eases in and out, per second. */
+const ZOOM_RATE = 8;
 /** How far ahead along the walk heading the heading shot aims, metres. */
 const HEADING_AHEAD = 4;
 /** Scripted turns ease this much slower with reduced motion (intro-sequence spec). */
@@ -231,6 +235,8 @@ export class Player {
   private grabbed: Grab | null = null;
   private stateLayer: (() => void) | null = null;
   private lastFov = 0;
+  /** The current magnification, easing to the framed shot's. */
+  private zoom = 1;
   private time = 0;
   private readonly eye = new THREE.Vector3();
   private readonly dir = new THREE.Vector3();
@@ -336,6 +342,7 @@ export class Player {
     this.velocity.set(0, 0);
     this.wishDir.x = this.wishDir.z = 0;
     this.aimBlend = 0;
+    this.zoom = 1;
     this.stamina = PLAYER_TUNING.sprintMax;
     this.exhausted = false;
     this.hitSlow = this.hitPulse = this.kick = this.kickVel = 0;
@@ -370,7 +377,7 @@ export class Player {
    * push it `give` degrees off and it springs back. Overrides look assist and clamp while
    * set. `duration` 0 snaps at once. null releases the view where it is.
    */
-  frameView(target: THREE.Vector3 | null, opts: { duration?: number; give?: number; hold?: number; returnTime?: number; follow?: (out: THREE.Vector3) => boolean } = {}): void {
+  frameView(target: THREE.Vector3 | null, opts: { duration?: number; give?: number; hold?: number; returnTime?: number; zoom?: number; follow?: (out: THREE.Vector3) => boolean } = {}): void {
     if (!target) {
       this.framing = null;
       this.giveYaw = this.givePitch = 0;
@@ -386,6 +393,7 @@ export class Player {
       duration,
       hold: Math.max(0, opts.hold ?? 0),
       returnTime: Math.max(0.02, opts.returnTime ?? GIVE_RETURN),
+      zoom: Math.max(1, opts.zoom ?? 1),
       // Start from the current base aim, or from the current view on the first shot.
       yaw: prev ? prev.yaw : this.yaw - this.giveYaw,
       pitch: prev ? prev.pitch : this.pitch - this.givePitch,
@@ -959,7 +967,12 @@ export class Player {
     const roll = (this.vitals.state === 'alive' ? 0 : 0.22 * (1 - this.eyeHeight / T.eyeHeight) * (reduced ? 0.3 : 1)) + sway;
     cam.rotation.set(this.pitch + this.kick * 0.06 * kickScale, this.yaw, roll);
 
-    const fov = this.d.settings().fov * (1 - (1 - T.aimFovScale) * smooth(this.aimBlend));
+    const wide = this.d.settings().fov * (1 - (1 - T.aimFovScale) * smooth(this.aimBlend));
+    const zoomTo = this.framing?.zoom ?? 1;
+    this.zoom += (zoomTo - this.zoom) * (1 - Math.exp(-ZOOM_RATE * dt));
+    if (Math.abs(zoomTo - this.zoom) < 1e-3) this.zoom = zoomTo;
+    // Magnified through the lens, so `zoom: 2` doubles the size of what is in the middle of the view.
+    const fov = this.zoom === 1 ? wide : THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(wide) / 2) / this.zoom));
     if (Math.abs(fov - this.lastFov) > 1e-3) {
       cam.fov = fov;
       cam.updateProjectionMatrix();

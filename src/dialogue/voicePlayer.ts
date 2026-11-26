@@ -323,10 +323,18 @@ export class WebAudioVoicePlayer implements VoicePlayer {
       // Real VO clips extend the subtitle/queue timer so speech is never cut off mid-word.
       ...(recordedBuf ? { duration: recordedBuf.duration + leadIn + (req.line.channel === 'radio' ? 0.16 : 0.08) } : {}),
       update: () => {
-        if (isPa || !panner || !req.at) return;
+        // A wall PA stays at its grille; a following one (aboard the train) travels with the listener.
+        if ((isPa && !req.follow) || !panner || !req.at) return;
         const p = req.at();
         if (!p) return;
         const t = ctx.currentTime;
+        if (isPa) {
+          // No glide: the listener can jump (a ride's stage hand-off), and a lagging source would dip in level.
+          panner.positionX.setValueAtTime(p.x, t);
+          panner.positionY.setValueAtTime(p.y, t);
+          panner.positionZ.setValueAtTime(p.z, t);
+          return;
+        }
         panner.positionX.setTargetAtTime(p.x, t, 0.02);
         panner.positionY.setTargetAtTime(p.y, t, 0.02);
         panner.positionZ.setTargetAtTime(p.z, t, 0.02);

@@ -57,6 +57,32 @@ test('a queued PA resolves its grille once at audible start while local voices t
   assert.equal(ctx.nodes.length, beforeMissing, 'missing fixture keeps the subtitle without a centred audio source');
 });
 
+// voice-playback "Announcement aboard the train" (fix-r13d-r16-finale).
+test('a following PA travels with the listener, across a jump, while a wall PA stays on its grille', t => {
+  t.after(installFakeWebAudio());
+  const audio = new AudioEngine();
+  const ctx = audio.ctx as unknown as FakeAudioContext;
+  const speakers = JSON.parse(readFileSync(new URL('../data/dialogue/speakers.json', import.meta.url), 'utf8'));
+  // Two speakers, so the overlapping line does not cut the first one off.
+  const lines = [['aboard', 'pa'], ['wall', 'engineer']].map(([id, speaker]) => ({
+    id, channel: 'pa', speaker, priority: 'story', emote: 'neutral', audio: null, choices: [], minDuration: 4, text: 'Testing.',
+  }));
+  const library = new DialogueLibrary(speakers, { test: { chapter: 'test', lines } });
+  const player = new WebAudioVoicePlayer({ ctx: audio.ctx, master: audio.buses.voice, reverbIn: audio.voiceReverbIn });
+  const speech = new SpeechManager(new EventBus(), library, player);
+  const listener = { x: 128, y: 2.4, z: 40 };
+  const at = () => ({ ...listener });
+  speech.say('aboard', { at, follow: true });
+  speech.say('wall', { at, overlap: true });
+  speech.update(0.1);
+  const [aboard, wall] = ctx.nodes.filter(n => n instanceof FakePanner);
+  Object.assign(listener, { x: 88, z: 20 });
+  speech.update(0.1);
+  assert.deepEqual([aboard!.positionX.value, aboard!.positionZ.value], [88, 20], 'overhead after the jump');
+  assert.deepEqual([wall!.positionX.value, wall!.positionZ.value], [128, 40], 'the grille does not move');
+  speech.stopAll();
+});
+
 test('WebAudioVoicePlayer.loadLines prioritizes matching lines, caps concurrency, and stops on dispose', async (t) => {
   t.after(installFakeWebAudio());
   const audio = new AudioEngine();

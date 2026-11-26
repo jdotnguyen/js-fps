@@ -44,7 +44,7 @@ Lines on the `radio` channel SHALL sound like comms: band-limited to about 300-3
 
 ### Requirement: Station PA
 
-Each Station PA line SHALL play its existing recording from one wall speaker, with a slightly boxy loudspeaker tone, directional sound and distance attenuation. The source SHALL stay at the same grille until the line finishes. During scripted overlap, nearby conversation SHALL remain intelligible in the foreground.
+Each Station PA line SHALL play its existing recording from one wall speaker, with a slightly boxy loudspeaker tone, directional sound and distance attenuation. The source SHALL stay at the same grille until the line finishes. An onboard train announcement is the exception: its source is the car Jay rides in, so it SHALL stay overhead of the listener until it finishes. During scripted overlap, nearby conversation SHALL remain intelligible in the foreground.
 
 #### Scenario: Halcyon docks
 
@@ -66,6 +66,11 @@ Each Station PA line SHALL play its existing recording from one wall speaker, wi
 
 - **WHEN** the lockdown notice plays over the crew in the observation gallery
 - **THEN** the notice comes from the gallery wall speaker and the crew's response is intelligible
+
+#### Scenario: Announcement aboard the train
+
+- **WHEN** an onboard train announcement is playing and Jay is carried or walks elsewhere
+- **THEN** it stays overhead at the same loudness until its last word
 
 ### Requirement: Voice stops with the scene
 All dialogue SHALL stop when the game returns to the title screen or restarts, so no line from a previous run is heard.
