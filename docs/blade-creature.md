@@ -29,7 +29,7 @@ The prepared body hangs its arms, and poses raise them. With the model's weights
 
 ## The sandbox
 
-With the dev server running (reuse one on `http://localhost:5173/` if it answers), open `http://localhost:5173/sandbox/blade-creature.html`. Both sizes stand beside a 1.78 m crew figure, with height lines at 1 m, 2 m and 3.2 m (a standard room's ceiling).
+With your own dev server running (`AGENTS.md`, Shared Machine), open `/sandbox/blade-creature.html` on the URL it prints. Both sizes stand beside a 1.78 m crew figure, with height lines at 1 m, 2 m and 3.2 m (a standard room's ceiling).
 
 - Drag to orbit, wheel to zoom, right-drag to pan. The view buttons jump to set framings.
 - Pick a pose from the list (type to filter); `blend` is the blend time in seconds.

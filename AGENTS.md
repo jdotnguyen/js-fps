@@ -16,12 +16,18 @@ Use Node.js 22.6 or later for the test runner.
 - `npm test` runs the colocated unit tests, at most 4 files at a time (`TEST_CONCURRENCY` changes that). `npm test -- <file>` runs only the files given.
 - `npm run build` type-checks and bundles the game into `dist/`.
 - `npm run preview` serves the production build locally.
+- `npm run playtest:serve` builds and serves a private copy for browser testing (see Shared Machine).
 
 ## Shared Machine
 
 Several agents often work in this repository on one PC at the same time, and on 2026-11-20 they filled its RAM. Node.js alone reached about 25 GB. Keep your footprint small:
 
-- Reuse a running dev server instead of starting another. Check `http://localhost:5173/` first, and only run `npm run dev` if nothing answers. Stop any server you started when you finish.
+- Browser-test your own copy of the game, never a shared dev server, which reloads every page whenever any agent saves a file. Ports 5173 and 4300 are the player's.
+- Run `npm run playtest:serve` in the background and wait for the URL it prints (ports 4180-4183). It serves a production build of the current tree, where `?debug`, `?slot=scratch` and `?memprobe` work. A failed build may be another agent's half-saved file, so retry.
+- That copy is frozen: after changing source or assets, stop it and run it again.
+- Stop your own server when done with `npm run playtest:serve -- stop <port>`; it also stops itself after 30 minutes. With all four slots busy it waits for one. Don't start another kind of server to get around the wait.
+- The build leaves out the sandbox pages (`sandbox/*.html`, `voices.html`) and can't serve `/src/...` imports. Only for those, run your own dev server (`npx vite --port 5200`, use the URL it prints), keep it from reloading your page (in an init script, stub `WebSocket` connections whose protocol includes `vite`), and stop it when done.
+- Use your own headless browser. If the Playwright MCP says the browser is already in use, launch one through `playwright-core`.
 - Close every browser, tab and Playwright session you open once you are done with it. Each game tab holds about 1.5-2 GB.
 - While iterating, run the test files you touched (`npm test -- src/world/collision.test.ts`), not the whole suite. The level tests take 400 MB-1.1 GB each.
 - Leave `TEST_CONCURRENCY` at its default. Raise it only for a solo run when no other agent is active.

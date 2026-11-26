@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "playtest:serve": "node --experimental-strip-types --no-warnings scripts/playtest-serve.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --no-warnings scripts/run-tests.ts",
     "textures": "node --experimental-strip-types scripts/textures/import.ts",
