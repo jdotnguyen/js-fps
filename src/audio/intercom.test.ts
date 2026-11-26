@@ -3,7 +3,8 @@ import { after, before, test } from 'node:test';
 import * as THREE from 'three';
 import { installFakeWebAudio, reaches, type FakeAudioContext, type FakeNode } from './testing/fakeWebAudio.ts';
 import { AudioEngine } from './engine.ts';
-import { INTERCOM_FX, OverloadFollower, overloadAmount } from './intercom.ts';
+import { INTERCOM_FX, intercomOcclusion, OverloadFollower, overloadAmount } from './intercom.ts';
+import { GLASS_CUTOFF_HZ, GLASS_GAIN_SCALE, OCCLUDED_CUTOFF_HZ, OCCLUDED_GAIN_SCALE } from './occlusion.ts';
 import type { SoundName } from './sounds.ts';
 
 // in-world-audio: "A live intercom relays a room", "The intercom clicks and hisses", "The intercom overloads on loud
@@ -104,4 +105,54 @@ test('Back to normal: within about 0.5 s of a loud sound ending, the overload ha
   assert.ok(f.value < 0.05, `after 0.5 s: ${f.value.toFixed(3)}`);
   assert.equal(overloadAmount(0.01), 0);
   assert.equal(overloadAmount(1), 1);
+});
+
+test('Heard from the next room: the speaker is muffled and quieter through a wall or closed door, duller through glass, clear in the open', () => {
+  const wall = intercomOcclusion('wall');
+  const glass = intercomOcclusion('glass');
+  const open = intercomOcclusion('none');
+  assert.deepEqual(wall, { cutoff: OCCLUDED_CUTOFF_HZ, gain: OCCLUDED_GAIN_SCALE }, 'as any world sound behind a wall');
+  assert.deepEqual(glass, { cutoff: GLASS_CUTOFF_HZ, gain: GLASS_GAIN_SCALE });
+  assert.ok(open.gain === 1 && open.cutoff > 3400, 'in the open the speaker keeps its own band and level');
+});
+
+test('The speaker follows the listener: muffled from the start behind a closed door, opening up as the door opens, muffled again when it shuts', () => {
+  const engine = engineWithIntercom();
+  let between: 'none' | 'glass' | 'wall' = 'wall';
+  const asked: THREE.Vector3[] = [];
+  engine.setOccluder((_from, to) => (asked.push(to.clone()), between));
+  const ic = engine.intercom('medbay')!;
+  const speaker = ic as unknown as { occlusionGain: { gain: { value: number } }; occlusionLp: { frequency: { value: number } } };
+  engine.setIntercom('medbay', true);
+  assert.equal(ic.occlusion, 'wall', 'checked as it goes live, before the first click is heard');
+  assert.ok(asked.length > 0 && asked.every((p) => p.distanceTo(GRILLE) < 1e-6), 'from the grille');
+  assert.equal(speaker.occlusionGain.gain.value, OCCLUDED_GAIN_SCALE);
+  assert.equal(speaker.occlusionLp.frequency.value, OCCLUDED_CUTOFF_HZ);
+  // The door slides open: within a check or two the speaker is clear.
+  between = 'none';
+  ic.update(0.05);
+  assert.equal(ic.occlusion, 'wall', 'not re-checked every frame');
+  ic.update(0.06);
+  assert.equal(ic.occlusion, 'none');
+  assert.equal(speaker.occlusionGain.gain.value, 1);
+  between = 'wall';
+  ic.update(0.11);
+  assert.equal(ic.occlusion, 'wall');
+  assert.equal(speaker.occlusionGain.gain.value, OCCLUDED_GAIN_SCALE);
+  // Off, it stops looking; on again, it looks at once.
+  engine.setIntercom('medbay', false);
+  const asks = asked.length;
+  ic.update(0.5);
+  assert.equal(asked.length, asks);
+  between = 'glass';
+  engine.setIntercom('medbay', true);
+  assert.equal(ic.occlusion, 'glass');
+});
+
+test('With no occluder (or the listener at the grille) the speaker stays clear', () => {
+  const engine = engineWithIntercom();
+  const ic = engine.intercom('medbay')!;
+  engine.setIntercom('medbay', true);
+  ic.update(0.2);
+  assert.equal(ic.occlusion, 'none');
 });

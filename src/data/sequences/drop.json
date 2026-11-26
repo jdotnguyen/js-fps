@@ -19,7 +19,7 @@
       "do": "sfx",
       "id": "voss_panic_breath",
       "at": "npc:researcher_b",
-      "gain": 0.25
+      "gain": 0.5
      },
      {
       "do": "wait",
@@ -29,7 +29,7 @@
       "do": "sfx",
       "id": "voss_panic_breath",
       "at": "npc:researcher_b",
-      "gain": 0.25
+      "gain": 0.5
      },
      {
       "do": "wait",

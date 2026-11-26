@@ -6,11 +6,11 @@ Defines how the Observation Gallery drop opens and plays: Voss's laboured breath
 ## Requirements
 
 ### Requirement: Voss is heard before Jay walks in
-From the moment the rounds are done until the drop starts, the Lab B intercom SHALL be live and Voss's laboured breathing SHALL repeat from her in Lab B, so that the intercom carries it into the gallery. It SHALL play well below her spoken lines, so Jay hears it faintly from the Commons as he approaches the gallery and more clearly as he walks in. Loading a save from after the rounds and before the drop SHALL start the breathing again. It SHALL stop when the drop starts, and the kill's own breathing SHALL take over.
+From the moment the rounds are done until the drop starts, the Lab B intercom SHALL be live and Voss's laboured breathing SHALL repeat from her in Lab B, so that the intercom carries it into the gallery. It SHALL play below her spoken lines. As the intercom speaker hangs in the gallery, Jay SHALL hear it faint and muffled through the closed gallery door from the Commons, opening up as the door slides open and clear once he walks in. Loading a save from after the rounds and before the drop SHALL start the breathing again. It SHALL stop when the drop starts, and the kill's own breathing SHALL take over.
 
 #### Scenario: Coming back through the Commons
 - **WHEN** Jay walks through the Commons toward the gallery after the last round
-- **THEN** Voss's hard breathing can be heard faintly from the direction of the gallery, crackling through its intercom
+- **THEN** Voss's hard breathing can be heard faintly from the gallery, a dull crackle of intercom through its closed door that clears as the door opens
 
 #### Scenario: A load before the drop
 - **WHEN** Jay loads a save taken after the rounds and before the drop

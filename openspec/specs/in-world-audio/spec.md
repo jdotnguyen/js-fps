@@ -342,7 +342,14 @@ Each squad shot SHALL eject a brass casing from the shooting mate's pistol. It S
 ### Requirement: A live intercom relays a room
 A room intercom SHALL link a source room to a speaker in another room. While it is live, every positioned world sound and
 voice that starts in the source room, or in a room opening only onto it, SHALL also play from the speaker with a comms tone
-and crackle. The direct sound SHALL be unchanged. An intercom that is off SHALL relay nothing.
+and crackle. The direct sound SHALL be unchanged. An intercom that is off SHALL relay nothing. The speaker, its crackle and
+its switch sounds SHALL be heard from where it hangs like any other sound there: muffled and quieter while a wall or closed
+door stands between it and the player, slightly duller through glass alone, and clear otherwise. This SHALL follow the
+player as he moves and as doors open and close, within a fraction of a second.
+
+#### Scenario: Heard from the next room
+- **WHEN** the Lab B intercom is live and the player stands in the Commons with the gallery door closed
+- **THEN** what it relays is faint and muffled, it opens up as the door slides open, and it is clear once he is in the gallery
 
 #### Scenario: A sound in the source room
 - **WHEN** an intercom from the medical bay is live and an instrument tray falls in the surgery beyond it

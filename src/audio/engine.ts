@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Rng } from '../core/rng.ts';
 import { yieldFrame, yieldIdle } from '../core/yieldFrame.ts';
 import { Intercom } from './intercom.ts';
-import { occludeVoice, type Occluder } from './occlusion.ts';
+import { OCCLUSION_MIN_DISTANCE, occludeVoice, type Occluder } from './occlusion.ts';
 import { DEFAULT_REVERB, REVERB_CROSSFADE, REVERB_SPECS, renderReverbIr, resolveReverb, type ReverbPreset } from './reverb.ts';
 import { SAMPLE_URLS, SOUND_SPECS, type SampleName, type SoundName } from './sounds.ts';
 
@@ -475,11 +475,15 @@ export class AudioEngine {
     this.intercoms.get(id)?.dispose();
     const ic = new Intercom(this.ctx, {
       id, position, contains, level, out: this.buses.sfx, reverbIn: this.reverbIn,
+      // The switch sounds come from the grille, heard through a wall or door like the speaker (decided as each starts).
       playSample: (name, gain) => {
         if (!this.hasSample(name)) return false;
-        this.play(name, { bus: 'sfx', position, gain, reverb: 0.15, occlude: false });
+        this.play(name, { bus: 'sfx', position, gain, reverb: 0.15 });
         return true;
       },
+      // The speaker is heard from where it hangs: muffled through a wall or closed door (in-world-audio).
+      occlusion: (grille) =>
+        this.occluder && grille.distanceTo(this.listenerPos) > OCCLUSION_MIN_DISTANCE ? this.occluder(this.listenerPos, grille) : 'none',
     });
     this.intercoms.set(id, ic);
     return ic;
