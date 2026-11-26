@@ -1,0 +1,11 @@
+- generic [active] [ref=e1]:
+  - region "Loading and studio credits" [ref=e3]:
+    - generic [ref=e30]:
+      - generic [ref=e31]: POWERED BY
+      - generic [ref=e32]:
+        - text: JUST‑IN‑
+        - generic [ref=e33]: TIME
+      - generic [ref=e34]:
+        - generic [ref=e35]: REAL-TIME 3D ENGINE
+        - generic [ref=e36]: JIT // WEBGL2 · PBR
+  - generic: SCRATCH SESSION · SAVES NOT KEPT

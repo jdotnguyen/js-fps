@@ -1,0 +1,42 @@
+[    7729ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts:63
+[    7792ms] [INFO] [boot] UI sounds rendered in 17 ms @ http://localhost:5173/src/app/shell.ts:77
+[    7861ms] [INFO] Autofocus processing was blocked because a document already has a focused element. @ http://localhost:5173/?slot=scratch&nosplash:0
+[    8880ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts:63
+[    8915ms] [INFO] [boot] UI sounds rendered in 15 ms @ http://localhost:5173/src/app/shell.ts:77
+[    8966ms] [INFO] Autofocus processing was blocked because a document already has a focused element. @ http://localhost:5173/?slot=scratch&nosplash:0
+[   10316ms] [INFO] [body-models] heins: 24678 triangles, 37 pieces in 784 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   10759ms] [INFO] [body-models] necromorphCrowd: 5742 triangles, 19 pieces in 1228 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   10797ms] [INFO] [body-models] mechanic: 5114 triangles, 25 pieces in 1265 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   10859ms] [INFO] [body-models] bram: 16184 triangles, 17 pieces in 1327 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   10917ms] [INFO] [body-models] hale: 18300 triangles, 29 pieces in 1385 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   10965ms] [INFO] [body-models] sung: 15365 triangles, 17 pieces in 1433 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11098ms] [INFO] [body-models] ruiz: 43030 triangles, 20 pieces in 1566 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11112ms] [INFO] [body-models] botanist2: 5041 triangles, 25 pieces in 1579 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11144ms] [INFO] [body-models] guard1: 13235 triangles, 24 pieces in 1612 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11161ms] [INFO] [body-models] botanist3: 5738 triangles, 24 pieces in 1629 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11180ms] [INFO] [body-models] necromorph: 5800 triangles, 19 pieces in 1648 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11242ms] [INFO] [body-models] assistant: 22740 triangles, 25 pieces in 1710 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11297ms] [INFO] [body-models] gameChar: 18883 triangles, 18 pieces in 1765 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11309ms] [INFO] [body-models] botanist1: 4982 triangles, 25 pieces in 1777 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11359ms] [INFO] [body-models] office1: 20542 triangles, 20 pieces in 1827 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11406ms] [INFO] [body-models] office2: 19988 triangles, 20 pieces in 1873 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11491ms] [INFO] [body-models] doctor: 12520 triangles, 20 pieces in 1960 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11549ms] [INFO] [body-models] office3: 21492 triangles, 20 pieces in 2017 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11739ms] [INFO] [body-models] priya: 74558 triangles, 47 pieces in 2207 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   12130ms] [WARNING] THREE.MeshPhysicalMaterial: The "iridescenceThicknessRange" property has been replaced by "iridescenceThicknessMinimum" and "iridescenceThicknessMaximum". @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[   14240ms] [WARNING] [audio] could not load sample "body_glass_hit" from assets/audio/gore/body-glass-hit.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[   14336ms] [WARNING] [audio] could not load sample "glass_squeak" from assets/audio/gore/glass-squeak.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[   15780ms] [INFO] [nav] navmesh: 1025 polygons in 285 ms @ http://localhost:5173/src/world/level.ts:1479
+[   15836ms] [WARNING] [render] high: light patterns 2 -> 1: 16 texture units, 7 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts:387
+[   15847ms] [INFO] [session] level 'slice01' built in 67 ms @ http://localhost:5173/src/app/session.ts:510
+[   16038ms] [INFO] [physics] rapier 0.21.0: 1229 level colliders mirrored @ http://localhost:5173/src/app/session.ts:759
+[   16060ms] [WARNING] mocap: no clip "giles_pistol" for the aimPistol activity, falling back @ http://localhost:5173/src/actors/motionProfiles.ts:117
+[   16075ms] [WARNING] mocap: no clip "okafor_pistol" for the aimPistol activity, falling back @ http://localhost:5173/src/actors/motionProfiles.ts:117
+[   16283ms] [WARNING] [npc] npc "r16a_corpse_north": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1193
+[   16382ms] [WARNING] [npc] npc "r16b_corpse_south1": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1193
+[   16423ms] [WARNING] [npc] npc "r16b_corpse_south2": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1193
+[   16787ms] [WARNING] [render] high: light patterns 2 -> 0: 16 texture units, 8 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts:387
+[   19913ms] [INFO] [boot] menu music rendered in 10997 ms @ http://localhost:5173/src/audio/menuMusic.ts:33
+[   20403ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[   20552ms] [INFO] [session] ready in 4771 ms (total 10113 ms | renderer 40 | textures+audio 14 (prepared) | level 16 (prepared) | navmesh+cast 79 | simulation 861 | texture-upload 1561 | shaders+warm 2201) @ http://localhost:5173/src/app/session.ts:2074
+[   23673ms] [INFO] [session] loaded 343 VO clips in background @ http://localhost:5173/src/app/session.ts:2076

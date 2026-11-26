@@ -1,0 +1,632 @@
+[      76ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts:63
+[     149ms] [INFO] [boot] UI sounds rendered in 15 ms @ http://localhost:5173/src/app/shell.ts:77
+[    1435ms] [INFO] [body-models] heins: 24678 triangles, 37 pieces in 521 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    1476ms] [INFO] [body-models] necromorphCrowd: 5742 triangles, 19 pieces in 563 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    1535ms] [INFO] [body-models] mechanic: 5114 triangles, 25 pieces in 621 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    1590ms] [INFO] [body-models] hale: 18300 triangles, 29 pieces in 676 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    1727ms] [INFO] [body-models] ruiz: 43030 triangles, 20 pieces in 813 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    1775ms] [INFO] [body-models] sung: 15365 triangles, 17 pieces in 861 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    1788ms] [INFO] [body-models] botanist1: 4982 triangles, 25 pieces in 874 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    1844ms] [INFO] [body-models] bram: 16155 triangles, 18 pieces in 930 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    1862ms] [INFO] [body-models] botanist3: 5738 triangles, 24 pieces in 948 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    1875ms] [INFO] [body-models] botanist2: 5041 triangles, 25 pieces in 961 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    1911ms] [INFO] [body-models] guard1: 13235 triangles, 24 pieces in 996 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    1974ms] [INFO] [body-models] assistant: 22740 triangles, 25 pieces in 1060 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    2030ms] [INFO] [body-models] gameChar: 18883 triangles, 18 pieces in 1116 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    2050ms] [INFO] [body-models] necromorph: 5800 triangles, 19 pieces in 1136 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    2134ms] [INFO] [body-models] doctor: 12520 triangles, 20 pieces in 1221 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    2322ms] [INFO] [body-models] priya: 74558 triangles, 47 pieces in 1409 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    2371ms] [INFO] [body-models] office1: 20542 triangles, 20 pieces in 1456 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    2418ms] [INFO] [body-models] office2: 19988 triangles, 20 pieces in 1503 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    2472ms] [INFO] [body-models] office3: 21492 triangles, 20 pieces in 1558 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[    2937ms] [WARNING] THREE.MeshPhysicalMaterial: The "iridescenceThicknessRange" property has been replaced by "iridescenceThicknessMinimum" and "iridescenceThicknessMaximum". @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[    5015ms] [WARNING] [audio] could not load sample "body_glass_hit" from assets/audio/gore/body-glass-hit.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[    5131ms] [WARNING] [audio] could not load sample "glass_squeak" from assets/audio/gore/glass-squeak.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[    6165ms] [INFO] [nav] navmesh: 1025 polygons in 242 ms @ http://localhost:5173/src/world/level.ts:1479
+[    6208ms] [WARNING] [render] high: light patterns 2 -> 1: 16 texture units, 7 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts:393
+[    6217ms] [INFO] [session] level 'slice01' built in 52 ms @ http://localhost:5173/src/app/session.ts:516
+[    6342ms] [INFO] [physics] rapier 0.21.0: 1229 level colliders mirrored @ http://localhost:5173/src/app/session.ts:765
+[    6519ms] [WARNING] [npc] npc "r16a_corpse_north": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[    6590ms] [WARNING] [npc] npc "r16b_corpse_south1": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[    6615ms] [WARNING] [npc] npc "r16b_corpse_south2": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[    6879ms] [WARNING] [render] high: light patterns 2 -> 0: 16 texture units, 8 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts:393
+[    9914ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[   10104ms] [INFO] [session] ready in 3939 ms (total 9409 ms | renderer 33 | textures+audio 7 (prepared) | level 15 (prepared) | navmesh+cast 59 | simulation 672 | texture-upload 1171 | shaders+warm 1982) @ http://localhost:5173/src/app/session.ts:2114
+[   10318ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713358381:63
+[   10354ms] [INFO] [boot] UI sounds rendered in 15 ms @ http://localhost:5173/src/app/shell.ts?t=1795713358381:77
+[   11538ms] [INFO] [body-models] necromorphCrowd: 5742 triangles, 19 pieces in 416 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11655ms] [INFO] [body-models] heins: 24678 triangles, 37 pieces in 533 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11699ms] [INFO] [body-models] mechanic: 5114 triangles, 25 pieces in 577 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11757ms] [INFO] [body-models] bram: 16155 triangles, 18 pieces in 634 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11812ms] [INFO] [body-models] hale: 18300 triangles, 29 pieces in 690 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11950ms] [INFO] [body-models] ruiz: 43030 triangles, 20 pieces in 828 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   11996ms] [INFO] [body-models] sung: 15365 triangles, 17 pieces in 874 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   12013ms] [INFO] [body-models] botanist1: 4982 triangles, 25 pieces in 890 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   12071ms] [INFO] [body-models] assistant: 22740 triangles, 25 pieces in 949 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   12104ms] [INFO] [body-models] guard1: 13235 triangles, 24 pieces in 981 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   12117ms] [INFO] [body-models] botanist2: 5041 triangles, 25 pieces in 995 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   12132ms] [INFO] [body-models] botanist3: 5738 triangles, 24 pieces in 1009 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   12218ms] [INFO] [body-models] doctor: 12520 triangles, 20 pieces in 1096 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   12273ms] [INFO] [body-models] gameChar: 18883 triangles, 18 pieces in 1151 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   12293ms] [INFO] [body-models] necromorph: 5800 triangles, 19 pieces in 1171 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   12480ms] [INFO] [body-models] priya: 74558 triangles, 47 pieces in 1358 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   12529ms] [INFO] [body-models] office1: 20542 triangles, 20 pieces in 1406 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   12582ms] [INFO] [body-models] office3: 21492 triangles, 20 pieces in 1459 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   12628ms] [INFO] [body-models] office2: 19988 triangles, 20 pieces in 1505 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   13057ms] [WARNING] THREE.MeshPhysicalMaterial: The "iridescenceThicknessRange" property has been replaced by "iridescenceThicknessMinimum" and "iridescenceThicknessMaximum". @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[   14979ms] [WARNING] [audio] could not load sample "body_glass_hit" from assets/audio/gore/body-glass-hit.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[   15074ms] [WARNING] [audio] could not load sample "glass_squeak" from assets/audio/gore/glass-squeak.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[   16427ms] [INFO] [nav] navmesh: 1025 polygons in 288 ms @ http://localhost:5173/src/world/level.ts:1479
+[   16486ms] [WARNING] [render] high: light patterns 2 -> 1: 16 texture units, 7 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713358381:393
+[   16511ms] [INFO] [session] level 'slice01' built in 84 ms @ http://localhost:5173/src/app/session.ts?t=1795713358381:516
+[   16643ms] [INFO] [physics] rapier 0.21.0: 1229 level colliders mirrored @ http://localhost:5173/src/app/session.ts?t=1795713358381:765
+[   16893ms] [WARNING] [npc] npc "r16a_corpse_north": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   16968ms] [WARNING] [npc] npc "r16b_corpse_south1": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   16998ms] [WARNING] [npc] npc "r16b_corpse_south2": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   17323ms] [WARNING] [render] high: light patterns 2 -> 0: 16 texture units, 8 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713358381:393
+[   19747ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[   19901ms] [INFO] [session] ready in 3474 ms (total 9066 ms | renderer 32 | textures+audio 24 (prepared) | level 32 (prepared) | navmesh+cast 68 | simulation 771 | texture-upload 1154 | shaders+warm 1394) @ http://localhost:5173/src/app/session.ts?t=1795713358381:2114
+[   20991ms] [INFO] [boot] menu music rendered in 10637 ms @ http://localhost:5173/src/audio/menuMusic.ts:33
+[   23212ms] [INFO] [session] loaded 353 VO clips in background @ http://localhost:5173/src/app/session.ts?t=1795713358381:2116
+[   35320ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713383676:63
+[   35358ms] [INFO] [boot] UI sounds rendered in 17 ms @ http://localhost:5173/src/app/shell.ts?t=1795713383676:77
+[   36697ms] [INFO] [body-models] mechanic: 5114 triangles, 25 pieces in 596 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   36769ms] [INFO] [body-models] necromorphCrowd: 5742 triangles, 19 pieces in 668 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   36861ms] [INFO] [body-models] heins: 24678 triangles, 37 pieces in 759 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37007ms] [INFO] [body-models] ruiz: 43030 triangles, 20 pieces in 906 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37066ms] [INFO] [body-models] sung: 15365 triangles, 17 pieces in 965 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37127ms] [INFO] [body-models] hale: 18300 triangles, 29 pieces in 1026 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37187ms] [INFO] [body-models] assistant: 22740 triangles, 25 pieces in 1086 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37201ms] [INFO] [body-models] botanist2: 5041 triangles, 25 pieces in 1099 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37294ms] [INFO] [body-models] doctor: 12520 triangles, 20 pieces in 1193 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37333ms] [INFO] [body-models] guard1: 13235 triangles, 24 pieces in 1231 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37395ms] [INFO] [body-models] bram: 16155 triangles, 18 pieces in 1293 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37418ms] [INFO] [body-models] necromorph: 5800 triangles, 19 pieces in 1317 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37491ms] [INFO] [body-models] gameChar: 18883 triangles, 18 pieces in 1389 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37506ms] [INFO] [body-models] botanist1: 4982 triangles, 25 pieces in 1404 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37524ms] [INFO] [body-models] botanist3: 5738 triangles, 24 pieces in 1422 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37722ms] [INFO] [body-models] priya: 74558 triangles, 47 pieces in 1621 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37777ms] [INFO] [body-models] office1: 20542 triangles, 20 pieces in 1675 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37830ms] [INFO] [body-models] office2: 19988 triangles, 20 pieces in 1728 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   37891ms] [INFO] [body-models] office3: 21492 triangles, 20 pieces in 1788 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   38288ms] [WARNING] THREE.MeshPhysicalMaterial: The "iridescenceThicknessRange" property has been replaced by "iridescenceThicknessMinimum" and "iridescenceThicknessMaximum". @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[   40456ms] [WARNING] [audio] could not load sample "body_glass_hit" from assets/audio/gore/body-glass-hit.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[   40669ms] [WARNING] [audio] could not load sample "glass_squeak" from assets/audio/gore/glass-squeak.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[   41699ms] [INFO] [nav] navmesh: 1025 polygons in 233 ms @ http://localhost:5173/src/world/level.ts:1479
+[   41728ms] [WARNING] [render] high: light patterns 2 -> 1: 16 texture units, 7 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713383676:393
+[   41736ms] [INFO] [session] level 'slice01' built in 37 ms @ http://localhost:5173/src/app/session.ts?t=1795713383676:516
+[   41845ms] [INFO] [physics] rapier 0.21.0: 1229 level colliders mirrored @ http://localhost:5173/src/app/session.ts?t=1795713383676:765
+[   42018ms] [WARNING] [npc] npc "r16a_corpse_north": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   42051ms] [WARNING] [npc] npc "r16b_corpse_south1": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   42075ms] [WARNING] [npc] npc "r16b_corpse_south2": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   42337ms] [WARNING] [render] high: light patterns 2 -> 0: 16 texture units, 8 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713383676:393
+[   44676ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[   44829ms] [INFO] [session] ready in 3130 ms (total 8936 ms | renderer 24 | textures+audio 3 (prepared) | level 13 (prepared) | navmesh+cast 50 | simulation 577 | texture-upload 1144 | shaders+warm 1320) @ http://localhost:5173/src/app/session.ts?t=1795713383676:2114
+[   45551ms] [INFO] [boot] menu music rendered in 10192 ms @ http://localhost:5173/src/audio/menuMusic.ts:33
+[   47900ms] [INFO] [session] loaded 355 VO clips in background @ http://localhost:5173/src/app/session.ts?t=1795713383676:2116
+[   52047ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713400381:63
+[   52087ms] [INFO] [boot] UI sounds rendered in 17 ms @ http://localhost:5173/src/app/shell.ts?t=1795713400381:77
+[   52323ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713400645:63
+[   52356ms] [INFO] [boot] UI sounds rendered in 15 ms @ http://localhost:5173/src/app/shell.ts?t=1795713400645:77
+[   53342ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713401400:63
+[   53376ms] [INFO] [boot] UI sounds rendered in 15 ms @ http://localhost:5173/src/app/shell.ts?t=1795713401400:77
+[   54090ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713402319:63
+[   54140ms] [INFO] [boot] UI sounds rendered in 22 ms @ http://localhost:5173/src/app/shell.ts?t=1795713402319:77
+[   55272ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713403457:63
+[   55312ms] [INFO] [boot] UI sounds rendered in 18 ms @ http://localhost:5173/src/app/shell.ts?t=1795713403457:77
+[   56769ms] [INFO] [body-models] necromorphCrowd: 5742 triangles, 19 pieces in 861 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   56929ms] [INFO] [body-models] heins: 24678 triangles, 37 pieces in 1021 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   56982ms] [INFO] [body-models] mechanic: 5114 triangles, 25 pieces in 1074 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   57059ms] [INFO] [body-models] bram: 16155 triangles, 18 pieces in 1151 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   57140ms] [INFO] [body-models] hale: 18300 triangles, 29 pieces in 1232 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   57307ms] [INFO] [body-models] ruiz: 43030 triangles, 20 pieces in 1399 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   57335ms] [INFO] [body-models] botanist2: 5041 triangles, 25 pieces in 1427 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   57395ms] [INFO] [body-models] sung: 15365 triangles, 17 pieces in 1487 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   57496ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713405745:63
+[   57529ms] [INFO] [boot] UI sounds rendered in 15 ms @ http://localhost:5173/src/app/shell.ts?t=1795713405745:77
+[   58706ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713405745:63
+[   58739ms] [INFO] [boot] UI sounds rendered in 15 ms @ http://localhost:5173/src/app/shell.ts?t=1795713405745:77
+[   59969ms] [INFO] [body-models] necromorphCrowd: 5742 triangles, 19 pieces in 619 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60056ms] [INFO] [body-models] mechanic: 5114 triangles, 25 pieces in 707 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60149ms] [INFO] [body-models] heins: 24678 triangles, 37 pieces in 800 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60224ms] [INFO] [body-models] bram: 16155 triangles, 18 pieces in 874 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60277ms] [INFO] [body-models] sung: 15365 triangles, 17 pieces in 928 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60336ms] [INFO] [body-models] hale: 18300 triangles, 29 pieces in 986 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60352ms] [INFO] [body-models] botanist1: 4982 triangles, 25 pieces in 1002 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60365ms] [INFO] [body-models] botanist2: 5041 triangles, 25 pieces in 1015 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60498ms] [INFO] [body-models] ruiz: 43030 triangles, 20 pieces in 1148 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60558ms] [INFO] [body-models] assistant: 22740 triangles, 25 pieces in 1208 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60590ms] [INFO] [body-models] guard1: 13235 triangles, 24 pieces in 1240 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60607ms] [INFO] [body-models] botanist3: 5738 triangles, 24 pieces in 1257 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60626ms] [INFO] [body-models] necromorph: 5800 triangles, 19 pieces in 1277 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60688ms] [INFO] [body-models] gameChar: 18883 triangles, 18 pieces in 1337 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60780ms] [INFO] [body-models] doctor: 12520 triangles, 20 pieces in 1431 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   60987ms] [INFO] [body-models] priya: 74558 triangles, 47 pieces in 1638 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   61064ms] [INFO] [body-models] office1: 20542 triangles, 20 pieces in 1714 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   61117ms] [INFO] [body-models] office2: 19988 triangles, 20 pieces in 1767 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   61204ms] [INFO] [body-models] office3: 21492 triangles, 20 pieces in 1854 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   61691ms] [WARNING] THREE.MeshPhysicalMaterial: The "iridescenceThicknessRange" property has been replaced by "iridescenceThicknessMinimum" and "iridescenceThicknessMaximum". @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[   63728ms] [WARNING] [audio] could not load sample "body_glass_hit" from assets/audio/gore/body-glass-hit.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[   63760ms] [WARNING] [audio] could not load sample "glass_squeak" from assets/audio/gore/glass-squeak.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[   64910ms] [INFO] [nav] navmesh: 1025 polygons in 245 ms @ http://localhost:5173/src/world/level.ts:1479
+[   64941ms] [WARNING] [render] high: light patterns 2 -> 1: 16 texture units, 7 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713405745:393
+[   64950ms] [INFO] [session] level 'slice01' built in 40 ms @ http://localhost:5173/src/app/session.ts?t=1795713405745:516
+[   65053ms] [INFO] [physics] rapier 0.21.0: 1229 level colliders mirrored @ http://localhost:5173/src/app/session.ts?t=1795713405745:765
+[   65225ms] [WARNING] [npc] npc "r16a_corpse_north": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   65292ms] [WARNING] [npc] npc "r16b_corpse_south1": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   65317ms] [WARNING] [npc] npc "r16b_corpse_south2": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   65582ms] [WARNING] [render] high: light patterns 2 -> 0: 16 texture units, 8 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713405745:393
+[   67989ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[   68136ms] [INFO] [session] ready in 3226 ms (total 8964 ms | renderer 24 | textures+audio 5 (prepared) | level 13 (prepared) | navmesh+cast 49 | simulation 607 | texture-upload 1163 | shaders+warm 1365) @ http://localhost:5173/src/app/session.ts?t=1795713405745:2114
+[   68597ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_morning_02.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68598ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_morning_01.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68616ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_morning_03.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68616ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_morning_04.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68632ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_morning_05.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68633ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_morning_06.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68649ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_morning_07.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68649ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_morning_08.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68667ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_morning_09.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68668ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_dark_01.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68683ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_dark_02.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68683ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_dark_03.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68698ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_dark_04.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68698ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_dark_05.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68715ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_dark_07.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68716ms] [WARNING] [voice] could not load VO "assets/vo/amb_pa_dark_06.mp3" EncodingError: Unable to decode audio data @ http://localhost:5173/src/dialogue/voicePlayer.ts:159
+[   68896ms] [INFO] [boot] menu music rendered in 10164 ms @ http://localhost:5173/src/audio/menuMusic.ts:33
+[   71482ms] [INFO] [session] loaded 357 VO clips in background @ http://localhost:5173/src/app/session.ts?t=1795713405745:2116
+[   72802ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713421170:63
+[   72840ms] [INFO] [boot] UI sounds rendered in 17 ms @ http://localhost:5173/src/app/shell.ts?t=1795713421170:77
+[   74025ms] [INFO] [body-models] necromorphCrowd: 5742 triangles, 19 pieces in 764 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   74187ms] [INFO] [body-models] heins: 24678 triangles, 37 pieces in 927 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   74337ms] [INFO] [body-models] ruiz: 43030 triangles, 20 pieces in 1077 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   74392ms] [INFO] [body-models] sung: 15365 triangles, 17 pieces in 1132 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   74434ms] [INFO] [body-models] mechanic: 5114 triangles, 25 pieces in 1173 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   74521ms] [INFO] [body-models] doctor: 12520 triangles, 20 pieces in 1261 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   74585ms] [INFO] [body-models] hale: 18300 triangles, 29 pieces in 1325 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   74600ms] [INFO] [body-models] botanist2: 5041 triangles, 25 pieces in 1339 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   74660ms] [INFO] [body-models] bram: 16155 triangles, 18 pieces in 1399 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   74720ms] [INFO] [body-models] assistant: 22740 triangles, 25 pieces in 1459 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   74755ms] [INFO] [body-models] guard1: 13235 triangles, 24 pieces in 1493 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   74768ms] [INFO] [body-models] botanist1: 4982 triangles, 25 pieces in 1507 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   74783ms] [INFO] [body-models] botanist3: 5738 triangles, 24 pieces in 1522 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   74838ms] [INFO] [body-models] gameChar: 18883 triangles, 18 pieces in 1577 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   74856ms] [INFO] [body-models] necromorph: 5800 triangles, 19 pieces in 1595 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   75056ms] [INFO] [body-models] priya: 74558 triangles, 47 pieces in 1795 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   75107ms] [INFO] [body-models] office1: 20542 triangles, 20 pieces in 1846 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   75155ms] [INFO] [body-models] office2: 19988 triangles, 20 pieces in 1893 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   75208ms] [INFO] [body-models] office3: 21492 triangles, 20 pieces in 1946 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   75716ms] [WARNING] THREE.MeshPhysicalMaterial: The "iridescenceThicknessRange" property has been replaced by "iridescenceThicknessMinimum" and "iridescenceThicknessMaximum". @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[   77920ms] [WARNING] [audio] could not load sample "body_glass_hit" from assets/audio/gore/body-glass-hit.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[   77968ms] [WARNING] [audio] could not load sample "glass_squeak" from assets/audio/gore/glass-squeak.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[   79007ms] [INFO] [nav] navmesh: 1025 polygons in 251 ms @ http://localhost:5173/src/world/level.ts:1479
+[   79040ms] [WARNING] [render] high: light patterns 2 -> 1: 16 texture units, 7 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713421170:393
+[   79051ms] [INFO] [session] level 'slice01' built in 44 ms @ http://localhost:5173/src/app/session.ts?t=1795713421170:516
+[   79157ms] [INFO] [physics] rapier 0.21.0: 1229 level colliders mirrored @ http://localhost:5173/src/app/session.ts?t=1795713421170:765
+[   79324ms] [WARNING] [npc] npc "r16a_corpse_north": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   79397ms] [WARNING] [npc] npc "r16b_corpse_south1": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   79423ms] [WARNING] [npc] npc "r16b_corpse_south2": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   79730ms] [WARNING] [render] high: light patterns 2 -> 0: 16 texture units, 8 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713421170:393
+[   82091ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[   82240ms] [INFO] [session] ready in 3233 ms (total 8874 ms | renderer 24 | textures+audio 7 (prepared) | level 14 (prepared) | navmesh+cast 55 | simulation 656 | texture-upload 1142 | shaders+warm 1334) @ http://localhost:5173/src/app/session.ts?t=1795713421170:2114
+[   82888ms] [INFO] [boot] menu music rendered in 10048 ms @ http://localhost:5173/src/audio/menuMusic.ts:33
+[   85329ms] [INFO] [session] loaded 358 VO clips in background @ http://localhost:5173/src/app/session.ts?t=1795713421170:2116
+[   90259ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713438634:63
+[   90294ms] [INFO] [boot] UI sounds rendered in 15 ms @ http://localhost:5173/src/app/shell.ts?t=1795713438634:77
+[   91272ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713439427:63
+[   91308ms] [INFO] [boot] UI sounds rendered in 16 ms @ http://localhost:5173/src/app/shell.ts?t=1795713439427:77
+[   91785ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713439427:63
+[   91818ms] [INFO] [boot] UI sounds rendered in 15 ms @ http://localhost:5173/src/app/shell.ts?t=1795713439427:77
+[   93220ms] [INFO] [body-models] necromorphCrowd: 5742 triangles, 19 pieces in 896 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   93352ms] [INFO] [body-models] mechanic: 5114 triangles, 25 pieces in 1028 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   93425ms] [INFO] [body-models] bram: 16155 triangles, 18 pieces in 1101 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   93588ms] [INFO] [body-models] ruiz: 43030 triangles, 20 pieces in 1264 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   93667ms] [INFO] [body-models] hale: 18300 triangles, 29 pieces in 1343 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   93771ms] [INFO] [body-models] doctor: 12520 triangles, 20 pieces in 1447 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   93784ms] [INFO] [body-models] botanist1: 4982 triangles, 25 pieces in 1460 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   93840ms] [INFO] [body-models] assistant: 22740 triangles, 25 pieces in 1516 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   93889ms] [INFO] [body-models] sung: 15365 triangles, 17 pieces in 1565 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   93905ms] [INFO] [body-models] botanist3: 5738 triangles, 24 pieces in 1581 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   93944ms] [INFO] [body-models] guard1: 13235 triangles, 24 pieces in 1613 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   93981ms] [INFO] [body-models] necromorph: 5800 triangles, 19 pieces in 1657 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   94009ms] [INFO] [body-models] botanist2: 5041 triangles, 25 pieces in 1685 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   94168ms] [INFO] [body-models] heins: 24678 triangles, 37 pieces in 1844 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   94226ms] [INFO] [body-models] office2: 19988 triangles, 20 pieces in 1901 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   94287ms] [INFO] [body-models] office3: 21492 triangles, 20 pieces in 1962 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   94343ms] [INFO] [body-models] office1: 20542 triangles, 20 pieces in 2019 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   94402ms] [INFO] [body-models] gameChar: 18883 triangles, 18 pieces in 2078 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   94650ms] [INFO] [body-models] priya: 74558 triangles, 47 pieces in 2327 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   95101ms] [WARNING] THREE.MeshPhysicalMaterial: The "iridescenceThicknessRange" property has been replaced by "iridescenceThicknessMinimum" and "iridescenceThicknessMaximum". @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[   97031ms] [WARNING] [audio] could not load sample "body_glass_hit" from assets/audio/gore/body-glass-hit.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[   97116ms] [WARNING] [audio] could not load sample "glass_squeak" from assets/audio/gore/glass-squeak.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[   98312ms] [INFO] [nav] navmesh: 1025 polygons in 233 ms @ http://localhost:5173/src/world/level.ts:1479
+[   98343ms] [WARNING] [render] high: light patterns 2 -> 1: 16 texture units, 7 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713439427:395
+[   98350ms] [INFO] [session] level 'slice01' built in 38 ms @ http://localhost:5173/src/app/session.ts?t=1795713439427:518
+[   98457ms] [INFO] [physics] rapier 0.21.0: 1229 level colliders mirrored @ http://localhost:5173/src/app/session.ts?t=1795713439427:767
+[   98629ms] [WARNING] [npc] npc "r16a_corpse_north": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   98672ms] [WARNING] [npc] npc "r16b_corpse_south1": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   98702ms] [WARNING] [npc] npc "r16b_corpse_south2": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   98971ms] [WARNING] [render] high: light patterns 2 -> 0: 16 texture units, 8 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713439427:395
+[  101431ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  101577ms] [INFO] [session] ready in 3264 ms (total 9308 ms | renderer 24 | textures+audio 5 (prepared) | level 12 (prepared) | navmesh+cast 51 | simulation 595 | texture-upload 1142 | shaders+warm 1436) @ http://localhost:5173/src/app/session.ts?t=1795713439427:2116
+[  102532ms] [INFO] [boot] menu music rendered in 10714 ms @ http://localhost:5173/src/audio/menuMusic.ts:33
+[  104665ms] [INFO] [session] loaded 358 VO clips in background @ http://localhost:5173/src/app/session.ts?t=1795713439427:2118
+[  135238ms] [WARNING] [nav] crew_3: no route from 29.9,22.6 to 29.5,14.8; walking straight @ http://localhost:5173/src/ai/npcActor.ts:255
+[  151706ms] [WARNING] [nav] giles: no route from 35.0,33.4 to 43.4,41.8; walking straight @ http://localhost:5173/src/ai/npcActor.ts:255
+[  151707ms] [WARNING] [nav] okafor: no route from 36.3,34.5 to 44.0,32.0; walking straight @ http://localhost:5173/src/ai/npcActor.ts:255
+[  264653ms] [WARNING] [nav] okafor: no route from 88.5,32.2 to 48.5,35.8; walking straight @ http://localhost:5173/src/ai/npcActor.ts:255
+[  301410ms] [INFO] [audio] score labB rendered in 3027 ms @ http://localhost:5173/src/app/session.ts?t=1795713439427:574
+[  356026ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356058ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356107ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356141ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356191ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356224ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356274ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356307ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356358ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356391ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356441ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356474ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356524ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356558ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356609ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356641ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356691ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356724ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356775ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356807ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356859ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356891ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356941ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  356974ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357024ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357058ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357108ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357141ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357191ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357224ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357275ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357309ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357357ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357391ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357441ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357474ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357525ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357558ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357608ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357641ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357692ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357724ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357776ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357808ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357858ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357891ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357941ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  357974ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358024ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358058ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358108ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358141ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358191ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358225ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358275ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358308ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358358ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358392ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358441ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358474ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358524ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358558ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358608ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358641ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358692ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358724ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358775ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358808ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358858ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358891ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358941ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  358974ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359024ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359058ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359108ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359141ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359191ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359224ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359274ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359308ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359358ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359391ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359441ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359474ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359525ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359558ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359608ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359641ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359692ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359724ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359775ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359808ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359858ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359891ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359941ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  359967ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360017ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360050ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360101ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360134ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360184ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360217ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360268ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360301ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360351ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360384ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360434ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360468ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360518ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360551ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360601ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360634ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360684ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360717ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360768ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360801ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360853ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360885ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360935ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  360968ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361019ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361051ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361102ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361134ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361186ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361218ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361269ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361303ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361355ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361387ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361437ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361470ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361519ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361551ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361602ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361636ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361686ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361719ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361769ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361803ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361852ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361886ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361935ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  361969ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362018ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362052ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362104ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362136ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362187ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362220ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362270ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362302ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362352ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362385ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362435ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362469ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362518ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362552ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362603ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362636ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362685ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362722ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362768ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362801ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362852ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362885ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362937ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  362970ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363020ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363053ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363104ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363135ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363185ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363219ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363269ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363302ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363352ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363386ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363435ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363468ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363519ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363552ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363602ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363635ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363689ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363719ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363771ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363802ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363852ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363885ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363936ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  363969ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364019ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364052ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364102ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364135ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364185ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364218ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364269ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364302ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364351ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364385ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364435ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364468ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364519ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364555ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364602ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364636ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364685ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364722ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364770ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364805ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364855ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364888ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364936ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  364969ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  365019ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  365053ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  365103ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  365135ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  365186ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  365219ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  365270ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  365302ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  365352ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  376776ms] [INFO] [audio] score labB rendered in 3043 ms @ http://localhost:5173/src/app/session.ts?t=1795713439427:574
+[  390418ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713694028:63
+[  390454ms] [INFO] [boot] UI sounds rendered in 16 ms @ http://localhost:5173/src/app/shell.ts?t=1795713694028:77
+[  391670ms] [INFO] [body-models] necromorphCrowd: 5742 triangles, 19 pieces in 414 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  391749ms] [INFO] [body-models] mechanic: 5114 triangles, 25 pieces in 492 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  391796ms] [INFO] [body-models] sung: 15365 triangles, 17 pieces in 539 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  391932ms] [INFO] [body-models] ruiz: 43030 triangles, 20 pieces in 675 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  392021ms] [INFO] [body-models] heins: 24678 triangles, 37 pieces in 764 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  392084ms] [INFO] [body-models] hale: 18300 triangles, 29 pieces in 827 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  392178ms] [INFO] [body-models] doctor: 12520 triangles, 20 pieces in 921 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  392192ms] [INFO] [body-models] botanist2: 5041 triangles, 25 pieces in 935 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  392257ms] [INFO] [body-models] assistant: 22740 triangles, 25 pieces in 999 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  392271ms] [INFO] [body-models] botanist1: 4982 triangles, 25 pieces in 1014 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  392286ms] [INFO] [body-models] botanist3: 5738 triangles, 24 pieces in 1029 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  392359ms] [INFO] [body-models] bram: 16155 triangles, 18 pieces in 1101 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  392420ms] [INFO] [body-models] gameChar: 18883 triangles, 18 pieces in 1163 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  392455ms] [INFO] [body-models] necromorph: 5800 triangles, 19 pieces in 1197 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  392517ms] [INFO] [body-models] guard1: 13235 triangles, 24 pieces in 1259 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  392572ms] [INFO] [body-models] office1: 20542 triangles, 20 pieces in 1315 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  392624ms] [INFO] [body-models] office2: 19988 triangles, 20 pieces in 1367 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  392988ms] [INFO] [body-models] priya: 74558 triangles, 47 pieces in 1732 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  393060ms] [INFO] [body-models] office3: 21492 triangles, 20 pieces in 1803 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  393487ms] [WARNING] THREE.MeshPhysicalMaterial: The "iridescenceThicknessRange" property has been replaced by "iridescenceThicknessMinimum" and "iridescenceThicknessMaximum". @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  395699ms] [WARNING] [audio] could not load sample "body_glass_hit" from assets/audio/gore/body-glass-hit.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[  395736ms] [WARNING] [audio] could not load sample "glass_squeak" from assets/audio/gore/glass-squeak.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[  396917ms] [INFO] [nav] navmesh: 1025 polygons in 246 ms @ http://localhost:5173/src/world/level.ts:1479
+[  396953ms] [WARNING] [render] high: light patterns 2 -> 1: 16 texture units, 7 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713694028:396
+[  396961ms] [INFO] [session] level 'slice01' built in 44 ms @ http://localhost:5173/src/app/session.ts?t=1795713694028:519
+[  397071ms] [INFO] [physics] rapier 0.21.0: 1229 level colliders mirrored @ http://localhost:5173/src/app/session.ts?t=1795713694028:768
+[  397257ms] [WARNING] [npc] npc "r16a_corpse_north": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[  397326ms] [WARNING] [npc] npc "r16b_corpse_south1": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[  397371ms] [WARNING] [npc] npc "r16b_corpse_south2": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[  397758ms] [WARNING] [render] high: light patterns 2 -> 0: 16 texture units, 8 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713694028:396
+[  400131ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  400308ms] [INFO] [session] ready in 3391 ms (total 9373 ms | renderer 27 | textures+audio 6 (prepared) | level 12 (prepared) | navmesh+cast 60 | simulation 788 | texture-upload 1140 | shaders+warm 1357) @ http://localhost:5173/src/app/session.ts?t=1795713694028:2157
+[  401012ms] [INFO] [boot] menu music rendered in 10557 ms @ http://localhost:5173/src/audio/menuMusic.ts:33
+[  403576ms] [INFO] [session] loaded 374 VO clips in background @ http://localhost:5173/src/app/session.ts?t=1795713694028:2159
+[  428648ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713770967:63
+[  428683ms] [INFO] [boot] UI sounds rendered in 15 ms @ http://localhost:5173/src/app/shell.ts?t=1795713770967:77
+[  429919ms] [INFO] [body-models] necromorphCrowd: 5742 triangles, 19 pieces in 695 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430040ms] [INFO] [body-models] heins: 24678 triangles, 37 pieces in 816 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430077ms] [INFO] [body-models] mechanic: 5114 triangles, 25 pieces in 853 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430136ms] [INFO] [body-models] hale: 18300 triangles, 29 pieces in 911 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430195ms] [INFO] [body-models] bram: 16155 triangles, 18 pieces in 970 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430245ms] [INFO] [body-models] sung: 15365 triangles, 17 pieces in 1021 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430377ms] [INFO] [body-models] ruiz: 43030 triangles, 20 pieces in 1153 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430390ms] [INFO] [body-models] botanist2: 5041 triangles, 25 pieces in 1165 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430423ms] [INFO] [body-models] guard1: 13235 triangles, 24 pieces in 1198 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430510ms] [INFO] [body-models] doctor: 12520 triangles, 20 pieces in 1286 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430567ms] [INFO] [body-models] assistant: 22740 triangles, 25 pieces in 1343 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430588ms] [INFO] [body-models] necromorph: 5800 triangles, 19 pieces in 1363 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430603ms] [INFO] [body-models] botanist3: 5738 triangles, 24 pieces in 1379 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430657ms] [INFO] [body-models] gameChar: 18883 triangles, 18 pieces in 1433 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430712ms] [INFO] [body-models] office2: 19988 triangles, 20 pieces in 1487 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430727ms] [INFO] [body-models] botanist1: 4982 triangles, 25 pieces in 1502 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430780ms] [INFO] [body-models] office1: 20542 triangles, 20 pieces in 1555 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  430833ms] [INFO] [body-models] office3: 21492 triangles, 20 pieces in 1609 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  431039ms] [INFO] [body-models] priya: 74558 triangles, 47 pieces in 1815 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  431425ms] [WARNING] THREE.MeshPhysicalMaterial: The "iridescenceThicknessRange" property has been replaced by "iridescenceThicknessMinimum" and "iridescenceThicknessMaximum". @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  433855ms] [WARNING] [audio] could not load sample "body_glass_hit" from assets/audio/gore/body-glass-hit.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[  433889ms] [WARNING] [audio] could not load sample "glass_squeak" from assets/audio/gore/glass-squeak.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[  434790ms] [INFO] [nav] navmesh: 1025 polygons in 250 ms @ http://localhost:5173/src/world/level.ts:1479
+[  434833ms] [WARNING] [render] high: light patterns 2 -> 1: 16 texture units, 7 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713770967:396
+[  434841ms] [INFO] [session] level 'slice01' built in 51 ms @ http://localhost:5173/src/app/session.ts?t=1795713770967:519
+[  434945ms] [INFO] [physics] rapier 0.21.0: 1229 level colliders mirrored @ http://localhost:5173/src/app/session.ts?t=1795713770967:768
+[  435129ms] [WARNING] [npc] npc "r16a_corpse_north": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[  435160ms] [WARNING] [npc] npc "r16b_corpse_south1": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[  435181ms] [WARNING] [npc] npc "r16b_corpse_south2": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[  435481ms] [WARNING] [render] high: light patterns 2 -> 0: 16 texture units, 8 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713770967:396
+[  437855ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  438005ms] [INFO] [session] ready in 3215 ms (total 8781 ms | renderer 24 | textures+audio 16 (prepared) | level 12 (prepared) | navmesh+cast 50 | simulation 626 | texture-upload 1145 | shaders+warm 1341) @ http://localhost:5173/src/app/session.ts?t=1795713770967:2157
+[  438857ms] [INFO] [boot] menu music rendered in 10173 ms @ http://localhost:5173/src/audio/menuMusic.ts:33
+[  439018ms] [INFO] [audio] score labB rendered in 3072 ms @ http://localhost:5173/src/app/session.ts?t=1795713770967:575
+[  441455ms] [INFO] [session] loaded 379 VO clips in background @ http://localhost:5173/src/app/session.ts?t=1795713770967:2159
+[  459496ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713797191:63
+[  459531ms] [INFO] [boot] UI sounds rendered in 16 ms @ http://localhost:5173/src/app/shell.ts?t=1795713797191:77
+[  460698ms] [INFO] [body-models] mechanic: 5114 triangles, 25 pieces in 730 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  460819ms] [INFO] [body-models] bram: 16155 triangles, 18 pieces in 843 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  460862ms] [INFO] [body-models] necromorphCrowd: 5742 triangles, 19 pieces in 894 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  460928ms] [INFO] [body-models] hale: 18300 triangles, 29 pieces in 953 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  461112ms] [INFO] [body-models] ruiz: 43030 triangles, 20 pieces in 1144 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  461215ms] [INFO] [body-models] heins: 24678 triangles, 37 pieces in 1247 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  461273ms] [INFO] [body-models] sung: 15365 triangles, 17 pieces in 1305 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  461296ms] [INFO] [body-models] botanist1: 4982 triangles, 25 pieces in 1320 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  461319ms] [INFO] [body-models] botanist2: 5041 triangles, 25 pieces in 1343 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  461342ms] [INFO] [body-models] botanist3: 5738 triangles, 24 pieces in 1366 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  461416ms] [INFO] [body-models] assistant: 22740 triangles, 25 pieces in 1440 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  461464ms] [INFO] [body-models] guard1: 13235 triangles, 24 pieces in 1488 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  461542ms] [INFO] [body-models] gameChar: 18883 triangles, 18 pieces in 1566 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  461570ms] [INFO] [body-models] necromorph: 5800 triangles, 19 pieces in 1595 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  461660ms] [INFO] [body-models] doctor: 12520 triangles, 20 pieces in 1692 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  461709ms] [INFO] [body-models] office1: 20542 triangles, 20 pieces in 1733 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  461764ms] [INFO] [body-models] office3: 21492 triangles, 20 pieces in 1788 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  461812ms] [INFO] [body-models] office2: 19988 triangles, 20 pieces in 1836 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  462014ms] [INFO] [body-models] priya: 74558 triangles, 47 pieces in 2046 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  462428ms] [WARNING] THREE.MeshPhysicalMaterial: The "iridescenceThicknessRange" property has been replaced by "iridescenceThicknessMinimum" and "iridescenceThicknessMaximum". @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  464461ms] [WARNING] [audio] could not load sample "body_glass_hit" from assets/audio/gore/body-glass-hit.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[  464496ms] [WARNING] [audio] could not load sample "glass_squeak" from assets/audio/gore/glass-squeak.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[  465666ms] [INFO] [nav] navmesh: 1025 polygons in 239 ms @ http://localhost:5173/src/world/level.ts:1479
+[  465703ms] [WARNING] [render] high: light patterns 2 -> 1: 16 texture units, 7 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713797191:396
+[  465711ms] [INFO] [session] level 'slice01' built in 45 ms @ http://localhost:5173/src/app/session.ts?t=1795713797191:519
+[  465831ms] [INFO] [physics] rapier 0.21.0: 1229 level colliders mirrored @ http://localhost:5173/src/app/session.ts?t=1795713797191:768
+[  466052ms] [WARNING] [npc] npc "r16a_corpse_north": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[  466083ms] [WARNING] [npc] npc "r16b_corpse_south1": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[  466104ms] [WARNING] [npc] npc "r16b_corpse_south2": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[  466451ms] [WARNING] [render] high: light patterns 2 -> 0: 16 texture units, 8 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713797191:396
+[  468891ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  469084ms] [INFO] [session] ready in 3419 ms (total 8941 ms | renderer 24 | textures+audio 11 (prepared) | level 13 (prepared) | navmesh+cast 51 | simulation 725 | texture-upload 1146 | shaders+warm 1450) @ http://localhost:5173/src/app/session.ts?t=1795713797191:2157
+[  469952ms] [INFO] [boot] menu music rendered in 10421 ms @ http://localhost:5173/src/audio/menuMusic.ts:33
+[  470299ms] [INFO] [audio] score labB rendered in 3383 ms @ http://localhost:5173/src/app/session.ts?t=1795713797191:575
+[  472924ms] [INFO] [session] loaded 387 VO clips in background @ http://localhost:5173/src/app/session.ts?t=1795713797191:2159
+[  491045ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795713836206:63
+[  491084ms] [INFO] [boot] UI sounds rendered in 17 ms @ http://localhost:5173/src/app/shell.ts?t=1795713836206:77
+[  492328ms] [INFO] [body-models] necromorphCrowd: 5742 triangles, 19 pieces in 519 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  492398ms] [INFO] [body-models] mechanic: 5114 triangles, 25 pieces in 588 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  492497ms] [INFO] [body-models] hale: 18300 triangles, 29 pieces in 687 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  492672ms] [INFO] [body-models] ruiz: 43030 triangles, 20 pieces in 862 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  492754ms] [INFO] [body-models] sung: 15365 triangles, 17 pieces in 944 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  492818ms] [INFO] [body-models] bram: 16155 triangles, 18 pieces in 1008 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  492917ms] [INFO] [body-models] heins: 24678 triangles, 37 pieces in 1107 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  493016ms] [INFO] [body-models] doctor: 12520 triangles, 20 pieces in 1207 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  493036ms] [INFO] [body-models] necromorph: 5800 triangles, 19 pieces in 1226 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  493056ms] [INFO] [body-models] botanist1: 4982 triangles, 25 pieces in 1245 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  493073ms] [INFO] [body-models] botanist3: 5738 triangles, 24 pieces in 1263 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  493090ms] [INFO] [body-models] botanist2: 5041 triangles, 25 pieces in 1279 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  493124ms] [INFO] [body-models] guard1: 13235 triangles, 24 pieces in 1313 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  493181ms] [INFO] [body-models] gameChar: 18883 triangles, 18 pieces in 1370 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  493241ms] [INFO] [body-models] assistant: 22740 triangles, 25 pieces in 1431 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  493290ms] [INFO] [body-models] office1: 20542 triangles, 20 pieces in 1479 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  493340ms] [INFO] [body-models] office2: 19988 triangles, 20 pieces in 1529 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  493403ms] [INFO] [body-models] office3: 21492 triangles, 20 pieces in 1592 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  493605ms] [INFO] [body-models] priya: 74558 triangles, 47 pieces in 1795 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[  494025ms] [WARNING] THREE.MeshPhysicalMaterial: The "iridescenceThicknessRange" property has been replaced by "iridescenceThicknessMinimum" and "iridescenceThicknessMaximum". @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  496441ms] [WARNING] [audio] could not load sample "body_glass_hit" from assets/audio/gore/body-glass-hit.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[  496517ms] [WARNING] [audio] could not load sample "glass_squeak" from assets/audio/gore/glass-squeak.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:298
+[  497675ms] [INFO] [nav] navmesh: 1025 polygons in 276 ms @ http://localhost:5173/src/world/level.ts:1479
+[  497717ms] [WARNING] [render] high: light patterns 2 -> 1: 16 texture units, 7 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713836206:396
+[  497729ms] [INFO] [session] level 'slice01' built in 54 ms @ http://localhost:5173/src/app/session.ts?t=1795713836206:519
+[  497924ms] [INFO] [physics] rapier 0.21.0: 1229 level colliders mirrored @ http://localhost:5173/src/app/session.ts?t=1795713836206:768
+[  498148ms] [WARNING] [npc] npc "r16a_corpse_north": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[  498187ms] [WARNING] [npc] npc "r16b_corpse_south1": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[  498212ms] [WARNING] [npc] npc "r16b_corpse_south2": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[  498513ms] [WARNING] [render] high: light patterns 2 -> 0: 16 texture units, 8 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795713836206:396
+[  500960ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[  501112ms] [INFO] [session] ready in 3437 ms (total 9477 ms | renderer 32 | textures+audio 7 (prepared) | level 20 (prepared) | navmesh+cast 126 | simulation 686 | texture-upload 1218 | shaders+warm 1349) @ http://localhost:5173/src/app/session.ts?t=1795713836206:2157
+[  502041ms] [INFO] [boot] menu music rendered in 10957 ms @ http://localhost:5173/src/audio/menuMusic.ts:33
+[  502138ms] [INFO] [audio] score labB rendered in 3177 ms @ http://localhost:5173/src/app/session.ts?t=1795713836206:575
+[  504519ms] [INFO] [session] loaded 395 VO clips in background @ http://localhost:5173/src/app/session.ts?t=1795713836206:2159

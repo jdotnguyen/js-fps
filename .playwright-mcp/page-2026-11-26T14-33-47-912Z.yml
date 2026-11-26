@@ -1,0 +1,21 @@
+- generic [ref=e1]:
+  - dialog [ref=e15]:
+    - heading "New game" [level=1] [ref=e16]
+    - paragraph [ref=e17]: Choose a slot for this playthrough.
+    - button "Slot 1 Empty" [active] [ref=e18] [cursor=pointer]:
+      - text: Slot 1
+      - generic [ref=e19]: Empty
+    - button "Slot 2 Empty" [ref=e20] [cursor=pointer]:
+      - text: Slot 2
+      - generic [ref=e21]: Empty
+    - button "Slot 3 Empty" [ref=e22] [cursor=pointer]:
+      - text: Slot 3
+      - generic [ref=e23]: Empty
+    - paragraph [ref=e24]: Esc to go back
+  - generic: SCRATCH SESSION · SAVES NOT KEPT
+  - generic:
+    - generic:
+      - img:
+        - generic: DEPTH // 2,480M
+        - generic: SECTOR 07 · DOCKING RING
+        - generic: HULL PRESSURE NOMINAL

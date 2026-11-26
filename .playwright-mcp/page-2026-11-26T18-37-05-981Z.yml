@@ -1,0 +1,25 @@
+- generic [active] [ref=e1]:
+  - generic:
+    - generic: Click to continue · WASD move · Shift sprint · RMB aim · F flashlight · E use · V shove · Esc pause
+    - group "Vitals":
+      - generic:
+        - generic: HP
+        - generic: "100"
+      - generic: STA
+    - generic:
+      - generic: PISTOL
+      - generic:
+        - generic: "12"
+        - generic: / 36
+    - status
+    - status
+    - generic:
+      - generic:
+        - generic: "N"
+        - generic: W
+    - status
+  - generic: SCRATCH SESSION · SAVES NOT KEPT
+  - generic [ref=e50]:
+    - button "▸ Debug" [ref=e51] [cursor=pointer]
+    - text: ▾ ▾ ✓ ▾ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▾ ↕ ▾ ▾ ▸ ▾ ▸ ▸
+  - generic: sequences no sequences running

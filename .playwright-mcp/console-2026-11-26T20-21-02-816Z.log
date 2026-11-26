@@ -1,0 +1,37 @@
+[      49ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts?t=1795724462818:63
+[     100ms] [INFO] [boot] UI sounds rendered in 15 ms @ http://localhost:5173/src/app/shell.ts?t=1795724462818:78
+[    1831ms] [WARNING] THREE.MeshPhysicalMaterial: The "iridescenceThicknessRange" property has been replaced by "iridescenceThicknessMinimum" and "iridescenceThicknessMaximum". @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[    3477ms] [WARNING] [audio] could not load sample "body_glass_hit" from assets/audio/gore/body-glass-hit.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:395
+[    3515ms] [WARNING] [audio] could not load sample "glass_squeak" from assets/audio/gore/glass-squeak.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:395
+[    5021ms] [INFO] [nav] navmesh: 1025 polygons in 224 ms @ http://localhost:5173/src/world/level.ts:1479
+[    9919ms] [INFO] [boot] menu music rendered in 9819 ms @ http://localhost:5173/src/audio/menuMusic.ts:45
+[   30199ms] [INFO] [body-models] necromorphCrowd: 5742 triangles, 19 pieces in 29607 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30273ms] [INFO] [body-models] mechanic: 5114 triangles, 25 pieces in 29681 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30353ms] [INFO] [body-models] heins: 24678 triangles, 37 pieces in 29761 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30355ms] [WARNING] [render] high: light patterns 2 -> 1: 16 texture units, 7 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795724462818:398
+[   30364ms] [INFO] [session] level 'slice01' built in 203 ms @ http://localhost:5173/src/app/session.ts?t=1795724462818:521
+[   30393ms] [INFO] [body-models] sung: 15365 triangles, 17 pieces in 29800 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30479ms] [INFO] [body-models] ruiz: 43030 triangles, 20 pieces in 29886 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30517ms] [INFO] [body-models] bram: 16155 triangles, 18 pieces in 29924 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30555ms] [INFO] [body-models] hale: 18300 triangles, 29 pieces in 29963 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30564ms] [INFO] [body-models] botanist2: 5041 triangles, 25 pieces in 29971 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30572ms] [INFO] [body-models] botanist1: 4982 triangles, 25 pieces in 29979 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30583ms] [INFO] [body-models] botanist3: 5738 triangles, 24 pieces in 29990 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30622ms] [INFO] [body-models] assistant: 22740 triangles, 25 pieces in 30029 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30642ms] [INFO] [body-models] guard1: 13235 triangles, 24 pieces in 30049 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30682ms] [INFO] [body-models] gameChar: 18883 triangles, 18 pieces in 30089 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30762ms] [INFO] [body-models] doctor: 12520 triangles, 20 pieces in 30169 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30775ms] [INFO] [body-models] necromorph: 5800 triangles, 19 pieces in 30182 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30802ms] [INFO] [body-models] office1: 20542 triangles, 20 pieces in 30209 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30828ms] [INFO] [body-models] office2: 19988 triangles, 20 pieces in 30235 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30948ms] [INFO] [body-models] priya: 74558 triangles, 47 pieces in 30355 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   30981ms] [INFO] [body-models] office3: 21492 triangles, 20 pieces in 30388 ms @ http://localhost:5173/src/actors/bodyModelLibrary.ts:77
+[   31067ms] [INFO] [physics] rapier 0.21.0: 1229 level colliders mirrored @ http://localhost:5173/src/app/session.ts?t=1795724462818:774
+[   31249ms] [WARNING] [npc] npc "r16a_corpse_north": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   31315ms] [WARNING] [npc] npc "r16b_corpse_south1": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   31340ms] [WARNING] [npc] npc "r16b_corpse_south2": unknown look "office", using crew @ http://localhost:5173/src/ai/npcs.ts:1204
+[   31607ms] [WARNING] [render] high: light patterns 2 -> 0: 16 texture units, 8 used by materials, 2 by the flashlight @ http://localhost:5173/src/app/session.ts?t=1795724462818:398
+[   34432ms] [WARNING] THREE.WebGLTextures: Trying to use 17 texture units while this GPU supports only 16 @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[   34594ms] [INFO] [session] ready in 4433 ms (total 4433 ms | renderer 70 | textures+audio 123 (prepared) | level 127 (prepared) | navmesh+cast 519 | simulation 705 | texture-upload 1252 | shaders+warm 1637) @ http://localhost:5173/src/app/session.ts?t=1795724462818:2158
+[   37534ms] [INFO] [audio] score labB rendered in 3014 ms @ http://localhost:5173/src/app/session.ts?t=1795724462818:577
+[   38229ms] [INFO] [session] loaded 418 VO clips in background @ http://localhost:5173/src/app/session.ts?t=1795724462818:2160

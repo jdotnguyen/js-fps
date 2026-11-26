@@ -1,0 +1,16 @@
+- generic [ref=e1]:
+  - dialog [ref=e4]:
+    - heading "THALASSA" [level=1] [ref=e5]:
+      - generic [ref=e7]: DEEP RESEARCH STATION
+    - button "New game" [active] [ref=e10] [cursor=pointer]
+    - button "Load game" [disabled] [ref=e11]
+    - button "Settings" [ref=e12] [cursor=pointer]
+    - button "Credits" [ref=e13] [cursor=pointer]
+    - paragraph [ref=e14]: Headphones recommended.
+  - generic: SCRATCH SESSION · SAVES NOT KEPT
+  - generic:
+    - generic:
+      - img:
+        - generic: DEPTH // 2,480M
+        - generic: SECTOR 07 · DOCKING RING
+        - generic: HULL PRESSURE NOMINAL

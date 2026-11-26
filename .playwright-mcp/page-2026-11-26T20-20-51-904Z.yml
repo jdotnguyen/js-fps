@@ -1,0 +1,6 @@
+- generic [active] [ref=e1]:
+  - region "Loading and studio credits" [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: VISOR OS // INITIALIZING
+      - paragraph [ref=e7]: CLICK OR PRESS ANY KEY TO START
+  - generic: SCRATCH SESSION · SAVES NOT KEPT

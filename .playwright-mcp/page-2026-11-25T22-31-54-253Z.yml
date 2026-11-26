@@ -1,0 +1,9 @@
+- generic [active] [ref=e1]:
+  - generic: SCRATCH SESSION · SAVES NOT KEPT
+  - status [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e6]: LOADING // SLICE01
+      - progressbar [ref=e7]
+      - generic [ref=e8]:
+        - generic [ref=e9]: Initializing…
+        - generic [ref=e10]: 0%

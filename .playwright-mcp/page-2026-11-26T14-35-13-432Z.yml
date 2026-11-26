@@ -1,0 +1,9 @@
+- generic [active] [ref=e1]:
+  - generic:
+    - generic: Click to continue · WASD move · Shift sprint · RMB aim · F flashlight · E use · V shove · Esc pause
+    - status
+    - status
+    - generic:
+      - paragraph: "Crew: He forgot half of it and bowed twice. Best thing I've ever seen."
+    - status
+  - generic: SCRATCH SESSION · SAVES NOT KEPT

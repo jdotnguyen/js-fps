@@ -420,8 +420,8 @@ test('hale model: rig maps, stands straight facing -Z, shoes point forward, keep
 // prepared rest pose (game frame: facing -Z, REFERENCE_HEIGHT tall), with thresholds taken from the body's own joints. Okafor's body
 // is now a hand-rigged model (scripts/fix-doctor-glb.mjs) with the artist's own weights, so only the neck rule is checked on him.
 // Bram's scan has its own prep (scripts/fix-bram-glb.mjs, which borrows the neck rule), so likewise (fix-bram-rig).
-const SCAN_BODIES = ['ruiz'] as const;
-const NECK_BODIES = ['doctor', 'ruiz', 'bram'] as const;
+const SCAN_BODIES = ['ruiz', 'heins'] as const;
+const NECK_BODIES = ['doctor', 'ruiz', 'bram', 'heins'] as const;
 
 /** Every vertex of a prepared body in world space, with its weight per core joint slot. */
 function skinnedVertices(m: PreparedBodyModel): Array<{ p: THREE.Vector3; w: Map<number, number> }> {
@@ -541,26 +541,37 @@ for (const name of SCAN_BODIES) {
       if (rest >= 0.003) worst = Math.max(worst, posed[a]!.distanceTo(posed[b]!) / rest);
     }
     assert.ok(worst <= 2.5, `${name}: an edge stretches ${worst.toFixed(2)}x when the arms rise`);
-    // Welded by posed position, the surface round the arms has no opening wider than a scan crack (5 mm): the cut is capped.
-    const key = posed.map((v) => `${Math.round(v.x / 0.0002)},${Math.round(v.y / 0.0002)},${Math.round(v.z / 0.0002)}`);
-    const weld = new Map<string, number>();
-    const id = key.map((k, i) => weld.get(k) ?? (weld.set(k, i), i));
-    const edges = new Map<string, number>();
-    for (let t = 0; t < tris.length; t += 3) for (let k = 0; k < 3; k++) {
-      const a = id[tris[t + k]!]!, b = id[tris[t + ((k + 1) % 3)]!]!;
-      if (a === b) continue;
-      const e = a < b ? `${a}|${b}` : `${b}|${a}`;
-      edges.set(e, (edges.get(e) ?? 0) + 1);
-    }
+    // Welded by posed position, raising the arms opens nothing wider than a scan crack (5 mm) round them: the cut is capped. Only
+    // edges that are open when the arms rise but closed at rest count, since a body built of layered open pieces (Heins's jacket
+    // over her shirt) has open edges at rest that no weighting can close (rebuild-heins-rig D10).
+    const edgesOf = (pts: THREE.Vector3[]): { id: number[]; edges: Map<string, number> } => {
+      const key = pts.map((v) => `${Math.round(v.x / 0.0002)},${Math.round(v.y / 0.0002)},${Math.round(v.z / 0.0002)}`);
+      const weld = new Map<string, number>();
+      const id = key.map((k, i) => weld.get(k) ?? (weld.set(k, i), i));
+      const edges = new Map<string, number>();
+      for (let t = 0; t < tris.length; t += 3) for (let k = 0; k < 3; k++) {
+        const a = id[tris[t + k]!]!, b = id[tris[t + ((k + 1) % 3)]!]!;
+        if (a === b) continue;
+        const e = a < b ? `${a}|${b}` : `${b}|${a}`;
+        edges.set(e, (edges.get(e) ?? 0) + 1);
+      }
+      return { id, edges };
+    };
+    const raised = edgesOf(posed);
+    const atRest = edgesOf(p);
     const holes: string[] = [];
     const lo = Math.min(line('L'), line('R')) - 0.45, hi = Math.max(line('L'), line('R')) + 0.15;
-    for (const [e, n] of edges) {
+    for (const [e, n] of raised.edges) {
       if (n !== 1) continue;
-      const [a, b] = e.split('|').map((x) => posed[+x]!);
-      const mid = a!.clone().add(b!).multiplyScalar(0.5);
-      if (mid.y > lo && mid.y < hi && a!.distanceTo(b!) > 0.005) holes.push(`${mid.toArray().map((x) => x.toFixed(3))} (${(a!.distanceTo(b!) * 1000).toFixed(0)} mm)`);
+      const [ia, ib] = e.split('|').map(Number) as [number, number];
+      const a = posed[ia]!, b = posed[ib]!;
+      const mid = a.clone().add(b).multiplyScalar(0.5);
+      if (!(mid.y > lo && mid.y < hi && a.distanceTo(b) > 0.005)) continue;
+      const ra = atRest.id[ia]!, rb = atRest.id[ib]!;
+      if (atRest.edges.get(ra < rb ? `${ra}|${rb}` : `${rb}|${ra}`) === 1) continue; // already open at rest
+      holes.push(`${mid.toArray().map((x) => x.toFixed(3))} (${(a.distanceTo(b) * 1000).toFixed(0)} mm)`);
     }
-    assert.equal(holes.length, 0, `${name}: open edges round the raised arms: ${holes.slice(0, 4).join(', ')}`);
+    assert.equal(holes.length, 0, `${name}: raising the arms opens edges round them: ${holes.slice(0, 4).join(', ')}`);
   });
 }
 

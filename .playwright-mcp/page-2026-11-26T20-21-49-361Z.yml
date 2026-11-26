@@ -1,0 +1,32 @@
+- generic [active] [ref=f1e1]:
+  - generic:
+    - generic: Click to continue · WASD move · Shift sprint · RMB aim · F flashlight · E use · V shove · Esc pause
+    - group "Vitals":
+      - generic:
+        - generic: HP
+        - generic: "100"
+      - generic: STA
+    - generic:
+      - generic: PISTOL
+      - generic:
+        - generic: "12"
+        - generic: / 36
+    - status
+    - status
+    - generic:
+      - paragraph: "Station Ops [radio]: All sections, report. All sections, report status."
+      - paragraph: "Docking Ring [radio]: Ops, Docking Ring! Something's in the airlock, it's... it's coming thr—"
+    - status:
+      - generic: Objectives
+      - generic: Get out of Lab B alive
+    - generic:
+      - generic:
+        - generic: E
+        - generic: S
+        - generic: W
+    - status
+  - generic: SCRATCH SESSION · SAVES NOT KEPT
+  - generic [ref=f1e50]:
+    - button "▸ Debug" [ref=f1e539] [cursor=pointer]
+    - text: ▾ ▾ ✓ ▾ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▸ ↕ ▾ ↕ ▾ ▾ ▸ ▾ ▸ ▸
+  - generic: sequences contact 21/32 11.9s wait s=5

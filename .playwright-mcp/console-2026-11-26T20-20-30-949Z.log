@@ -1,0 +1,7 @@
+[     362ms] [INFO] [save] scratch session: saves and tutorial progress stay in memory @ http://localhost:5173/src/app/shell.ts:63
+[     437ms] [INFO] [boot] UI sounds rendered in 16 ms @ http://localhost:5173/src/app/shell.ts:78
+[    2239ms] [WARNING] THREE.MeshPhysicalMaterial: The "iridescenceThicknessRange" property has been replaced by "iridescenceThicknessMinimum" and "iridescenceThicknessMaximum". @ http://localhost:5173/node_modules/.vite/deps/chunk-S3X4HIOH.js?v=72c81cfb:300
+[    4420ms] [WARNING] [audio] could not load sample "body_glass_hit" from assets/audio/gore/body-glass-hit.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:395
+[    4458ms] [WARNING] [audio] could not load sample "glass_squeak" from assets/audio/gore/glass-squeak.mp3 EncodingError: Unable to decode audio data @ http://localhost:5173/src/audio/engine.ts:395
+[    6457ms] [INFO] [nav] navmesh: 1025 polygons in 354 ms @ http://localhost:5173/src/world/level.ts:1479
+[   11399ms] [INFO] [boot] menu music rendered in 10962 ms @ http://localhost:5173/src/audio/menuMusic.ts:45

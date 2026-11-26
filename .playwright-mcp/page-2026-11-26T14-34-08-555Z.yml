@@ -1,0 +1,20 @@
+- generic [ref=e1]:
+  - dialog [ref=e25]:
+    - heading "Difficulty" [level=1] [ref=e26]
+    - button "Story For the narrative. Plenty of ammo and health, forgiving enemies, generous revives." [ref=e27] [cursor=pointer]:
+      - text: Story
+      - generic [ref=e28]: For the narrative. Plenty of ammo and health, forgiving enemies, generous revives.
+    - button "Standard The intended experience. Every bullet matters; the team has your back if you have theirs." [active] [ref=e29] [cursor=pointer]:
+      - text: Standard
+      - generic [ref=e30]: The intended experience. Every bullet matters; the team has your back if you have theirs.
+    - button "Survival Scarce supplies, hard-hitting enemies, one revive per checkpoint. Protect the medic." [ref=e31] [cursor=pointer]:
+      - text: Survival
+      - generic [ref=e32]: Scarce supplies, hard-hitting enemies, one revive per checkpoint. Protect the medic.
+    - paragraph [ref=e33]: Esc to go back
+  - generic: SCRATCH SESSION · SAVES NOT KEPT
+  - generic:
+    - generic:
+      - img:
+        - generic: DEPTH // 2,480M
+        - generic: SECTOR 07 · DOCKING RING
+        - generic: HULL PRESSURE NOMINAL
