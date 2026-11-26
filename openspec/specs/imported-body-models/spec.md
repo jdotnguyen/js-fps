@@ -68,6 +68,11 @@ The body of every named character SHALL carry weighted finger bones (three per f
 - **WHEN** a scan body's fingers are fused into one surface
 - **THEN** each finger's strip of the surface is weighted to its own finger bone, and curling a finger does not tear the surface (no edge of 3 mm or longer stretches to more than 2.5 times its rest length)
 
+#### Scenario: Thumb and fingers on their own sides
+- **WHEN** the prepared body of each named character with finger bones on both hands is checked in its rest pose
+- **THEN** on each hand the thumb grows from the index side, and the index-to-pinky direction across the knuckles matches the other hand's, mirrored left to right (within 60°)
+- **AND** curling the fingers of either hand closes them toward that hand's palm, never toward the back of the hand
+
 ### Requirement: Fingers follow the character's hands
 Finger bones SHALL follow the clip's finger track when the clip has one. Otherwise they SHALL take a grip from the hand's state: relaxed when empty, wrapped around a held prop (mug, pistol, clipboard, penlight), flat when the hand rests on a surface. Grip changes SHALL ease over at least 0.1 s.
 

@@ -1242,7 +1242,7 @@ function applyElbowRule({ W, wPos, nW, NB, boneIndex, J, band }) {
   console.log(`elbow: ${n} welded vertices in the elbow blends`);
 }
 
-function applyNeckRule({ W, wPos, wCol, nW, NB, boneIndex, color, neck }) {
+export function applyNeckRule({ W, wPos, wCol, nW, NB, boneIndex, color, neck }) {
   const { collarY, jawLineY, axis, radius, margin = 0.02, faceRadius = 0.12, include = () => true } = neck;
   const nb = boneIndex.get('Neck'), hb = boneIndex.get('Head');
   const lerpTo = (w, target, k) => { for (let b = 0; b < NB; b++) W[w * NB + b] += (target[b] - W[w * NB + b]) * k; };

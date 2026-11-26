@@ -5,17 +5,23 @@
 // What it does (32 MB -> ~1 MB):
 //   - bakes the node transforms into Y-up metres with feet at y = 0, facing +Z, and welds the 6 chunks by (position, UV);
 //   - decimates to TARGET_TRIS (default 16000) with meshoptimizer's simplifier;
-//   - builds a Mixamo-named skeleton from the J table below (measured off the scan) and computes smooth skin weights + a jaw mask;
+//   - builds a Mixamo-named skeleton from the J table below (measured off the scan) and computes smooth skin weights (fix-bram-rig):
+//     the trunk kept off the skin above the collar line and off everything above the collar's top; scan-body.mjs's neck rule, gated
+//     to skin by the scan's colour (the neck owns the neck, the lower face moves with the head); a collar rule that keeps the shirt
+//     collar on the chest and neck; smoothing passes over the neck so no rule's edge shears when the head turns; and a jaw mask from
+//     the lip seam down to the chin's underside;
 //     bodyModel.ts then re-poses the T-pose into the game rest pose from those bones like any rigged model;
 //   - drops TANGENT, extra UV sets and the metallic-roughness map (bodyModel.ts only uses baseColor and normalMap),
 //     and re-encodes the colour (1024 px) and normal (512 px) textures as JPEG.
-// Uses ImageMagick (`magick`/`convert`) when available, falling back to Windows System.Drawing via PowerShell.
+// Needs ImageMagick (`magick`/`convert`) to read the scan's skin colours; re-encoding the textures falls back to Windows
+// System.Drawing via PowerShell without it.
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { MeshoptSimplifier } from 'meshoptimizer/meshopt_simplifier.module.js';
 import { rigHands, splitHands } from './lib/hand-rig.mjs';
+import { applyNeckRule } from './lib/scan-body.mjs';
 
 const [src, dst = 'public/assets/models/squad/bram.glb'] = process.argv.slice(2);
 if (!src) throw new Error('usage: node scripts/fix-bram-glb.mjs <source.glb> [out.glb]');
@@ -151,7 +157,7 @@ const J = {
   Neck: [0, 1.56, -0.03],
   Head: [0, 1.64, 0.0],
   HeadTop: [0, 1.90, 0.0],
-  // Jaw hinge near the ear and the chin tip (ear y ~ 1.74, chin underside ~ 1.655, mouth ~ 1.685, face front z ~ 0.12).
+  // Jaw hinge near the ear and the chin tip (ear y ~ 1.74, chin underside ~ 1.65, mouth ~ 1.689 (LIP_SEAM_Y), face front z ~ 0.12).
   Jaw: [0, 1.735, -0.01],
   JawEnd: [0, 1.655, 0.09],
   LeftShoulder: [0.06, 1.54, -0.04],
@@ -175,6 +181,29 @@ const J = {
   RightToeBase: [-0.19, 0.04, 0.08],
   RightToeEnd: [-0.20, 0.02, 0.17],
 };
+// Neck, collar and lips (fix-bram-rig), measured off the full source scan in this frame, with skin told from the clothes by texel
+// colour (skin warm; the dark shirt and the hair dark; the apron white). He wears a dark shirt with a standing collar under a bib
+// apron: the collar opens into a V at the front and wraps the sides and back of the neck.
+// Neck axis midway between Neck (z -0.03) and Head (z 0): the throat skin lies 3-4.5 cm in front of it, the neck's sides 5-5.6 cm out.
+const NECK_AXIS = [0, -0.015];
+// Neck skin starts at y ~1.57 in the collar's V and ~1.61 at the sides, inside the collar (5.9-6.7 cm out at the sides).
+const COLLAR_Y = 1.59;
+// Neck column radius: the throat and the neck's sides (5.0 cm or less) are fully inside; the colour gate keeps the collar's inner
+// edge (6-7 cm out, where the column still blends in) out.
+const NECK_RADIUS = 0.058;
+// The chin's underside: the face front drops from z 9.7 to 5.7 cm between y 1.650 and 1.648.
+const JAW_LINE_Y = 1.65;
+// Lower face reach from the axis: the nose tip is 15.2 cm out (z 0.137 at y 1.73), the lips 13.5 cm.
+const FACE_RADIUS = 0.18;
+// The collar's top at the sides and back: the band 5-13 cm out from the axis turns from shirt to skin at y 1.685-1.69 (a strip of
+// skin, then the hair under the cap). Nothing above it belongs to the chest.
+const COLLAR_TOP_Y = 1.69;
+// Skin texel: warm, red well above blue (throat 123,101,88; neck side in shadow 87,71,61), against the shirt (45,41,37), the hair
+// (60,52,46) and the apron (232,231,228).
+const isSkin = (r, g, b) => r - b > 18 && r > 60;
+// Lip seam: the midline notch between the lips at y 1.690, and 1.688-1.690 within 2 cm either side (upper lip 1.692-1.712,
+// lower lip 1.680-1.688, the crease under it 1.677, chin 1.664-1.674).
+const LIP_SEAM_Y = 1.689;
 // name: [parent, segment end (null: short stub), radius in metres]
 const BONES = {
   Hips: [null, 'Spine', 0.20],
@@ -237,18 +266,59 @@ for (let v = 0; v < count; v++) {
 const nW = weldKey.size;
 let wPos = new Float32Array(nW * 3);
 for (let v = 0; v < count; v++) wPos.set(pos.slice(v * 3, v * 3 + 3), weldOf[v] * 3);
+// Base colour per welded vertex (fix-bram-rig): the colour texture decoded to PPM by ImageMagick, sampled at each vertex's UV and
+// averaged over the vertices that weld together. Tells the neck's skin from the shirt collar that wraps it.
+const wCol = new Float32Array(nW * 3);
+const skinW = new Uint8Array(nW);
+{
+  const img = j.images[j.textures[j.materials[0].pbrMetallicRoughness.baseColorTexture.index].source];
+  const view = j.bufferViews[img.bufferView];
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bram-'));
+  const inp = path.join(tmp, 'color');
+  fs.writeFileSync(inp, bin.subarray(view.byteOffset ?? 0, (view.byteOffset ?? 0) + view.byteLength));
+  let ppm;
+  try {
+    ppm = execFileSync(process.platform === 'win32' ? 'magick' : 'convert', [inp, '-depth', '8', 'ppm:-'], { maxBuffer: 1 << 28 });
+  } catch {
+    throw new Error('ImageMagick (magick/convert) is required to read the scan\'s skin colours');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+  // P6 header: magic, width, height, max value, each followed by whitespace.
+  const head = ppm.subarray(0, 64).toString('latin1').match(/^P6\s+(\d+)\s+(\d+)\s+(\d+)\s/);
+  if (!head) throw new Error('unexpected colour texture decode');
+  const [tw, th] = [Number(head[1]), Number(head[2])];
+  const px = ppm.subarray(head[0].length);
+  const n = new Uint16Array(nW);
+  for (let v = 0; v < count; v++) {
+    const u = uv[v * 2] - Math.floor(uv[v * 2]), t = uv[v * 2 + 1] - Math.floor(uv[v * 2 + 1]);
+    const o = (Math.min(th - 1, Math.floor(t * th)) * tw + Math.min(tw - 1, Math.floor(u * tw))) * 3;
+    const w = weldOf[v];
+    for (let k = 0; k < 3; k++) wCol[w * 3 + k] += px[o + k];
+    n[w]++;
+  }
+  for (let w = 0; w < nW; w++) {
+    for (let k = 0; k < 3; k++) wCol[w * 3 + k] /= n[w] || 1;
+    skinW[w] = isSkin(wCol[w * 3], wCol[w * 3 + 1], wCol[w * 3 + 2]) ? 1 : 0;
+  }
+}
 let W = new Float32Array(nW * NB);
 const SHARP = Number(process.env.SHARP ?? 8);
 // Arms stay out of the torso and vice versa: vertices inboard of the shoulder never take arm weights, and sleeve/hand vertices
 // outboard of the shoulder cap never take torso/head weights.
 const armBones = new Set(['LeftArm', 'LeftForeArm', 'LeftHand', 'LeftHandMiddle1', 'RightArm', 'RightForeArm', 'RightHand', 'RightHandMiddle1'].map((n) => boneIndex.get(n)));
 const torsoHead = new Set(['Hips', 'Spine', 'Spine1', 'Neck', 'Head', 'Jaw'].map((n) => boneIndex.get(n)));
+// The chest stays below the collar (fix-bram-rig, openspec imported-body-models "The neck joint owns the neck"): the Spine1
+// capsule is wide enough to outscore the head up to the eyes, so the trunk bones never score on skin above the collar line nor on
+// anything above the collar's top. The neck rule and the collar rule below then set the neck column, the lower face and the collar.
+const trunk = new Set(['Hips', 'Spine', 'Spine1'].map((n) => boneIndex.get(n)));
 for (let w = 0; w < nW; w++) {
   const x = wPos[w * 3], y = wPos[w * 3 + 1], z = wPos[w * 3 + 2];
   const s = segs.map((sg, b) => {
     let score = distToSegment(x, y, z, sg) / rad[b];
     if (Math.abs(x) < 0.15 && armBones.has(b)) score += 3;
     if (Math.abs(x) > 0.27 && y > 1.35 && torsoHead.has(b)) score += 3;
+    if (trunk.has(b) && (y > COLLAR_TOP_Y || (y > COLLAR_Y && skinW[w]))) score += 3;
     return score;
   });
   const best = Math.min(...s);
@@ -274,12 +344,94 @@ for (let it = 0; it < 4; it++) {
   }
   W = next;
 }
-// Jaw mask applied after smoothing.
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const headB = boneIndex.get('Head'), neckB = boneIndex.get('Neck'), chestB = boneIndex.get('Spine1');
+// Neck rule (scan-body.mjs, fix-bram-rig) after smoothing: the neck column's skin goes to the neck joint, blending into the head
+// toward the jaw line, and the lower face to the head alone (the jaw mask below then hands the mouth and chin to the jaw). The colour
+// gate keeps the collar's inner edge out of the column.
+applyNeckRule({
+  W, wPos, wCol, nW, NB, boneIndex, color: wCol,
+  neck: {
+    collarY: COLLAR_Y, jawLineY: JAW_LINE_Y, axis: NECK_AXIS, radius: NECK_RADIUS, margin: 0.015, faceRadius: FACE_RADIUS,
+    include: (c) => isSkin(c[0], c[1], c[2]),
+  },
+});
+// Collar rule (fix-bram-rig): the shirt collar wrapping the sides and back of the neck runs from the chest at its base to the neck
+// at its top, so it turns with the neck, not the head, whatever the neck rule's face part or column did to it. Sides and back:
+// 40 degrees or more round from the front; out to 9 cm at the sides and 14 cm at the back, where the collar's base slopes out
+// over the shoulders.
+{
+  let n = 0;
+  const target = new Float32Array(NB);
+  for (let w = 0; w < nW; w++) {
+    if (skinW[w]) continue;
+    const x = wPos[w * 3], y = wPos[w * 3 + 1], z = wPos[w * 3 + 2];
+    const dx = x - NECK_AXIS[0], dz = z - NECK_AXIS[1];
+    const r = Math.hypot(dx, dz);
+    const ang = (Math.abs(Math.atan2(dx, dz)) * 180) / Math.PI; // 0: straight ahead
+    const reach = 0.09 + 0.05 * smooth(110, 160, ang);
+    const k = smooth(COLLAR_Y - 0.03, COLLAR_Y, y) * smooth(COLLAR_TOP_Y + 0.01, COLLAR_TOP_Y, y) * smooth(30, 40, ang) *
+      smooth(0.035, 0.045, r) * smooth(reach + 0.01, reach, r);
+    if (k <= 0) continue;
+    const t = smooth(COLLAR_Y, COLLAR_TOP_Y - 0.02, y);
+    target.fill(0);
+    target[chestB] = 1 - t;
+    target[neckB] = t;
+    for (let b = 0; b < NB; b++) W[w * NB + b] += (target[b] - W[w * NB + b]) * k;
+    if (k > 0.5) n++;
+  }
+  console.log(`collar: ${n} welded vertices mostly on the chest-to-neck blend`);
+}
+// Blend pass (fix-bram-rig): the rules above switch on over a centimetre or two (the colour gate vertex by vertex), and neighbours
+// on different rules shear apart when the head turns. Smoothing passes over the neck spread each switch over a few rings of
+// vertices. The face in front of the neck (the face rule's own region) is left out, so it stays rigid with the head, and the neck
+// column then sheds any chest weight the passes brought back into it. In a simulated look-at (neck 8, head 22 degrees) 10 passes
+// leave the worst neck edge at 1.9x its rest length (the capsule weights gave 1.7x; none, 4.5x at the collar's top) with the collar
+// 10-40% on the head (30-60% from the capsules); more passes stretch less but put more of the collar back on the head.
+const BLEND_PASSES = 10;
+{
+  const inNeck = new Uint8Array(nW);
+  for (let w = 0; w < nW; w++) {
+    const x = wPos[w * 3], y = wPos[w * 3 + 1], z = wPos[w * 3 + 2];
+    const r = Math.hypot(x - NECK_AXIS[0], z - NECK_AXIS[1]);
+    inNeck[w] = y > COLLAR_Y - 0.03 && y < COLLAR_TOP_Y + 0.03 && r < 0.15 && z - NECK_AXIS[1] < 0.04 ? 1 : 0;
+  }
+  for (let it = 0; it < BLEND_PASSES; it++) {
+    const next = W.slice();
+    for (let w = 0; w < nW; w++) {
+      if (!inNeck[w] || !nbrs[w].size) continue;
+      for (let b = 0; b < NB; b++) {
+        let s = 0;
+        for (const o of nbrs[w]) s += W[o * NB + b];
+        next[w * NB + b] = 0.5 * W[w * NB + b] + 0.5 * (s / nbrs[w].size);
+      }
+    }
+    W = next;
+  }
+  // The column sheds its trunk weight to the neck, and whatever trunk weight smoothing carried above the collar's top goes to the
+  // head.
+  for (let w = 0; w < nW; w++) {
+    const x = wPos[w * 3], y = wPos[w * 3 + 1], z = wPos[w * 3 + 2];
+    const col = smooth(COLLAR_Y, COLLAR_Y + 0.01, y) * smooth(0.06, 0.05, Math.hypot(x - NECK_AXIS[0], z - NECK_AXIS[1]));
+    const top = smooth(COLLAR_TOP_Y, COLLAR_TOP_Y + 0.01, y);
+    if (col <= 0 && top <= 0) continue;
+    for (const b of trunk) {
+      const toNeck = W[w * NB + b] * col;
+      const toHead = (W[w * NB + b] - toNeck) * top;
+      W[w * NB + b] -= toNeck + toHead;
+      W[w * NB + neckB] += toNeck;
+      W[w * NB + headB] += toHead;
+    }
+  }
+}
+// Jaw mask applied after the neck and collar rules.
 const JAW = { cx: J.Jaw[0] };
-// Lower front of the face: below the mouth line (y ~ 1.685), above the collar (y ~ 1.64), well in front of the hinge, near the midline.
+// Lower front of the face: below the lip seam (the upper lip stays with the head), down to the chin's underside (full to 5 mm
+// above the jaw line, fading out 3 cm below it, as scan-body.mjs's jaw mask does: the neck rule has just made the chin head-only,
+// so the whole chin has to come back to the jaw here), well in front of the hinge, near the midline.
 const jawMask = (x, y, z) =>
-  smooth(1.70, 1.678, y) * smooth(1.64, 1.665, y) * smooth(0.045, 0.09, z) * smooth(0.085, 0.05, Math.abs(x - JAW.cx));
+  smooth(LIP_SEAM_Y + 0.003, LIP_SEAM_Y - 0.002, y) * smooth(JAW_LINE_Y - 0.03, JAW_LINE_Y + 0.005, y) *
+  smooth(0.045, 0.09, z) * smooth(0.085, 0.05, Math.abs(x - JAW.cx));
 const jawB = boneIndex.get('Jaw');
 for (let w = 0; w < nW; w++) {
   const m = jawMask(wPos[w * 3], wPos[w * 3 + 1], wPos[w * 3 + 2]);
@@ -288,15 +440,17 @@ for (let w = 0; w < nW; w++) {
   W[w * NB + jawB] += m;
 }
 // Finger chains and forearm twist bones (per-character-motion D7): added after the body's own weights, from the hand mesh, once
-// the fingers that touch or lie fused together in the scan are cut apart.
+// the fingers that touch or lie fused together in the scan are cut apart. Both thumbs point forward in the T-pose (palms down),
+// and his flat fingers fool the rig's bend check on the left hand, so both are pinned (fix-bram-rig).
+const THUMBS = { thumbToward: { Left: [0, 0, 1], Right: [0, 0, 1] }, pinThumbs: ['Left', 'Right'] };
 {
   const part = { pos, nor, uv, indices, weldOf };
-  const cut = splitHands({ parts: [part], W, wPos, names, J, nbrs });
+  const cut = splitHands({ parts: [part], W, wPos, names, J, nbrs, ...THUMBS });
   ({ W, wPos, nbrs } = cut);
   weldOf = part.weldOf;
   count = pos.length / 3;
   if (count > 65535) throw new Error('too many vertices for u16 indices: ' + count);
-  const hands = rigHands({ W, wPos, names, J, nbrs, plans: cut.plans, parentOf: Object.fromEntries(names.map((n) => [n, BONES[n][0]])) });
+  const hands = rigHands({ W, wPos, names, J, nbrs, plans: cut.plans, parentOf: Object.fromEntries(names.map((n) => [n, BONES[n][0]])), ...THUMBS });
   W = hands.W;
   names = hands.names;
   NB = names.length;

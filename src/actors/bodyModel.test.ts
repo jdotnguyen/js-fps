@@ -6,6 +6,7 @@ import { bodyGeometryFromModel, mapRig, normaliseBoneName, prepareBodyModel, typ
 import { JOINT_INDEX, JOINT_NAMES, JOINTS, type JointName } from './skeleton.ts';
 import { Humanoid } from './humanoid.ts';
 import type { BodyModelLibrary } from './bodyModelLibrary.ts';
+import type { FingerBoneDef } from './handPhysics.ts';
 import { ctx as enemyCtx } from '../ai/enemyTestKit.ts';
 
 /** Node has no image decoding: drop textures from the GLB's JSON chunk before parsing. */
@@ -418,8 +419,9 @@ test('hale model: rig maps, stands straight facing -Z, shoes point forward, keep
 // Scan bodies (openspec imported-body-models): unrigged scans skinned by scripts/lib/scan-body.mjs. Weights are read in the
 // prepared rest pose (game frame: facing -Z, REFERENCE_HEIGHT tall), with thresholds taken from the body's own joints. Okafor's body
 // is now a hand-rigged model (scripts/fix-doctor-glb.mjs) with the artist's own weights, so only the neck rule is checked on him.
+// Bram's scan has its own prep (scripts/fix-bram-glb.mjs, which borrows the neck rule), so likewise (fix-bram-rig).
 const SCAN_BODIES = ['ruiz'] as const;
-const NECK_BODIES = ['doctor', 'ruiz'] as const;
+const NECK_BODIES = ['doctor', 'ruiz', 'bram'] as const;
 
 /** Every vertex of a prepared body in world space, with its weight per core joint slot. */
 function skinnedVertices(m: PreparedBodyModel): Array<{ p: THREE.Vector3; w: Map<number, number> }> {
@@ -847,3 +849,45 @@ for (const name of ['bram', 'heins'] as const) {
     assert.ok(worst <= 2.5, `${name}: an edge stretches ${worst.toFixed(2)}x in a fist (at ${worstAt})`);
   });
 }
+
+// Both hands curl toward their own palms (imported-body-models "Thumb and fingers on their own sides", fix-bram-rig): a hand
+// whose thumb side was guessed the wrong way round is labelled pinky to index, so it takes the wrong palm side and curls
+// backward. In the rest pose each hand's index-to-pinky direction must match the other hand's mirrored left to right, and
+// curling a finger must move its middle joint the mirrored way on both hands. Every body the game gives finger bones to
+// (data/body-models.json `handRig`).
+test('hand-rigged bodies: left and right hands mirror each other and curl the same way', async () => {
+  const defs = JSON.parse(readFileSync(new URL('../data/body-models.json', import.meta.url), 'utf8')) as Record<string, { url: string; handRig?: boolean }>;
+  const rigged = Object.entries(defs).filter(([, d]) => d.handRig);
+  assert.ok(rigged.length >= 6, `${rigged.length} hand-rigged bodies`);
+  const mirror = (v: THREE.Vector3): THREE.Vector3 => new THREE.Vector3(-v.x, v.y, v.z);
+  const off = (c: number): string => THREE.MathUtils.radToDeg(Math.acos(Math.max(-1, Math.min(1, c)))).toFixed(0);
+  const problems: string[] = [];
+  for (const [name, def] of rigged) {
+    const m = prepareBodyModel(await loadWithoutTextures(new URL(`../../public/${def.url}`, import.meta.url)), { detailHands: true });
+    const w = worldJoints(m);
+    const bone = (side: 'L' | 'R', finger: string, phalanx: number) =>
+      m.handBones.find((b) => b.kind === 'finger' && b.side === side && b.finger === finger && b.phalanx === phalanx) as FingerBoneDef | undefined;
+    const hand = (side: 'L' | 'R') => {
+      const base = (finger: string): THREE.Vector3 | null => {
+        const b = bone(side, finger, 1);
+        return b ? w[b.parent as JointName].clone().add(new THREE.Vector3(...b.offset)) : null;
+      };
+      const index = base('index'), pinky = base('pinky') ?? base('ring'), thumb = base('thumb');
+      assert.ok(index && pinky && thumb, `${name}: ${side} hand has thumb, index and pinky (or ring) bones`);
+      // Curling the index's first phalanx: the way its second joint moves.
+      const i1 = bone(side, 'index', 1)!, i2 = bone(side, 'index', 2)!;
+      const seg = new THREE.Vector3(...i2.offset);
+      const curl = seg.clone().applyAxisAngle(new THREE.Vector3(...i1.curlAxis).normalize(), THREE.MathUtils.degToRad(60)).sub(seg);
+      return { across: pinky.clone().sub(index).normalize(), thumb, index, pinky, curl: curl.normalize() };
+    };
+    const L = hand('L'), R = hand('R');
+    for (const [s, h] of [['L', L], ['R', R]] as const) {
+      if (h.thumb.distanceTo(h.index) >= h.thumb.distanceTo(h.pinky)) problems.push(`${name}: the ${s} thumb grows from the pinky side`);
+    }
+    const across = L.across.dot(mirror(R.across));
+    if (across < 0.5) problems.push(`${name}: the left hand's index-to-pinky runs ${off(across)} degrees off the right's mirrored`);
+    const curl = L.curl.dot(mirror(R.curl));
+    if (curl < 0.5) problems.push(`${name}: a curled left index moves ${off(curl)} degrees off the right's mirrored`);
+  }
+  assert.deepEqual(problems, []);
+});

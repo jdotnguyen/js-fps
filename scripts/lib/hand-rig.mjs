@@ -114,7 +114,8 @@ const THUMB_OUT = 0.75;
 const KNUCKLE_AT = 0.55;
 /**
  * Summed finger bend (metres) against the guessed palm side beyond which the thumb side is flipped. Below it the fingers are too
- * straight to tell (Bram's flat T-pose hands read 1-2 cm either way round) and the first guess stands.
+ * straight to tell and the first guess stands. Flat hands can read past it the wrong way: Bram's T-pose left hand read -4.4 cm on
+ * its true side and +2.0 cm flipped, so his prep pins both thumbs (`pinThumbs`, fix-bram-rig).
  */
 const BEND_SURE = 0.03;
 /**
@@ -131,9 +132,10 @@ const CRUMB = 0.05;
  * rest is palm), with the chains through them. Shared by splitHands (which cuts the mesh where two of these touch) and rigHands
  * (which builds the bones and weights from it). `fixed`: the plan splitHands cut with ({ palmLen, l, members }); its frame is kept
  * and every vertex keeps the member it was cut as, since the copies the cut made sit exactly where their originals sit and would
- * otherwise all fall into one strip again.
+ * otherwise all fall into one strip again. `pinThumbs`: sides whose thumb side the caller knows; `thumbToward` decides it outright
+ * and the bend check may not flip it.
  */
-function planHand({ side, W, wPos, names, J, nbrs, thumbToward = {}, log = console.log, fixed = null }) {
+function planHand({ side, W, wPos, names, J, nbrs, thumbToward = {}, pinThumbs = [], log = console.log, fixed = null }) {
   const nW = wPos.length / 3;
   const NB = names.length;
   const at = (w) => [wPos[w * 3], wPos[w * 3 + 1], wPos[w * 3 + 2]];
@@ -176,6 +178,11 @@ function planHand({ side, W, wPos, names, J, nbrs, thumbToward = {}, log = conso
     l = scale(l, -1);
     ({ half, mid } = spread());
   };
+  // A pinned side's thumb side comes from `thumbToward` alone, so the width axis has to point somewhere near it.
+  const thumbPinned = pinThumbs.includes(side);
+  if (!fixed && thumbPinned && Math.abs(facing) < 0.25) {
+    throw new Error(`hand-rig ${side}: the thumb side is pinned to thumbToward, but the palm's width axis is side-on to it (${facing.toFixed(2)})`);
+  }
   if (!fixed && (Math.abs(facing) >= 0.25 ? facing < 0 : stick(-1) > stick(1))) flip();
   const fm = fixed?.members;
 
@@ -271,7 +278,7 @@ function planHand({ side, W, wPos, names, J, nbrs, thumbToward = {}, log = conso
     return k;
   };
   let lab = label();
-  if (!fixed) {
+  if (!fixed && !thumbPinned) {
     let bend = bendCheck(lab);
     if (bend < -BEND_SURE) {
       flip();
@@ -314,9 +321,10 @@ const KNUCKLE_REACH = 1.1;
  * round a contact patch) and closed with a zipper strip between the two halves of the opening, coloured with the texel of its rim
  * vertex nearest the middle and facing away from the member. The copies take their original's weights and position as new weld
  * rows, so the cut costs nothing until a finger bends.
+ * `thumbToward` and `pinThumbs` as for rigHands.
  * Returns { W, wPos, nbrs, plans } (the widened rows, neighbour sets rebuilt over the cut mesh, and the plans for rigHands).
  */
-export function splitHands({ parts, W, wPos, names, J, nbrs, thumbToward = {}, sides = ['Left', 'Right'], skip, log = console.log }) {
+export function splitHands({ parts, W, wPos, names, J, nbrs, thumbToward = {}, pinThumbs = [], sides = ['Left', 'Right'], skip, log = console.log }) {
   if (process.env.NO_HAND_RIG) return { W, wPos, nbrs, plans: null };
   const NB = names.length;
   const nW0 = wPos.length / 3;
@@ -326,7 +334,7 @@ export function splitHands({ parts, W, wPos, names, J, nbrs, thumbToward = {}, s
   const along = new Map();
   const plans = {};
   sides.forEach((side, si) => {
-    const plan = planHand({ side, W, wPos, names, J, nbrs, thumbToward, log });
+    const plan = planHand({ side, W, wPos, names, J, nbrs, thumbToward, pinThumbs, log });
     plans[side] = plan;
     const { hand, lab } = plan;
     for (const w of hand) member[w] = si * SIDE_STRIDE;
@@ -626,11 +634,12 @@ export function splitHands({ parts, W, wPos, names, J, nbrs, thumbToward = {}, s
  *   W: Float32Array of nW x names.length weights (rows sum to 1), wPos: Float32Array of nW x 3 positions (metres, Y up),
  *   names: bone names (W's columns), J: joint positions by name (must hold <Side>ForeArm, <Side>Hand, <Side>HandMiddle1),
  *   parentOf: name -> parent name. `thumbToward`: per side, a rough world direction the thumb points in the scan (default +Z).
+ *   `pinThumbs`: sides whose thumbs point that way for certain: the fingers' bend may not flip them (planHand).
  *   nbrs: per welded vertex, the Set of its neighbours over the mesh's edges; the hand's new weights are smoothed over them.
  *   plans: splitHands' result, when the hands were cut first (its frames and labels are kept).
  * Returns { W, names, J, parentOf } with the new bones appended (W widened), and logs what it found per hand.
  */
-export function rigHands({ W, wPos, names, J, parentOf, nbrs, smoothing = HAND_SMOOTHING, sides = ['Left', 'Right'], thumbToward = {}, plans = null, log = console.log }) {
+export function rigHands({ W, wPos, names, J, parentOf, nbrs, smoothing = HAND_SMOOTHING, sides = ['Left', 'Right'], thumbToward = {}, pinThumbs = [], plans = null, log = console.log }) {
   // NO_HAND_RIG=1 rebuilds a body without the hand rig (to compare against).
   if (process.env.NO_HAND_RIG) return { W, names, J, parentOf, added: [] };
   const nW = wPos.length / 3;
@@ -648,7 +657,7 @@ export function rigHands({ W, wPos, names, J, parentOf, nbrs, smoothing = HAND_S
   };
   // Existing-bone weight changes are written straight into W.
   for (const side of sides) {
-    const plan = planHand({ side, W, wPos, names, J, nbrs, thumbToward, log, fixed: plans?.[side] });
+    const plan = planHand({ side, W, wPos, names, J, nbrs, thumbToward, pinThumbs, log, fixed: plans?.[side] });
     const { iHand, iMid, iFore, wrist, elbow, hand, palmLen, stubLen, local, half, lab } = plan;
     const pinned = plans?.[side]?.pinned;
     const { thumbIdx, fingerIdx, fingerOf, chains, thumb } = lab;
