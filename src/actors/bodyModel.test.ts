@@ -420,8 +420,8 @@ test('hale model: rig maps, stands straight facing -Z, shoes point forward, keep
 // prepared rest pose (game frame: facing -Z, REFERENCE_HEIGHT tall), with thresholds taken from the body's own joints. Okafor's body
 // is now a hand-rigged model (scripts/fix-doctor-glb.mjs) with the artist's own weights, so only the neck rule is checked on him.
 // Bram's scan has its own prep (scripts/fix-bram-glb.mjs, which borrows the neck rule), so likewise (fix-bram-rig).
-const SCAN_BODIES = ['ruiz'] as const;
-const NECK_BODIES = ['doctor', 'ruiz', 'bram'] as const;
+const SCAN_BODIES = ['ruiz', 'heins'] as const;
+const NECK_BODIES = ['doctor', 'ruiz', 'bram', 'heins'] as const;
 
 /** Every vertex of a prepared body in world space, with its weight per core joint slot. */
 function skinnedVertices(m: PreparedBodyModel): Array<{ p: THREE.Vector3; w: Map<number, number> }> {
@@ -541,26 +541,37 @@ for (const name of SCAN_BODIES) {
       if (rest >= 0.003) worst = Math.max(worst, posed[a]!.distanceTo(posed[b]!) / rest);
     }
     assert.ok(worst <= 2.5, `${name}: an edge stretches ${worst.toFixed(2)}x when the arms rise`);
-    // Welded by posed position, the surface round the arms has no opening wider than a scan crack (5 mm): the cut is capped.
-    const key = posed.map((v) => `${Math.round(v.x / 0.0002)},${Math.round(v.y / 0.0002)},${Math.round(v.z / 0.0002)}`);
-    const weld = new Map<string, number>();
-    const id = key.map((k, i) => weld.get(k) ?? (weld.set(k, i), i));
-    const edges = new Map<string, number>();
-    for (let t = 0; t < tris.length; t += 3) for (let k = 0; k < 3; k++) {
-      const a = id[tris[t + k]!]!, b = id[tris[t + ((k + 1) % 3)]!]!;
-      if (a === b) continue;
-      const e = a < b ? `${a}|${b}` : `${b}|${a}`;
-      edges.set(e, (edges.get(e) ?? 0) + 1);
-    }
+    // Welded by posed position, raising the arms opens nothing wider than a scan crack (5 mm) round them: the cut is capped. Only
+    // edges that are open when the arms rise but closed at rest count, since a body built of layered open pieces (Heins's jacket
+    // over her shirt) has open edges at rest that no weighting can close (rebuild-heins-rig D10).
+    const edgesOf = (pts: THREE.Vector3[]): { id: number[]; edges: Map<string, number> } => {
+      const key = pts.map((v) => `${Math.round(v.x / 0.0002)},${Math.round(v.y / 0.0002)},${Math.round(v.z / 0.0002)}`);
+      const weld = new Map<string, number>();
+      const id = key.map((k, i) => weld.get(k) ?? (weld.set(k, i), i));
+      const edges = new Map<string, number>();
+      for (let t = 0; t < tris.length; t += 3) for (let k = 0; k < 3; k++) {
+        const a = id[tris[t + k]!]!, b = id[tris[t + ((k + 1) % 3)]!]!;
+        if (a === b) continue;
+        const e = a < b ? `${a}|${b}` : `${b}|${a}`;
+        edges.set(e, (edges.get(e) ?? 0) + 1);
+      }
+      return { id, edges };
+    };
+    const raised = edgesOf(posed);
+    const atRest = edgesOf(p);
     const holes: string[] = [];
     const lo = Math.min(line('L'), line('R')) - 0.45, hi = Math.max(line('L'), line('R')) + 0.15;
-    for (const [e, n] of edges) {
+    for (const [e, n] of raised.edges) {
       if (n !== 1) continue;
-      const [a, b] = e.split('|').map((x) => posed[+x]!);
-      const mid = a!.clone().add(b!).multiplyScalar(0.5);
-      if (mid.y > lo && mid.y < hi && a!.distanceTo(b!) > 0.005) holes.push(`${mid.toArray().map((x) => x.toFixed(3))} (${(a!.distanceTo(b!) * 1000).toFixed(0)} mm)`);
+      const [ia, ib] = e.split('|').map(Number) as [number, number];
+      const a = posed[ia]!, b = posed[ib]!;
+      const mid = a.clone().add(b).multiplyScalar(0.5);
+      if (!(mid.y > lo && mid.y < hi && a.distanceTo(b) > 0.005)) continue;
+      const ra = atRest.id[ia]!, rb = atRest.id[ib]!;
+      if (atRest.edges.get(ra < rb ? `${ra}|${rb}` : `${rb}|${ra}`) === 1) continue; // already open at rest
+      holes.push(`${mid.toArray().map((x) => x.toFixed(3))} (${(a.distanceTo(b) * 1000).toFixed(0)} mm)`);
     }
-    assert.equal(holes.length, 0, `${name}: open edges round the raised arms: ${holes.slice(0, 4).join(', ')}`);
+    assert.equal(holes.length, 0, `${name}: raising the arms opens edges round them: ${holes.slice(0, 4).join(', ')}`);
   });
 }
 
@@ -598,6 +609,98 @@ for (const name of ['mechanic', 'doctor', 'priya', 'sung', 'ruiz', 'bram', 'hein
     assert.ok(lowest > 1.4, `${name}: jaw skin does not hang down the throat (${lowest})`);
   });
 }
+
+// Heins's jaw opens along her lips (openspec rebuild-heins-rig D6): her head is one surface whose mouth is an opening, split at its
+// corners into the upper and the lower lip's edge. Opened 15 degrees (linear blend skinning in the rest frame), the upper lip stays
+// within 1 mm, the lower lip and the chin follow the jaw, and the mouth's inside (teeth and lining) folds open without tearing.
+test('heins model: the jaw opens the mouth along the lips', async () => {
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/heins.glb', import.meta.url)));
+  const j = worldJoints(m);
+  const open = new THREE.Matrix4().makeTranslation(j.jaw.x, j.jaw.y, j.jaw.z)
+    .multiply(new THREE.Matrix4().makeRotationX(THREE.MathUtils.degToRad(-15)))
+    .multiply(new THREE.Matrix4().makeTranslation(-j.jaw.x, -j.jaw.y, -j.jaw.z));
+  const surface = (name: string): { p: THREE.Vector3[]; out: THREE.Vector3[]; tris: number[] } => {
+    const p: THREE.Vector3[] = [], out: THREE.Vector3[] = [], tris: number[] = [];
+    for (const part of m.parts.filter((x) => x.surface === name)) {
+      const pos = part.geometry.getAttribute('position'), si = part.geometry.getAttribute('skinIndex'), sw = part.geometry.getAttribute('skinWeight');
+      const base = p.length;
+      for (let i = 0; i < pos.count; i++) {
+        const v = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).add(j[part.joint]);
+        const o = new THREE.Vector3();
+        for (let k = 0; k < 4; k++) o.addScaledVector(si.getComponent(i, k) === JOINT_INDEX.jaw ? v.clone().applyMatrix4(open) : v, sw.getComponent(i, k));
+        p.push(v);
+        out.push(o);
+      }
+      for (const v of Array.from(part.geometry.getIndex()!.array)) tris.push(base + v);
+    }
+    return { p, out, tris };
+  };
+  const head = surface('head');
+  assert.ok(head.p.length > 1000, `${head.p.length} head vertices`);
+  // Sanity: the rotation opens the mouth (the chin's end of the jaw goes down).
+  const chinEnd = new THREE.Vector3(j.jaw.x, j.jaw.y - 0.08, j.jaw.z - 0.08);
+  assert.ok(chinEnd.clone().applyMatrix4(open).y < chinEnd.y, 'the test opens the jaw downward');
+  // The mouth: the head surface's opening in front of the jaw, below it (welded by position across the prepared parts).
+  const key = head.p.map((v) => `${Math.round(v.x / 1e-4)},${Math.round(v.y / 1e-4)},${Math.round(v.z / 1e-4)}`);
+  const weld = new Map<string, number>();
+  const id = key.map((k, i) => weld.get(k) ?? (weld.set(k, i), i));
+  const edges = new Map<string, number>();
+  for (let t = 0; t < head.tris.length; t += 3) for (let k = 0; k < 3; k++) {
+    const a = id[head.tris[t + k]!]!, b = id[head.tris[t + ((k + 1) % 3)]!]!;
+    const e = a < b ? `${a}|${b}` : `${b}|${a}`;
+    edges.set(e, (edges.get(e) ?? 0) + 1);
+  }
+  const rim = new Map<number, number[]>();
+  for (const [e, n] of edges) {
+    if (n !== 1) continue;
+    const [a, b] = e.split('|').map(Number) as [number, number];
+    const mid = head.p[a]!.clone().add(head.p[b]!).multiplyScalar(0.5);
+    if (j.jaw.z - mid.z < 0.08 || mid.y > j.jaw.y - 0.02 || mid.y < j.jaw.y - 0.09 || Math.abs(mid.x - j.jaw.x) > 0.04) continue;
+    (rim.get(a) ?? rim.set(a, []).get(a)!).push(b);
+    (rim.get(b) ?? rim.set(b, []).get(b)!).push(a);
+  }
+  assert.ok(rim.size >= 20, `${rim.size} mouth rim vertices`);
+  const pts = [...rim.keys()];
+  const left = pts.reduce((a, b) => (head.p[b]!.x < head.p[a]!.x ? b : a));
+  const right = pts.reduce((a, b) => (head.p[b]!.x > head.p[a]!.x ? b : a));
+  // Walk the rim from one corner to the other both ways round.
+  const walk = (first: number): number[] => {
+    const path = [left, first];
+    while (path[path.length - 1] !== right) {
+      const next = rim.get(path[path.length - 1]!)!.find((o) => o !== path[path.length - 2]);
+      assert.ok(next !== undefined && path.length < 200, 'the mouth rim is one loop');
+      path.push(next!);
+    }
+    return path;
+  };
+  const [arcA, arcB] = rim.get(left)!.slice(0, 2).map(walk) as [number[], number[]];
+  const meanY = (a: number[]): number => a.reduce((s, i) => s + head.p[i]!.y, 0) / a.length;
+  const [upper, lower] = meanY(arcA) > meanY(arcB) ? [arcA, arcB] : [arcB, arcA];
+  const awayFromCorners = (i: number): boolean => Math.min(Math.abs(head.p[i]!.x - head.p[left]!.x), Math.abs(head.p[i]!.x - head.p[right]!.x)) > 0.01;
+  const moved = (i: number): number => head.out[i]!.distanceTo(head.p[i]!);
+  const rigid = (i: number): THREE.Vector3 => head.p[i]!.clone().applyMatrix4(open);
+  for (const i of upper.filter(awayFromCorners)) assert.ok(moved(i) < 0.001, `upper lip at ${head.p[i]!.toArray().map((x) => x.toFixed(3))} moves ${(moved(i) * 1000).toFixed(1)} mm`);
+  // The lower lip and the chin (the face's front 1.5-4 cm under the lower lip, on the midline) stay within a fifth of their jaw
+  // travel of where the jaw alone would carry them.
+  const lowY = Math.min(...lower.map((i) => head.p[i]!.y));
+  const chin = head.p.map((_, i) => i).filter((i) => Math.abs(head.p[i]!.x - j.jaw.x) < 0.01 && head.p[i]!.y < lowY - 0.015 && head.p[i]!.y > lowY - 0.04 && j.jaw.z - head.p[i]!.z > 0.08);
+  assert.ok(chin.length >= 3, `${chin.length} chin vertices`);
+  for (const i of [...lower.filter(awayFromCorners), ...chin]) {
+    const travel = rigid(i).distanceTo(head.p[i]!);
+    const off = head.out[i]!.distanceTo(rigid(i));
+    assert.ok(off < 0.2 * travel, `lower face at ${head.p[i]!.toArray().map((x) => x.toFixed(3))} lags the jaw by ${(off * 1000).toFixed(1)} of ${(travel * 1000).toFixed(1)} mm`);
+  }
+  // The mouth's inside: no edge of 2 mm or more stretches past 2.5x.
+  const inside = surface('teeth');
+  assert.ok(inside.tris.length > 0, 'teeth surface');
+  let worst = 0;
+  for (let t = 0; t < inside.tris.length; t += 3) for (let k = 0; k < 3; k++) {
+    const a = inside.tris[t + k]!, b = inside.tris[t + ((k + 1) % 3)]!;
+    const r = inside.p[a]!.distanceTo(inside.p[b]!);
+    if (r >= 0.002) worst = Math.max(worst, inside.out[a]!.distanceTo(inside.out[b]!) / r);
+  }
+  assert.ok(worst <= 2.5, `a mouth-inside edge stretches ${worst.toFixed(2)}x`);
+});
 
 // The hero's body (data/body-models.json "necromorph"): a 67-bone rig kept as supplied except that its animation clips were dropped.
 test('necromorph model: rig maps, stands straight facing -Z, keeps every limb piece', async () => {
@@ -849,6 +952,100 @@ for (const name of ['bram', 'heins'] as const) {
     assert.ok(worst <= 2.5, `${name}: an edge stretches ${worst.toFixed(2)}x in a fist (at ${worstAt})`);
   });
 }
+
+// Heins's cybernetic right arm and hand are separate rigid pieces (imported-body-models "Rigid mechanical parts keep their shape",
+// rebuild-heins-rig D7). Bent 90 degrees at the elbow, no piece changes an edge by more than 2%, except one that runs across the
+// elbow (a cable: some of it on the upper arm, some on the forearm), and that only within 5 cm of the elbow along the arm (the
+// cables wrap the elbow's outside, 4-5 cm off the arm's axis). Closed into a grip (the
+// fist test's curl), every piece of the hand keeps its shape and the finger segments turn.
+test('heins model: the cyber arm and hand move as rigid parts', async () => {
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/heins.glb', import.meta.url)), { detailHands: true });
+  const w = worldJoints(m);
+  const about = (at: THREE.Vector3, axis: THREE.Vector3, deg: number): THREE.Matrix4 => new THREE.Matrix4().makeTranslation(at.x, at.y, at.z)
+    .multiply(new THREE.Matrix4().makeRotationAxis(axis.clone().normalize(), THREE.MathUtils.degToRad(deg)))
+    .multiply(new THREE.Matrix4().makeTranslation(-at.x, -at.y, -at.z));
+  // Rest positions of the detail bones, and the cyber pieces (welded by position across the prepared parts).
+  const restAt = new Map<string, THREE.Vector3>();
+  for (const b of m.handBones) restAt.set(b.name, (b.parent in w ? w[b.parent as JointName] : restAt.get(b.parent)!).clone().add(new THREE.Vector3(...b.offset)));
+  const verts: Array<{ p: THREE.Vector3; w: Array<[number, number]> }> = [];
+  const tris: number[] = [];
+  for (const part of m.parts.filter((x) => x.surface === 'cyber_arm' || x.surface === 'cyber_hand')) {
+    const pos = part.geometry.getAttribute('position'), si = part.geometry.getAttribute('skinIndex'), sw = part.geometry.getAttribute('skinWeight');
+    const base = verts.length;
+    for (let i = 0; i < pos.count; i++) {
+      const ws: Array<[number, number]> = [];
+      for (let k = 0; k < 4; k++) if (sw.getComponent(i, k) > 0) ws.push([si.getComponent(i, k), sw.getComponent(i, k)]);
+      verts.push({ p: new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).add(w[part.joint]), w: ws });
+    }
+    for (const v of Array.from(part.geometry.getIndex()!.array)) tris.push(base + v);
+  }
+  assert.ok(verts.length > 3000, `${verts.length} cyber vertices`);
+  const key = verts.map((v) => `${Math.round(v.p.x / 1e-4)},${Math.round(v.p.y / 1e-4)},${Math.round(v.p.z / 1e-4)}`);
+  const weld = new Map<string, number>();
+  const id = key.map((k, i) => weld.get(k) ?? (weld.set(k, i), i));
+  const root = id.slice();
+  const find = (a: number): number => { while (root[a] !== a) a = root[a] = root[root[a]!]!; return a; };
+  for (let t = 0; t < tris.length; t += 3) for (const k of [1, 2]) root[find(id[tris[t + k]!]!)] = find(id[tris[t]!]!);
+  const pieceOf = (t: number): number => find(id[tris[t]!]!);
+  const posed = (slot: Map<number, THREE.Matrix4>) => verts.map((v) => v.w.reduce((o, [s, x]) => o.addScaledVector(v.p.clone().applyMatrix4(slot.get(s) ?? new THREE.Matrix4()), x), new THREE.Vector3()));
+  const handSlot = (pred: (b: HandDetailBoneT) => boolean): number[] => m.handBones.flatMap((b, k) => (pred(b) ? [JOINTS.length + k] : []));
+  type HandDetailBoneT = (typeof m.handBones)[number];
+  // Elbow bent 90 degrees forward (-Z) about the elbow's side-to-side axis; the forearm, hand and every right detail bone follow.
+  const bend = about(w.foreArm_R, new THREE.Vector3(1, 0, 0), 90);
+  const elbowSlots = new Map<number, THREE.Matrix4>([[JOINT_INDEX.foreArm_R, bend], [JOINT_INDEX.hand_R, bend], ...handSlot((b) => b.side === 'R').map((s): [number, THREE.Matrix4] => [s, bend])]);
+  const bent = posed(elbowSlots);
+  assert.ok(bent.some((p, i) => p.distanceTo(verts[i]!.p) > 0.1), 'the forearm swings');
+  const upper = new Set([JOINT_INDEX.upperArm_R]);
+  const lower = new Set([JOINT_INDEX.foreArm_R, JOINT_INDEX.hand_R, ...elbowSlots.keys()]);
+  const spans = new Map<number, { up: boolean; low: boolean }>();
+  verts.forEach((v, i) => {
+    const r = find(id[i]!);
+    const s = spans.get(r) ?? spans.set(r, { up: false, low: false }).get(r)!;
+    for (const [slot, x] of v.w) { if (x > 0.5 && upper.has(slot)) s.up = true; if (x > 0.5 && lower.has(slot)) s.low = true; }
+  });
+  const armAxis = w.hand_R.clone().sub(w.upperArm_R).normalize();
+  const problems: string[] = [];
+  let bending = 0;
+  const bendingPieces = new Set<number>();
+  for (let t = 0; t < tris.length; t += 3) for (let k = 0; k < 3; k++) {
+    const a = tris[t + k]!, b = tris[t + ((k + 1) % 3)]!;
+    const r = verts[a]!.p.distanceTo(verts[b]!.p);
+    if (r < 0.001) continue;
+    const change = Math.abs(bent[a]!.distanceTo(bent[b]!) / r - 1);
+    if (change <= 0.02) continue;
+    const piece = pieceOf(t);
+    const s = spans.get(piece)!;
+    const near = Math.max(...[a, b].map((i) => Math.abs(verts[i]!.p.clone().sub(w.foreArm_R).dot(armAxis))));
+    if (!(s.up && s.low) || near > 0.05) problems.push(`${verts[a]!.p.toArray().map((x) => x.toFixed(3))} changes ${(change * 100).toFixed(0)}% (${s.up && s.low ? `${(near * 100).toFixed(1)} cm from the elbow along the arm` : 'a rigid piece'})`);
+    else if (!bendingPieces.has(piece)) { bendingPieces.add(piece); bending++; }
+  }
+  assert.deepEqual(problems.slice(0, 5), [], `${problems.length} edges bend at a 90-degree elbow`);
+  assert.ok(bending <= 40, `${bending} pieces bend at the elbow`);
+  // A grip: each right finger phalanx curled as the fist test curls it.
+  const CURL = { thumb: [40, 40, 30], other: [70, 90, 60] };
+  const curled = new Map<string, THREE.Matrix4>();
+  for (const b of m.handBones) {
+    if (b.kind !== 'finger' || b.side !== 'R') continue;
+    const at = restAt.get(b.name)!;
+    const deg = Math.max(0, (b.finger === 'thumb' ? CURL.thumb : CURL.other)[b.phalanx - 1]! - THREE.MathUtils.radToDeg(b.restCurl));
+    const turn = about(at, new THREE.Vector3(...b.curlAxis), deg);
+    curled.set(b.name, b.parent in w ? turn : curled.get(b.parent)!.clone().multiply(turn));
+  }
+  const gripSlots = new Map(m.handBones.flatMap((b, k): Array<[number, THREE.Matrix4]> => (curled.has(b.name) ? [[JOINTS.length + k, curled.get(b.name)!]] : [])));
+  const grip = posed(gripSlots);
+  const torn: string[] = [];
+  const turned = new Set<number>();
+  for (let t = 0; t < tris.length; t += 3) for (let k = 0; k < 3; k++) {
+    const a = tris[t + k]!, b = tris[t + ((k + 1) % 3)]!;
+    if (grip[a]!.distanceTo(verts[a]!.p) > 0.005) turned.add(pieceOf(t));
+    const r = verts[a]!.p.distanceTo(verts[b]!.p);
+    if (r < 0.001) continue;
+    const change = Math.abs(grip[a]!.distanceTo(grip[b]!) / r - 1);
+    if (change > 0.02) torn.push(`${verts[a]!.p.toArray().map((x) => x.toFixed(3))} changes ${(change * 100).toFixed(0)}%`);
+  }
+  assert.deepEqual(torn.slice(0, 5), [], `${torn.length} edges stretch in a grip`);
+  assert.ok(turned.size >= 15, `${turned.size} pieces turn with the fingers`);
+});
 
 // Both hands curl toward their own palms (imported-body-models "Thumb and fingers on their own sides", fix-bram-rig): a hand
 // whose thumb side was guessed the wrong way round is labelled pinky to index, so it takes the wrong palm side and curls
