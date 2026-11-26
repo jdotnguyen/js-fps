@@ -275,6 +275,13 @@
     "gain": 20
    },
    {
+    "do": "npcAnim",
+    "npc": "r09_flood_shambler",
+    "anim": "scream",
+    "hold": 6,
+    "wait": false
+   },
+   {
     "do": "score",
     "id": "labB",
     "cue": "floodCharge"

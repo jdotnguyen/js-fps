@@ -1,10 +1,10 @@
-# Spec Delta
+# blade-creature Specification
 
 ## Purpose
 
 Defines how the four-armed blade creature looks and moves wherever it appears: its stance, gaits, jaw, belly arms, footing, blades, screams and hit shapes, and how it is reviewed.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: One creature in every appearance
 The creature SHALL use the same body, stance and motion in the Lab B drop, the R06 fight, Priya's death in R08, the R10 charge and pry, and the R11 fight. Its size MAY differ between appearances. Other characters and creatures SHALL look and move as before.

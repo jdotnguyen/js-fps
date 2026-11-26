@@ -13,7 +13,7 @@ test('a creature asked for a mapped pose takes its own; a human asked for the sa
   const c = await creatureBody('lab_creature');
   c.setPose('stare', 0.01);
   stepBody(c, 2);
-  assert.equal(current(c), 'blade_stance');
+  assert.equal(current(c), 'blade_stare');
   const human = new Humanoid({ ...castSpec('voss', 'voss'), role: 'npc', pose: 'idle' }, ctx());
   human.setPose('stare', 0.01);
   assert.equal(current(human), 'stare');
@@ -44,11 +44,15 @@ test('a mapped pose that is missing falls back to the stance with one warning, w
   assert.equal(warned.filter((m) => m.includes('blade_not_there')).length, 1, 'warned once');
 });
 
-test('sequence steps are mapped too', async () => {
+test('sequence steps are mapped too, and every mapped pose resolves', async () => {
+  const { bladeCreatureProfile } = await import('../bodyModelLibrary.ts');
   const c = await creatureBody('lab_creature');
+  for (const [asked, expected] of Object.entries(bladeCreatureProfile().poseMap)) {
+    c.setPose(asked, 0.01);
+    assert.equal(current(c), expected, `${asked} -> ${expected}`);
+  }
   c.playDead('corpseProne');
   c.getUp();
   stepBody(c, 1);
-  // getUp_* are human poses until the creature's own unfold lands (task 5.5): until then they are used as they are.
-  assert.ok(current(c).length > 0);
+  assert.equal(current(c), 'blade_unfold_0');
 });

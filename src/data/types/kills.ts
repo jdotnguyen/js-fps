@@ -63,10 +63,10 @@ export function clipSpeedAt(speed: ClipSpeed | undefined, t: number): number {
  * `layout` (livelier-cart-slam D11) only acts in a skipped or restored kill: it lays the props of the group its `prop`
  * names out at their authored `after` poses, the aftermath a played kill leaves.
  */
-export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'haulTo', 'slam', 'throw', 'drag', 'infect', 'backTo', 'walkTo', 'attackerLook', 'knock', 'layout'] as const;
+export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'attackerPerf', 'haulTo', 'slam', 'throw', 'drag', 'infect', 'backTo', 'walkTo', 'attackerLook', 'knock', 'layout'] as const;
 
 /** The `mauled` events that need an attacker on the kill step. */
-export const ATTACKER_EVENTS: readonly KillEventKind[] = ['pin', 'grip', 'attackerPose', 'haulTo', 'slam', 'throw', 'drag', 'walkTo', 'attackerLook'];
+export const ATTACKER_EVENTS: readonly KillEventKind[] = ['pin', 'grip', 'attackerPose', 'attackerPerf', 'haulTo', 'slam', 'throw', 'drag', 'walkTo', 'attackerLook'];
 export type KillEventKind = (typeof KILL_EVENTS)[number];
 
 const joint: Validator<JointName> = (v, p) => {
@@ -119,8 +119,12 @@ const eventShape = {
   behind: optional(numRange(-2, 2)),
   side: optional(numRange(-2, 2)),
   facing: optional(oneOf(['with', 'away'] as const)),
-  /** `grip`: the attacker's hand closes on this victim joint (`joint`), or lets go. `hand` is the attacker's hand. */
+  /** `grip`: the attacker's hand closes on this victim joint (`joint`), or lets go. `hand` is the attacker's hand; `blade` (0..1) places the grip along the creature's blade (0 = root, 1 = tip; rig-necromorph design D9). */
   release: optional(bool),
+  blade: optional(numRange(0, 1)),
+  /** `attackerPerf`: named creature performance (such as `scream`, design D8) and optional stretched hold (s). */
+  perf: optional(str),
+  hold: optional(numRange(0, 30)),
   /** `infect`: the bloom's stage on the victim's body (0..3). */
   stage: optional(numRange(0, 3)),
   /** `haulTo`/`slam`/`throw`/`drag`, and `face` (turn to it, e.g. a camera): a named mark from the kill step's `marks`. */
@@ -269,6 +273,8 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
         if (e.prop !== undefined && e.do !== 'slam' && e.do !== 'layout') throw new ValidationError(`${ep} > prop`, '"prop" is for a slam or a layout');
         if (e.do !== 'knock' && e.reach !== undefined) throw new ValidationError(`${ep} > reach`, '"reach" is for a knock');
         if ((e.do === 'pose' || e.do === 'die' || e.do === 'attackerPose') && !e.pose) throw new ValidationError(ep, `${e.do} needs "pose"`);
+        if (e.do === 'attackerPerf' && !e.perf) throw new ValidationError(ep, 'attackerPerf needs "perf"');
+        if (e.blade !== undefined && e.do !== 'grip') throw new ValidationError(`${ep} > blade`, '"blade" is for a grip');
         if (e.do === 'grip' && !e.release && !e.joint) throw new ValidationError(ep, 'grip needs "joint" (or "release": true)');
         if ((e.do === 'haulTo' || e.do === 'walkTo' || e.do === 'slam' || e.do === 'throw' || e.do === 'drag' || e.do === 'backTo') && !e.mark) throw new ValidationError(ep, `${e.do} needs "mark"`);
         if (e.via !== undefined && e.do !== 'haulTo' && e.do !== 'walkTo' && e.do !== 'drag') throw new ValidationError(`${ep} > via`, '"via" is for a haulTo, walkTo or drag');

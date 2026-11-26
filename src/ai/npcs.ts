@@ -944,8 +944,9 @@ export class NpcDirector {
       case 'npcAnim': {
         this.hold(npc);
         const name = String(step['anim'] ?? 'idle');
+        const hold = typeof step['hold'] === 'number' ? step['hold'] : undefined;
         if (name === 'rub_forearm' || name === 'flex_hand' || name === 'cough') this.deps.emit?.('squad:tell', { id: SQUAD_NAMES[npc] ?? npc, tell: name });
-        return a.playAnim(name, { instant, has: (p) => this.deps.ctx.poses.has(p) });
+        return a.playAnim(name, { instant, has: (p) => this.deps.ctx.poses.has(p), ...(hold !== undefined ? { hold } : {}) });
       }
       case 'npcSever': {
         const regions = Array.isArray(step['regions']) ? (step['regions'] as SeverableRegion[]) : [];

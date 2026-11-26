@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { bladeCreatureProfile } from '../actors/bodyModelLibrary.ts';
 import type { HumanoidContext } from '../actors/humanoid.ts';
 import type { ClearBand, GoreClip } from '../actors/goreClip.ts';
 import { JOINT_NAMES, type JointName } from '../actors/skeleton.ts';
@@ -69,10 +70,18 @@ interface Pounder {
   hits: number;
   rest: number;
   windup: boolean;
+  /**
+   * A blade creature's exact pounding spot, which it squares up to once its walk ends (a walk stops up to a quarter metre
+   * off its goal, and its forearms must meet the glass), and the seconds spent squaring up. Null when it is on the spot.
+   */
+  mark: THREE.Vector3 | null;
+  markT: number;
 }
 
 /** Seconds per half-swing, hits per flurry, and the pause between flurries. */
 const POUND = { swing: 0.28, flurry: [3, 6] as const, rest: [0.8, 2.2] as const };
+/** Squaring up to the pounding spot: slide speed (m/s), close enough (m), and the most time it may take (s). */
+const SQUARE_UP = { speed: 0.6, within: 0.01, maxT: 1.5 };
 
 interface Glass {
   /** Unit normal from the pane toward the victim's side. */
@@ -86,10 +95,12 @@ interface Glass {
   band: ClearBand | undefined;
 }
 
-/** `mauled`: the attacker's hand closed on one of the victim's joints. */
+/** `mauled`: the attacker's hand (or a fraction along its blade) closed on one of the victim's joints. */
 interface Grip {
   hand: 'hand_L' | 'hand_R';
   joint: JointName;
+  /** Optional 0..1 fraction along the blade (0 = hand root, 1 = blade tip; rig-necromorph design D9). */
+  blade?: number;
 }
 
 /** `mauled`: one slam, windup then the impact, with the head held on the surface for a moment. */
@@ -422,11 +433,13 @@ export class KillDirector {
     }
   }
 
-  /** The gripped joint of `npc`'s victim and the attacker's hand holding it (tests, debug). */
+  /** The gripped joint of `npc`'s victim and the attacker's hand (or blade grip point) holding it (tests, debug). */
   gripPoints(npc: string): { joint: THREE.Vector3; hand: THREE.Vector3 } | null {
     const k = this.active.get(npc);
     if (!k?.grip || !k.attacker) return null;
-    return { joint: k.actor.body.jointWorld(k.grip.joint, new THREE.Vector3()), hand: k.attacker.body.jointWorld(k.grip.hand, new THREE.Vector3()) };
+    const g = k.grip;
+    const hand = g.blade ? k.attacker.body.bladePoint(g.hand === 'hand_L' ? 'L' : 'R', g.blade, new THREE.Vector3()) : k.attacker.body.jointWorld(g.hand, new THREE.Vector3());
+    return { joint: k.actor.body.jointWorld(g.joint, new THREE.Vector3()), hand };
   }
 
   private applyGrip(k: ActiveKill): void {
@@ -435,7 +448,8 @@ export class KillDirector {
     const v = k.actor;
     const slam = k.slam;
     const holding = slam !== null && slam.struck && slam.t < slam.windup + MAUL.strike + MAUL.hold;
-    const target = holding ? slam.target : a.body.jointWorld(g.hand, tmpA).clone();
+    const gripWorld = g.blade ? a.body.bladePoint(g.hand === 'hand_L' ? 'L' : 'R', g.blade, tmpA) : a.body.jointWorld(g.hand, tmpA);
+    const target = holding ? slam.target : gripWorld.clone();
     // Her body hangs away from the hand: she faces away from the attacker.
     const j0 = v.body.jointWorld(g.joint, tmpB);
     const ax = j0.x - a.position.x;
@@ -835,6 +849,7 @@ export class KillDirector {
     if (!k) return;
     k.actor.gripped = false;
     k.actor.body.carried = null;
+    k.attacker?.body.stopPerformance();
     k.attacker?.body.endKill();
     for (const off of k.offs) off();
     this.active.delete(npc);
@@ -844,6 +859,7 @@ export class KillDirector {
   private finish(k: ActiveKill): void {
     k.actor.gripped = false;
     k.actor.body.carried = null;
+    k.attacker?.body.stopPerformance();
     k.attacker?.body.endKill();
     k.grip = null;
     k.slam = null;
@@ -1021,10 +1037,16 @@ export class KillDirector {
           k.attacker.body.setPose(e.pose, k.instant ? 0.01 : (e.blend ?? 0.25));
         }
         return;
+      case 'attackerPerf':
+        if (k.attacker && e.perf) {
+          if (k.instant) k.attacker.body.stopPerformance();
+          else k.attacker.body.playPerformance(e.perf, ...(e.hold !== undefined ? [{ hold: e.hold }] : []));
+        }
+        return;
       case 'grip':
         if (e.release) this.release(k);
         else if (e.joint) {
-          k.grip = { hand: e.hand === 'L' ? 'hand_L' : 'hand_R', joint: e.joint };
+          k.grip = { hand: e.hand === 'L' ? 'hand_L' : 'hand_R', joint: e.joint, ...(e.blade !== undefined ? { blade: e.blade } : {}) };
           k.actor.gripped = true;
           k.actor.stopMove();
         }
@@ -1172,12 +1194,20 @@ export class KillDirector {
     const c = k.creature;
     const g = k.glass;
     if (!c || !g || this.pounding(k.creatureId)) return;
-    // Beside her body, not on it.
+    // Beside her body, not on it. A profiled blade creature stands at its profile distance from the pane, so its forearms bang flat on the glass without clipping through (design D9).
     const side = new THREE.Vector3(-g.n.z, 0, g.n.x);
-    const spot = g.stand.clone().addScaledVector(side, 0.75).addScaledVector(g.n, -0.05);
+    const bladeDist = c.body.blade ? bladeCreatureProfile().poundDistance : undefined;
+    // Walking away from Voss's body stops ~0.2 m shy of the target (NPC_TUNING.arrive), so bias the walk goal slightly
+    // deeper into the room while instant restore places directly at `poundDistance`.
+    const dist = bladeDist !== undefined ? bladeDist + (k.instant ? 0 : 0.2) : undefined;
+    const spot =
+      dist !== undefined
+        ? g.at.clone().addScaledVector(g.n, dist).addScaledVector(side, 0.75).setY(g.stand.y)
+        : g.stand.clone().addScaledVector(side, 0.75).addScaledVector(g.n, -0.05);
     if (k.instant) c.place(spot, g.yaw);
     else void c.moveTo(spot, { speed: 1.1, yaw: g.yaw });
-    this.pounders.push({ id: k.creatureId, actor: c, glass: g, t: 0, hits: 0, rest: k.instant ? 0.5 : 1.2, windup: true });
+    const mark = bladeDist !== undefined && !k.instant ? g.at.clone().addScaledVector(g.n, bladeDist).addScaledVector(side, 0.75).setY(g.stand.y) : null;
+    this.pounders.push({ id: k.creatureId, actor: c, glass: g, t: 0, hits: 0, rest: k.instant ? 0.5 : 1.2, windup: true, mark, markT: 0 });
   }
 
   private updatePounders(dt: number): void {
@@ -1189,6 +1219,19 @@ export class KillDirector {
       }
       const body = p.actor.body;
       if (p.actor.busy || !body.alive) continue; // still walking to the glass
+      if (p.mark) {
+        // Square up to the exact spot before the first blow: a short slide, as a separation push moves a body.
+        const dx = p.mark.x - p.actor.position.x;
+        const dz = p.mark.z - p.actor.position.z;
+        const d = Math.hypot(dx, dz);
+        p.markT += dt;
+        if (d <= SQUARE_UP.within || p.markT > SQUARE_UP.maxT) p.mark = null;
+        else {
+          const step = Math.min(d, SQUARE_UP.speed * dt);
+          p.actor.nudge((dx / d) * step, (dz / d) * step, null);
+          continue;
+        }
+      }
       if (p.rest > 0) {
         p.rest -= dt;
         if (p.rest <= 0) {
@@ -1207,10 +1250,13 @@ export class KillDirector {
         body.setPose('kill_glass_1', POUND.swing * 0.8);
         continue;
       }
-      // The blow lands on the glass.
-      body.setPose('kill_glass_0', POUND.swing * 0.5);
-      body.killKick('chest', tmpA.set(0, 0, 1), 0.5);
-      const at = body.jointWorld(Math.random() < 0.5 ? 'hand_L' : 'hand_R', tmpB).clone();
+      // The blow lands on the glass. A blade creature bangs both forearms flat on it, blades upright along the pane, in a
+      // quicker slam so the bang sounds as its wrists meet the glass (design D9).
+      body.setPose('kill_glass_0', POUND.swing * (body.blade ? 0.3 : 0.5));
+      body.killKick('chest', tmpA.set(0, 0, 1), body.blade ? 0.12 : 0.5);
+      const at = body.blade
+        ? body.bladePoint('L', 0, tmpB).clone().add(body.bladePoint('R', 0, tmpA)).multiplyScalar(0.5)
+        : body.jointWorld(Math.random() < 0.5 ? 'hand_L' : 'hand_R', tmpB).clone();
       if (p.glass.clip.axis === 'z') at.z = p.glass.at.z;
       else at.x = p.glass.at.x;
       // The blow's sound sits just on the creature's side of the pane, so a room mic on that side hears it.

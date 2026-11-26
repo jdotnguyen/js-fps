@@ -1,4 +1,4 @@
-import { arr, num, numRange, obj, optional, record, str, validate, ValidationError, type Infer, type Validator } from '../../core/validate.ts';
+import { arr, bool, num, numRange, obj, optional, record, str, validate, ValidationError, type Infer, type Validator } from '../../core/validate.ts';
 import { JOINT_NAMES, type JointName } from '../../actors/skeleton.ts';
 
 /**
@@ -33,11 +33,41 @@ const blade = obj({
   hand: str,
 });
 
+const performancePhaseShape = {
+  /** Pose to blend into for this phase (must exist in poses.json). */
+  pose: str,
+  /** Seconds to blend into the pose. */
+  blend: numRange(0, 5),
+  /** Seconds to hold the pose once blended. */
+  hold: numRange(0, 30),
+  /** Jaw opening amount (0..1) during this phase. */
+  jaw: optional(numRange(0, 1)),
+  /** Belly-arm flare amount (0..1) during this phase. */
+  flare: optional(numRange(0, 1)),
+  /** Full-body shudder / tremor intensity (0..1) during this phase. */
+  tremor: optional(numRange(0, 1)),
+  /** When true, a caller-supplied hold duration stretches this phase. */
+  stretch: optional(bool),
+};
+
+const performancePhase = obj(performancePhaseShape);
+
+const performanceShape = {
+  phases: arr(performancePhase),
+};
+
+const performance = obj(performanceShape);
+
+export type BladePerformancePhase = Infer<typeof performancePhaseShape>;
+export type BladePerformance = Infer<typeof performanceShape>;
+
 const shape = {
   /** The body model (data/body-models.json) this profile belongs to. */
   model: str,
   /** The ankle's height above the sole at the 1.78 m reference height, in metres. */
   ankleHeight: numRange(0.02, 0.5),
+  /** Standing distance from a glass pane when pounding (m, Lab B, design D9). */
+  poundDistance: optional(numRange(0.3, 2.5)),
   jaw: obj({
     /** The model's jaw bone. */
     bone: str,
@@ -53,6 +83,8 @@ const shape = {
   hits: obj({ bladeRadius: numRange(0.005, 0.2), maxRadius: numRange(0.05, 0.5) }),
   /** Pose asked for -> the creature's own pose. Poses not listed are used as they are. */
   poseMap: record(str),
+  /** Named multi-phase timelines (such as `scream`, design D8) played by the animator. */
+  performances: optional(record(performance)),
   /** Free notes for the reader (ignored). */
   notes: optional(arr(str)),
   /** Scale factor for every length above (tests). */
@@ -81,6 +113,14 @@ export function loadBladeCreature(raw: unknown, refs: { bones?: readonly string[
     const known = new Set(refs.poses);
     for (const [from, to] of Object.entries(p.poseMap)) {
       if (!known.has(to)) throw new ValidationError(`${source} > poseMap > ${from}`, `unknown pose "${to}"`);
+    }
+    if (p.performances) {
+      for (const [perfName, perf] of Object.entries(p.performances)) {
+        if (perf.phases.length === 0) throw new ValidationError(`${source} > performances > ${perfName} > phases`, 'at least one phase');
+        perf.phases.forEach((ph, i) => {
+          if (!known.has(ph.pose)) throw new ValidationError(`${source} > performances > ${perfName} > phases[${i}] > pose`, `unknown pose "${ph.pose}"`);
+        });
+      }
     }
   }
   return p;

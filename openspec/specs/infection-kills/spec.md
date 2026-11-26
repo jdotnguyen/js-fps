@@ -133,6 +133,10 @@ player later fights SHALL be that creature (the same body), not a different infe
 - **WHEN** the Lab B kill has ended and the player watches from the gallery
 - **THEN** the creature stands at the glass beside Voss's body and hits it again and again, each blow sounding on the glass
 
+#### Scenario: Forearms bang on the pane
+- **WHEN** a blow of the pounding lands
+- **THEN** both forearms swing forward together onto the pane, its wrists within 10 cm of the surface and its blades upright along the glass rather than pointing into it, with no part of either blade more than 5 cm through it
+
 #### Scenario: Gone when the lights come back
 - **WHEN** the Lab B escape plays and Lab B's lights come back on
 - **THEN** no creature is in Lab B, Voss's body is still beside the glass, and Lab B's ceiling vent grate hangs open

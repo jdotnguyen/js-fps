@@ -110,6 +110,14 @@ After the beacon has turned the view to the open R09 door, the creature's scream
 - **WHEN** the view has turned to the open door
 - **THEN** the scream plays, sounding distant down the hall, and no squad line has started yet
 
+#### Scenario: The scream is seen
+- **WHEN** the scream plays
+- **THEN** the creature rears down the hall with its blades raised and its jaw open, facing the pump room, for as long as it stays standing there
+
+#### Scenario: Scream into charge
+- **WHEN** the creature starts to charge
+- **THEN** it drops out of the scream into its run with no standing pause and no snap between the two
+
 ### Requirement: Jay runs to the doors on the scream
 The scream SHALL send Jay on a short scripted run from the wheel toward the R09 and R11 doors, with his view on the open door and the straight stretch of R09 beyond it and his weapon still holstered. The run SHALL end well short of the ambush trigger area, so control never returns with Jay inside it.
 
@@ -160,6 +168,14 @@ of sight, so the danger seems past. After the cutscene, R09 SHALL be unreachable
 #### Scenario: Seen running down the hall
 - **WHEN** Jay's run has ended and the elite starts to charge
 - **THEN** Jay can see it run toward the door along the R09 hall through the open door
+
+#### Scenario: A creature's charge
+- **WHEN** the elite runs toward the door
+- **THEN** it charges low with long strides and its blades out, its feet on the stairs and floor, not walking like a person
+
+#### Scenario: It tears through the water
+- **WHEN** the elite charges through R09's standing water
+- **THEN** every footfall throws a large spray of water and churns the surface, and every foot pulled out of the water throws more, much larger than a person wading, at any depth
 
 #### Scenario: Enemies left in the tunnel
 - **WHEN** Jay turns the valve with two tunnel shamblers still alive

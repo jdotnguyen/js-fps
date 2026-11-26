@@ -11,9 +11,13 @@ import { loadPoseFile } from '../data/types/poses.ts';
 import { validateKillTable } from '../data/types/kills.ts';
 import { NpcDirector } from './npcs.ts';
 import { JOINT_NAMES, type JointName } from '../actors/skeleton.ts';
+import type { BodyModelLibrary } from '../actors/bodyModelLibrary.ts';
+import { CollisionWorld } from '../world/collision.ts';
+import { measureBladePenetration } from '../actors/blade/clearance.ts';
+import { creatureLib, necromorphModel } from '../actors/blade/bladeTestKit.ts';
 
-/** The Lab B kill on a procedural Voss (no imported models in Node): glass at z = 0, she starts 4.7 m behind it. */
-function setup() {
+/** The Lab B kill on Voss (optional bodyModels for real blade creature): glass at z = 0, she starts 4.7 m behind it. */
+function setup(opts: { bodyModels?: BodyModelLibrary } = {}) {
   const goreCalls: Array<{ kind: string; at?: THREE.Vector3; size?: number; band?: { min: number; max: number } }> = [];
   const gore = {
     burst: (at: THREE.Vector3) => void goreCalls.push({ kind: 'burst', at: at.clone() }),
@@ -29,7 +33,7 @@ function setup() {
   const warnings: string[] = [];
   let now = 0;
   const npcs = new NpcDirector({
-    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore },
+    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, ...(opts.bodyModels ? { bodyModels: opts.bodyModels } : {}) },
     nav: null,
     colliders: null,
     player: () => ({ feet: new THREE.Vector3(0, 0, -3), head: new THREE.Vector3(0, 1.62, -3) }),
@@ -316,7 +320,7 @@ const DRAG_TEST_STYLE = {
 type Spot = { x: number; y: number; z: number };
 function mauledSetup(
   extraStyles: Record<string, unknown> = {},
-  opts: { marks?: Record<string, Spot>; priya?: Spot; thing?: Spot; jay?: Spot } = {},
+  opts: { marks?: Record<string, Spot>; priya?: Spot; thing?: Spot; jay?: Spot; bodyModels?: BodyModelLibrary } = {},
 ) {
   const marks = opts.marks ?? MARKS;
   const jay = opts.jay ?? { x: 0.3, y: 0, z: -0.5 };
@@ -348,7 +352,7 @@ function mauledSetup(
     for (const fn of [...(handlers.get(name) ?? [])]) fn(payload);
   };
   const npcs = new NpcDirector({
-    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore },
+    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, ...(opts.bodyModels ? { bodyModels: opts.bodyModels } : {}) },
     nav: null,
     colliders: null,
     player: () => ({ feet: new THREE.Vector3(jay.x, 0, jay.z), head: new THREE.Vector3(jay.x, 1.62, jay.z) }),
@@ -1004,4 +1008,127 @@ test('medbay-attack "It leaves through the door" (D37): in and out of the surger
   assert.ok(speedStill > 1.45, `it walks away faster than it hauled her (${speedStill.toFixed(2)} m/s)`);
   const s = a['r08_lurk']!;
   assert.ok(Math.hypot(thing.position.x - s.x, thing.position.z - s.z) < 0.6, 'back in the surgery by the end');
+});
+
+// ---- rig-necromorph tasks 7.3 & 7.4: real blade creature in Lab B pounding and R08 Priya's death.
+
+test('infection-kills "Forearms bang on the pane" (rig-necromorph task 7.3): Lab B blade creature bangs its forearms within 10 cm of the glass, blades upright, never more than 5 cm through', async () => {
+  const g = setup({ bodyModels: creatureLib(await necromorphModel()) });
+  // Glass pane at z = 0 (thickness -0.06..+0.06), victim-side face at z = 0.06; floor y <= 0, ceiling y >= 3.2.
+  const world = new CollisionWorld();
+  world.add({ min: [-4, 0, -0.06], max: [4, 3.2, 0.06] }, 'labb_glass');
+  world.add({ min: [-4, -0.2, -4], max: [4, 0, 8] }, 'floor');
+  world.add({ min: [-4, 3.2, -4], max: [4, 3.4, 8] }, 'ceiling');
+
+  playThrough(g);
+  const creature = g.npcs.actor('researcher_b_creature', false)!;
+  assert.ok(creature.body.blade, 'Lab B creature wears the blade rig');
+  assert.ok(g.npcs.kills.pounding('researcher_b_creature'), 'it starts pounding');
+
+  // At each frame, the nearest point of either blade (wrist to tip) to the pane's face, and at the nearest frame how far
+  // each blade points into the glass (1 = straight at it, a poke; 0 = upright along it, a bang).
+  let minDistToPane = Infinity;
+  let nearestWrist = Infinity;
+  let pokeAtNearest = 1;
+  let worstPen = 0;
+  // The furthest any blade point gets past the pane's face (the clearance helper only sees points inside the pane).
+  let worstThrough = 0;
+  let blows = 0;
+  const before = g.sounds.filter((x) => x === 'glassThud').length;
+  g.step(8, () => {
+    let near = Infinity;
+    for (const s of ['L', 'R'] as const) {
+      for (let k = 0; k <= 8; k++) {
+        const ahead = creature.body.bladePoint(s, k / 8).z - 0.06;
+        near = Math.min(near, Math.abs(ahead));
+        worstThrough = Math.max(worstThrough, -ahead);
+      }
+    }
+    if (near < minDistToPane) {
+      minDistToPane = near;
+      pokeAtNearest = Math.max(...(['L', 'R'] as const).map((s) => Math.abs(creature.body.bladePoint(s, 1).sub(creature.body.bladePoint(s, 0)).normalize().z)));
+    }
+    for (const s of ['L', 'R'] as const) nearestWrist = Math.min(nearestWrist, Math.abs(creature.body.bladePoint(s, 0).z - 0.06));
+    const pen = measureBladePenetration(creature.body, world);
+    worstPen = Math.max(worstPen, pen.depth);
+  });
+  blows = g.sounds.filter((x) => x === 'glassThud').length - before;
+  assert.ok(blows >= 3, `creature landed ${blows} glass blows`);
+  assert.ok(minDistToPane <= 0.1, `nearest blade point reached ${minDistToPane.toFixed(3)} m from the pane (limit 0.10 m)`);
+  assert.ok(nearestWrist <= 0.1, `wrists reached ${nearestWrist.toFixed(3)} m from the pane (limit 0.10 m): the forearms bang on it`);
+  assert.ok(pokeAtNearest < 0.5, `at the blow the blades point ${pokeAtNearest.toFixed(2)} into the glass (upright along it is 0, a poke is 1)`);
+  assert.ok(worstPen <= 0.05, `blade penetration ${worstPen.toFixed(3)} m exceeded 0.05 m during pounding`);
+  assert.ok(worstThrough <= 0.05, `a blade point got ${worstThrough.toFixed(3)} m past the pane's face (limit 0.05 m)`);
+});
+
+test('medbay-attack "The blade goes through her" & "It screams over her body" & "Then it leaves" (rig-necromorph task 7.4)', async () => {
+  const a = LEVEL_ANCHORS;
+  const g = mauledSetup({}, { marks: a, priya: a['priya_sit']!, thing: a['r08_lurk']!, jay: a['r07_glass_jay']!, bodyModels: creatureLib(await necromorphModel()) });
+  void g.npcs.command('kill', R08_KILL);
+  const priya = g.npcs.actor('priya')!;
+  const thing = g.npcs.actor('r08_thing')!;
+  assert.ok(thing.body.blade, 'R08 attacker wears the blade rig');
+
+  let bestChestToBlade = Infinity;
+  let tipPastBack = false;
+  let sawScreamPeak = false;
+  let screamStoppedBeforeWalk = false;
+  let stillStart = -1;
+  let walkStart = -1;
+  let prevThing = thing.position.clone();
+  const slamFacesOk: boolean[] = [];
+  let slamCount = 0;
+  const seg = new THREE.Line3();
+  const closest = new THREE.Vector3();
+
+  const worstStep = largestStep(g, 36, () => {
+    const b = g.beat();
+    if (b === 'impale' || b === 'carry') {
+      const root = thing.body.bladePoint('R', 0);
+      const tip = thing.body.bladePoint('R', 1);
+      const chest = priya.body.jointWorld('chest', new THREE.Vector3());
+      seg.set(root, tip);
+      seg.closestPointToPoint(chest, true, closest);
+      bestChestToBlade = Math.min(bestChestToBlade, chest.distanceTo(closest));
+      // Blade runs from root through chest and tip extends beyond her back (further from root than chest).
+      if (tip.distanceTo(root) > chest.distanceTo(root) + 0.12 && chest.distanceTo(closest) <= 0.1) tipPastBack = true;
+    }
+    const impacts = g.emitted.filter((e) => e.name === 'kill:impact').length;
+    if (impacts > slamCount) {
+      slamCount = impacts;
+      // Both faces angled toward Jay's glass (medbay_c_glass sits at smaller Z than the cart/actors).
+      const pane = a['medbay_c_glass']!;
+      const toGlass = new THREE.Vector2(pane.x - thing.position.x, pane.z - thing.position.z).normalize();
+      const thingFwd = new THREE.Vector2(-Math.sin(thing.body.heading), -Math.cos(thing.body.heading));
+      const priyaFwd = new THREE.Vector2(-Math.sin(priya.body.heading), -Math.cos(priya.body.heading));
+      slamFacesOk.push(thingFwd.dot(toGlass) > 0 && priyaFwd.dot(toGlass) > 0);
+    }
+    if (b === 'still') {
+      if (stillStart < 0) stillStart = g.time();
+      const dtStill = g.time() - stillStart;
+      if (dtStill > 1.2 && dtStill < 3.2 && thing.body.performancePlaying) {
+        const tipL = thing.body.bladePoint('L', 1);
+        const tipR = thing.body.bladePoint('R', 1);
+        const shL = thing.body.jointWorld('upperArm_L', new THREE.Vector3());
+        const shR = thing.body.jointWorld('upperArm_R', new THREE.Vector3());
+        const jawQ = thing.body.bones.jaw.quaternion;
+        const jawDeg = THREE.MathUtils.radToDeg(2 * Math.acos(THREE.MathUtils.clamp(Math.abs(jawQ.w), 0, 1)));
+        if (tipL.y > shL.y && tipR.y > shR.y && jawDeg >= 30) sawScreamPeak = true;
+      }
+      if (dtStill >= 3.45 && walkStart < 0 && thing.position.distanceTo(prevThing) > 0.01) {
+        walkStart = dtStill;
+        screamStoppedBeforeWalk = !thing.body.performancePlaying;
+      }
+    }
+    prevThing = thing.position.clone();
+  });
+
+  assert.ok(bestChestToBlade <= 0.1, `Priya's chest was ${bestChestToBlade.toFixed(3)} m from the blade (limit 0.10 m)`);
+  assert.ok(tipPastBack, 'blade tip extended beyond Priya\'s back while held');
+  assert.ok(sawScreamPeak, 'creature reared with blades above shoulders and jaw >= 30 deg after throwing Priya');
+  assert.ok(walkStart >= 3.3 && walkStart <= 4.2, `creature walked back at ${walkStart.toFixed(2)} s into still (expected ~3.4 s)`);
+  assert.ok(screamStoppedBeforeWalk, 'scream ended cleanly before walking back to surgery');
+  assert.ok(worstStep <= 0.3, `largest step ${worstStep.toFixed(3)} m exceeded 0.30 m`);
+  assert.equal(slamFacesOk.length, 3, 'all 3 cart slams landed');
+  assert.ok(slamFacesOk.every(Boolean), 'creature faced toward the glass on each slam');
 });

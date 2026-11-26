@@ -429,7 +429,10 @@ export class Enemy {
       case 'windup': {
         // Telegraph: arms up, jaw wide, tracking the target slowly (ADR-0007: 0.8 s).
         body.charge = 1;
+        body.windupSide = this.strikeSide;
+        body.grabbing = false;
         if (body.staggered) {
+          body.windupSide = null;
           this.setState('stagger', 0.35);
           break;
         }
@@ -444,11 +447,14 @@ export class Enemy {
         break;
       }
       case 'recover':
+        body.windupSide = null;
+        body.grabbing = false;
         if (this.stateT >= this.stateDur) this.setState('chase');
         break;
       case 'grab': {
         const tgt = this.target;
         if (!tgt || !tgt.alive() || !(tgt.isGrabbed?.() ?? false)) {
+          body.grabbing = false;
           this.endGrab(host, 'escaped');
           this.stagger(1.0, host);
           break;
@@ -458,6 +464,8 @@ export class Enemy {
         maxSpeed = 0;
         turnRate = 3;
         body.charge = 1;
+        body.windupSide = null;
+        body.grabbing = true;
         body.lookTarget = this.look.copy(this.targetFeet).setY(this.targetFeet.y + 1.5);
         this.grabTick += dt;
         if (this.grabTick >= GRAB_TICK) {
@@ -660,6 +668,7 @@ export class Enemy {
   }
 
   private endGrab(host: EnemyHost, reason: 'escaped' | 'shot' | 'died' | 'cleared'): void {
+    this.body.grabbing = false;
     if (host.grabber === this) host.grabber = null;
     if (this.target?.isGrabbed?.()) this.target.releaseGrab?.();
     if (this.state === 'grab') this.setState('recover', 0.3);
@@ -760,6 +769,8 @@ export class Enemy {
     if (this.state === 'grab' || host.grabber === this) this.endGrab(host, 'died');
     this.setState('dead');
     this.body.charge = 0;
+    this.body.windupSide = null;
+    this.body.grabbing = false;
     this.body.lookTarget = null;
     host.onDied(this);
   }

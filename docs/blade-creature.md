@@ -33,13 +33,32 @@ With the dev server running (reuse one on `http://localhost:5173/` if it answers
 
 - Drag to orbit, wheel to zoom, right-drag to pan. The view buttons jump to set framings.
 - Pick a pose from the list (type to filter); `blend` is the blend time in seconds.
-- The jaw slider opens the jaw.
+- The jaw, belly-flare and belly-clench sliders drive the creature's layer directly.
+- Play `scream` (or `scream 5 s`), combat `windup R`, `slash R`, `grab` and `stop`.
 - Pause, step a frame, or play at 0.25x, 0.5x or 1x.
 - Show the hit shapes or hide the floor grid.
 - URL: `?pose=<name>` starts the creatures in a pose, `?hits` shows the hit shapes, `?speed=0.25` slows time.
-- Console: `window.blade.setPose(name, blend)`, `jaw(0..1)`, `pause(on)`, `step(frames)`, `speed(x)`, `hits(on)`, `view(name)`, and `snap(frames)`, which advances and returns the picture as a JPEG data URL (it works in a headless or hidden page).
+- Console: `window.blade.setPose(name, blend)`, `play(name, hold)`, `stop()`, `jaw(0..1)`, `flare(0..1)`, `clench(0..1)`, `move(v, rate)`, `turn()`, `pause(on)`, `step(frames)`, `speed(x)`, `hits(on)`, `view(name)`, `snap(frames)` and `sheet(opts)` (a follow-camera contact sheet returned as a JPEG data URL).
 
 Close the tab when you are done; each game tab holds a lot of memory on the shared machine.
+
+## Profile and performance formats
+
+`src/data/blade-creature.json` (validated by `src/data/types/bladeCreature.ts`) attaches to the `necromorph` entry of `src/data/body-models.json` via `"rig": "blade"`:
+
+- `model`: body-model id (`"necromorph"`).
+- `ankleHeight`: ankle height above the sole at the 1.78 m reference height (m), passed to `FootIkSolver`.
+- `poundDistance`: standing distance from a glass pane's face when pounding (m, Lab B). It is the `blade_pound_hit` wrists' reach plus a few centimetres, so the wrists meet the pane on each blow; retune it with the poses. After its walk the creature slides onto this exact spot before the first blow.
+- `jaw`: `{ bone, openDeg, rest }` — mandible bone name, full open angle (degrees), and resting hang (0..1).
+- `segments`: `[{ joint, bones }]` — extra spine/neck bones that split a game joint's bend equally.
+- `limbs`: `[{ name, root }]` — belly-arm root bones preserved as detail chains under the torso.
+- `blades`: `{ L: { hand }, R: { hand } }` — hand joints whose blade tips are recorded at preparation.
+- `hits`: `{ bladeRadius, maxRadius }` — fitted hit-capsule radii (m, reference height).
+- `poseMap`: generic pose name -> `blade_*` pose in `src/data/poses.json` (fallback: `blade_stance`, logged once).
+- `performances`: named multi-phase timelines (e.g. `scream`) played by `Humanoid.playPerformance(name, { hold })`, `npcAnim` or kill `attackerPerf`:
+  - Each phase has `{ pose, blend, hold, jaw?, flare?, tremor?, stretch? }`.
+  - Setting `stretch: true` on a phase lets a caller pass a custom hold duration (s) while keeping the coil and settle timings intact.
+  - `setPose`, moving (`speed > 0.25` / `NpcActor.moveTo`) or skipping (`instant: true` / `stopPerformance`) ends any active performance cleanly and resets jaw, flare and tremor.
 
 ## Tests
 

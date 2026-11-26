@@ -288,6 +288,7 @@ export class NpcActor {
   place(at: P3, yaw?: number): void {
     this.cancelWay();
     this.pendingPlaced = null;
+    this.body.stopPerformance();
     this.motor.x = at.x;
     this.motor.y = at.y;
     this.motor.z = at.z;
@@ -304,6 +305,7 @@ export class NpcActor {
     this.stopMove();
     this.pendingPlaced = null;
     this.follow = null;
+    this.body.stopPerformance();
     if (PLACED_POSE.test(this.basePose)) {
       // Sitting or leaning (ADR-0029): stand up before walking off.
       this.gesture = null;
@@ -386,8 +388,8 @@ export class NpcActor {
     m?.resolve();
   }
 
-  /** Play a named gesture (NPC_ANIMS) or any pose by name. Resolves when it ends (held poses resolve at once). */
-  playAnim(name: string, opts: { instant?: boolean; has?: (pose: string) => boolean } = {}): Promise<void> {
+  /** Play a named gesture (NPC_ANIMS), creature performance (`scream`, design D8), or any pose by name. Resolves when it ends (held poses resolve at once). */
+  playAnim(name: string, opts: { instant?: boolean; has?: (pose: string) => boolean; hold?: number } = {}): Promise<void> {
     // `clip:<id>` plays a captured one-shot clip from this body's library or character pack once, without stopping a
     // move in progress (overhaul-priya-r08-death task 11.2: Priya stumbles mid-run). Skipped or missing: nothing.
     if (name.startsWith('clip:')) {
@@ -397,6 +399,20 @@ export class NpcActor {
       this.clipAnim?.resolve();
       return new Promise<void>((resolve) => {
         this.clipAnim = { t: 0, duration, resolve };
+      });
+    }
+    if (this.body.hasPerformance(name) || name === 'scream') {
+      this.cancelWay();
+      this.endAnim();
+      this.pendingPlaced = null;
+      this.gesture = null;
+      if (opts.instant) {
+        this.body.stopPerformance();
+        this.body.setPose(this.basePose, 0.01);
+        return Promise.resolve();
+      }
+      return new Promise<void>((resolve) => {
+        if (!this.body.playPerformance(name, { ...(opts.hold !== undefined ? { hold: opts.hold } : {}), onDone: resolve })) resolve();
       });
     }
     const base = NPC_ANIMS[name] ?? (opts.has?.(name) ? { pose: name, hold: Infinity } : null);

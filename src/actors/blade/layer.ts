@@ -70,10 +70,12 @@ export class BladeLayer {
   }
 
   /** Apply over the joints the animator has just set. `t` is the body's time (s), `dt` this frame's step. */
-  apply(t: number, dt: number): void {
+  apply(t: number, dt: number, minJaw = 0, minFlare = 0): void {
     const k = Math.min(1, dt * 8);
-    this.cur.jaw += (this.amounts.jaw - this.cur.jaw) * Math.min(1, dt * 14);
-    this.cur.flare += (this.amounts.flare - this.cur.flare) * k;
+    const wantJaw = Math.max(this.amounts.jaw, minJaw);
+    const wantFlare = Math.max(this.amounts.flare, minFlare);
+    this.cur.jaw += (wantJaw - this.cur.jaw) * Math.min(1, dt * 14);
+    this.cur.flare += (wantFlare - this.cur.flare) * k;
     this.cur.clench += (this.amounts.clench - this.cur.clench) * k;
     if (this.jaw) {
       // Opening turns the jaw down about its sideways axis (negative X), on top of whatever the animator gave it. At rest it

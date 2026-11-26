@@ -517,7 +517,7 @@ export const ACTIONS: Record<string, ActionDef> = {
   npcMoveTo: npcAct('npcMoveTo', { npc: str, to: target, via: optional(str), speed: optional(numRange(0.1, 10)), pose: optional(str), whenUnseen: optional(bool), settle: optional(str), face: optional(target) }),
   /** `by` drags the body along on a rope (lying pose, no gait); `stop` lets go. Skipped: let go. */
   npcDrag: npcAct('npcDrag', { npc: str, by: optional(str), pose: optional(str), distance: optional(numRange(0.3, 4)), stop: optional(bool) }),
-  npcAnim: npcAct('npcAnim', { npc: str, anim: str }),
+  npcAnim: npcAct('npcAnim', { npc: str, anim: str, hold: optional(numRange(0, 30)) }),
   /** Cut limbs off (a door shearing its arms); the pieces fly along `dir`. */
   npcSever: npcAct('npcSever', { npc: str, regions: arr(oneOf(SEVERABLE_REGIONS)), dir: optional(vec3) }),
   /** `turn`: swing the whole body to face the target, not just the head. */

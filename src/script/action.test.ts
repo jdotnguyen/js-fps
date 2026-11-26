@@ -933,7 +933,7 @@ test('the valve cutscene: on rails at the wheel, the squad placed unseen, beacon
   // during the charge; the camera is released with the controls (not held on the door through the lines).
   // The door stands open from the start (the stairs seen through it), the creature shrieks as it charges, the door slams,
   // it pounds on the door, then the hand. The pump room goes red with three beacons before the turn.
-  inOrder(g, ['door D_R09_R10 open', 'npc spawn r09_flood_shambler', 'namedLight r09_charge_light steady', 'sfx creatureScreamFar', 'npc npcMoveTo okafor', 'event squad:aim', 'sfx creatureChargeRage', 'event squad:scripted_fire', ...lines('flood_okafor_01'), 'door D_R09_R10 sealed', 'sfx floodSlamHit', 'sfx floodDoorSlam', 'sfx doorPound']);
+  inOrder(g, ['door D_R09_R10 open', 'npc spawn r09_flood_shambler', 'namedLight r09_charge_light steady', 'sfx creatureScreamFar', 'npc npcAnim r09_flood_shambler scream', 'npc npcMoveTo okafor', 'event squad:aim', 'sfx creatureChargeRage', 'event squad:scripted_fire', ...lines('flood_okafor_01'), 'door D_R09_R10 sealed', 'sfx floodSlamHit', 'sfx floodDoorSlam', 'sfx doorPound']);
   inOrder(g, ['sfx creatureScreamFar', 'npc npcMoveTo giles', 'event squad:aim', 'sfx creatureChargeRage']);
   inOrder(g, ['sfx creatureScreamFar', 'player walkTo', 'flashlight on', 'sfx creatureChargeRage']);
   assert.equal(count(g, 'event squad:scripted_fire'), 2, 'deliberate aimed fire starts during the charge and stops at the seal');

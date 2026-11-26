@@ -35,6 +35,14 @@ export interface BladeMotionInput {
   moved: { x: number; z: number; yaw: number };
   /** True while holding a world-contact pose (such as prying a door): keeps breathing alive, drops casual sway and blade drift. */
   locked?: boolean;
+  /** 0..1 attack intensity (`animator.charge`), driving blade threat/windup without touching attack timings or reach. */
+  charge?: number;
+  /** Which blade arm is winding up for a swipe (`L` or `R`), or null when not winding up. */
+  windupSide?: 'L' | 'R' | null;
+  /** True while holding a grab on the player: spreads both blades wide out of the camera cone. */
+  grabbing?: boolean;
+  /** 0..1 tremor from an active performance (such as `scream`). */
+  tremor?: number;
 }
 
 export interface BladeMotionOutput {
@@ -47,6 +55,9 @@ export interface BladeMotionOutput {
   /** The pelvis shifted sideways over the planted leg, and forward with the surge (m, reference, body frame: x right, z back). */
   bobX: number;
   bobZ: number;
+  /** Suggested jaw opening and belly-arm flare from combat windup/slash/grab (0..1). */
+  jaw: number;
+  flare: number;
 }
 
 /** The leg's geometry at the reference height, from the body's joint offsets. */
@@ -143,7 +154,13 @@ export class BladeMotion {
   private readonly liftFrom: [THREE.Vector2 | null, THREE.Vector2 | null] = [null, null];
   /** A corrective step in progress per foot: how far through (0..1) and where the foot left from (body frame). */
   private readonly steps: [{ t: number; from: THREE.Vector2 } | null, { t: number; from: THREE.Vector2 } | null] = [null, null];
-  readonly out: BladeMotionOutput = { contacts: [1, 1], footfall: false, bob: 0, bobX: 0, bobZ: 0 };
+  /** Eased combat attack weights: approach charge, directional swipe windup, active grab, and active slash arc. */
+  private attackCharge = 0;
+  private windupW = 0;
+  private windupArm: 'L' | 'R' = 'R';
+  private grabW = 0;
+  private slash: { side: 'L' | 'R'; t: number } | null = null;
+  readonly out: BladeMotionOutput = { contacts: [1, 1], footfall: false, bob: 0, bobX: 0, bobZ: 0, jaw: 0, flare: 0 };
 
   private readonly leg: LegGeometry | null;
   /** Body height over the reference height: world speeds are divided by it. */
@@ -156,6 +173,11 @@ export class BladeMotion {
     this.phaseSeed = Array.from({ length: 8 }, () => this.rng.range(0, Math.PI * 2));
   }
 
+  /** Trigger a blade slash follow-through on `side` when an enemy swipe lands (design D6). */
+  triggerSlash(side: 'L' | 'R'): void {
+    this.slash = { side, t: 0 };
+  }
+
   /** Add this frame's motion over the pose. */
   update(add: AddJoint, input: BladeMotionInput): BladeMotionOutput {
     this.out.footfall = false;
@@ -164,9 +186,104 @@ export class BladeMotion {
     this.out.bob = 0;
     this.out.bobX = 0;
     this.out.bobZ = 0;
+    this.out.jaw = 0;
+    this.out.flare = 0;
     this.gait(add, input);
     this.idle(add, input);
+    this.attack(add, input);
     return this.out;
+  }
+
+  private attack(add: AddJoint, input: BladeMotionInput): void {
+    const dt = input.dt;
+    const locked = input.locked === true;
+    const targetCharge = locked ? 0 : THREE.MathUtils.clamp(input.charge ?? 0, 0, 1);
+    this.attackCharge += (targetCharge - this.attackCharge) * Math.min(1, dt * 7);
+    if (input.windupSide) this.windupArm = input.windupSide;
+    const targetWindup = !locked && input.windupSide && !input.grabbing ? 1 : 0;
+    this.windupW += (targetWindup - this.windupW) * Math.min(1, dt * 8);
+    const targetGrab = !locked && input.grabbing ? 1 : 0;
+    this.grabW += (targetGrab - this.grabW) * Math.min(1, dt * 10);
+
+    // Grab: throw both blade arms wide out to the flanks so neither blade covers the player's camera view.
+    if (this.grabW > 0.005) {
+      const g = this.grabW;
+      add('spine', -4 * g, 0, 0);
+      add('upperArm_L', -48 * g, 0, -68 * g);
+      add('foreArm_L', -48 * g, 0, 0);
+      add('upperArm_R', -48 * g, 0, 68 * g);
+      add('foreArm_R', -48 * g, 0, 0);
+      this.out.jaw = Math.max(this.out.jaw, 0.85 * g);
+      this.out.flare = Math.max(this.out.flare, 0.9 * g);
+    }
+
+    // Windup: draw the striking blade unmistakably back & wide before the blow lands (stays inside D5 shoulder envelope).
+    if (this.windupW > 0.005) {
+      const w = this.windupW * (1 - this.grabW);
+      const s = this.windupArm;
+      const k = s === 'R' ? 1 : -1;
+      const off = s === 'R' ? 'L' : 'R';
+      add('spine', 6 * w, -16 * k * w, 0);
+      add('chest', 6 * w, -12 * k * w, 0);
+      add('neck', 4 * w, 12 * k * w, 0);
+      add('head', 6 * w, 14 * k * w, 0);
+      add(`shoulder_${s}`, 0, 0, 6 * k * w);
+      add(`upperArm_${s}`, -54 * w, 0, 84 * k * w);
+      add(`foreArm_${s}`, -24 * w, 0, 0);
+      add(`hand_${s}`, 18 * w, 0, 0);
+      add(`upperArm_${off}`, -16 * w, 0, -18 * k * w);
+      this.out.jaw = Math.max(this.out.jaw, 0.8 * w);
+      this.out.flare = Math.max(this.out.flare, 0.85 * w);
+    } else if (this.attackCharge > 0.01 && this.grabW < 0.5) {
+      // Closing in with charge > 0: mild blade spread and jaw threat.
+      const c = this.attackCharge * (1 - this.grabW);
+      add('spine', -4 * c, 0, 0);
+      add('upperArm_L', -10 * c, 0, -16 * c);
+      add('upperArm_R', -10 * c, 0, 16 * c);
+      this.out.jaw = Math.max(this.out.jaw, 0.45 * c);
+      this.out.flare = Math.max(this.out.flare, 0.4 * c);
+    }
+
+    // Slash follow-through when a swipe fires.
+    if (this.slash) {
+      this.slash.t += dt;
+      const dur = 0.36;
+      if (this.slash.t >= dur) {
+        this.slash = null;
+      } else {
+        const u = this.slash.t / dur;
+        // Sharp whip forward peaking at u = 0.28, then easing back.
+        const a = u < 0.28 ? Math.sin((u / 0.28) * Math.PI * 0.5) : Math.cos(((u - 0.28) / 0.72) * Math.PI * 0.5);
+        const s = this.slash.side;
+        const k = s === 'R' ? 1 : -1;
+        add('spine', -8 * a, 18 * k * a, 0);
+        add('chest', -6 * a, 14 * k * a, 0);
+        add('neck', 4 * a, -12 * k * a, 0);
+        add('head', 4 * a, -14 * k * a, 0);
+        add(`upperArm_${s}`, 6 * a, -18 * k * a, -14 * k * a);
+        add(`foreArm_${s}`, -74 * a, 0, 0);
+        add(`hand_${s}`, -8 * a, 0, 0);
+        this.out.jaw = Math.max(this.out.jaw, 0.9 * a);
+        this.out.flare = Math.max(this.out.flare, 0.9 * a);
+      }
+    }
+
+    // Performance tremor (e.g. held scream shake, design D8).
+    const tr = THREE.MathUtils.clamp(input.tremor ?? 0, 0, 1);
+    if (tr > 0.005) {
+      const t = input.time;
+      const sh1 = Math.sin(t * 29.0 + this.phaseSeed[0]!);
+      const sh2 = Math.sin(t * 37.3 + this.phaseSeed[1]!);
+      const sh3 = Math.cos(t * 23.7 + this.phaseSeed[2]!);
+      add('spine', 1.8 * sh1 * tr, 1.4 * sh2 * tr, 1.2 * sh3 * tr);
+      add('chest', 2.2 * sh2 * tr, 1.8 * sh3 * tr, 1.6 * sh1 * tr);
+      add('neck', 2.4 * sh3 * tr, 2.2 * sh1 * tr, 2.0 * sh2 * tr);
+      add('head', 3.0 * sh1 * tr, 2.8 * sh2 * tr, 2.5 * sh3 * tr);
+      add('upperArm_L', 2.4 * sh2 * tr, 0, -2.6 * sh1 * tr);
+      add('upperArm_R', 2.4 * sh3 * tr, 0, 2.6 * sh2 * tr);
+      add('foreArm_L', 3.2 * sh1 * tr, 0, 0);
+      add('foreArm_R', 3.2 * sh2 * tr, 0, 0);
+    }
   }
 
   private gait(add: AddJoint, input: BladeMotionInput): void {

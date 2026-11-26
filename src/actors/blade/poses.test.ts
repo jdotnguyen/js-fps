@@ -56,3 +56,37 @@ test('the tall creature\'s stance fits under a 3.2 m ceiling, blades and all', a
   const top = highestPoint(h);
   assert.ok(top < 3.2, `top at ${top.toFixed(2)} m`);
 });
+
+test('every windup draws a blade back before the strike swings it through, and grab keeps blades wide of the view', async () => {
+  const h = await creatureBody('lab_creature', 'blade_stance');
+  // Static pose pairs: body faces -Z, so drawn back = larger Z (or higher Y) than the forward strike.
+  for (const [windup, strike] of [
+    ['kill_glass_1', 'kill_glass_0'],
+    ['slamWindup', 'slamImpact'],
+    ['attack_windup', 'attack_strike'],
+  ] as const) {
+    h.setPose(windup, 0.01);
+    stepBody(h, 10);
+    const tipW = (await bladeTips(h))[1]!;
+    h.setPose(strike, 0.01);
+    stepBody(h, 10);
+    const tipS = (await bladeTips(h))[1]!;
+    assert.ok(tipW.z > tipS.z + 0.15, `${windup} tip z (${tipW.z.toFixed(2)}) should draw back behind ${strike} (${tipS.z.toFixed(2)})`);
+  }
+  // Live combat windup -> slash (R06): right blade pulls back during windupSide='R', then whips forward on strike('R').
+  h.setPose('idle', 0.01);
+  h.charge = 1;
+  h.windupSide = 'R';
+  stepBody(h, 30);
+  const liveWindup = (await bladeTips(h))[1]!.clone();
+  h.windupSide = null;
+  h.strike('R');
+  stepBody(h, 6);
+  const liveStrike = (await bladeTips(h))[1]!.clone();
+  assert.ok(liveWindup.z > liveStrike.z + 0.2, `live windup tip z (${liveWindup.z.toFixed(2)}) should draw back behind slash (${liveStrike.z.toFixed(2)})`);
+  // Grab keeps both blades spread wide to the sides so neither covers the player's camera view.
+  h.grabbing = true;
+  stepBody(h, 30);
+  const [grabL, grabR] = await bladeTips(h);
+  assert.ok(Math.abs(grabL!.x) > 0.45 && Math.abs(grabR!.x) > 0.45, `grab blades should sit wide (${grabL!.x.toFixed(2)}, ${grabR!.x.toFixed(2)})`);
+});

@@ -5,6 +5,7 @@
     "ankleHeight was measured from the prepared model (src/actors/blade/measure.test.ts)."
   ],
   "ankleHeight": 0.172,
+  "poundDistance": 0.92,
   "jaw": { "bone": "Jaw_066", "openDeg": 35, "rest": 0.15 },
   "segments": [
     { "joint": "neck", "bones": ["Neck1_010", "Neck2_011", "Neck3_012"] },
@@ -25,10 +26,35 @@
     "walk_formal": "blade_stance",
     "hulk": "blade_stance",
     "shamble": "blade_stance",
-    "stare": "blade_stance",
+    "stare": "blade_stare",
+    "getUp_0": "blade_unfold_0",
+    "getUp_1": "blade_unfold_1",
+    "getUp_2": "blade_unfold_2",
+    "kill_glass_0": "blade_pound_hit",
+    "kill_glass_1": "blade_pound_windup",
+    "maul_prowl": "blade_maul_prowl",
+    "maul_grip": "blade_maul_grip",
+    "maul_impale": "blade_maul_impale",
+    "maul_carry": "blade_maul_carry",
+    "maul_windup": "blade_maul_windup",
+    "maul_impact": "blade_maul_impact",
+    "slamWindup": "blade_slam_windup",
+    "slamImpact": "blade_slam_impact",
     "pry_reach": "blade_pry_reach",
     "pry_clamp": "blade_pry_clamp",
     "pry_wrench": "blade_pry_wrench",
-    "pry_thrust": "blade_pry_thrust"
+    "pry_thrust": "blade_pry_thrust",
+    "attack_windup": "blade_attack_windup",
+    "attack_strike": "blade_attack_strike",
+    "grab": "blade_grab"
+  },
+  "performances": {
+    "scream": {
+      "phases": [
+        { "pose": "blade_coil", "blend": 0.25, "hold": 0.08, "jaw": 0.35, "flare": 0.4, "tremor": 0.2 },
+        { "pose": "blade_scream", "blend": 0.3, "hold": 1.35, "jaw": 1, "flare": 1, "tremor": 1, "stretch": true },
+        { "pose": "blade_stance", "blend": 0.45, "hold": 0, "jaw": 0, "flare": 0, "tremor": 0 }
+      ]
+    }
   }
 }

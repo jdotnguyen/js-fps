@@ -279,8 +279,10 @@ export class Humanoid {
     // A creature body's own layer (rig-necromorph): its jaw and belly arms, driven over the animated joints.
     const rig = spec.model ? ctx.bodyModels?.table?.[spec.model]?.rig : undefined;
     if (rig === 'blade') {
-      this.animator.creature = new BladeMotion(spec.seed, legGeometry(this.geo.jointOffsets as Record<JointName, Vec3T>, bladeCreatureProfile().ankleHeight), this.geo.scale.y);
-      this.animator.poseMap = bladeCreatureProfile().poseMap;
+      const profile = bladeCreatureProfile();
+      this.animator.creature = new BladeMotion(spec.seed, legGeometry(this.geo.jointOffsets as Record<JointName, Vec3T>, profile.ankleHeight), this.geo.scale.y);
+      this.animator.poseMap = profile.poseMap;
+      this.animator.performances = profile.performances ?? null;
       this.animator.setPose(this.idlePose, 0);
     }
     this.blade = rig === 'blade' ? bladeLayerFor(bladeCreatureProfile(), this.geo.creatureBones, (n) => (this.bones as Record<string, THREE.Bone>)[n] ?? this.extras.get(n as ExtraBone), spec.seed) : null;
@@ -948,8 +950,42 @@ export class Humanoid {
     return result;
   }
 
+  /** Whether this body supports a named creature performance (`scream`, design D8). */
+  hasPerformance(name: string): boolean {
+    return this.animator.hasPerformance(name);
+  }
+
+  /** True while a creature performance (`scream`) is running. */
+  get performancePlaying(): boolean {
+    return this.animator.performancePlaying;
+  }
+
+  /** Play a named creature performance (design D8). Warns once and returns false on a body without it. */
+  playPerformance(name: string, opts: { hold?: number; onDone?: () => void } = {}): boolean {
+    return this.animator.playPerformance(name, opts);
+  }
+
+  /** End any active creature performance cleanly (skip, move or death). */
+  stopPerformance(): void {
+    this.animator.stopPerformance();
+  }
+
+  /**
+   * World point along a creature's blade on `side`: `fraction = 0` is the hand joint (blade root), `1` is the blade tip
+   * (rig-necromorph design D9). Bodies without blades return the hand joint's world position.
+   */
+  bladePoint(side: Side, fraction: number, out = new THREE.Vector3()): THREE.Vector3 {
+    const hand = this.bones[`hand_${side}`];
+    const tip = this.modelId ? this.ctx.bodyModels?.get(this.modelId)?.bladeTips?.[side] : undefined;
+    this.group.updateMatrixWorld(true);
+    if (!tip || fraction <= 0) return hand.getWorldPosition(out);
+    const f = THREE.MathUtils.clamp(fraction, 0, 1);
+    return hand.localToWorld(out.set(tip[0] * f, tip[1] * f, tip[2] * f));
+  }
+
   /** Swipe animation for a crowd attack (ADR-0007): the arm on `side` lashes forward and the chest follows. */
   strike(side: Side, strength = 0.8): void {
+    this.animator.creature?.triggerSlash(side);
     this.strikeDir.set(0, 0.2, -1);
     this.animator.kick(`foreArm_${side}`, this.strikeDir, strength);
     this.animator.kick(`upperArm_${side}`, this.strikeDir, strength * 0.8);
@@ -983,6 +1019,10 @@ export class Humanoid {
 
   /** 0..1 lunge (AI lurch bursts and attacks, ADR-0007): lean in, arms out, jaw wide. */
   charge = 0;
+  /** Which arm is winding up for a swipe (AI windup phase), or null. */
+  windupSide: Side | null = null;
+  /** True while holding a grab on the player (keeps blades clear of the camera). */
+  grabbing = false;
 
   /** Height (m above the feet) standing water has wetted this body to; dries slowly (standing-water spec). */
   private wetHeight = 0;
@@ -1034,6 +1074,8 @@ export class Humanoid {
     // The blade creature never plays captured human motion (rig-necromorph).
     this.animator.useMocap = uprightAlive && !this.blade && !(this.spec.role === 'npc' && this.locomotion.blind) && this.slam?.busy !== true && !this.kill;
     this.animator.charge = this.state === 'alive' && this.locomotion.mode === 'walk' ? Math.max(this.charge, this.speedScale > 1.2 ? 1 : 0) : 0;
+    this.animator.bladeWindupSide = this.state === 'alive' && this.locomotion.mode === 'walk' ? this.windupSide : null;
+    this.animator.bladeGrabbing = this.state === 'alive' && this.grabbing;
     this.updateBloodTrail(dt);
     if (this.lookTarget && this.state === 'alive' && !this.locomotion.blind) {
       this.group.updateMatrixWorld();
@@ -1071,7 +1113,12 @@ export class Humanoid {
     this.updateSegments();
     // Each heavy footfall jolts the belly arms (rig-necromorph design D6b).
     if (this.blade && this.animator.footfall) this.blade.bump(0.3 + 0.12 * Math.min(4, this.speed));
-    this.blade?.apply(this.time, dt);
+    if (this.blade) {
+      const slamActive = this.slam?.phase === 'windup' || this.slam?.phase === 'strike';
+      const motionJaw = Math.max(this.animator.bladeMotionJaw, this.animator.bladePerfJaw, slamActive ? 0.85 : 0);
+      const motionFlare = Math.max(this.animator.bladeMotionFlare, this.animator.bladePerfFlare, slamActive ? 0.9 : 0);
+      this.blade.apply(this.time, dt, motionJaw, motionFlare);
+    }
     // Living, falling or rising bodies animate every frame; a settled corpse only when it is moved.
     const moved = !this.casterPos.equals(this.group.position) || !this.casterQuat.equals(this.group.quaternion);
     if (this.state !== 'dead' || moved || this.animator.clipPlaying) {
@@ -1957,6 +2004,10 @@ export class Humanoid {
     this.animator.turnRate = crawling ? this.turn.vel : this.uprightTurn.vel;
     this.animator.turnError = crawling ? this.turnError : this.uprightTurn.error;
     if (this.state !== 'alive' || this.animator.sequencePlaying || this.animator.clipPlaying) return;
+    if (this.animator.performancePlaying) {
+      if (this.speed <= 0.25) return;
+      this.animator.stopPerformance();
+    }
     const phase = this.slam?.phase ?? 'idle';
     if (phase !== this.slamPhaseShown) {
       this.slamPhaseShown = phase;
@@ -1982,6 +2033,7 @@ export class Humanoid {
     this.state = 'dead';
     this.speed = 0;
     this.animator.convulse = 0;
+    this.animator.stopPerformance();
     this.transformAnim = null;
     const pose = prone || this.locomotion.mode !== 'walk'
       ? 'corpseProne'

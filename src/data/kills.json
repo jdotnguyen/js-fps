@@ -105,7 +105,7 @@
         "lines": ["sec_priya_06"],
         "events": [
           { "t": 0, "do": "attackerPose", "pose": "maul_impale", "blend": 0.08, "gait": 1, "charge": 0 },
-          { "t": 0, "do": "grip", "hand": "R", "joint": "chest" },
+          { "t": 0, "do": "grip", "hand": "R", "joint": "chest", "blade": 0.45 },
           { "t": 0, "do": "light", "state": "on" },
           { "t": 0, "do": "sfx", "id": ["impale_blade", "impale_stab", "kill_tear", "fleshTear"], "joint": "chest" },
           { "t": 0.25, "do": "sfx", "id": ["impale_choke"], "joint": "chest" },
@@ -177,6 +177,7 @@
           { "t": 0.3, "do": "gore", "kind": "pool", "joint": "chest", "size": 1 },
           { "t": 0.4, "do": "attackerPose", "pose": "maul_prowl", "blend": 0.6 },
           { "t": 0.4, "do": "attackerLook", "mark": "glassLook" },
+          { "t": 1, "do": "attackerPerf", "perf": "scream" },
           { "t": 1, "do": "sfx", "id": ["creatureScreamFar"], "joint": "chest", "gain": 20 },
           { "t": 2, "do": "gore", "kind": "pool", "joint": "chest", "size": 1.4 },
           { "t": 3.4, "do": "attackerLook" },

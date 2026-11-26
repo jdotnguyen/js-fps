@@ -21,6 +21,7 @@ import { solveTwoBone } from './ik.ts';
 import { detailPass } from './detailPass.ts';
 import { Spring1D } from './springs.ts';
 import type { BladeMotion } from './blade/motion.ts';
+import type { BladePerformance, BladePerformancePhase } from '../data/types/bladeCreature.ts';
 
 /**
  * Hybrid mocap + procedural-physics animation for one humanoid (ADR-0006 + Tier B upgrade):
@@ -187,6 +188,28 @@ export class Animator {
   readonly moved = { x: 0, z: 0, yaw: 0 };
   /** A creature body's own motion (the blade creature, rig-necromorph), or null for every human body. */
   creature: BladeMotion | null = null;
+  /** Which blade arm is winding up for a swipe (`L` | `R`), or null. */
+  bladeWindupSide: 'L' | 'R' | null = null;
+  /** True while this body is grabbing the player (spreads blades clear of the player camera). */
+  bladeGrabbing = false;
+  /** Latest combat jaw/flare amounts emitted by `BladeMotion` this frame (0..1). */
+  bladeMotionJaw = 0;
+  bladeMotionFlare = 0;
+  /** Named performances from a creature's profile (`data/blade-creature.json`, design D8), or null for humans. */
+  performances: Readonly<Record<string, BladePerformance>> | null = null;
+  /** Active performance amounts (0..1) read by `Humanoid` / `BladeMotion` each frame. */
+  bladePerfJaw = 0;
+  bladePerfFlare = 0;
+  bladePerfTremor = 0;
+  private perf: {
+    name: string;
+    phases: readonly BladePerformancePhase[];
+    index: number;
+    timer: number;
+    holdOverride: number | undefined;
+    onDone: (() => void) | null;
+  } | null = null;
+  private static readonly warnedPerfs = new Set<string>();
   private readonly addJoint = (name: JointName, x: number, y: number, z: number): void => this.add(name, x, y, z);
   private readonly baseE = new THREE.Euler();
   /** A joint's X angle (degrees) in the current blended pose, before any layer. */
@@ -444,6 +467,7 @@ export class Animator {
   private static readonly warnedMaps = new Set<string>();
 
   setPose(asked: string, blend = 0.4): void {
+    this.stopPerformance();
     const name = this.ownPose(asked);
     if (this.to.name === name && !this.seq) return;
     this.seq = null;
@@ -458,6 +482,53 @@ export class Animator {
       return;
     }
     this.startBlend(target, blend);
+  }
+
+  /** Whether this body's profile defines a performance by `name` (such as `scream`, design D8). */
+  hasPerformance(name: string): boolean {
+    return Boolean(this.performances?.[name]);
+  }
+
+  /** True while a timed creature performance is playing. */
+  get performancePlaying(): boolean {
+    return this.perf !== null;
+  }
+
+  /**
+   * Play a named creature performance (`data/blade-creature.json` `performances`, design D8).
+   * `hold` overrides the hold duration of any phase marked `stretch: true`. Returns false and warns once if missing.
+   */
+  playPerformance(name: string, opts: { hold?: number; onDone?: () => void } = {}): boolean {
+    const def = this.performances?.[name];
+    if (!def || def.phases.length === 0) {
+      if (!Animator.warnedPerfs.has(name)) {
+        Animator.warnedPerfs.add(name);
+        console.warn(`[blade] performance "${name}" is not defined on this body`);
+      }
+      opts.onDone?.();
+      return false;
+    }
+    this.stopPerformance();
+    this.seq = null;
+    this.oneShot = null;
+    const first = def.phases[0]!;
+    const hold = first.stretch && opts.hold !== undefined ? opts.hold : first.hold;
+    this.perf = { name, phases: def.phases, index: 0, timer: first.blend + hold, holdOverride: opts.hold, onDone: opts.onDone ?? null };
+    this.bladePerfJaw = first.jaw ?? 0;
+    this.bladePerfFlare = first.flare ?? 0;
+    this.bladePerfTremor = first.tremor ?? 0;
+    this.startBlend(this.poses.get(this.ownPose(first.pose)), first.blend);
+    return true;
+  }
+
+  /** End any active performance immediately, resetting its jaw, flare and tremor amounts. */
+  stopPerformance(): void {
+    const p = this.perf;
+    this.perf = null;
+    this.bladePerfJaw = 0;
+    this.bladePerfFlare = 0;
+    this.bladePerfTremor = 0;
+    p?.onDone?.();
   }
 
   playSequence(name: string, onDone: (() => void) | null = null): void {
@@ -519,9 +590,50 @@ export class Animator {
       this.updateHold(dt);
     }
     this.updateGait(dt, mocapActive);
+    if (this.perf) {
+      if (this.speed > 0.25) {
+        // Moving cuts a standing performance straight into the gait with no standing pause (design D8).
+        this.stopPerformance();
+      } else {
+        const p = this.perf;
+        const cur = p.phases[p.index]!;
+        const k = Math.min(1, dt * 10);
+        this.bladePerfJaw += ((cur.jaw ?? 0) - this.bladePerfJaw) * k;
+        this.bladePerfFlare += ((cur.flare ?? 0) - this.bladePerfFlare) * k;
+        this.bladePerfTremor += ((cur.tremor ?? 0) - this.bladePerfTremor) * k;
+        p.timer -= dt;
+        if (p.timer <= 0) {
+          p.index++;
+          const next = p.phases[p.index];
+          if (!next) {
+            this.stopPerformance();
+          } else {
+            const hold = next.stretch && p.holdOverride !== undefined ? p.holdOverride : next.hold;
+            p.timer = next.blend + hold;
+            this.startBlend(this.poses.get(this.ownPose(next.pose)), next.blend);
+          }
+        }
+      }
+    }
     if (this.creature) {
       // A creature body (rig-necromorph design D6): its own motion replaces the human layers (sway, turn steps, idle life, speech).
-      const out = this.creature.update(this.addJoint, { dt, time: this.time, speed: this.speed, gaitRate: this.gaitRate, baseX: this.baseX, pelvisY: this.current.pelvis.y, turnRate: this.turnRate, moved: this.moved, locked: this.to.name.startsWith('blade_pry_') });
+      const out = this.creature.update(this.addJoint, {
+        dt,
+        time: this.time,
+        speed: this.speed,
+        gaitRate: this.gaitRate,
+        baseX: this.baseX,
+        pelvisY: this.current.pelvis.y,
+        turnRate: this.turnRate,
+        moved: this.moved,
+        locked: this.to.name.startsWith('blade_pry_') || this.perf !== null,
+        charge: this.charge,
+        windupSide: this.bladeWindupSide,
+        grabbing: this.bladeGrabbing,
+        tremor: this.bladePerfTremor,
+      });
+      this.bladeMotionJaw = out.jaw;
+      this.bladeMotionFlare = out.flare;
       if (this.gait !== 'crawl' && this.gait !== 'drag') {
         this.footContacts[0] = out.contacts[0];
         this.footContacts[1] = out.contacts[1];

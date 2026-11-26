@@ -172,6 +172,43 @@ async function boot(): Promise<void> {
   rateIn.style.width = '60px';
   rateIn.addEventListener('input', () => (stepRate = Number(rateIn.value)));
 
+  el('h3', { textContent: 'Performances & Combat' });
+  const playPerf = (name: string, hold?: number): void => {
+    ground = 0;
+    for (const f of creatures()) f.h.playPerformance(name, ...(hold !== undefined ? [{ hold }] : []));
+  };
+  const stopPerf = (): void => {
+    for (const f of creatures()) {
+      f.h.stopPerformance();
+      f.h.windupSide = null;
+      f.h.grabbing = false;
+      f.h.charge = 0;
+    }
+  };
+  el('button', { textContent: 'scream' }).addEventListener('click', () => playPerf('scream'));
+  el('button', { textContent: 'scream 5 s' }).addEventListener('click', () => playPerf('scream', 5));
+  el('button', { textContent: 'windup R' }).addEventListener('click', () => {
+    stopPerf();
+    for (const f of creatures()) {
+      f.h.charge = 1;
+      f.h.windupSide = 'R';
+    }
+  });
+  el('button', { textContent: 'slash R' }).addEventListener('click', () => {
+    for (const f of creatures()) {
+      f.h.windupSide = null;
+      f.h.strike('R');
+    }
+  });
+  el('button', { textContent: 'grab' }).addEventListener('click', () => {
+    stopPerf();
+    for (const f of creatures()) {
+      f.h.charge = 1;
+      f.h.grabbing = true;
+    }
+  });
+  el('button', { textContent: 'stop' }).addEventListener('click', () => stopPerf());
+
   el('h3', { textContent: 'Show' });
   const hitBtn = el('button', { textContent: 'hit shapes' });
   hitBtn.classList.toggle('on', hits);
@@ -274,6 +311,8 @@ async function boot(): Promise<void> {
     camera,
     scene,
     setPose,
+    play: playPerf,
+    stop: stopPerf,
     jaw: (v: number) => {
       setAmount('jaw', v);
       sliders.jaw.value = String(v);
