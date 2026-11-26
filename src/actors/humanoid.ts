@@ -203,6 +203,8 @@ export class Humanoid {
   private readonly geo: BodyGeometry;
   private readonly materials: BodyMaterials;
   private readonly meshes: THREE.SkinnedMesh[] = [];
+  /** Geometry made only for a warm-up sample (`toWarmSample`). */
+  private readonly sampleGeometries: THREE.BufferGeometry[] = [];
   private readonly boneList: THREE.Bone[] = [];
   private readonly boneIndex = new Map<string, number>();
   private readonly extras = new Map<ExtraBone, THREE.Bone>();
@@ -1617,6 +1619,11 @@ export class Humanoid {
   private mocapPack: string | null = null;
 
   dispose(): void {
+    for (const m of this.releaseAllButMaterials()) m.dispose();
+  }
+
+  /** Everything `dispose` frees except the materials, which are handed back still alive. */
+  releaseAllButMaterials(): THREE.MeshStandardMaterial[] {
     this.bodyDisposed = true;
     this.unregisterCaster();
     this.unregisterContact();
@@ -1627,11 +1634,40 @@ export class Humanoid {
     this.castTells?.dispose();
     this.group.removeFromParent();
     for (const m of this.meshes) m.geometry.dispose();
-    this.materials.body.dispose();
-    this.materials.wet.dispose();
-    for (const m of Object.values(this.materials.surfaces)) m.dispose();
+    for (const g of this.sampleGeometries) g.dispose();
     for (const p of this.geo.parts) p.geometry.dispose();
     for (const h of this.hitboxes) if (h instanceof THREE.LineSegments) h.geometry.dispose();
+    return this.allMaterials();
+  }
+
+  /**
+   * For the loading screen's warm-up (openspec stop-midgame-shader-stalls D3): this body leaves play for good. It gives
+   * up its shadow-caster and contact registrations, and gains one unskinned mesh per material, the form a severed limb
+   * is drawn in, beside the skinned meshes it already has.
+   */
+  toWarmSample(): void {
+    this.unregisterCaster();
+    this.unregisterContact();
+    for (const material of this.allMaterials()) {
+      let geometry: THREE.BufferGeometry | undefined = this.meshes.find((m) => m.material === material)?.geometry;
+      if (!geometry) {
+        // A body with no wound yet still sheds wet cut faces.
+        const caps = woundCap(0.05, 1, 0);
+        geometry = mergeGeometries(caps, false) ?? undefined;
+        for (const g of caps) g.dispose();
+        if (!geometry) continue;
+        this.sampleGeometries.push(geometry);
+      }
+      const piece = new THREE.Mesh(geometry, material);
+      piece.name = `warm-severed:${material.name}`;
+      piece.castShadow = true;
+      piece.receiveShadow = true;
+      this.group.add(piece);
+    }
+  }
+
+  private allMaterials(): THREE.MeshStandardMaterial[] {
+    return [this.materials.body, this.materials.wet, ...Object.values(this.materials.surfaces)];
   }
 
   // ---------------------------------------------------------------- internals: build

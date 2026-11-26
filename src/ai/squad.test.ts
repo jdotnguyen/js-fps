@@ -8,7 +8,7 @@ import { PoseLibrary } from '../actors/poses.ts';
 import { loadPoseFile } from '../data/types/poses.ts';
 import { DEMO_COLLIDERS, demoRoomPlayerWorld } from '../world/demoRoomColliders.ts';
 import { gridNodes, NavGraph } from './nav.ts';
-import { Squad, SQUAD_TUNING, type SquadEnemy, type SquadEnemySource, type SquadMate, type SquadPlayer } from './squad.ts';
+import { shotPoints, Squad, SQUAD_TUNING, type SquadEnemy, type SquadEnemySource, type SquadMate, type SquadPlayer } from './squad.ts';
 import { TASKS } from './squadBrain.ts';
 
 function setup(extra: { enemies?: SquadEnemySource; gameOver?: () => void; flags?: () => Record<string, number> } = {}) {
@@ -751,4 +751,71 @@ test('squad weapon-mounted flashlights toggle via setFlashlight and scriptedFire
     assert.equal(m.flashlightOn, false, 'weapon flashlight turns off');
     assert.equal(m.weaponLight.intensity, 0, 'spotlight returns to 0 intensity');
   }
+});
+
+/** The weapon light sits at the mate's muzzle (world space: the squad group is at the origin). */
+function assertAtMuzzle(m: SquadMate, label: string): void {
+  const { muzzle } = shotPoints(m);
+  assert.ok(m.weaponLight.position.distanceTo(new THREE.Vector3(muzzle.x, muzzle.y, muzzle.z)) < 1e-6, `${label}: ${m.id}'s light at the muzzle`);
+}
+
+const targetOf = (m: SquadMate): THREE.Vector3 => m.weaponLight.target.position;
+
+test('a weapon light hangs from the squad group, sits at the muzzle, points along the aim and is dark while its mate is hidden', () => {
+  const { squad } = setup();
+  squad.update(1 / 60, null);
+  const [armed, other] = squad.mates;
+  armed!.body.setPose('aim_pistol', 0);
+  for (let i = 0; i < 40; i++) armed!.body.update(1 / 60);
+  squad.setFlashlight(undefined, true);
+
+  for (const m of squad.mates) {
+    assert.equal(m.weaponLight.parent, squad.group, 'a body that is hidden must not take its light out of the scene');
+    assert.equal(m.weaponLight.target.parent, squad.group);
+    assertAtMuzzle(m, 'switched on');
+    const { forward, muzzle } = shotPoints(m);
+    const along = targetOf(m).clone().sub(new THREE.Vector3(muzzle.x, muzzle.y, muzzle.z)).normalize();
+    assert.ok(along.dot(new THREE.Vector3(forward.x, forward.y, forward.z)) > 0.999, `${m.id}: along the gun`);
+  }
+  assert.ok(shotPoints(armed!).fromPistol, 'the drawn pistol is the muzzle');
+
+  armed!.body.aimTarget = new THREE.Vector3(-3, 1.2, 1);
+  squad.syncWeaponLights();
+  assert.deepEqual(targetOf(armed!).toArray(), [-3, 1.2, 1], 'aimed at the aim target');
+
+  other!.body.group.visible = false;
+  squad.syncWeaponLights();
+  assert.equal(other!.weaponLight.intensity, 0, 'hidden: dark');
+  assert.ok(armed!.weaponLight.intensity > 0);
+  other!.body.group.visible = true;
+  squad.syncWeaponLights();
+  assert.ok(other!.weaponLight.intensity > 0, 'shown again: lit');
+  squad.dispose();
+});
+
+test('a teleported mate has its weapon light at the new muzzle in the same step', () => {
+  const { squad, player } = setup();
+  squad.update(1 / 60, null);
+  squad.setFlashlight(undefined, true);
+
+  // A restart or load: Jay jumps, and the squad is placed beside him.
+  const before = squad.mates.map((m) => m.weaponLight.position.clone());
+  player.body.z = -7;
+  squad.update(1 / 60, null);
+  squad.mates.forEach((m, i) => {
+    assert.ok(m.weaponLight.position.distanceTo(before[i]!) > 5, `${m.id}'s light moved`);
+    assertAtMuzzle(m, 'placed beside Jay');
+  });
+
+  // The catch-up teleport, which runs after the mate's own step. Jay walks on first, leaving a trail behind him.
+  const [m] = squad.mates;
+  for (let t = 0; t < 2; t += 1 / 60) {
+    player.body.z += 4 / 60;
+    squad.update(1 / 60, null);
+  }
+  m!.place({ x: 0, y: 0, z: -40 }, 0); // far behind him (he faces -z at yaw 0, so turn him to face +z)
+  player.yaw = Math.PI;
+  squad.update(1 / 60, null);
+  assert.ok(m!.position.z > -20, `caught up (z ${m!.position.z.toFixed(1)})`);
+  assertAtMuzzle(m!, 'caught up');
 });

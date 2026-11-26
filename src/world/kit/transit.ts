@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { trackAsset } from '../../core/pendingAssets.ts';
 import type { Rng } from '../../core/rng.ts';
 import { fixtureMaterial, type Materials } from '../../render/materials.ts';
 import { paintedDecal } from '../../render/decals.ts';
@@ -2007,9 +2008,17 @@ function bloodTextureMaterial(variant: string, seed: string, explicitTex: string
   if (typeof document !== 'undefined' && typeof document.createElementNS === 'function') {
     if (!bloodLoader) bloodLoader = new THREE.TextureLoader();
     const base = (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
-    map = bloodLoader.load(`${base}assets/textures/blood/${texName}.webp`);
-    map.colorSpace = THREE.SRGBColorSpace;
-    trackAnisotropy(map);
+    const url = `${base}assets/textures/blood/${texName}.webp`;
+    trackAsset(
+      new Promise<void>((done) => {
+        map = bloodLoader!.load(url, () => done(), undefined, () => {
+          console.warn(`[kit] ${url} failed to load; the blood decal stays blank`);
+          done();
+        });
+      }),
+    );
+    map!.colorSpace = THREE.SRGBColorSpace;
+    trackAnisotropy(map!);
   }
 
   mat = new THREE.MeshStandardMaterial({
@@ -2236,7 +2245,7 @@ function fallenBody(p: PieceParams): PieceOutput {
   if (typeof document !== 'undefined' && typeof document.createElementNS === 'function') {
     const base = (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
     const seed = Math.abs((id || variant).split('').reduce((h, ch) => ((h * 31) ^ ch.charCodeAt(0)) | 0, 0));
-    void Promise.all([
+    const posed = Promise.all([
       import('../../render/gltf.ts').then(({ createGltfLoader }) => createGltfLoader()).then((l) => l.loadAsync(`${base}${modelUrl}`)),
       loadBloodImage(bloodTex),
     ]).then(([gltf, bloodImg]) => {
@@ -2281,9 +2290,10 @@ function fallenBody(p: PieceParams): PieceOutput {
       root.remove(fallback);
       root.add(wrapper);
       root.updateMatrixWorld(true);
-    }).catch(() => {
-      // Keep fallback mesh if GLB fails to load.
+    }).catch((err: unknown) => {
+      console.warn(`[kit] ${modelUrl} failed to load; the fallen body keeps its placeholder`, err);
     });
+    trackAsset(posed);
   }
 
   pb.dynamic(root);

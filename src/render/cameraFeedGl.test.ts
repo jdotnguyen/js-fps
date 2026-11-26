@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { LOOKS, OVERLAY_SCAN, scanPitch } from './cameraFeedGl.ts';
+import * as THREE from 'three';
+import { createFeedGl, LOOKS, OVERLAY_SCAN, scanPitch } from './cameraFeedGl.ts';
 
 // camera-feeds spec: the CCTV look's strength per feed. The GL passes need a context and are not run
 // here; these pin the numbers the passes use.
@@ -27,4 +28,19 @@ test('fullscreen scanlines are at most 4 screen pixels apart at any view height'
     const p = scanPitch(h);
     assert.ok(p >= 2 && p <= 4, `${p} px at ${h} px tall`);
   }
+});
+
+test('warm compiles the look for a render target and the overlay for the screen, where each draws (session-loading)', () => {
+  let target: THREE.WebGLRenderTarget | null = null;
+  const compiled: boolean[] = [];
+  const renderer = {
+    setRenderTarget: (t: THREE.WebGLRenderTarget | null) => void (target = t),
+    compile: () => void compiled.push(target !== null),
+  } as unknown as THREE.WebGLRenderer;
+  const gl = createFeedGl({ renderer, scene: new THREE.Scene() });
+  gl.warm();
+  assert.deepEqual(compiled, [true, false]);
+  assert.equal(target, null);
+  assert.equal(gl.failed, false);
+  gl.dispose();
 });

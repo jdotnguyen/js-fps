@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Keymap } from '../data/types/keymap.ts';
 import type { DifficultyId, DifficultyTable } from '../data/types/difficulty.ts';
 import type { ItemTable } from '../data/types/items.ts';
@@ -25,21 +24,26 @@ import type { Settings, SettingsStore } from '../core/settings.ts';
 import { persistentStore } from '../core/storage.ts';
 import { validate } from '../core/validate.ts';
 import { yieldFrame } from '../core/yieldFrame.ts';
+import { assetsSettled } from '../core/pendingAssets.ts';
 import type { SoundName } from '../audio/sounds.ts';
 import { applyQuality, createRenderer } from '../render/renderer.ts';
+import { compileForPlay, warmShadowPass } from '../render/warm.ts';
+import { WarmBodies } from '../actors/warmBodies.ts';
+import { ProgramWatch, programWarning } from '../render/programWatch.ts';
 import { createMaterialsAsync, disposeMaterials, textureSizeFor, type Materials } from '../render/materials.ts';
 import { collectTextures } from '../render/textures.ts';
 import { createPost, type Post } from '../render/post.ts';
 import type { RoomCaptures } from '../render/roomCaptures.ts';
 import { anisotropyFor, clampTier, materialTextureUnits, RENDER_TIERS, type GpuLimits, type RenderTier } from '../render/tiers.ts';
 import { applyAnisotropy, clearTrackedAnisotropy, currentAnisotropy, setAnisotropy } from '../render/anisotropy.ts';
-import { Humanoid, setCharacterShadowDistance, type FootstepEvent } from '../actors/humanoid.ts';
+import { setCharacterShadowDistance, type FootstepEvent } from '../actors/humanoid.ts';
 import { Flashlight } from '../render/flashlight.ts';
 import { LIGHT_PATTERNS } from '../render/lights.ts';
 import { CameraFeeds } from '../render/cameraFeed.ts';
 import { createFeedGl, type FeedGl } from '../render/cameraFeedGl.ts';
 import { disposeSeabedCache, preloadSeabed } from '../render/fx/seabed.ts';
 import { disposeSubModelCache, preloadSubModel } from '../render/fx/subModel.ts';
+import { JUGGERNAUT_HIDE_ANCHOR, JUGGERNAUT_REVEAL_ANCHOR, loadJuggernaut, type Juggernaut } from '../render/fx/juggernaut.ts';
 import type { DemoRoom } from '../world/demoRoom.ts';
 import type { Level } from '../world/level.ts';
 import type { KitRegistry } from '../world/registry.ts';
@@ -262,6 +266,9 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
   let npcs: NpcDirector | null = null;
   let enemies: ReturnType<typeof setupEnemies> | null = null;
   let viewmodel: Viewmodel | null = null;
+  let juggernaut: Juggernaut | null = null;
+  /** Sample bodies whose materials keep their shader programs alive for the session. */
+  let warmBodies: WarmBodies | null = null;
   let gore: GoreSystem | null = null;
   let waterSystem: WaterSystem | null = null;
   let sparks: Sparks | null = null;
@@ -378,6 +385,10 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     squad = null;
     gore?.dispose();
     gore = null;
+    juggernaut?.dispose();
+    juggernaut = null;
+    warmBodies?.dispose();
+    warmBodies = null;
     bodyModels?.dispose();
     bodyModels = null;
     clearSharedMocapLibrary();
@@ -633,7 +644,14 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     loading.setProgress(0.62, 'Generating navigation mesh…');
     await yieldFrame();
     const navPromise = level ? level.buildNavAsync() : Promise.resolve(world.navGraph());
-    const [, [bodyLibrary, , weaponModels], physicsFactory] = await Promise.all([navPromise, castAssetsPromise, physicsPromise]);
+    // A level with a finale creature loads it now, so its textures and shaders are ready long before its scene.
+    const juggernautPromise = level?.anchor(JUGGERNAUT_REVEAL_ANCHOR)
+      ? loadJuggernaut(import.meta.env.BASE_URL).then((j) => {
+          if (disposed) j?.dispose(); // the load failed elsewhere while this was in flight
+          else juggernaut = j;
+        })
+      : Promise.resolve();
+    const [, [bodyLibrary, , weaponModels], physicsFactory] = await Promise.all([navPromise, castAssetsPromise, physicsPromise, juggernautPromise]);
     bodyModels = bodyLibrary;
     stages.begin('simulation');
     loading.setProgress(0.7, 'Initializing simulation…');
@@ -775,10 +793,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     }
     if (level) {
       // Warm a room's shaders ahead of its door (D40): reveal it for the compile's synchronous pass only; with
-      // KHR_parallel_shader_compile the links finish off the main thread while the scene plays. The scene is drawn into
-      // the post chain's linear target, so compile with a render target bound: against the canvas, three keys the
-      // programs as sRGB output and the door still compiles the linear ones in the frame it opens.
-      const warmTarget = new THREE.WebGLRenderTarget(1, 1);
+      // KHR_parallel_shader_compile the links finish off the main thread while the scene plays.
       const uploadedTextures = new WeakSet<THREE.Texture>();
       const TEX_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'alphaMap', 'aoMap', 'bumpMap'] as const;
       events.on('render:warm', ({ room }) => {
@@ -786,7 +801,6 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         const r = renderer;
         if (!g || !r) return;
         const wasVisible = g.visible;
-        const prevTarget = r.getRenderTarget();
         g.visible = true;
         // Pre-upload any loaded textures (e.g. R16a/R16b blood decals) so first draw does not stall on texImage2D.
         g.traverse((obj) => {
@@ -804,13 +818,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
             }
           }
         });
-        r.setRenderTarget(warmTarget);
-        try {
-          void r.compileAsync(g, camera, scene).catch(() => undefined);
-        } finally {
-          r.setRenderTarget(prevTarget);
-          g.visible = wasVisible;
-        }
+        void compileForPlay(r, g, camera, scene).catch(() => undefined);
+        g.visible = wasVisible;
       });
       // Armoured glass (medbay-attack "Shooting the glass"): a round chips the face it struck, sparks and thunks, and stops.
       const glassHit = new THREE.Vector3();
@@ -1437,97 +1446,20 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       }) as never);
     }
 
-    // Preload the Juggernaut during the arrival, ahead of its CAM 10 entrance.
-    let juggernautRoot: THREE.Group | null = null;
-    let juggernautHead: THREE.Object3D | undefined;
-    let juggernautLoading = false;
-    let juggernautActive = false;
-    let juggernautT = 0;
-    let juggernautYaw = 0;
-    const juggernautStart = new THREE.Vector3();
-    const juggernautEnd = new THREE.Vector3();
+    // The finale creature's CAM 10 entrance: loaded and hidden since the loading screen.
+    const loadedCreature = juggernaut as Juggernaut | null; // assigned in the load's callback, which TS cannot follow
+    if (loadedCreature) scene.add(loadedCreature.root);
     const juggernautAim = new THREE.Vector3();
-    const ensureJuggernaut = (): void => {
-      if (juggernautRoot || juggernautLoading) return;
-      juggernautLoading = true;
-      const loader = new GLTFLoader();
-      const base = (import.meta.env?.BASE_URL ?? '/').replace(/\/?$/, '/');
-      loader.load(
-        `${base}assets/models/infected/monster_juggernaut.glb`,
-        (gltf) => {
-          juggernautLoading = false;
-          const wrap = new THREE.Group();
-          wrap.name = 'r16_juggernaut';
-          const model = gltf.scene;
-          model.updateMatrixWorld(true);
-          const box = new THREE.Box3();
-          model.traverse((c) => {
-            if (c instanceof THREE.Mesh) {
-              // This export's detail meshes are bound hundreds of units above the body.
-              if (!Array.isArray(c.material) && c.material.name === 'details') {
-                c.visible = false;
-                return;
-              }
-              box.expandByObject(c);
-              c.frustumCulled = false;
-              c.castShadow = true;
-              c.receiveShadow = true;
-            }
-          });
-          const scale = 5.1 / Math.max(0.01, box.max.y - box.min.y);
-          const center = box.getCenter(new THREE.Vector3());
-          model.scale.setScalar(scale);
-          model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
-          // The forward head marker stays on the exposed face as it peeks around the pillar.
-          juggernautHead = model.getObjectByName('head_ik_094');
-          wrap.add(model);
-          wrap.visible = juggernautActive;
-          wrap.position.copy(juggernautStart);
-          wrap.rotation.y = juggernautYaw;
-          scene.add(wrap);
-          juggernautRoot = wrap;
-        },
-        undefined,
-        (err) => {
-          juggernautLoading = false;
-          console.warn('[r16] failed to load monster_juggernaut.glb', err);
-        },
-      );
-    };
-    events.on('transit:juggernaut_reveal' as never, ((p: { preload?: boolean; show?: boolean }) => {
-      if (p?.preload) ensureJuggernaut();
-      if (typeof p?.show === 'boolean') {
-        juggernautActive = p.show;
-        if (p.show) {
-          ensureJuggernaut();
-          const hide = level?.anchor('r16_monster_hide');
-          const rev = level?.anchor('r16_monster_reveal');
-          if (hide) juggernautStart.set(hide.pos.x, hide.pos.y, hide.pos.z);
-          if (rev) {
-            juggernautEnd.set(rev.pos.x, rev.pos.y, rev.pos.z);
-            juggernautYaw = rev.yaw;
-          }
-          juggernautT = 0;
-          squad?.setAim(['giles', 'okafor'], () => {
-            if (!juggernautHead) return null;
-            juggernautHead.getWorldPosition(juggernautAim);
-            juggernautAim.y += 0.8;
-            return juggernautAim;
-          });
-          if (juggernautRoot) {
-            juggernautRoot.position.copy(juggernautStart);
-            juggernautRoot.rotation.y = juggernautYaw;
-            juggernautRoot.visible = true;
-          }
-        } else if (juggernautRoot) {
-          juggernautRoot.visible = false;
-        }
+    events.on('transit:juggernaut_reveal' as never, ((p: { show?: boolean }) => {
+      if (!juggernaut || typeof p?.show !== 'boolean') return;
+      if (!p.show) {
+        juggernaut.hide();
+        return;
       }
+      juggernaut.reveal(level?.anchor(JUGGERNAUT_HIDE_ANCHOR) ?? null, level?.anchor(JUGGERNAUT_REVEAL_ANCHOR) ?? null);
+      squad?.setAim(['giles', 'okafor'], () => juggernaut?.aimPoint(juggernautAim) ?? null);
     }) as never);
-    events.on('level:reset' as never, (() => {
-      juggernautActive = false;
-      if (juggernautRoot) juggernautRoot.visible = false;
-    }) as never);
+    events.on('level:reset' as never, (() => juggernaut?.hide()) as never);
 
     let ambienceRoom: string | null = null;
     events.on('room:entered', (r) => {
@@ -1635,6 +1567,11 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     };
     applySettings();
     cleanups.push(shellEvents.on('settings:changed', applySettings));
+
+    // Developer sessions report programs first compiled during play (session-loading "First-use shader compiles are
+    // reported"). Set once the warm-up is done; another graphics quality and the debug fly camera are exempt.
+    let programWatch: ProgramWatch | null = null;
+    const loadedQuality = settings.get().quality;
 
     let levelStats: { drawCalls: number; pool: number } | null = null;
     let lightingOverlay: { update(): void } | null = null;
@@ -1960,13 +1897,11 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           stepPhysics(dt);
           sequences?.update(dt);
           enemies!.update(dt);
-          if (juggernautActive && juggernautRoot) {
-            juggernautT = Math.min(1, juggernautT + dt / 5.2);
-            const ease = juggernautT * juggernautT * (3 - 2 * juggernautT);
-            juggernautRoot.position.lerpVectors(juggernautStart, juggernautEnd, ease);
-          }
+          juggernaut?.update(dt);
           squad!.update(dt, camera.position);
           npcs!.update(dt, camera.position, cameraForwardXZ(camera, npcCamFwd), cameraFeeds?.liveCameras());
+          // After the director: it moves and animates held mates, and hides the ones out of range.
+          squad!.syncWeaponLights();
           gore!.update(dt);
           guidance!.update(dt);
           scoreFeet.x = player.body.x;
@@ -2062,6 +1997,11 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           post!.render(simTime);
         }
         feedGl!.overlay(coverFeed, coverFeed !== null);
+        if (programWatch) {
+          const programs = renderer!.info.programs ?? [];
+          if (game.flying || settings.get().quality !== loadedQuality) programWatch.accept(programs);
+          else for (const p of programWatch.unexpected(programs)) console.warn(programWarning(p));
+        }
         debug?.endFrame();
       },
     });
@@ -2132,6 +2072,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     world.update(0, 1 / 60, camera.position, settings.get().reducedFlashing);
     viewmodel.update(1 / 60);
 
+    // Models and textures the kit and the cast started loading on their own are all in before anything is uploaded.
+    await assetsSettled();
     const goreTex = gore.prewarm();
     const allTextures = collectTextures([
       scene,
@@ -2157,7 +2099,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     waterSystem?.warm(renderer);
     feedGl.warm();
 
-    // Temporarily reveal all rooms + exterior + actors + viewmodel + one representative warm enemy covering custom body shaders.
+    // Temporarily reveal all rooms + exterior + actors + viewmodel.
     const hiddenToRestore: THREE.Object3D[] = [];
     const reveal = (o: THREE.Object3D): void => {
       if (!o.visible) {
@@ -2173,32 +2115,21 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     reveal(enemies.director.group);
     reveal(viewmodel.group);
     reveal(gore.group);
+    if (juggernaut) reveal((juggernaut as Juggernaut).root);
 
-    // Warm custom `onBeforeCompile` body shaders (both procedural and imported body model if loaded).
-    const warmBodies: Humanoid[] = [];
-    const warmCtx = { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels, colliders: world.playerWorld.colliders };
-    const firstModelId = Object.keys(bodyModels.table).find((id) => bodyModels!.get(id));
-    const warmSpecs: Array<{ role: 'enemy'; seed: string; outfit: 'crew'; transformable: true; model?: string }> = [
-      { role: 'enemy', seed: 'warm-proc', outfit: 'crew', transformable: true },
-      ...(firstModelId ? [{ role: 'enemy' as const, seed: 'warm-model', outfit: 'crew' as const, transformable: true as const, model: firstModelId }] : []),
-    ];
-    for (const spec of warmSpecs) {
-      const h = new Humanoid(spec, warmCtx);
-      h.group.position.set(camera.position.x, camera.position.y - 20, camera.position.z);
-      scene.add(h.group);
-      warmBodies.push(h);
-    }
+    // One sample of every body, for its custom shaders in each form it is drawn in.
+    warmBodies = new WarmBodies({ poses: new PoseLibrary(loadPoseFile(posesJson)), gore, bodyModels, colliders: world.playerWorld.colliders }, bodyModels);
+    warmBodies.group.position.set(camera.position.x, camera.position.y - 20, camera.position.z);
+    scene.add(warmBodies.group);
+    // And of the gore that has no mesh until blood flies.
+    const warmGore = gore.warmSamples();
+    scene.add(warmGore);
 
-    const rWithAsync = renderer as THREE.WebGLRenderer & { compileAsync?: (s: THREE.Object3D, c: THREE.Camera) => Promise<void> };
-    if (typeof rWithAsync.compileAsync === 'function') {
-      await rWithAsync.compileAsync(scene, camera);
-    } else {
-      renderer.compile(scene, camera);
-    }
-    for (const h of warmBodies) {
-      scene.remove(h.group);
-      h.dispose();
-    }
+    await compileForPlay(renderer, scene, camera);
+    // Shadow-depth programs are built only by drawing: one pass over every caster, the samples among them.
+    warmShadowPass(renderer, scene, camera, flashlight.light);
+    warmGore.removeFromParent();
+    warmBodies.release();
     for (const o of hiddenToRestore) o.visible = false;
 
     // Warm render passes through the real post-processing + shadow + water chain while loading screen is still opaque.
@@ -2212,6 +2143,12 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     await yieldFrame();
     renderer.shadowMap.needsUpdate = true;
     post.render(1 / 60);
+    // The spawn room's reflection and the fade to it, whose shaders play would otherwise build in its first frames.
+    roomCaptures?.warm();
+    if (launch.debug.enabled) {
+      programWatch = new ProgramWatch();
+      programWatch.accept(renderer.info.programs ?? []);
+    }
 
     loading.setProgress(1, 'Ready');
     updatePrompt();

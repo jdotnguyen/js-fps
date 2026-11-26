@@ -189,3 +189,25 @@ test('a safety-glass crack has a second copy on the pane\'s far face, and is sti
   gore.glassMark(at, n, 'splat', 0.3);
   assert.equal(marksOf(gore).filter((m) => m.getObjectByName('gore-crack-back')?.visible).length, 1, 'only the crack has one');
 });
+
+test('the warm samples hold every material a mark or pool is drawn with, before any blood has flown', () => {
+  const gore = new GoreSystem(new Rng('warm'));
+  const warm = new Set((gore.warmSamples().children as THREE.Mesh[]).map((m) => m.material as THREE.MeshStandardMaterial));
+  assert.equal(gore.group.children.some((c) => c.name === 'warm-gore-sample'), false, 'samples are not part of play');
+
+  const n = new THREE.Vector3(0, 0, 1);
+  let x = 0;
+  for (const kind of ['print', 'splat', 'streak', 'crack', 'crack'] as const) gore.glassMark(new THREE.Vector3(x++, 1, 0), n, kind, 0.4);
+  for (const kind of ['splat', 'streak'] as const) gore.glassMark(new THREE.Vector3(x++, 1, 0), n, kind, 0.4, { dark: true });
+  gore.pool(new THREE.Vector3(0, 0, 2), 0.5, false);
+  gore.pool(new THREE.Vector3(1, 0, 2), 0.5, true);
+  gore.waterLevelAt = () => 0.5;
+  gore.pool(new THREE.Vector3(2, 0, 2), 0.5, false);
+
+  // A program is chosen by what a material has, not which object it is: compare those features (clones included).
+  const features = (m: THREE.MeshStandardMaterial): string => [!!m.map, !!m.alphaMap, !!m.normalMap, m.transparent, m.side].join();
+  const warmed = new Set([...warm].map(features));
+  const drawn = gore.group.children.filter((c): c is THREE.Mesh => (c as THREE.Mesh).isMesh && !(c as THREE.InstancedMesh).isInstancedMesh && (c as THREE.Mesh).material instanceof THREE.MeshStandardMaterial);
+  assert.ok(drawn.length >= 10, `marks and pools were made (${drawn.length})`);
+  for (const mesh of drawn) assert.ok(warmed.has(features(mesh.material as THREE.MeshStandardMaterial)), `${mesh.name} ${features(mesh.material as THREE.MeshStandardMaterial)}`);
+});

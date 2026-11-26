@@ -293,7 +293,13 @@ export function createFeedGl(d: FeedGlDeps): FeedGl {
     warm() {
       if (failed) return;
       try {
+        // Each pass compiles for where it draws: the look into a feed's target (a different program from the
+        // screen's), the overlay onto the screen.
+        const target = new THREE.WebGLRenderTarget(1, 1);
+        renderer.setRenderTarget(target);
         renderer.compile(passScene, passCam);
+        renderer.setRenderTarget(null);
+        target.dispose();
         renderer.compile(overlayScene, passCam);
       } catch (err) {
         fail(err);

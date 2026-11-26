@@ -3,6 +3,7 @@ import { castSpec } from '../actors/castLooks.ts';
 import { Humanoid, type HumanoidContext } from '../actors/humanoid.ts';
 import type { SeverableRegion } from '../actors/skeleton.ts';
 import { yieldFrame } from '../core/yieldFrame.ts';
+import { trackAsset } from '../core/pendingAssets.ts';
 import type { Interactable } from '../actors/interaction.ts';
 import type { ColliderQuery } from '../actors/motor.ts';
 import { separate, type SepBody } from '../actors/separation.ts';
@@ -148,7 +149,7 @@ function applyBloodToBody(body: Humanoid, seedStr: string): void {
   for (let k = 0; k < 8; k++) {
     picks.push(CORPSE_BLOOD_TEX[(seed + k * 3) % CORPSE_BLOOD_TEX.length]!);
   }
-  void Promise.all(picks.map(loadCorpseBloodImage)).then((loaded) => {
+  const stained = Promise.all(picks.map(loadCorpseBloodImage)).then((loaded) => {
     const imgs = loaded.filter((img): img is HTMLImageElement => img !== null);
     if (imgs.length === 0) return;
     let idx = 0;
@@ -203,6 +204,7 @@ function applyBloodToBody(body: Humanoid, seedStr: string): void {
       idx++;
     }
   });
+  trackAsset(stained);
 }
 
 const SQUAD_NAMES: Readonly<Record<string, SquadId>> = { giles: 'engineer', engineer: 'engineer', okafor: 'medic', medic: 'medic' };

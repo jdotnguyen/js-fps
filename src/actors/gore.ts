@@ -523,6 +523,24 @@ export class GoreSystem {
     return [...textures];
   }
 
+  /**
+   * For the loading screen's warm-up (openspec stop-midgame-shader-stalls D3): a mesh for every gore material that has
+   * none in the scene until blood flies (pools, water clouds, glass marks, cracks). Their geometry stays gore's; marks
+   * made in play that clone one of these materials share its program.
+   */
+  warmSamples(): THREE.Group {
+    this.crackMaterial(0);
+    const materials = [this.poolMats.full, this.poolMats.reduced, ...Object.values(this.ensureCloudMats()), ...Object.values(this.glassMaterials()), ...this.crackMats!];
+    const group = new THREE.Group();
+    group.name = 'warm-gore';
+    for (const material of materials) {
+      const mesh = new THREE.Mesh(this.glassPlane, material);
+      mesh.name = 'warm-gore-sample';
+      group.add(mesh);
+    }
+    return group;
+  }
+
   private ensureCloudMats(): { full: THREE.MeshStandardMaterial; reduced: THREE.MeshStandardMaterial } {
     if (!this.cloudMats) {
       const tex = cloudTexture();

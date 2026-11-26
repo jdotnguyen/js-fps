@@ -135,6 +135,18 @@ Giles opens the armory himself during the rescue; Jay walks slowly with no weapo
 - Performance: R07 has 2 extra overlay meshes (pane cracks, unused by the R08 scene), R11 one (trail); check frame rate in R11 with 8 enemies and the hero, and in the tunnel.
 - The `loop` skip change (counted loops apply their body) touches the earlier skippable scenes too; re-skip the intro and the briefing once to be sure.
 
+## Shader compiles during play (openspec `stop-midgame-shader-stalls`)
+A shader program compiled during play stalls the frame that first draws it, about 0.6 s each on a cold cache. The loading screen has to build every one. In a `&debug` session each miss is warned once in the console:
+
+`[shaders] compiled during play: MeshStandardMaterial "humanoid-wet" (not prepared by the loading screen)`
+
+To check, open `/?level=slice01&debug&slot=scratch&jump=r05` with the console showing, play (or move the view through the rooms and fight), and expect no `[shaders]` line. Changing graphics quality and the F1 fly camera are exempt and not reported. A warm shader cache hides the stall but not the warning.
+
+When a line appears:
+- **The light count changed.** Many names at once, often materials that were already on screen: some real light was hidden, added or removed. A light never hangs from a node play can hide or remove (`render-lighting` spec).
+- **A material the warm-up did not see.** One or a few names: it has no mesh in the scene at load, or its model arrives late. Add it to the session's warm set, or load it before the loading screen ends.
+- **A new render path.** A pass that draws into the screen instead of a render target, or a new shadow, capture or post program: warm it through `compileForPlay` or by drawing it during the warm frames.
+
 ## Session load timings
 The session logs one line when a load finishes: `[session] ready in N ms (total ... | stage ms | ...)`. A stage marked `(prepared)` took its inputs from the title preload (openspec `preload-during-title`).
 

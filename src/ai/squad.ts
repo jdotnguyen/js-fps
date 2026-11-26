@@ -178,8 +178,13 @@ export class SquadMate {
   rideLocked = false;
   /** Pre-allocated weapon-mounted dynamic flashlight (zero scene light count change). */
   flashlightOn = false;
+  /**
+   * The light and its target hang from `Squad.group`, never from the body: the body is hidden when far away, and a
+   * hidden light drops out of the scene's light count, which recompiles every lit material (render-lighting "The set
+   * of real lights stays constant during play").
+   */
   readonly weaponLight: THREE.SpotLight;
-  private readonly weaponLightTarget: THREE.Object3D;
+  readonly weaponLightTarget: THREE.Object3D;
   private scriptedBurst: { target: THREE.Vector3; remaining: number; interval: number; t: number; boost: number } | null = null;
   private scriptedAimGet: (() => P3 | null) | null = null;
   hp: number = REVIVE.maxHp;
@@ -250,37 +255,27 @@ export class SquadMate {
     this.weaponLightTarget = new THREE.Object3D();
     this.weaponLightTarget.name = `squad_weapon_light_target_${role.id}`;
     this.weaponLight.target = this.weaponLightTarget;
-    this.body.group.add(this.weaponLight);
-    this.body.group.add(this.weaponLightTarget);
   }
 
   /** Toggle the pre-allocated weapon-mounted dynamic flashlight. */
   setFlashlight(on: boolean): void {
     this.flashlightOn = on;
-    this.weaponLight.intensity = on ? 42 : 0;
-    if (on) this.updateWeaponFlashlight();
+    this.updateWeaponFlashlight();
   }
 
-  /** Keep the weapon flashlight positioned at the muzzle/hand and aimed along the gun bore (or heading). */
+  /**
+   * Keep the weapon flashlight at the muzzle/hand, aimed along the gun bore (or heading), and dark while the mate is
+   * hidden. Positions are world ones: `Squad.group` sits at the origin.
+   */
   updateWeaponFlashlight(): void {
-    if (!this.flashlightOn) {
-      this.weaponLight.intensity = 0;
-      return;
-    }
-    this.weaponLight.intensity = 42;
+    const lit = this.flashlightOn && this.body.group.visible;
+    this.weaponLight.intensity = lit ? 42 : 0;
+    if (!lit) return;
     const gun = shotPoints(this);
-    const inv = this.body.group.matrixWorld.clone().invert();
-    const localMuzzle = new THREE.Vector3(gun.muzzle.x, gun.muzzle.y, gun.muzzle.z).applyMatrix4(inv);
-    const worldTarget = this.body.aimTarget
-      ? new THREE.Vector3(this.body.aimTarget.x, this.body.aimTarget.y, this.body.aimTarget.z)
-      : new THREE.Vector3(
-        gun.muzzle.x + gun.forward.x * 8,
-        gun.muzzle.y + gun.forward.y * 8,
-        gun.muzzle.z + gun.forward.z * 8,
-      );
-    const localTarget = worldTarget.applyMatrix4(inv);
-    this.weaponLight.position.copy(localMuzzle);
-    this.weaponLightTarget.position.copy(localTarget);
+    this.weaponLight.position.set(gun.muzzle.x, gun.muzzle.y, gun.muzzle.z);
+    const aim = this.body.aimTarget;
+    if (aim) this.weaponLightTarget.position.set(aim.x, aim.y, aim.z);
+    else this.weaponLightTarget.position.set(gun.muzzle.x + gun.forward.x * 8, gun.muzzle.y + gun.forward.y * 8, gun.muzzle.z + gun.forward.z * 8);
   }
 
   /** Hold pistol drawn forward tracking a live world target (or null to release). */
@@ -1155,7 +1150,15 @@ export class Squad {
     this.enemies = deps.enemies ?? null;
     this.group.name = 'squad';
     this.mates = ROLES.map((r) => new SquadMate(r, deps.ctx));
-    for (const m of this.mates) this.group.add(m.body.group);
+    for (const m of this.mates) this.group.add(m.body.group, m.weaponLight, m.weaponLightTarget);
+  }
+
+  /**
+   * Put every weapon light back on its mate. Call after anything that moves, hides or shows a mate: `update` does for
+   * its own step, and the session does again once the NPC director has run.
+   */
+  syncWeaponLights(): void {
+    for (const m of this.mates) m.updateWeaponFlashlight();
   }
 
   get colliders(): Navigator['world'] {
@@ -1447,6 +1450,7 @@ export class Squad {
     // A respawn, load or checkpoint restart moves Jay far in one step: bring the squad along.
     if (!this.placed || before.distanceTo(this.playerFeet) > 4) {
       this.placeNearPlayer();
+      this.syncWeaponLights();
       return;
     }
     this.aimHeld = this.player.aimBlend > 0.5 ? this.aimHeld + dt : 0;
@@ -1477,9 +1481,9 @@ export class Squad {
       m.update(dt, this, this.player, cameraPos);
       m.updateScriptedAim(dt);
       m.updateScriptedFire(dt, this);
-      m.updateWeaponFlashlight();
       this.catchUp(m);
     }
+    this.syncWeaponLights();
   }
 
   /** Aim named squadmates' pistols and weapon flashlights at a live world target (or null to clear). */

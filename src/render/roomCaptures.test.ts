@@ -341,3 +341,17 @@ test('lights outside the level are counted in a capture at zero intensity, then 
   assert.ok(!flashlight.layers.isEnabled(CAPTURE_LAYER), 'layer mask restored');
   caps.dispose();
 });
+
+test('warm takes the current room and starts its fade at once, drawing every capture shader (session-loading)', async () => {
+  const generic = new THREE.WebGLCubeRenderTarget(256);
+  for (let i = 0; i < 6; i++) (generic.texture.mipmaps as unknown[]).push({ width: 256 >> i, height: 256 >> i });
+  const { renderer, filter, caps } = setup({ generic: generic.texture });
+  caps.warm();
+  assert.ok(caps.schedule.get('A'), 'captured');
+  assert.equal(filter.made.length, 1, 'filtered');
+  const boxDraws = renderer.calls.filter((c) => c.op === 'render' && c.scene instanceof THREE.Mesh);
+  assert.equal(boxDraws.length, 6 + 36, 'the downsample for the bounce light, then the first blend');
+  assert.equal(caps.handover.current, null, 'the fade runs on in play');
+  await new Promise((r) => setTimeout(r, 0));
+  caps.dispose();
+});

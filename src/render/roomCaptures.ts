@@ -401,6 +401,14 @@ export class RoomCaptures {
     this.updateHandover(dt, current);
   }
 
+  /**
+   * Take the camera's room's capture and start its cross-fade at once, behind the loading screen, so the filter,
+   * downsample and blend shaders exist before play (openspec stop-midgame-shader-stalls D5).
+   */
+  warm(): void {
+    for (let i = 0; i < CAPTURE_FRAMES; i++) this.step(0);
+  }
+
   private advance(job: Job, current: string | null, near: readonly string[]): void {
     const { renderer, scene, host, filter } = this.deps;
     if (job.face < 6) {
