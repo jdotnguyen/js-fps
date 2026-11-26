@@ -24,6 +24,12 @@ export const DUCKED_BUSES: readonly BusName[] = ['music', 'ambience'];
 /** Time constant (s) of duck and volume changes. */
 const LEVEL_TC = 0.05;
 const DUCK_TC = 0.15;
+/** Ramp of the output gate around a hold (s): cutting a waveform half way would click. */
+const HOLD_RAMP = 0.02;
+/** How long after a hold the context is suspended (ms): the ramp, plus a few render quanta. */
+export const HOLD_SUSPEND_MS = 30;
+/** The damage muffle's low-pass when nothing is muffled (Hz). */
+const OPEN_CUTOFF = 20000;
 
 export interface VoiceOptions {
   bus?: BusName;
@@ -45,6 +51,8 @@ export interface VoiceOptions {
   relay?: boolean;
   rate?: number;
   variant?: number;
+  /** Start this many seconds from now, on the audio clock, so a hold moves it along with everything else. */
+  delay?: number;
   /** Play only a slice of the clip: start `offset` s in, for `duration` s (at rate 1), fading out at the end. */
   offset?: number;
   duration?: number;
@@ -130,13 +138,22 @@ export class AudioEngine {
   /** Room intercoms by id (in-world-audio: A live intercom relays a room). */
   private readonly intercoms = new Map<string, Intercom>();
   private lastIntercomTick = 0;
+  /** Output gate after the limiter, closed around a hold. */
+  private readonly gate: GainNode;
+  private isHeld = false;
+  private suspendTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Drop calls of the sounds under way that leaving a held moment discards. */
+  private readonly underWay = new Set<() => void>();
+  /** Faded-out reverbs to stop feeding once the audio clock reaches `at` (s). */
+  private retiring: Array<{ node: ReverbNode; at: number }> = [];
 
   constructor() {
     this.ctx = createAudioContext();
     const limiter = new DynamicsCompressorNode(this.ctx, { threshold: -8, knee: 6, ratio: 12, attack: 0.003, release: 0.25 });
-    limiter.connect(this.ctx.destination);
+    this.gate = new GainNode(this.ctx, { gain: 1 });
+    limiter.connect(this.gate).connect(this.ctx.destination);
     this.master = new GainNode(this.ctx, { gain: 0.8 });
-    this.muffleFilter = new BiquadFilterNode(this.ctx, { type: 'lowpass', frequency: 20000, Q: 0.5 });
+    this.muffleFilter = new BiquadFilterNode(this.ctx, { type: 'lowpass', frequency: OPEN_CUTOFF, Q: 0.5 });
     this.master.connect(this.muffleFilter).connect(limiter);
     const names = Object.keys(BUS_BASE_LEVELS) as BusName[];
     const make = (gain: (n: BusName) => number) =>
@@ -165,13 +182,17 @@ export class AudioEngine {
       const ir = this.ctx.createBuffer(2, left.length, sr);
       ir.copyToChannel(left, 0);
       ir.copyToChannel(right, 1);
-      const conv = new ConvolverNode(this.ctx, { buffer: ir });
-      const out = new GainNode(this.ctx, { gain: 0 });
-      conv.connect(out).connect(this.master);
-      node = { conv, out, connected: false };
+      node = this.convolver(ir);
       this.reverbs.set(preset, node);
     }
     return node;
+  }
+
+  private convolver(ir: AudioBuffer): ReverbNode {
+    const conv = new ConvolverNode(this.ctx, { buffer: ir });
+    const out = new GainNode(this.ctx, { gain: 0 });
+    conv.connect(out).connect(this.master);
+    return { conv, out, connected: false };
   }
 
   private connectReverb(node: ReverbNode): void {
@@ -214,18 +235,110 @@ export class AudioEngine {
       node.out.gain.setValueAtTime(node.out.gain.value, now);
       node.out.gain.setValueCurveAtTime(curve, now, Math.max(seconds, 0.01));
     }
-    // Stop feeding the old convolver once it has faded out, unless it became active again.
-    const outgoing = prev;
-    setTimeout(() => {
-      if (this.reverbs.get(this.activeReverb) === outgoing) return;
-      this.reverbIn.disconnect(outgoing.conv);
-      outgoing.connected = false;
-    }, seconds * 1000 + 100);
+    // Stop feeding the old convolver once it has faded out (`updateListener`, on the audio clock).
+    this.retiring = this.retiring.filter((r) => r.node !== prev && r.node !== incoming);
+    this.retiring.push({ node: prev, at: now + seconds + 0.1 });
   }
 
-  /** Browsers start audio suspended until a user gesture; call from a click handler. */
+  private retireReverbs(): void {
+    if (this.retiring.length === 0) return;
+    const now = this.ctx.currentTime;
+    this.retiring = this.retiring.filter(({ node, at }) => {
+      if (now < at) return true;
+      this.reverbIn.disconnect(node.conv);
+      node.connected = false;
+      return false;
+    });
+  }
+
+  /** Replace every convolver: a convolver's tail cannot be cleared, only left behind. */
+  private flushReverb(): void {
+    for (const [preset, old] of this.reverbs) {
+      if (old.connected) this.reverbIn.disconnect(old.conv);
+      old.conv.disconnect();
+      old.out.disconnect();
+      this.reverbs.set(preset, this.convolver(old.conv.buffer!));
+    }
+    this.retiring = [];
+    const active = this.reverbNode(this.activeReverb);
+    active.out.gain.value = REVERB_SPECS[this.activeReverb].level;
+    this.connectReverb(active);
+  }
+
+  /** Browsers start audio suspended until a user gesture; call from a click handler. Never releases a hold. */
   async resume(): Promise<void> {
-    if (this.ctx.state !== 'running') await this.ctx.resume();
+    if (!this.isHeld && this.ctx.state !== 'running') await this.ctx.resume();
+  }
+
+  /** True while the engine is held (`setHeld`). */
+  get held(): boolean {
+    return this.isHeld;
+  }
+
+  /**
+   * Freeze or release everything on this engine (game-pause: Scene sound holds and resumes in place). Held, the context
+   * is suspended: its clock stops, so every source, scheduled start and ramp waits and then carries on by itself.
+   */
+  setHeld(on: boolean): void {
+    if (on === this.isHeld) return;
+    this.isHeld = on;
+    if (this.suspendTimer !== null) clearTimeout(this.suspendTimer);
+    this.suspendTimer = null;
+    const now = this.ctx.currentTime;
+    const g = this.gate.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    g.linearRampToValueAtTime(on ? 0 : 1, now + HOLD_RAMP);
+    // A hidden page throttles timers: suspend at once there.
+    if (on && !globalThis.document?.hidden) {
+      this.suspendTimer = setTimeout(() => {
+        this.suspendTimer = null;
+        this.applyHeld();
+      }, HOLD_SUSPEND_MS);
+    } else this.applyHeld();
+  }
+
+  private applyHeld(): void {
+    const want = this.isHeld;
+    const done = want ? this.ctx.suspend() : this.ctx.resume();
+    done.then(
+      () => {
+        // A hold and a release can overtake each other: one that settles late applies what is wanted now.
+        if (this.isHeld !== want && this.suspendTimer === null) this.applyHeld();
+      },
+      (err: unknown) => console.warn(`[audio] could not ${want ? 'hold' : 'release'} the mix`, err),
+    );
+  }
+
+  /** Register a sound under way so that leaving a held moment drops it. Returns the call that forgets it. */
+  track(drop: () => void): () => void {
+    this.underWay.add(drop);
+    return () => {
+      this.underWay.delete(drop);
+    };
+  }
+
+  /**
+   * Leave a held moment (a load, restart or quit): stop and disconnect every one-shot under way, drop the reverb tail
+   * and the damage muffle, so none of it is heard on release (game-pause). Does nothing unless held.
+   */
+  discardHeld(): void {
+    if (!this.isHeld) return;
+    for (const drop of [...this.underWay]) drop();
+    this.underWay.clear();
+    this.flushReverb();
+    const f = this.muffleFilter.frequency;
+    f.cancelScheduledValues(this.ctx.currentTime);
+    f.setValueAtTime(OPEN_CUTOFF, this.ctx.currentTime);
+  }
+
+  /** Ramp `gain` to silence and stop `source` after it, both on the audio clock, so a hold keeps the fade whole. */
+  private fadeStop(source: AudioBufferSourceNode, gain: GainNode, seconds: number): void {
+    const t = this.ctx.currentTime;
+    gain.gain.cancelScheduledValues(t);
+    gain.gain.setValueAtTime(gain.gain.value, t);
+    gain.gain.linearRampToValueAtTime(0, t + seconds);
+    source.stop(t + seconds + 0.04);
   }
 
   /** Render sound specs at the context's sample rate (defaults to all). Returns ms taken. */
@@ -418,7 +531,7 @@ export class AudioEngine {
     f.setValueAtTime(f.value, now);
     f.exponentialRampToValueAtTime(cutoff, now + 0.03);
     f.setValueAtTime(cutoff, now + seconds);
-    f.exponentialRampToValueAtTime(20000, now + seconds + 0.25);
+    f.exponentialRampToValueAtTime(OPEN_CUTOFF, now + seconds + 0.25);
   }
 
   setMasterVolume(v: number): void {
@@ -513,6 +626,7 @@ export class AudioEngine {
 
   /** Follow the camera every frame. */
   updateListener(camera: THREE.Camera): void {
+    this.retireReverbs();
     if (this.intercoms.size > 0) {
       const now = this.ctx.currentTime;
       const dt = Math.min(0.1, Math.max(0, now - this.lastIntercomTick));
@@ -548,28 +662,28 @@ export class AudioEngine {
     const opts = occludeVoice(voiceOpts, this.listenerPos, this.occluder);
     const { source, gain, output } = this.voice(name, opts, false);
     let stopped = false;
-    let stopTimer: ReturnType<typeof setTimeout> | null = null;
     const finishStop = (): void => {
       if (stopped) return;
       stopped = true;
-      if (stopTimer !== null) {
-        clearTimeout(stopTimer);
-        stopTimer = null;
-      }
+      forget();
       try {
         source.stop();
       } catch {
         /* already stopped */
       }
+      source.disconnect();
       output.disconnect();
     };
+    const forget = this.track(finishStop);
     source.onended = () => finishStop();
 
     const length = source.buffer?.duration ?? 0;
-    const now = this.ctx.currentTime;
+    const delay = Math.max(0, opts.delay ?? 0);
+    const at = this.ctx.currentTime + delay;
     const offset = length > 0 ? Math.min(Math.max(0, opts.offset ?? 0), Math.max(0, length - 0.05)) : 0;
     if (opts.duration === undefined || length === 0) {
-      if (offset > 0) source.start(now, offset);
+      if (offset > 0) source.start(at, offset);
+      else if (delay > 0) source.start(at);
       else source.start();
     } else {
       const span = Math.min(opts.duration, length - offset);
@@ -577,9 +691,9 @@ export class AudioEngine {
       const level = opts.gain ?? 1;
       // `duration` counts clip seconds, so a faster rate finishes sooner; fade over the last bit of what is heard.
       const heard = span / (opts.rate ?? 1);
-      gain.gain.setValueAtTime(level, now + Math.max(0, heard - fade));
-      gain.gain.linearRampToValueAtTime(0, now + heard);
-      source.start(now, offset, span);
+      gain.gain.setValueAtTime(level, at + Math.max(0, heard - fade));
+      gain.gain.linearRampToValueAtTime(0, at + heard);
+      source.start(at, offset, span);
     }
 
     return {
@@ -589,33 +703,48 @@ export class AudioEngine {
       },
       stop: (fadeSeconds = 0) => {
         if (stopped) return;
-        if (fadeSeconds <= 0) {
-          finishStop();
-          return;
-        }
-        const t = this.ctx.currentTime;
-        gain.gain.cancelScheduledValues(t);
-        gain.gain.setValueAtTime(gain.gain.value, t);
-        gain.gain.linearRampToValueAtTime(0, t + fadeSeconds);
-        stopTimer = setTimeout(finishStop, Math.ceil(fadeSeconds * 1000) + 40);
+        // Asked for while held, a stop is immediate: a fade would be heard after the release.
+        if (fadeSeconds <= 0 || this.isHeld) finishStop();
+        else this.fadeStop(source, gain, fadeSeconds);
       },
     };
   }
 
-  /** Loop a pre-rendered stereo track on the music bus. Silent until `setGain` raises it. */
-  loopStereo(left: Float32Array<ArrayBuffer>, right: Float32Array<ArrayBuffer>, sampleRate: number): LoopHandle {
+  /** A stereo buffer from rendered channels, for `loopStereo`. A buffer is not tied to the engine that made it. */
+  createStereo(left: Float32Array<ArrayBuffer>, right: Float32Array<ArrayBuffer>, sampleRate: number): AudioBuffer {
     const buffer = this.ctx.createBuffer(2, left.length, sampleRate);
     buffer.copyToChannel(left, 0);
     buffer.copyToChannel(right, 1);
+    return buffer;
+  }
+
+  /** Loop a pre-rendered stereo track on the music bus from `offset` s in. Silent until `setGain` raises it. */
+  loopStereo(buffer: AudioBuffer, offset = 0): LoopHandle {
     const source = new AudioBufferSourceNode(this.ctx, { buffer, loop: true });
     const gain = new GainNode(this.ctx, { gain: 0 });
     source.connect(gain).connect(this.buses.music);
-    source.start();
-    return {
-      setGain: (value, timeConstant = 0.03) => gain.gain.setTargetAtTime(value, this.ctx.currentTime, timeConstant),
-      stop: () => {
+    source.start(0, offset);
+    let stopped = false;
+    const finishStop = (): void => {
+      if (stopped) return;
+      stopped = true;
+      try {
         source.stop();
-        gain.disconnect();
+      } catch {
+        /* already stopped */
+      }
+      source.disconnect();
+      gain.disconnect();
+    };
+    source.onended = () => finishStop();
+    return {
+      setGain: (value, timeConstant = 0.03) => {
+        if (!stopped) gain.gain.setTargetAtTime(value, this.ctx.currentTime, timeConstant);
+      },
+      stop: (fadeSeconds = 0) => {
+        if (stopped) return;
+        if (fadeSeconds <= 0 || this.isHeld) finishStop();
+        else this.fadeStop(source, gain, fadeSeconds);
       },
     };
   }
@@ -625,21 +754,18 @@ export class AudioEngine {
     const buffer = source.buffer;
     source.start(0, buffer ? this.rng.next() * buffer.duration : 0);
     let stopped = false;
-    let stopTimer: ReturnType<typeof setTimeout> | null = null;
     const finishStop = (): void => {
       if (stopped) return;
       stopped = true;
-      if (stopTimer !== null) {
-        clearTimeout(stopTimer);
-        stopTimer = null;
-      }
       try {
         source.stop();
       } catch {
         /* already stopped */
       }
+      source.disconnect();
       output.disconnect();
     };
+    source.onended = () => finishStop();
     return {
       setGain: (value, timeConstant = 0.03) => {
         if (stopped) return;
@@ -654,15 +780,8 @@ export class AudioEngine {
       },
       stop: (fadeSeconds = 0) => {
         if (stopped) return;
-        if (fadeSeconds <= 0) {
-          finishStop();
-          return;
-        }
-        const now = this.ctx.currentTime;
-        gain.gain.cancelScheduledValues(now);
-        gain.gain.setValueAtTime(gain.gain.value, now);
-        gain.gain.linearRampToValueAtTime(0, now + fadeSeconds);
-        stopTimer = setTimeout(finishStop, Math.ceil(fadeSeconds * 1000) + 40);
+        if (fadeSeconds <= 0 || this.isHeld) finishStop();
+        else this.fadeStop(source, gain, fadeSeconds);
       },
     };
   }

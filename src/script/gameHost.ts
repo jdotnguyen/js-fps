@@ -255,24 +255,22 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
     ...(d.cameraFeeds ? { cameraFeed: (id: string, opts: CameraFeedOptions) => d.cameraFeeds!.apply(id, opts) } : {}),
 
     sfx(id, at, opts) {
-      const play = (): void => {
-        if (!(id in SOUND_SPECS) && !(id in SAMPLE_URLS)) {
-          console.warn(`[seq] sfx: no sound "${id}"`);
-          return;
-        }
-        if (!d.audio.hasSound(id as SoundName)) {
-          console.warn(`[seq] sfx: sound "${id}" not ready yet`);
-          return;
-        }
-        // Sequence sounds play as authored, never muffled by walls (in-world-audio: World sound occlusion).
-        const gain = opts?.gain !== undefined ? { gain: opts.gain } : {};
-        const relay = opts?.relay === false ? { relay: false } : {};
-        d.audio.play(id as SoundName, at ? { position: v3(at), occlude: false, ...gain, ...relay } : gain);
-      };
-      // adaptive-music: a step that asks for the beat waits for the score's next one (at most a beat).
-      const delay = opts?.beat && d.score ? d.score.untilBeat() : 0;
-      if (delay > 0.005) setTimeout(play, delay * 1000);
-      else play();
+      if (!(id in SOUND_SPECS) && !(id in SAMPLE_URLS)) {
+        console.warn(`[seq] sfx: no sound "${id}"`);
+        return;
+      }
+      if (!d.audio.hasSound(id as SoundName)) {
+        console.warn(`[seq] sfx: sound "${id}" not ready yet`);
+        return;
+      }
+      // adaptive-music: a step that asks for the beat starts on the score's next one (at most a beat). Scheduled on the
+      // audio clock, so a hold moves it along with the score (game-pause).
+      const wait = opts?.beat && d.score ? d.score.untilBeat() : 0;
+      const delay = wait > 0.005 ? { delay: wait } : {};
+      // Sequence sounds play as authored, never muffled by walls (in-world-audio: World sound occlusion).
+      const gain = opts?.gain !== undefined ? { gain: opts.gain } : {};
+      const relay = opts?.relay === false ? { relay: false } : {};
+      d.audio.play(id as SoundName, at ? { position: v3(at), occlude: false, ...gain, ...relay, ...delay } : { ...gain, ...delay });
     },
     ...(d.ambience ? { ambience: (id: string) => d.ambience!.setOverride(id) } : {}),
     ...(d.score

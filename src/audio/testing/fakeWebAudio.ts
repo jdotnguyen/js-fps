@@ -6,11 +6,14 @@
 
 export class FakeParam {
   value: number;
+  /** The time constant of the last `setTargetAtTime`. */
+  timeConstant: number | null = null;
   constructor(value: number) {
     this.value = value;
   }
-  setTargetAtTime(v: number): this {
+  setTargetAtTime(v: number, _at?: number, timeConstant?: number): this {
     this.value = v;
+    this.timeConstant = timeConstant ?? null;
     return this;
   }
   setValueAtTime(v: number): this {
@@ -83,10 +86,38 @@ class FakeWaveShaper extends FakeNode {
   constructor(ctx: FakeAudioContext) { super(ctx, 'waveshaper'); }
 }
 
-class FakeSource extends FakeNode {
-  constructor(ctx: FakeAudioContext) { super(ctx, 'source'); }
-  start(): void {}
-  stop(): void {}
+export class FakeSource extends FakeNode {
+  readonly buffer: unknown;
+  readonly loop: boolean;
+  /** `start` arguments, `[]` for a bare start; null until started. */
+  started: number[] | null = null;
+  /** Context time the source stops at; null while no stop was asked for. */
+  stopAt: number | null = null;
+  onended: (() => void) | null = null;
+  private ended = false;
+  private readonly listeners: Array<() => void> = [];
+  constructor(ctx: FakeAudioContext, opts: { buffer?: unknown; loop?: boolean } = {}) {
+    super(ctx, 'source');
+    this.buffer = opts.buffer ?? null;
+    this.loop = opts.loop ?? false;
+  }
+  start(...args: number[]): void {
+    this.started = args;
+  }
+  /** As in browsers, a later call replaces the stop time. The `ended` event waits for `ctx.advance`. */
+  stop(when?: number): void {
+    this.stopAt = Math.max(when ?? 0, this.context.currentTime);
+  }
+  addEventListener(type: string, fn: () => void): void {
+    if (type === 'ended') this.listeners.push(fn);
+  }
+  /** Fire `ended` once, if the stop time has come. */
+  settle(): void {
+    if (this.ended || this.stopAt === null || this.stopAt > this.context.currentTime) return;
+    this.ended = true;
+    this.onended?.();
+    for (const fn of this.listeners) fn();
+  }
 }
 
 export class FakePanner extends FakeNode {
@@ -142,6 +173,15 @@ export class FakeAudioContext {
   }
   async resume(): Promise<void> {
     this.state = 'running';
+  }
+  async suspend(): Promise<void> {
+    this.state = 'suspended';
+  }
+  /** Let `seconds` of audio play: the clock stands still unless running. Sources due to stop fire `ended`. */
+  advance(seconds: number): void {
+    if (this.state !== 'running') return;
+    this.currentTime += seconds;
+    for (const n of this.nodes) if (n instanceof FakeSource) n.settle();
   }
 }
 

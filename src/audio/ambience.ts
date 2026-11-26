@@ -71,9 +71,10 @@ export interface AmbiencePreset {
 export const DEFAULT_AMBIENCE = 'hull_hum';
 export const AMBIENCE_CROSSFADE = 2.0;
 
+/** Level and fade per game mode. A pause holds the whole scene engine (game-pause), so it keeps the playing level. */
 const MODE_SCALE: Record<GameMode, { scale: number; tc: number }> = {
   title: { scale: 0, tc: 0.45 },
-  paused: { scale: 0.35, tc: 0.25 },
+  paused: { scale: 1, tc: 0.25 },
   playing: { scale: 1, tc: 0.6 },
 };
 
@@ -599,7 +600,7 @@ export class AmbienceDirector {
     return this.phase;
   }
 
-  /** Set game mode: silent on title (MenuMusic owns it), ducked on pause, full while playing. */
+  /** Set game mode: silent on title (MenuMusic owns it), full while playing and (held) on pause. */
   setMode(mode: GameMode): void {
     if (mode === this.mode) return;
     this.mode = mode;

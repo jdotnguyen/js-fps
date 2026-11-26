@@ -1,8 +1,8 @@
-import { test } from 'node:test';
+import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { AudioEngine } from '../audio/engine.ts';
-import { FakePanner, installFakeWebAudio, reaches, type FakeAudioContext, type FakeNode } from '../audio/testing/fakeWebAudio.ts';
+import { AudioEngine, HOLD_SUSPEND_MS } from '../audio/engine.ts';
+import { FakePanner, installFakeWebAudio, reaches, type FakeAudioContext, type FakeNode, type FakeSource } from '../audio/testing/fakeWebAudio.ts';
 import { EventBus } from '../core/events.ts';
 import { DialogueLibrary } from './library.ts';
 import { SpeechManager } from './speech.ts';
@@ -121,4 +121,74 @@ test('WebAudioVoicePlayer.loadLines prioritizes matching lines, caps concurrency
 
   player.dispose();
   assert.equal(player.hasRecorded(lines[1]!), false, 'dispose releases recorded VO buffers');
+});
+
+// game-pause: a voice line holds with the engine, stops at once when asked while held, and is dropped with the moment.
+const CHIMED = 'assets/vo/chimed.mp3';
+
+function holdRig(t: TestContext) {
+  t.after(installFakeWebAudio());
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const audio = new AudioEngine();
+  const ctx = audio.ctx as unknown as FakeAudioContext;
+  const player = new WebAudioVoicePlayer({ ctx: audio.ctx, master: audio.buses.voice, reverbIn: audio.voiceReverbIn, hold: audio });
+  (player as unknown as { recorded: Map<string, unknown> }).recorded.set(CHIMED, ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate));
+  const speakers = JSON.parse(readFileSync(new URL('../data/dialogue/speakers.json', import.meta.url), 'utf8'));
+  const line = (id: string, channel: string, extra: object = {}) => ({
+    id, channel, speaker: channel === 'pa' ? 'pa' : 'engineer', priority: 'story', emote: 'neutral', audio: null, choices: [], minDuration: 0, text: 'Testing.', ...extra,
+  });
+  const library = new DialogueLibrary(speakers, { test: { chapter: 'test', lines: [line('radio', 'radio'), line('pa', 'pa', { audio: CHIMED, paChime: true })] } });
+  /** Play a line and return its playback with the sources it started. */
+  const play = (id: string) => {
+    const made = ctx.nodes.length;
+    const l = library.line(id);
+    const playback = player.play({ line: l, profile: library.speaker(l.speaker), at: () => ({ x: 1, y: 2, z: 3 }), rasp: null, babble: false });
+    const sources = ctx.nodes.slice(made).filter((n) => n.kind === 'source') as FakeSource[];
+    return { playback, sources };
+  };
+  const heard = (n: FakeNode) => reaches(n, audio.ctx.destination as unknown as FakeNode);
+  const hold = (): void => {
+    audio.setHeld(true);
+    t.mock.timers.tick(HOLD_SUSPEND_MS);
+  };
+  return { audio, ctx, play, heard, hold };
+}
+
+test('a radio line stopped while held goes at once: voice, static and squelch, with no closing squelch', (t) => {
+  const { ctx, play, heard, hold } = holdRig(t);
+  const { playback, sources } = play('radio');
+  assert.equal(sources.length, 3, 'opening squelch, static bed and voice');
+  assert.ok(sources.every(heard));
+  hold();
+  const before = ctx.nodes.length;
+  playback.stop(true);
+  assert.deepEqual(sources.map(heard), [false, false, false]);
+  assert.equal(ctx.nodes.length, before);
+});
+
+test('a PA line stopped while held goes at once, chime included', (t) => {
+  const { play, heard, hold } = holdRig(t);
+  const { playback, sources } = play('pa');
+  assert.equal(sources.length, 2, 'chime and voice');
+  assert.ok(sources.every(heard));
+  hold();
+  playback.stop(true);
+  assert.deepEqual(sources.map(heard), [false, false]);
+});
+
+test('a line stopped in play still fades, and what is left of it is dropped with a held moment', (t) => {
+  const { audio, play, heard, hold } = holdRig(t);
+  const { playback, sources } = play('radio');
+  playback.stop(false);
+  assert.ok(sources.every(heard), 'the fade is heard');
+  hold();
+  audio.discardHeld();
+  assert.deepEqual(sources.map(heard), [false, false, false]);
+});
+
+test('a held line that is never stopped stays connected, to carry on at release', (t) => {
+  const { play, heard, hold } = holdRig(t);
+  const { sources } = play('radio');
+  hold();
+  assert.ok(sources.every(heard));
 });

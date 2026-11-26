@@ -93,25 +93,33 @@ export async function bootApp(): Promise<void> {
     }
 
     // Boot audio with UI sounds + MenuMusic only (no gameplay SFX synthesis or 140-file sample storm on title).
+    // Two outputs (game-pause): `audio` carries the scene (and the splash) and is held while the game is frozen;
+    // `menuAudio` carries the menu theme and interface sounds and is never held.
     const audio = new AudioEngine();
-    console.info(`[boot] UI sounds rendered in ${audio.renderSounds(UI_SOUND_NAMES).toFixed(0)} ms`);
-    void audio.loadUiSamples();
+    const menuAudio = new AudioEngine();
+    console.info(`[boot] UI sounds rendered in ${menuAudio.renderSounds(UI_SOUND_NAMES).toFixed(0)} ms`);
+    void menuAudio.loadUiSamples();
     const applyShellVolume = (): void => {
       const s = settings.get();
-      audio.setMasterVolume(s.masterVolume);
-      applyBusVolumes(audio, s);
+      for (const engine of [audio, menuAudio]) {
+        engine.setMasterVolume(s.masterVolume);
+        applyBusVolumes(engine, s);
+      }
     };
     applyShellVolume();
-    memProbe?.attach({
-      threeInfo: () => ({ geometries: 0, textures: 0 }),
-      audioBytes: () => audio.decodedBytes(),
-    });
 
     splash.attachAudio(audio);
-    const menuMusic = new MenuMusic(audio, 'title');
+    const menuMusic = new MenuMusic(menuAudio, audio, 'title');
     menuMusic.start();
-    addEventListener('pointerdown', () => void audio.resume(), { capture: true });
-    addEventListener('keydown', () => void audio.resume(), { capture: true });
+    const audioBytes = (): number => audio.decodedBytes() + menuAudio.decodedBytes() + menuMusic.decodedBytes();
+    memProbe?.attach({ threeInfo: () => ({ geometries: 0, textures: 0 }), audioBytes });
+    // Browsers start audio only from a gesture; the engine ignores this while it is held.
+    const unlockAudio = (): void => {
+      void audio.resume();
+      void menuAudio.resume();
+    };
+    addEventListener('pointerdown', unlockAudio, { capture: true });
+    addEventListener('keydown', unlockAudio, { capture: true });
 
     const backdrop = new TitleBackdrop2D(document.body, {
       reducedMotion: () => settings.get().reducedMotion,
@@ -273,6 +281,8 @@ export async function bootApp(): Promise<void> {
             uiText,
             scores,
             audio,
+            menuAudio,
+            audioBytes,
             menuMusic,
             shellEvents,
             memProbe,
@@ -304,19 +314,19 @@ export async function bootApp(): Promise<void> {
       const c = menuControl(e.target);
       if (!c || c === lastMenuHover) return;
       lastMenuHover = c;
-      if (audio.hasSound('uiHover')) audio.play('uiHover', { bus: 'ui', gain: 0.8, rate: 0.97 + Math.random() * 0.06 });
+      if (menuAudio.hasSound('uiHover')) menuAudio.play('uiHover', { bus: 'ui', gain: 0.8, rate: 0.97 + Math.random() * 0.06 });
     });
     menuRoot.addEventListener('pointerout', (e) => {
       if (menuControl(e.target) === lastMenuHover && !menuControl(e.relatedTarget)) lastMenuHover = null;
     });
     menuRoot.addEventListener('keydown', (e) => {
-      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && menuControl(e.target) && audio.hasSound('uiHover')) {
-        audio.play('uiHover', { bus: 'ui', gain: 0.8, rate: 0.97 + Math.random() * 0.06 });
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && menuControl(e.target) && menuAudio.hasSound('uiHover')) {
+        menuAudio.play('uiHover', { bus: 'ui', gain: 0.8, rate: 0.97 + Math.random() * 0.06 });
       }
     });
     const playMenuOpen = (): void => {
       try {
-        audio.play('uiMenuOpen', { bus: 'ui', gain: 0.8, reverb: 0.1 });
+        menuAudio.play('uiMenuOpen', { bus: 'ui', gain: 0.8, reverb: 0.1 });
       } catch {
         /* sample not loaded (yet) */
       }
@@ -324,7 +334,7 @@ export async function bootApp(): Promise<void> {
     let menuOpenPending = false;
     const onMenuShown = (): void => {
       if (credits?.open) return;
-      if (audio.ctx.state === 'running') playMenuOpen();
+      if (menuAudio.ctx.state === 'running') playMenuOpen();
       else menuOpenPending = true;
     };
     new MutationObserver(() => {
@@ -332,7 +342,7 @@ export async function bootApp(): Promise<void> {
     }).observe(menuRoot, { attributes: true, attributeFilter: ['hidden'] });
     const flushPendingMenuOpen = (): void => {
       if (!menuOpenPending) return;
-      void audio.resume().then(() => {
+      void menuAudio.resume().then(() => {
         if (!menuOpenPending) return;
         menuOpenPending = false;
         if (!menuRoot.hidden && !credits?.open) playMenuOpen();
@@ -341,8 +351,8 @@ export async function bootApp(): Promise<void> {
     addEventListener('pointerdown', flushPendingMenuOpen, { capture: true, once: false });
     addEventListener('keydown', flushPendingMenuOpen, { capture: true, once: false });
     menuRoot.addEventListener('click', (e) => {
-      if (menuControl(e.target)?.tagName === 'BUTTON' && audio.hasSound('uiSelect')) {
-        audio.play('uiSelect', { bus: 'ui', gain: 0.65, reverb: 0.1 });
+      if (menuControl(e.target)?.tagName === 'BUTTON' && menuAudio.hasSound('uiSelect')) {
+        menuAudio.play('uiSelect', { bus: 'ui', gain: 0.65, reverb: 0.1 });
       }
     });
 

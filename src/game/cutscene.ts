@@ -1,5 +1,6 @@
 import type { Player } from '../actors/player.ts';
 import type { Input } from '../core/input.ts';
+import type { SceneTimers } from '../core/sceneTimers.ts';
 import type { SettingsStore } from '../core/settings.ts';
 import type { SequenceManager } from '../script/runtime.ts';
 import { SkipHold } from '../script/skipHold.ts';
@@ -22,6 +23,8 @@ export interface CutsceneDeps {
   player: Player;
   hud: PlayerHud;
   ui: CutsceneUi;
+  /** Delays counted in play time (game-pause). */
+  timers: Pick<SceneTimers, 'after'>;
   /** Label for the skip key, e.g. "Space". */
   skipKeyLabel: () => string;
   /** Does this level have the opening's anchors (intro-sequence spec)? Default yes; kit_test and the demo room say no. */
@@ -39,7 +42,7 @@ export class CutsceneController {
   private hint = 0;
   private wasSkippable = false;
   private skipping = false;
-  private skipTimer: ReturnType<typeof setTimeout> | null = null;
+  private cancelSkip: (() => void) | null = null;
   private readonly offActivity: () => void;
 
   constructor(deps: CutsceneDeps) {
@@ -112,8 +115,8 @@ export class CutsceneController {
 
   /** Death, load, quit to title: stop everything, free control, hide the chrome. */
   cancel(): void {
-    if (this.skipTimer !== null) clearTimeout(this.skipTimer);
-    this.skipTimer = null;
+    this.cancelSkip?.();
+    this.cancelSkip = null;
     this.skipping = false;
     this.hold.reset();
     this.hint = 0;
@@ -133,8 +136,8 @@ export class CutsceneController {
     this.skipping = true;
     this.d.ui.announce('Skipping cutscene');
     this.d.hud.setFade(1, SKIP_FADE_OUT);
-    this.skipTimer = setTimeout(() => {
-      this.skipTimer = null;
+    this.cancelSkip = this.d.timers.after(SKIP_FADE_OUT + 0.05, () => {
+      this.cancelSkip = null;
       this.d.sequences()?.skip();
       this.d.player.cancelWalk();
       this.hold.reset();
@@ -142,6 +145,6 @@ export class CutsceneController {
       this.wasSkippable = false;
       this.skipping = false;
       this.d.hud.setFade(0, SKIP_FADE_IN);
-    }, (SKIP_FADE_OUT + 0.05) * 1000);
+    });
   }
 }

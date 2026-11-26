@@ -74,6 +74,30 @@ test('doorPry parts a sealed door to a fraction over time, keeps it sealed, and 
   disposeMaterials(materials);
 });
 
+// game-pause: a frozen scene gives the level no time.
+test('a moving door given no time stays part way open, then carries on', () => {
+  const materials = createMaterials(8, 4);
+  const events = new EventBus();
+  let moves = 0;
+  events.on('door:move', () => moves++);
+  const level = new Level(twoRooms(), { materials, registry: new KitRegistry({ glb: {} }), events, scene: new THREE.Scene(), inventory: null });
+  const eye = new THREE.Vector3(0, 1.7, -30);
+  const run = (s: number, dt = 1 / 60): void => {
+    for (let i = 0; i < Math.round(s * 60); i++) level.update(i / 60, dt, eye, false);
+  };
+  level.pryDoor('D', 0.45, 1);
+  run(0.5);
+  const part = level.doorOpenness('D')!;
+  const started = moves;
+  run(10, 0);
+  assert.equal(level.doorOpenness('D'), part);
+  assert.equal(moves, started, 'and starts no new door sound');
+  run(0.7);
+  assert.ok(Math.abs(level.doorOpenness('D')! - 0.45) < 1e-6);
+  level.dispose();
+  disposeMaterials(materials);
+});
+
 // flooded-tunnel spec (overhaul-valve-cutscene D7): the ambush pries wider, to 0.5, but the gap is still too narrow to pass.
 test('at the widest pry the ambush uses (0.5) the door still blocks the doorway; only a fuller opening lets a body through', () => {
   const materials = createMaterials(8, 4);

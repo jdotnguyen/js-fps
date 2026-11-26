@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { AudioEngine } from '../audio/engine.ts';
+import { installFakeWebAudio, type FakeAudioContext, type FakeSource } from '../audio/testing/fakeWebAudio.ts';
 import { createGameHost, type GameHostDeps } from './gameHost.ts';
 
 // dock-checkpoint spec, "Missing sound files": a registered sound whose file never loaded is skipped with a warning; the
@@ -26,10 +28,10 @@ test('sfx with a registered but unloaded sample warns and does not throw', () =>
 });
 
 // adaptive-music spec / in-world-audio "Klaxon on the beat": an sfx step that asks for the beat waits for the score.
-function beatHost(untilBeat: number | null): { host: ReturnType<typeof createGameHost>; played: string[]; cues: string[] } {
-  const played: string[] = [];
+function beatHost(untilBeat: number | null): { host: ReturnType<typeof createGameHost>; played: Array<[string, number]>; cues: string[] } {
+  const played: Array<[string, number]> = [];
   const cues: string[] = [];
-  const audio = { hasSound: () => true, play: (name: string) => void played.push(name) };
+  const audio = { hasSound: () => true, play: (name: string, opts?: { delay?: number }) => void played.push([name, opts?.delay ?? 0]) };
   const score =
     untilBeat === null
       ? null
@@ -43,19 +45,41 @@ function beatHost(untilBeat: number | null): { host: ReturnType<typeof createGam
   return { host, played, cues };
 }
 
-test('sfx on the beat waits for the next beat of the score', async () => {
-  const { host, played } = beatHost(0.05);
+test('sfx on the beat is scheduled for the next beat of the score', () => {
+  const { host, played } = beatHost(0.3);
   host.sfx!('klaxon', null, { beat: true });
-  assert.deepEqual(played, []);
-  await new Promise((r) => setTimeout(r, 80));
-  assert.deepEqual(played, ['klaxon']);
+  host.sfx!('klaxon', null);
+  assert.deepEqual(played, [['klaxon', 0.3], ['klaxon', 0]], 'only a step that asks for the beat waits');
+});
+
+// game-pause "A sound waiting for the beat": the wait is on the audio clock, which a hold stops along with the score.
+test('a klaxon waiting for the beat still lands on it after a hold', async (t) => {
+  t.after(installFakeWebAudio());
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const audio = new AudioEngine();
+  const ctx = audio.ctx as unknown as FakeAudioContext;
+  (audio as unknown as { buffers: Map<string, unknown[]> }).buffers.set('klaxon', [ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate)]);
+  const BEAT = 0.5;
+  /** A score whose beats fall every BEAT s of the audio clock. */
+  const score = { untilBeat: () => Math.ceil(ctx.currentTime / BEAT - 1e-6) * BEAT - ctx.currentTime };
+  const host = createGameHost({ audio, score, events: { on: () => () => undefined, emit: () => undefined } } as unknown as GameHostDeps);
+  ctx.advance(1.2);
+  host.sfx!('klaxon', null, { beat: true });
+  const source = ctx.nodes.filter((n) => n.kind === 'source').at(-1) as FakeSource;
+  audio.setHeld(true);
+  t.mock.timers.tick(60_000);
+  ctx.advance(60);
+  audio.setHeld(false);
+  await new Promise<void>((r) => setImmediate(r));
+  assert.ok(Math.abs(source.started![0]! - 1.5) < 1e-9, `starts at ${source.started![0]}`);
+  assert.ok(ctx.currentTime < 1.5, 'still ahead on release');
 });
 
 test('sfx on the beat plays at once with no score, or when the beat is now', () => {
   for (const until of [null, 0]) {
     const { host, played } = beatHost(until);
     host.sfx!('klaxon', null, { beat: true });
-    assert.deepEqual(played, ['klaxon'], String(until));
+    assert.deepEqual(played, [['klaxon', 0]], String(until));
   }
 });
 

@@ -76,11 +76,10 @@ test('PropAudioController starts nearby loops once decoded, scales with mode, an
   assert.equal(audio.loops[0]!.name, 'dehumidifierHum');
   assert.ok((audio.loops[0]!.gains.at(-1) ?? 0) > 0.35);
 
-  // Paused mode: ducks to ~35%.
+  // Paused mode: the held loop keeps its level (game-pause).
   const full = audio.loops[0]!.gains.at(-1)!;
   ctrl.setMode('paused');
-  const paused = audio.loops[0]!.gains.at(-1)!;
-  assert.ok(paused > 0 && paused < full * 0.5);
+  assert.equal(audio.loops[0]!.gains.at(-1), full);
 
   // Move far away (> maxDist): loop stops cleanly.
   ctrl.setMode('playing');

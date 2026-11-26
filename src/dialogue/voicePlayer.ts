@@ -10,6 +10,7 @@
 import { Rng } from '../core/rng.ts';
 import { yieldIdle } from '../core/yieldFrame.ts';
 import { Biquad, fadeEdges, makeBuf, normalize, white, type Buf } from '../audio/dsp.ts';
+import type { AudioEngine } from '../audio/engine.ts';
 import { audioUrls, type DialogueLine, type Emote } from '../data/types/dialogue.ts';
 import type { PlayRequest, VoicePlayback, VoicePlayer } from './speech.ts';
 import { renderUtterance } from './vocalSynth.ts';
@@ -27,6 +28,8 @@ export interface AudioOut {
   readonly master: AudioNode;
   /** Optional shared room reverb bus so local voices sit inside the current room. */
   readonly reverbIn?: AudioNode;
+  /** The engine, when it can be held (game-pause): stops are then immediate, and leaving the moment drops the voices. */
+  readonly hold?: Pick<AudioEngine, 'held' | 'track'>;
 }
 
 /** Short radio squelch: a click and a burst of filtered noise. */
@@ -62,6 +65,16 @@ export function renderStatic(sr: number, rng: Rng): Buf {
   return normalize(out.subarray(0, out.length - f).slice(), 0.5);
 }
 
+/** Stop a source now and cut it from the graph. */
+function silence(source: AudioBufferSourceNode): void {
+  try {
+    source.stop();
+  } catch {
+    /* already ended */
+  }
+  source.disconnect();
+}
+
 function radioCurve(drive = 3): Float32Array<ArrayBuffer> {
   const n = 1024;
   const curve = new Float32Array(n);
@@ -87,6 +100,7 @@ export class WebAudioVoicePlayer implements VoicePlayer {
   readonly output: GainNode;
   private readonly ctx: AudioContext;
   private readonly reverbIn: AudioNode | null;
+  private readonly hold: AudioOut['hold'] | null;
   private readonly reverbSend: number;
   private readonly baseUrl: string;
   private readonly radioIn: GainNode;
@@ -104,6 +118,7 @@ export class WebAudioVoicePlayer implements VoicePlayer {
   constructor(out: AudioOut, opts: WebAudioVoiceOptions = {}) {
     this.ctx = out.ctx;
     this.reverbIn = out.reverbIn ?? null;
+    this.hold = out.hold ?? null;
     this.reverbSend = opts.reverbSend ?? 0.16;
     const viteBase = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL;
     this.baseUrl = opts.baseUrl ?? viteBase ?? '/';
@@ -253,18 +268,19 @@ export class WebAudioVoicePlayer implements VoicePlayer {
     let staticSrc: AudioBufferSourceNode | null = null;
     let bed: GainNode | null = null;
     let chime: AudioBufferSourceNode | null = null;
+    let squelch: AudioBufferSourceNode | null = null;
     let leadIn = 0;
 
     if (req.line.channel === 'radio') {
       lineGain.connect(this.radioIn);
-      this.blip(t0);
+      squelch = this.blip(t0);
       staticSrc = new AudioBufferSourceNode(ctx, { buffer: this.staticBuf, loop: true });
       bed = new GainNode(ctx, { gain: 0 });
       bed.gain.setTargetAtTime(0.05, t0, 0.02);
       staticSrc.connect(bed).connect(this.radioBed);
       staticSrc.start(t0);
       const bedNode = bed;
-      staticSrc.onended = () => bedNode.disconnect();
+      this.owned(staticSrc, () => bedNode.disconnect());
       // Voice starts just after the squelch.
       src.start(t0 + 0.07);
     } else {
@@ -279,6 +295,7 @@ export class WebAudioVoicePlayer implements VoicePlayer {
         if (req.line.paChime && recordedBuf) {
           chime = new AudioBufferSourceNode(ctx, { buffer: this.buffer(req) });
           chime.connect(lineGain);
+          this.owned(chime);
           chime.start(t0);
           nodes.push(chime);
           leadIn = 0.82;
@@ -314,9 +331,9 @@ export class WebAudioVoicePlayer implements VoicePlayer {
       src.start(t0 + leadIn);
     }
 
-    src.onended = () => {
+    this.owned(src, () => {
       for (const n of nodes) n.disconnect();
-    };
+    });
 
     let stopped = false;
     return {
@@ -350,6 +367,11 @@ export class WebAudioVoicePlayer implements VoicePlayer {
       stop: (interrupted) => {
         if (stopped) return;
         stopped = true;
+        // Asked for while held, a stop is immediate: a fade or a closing squelch would be heard after the release.
+        if (this.hold?.held) {
+          for (const s of [src, chime, staticSrc, squelch]) if (s) silence(s);
+          return;
+        }
         const t = ctx.currentTime;
         if (interrupted) lineGain.gain.setTargetAtTime(0, t, 0.015);
         const cleanupAt = t + (interrupted ? 0.1 : 0.15);
@@ -402,12 +424,22 @@ export class WebAudioVoicePlayer implements VoicePlayer {
     }
   }
 
-  private blip(at: number): void {
+  private blip(at: number): AudioBufferSourceNode {
     const s = new AudioBufferSourceNode(this.ctx, { buffer: this.squelch });
     const g = new GainNode(this.ctx, { gain: 0.6 });
     s.connect(g).connect(this.radioIn);
-    s.onended = () => g.disconnect();
+    this.owned(s, () => g.disconnect());
     s.start(at);
+    return s;
+  }
+
+  /** A source this player starts: leaving a held moment drops it, and `done` runs once it has ended. */
+  private owned(source: AudioBufferSourceNode, done?: () => void): void {
+    const forget = this.hold?.track(() => silence(source));
+    source.onended = () => {
+      forget?.();
+      done?.();
+    };
   }
 
   private buffer(req: Omit<PlayRequest, 'at'>): AudioBuffer {

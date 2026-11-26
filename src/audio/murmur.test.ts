@@ -85,11 +85,11 @@ test('rooms and closed doors act on its level, and it is silent where a voice wo
   assert.equal(g.loops[1]!.gain, 0);
 });
 
-test('it follows the game mode as ambience does: lower when paused, gone on the title', () => {
+test('it follows the game mode as ambience does: unchanged (held) when paused, gone on the title', () => {
   const g = setup();
   g.murmur.update([BAR], null, false);
   g.murmur.setMode('paused');
-  assert.ok(Math.abs(g.loops[0]!.gain - MURMUR_TUNING.gain * 0.35) < 1e-9);
+  assert.equal(g.loops[0]!.gain, MURMUR_TUNING.gain);
   g.murmur.setMode('playing');
   assert.equal(g.loops[0]!.gain, MURMUR_TUNING.gain);
   g.murmur.setMode('title');

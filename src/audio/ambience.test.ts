@@ -113,7 +113,7 @@ test('fallback beds hot-swap to recorded ElevenLabs samples once decoded', () =>
   assert.ok(active.some((l) => l.name === 'ambOfficeHvac'));
 });
 
-test('game mode silences ambience on title, ducks on pause, and suppresses non-playing one-shots', () => {
+test('game mode silences ambience on title, keeps its level on pause, and suppresses non-playing one-shots', () => {
   const audio = new MockAmbienceAudio();
   const dir = new AmbienceDirector(audio, new Rng('mode-test'));
   dir.enterRoom('water_drip');
@@ -130,11 +130,13 @@ test('game mode silences ambience on title, ducks on pause, and suppresses non-p
   assert.ok(audio.plays.length > 0);
   assert.ok(audio.plays.every((p) => p.opts.bus === 'ambience' && p.opts.position !== undefined));
 
-  // Paused mode: bed ducks down smoothly.
+  // Paused mode: the held bed keeps its level, so it carries on as it was (game-pause).
   const fullGain = audio.loops[0]!.gains.at(-1)!;
   dir.setMode('paused');
-  const pausedGain = audio.loops[0]!.gains.at(-1)!;
-  assert.ok(pausedGain > 0 && pausedGain < fullGain * 0.5);
+  assert.equal(audio.loops[0]!.gains.at(-1), fullGain);
+  const fired = audio.plays.length;
+  for (let t = 80; t < 120; t += 1) dir.update(t, new THREE.Vector3(2, 1.6, -3));
+  assert.equal(audio.plays.length, fired, 'no one-shot starts while paused');
 });
 
 test('scripted override wins over room changes until cleared', () => {

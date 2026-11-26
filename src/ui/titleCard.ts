@@ -1,3 +1,4 @@
+import type { SceneTimers } from '../core/sceneTimers.ts';
 import { h } from './dom.ts';
 import { createTitleWordmark, type TitleWordmarkOptions } from './menus/titleWordmark.ts';
 
@@ -14,11 +15,14 @@ export class TitleCard {
   private readonly root: HTMLElement;
   private readonly title: HTMLElement;
   private readonly sub: HTMLElement;
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  /** Cancels the hold; the hold counts play time (game-pause). */
+  private cancelHold: (() => void) | null = null;
+  private readonly timers: Pick<SceneTimers, 'after'>;
   private dropLogo: ReturnType<typeof setTimeout> | null = null;
   private readonly logoOpts: TitleWordmarkOptions;
 
-  constructor(parent: HTMLElement, logoOpts: Partial<TitleWordmarkOptions> = {}) {
+  constructor(parent: HTMLElement, timers: Pick<SceneTimers, 'after'>, logoOpts: Partial<TitleWordmarkOptions> = {}) {
+    this.timers = timers;
     this.logoOpts = { reducedFlashing: logoOpts.reducedFlashing ?? (() => false), reducedMotion: logoOpts.reducedMotion ?? (() => false) };
     this.title = h('div', { class: 'title-card-title' });
     this.sub = h('div', { class: 'title-card-sub' });
@@ -46,7 +50,7 @@ export class TitleCard {
 
   /** Fade in, hold, fade out. A new card replaces the old one. */
   show(title: string, sub: string, seconds: number): void {
-    if (this.timer !== null) clearTimeout(this.timer);
+    this.cancelHold?.();
     if (this.dropLogo !== null) clearTimeout(this.dropLogo);
     this.dropLogo = null;
     if (title === LOGO_TITLE) {
@@ -60,22 +64,24 @@ export class TitleCard {
     this.sub.textContent = sub;
     this.sub.hidden = sub === '';
     this.root.style.opacity = '1';
-    this.timer = setTimeout(() => {
-      this.timer = null;
+    const done = (): void => {
+      this.cancelHold = null;
       this.fadeOut();
-    }, Math.max(0.5, seconds) * 1000);
+    };
+    // Dropped with the moment (a restart or quit), the card goes at once.
+    this.cancelHold = this.timers.after(Math.max(0.5, seconds), done, done);
   }
 
   hide(): void {
-    if (this.timer !== null) clearTimeout(this.timer);
-    this.timer = null;
+    this.cancelHold?.();
+    this.cancelHold = null;
     this.fadeOut();
   }
 
   /** Cancel pending timers and remove the card element (session teardown). */
   dispose(): void {
-    if (this.timer !== null) clearTimeout(this.timer);
-    this.timer = null;
+    this.cancelHold?.();
+    this.cancelHold = null;
     if (this.dropLogo !== null) clearTimeout(this.dropLogo);
     this.dropLogo = null;
     this.title.replaceChildren();

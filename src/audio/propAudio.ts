@@ -27,9 +27,10 @@ export interface WorldSfxEvent {
   readonly maxDist?: number;
 }
 
+/** Level and fade per game mode. A pause holds the whole scene engine (game-pause), so it keeps the playing level. */
 const MODE_SCALE: Record<GameMode, { scale: number; tc: number }> = {
   title: { scale: 0, tc: 0.3 },
-  paused: { scale: 0.35, tc: 0.2 },
+  paused: { scale: 1, tc: 0.2 },
   playing: { scale: 1, tc: 0.25 },
 };
 

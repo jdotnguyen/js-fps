@@ -31,7 +31,8 @@ export const MURMUR_TUNING = {
   cutoff: 2600,
 } as const;
 
-const MODE_SCALE: Record<GameMode, number> = { title: 0, paused: 0.35, playing: 1 };
+/** Level per game mode. A pause holds the whole scene engine (game-pause), so it keeps the playing level. */
+const MODE_SCALE: Record<GameMode, number> = { title: 0, paused: 1, playing: 1 };
 
 export interface MurmurSource {
   /** The chat group. */

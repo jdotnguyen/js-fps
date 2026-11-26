@@ -4,6 +4,7 @@ import type { Interactions } from '../actors/interaction.ts';
 import type { Player } from '../actors/player.ts';
 import type { AudioEngine } from '../audio/engine.ts';
 import type { EventBus } from '../core/events.ts';
+import type { SceneTimers } from '../core/sceneTimers.ts';
 import type { FreeCamera } from '../core/freeCamera.ts';
 import type { Input } from '../core/input.ts';
 import type { SettingsStore } from '../core/settings.ts';
@@ -49,11 +50,16 @@ export interface GameDeps {
   freeCam: FreeCamera;
   flashlight: Flashlight;
   world: World;
+  /** The scene's audio, held while the game is frozen. */
   audio: AudioEngine;
+  /** The menu theme and interface sounds (game-pause). */
+  menuAudio: Pick<AudioEngine, 'setMasterVolume' | 'setBusVolume'>;
   toasts: Toasts;
   hud: PlayerHud;
   /** Sequencer, cutscene bars and the skip prompt (intro-sequence spec). */
   cutscene: CutsceneController;
+  /** Delays counted in play time, cleared when the moment is left (game-pause). */
+  timers: Pick<SceneTimers, 'after' | 'clear'>;
   /** Key items held (ADR-0024), saved in `items`. */
   inventory: Inventory;
   /** Map state of the current level (ADR-0024), saved in `map` under the level id. */
@@ -61,6 +67,8 @@ export interface GameDeps {
 }
 
 const CHAPTER = 'slice01';
+/** Share of the master setting the menu theme and interface sounds play at under a pause screen (audio-mix). */
+const PAUSED_MENU_LEVEL = 0.45;
 /** Game over: fade to black, hold, then restart from the last checkpoint (ADR-0004). */
 const DEATH_FADE = 1.4;
 const DEATH_HOLD = 1.0;
@@ -84,7 +92,7 @@ export class Game {
   private readonly d: GameDeps;
   private titleTime = 0;
   private readonly feet = new THREE.Vector3();
-  private restartTimer: ReturnType<typeof setTimeout> | null = null;
+  private cancelDeathRestart: (() => void) | null = null;
   private readonly eye = new THREE.Vector3();
 
   constructor(deps: GameDeps) {
@@ -138,6 +146,10 @@ export class Game {
    * the sequences' checkpoint snapshot restores.
    */
   private restore(save: SaveData, opts: { fromTitle: boolean; toast: string | null }): void {
+    // Loaded from a pause: drop the held sound and delays first, so nothing of the old moment follows and what the
+    // restore itself starts is kept.
+    this.d.audio.discardHeld();
+    this.d.timers.clear();
     this.cancelRestart();
     this.d.cutscene.cancel();
     if (opts.fromTitle) this.d.world.resetToData?.();
@@ -210,6 +222,8 @@ export class Game {
   }
 
   quitToTitle(): void {
+    this.d.audio.discardHeld();
+    this.d.timers.clear();
     this.cancelRestart();
     this.d.cutscene.cancel();
     this.d.hud.setFade(0, 0);
@@ -295,11 +309,14 @@ export class Game {
     }
   }
 
-  /** Re-apply master volume with pause ducking, and the music / SFX / voice bus volumes. */
+  /** Re-apply the master and music / SFX / voice volumes to both outputs. The menu sounds dip under a pause screen. */
   applyVolume(): void {
     const settings = this.d.settings.get();
-    this.d.audio.setMasterVolume(settings.masterVolume * (this.mode === 'paused' ? 0.45 : 1));
-    applyBusVolumes(this.d.audio, settings);
+    const { audio, menuAudio } = this.d;
+    audio.setMasterVolume(settings.masterVolume);
+    menuAudio.setMasterVolume(settings.masterVolume * (this.mode === 'paused' ? PAUSED_MENU_LEVEL : 1));
+    applyBusVolumes(audio, settings);
+    applyBusVolumes(menuAudio, settings);
   }
 
   private spawnAtStart(): void {
@@ -313,12 +330,12 @@ export class Game {
   private gameOver(): void {
     this.cancelRestart();
     this.d.hud.setFade(1, DEATH_FADE);
-    this.restartTimer = setTimeout(() => this.restartFromCheckpoint(), (DEATH_FADE + DEATH_HOLD) * 1000);
+    this.cancelDeathRestart = this.d.timers.after(DEATH_FADE + DEATH_HOLD, () => this.restartFromCheckpoint());
   }
 
   /** Back to the slot's last autosave, healed to at least the difficulty's checkpoint heal. */
   private restartFromCheckpoint(): void {
-    this.restartTimer = null;
+    this.cancelDeathRestart = null;
     const auto = this.d.saves.read(this.slot, 'auto').data;
     if (auto) {
       const hp = Math.max(auto.player.health, this.preset.checkpointHeal);
@@ -332,8 +349,8 @@ export class Game {
   }
 
   private cancelRestart(): void {
-    if (this.restartTimer !== null) clearTimeout(this.restartTimer);
-    this.restartTimer = null;
+    this.cancelDeathRestart?.();
+    this.cancelDeathRestart = null;
   }
 
   /** Take a checkpoint: flag it, heal, autosave. Also called by sequences (ADR-0009). */

@@ -3,7 +3,7 @@ import type { AudioEngine, LoopHandle } from './engine.ts';
 import type { MusicTrack } from './musicTracks.ts';
 import type { MusicRendered } from './musicWorker.ts';
 
-/** Music level per game mode: full on the title screen, ducked under the pause menu, off in play. */
+/** Menu theme level per game mode: full on the title screen, under the pause menu, off in play. */
 const LEVELS: Record<GameMode, { gain: number; timeConstant: number }> = {
   title: { gain: 1, timeConstant: 1.2 },
   paused: { gain: 0.4, timeConstant: 0.5 },
@@ -13,18 +13,33 @@ const LEVELS: Record<GameMode, { gain: number; timeConstant: number }> = {
 /** setTargetAtTime time constants: ~95% of the change lands in 3x this. */
 const CUE_FADE_IN = 0.4;
 const CUE_FADE_OUT = 0.65;
+/** The swap between the theme and a scene's copy of it: quick, so the two are never heard as an echo. */
+const HANDOFF_TC = 0.05;
+/** The theme leaving a pause screen: gone before it can trail over the scene, or over a pop-up that returns with it. */
+const RESUME_TC = 0.08;
+/** A cue this soon (s) after play starts from the title takes the playing theme over where it is. */
+const TAKEOVER_WINDOW = 1;
 
 /**
- * The menu theme "Pressure" (music.ts). Rendered in a worker at boot, then looped on the music
- * bus and faded by game mode. Until the render lands (a few seconds) the menu is simply quiet.
+ * The menu theme "Pressure" (music.ts), rendered in a worker at boot. The theme loops on the menu engine for the title
+ * and pause screens. A sequence that cues the track gets a copy of its own on the scene engine, so it holds with the
+ * scene (game-pause); both loops play the one rendered buffer.
  */
 export class MenuMusic {
-  private readonly engine: AudioEngine;
+  private readonly menu: AudioEngine;
+  private readonly scene: AudioEngine;
   private mode: GameMode;
-  private handle: LoopHandle | null = null;
-  /** Kept silent whatever the mode (the end credits playing the last scene's score); `hold(false)` fades it in. */
+  private buffer: AudioBuffer | null = null;
+  private theme: LoopHandle | null = null;
+  /** The menu clock when the theme loop started (s). */
+  private themeStart = 0;
+  /** The scene's copy, while a sequence has the track cued. */
+  private cueLoop: LoopHandle | null = null;
+  /** The menu clock when play last started from the title (s), until a cue has used it. */
+  private fromTitleAt: number | null = null;
+  /** Theme kept silent whatever the mode (the end credits playing the last scene's score); `hold(false)` fades it in. */
   private held = false;
-  /** Track a sequence started in play (`{ "do": "music" }`); overrides the mode level until stopped. */
+  /** Track a sequence started in play (`{ "do": "music" }`), until stopped. */
   private cued: MusicTrack | null = null;
   /** Level of the cued track (1 = full): a sequence dips it under a sound that has to carry. */
   private cuedLevel = 1;
@@ -32,8 +47,9 @@ export class MenuMusic {
   /** Resolves once the menu theme has finished rendering (or failed to render). */
   readonly ready: Promise<void>;
 
-  constructor(engine: AudioEngine, mode: GameMode) {
-    this.engine = engine;
+  constructor(menu: AudioEngine, scene: AudioEngine, mode: GameMode) {
+    this.menu = menu;
+    this.scene = scene;
     this.mode = mode;
     this.ready = new Promise<void>((r) => {
       this.resolveReady = r;
@@ -45,9 +61,8 @@ export class MenuMusic {
     const worker = new Worker(new URL('./musicWorker.ts', import.meta.url), { type: 'module' });
     worker.onmessage = (e: MessageEvent<MusicRendered>): void => {
       worker.terminate();
-      this.handle = this.engine.loopStereo(e.data.left, e.data.right, e.data.sampleRate);
+      this.use(this.menu.createStereo(e.data.left, e.data.right, e.data.sampleRate));
       console.info(`[boot] menu music rendered in ${(performance.now() - t0).toFixed(0)} ms`);
-      this.apply();
       this.resolveReady();
     };
     worker.onerror = (e): void => {
@@ -57,11 +72,30 @@ export class MenuMusic {
     worker.postMessage('render');
   }
 
+  /** Loop the rendered theme (`start` calls this when the render lands). */
+  use(buffer: AudioBuffer): void {
+    this.buffer = buffer;
+    this.themeStart = this.menu.ctx.currentTime;
+    this.theme = this.menu.loopStereo(buffer);
+    this.apply();
+  }
+
+  /** Bytes of the rendered theme, held once for both loops (memory probe). */
+  decodedBytes(): number {
+    return this.buffer ? this.buffer.length * this.buffer.numberOfChannels * 4 : 0;
+  }
+
   setMode(mode: GameMode): void {
+    const resumed = mode === 'playing' && this.mode === 'paused';
+    if (mode === 'playing' && this.mode === 'title') this.fromTitleAt = this.menu.ctx.currentTime;
     this.mode = mode;
     // Leaving play (title, restart) ends any scripted cue.
-    if (mode === 'title') this.cued = null;
+    if (mode === 'title') {
+      this.cued = null;
+      this.fromTitleAt = null;
+    }
     this.apply();
+    if (resumed) this.theme?.setGain(0, this.cued === null ? RESUME_TC : HANDOFF_TC);
   }
 
   /** Sequence `music` step: start a track in play at `level` (cueing the playing track again moves it there), or `null` to fade it out (~2 s). */
@@ -82,9 +116,24 @@ export class MenuMusic {
   }
 
   private apply(timeConstant?: number): void {
+    // A scene's cue starting while the title theme is still sounding carries straight on from it.
+    const takeover =
+      this.cued !== null && this.cueLoop === null && this.fromTitleAt !== null && this.menu.ctx.currentTime - this.fromTitleAt < TAKEOVER_WINDOW;
     const level = LEVELS[this.mode];
-    // A cued track plays at its cued level in play, and keeps the pause-menu dip.
-    const gain = this.held ? 0 : this.cued && this.mode !== 'title' ? this.cuedLevel * (this.mode === 'paused' ? LEVELS.paused.gain : 1) : level.gain;
-    this.handle?.setGain(gain, timeConstant ?? level.timeConstant);
+    const underCue = this.mode === 'playing' && this.cued !== null;
+    this.theme?.setGain(this.held ? 0 : level.gain, underCue ? HANDOFF_TC : (timeConstant ?? level.timeConstant));
+    if (this.cued === null) {
+      this.cueLoop?.stop(CUE_FADE_OUT * 3);
+      this.cueLoop = null;
+      return;
+    }
+    if (!this.buffer) return;
+    const fresh = this.cueLoop === null;
+    if (fresh) {
+      this.cueLoop = this.scene.loopStereo(this.buffer, (this.menu.ctx.currentTime - this.themeStart) % this.buffer.duration);
+      this.fromTitleAt = null;
+    }
+    // Only a cue moves the scene's copy: pausing leaves it as it is, to carry on from there.
+    if (fresh || timeConstant !== undefined) this.cueLoop!.setGain(this.cuedLevel, takeover ? HANDOFF_TC : (timeConstant ?? CUE_FADE_IN));
   }
 }

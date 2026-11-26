@@ -155,6 +155,35 @@ In the demo corridor (`?level=demo&slot=scratch&physics=off`), walking from z = 
 - **Regroup:** leave Giles far behind out of sight (for example, run through the tunnel), then start cover-me, the med-lab door or the Power Bay scene. He should be near you when the scene starts, never teleporting in view.
 - **Debug jumps:** `?level=slice01&debug&jump=r11` and the other `jump=` values show the room instead of a black screen, with the squad beside you.
 
+## Pause and tutorial pop-ups (openspec `freeze-scene-on-pause`)
+
+Use `?level=slice01&debug&slot=scratch`. "Freezes" means the picture holds, the scene falls silent at once with no
+click, and on resume both carry on from that moment, with nothing playing late or all at once.
+
+- Pause half way through a spoken line (the intro is easiest), wait, resume: the line carries on from the same word, in
+  step with the speaker's mouth and the subtitle.
+- Pause for a minute while the Lab B score and a room's loops play: each carries on from where it was.
+- Pause while a klaxon is due on the score's beat (security fight): it still lands on a beat.
+- Pause half way through a reload, wait 10 s: no motion or sound until you resume, then the rest of the reload.
+- Pause while a door is sliding: it stays part way open and finishes after resume.
+- Die, pause during the fade: the menu stays open and the restart comes only after you resume.
+- Pause while the `THALASSA` title card is up: it is still there on resume and stays its remaining time.
+- Pause while the intro's theme plays: the menu theme plays under the menu; on resume the intro's music carries on
+  without a doubled or echoing copy.
+- Pause during a gunfight with a voice line sounding: only the menu theme is heard, and menu hovers and clicks sound.
+  Clicking about the menu never brings a scene sound back.
+- In the pause menu lower the voice volume and resume: the held line carries on quieter.
+- Open the map (M) during a line: the line waits until the map closes. Same at a save station.
+- With tutorial prompts on, trigger Fire / Reload as an enemy screams: scream and picture stop, no menu theme, and both
+  carry on when you press fire or reload. Dismiss the Look pop-up with the mouse alone: sound returns.
+- Open the pause menu over a pop-up, then resume: the menu theme plays only while the menu is open, and the pop-up comes
+  back with the scene still silent.
+- Pause during a line and load another save: nothing of that line or its echo is heard. Do the same loading a save from
+  another level.
+- Pause during a fight and quit to title: no shot, scream or voice follows you to the title screen.
+- Start a new game, switch tabs during the intro before clicking into the game, come back: the pause menu is open and the
+  intro resumes from where you left it.
+
 ## [Assumed] choices to confirm or change
 Giles opens the armory himself during the rescue; Jay walks slowly with no weapons during Priya's scene; the door to R06 stays locked until the creature has passed overhead; the title text; the whole time budget (about 0.5 min R05, 1.5 min R06, 2.5 min R07, 2 min tunnel, 2.5 min climax, 2 min reveal and stinger); `endSlice` returns to the title.
 

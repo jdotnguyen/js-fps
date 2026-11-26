@@ -1,4 +1,5 @@
 import type { Player } from '../../actors/player.ts';
+import type { SceneTimers } from '../../core/sceneTimers.ts';
 import type { Interactions } from '../../actors/interaction.ts';
 import type { AccessHint, HintPart } from '../../world/access.ts';
 import { LOW_HP, MAX_HP } from '../../actors/vitals.ts';
@@ -33,7 +34,9 @@ export class PlayerHud {
   private readonly status: HTMLElement;
   private readonly fade: HTMLElement;
   private readonly hint: HTMLElement;
-  private hintUntil = 0;
+  /** Cancels the hint's expiry; null once it has run out. Counted in play time (game-pause). */
+  private cancelHint: (() => void) | null = null;
+  private readonly timers: Pick<SceneTimers, 'after'>;
   private readonly keyLabel: string;
   private promptText = '';
   private statusText = '';
@@ -49,7 +52,8 @@ export class PlayerHud {
   private ammoSource: (() => AmmoReadout | null) | null = null;
   private shown = { hp: -1, stamina: -1, loaded: -1, reserve: -1, name: '' };
 
-  constructor(root: HTMLElement, prompt: HTMLElement, interactKey: string) {
+  constructor(root: HTMLElement, prompt: HTMLElement, interactKey: string, timers: Pick<SceneTimers, 'after'>) {
+    this.timers = timers;
     this.prompt = prompt;
     this.keyLabel = keyLabel(interactKey);
     this.status = document.createElement('div');
@@ -109,7 +113,12 @@ export class PlayerHud {
     this.hint.replaceChildren(...hint.parts.map((p) => hintNode(p)));
     this.hint.setAttribute('aria-label', hint.text);
     this.hint.dataset['key'] = hint.key;
-    this.hintUntil = performance.now() + seconds * 1000;
+    this.cancelHint?.();
+    const expire = (): void => {
+      this.cancelHint = null;
+      this.hint.hidden = true;
+    };
+    this.cancelHint = this.timers.after(seconds, expire, expire);
     this.hint.hidden = false;
   }
 
@@ -127,8 +136,8 @@ export class PlayerHud {
       progress = f.progress;
     }
     this.setPrompt(text, progress);
-    if (!this.hint.hidden && performance.now() >= this.hintUntil) this.hint.hidden = true;
-    else if (this.hint.hidden && performance.now() < this.hintUntil) this.hint.hidden = false;
+    // `hide` takes it off the screen without ending it.
+    this.hint.hidden = this.cancelHint === null;
 
     this.updateVitals(player);
     this.updateAmmo();

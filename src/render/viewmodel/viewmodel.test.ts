@@ -118,6 +118,22 @@ test('pistol: a part-full reload takes the authored 3.7 s, with its sounds on th
   assert.equal(times(r, 'cue slide').length, 1, 'one slide sound, not a second soft one');
 });
 
+test('given no time (a frozen scene, game-pause) a reload neither moves on nor sounds, then carries on', () => {
+  const r = rig();
+  fireShots(r, 4, 0.3);
+  r.log.length = 0;
+  const t0 = r.now();
+  r.press('reload');
+  r.step(1);
+  const heard = r.log.length;
+  for (let i = 0; i < 600; i++) r.vm.update(0);
+  assert.equal(r.log.length, heard, 'no cue while frozen');
+  assert.equal(r.vm.reloading, true);
+  assert.equal(r.vm.ammoOf('pistol').loaded, 8);
+  r.step(3);
+  assert.ok(Math.abs((times(r, 'reloaded pistol')[0] ?? NaN) - t0 - 3.67) < 0.06, 'after the same 3.67 s of play');
+});
+
 test('pistol: an empty magazine reloads with the same animation at the same speed', () => {
   const r = rig();
   fireShots(r, 12, 0.3);

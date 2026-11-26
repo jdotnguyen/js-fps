@@ -86,6 +86,8 @@ import { engineScoreAudio } from '../audio/scoreAudio.ts';
 import type { ScoreWorkerReply } from '../audio/scoreWorker.ts';
 import { CollisionWorld } from '../world/collision.ts';
 import { Game } from '../game/game.ts';
+import { pauseWhenHidden, SceneFreeze } from '../game/sceneFreeze.ts';
+import { SceneTimers } from '../core/sceneTimers.ts';
 import { CutsceneController } from '../game/cutscene.ts';
 import { CutsceneUi } from '../ui/hud/cutsceneUi.ts';
 import { TitleCard } from '../ui/titleCard.ts';
@@ -160,7 +162,12 @@ export interface SessionShellDeps {
   itemTable: ItemTable;
   uiText: UiText;
   scores: ScoreTable;
+  /** The scene's audio, held while the game is frozen (game-pause). */
   audio: AudioEngine;
+  /** The menu theme and interface sounds, never held. */
+  menuAudio: AudioEngine;
+  /** Bytes of decoded audio the shell holds, for the memory probe. */
+  audioBytes: () => number;
   menuMusic: MenuMusic;
   shellEvents: EventBus;
   memProbe: MemProbe | null;
@@ -190,11 +197,8 @@ function el<T extends HTMLElement>(selector: string): T {
 const EMPTY_FLAGS = (): Record<string, boolean | number> => ({});
 
 /** Top-level shell memProbe attachment so post-dispose probes never retain `createPlaySession`'s V8 closure context. */
-function attachShellMemProbe(memProbe: MemProbe | null, audio: AudioEngine): void {
-  memProbe?.attach({
-    threeInfo: () => ({ geometries: 0, textures: 0 }),
-    audioBytes: () => audio.decodedBytes(),
-  });
+function attachShellMemProbe(memProbe: MemProbe | null, audioBytes: () => number): void {
+  memProbe?.attach({ threeInfo: () => ({ geometries: 0, textures: 0 }), audioBytes });
 }
 
 /** Replace `#game` with a clean canvas after forcing WebGL context loss so the next session gets a fresh context. */
@@ -223,7 +227,7 @@ function clearSessionUi(uiRoot: HTMLElement): void {
  * If any step fails, partially allocated resources are disposed before rethrowing.
  */
 export async function createPlaySession(shell: SessionShellDeps, intent: SessionIntent, preload: TitlePreload | null = null): Promise<PlaySession> {
-  const { settings, saves, keymap, difficulties, itemTable, uiText, scores, audio, menuMusic, shellEvents, memProbe, launch, loading } = shell;
+  const { settings, saves, keymap, difficulties, itemTable, uiText, scores, audio, menuAudio, audioBytes, menuMusic, shellEvents, memProbe, launch, loading } = shell;
   const canvas = el<HTMLCanvasElement>('#game');
   const uiRoot = el<HTMLElement>('#ui');
   const prompt = el<HTMLElement>('#prompt');
@@ -311,6 +315,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
   let guidance: Guidance | null = null;
   let toasts: Toasts | null = null;
   let titleCard: TitleCard | null = null;
+  let freeze: SceneFreeze | null = null;
   let input: Input | null = null;
   let loop: Loop | null = null;
   let debug: DebugTools | null = null;
@@ -379,6 +384,9 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     audio.releaseGameplayBuffers();
     audio.setOccluder(null);
     audio.clearIntercoms();
+    // Last of the audio: every stop above was immediate if held. Drop what is left of it and release.
+    freeze?.dispose();
+    freeze = null;
     motionScene.reset();
     motionScene.flags = EMPTY_FLAGS;
     const g = globalThis as Record<string, unknown>;
@@ -454,7 +462,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       memProbe?.ledger.reset();
       resetGameCanvas(canvas);
     }
-    attachShellMemProbe(memProbe, audio);
+    attachShellMemProbe(memProbe, audioBytes);
   };
 
   let maxProgress = 0;
@@ -749,7 +757,9 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     const splashSize = new THREE.Vector2();
 
     toasts = new Toasts(document.body);
-    const hud = new PlayerHud(uiRoot, el<HTMLElement>('#interact'), keymap.interact[0] ?? 'KeyE');
+    // Delays counted in play time: stepped by the fixed loop, so a frozen scene holds them (game-pause).
+    const sceneTimers = new SceneTimers();
+    const hud = new PlayerHud(uiRoot, el<HTMLElement>('#interact'), keymap.interact[0] ?? 'KeyE', sceneTimers);
     cutscene = new CutsceneController({
       sequences: () => sequences,
       input,
@@ -757,6 +767,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       player,
       hud,
       ui: new CutsceneUi(uiRoot),
+      timers: sceneTimers,
       skipKeyLabel: () => keyLabel(keymap.skipCutscene[0] ?? 'Space'),
       hasIntro: () => level?.anchor('post_front') != null,
     });
@@ -774,9 +785,11 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       flashlight,
       world,
       audio,
+      menuAudio,
       toasts,
       hud,
       cutscene,
+      timers: sceneTimers,
       inventory,
       map: mapState,
     });
@@ -943,6 +956,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       audio,
       rng: new Rng('footsteps'),
       listener: () => camera.position,
+      later: (fn, ms) => void sceneTimers.after(ms / 1000, fn),
       surfaceAt: (x, y, z) => (world!.surfaceAt ? world!.surfaceAt(x, y, z) : collisionWorld ? collisionWorld.surfaceAt(x, y, z) : world!.playerWorld.surfaceAt(x, z)),
       ...(level && level.water.all().length ? { waterDepth: (x: number, y: number, z: number) => level!.water.depthAt(x, y, z) } : {}),
       ...(occluder ? { isOccluded: occluder } : {}),
@@ -1114,10 +1128,10 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
 
     // Dialogue & voice player (throttled background VO decoding starts after pre-warm).
     const dialogue = loadDialogueLibrary();
-    voicePlayer = new WebAudioVoicePlayer({ ctx: audio.ctx, master: audio.buses.voice, reverbIn: audio.voiceReverbIn });
+    voicePlayer = new WebAudioVoicePlayer({ ctx: audio.ctx, master: audio.buses.voice, reverbIn: audio.voiceReverbIn, hold: audio });
     memProbe?.attach({
       threeInfo: () => renderer!.info.memory,
-      audioBytes: () => audio.decodedBytes() + (voicePlayer?.decodedBytes() ?? 0),
+      audioBytes: () => audioBytes() + (voicePlayer?.decodedBytes() ?? 0),
     });
 
     // Room intercoms (overhaul-priya-r08-death D25): each grille relays its source rooms while live.
@@ -1457,6 +1471,11 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         shellEvents.emit('game:mode', from === undefined ? { mode } : { mode, from });
       }
     });
+    // One switch for a frozen scene (game-pause): picture, delays and scene sound all follow it. Registered after the
+    // tutorial prompts, whose own mode listener decides whether a pop-up is still open, and before the title disposal.
+    const sceneFreeze = (freeze = new SceneFreeze({ frozen: () => game.mode === 'paused' || tutorials.blocking, audio }));
+    events.on('game:mode', () => sceneFreeze.sync());
+    cleanups.push(pauseWhenHidden(document, game));
     events.on('game:saveStation', () => shellEvents.emit('game:saveStation', {}));
     events.on('game:map', () => shellEvents.emit('game:map', {}));
 
@@ -1544,6 +1563,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       const caseAudio = new CasingAudio({
         audio,
         listener: () => camera.position,
+        later: (fn, ms) => void sceneTimers.after(ms / 1000, fn),
         world: {
           raycast: (...ray) => cw.raycast(...ray),
           surfaceAt: (x, y, z) => (world!.surfaceAt ? world!.surfaceAt(x, y, z) : cw.surfaceAt(x, y, z)),
@@ -1702,7 +1722,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       });
       events.on('game:restarted', () => footsteps!.stopSloshes());
       events.on('game:mode', ({ mode }) => {
-        if (mode !== 'playing') footsteps?.stopSloshes();
+        if (mode === 'title') footsteps?.stopSloshes();
       });
       events.on('enemy:died', (e) => waterFx.land(e.x, e.y, e.z, 0.9, 'body'));
       events.on('enemy:spawned', (e) => waterFx.land(e.x, e.y, e.z, 0.8, 'body'));
@@ -2091,10 +2111,15 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     loop = new Loop({
       update: (dt) => {
         tutorials.update(dt);
-        if (game.mode === 'playing') speech!.update(dt);
-        if (tutorials.blocking) {
+        sceneFreeze.sync();
+        // Frozen (pause menu, map, save station or tutorial pop-up): nothing in the scene advances.
+        if (sceneFreeze.frozen) {
           input!.endStep();
           return;
+        }
+        if (game.mode === 'playing') {
+          sceneTimers.update(dt);
+          speech!.update(dt);
         }
         simTime += dt;
         game.update(dt);
@@ -2139,14 +2164,16 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       },
       render: (_alpha, frameDt) => {
         debug?.beginFrame();
-        if (game.mode === 'playing') cameraFeeds!.update(frameDt, simTime);
+        // The scene gets no time while frozen; menus and the HUD keep the real frame time.
+        const sceneDt = sceneFreeze.time(frameDt);
+        if (game.mode === 'playing') cameraFeeds!.update(sceneDt, simTime);
         // One room capture face (or filter) per frame, before the level binds the player's view (room-light-response D1).
         if (roomCaptures) {
           roomCaptures.step(frameDt);
           scene.environment = roomCaptures.texture;
         }
         tutorials.render();
-        game.render(frameDt);
+        game.render(sceneDt);
         // Optional screenshot view pinning (`window.__view`).
         const view = (globalThis as { __view?: { at: [number, number, number]; look: [number, number, number] } }).__view;
         if (view) {
@@ -2154,7 +2181,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           camera.lookAt(...view.look);
         }
         guidance!.render(frameDt);
-        viewmodel!.update(frameDt);
+        viewmodel!.update(sceneDt);
         if (game.mode === 'playing' && !game.flying) {
           const dyaw = ((player.yaw - accPrevYaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
           const dpitch = player.pitch - accPrevPitch;
@@ -2162,7 +2189,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           accPrevPitch = player.pitch;
           const turnRate = frameDt > 1e-4 ? Math.hypot(dyaw, dpitch) / frameDt : 0;
           accuracy.step({
-            dt: frameDt,
+            dt: sceneDt,
             weapon: viewmodel!.weapon,
             aimBlend: player.aimBlend,
             moveSpeed: Math.hypot(player.velocity.x, player.velocity.y),
@@ -2182,9 +2209,9 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
             reducedMotion: settings.get().reducedMotion,
           });
         }
-        squadMuzzleLight?.update(frameDt);
-        flashlight.update(frameDt);
-        world!.update(simTime, frameDt, camera.position, settings.get().reducedFlashing, camera);
+        squadMuzzleLight?.update(sceneDt);
+        flashlight.update(sceneDt);
+        world!.update(simTime, sceneDt, camera.position, settings.get().reducedFlashing, camera);
         if (level && levelStats) {
           levelStats.drawCalls = level.visibleDrawCalls();
           levelStats.pool = level.pool.boundCount();
@@ -2211,15 +2238,15 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         post!.grade.uDamage.value = game.mode === 'title' || game.flying ? 0 : player.damageFx;
         renderer!.shadowMap.needsUpdate = true;
         const coverFeed = game.mode === 'playing' && !feedGl!.failed ? cameraFeeds!.fullscreen : null;
-        if (waterFx && game.mode === 'playing') {
+        if (waterFx && game.mode === 'playing' && !sceneFreeze.frozen) {
           waterFx.wade('player', player.body.x, player.body.y, player.body.z);
-          footsteps!.slosh('player', player.body.x, player.body.y, player.body.z, player.velocity.length(), frameDt);
-          waterFx.update(frameDt);
+          footsteps!.slosh('player', player.body.x, player.body.y, player.body.z, player.velocity.length(), sceneDt);
+          waterFx.update(sceneDt);
         }
-        splashes?.update(frameDt, renderer!.getDrawingBufferSize(splashSize).y, camera.fov);
-        sparks?.update(frameDt, splashSize.y, camera.fov);
+        splashes?.update(sceneDt, renderer!.getDrawingBufferSize(splashSize).y, camera.fov);
+        sparks?.update(sceneDt, splashSize.y, camera.fov);
         if (!coverFeed) {
-          waterSystem?.update(renderer!, frameDt, scene, camera);
+          waterSystem?.update(renderer!, sceneDt, scene, camera);
           post!.render(simTime);
         }
         feedGl!.overlay(coverFeed, coverFeed !== null);
@@ -2251,7 +2278,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       npcs,
       cameraFeeds,
       gore,
-      titleCard: (titleCard = new TitleCard(uiRoot, {
+      titleCard: (titleCard = new TitleCard(uiRoot, sceneTimers, {
         reducedFlashing: () => settings.get().reducedFlashing,
         reducedMotion: () => settings.get().reducedMotion,
       })),
