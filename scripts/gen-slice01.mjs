@@ -27,6 +27,7 @@ const OPP = { n: 's', s: 'n', e: 'w', w: 'e' };
 const WALL_ROT = { n: 0, w: 90, s: 180, e: 270 };
 const PROP_ROT = { n: 180, s: 0, e: 90, w: 270 };
 const r2 = (v) => Math.round(v * 100) / 100;
+const r3 = (v) => Math.round(v * 1000) / 1000;
 const deg = (rad) => r2(((rad * 180) / Math.PI + 360) % 360);
 /** Yaw (degrees) that faces from a to b; 0 faces -Z, 90 faces -X. */
 const face = (a, b) => deg(Math.atan2(-(b[0] - a[0]), -(b[2] - a[2])));
@@ -838,7 +839,36 @@ prop(R07a, 'storage_shelf', [7.9, 0, 41.45], 0, { width: 1.6 });
 prop(R07a, 'pendant_light', [8.8, 0, 40.0], 0, { ceiling: 3.2, drop: 0.72, count: 1, slots: true });
 // R08 medical bay: only the cart in front of the centre pane (the stage); beds and vitals on the west wall; clinical
 // storage, glass supply cabinet, bench, scrub sink and parked gurney on the south wall; the lane x 2.5..5.75 stays empty.
-prop(R08, 'instrument_cart', [0, 0, 47.4], 0);
+// livelier-cart-slam: the cart is a kinematic body the slams rock and slide (D3), and its instruments are loose props
+// (D1) that each slam throws (D4). `after` is where a skipped or restored scene leaves them (D11).
+const CART = [0, 0, 47.4];
+// Where each comes to rest after the three slams and her landing, recorded from a headless run of the bursts and the
+// throw's knock (src/physics/r08.test.ts does the same run); the cart's is the end of its three jolts in kills.json.
+const CART_AFTER = {
+  r08_cart_dish: { pos: [-0.6051, 0.0699, 46.7679], quat: [0.7066, -0.0268, -0.0268, -0.7066] },
+  r08_cart_forceps: { pos: [1.9104, -0.0001, 47.0434], quat: [0, 0.9835, 0, -0.1808] },
+  r08_cart_scissors: { pos: [0.0353, 0.0299, 46.0074], quat: [0.7072, 0.0057, -0.0057, 0.707] },
+  r08_cart_pack: { pos: [1.1215, 0.0399, 47.3313], quat: [0.0594, 0, -0.9982, 0] },
+  r08_cart_vial_a: { pos: [-1.0924, 0.0169, 46.4881], quat: [0.6971, 0.1186, -0.1186, 0.6971] },
+  r08_cart_vial_b: { pos: [-0.5788, 0.0169, 46.0722], quat: [0.2761, -0.2761, 0.651, -0.651] },
+  r08_cart_bowl: { pos: [1.4393, 0.0499, 47.4587], quat: [-0.4334, 0, -0.9012, 0] },
+  r08_cart_box: { pos: [-0.1731, 0.1199, 46.187], quat: [0.9132, 0, -0.4074, 0] },
+  r08_cart_basin: { pos: [2.1987, -0.0001, 47.4748], quat: [0, -0.4021, 0.0001, -0.9156] },
+  r08_cart: { pos: [0.012, 0, 47.3142], quat: [0, 0.048, 0, 0.9988] },
+};
+const after = (id) => ({ after: { group: 'r08_cart', ...CART_AFTER[id] } });
+prop(R08, 'instrument_cart', CART, 0, { id: 'r08_cart', instruments: false }, { dynamic: { mass: 30, kinematic: true }, ...after('r08_cart') });
+const cartItem = (id, type, x, y, z, rot, mass, sound) =>
+  item(R08, 'cart_item', [r3(CART[0] + x), y, r3(CART[2] + z)], rot, { id: `r08_cart_${id}`, type }, { dynamic: { mass, loose: true, sound }, ...after(`r08_cart_${id}`) });
+cartItem('dish', 'dish', -0.27, 0.9, -0.04, 10, 0.25, 'dish');
+cartItem('forceps', 'forceps', 0.12, 0.9, -0.15, 25, 0.06, 'metal');
+cartItem('scissors', 'scissors', -0.06, 0.9, -0.18, -20, 0.06, 'metal');
+cartItem('pack', 'pack', 0.22, 0.9, 0.1, 12, 0.3, 'thud');
+cartItem('vial_a', 'vial', -0.08, 0.9, 0.15, 0, 0.05, 'glass');
+cartItem('vial_b', 'vial', -0.04, 0.9, 0.18, 0, 0.05, 'glass');
+cartItem('bowl', 'bowl', 0.38, 0.9, -0.12, 0, 0.2, 'metal');
+cartItem('box', 'box', -0.2, 0.29, 0, 4, 0.4, 'thud');
+cartItem('basin', 'basin', 0.25, 0.29, 0, 0, 0.6, 'metal');
 prop(R08, 'med_bed', [-4.7, 0, 48.6], 90);
 prop(R08, 'console', [-5.3, 0, 50.1], 270, { screen: 'status' });
 prop(R08, 'med_bed', [-4.7, 0, 51.6], 90);
@@ -884,6 +914,8 @@ anchor(R08, 'priya_r08', [2.2, 0, 49.4], 0); // her work spot, with a clear walk
 // front of the medbay door for the triage, then sitting against the west wall between the pane and the first bed.
 anchor(R08, 'priya_wait', [-3.9, 0, 49.5], 0);
 anchor(R08, 'priya_door', [3.6, 0, 46.3], 0);
+// priya-door-rescue D1: where her run ends, 1.2 m inside D_R07_R08 (clear of its leaves), facing the security office.
+anchor(R08, 'priya_door_in', [4.0, 0, 47.2], 0);
 // D35: what she turns to face when Okafor says "Turn around.": the surgery door behind her, so her back is to the glass.
 anchor(R08, 'priya_turn_away', [4.9, 0, 51.4]);
 anchor(R08, 'priya_sit', [-5.3, 0, 47.4], 270);

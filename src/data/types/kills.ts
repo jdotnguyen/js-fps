@@ -60,8 +60,10 @@ export function clipSpeedAt(speed: ClipSpeed | undefined, t: number): number {
  * and flies her to a mark on the glass, and `drag` walks it to a mark with her trailing from the grip. `backTo` is hers:
  * she backs away to a mark, facing the attacker (overhaul-priya-r08-death D16). `walkTo` walks the attacker to a mark with
  * nothing held, faster than a haul (it leaving, D37), and `attackerLook` turns its head to a mark (none: straight ahead).
+ * `layout` (livelier-cart-slam D11) only acts in a skipped or restored kill: it lays the props of the group its `prop`
+ * names out at their authored `after` poses, the aftermath a played kill leaves.
  */
-export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'haulTo', 'slam', 'throw', 'drag', 'infect', 'backTo', 'walkTo', 'attackerLook', 'knock'] as const;
+export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'haulTo', 'slam', 'throw', 'drag', 'infect', 'backTo', 'walkTo', 'attackerLook', 'knock', 'layout'] as const;
 
 /** The `mauled` events that need an attacker on the kill step. */
 export const ATTACKER_EVENTS: readonly KillEventKind[] = ['pin', 'grip', 'attackerPose', 'haulTo', 'slam', 'throw', 'drag', 'walkTo', 'attackerLook'];
@@ -129,6 +131,20 @@ const eventShape = {
   via: optional(arr(str)),
   /** `throw`: how high (m) her body arcs on the way (over a cart between her and the glass). */
   arc: optional(numRange(0, 2)),
+  /** `slam`: seconds the attacker winds up before this one (default `MAUL.windup`): the last, hardest one waits longest. */
+  windup: optional(numRange(0.05, 2)),
+  /**
+   * `slam` (livelier-cart-slam D4): when it lands, the loose props within `reach` m of the impact are thrown up and
+   * away, once, at `strength` (1 = about 2.5 m/s), with `up` the upward share. Nothing in a skipped or restored kill.
+   */
+  burst: optional(obj({ reach: numRange(0.1, 2), strength: numRange(0, 4), up: optional(numRange(0, 1)) })),
+  /** `slam`: the prop it lands on; the mark moves with it, and `jolt` moves it. `layout`: the prop group laid out. */
+  prop: optional(str),
+  /**
+   * `slam` (D3): how the prop jumps when it lands, in its own frame: `slide` [x, z] m and `yaw` degrees that it keeps,
+   * and `rock` degrees its far side lifts and drops back, about its bottom edge `edge` m toward the attacker.
+   */
+  jolt: optional(obj({ slide: optional(arr(num)), yaw: optional(numRange(-30, 30)), rock: optional(numRange(0, 20)), edge: optional(numRange(0, 2)) })),
 };
 
 const bulgeShape = {
@@ -246,6 +262,11 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
         if (e.dir === 'pull' && !(e.do === 'glass' && e.kind === 'streak')) throw new ValidationError(ep, '"dir": "pull" is only for a glass streak');
         if (e.do === 'stinger' && e.id?.length !== 1) throw new ValidationError(ep, 'stinger needs one "id"');
         if (e.do === 'knock' && e.reach === undefined) throw new ValidationError(ep, 'knock needs "reach"');
+        for (const k of ['windup', 'burst', 'jolt'] as const) if (e[k] !== undefined && e.do !== 'slam') throw new ValidationError(`${ep} > ${k}`, `"${k}" is for a slam`);
+        if (e.jolt && !e.prop) throw new ValidationError(`${ep} > jolt`, 'a jolt needs the "prop" it moves');
+        if (e.jolt?.slide && e.jolt.slide.length !== 2) throw new ValidationError(`${ep} > jolt > slide`, 'slide is [x, z]');
+        if (e.do === 'layout' && !e.prop) throw new ValidationError(ep, 'layout needs the "prop" group it lays out');
+        if (e.prop !== undefined && e.do !== 'slam' && e.do !== 'layout') throw new ValidationError(`${ep} > prop`, '"prop" is for a slam or a layout');
         if (e.do !== 'knock' && e.reach !== undefined) throw new ValidationError(`${ep} > reach`, '"reach" is for a knock');
         if ((e.do === 'pose' || e.do === 'die' || e.do === 'attackerPose') && !e.pose) throw new ValidationError(ep, `${e.do} needs "pose"`);
         if (e.do === 'grip' && !e.release && !e.joint) throw new ValidationError(ep, 'grip needs "joint" (or "release": true)');

@@ -72,6 +72,7 @@ import type { TitlePreload } from './titlePreload.ts';
 import { TransitRideController } from '../game/transitRide.ts';
 import type { MenuMusic } from '../audio/menuMusic.ts';
 import { PropAudioController } from '../audio/propAudio.ts';
+import { slamKick } from './slamKick.ts';
 import { EARSHOT_LEVEL, voiceAudibility, wallOccluder } from '../audio/occlusion.ts';
 import { loadPhysics } from '../physics/load.ts';
 import { anyPhysics, resolvePhysicsSwitches } from '../physics/switches.ts';
@@ -1012,11 +1013,21 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       panelDevice: (panel, near) => level?.panelDevice(panel, near) ?? null,
       kills: validate(validateKillTable, killsJson, 'data/kills.json'),
       knock: (from, travel, reach, strength, done) => void physicsProps?.knock(from, travel, reach, strength, done),
+      // The R08 slam (livelier-cart-slam): what it throws, the cart it rocks, and the aftermath a skip lays out.
+      burst: (at, reach, strength, opts) => void physicsProps?.burst(at, reach, strength, opts),
+      propPose: (id) => level?.propPose(id) ?? null,
+      moveProp: (id, pos, rotation) => {
+        level?.setPropPose(id, pos, rotation);
+        physicsProps?.drive(id, pos, rotation);
+      },
+      layOut: (group) => {
+        for (const a of level?.layOut(group) ?? []) physicsProps?.place(a.id, a.pos, a.rotation);
+      },
       listen: (name, fn) => events.on(name as never, fn as never),
-      sfx: (ids, at, gain) => {
+      sfx: (ids, at, gain, variant) => {
         const id = ids.find((n) => audio.hasSound(n as SoundName));
         if (!id) return false;
-        audio.play(id as SoundName, { position: new THREE.Vector3(at.x, at.y, at.z), occlude: false, ...(gain !== undefined ? { gain } : {}) });
+        audio.play(id as SoundName, { position: new THREE.Vector3(at.x, at.y, at.z), occlude: false, ...(gain !== undefined ? { gain } : {}), ...(variant !== undefined ? { variant } : {}) });
         return true;
       },
       growl: (at) => {
@@ -1526,6 +1537,14 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       if (juggernaut && p?.sequence) juggernaut.act(p.sequence);
     }) as never);
     events.on('level:reset' as never, (() => juggernaut?.hide()) as never);
+
+    // A slam lands (livelier-cart-slam D8): the view dips a little for anyone in that room or one beside it.
+    events.on('kill:impact', (e) => {
+      if (!level || !e.at) return;
+      const there = level.roomAt(new THREE.Vector3(e.at.x, e.at.y, e.at.z))?.data.id;
+      const kick = slamKick(e, level.roomAt(camera.position)?.data.id, there, (r) => level!.neighbours(r));
+      if (kick !== 0) player.addKick(kick);
+    });
 
     let ambienceRoom: string | null = null;
     events.on('room:entered', (r) => {

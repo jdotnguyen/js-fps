@@ -117,3 +117,48 @@ test('breathe: the piece scales slowly about its origin, within 2-3 %', () => {
   assert.ok(Math.max(...ys) - Math.min(...ys) > 0.03, 'it moves');
   assert.ok(Math.max(...ys) <= 1.031 && Math.min(...ys) >= 0.969, 'gently');
 });
+
+// livelier-cart-slam D1, D2: the R08 cart's loose instruments, and the cart's collision following its frame.
+test('cart_item: every instrument builds with at most two materials and a box at least 1 cm thick, standing on its base', async () => {
+  const { CART_ITEMS } = await import('./labWing.ts');
+  for (const type of Object.keys(CART_ITEMS)) {
+    const out = make('cart_item', { type });
+    const materials = new Set<THREE.Material>();
+    out.object.traverse((o) => {
+      if (o instanceof THREE.Mesh) materials.add(o.material as THREE.Material);
+    });
+    assert.ok(materials.size >= 1 && materials.size <= 2, `${type}: ${materials.size} materials`);
+    assert.equal(out.colliders.length, 1, `${type} has one box`);
+    const c = out.colliders[0]!;
+    assert.equal(c.min[1], 0, `${type} stands on its base`);
+    for (const i of [0, 1, 2]) assert.ok(c.max[i]! - c.min[i]! >= 0.0099, `${type} box is at least 1 cm on axis ${i}`);
+  }
+});
+
+test('instrument_cart: its boxes are the tray, lips, shelf and posts, with the tray and shelf faces where they are drawn', async () => {
+  const { SLICE_PROPS, INSTRUMENT_CART } = await import('./slice.ts');
+  const build = (params: Record<string, unknown>) => SLICE_PROPS.find((d) => d.id === 'instrument_cart')!.generate(params as never, new Rng(7), mats as never);
+  const bare = build({ instruments: false });
+  const dressed = build({});
+  assert.ok(bare.object.children.length < dressed.object.children.length, 'instruments: false leaves them off');
+  const { top, shelf, w, d } = INSTRUMENT_CART;
+  const tops = bare.colliders.map((c) => c.max[1]);
+  assert.ok(tops.some((y) => Math.abs(y - top) < 0.002), 'the tray face is at the drawn top');
+  assert.ok(tops.some((y) => Math.abs(y - shelf) < 0.002), 'the shelf face is at the drawn shelf');
+  // The drawn tray and shelf slabs: their top faces match the boxes.
+  const drawn = new THREE.Box3();
+  bare.object.updateMatrixWorld(true);
+  const faces: number[] = [];
+  bare.object.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    drawn.setFromObject(o);
+    const size = drawn.getSize(new THREE.Vector3());
+    if (size.x > w - 0.05 && size.z > d - 0.05 && size.y < 0.03) faces.push(drawn.max.y);
+  });
+  for (const y of [top, shelf]) assert.ok(faces.some((f) => Math.abs(f - y) < 0.002), `a drawn slab tops out at ${y} (${faces.map((f) => f.toFixed(3)).join(', ')})`);
+  // Open between the shelf and the tray, except the posts at the corners: a shelf item can fall out at the side.
+  for (const c of bare.colliders) {
+    if (c.min[1] >= top - 0.03 || c.max[1] <= shelf + 0.001) continue;
+    assert.ok(c.max[0] - c.min[0] <= 0.06 && c.max[2] - c.min[2] <= 0.06, `only thin posts span the gap (${c.min.join(',')} .. ${c.max.join(',')})`);
+  }
+});

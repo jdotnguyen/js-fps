@@ -3,7 +3,7 @@ import type { Rng } from '../../core/rng.ts';
 import { fixtureMaterial, type Materials } from '../../render/materials.ts';
 import { SCREEN_FONT } from '../../render/screens.ts';
 import { at, cylinderBetween, MergeBuilder, rounded } from './geom.ts';
-import { slab } from './shapes.ts';
+import { lathe, slab } from './shapes.ts';
 import { boolParam, numParam, strParam, PieceBuilder, type PieceDef, type PieceParams } from './types.ts';
 
 /**
@@ -78,6 +78,19 @@ function canvasFace(w: number, h: number, draw: (ctx: CanvasRenderingContext2D, 
   tex.anisotropy = 4;
   return new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: glow, roughness: 0.4 });
 }
+
+/** `cart_item` types and the half-size (m) of each one's collision box: x, half its height, z. */
+export const CART_ITEMS = {
+  dish: [0.11, 0.02, 0.07],
+  forceps: [0.075, 0.005, 0.012],
+  scissors: [0.07, 0.005, 0.03],
+  pack: [0.11, 0.02, 0.08],
+  vial: [0.017, 0.041, 0.017],
+  bowl: [0.08, 0.025, 0.08],
+  box: [0.15, 0.06, 0.1],
+  basin: [0.14, 0.03, 0.14],
+} as const satisfies Record<string, readonly [number, number, number]>;
+export type CartItemType = keyof typeof CART_ITEMS;
 
 /** `prep_cart` size (m): width, depth, and the heights of the two surfaces things stand on. */
 export const PREP_CART = { w: 0.9, d: 0.5, top: 0.9, shelf: 0.3 } as const;
@@ -510,6 +523,47 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     }
     addMerged(pb, parts);
     if (!boolParam(p, 'fixed', false)) pb.solid(-half[0], 0, -half[2], half[0], half[1] * 2, half[2], 'metal');
+  },
+
+  /**
+   * One loose instrument from the R08 instrument cart (livelier-cart-slam D1), standing on its base: `type` dish |
+   * forceps | scissors | pack | vial | bowl | box | basin. Two materials at most. Its box is at least 1 cm thick, so a
+   * thrown tool cannot tunnel through the tray.
+   */
+  cart_item(p, _rng, _m, pb) {
+    const type = strParam(p, 'type', 'dish');
+    const half = CART_ITEMS[type as CartItemType] ?? CART_ITEMS.dish;
+    const parts = new MergeBuilder();
+    const steel = P.steel();
+    if (type === 'forceps') {
+      for (const s of [-1, 1]) parts.add(slab(0.14, 0.005, 0.006, 1), steel, at(0, 0.004, s * 0.005, 0, s * 0.05, 0));
+      parts.add(slab(0.02, 0.008, 0.016, 1), steel, at(0.065, 0.004, 0));
+    } else if (type === 'scissors') {
+      for (const s of [-1, 1]) {
+        parts.add(slab(0.11, 0.004, 0.008, 1), steel, at(-0.02, 0.004, 0, 0, s * 0.14, 0));
+        parts.add(new THREE.TorusGeometry(0.014, 0.003, 6, 12), P.black(), at(0.05, 0.004, s * 0.016, PI / 2, 0, 0));
+      }
+    } else if (type === 'pack') {
+      parts.add(rounded(0.22, 0.04, 0.16, 0.01), P.white(), at(0, 0.02, 0));
+      parts.add(slab(0.03, 0.042, 0.162, 1), P.band(), at(0.05, 0.02, 0));
+    } else if (type === 'vial') {
+      parts.add(new THREE.CylinderGeometry(0.016, 0.016, 0.07, 10), glass('vial', 0xd6eaee, 0.4), at(0, 0.035, 0));
+      parts.add(new THREE.CylinderGeometry(0.017, 0.017, 0.016, 10), P.red(), at(0, 0.074, 0));
+    } else if (type === 'bowl') {
+      parts.add(lathe([[0, 0], [0.05, 0], [0.08, 0.045], [0.076, 0.05], [0.045, 0.006], [0, 0.006]], 16), steel);
+    } else if (type === 'box') {
+      parts.add(rounded(0.3, 0.12, 0.2, 0.01), P.offWhite(), at(0, 0.06, 0));
+      parts.add(slab(0.302, 0.03, 0.202, 1), P.band(), at(0, 0.08, 0));
+    } else if (type === 'basin') {
+      parts.add(lathe([[0, 0], [0.12, 0], [0.14, 0.06], [0.134, 0.06], [0.114, 0.006], [0, 0.006]], 18), steel);
+    } else {
+      // Kidney dish: a shallow steel bowl drawn out long.
+      const g = lathe([[0, 0], [0.09, 0], [0.11, 0.035], [0.104, 0.04], [0.085, 0.006], [0, 0.006]], 16);
+      g.scale(1, 1, 0.62);
+      parts.add(g, steel);
+    }
+    addMerged(pb, parts);
+    pb.solid(-half[0], 0, -half[2], half[0], half[1] * 2, half[2], 'metal');
   },
 
   /** Dogging wheel for a watertight bulkhead (wall): hub, 0.6 m rim, six spokes, a red handle knob. */

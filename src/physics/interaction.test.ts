@@ -166,3 +166,80 @@ test('a level reset puts a pushed prop back, and the rebuilt world starts it the
   assert.equal(props.ids.length, 1);
   world.destroy();
 });
+
+// livelier-cart-slam D4, D11 (physical-interaction "Scripted impacts throw loose objects", "A scripted pose can be
+// given to loose objects"): loose boxes on a floor, standing in for the cart's instruments.
+async function looseBoxes(at: Array<[number, number]>) {
+  const colliders = floorRoom();
+  const world = await PhysicsWorld.create(createRapierEngine, colliders);
+  const objects = at.map(([x, z]) => {
+    const o = new THREE.Group();
+    o.position.set(x, 0, z);
+    o.updateMatrixWorld(true);
+    return o;
+  });
+  const heard: string[] = [];
+  const source = {
+    physicsProps: () => objects.map((object, i) => ({ id: `box${i}`, mass: 0.3, loose: true, sound: 'metal' as const, object, localColliders: [{ min: [-0.05, 0, -0.05] as [number, number, number], max: [0.05, 0.1, 0.05] as [number, number, number] }], colliders: [] })),
+    setPropPose: (id: string, pos: { x: number; y: number; z: number }, q: { x: number; y: number; z: number; w: number }) => {
+      const o = objects[Number(id.slice(3))]!;
+      o.position.set(pos.x, pos.y, pos.z);
+      o.quaternion.set(q.x, q.y, q.z, q.w);
+      return true;
+    },
+  };
+  const props = new PhysicsProps(world, source, (i) => void (i.speed > 0.5 && heard.push(i.id)));
+  const run = (s: number): void => {
+    for (let i = 0; i < Math.round(s / STEP); i++) {
+      world.step(STEP);
+      props.sync(STEP);
+    }
+  };
+  run(1);
+  return { world, props, objects, heard, run };
+}
+
+test('a burst throws the loose objects in reach up and away from the impact, and leaves the far ones', async () => {
+  const g = await looseBoxes([[0.3, 0], [-0.3, 0], [0, 0.3], [1, 0]]);
+  const before = g.objects.map((o) => o.position.clone());
+  assert.equal(g.props.burst({ x: 0, y: 0.05, z: 0 }, 0.6, 1, { up: 0.6, seed: 't' }), 3);
+  let highest = 0;
+  for (let i = 0; i < 20; i++) {
+    g.run(STEP);
+    highest = Math.max(highest, ...g.objects.slice(0, 3).map((o) => o.position.y));
+  }
+  g.run(2);
+  assert.ok(highest > 0.05, `they go up (${highest.toFixed(2)} m)`);
+  for (const i of [0, 1, 2]) {
+    const out = g.objects[i]!.position.clone().setY(0).length() - before[i]!.clone().setY(0).length();
+    assert.ok(out > 0.1, `box${i} is thrown away from the impact (${out.toFixed(2)} m)`);
+  }
+  assert.ok(g.objects[3]!.position.distanceTo(before[3]!) < 0.01, 'the far one does not move');
+  g.world.destroy();
+});
+
+test('a stronger burst throws the same object further', async () => {
+  const far = async (strength: number): Promise<number> => {
+    const g = await looseBoxes([[0.2, 0]]);
+    g.props.burst({ x: 0, y: 0.05, z: 0 }, 0.6, strength, { up: 0.5, seed: 's' });
+    g.run(3);
+    const d = g.objects[0]!.position.x;
+    g.world.destroy();
+    return d;
+  };
+  const [weak, strong] = [await far(1), await far(2)];
+  assert.ok(strong > weak + 0.1, `strength 2 goes further (${weak.toFixed(2)} m, then ${strong.toFixed(2)} m)`);
+});
+
+test('placing a loose object puts it at rest where it is told, silently', async () => {
+  const g = await looseBoxes([[0, 0]]);
+  const turned = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+  // On its side: 0.05 m half-height once turned, so its centre sits 0.05 m up; the box origin is its base.
+  assert.ok(g.props.place('box0', { x: 1, y: 0.05, z: 0.5 }, turned));
+  g.run(2);
+  const o = g.objects[0]!;
+  assert.ok(o.position.distanceTo(new THREE.Vector3(1, 0.05, 0.5)) < 0.03, `it lies where it was put (${o.position.toArray().map((v) => v.toFixed(2)).join(', ')})`);
+  assert.ok(o.quaternion.angleTo(turned) < 0.1, 'turned as it was put');
+  assert.deepEqual(g.heard, [], 'and makes no sound');
+  g.world.destroy();
+});

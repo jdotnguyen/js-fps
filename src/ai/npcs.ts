@@ -16,7 +16,7 @@ import { AmbientDirector, isAmbientEligible, type AmbientAgent, type AmbientSpot
 import type { Squad, SquadId, SquadMate } from './squad.ts';
 import type { KillTable } from '../data/types/kills.ts';
 import { DockGuardRoutine } from './dockGuardRoutine.ts';
-import { KillDirector } from './npcKills.ts';
+import { KillDirector, type KillWorld } from './npcKills.ts';
 
 /**
  * The NPC director (ADR-0009 NPC actions, ADR-0011 squad hand-over, ADR-0023 and intro-sequence spec cast).
@@ -88,10 +88,15 @@ export interface NpcDirectorDeps {
   /** Subscribe to a bus event (a kill listens for its lines ending); returns the unsubscriber. */
   listen?: (name: string, fn: (payload: unknown) => void) => () => void;
   /** Play the first of `ids` that exists, at a world point; false when none does. */
-  sfx?: (ids: readonly string[], at: Vec3Like, gain?: number) => boolean;
+  sfx?: (ids: readonly string[], at: Vec3Like, gain?: number, variant?: number) => boolean;
   growl?: (at: Vec3Like) => void;
   /** A kill's `knock`: throw loose physics props near a point (`PhysicsProps.knock`). Absent: nothing moves. */
   knock?: (from: Vec3Like, travel: Vec3Like, reach: number, strength: number, done: Set<string>) => void;
+  /** A slam's burst, the cart it moves, and a skipped kill's aftermath (livelier-cart-slam; `KillWorld`). */
+  burst?: KillWorld['burst'];
+  propPose?: KillWorld['propPose'];
+  moveProp?: KillWorld['moveProp'];
+  layOut?: KillWorld['layOut'];
   /** Controllable level props (dock_chair, dock_wand) driven by scripted NPC routines. */
   setPropTransform?: (id: string, pos: { x: number; y: number; z: number }, yaw: number) => boolean;
   setPropVisible?: (id: string, visible: boolean) => boolean;
@@ -281,6 +286,10 @@ export class NpcDirector {
         sfx: deps.sfx,
         growl: deps.growl,
         knock: deps.knock,
+        burst: deps.burst,
+        propPose: deps.propPose,
+        moveProp: deps.moveProp,
+        layOut: deps.layOut,
         warn: (m) => this.warnOnce(m),
         resolve: (ref) => this.resolver?.(ref) ?? (Array.isArray(ref) ? { pos: { x: ref[0] as number, y: ref[1] as number, z: ref[2] as number } } : null),
         spawn: (id, look, at, yaw, pose) => {

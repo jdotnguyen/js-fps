@@ -13,14 +13,15 @@
  *   npm run impacts:generate -- --id glass-1 --force
  *   npm run impacts:generate -- --raw D:/somewhere/audio-src/physics --all
  */
-import { existsSync, mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { polish } from './casings-generate.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 export const IMPACT_OUT_DIR = 'public/assets/audio/physics';
 
-export type ImpactBank = 'propCartCrash' | 'propCartKnock' | 'propGlass' | 'propGlassHard' | 'propMetal' | 'propThud' | 'limbThud';
+export type ImpactBank = 'propCartCrash' | 'propCartKnock' | 'propGlass' | 'propGlassHard' | 'propMetal' | 'propThud' | 'limbThud' | 'cartSlam' | 'cartRattle';
 
 export interface ImpactSpec {
   id: string;
@@ -30,6 +31,11 @@ export interface ImpactSpec {
   maxSeconds: number;
   /** A file in the raw folder, the span to cut from it (s), and who made it. */
   source: { file: string; start: number; end: number; credit: string };
+  /**
+   * Further cuts mixed over `source` before the polish: each starts `delay` s in, at `gain` (livelier-cart-slam D6:
+   * one slam is a tray boom and the metal ringing on, one rattle is several instruments jumping).
+   */
+  layers?: ReadonlyArray<{ file: string; start: number; end: number; credit: string; delay: number; gain: number }>;
 }
 
 const BOTTLE_HIT = { file: '789460__limpinglizards__bottle-hit-3.wav', credit: 'limpinglizards, "bottle hit 3" (Freesound 789460, CC0)' };
@@ -49,15 +55,32 @@ const kenney = (name: string): { file: string; start: number; end: number; credi
 });
 
 /** `propGlassHard`, 3 -> id `glass-hard-3`, file `prop-glass-hard-3.mp3`; `limbThud` -> `limb-thud-1.mp3`. */
-function bank(name: ImpactBank, maxSeconds: number, sources: ReadonlyArray<{ file: string; start: number; end: number; credit: string }>): ImpactSpec[] {
+function bank(name: ImpactBank, maxSeconds: number, sources: ReadonlyArray<{ file: string; start: number; end: number; credit: string; layers?: ImpactSpec['layers'] }>): ImpactSpec[] {
   const kebab = name.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
-  return sources.map((source, i) => ({
+  return sources.map(({ layers, ...source }, i) => ({
     id: `${kebab.replace(/^prop-/, '')}-${i + 1}`,
     bank: name,
     file: `${kebab}-${i + 1}.mp3`,
     maxSeconds,
     source,
+    ...(layers ? { layers } : {}),
   }));
+}
+
+/** A Kenney clip laid over a cut, `delay` s in, at `gain`. */
+const over = (name: string, delay: number, gain: number) => ({ ...kenney(name), delay, gain });
+
+/** Mix a spec's source and layers into one mono WAV (the polish then trims, caps and levels it). */
+function mixLayers(raw: string, s: ImpactSpec, out: string): void {
+  const parts = [s.source, ...(s.layers ?? [])];
+  const inputs = parts.flatMap((p) => ['-i', join(raw, p.file)]);
+  const chains = parts.map((p, i) => {
+    const delay = 'delay' in p ? Math.round((p as { delay: number }).delay * 1000) : 0;
+    const gain = 'gain' in p ? (p as { gain: number }).gain : 1;
+    return `[${i}:a]aresample=44100,pan=mono|c0=c0,atrim=${p.start.toFixed(3)}:${p.end.toFixed(3)},asetpts=PTS-STARTPTS,adelay=${delay},volume=${gain}[l${i}]`;
+  });
+  const mix = `${parts.map((_, i) => `[l${i}]`).join('')}amix=inputs=${parts.length}:normalize=0:duration=longest[m]`;
+  execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', ...inputs, '-filter_complex', [...chains, mix].join(';'), '-map', '[m]', '-ac', '1', out], { stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
 export const IMPACT_MANIFEST: readonly ImpactSpec[] = [
@@ -93,6 +116,19 @@ export const IMPACT_MANIFEST: readonly ImpactSpec[] = [
   ]),
   // The microscope.
   ...bank('propThud', 0.5, [{ ...DROP, start: 0, end: 0.5 }, kenney('impactSoft_heavy_000'), kenney('impactSoft_heavy_001'), kenney('impactSoft_heavy_003')]),
+  // The R08 slam (livelier-cart-slam D6): the steel tray boomed under her head, each with a different ring; the third,
+  // the hardest, carries the reverberant crash. Played in turn, so no two in a row match.
+  ...bank('cartSlam', 1.6, [
+    { ...kenney('impactPlate_heavy_001'), layers: [over('impactMetal_heavy_000', 0.01, 0.8), over('impactSoft_heavy_002', 0, 0.6), { ...RATTLE, start: 1.2, end: 2.4, delay: 0.03, gain: 0.7 }] },
+    { ...kenney('impactPlate_heavy_003'), layers: [over('impactMetal_heavy_002', 0.01, 0.8), over('impactSoft_heavy_004', 0, 0.7), { ...RATTLE, start: 2.2, end: 3.4, delay: 0.03, gain: 0.9 }] },
+    { ...kenney('impactPlate_heavy_004'), layers: [over('impactMetal_heavy_004', 0.01, 0.9), over('impactPunch_heavy_001', 0, 0.6), { ...RATTLE, start: 0.3, end: 1.9, delay: 0.02, gain: 0.55 }] },
+  ]),
+  // The instruments jumping on the tray as it is struck: several light hits a few hundredths of a second apart.
+  ...bank('cartRattle', 0.9, [
+    { ...kenney('impactMetal_light_002'), layers: [over('impactTin_medium_001', 0.07, 0.6), over('impactGlass_light_001', 0.11, 0.4), over('impactMetal_light_004', 0.17, 0.5)] },
+    { ...kenney('impactTin_medium_002'), layers: [over('impactMetal_medium_000', 0.05, 0.7), over('impactMetal_light_002', 0.13, 0.5), over('impactTin_medium_001', 0.24, 0.4)] },
+    { ...kenney('impactMetal_medium_002'), layers: [over('impactMetal_light_004', 0.04, 0.6), over('impactTin_medium_002', 0.1, 0.5), over('impactGlass_light_003', 0.18, 0.4), over('impactMetal_medium_004', 0.3, 0.45)] },
+  ]),
   // A severed piece landing; the game varies its pitch.
   ...bank('limbThud', 1.0, [{ ...GORE, start: 0, end: 1.15 }]),
 ];
@@ -138,9 +174,16 @@ function main(): void {
       skipped++;
       continue;
     }
-    const src = join(raw, s.source.file);
-    if (!existsSync(src)) throw new Error(`${s.id}: missing raw recording ${src} (download it from the source in its credit: ${s.source.credit})`);
-    console.log(`[cut] ${s.id.padEnd(16)} -> ${s.file} (${polish(src, out, s.maxSeconds, s.source)})`);
+    for (const p of [s.source, ...(s.layers ?? [])]) {
+      const src = join(raw, p.file);
+      if (!existsSync(src)) throw new Error(`${s.id}: missing raw recording ${src} (download it from the source in its credit: ${p.credit})`);
+    }
+    if (s.layers) {
+      const tmp = `${out}.mix.wav`;
+      mixLayers(raw, s, tmp);
+      console.log(`[mix] ${s.id.padEnd(16)} -> ${s.file} (${polish(tmp, out, s.maxSeconds)})`);
+      unlinkSync(tmp);
+    } else console.log(`[cut] ${s.id.padEnd(16)} -> ${s.file} (${polish(join(raw, s.source.file), out, s.maxSeconds, s.source)})`);
     built++;
   }
   console.log(`\nDone: ${built} built, ${skipped} skipped.`);

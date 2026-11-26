@@ -39,6 +39,19 @@ test('soft changes are silent, harder hits are louder, and a hard one uses the c
   assert.equal(impactSound('flesh', 3)!.sound, 'limbThud');
 });
 
+// livelier-cart-slam D7, medbay-attack "Instruments sound where they land".
+test('the kidney dish clinks when nudged and spins down when it lands hard, once', () => {
+  assert.equal(impactSound('dish', 0.9)!.sound, 'propMetal');
+  const hard = impactSound('dish', 3)!;
+  assert.equal(hard.sound, 'propDishSpin');
+  assert.ok(hard.hard && hard.rest >= 2.5, 'its bounces do not cut the spin off');
+  const r = rig();
+  assert.equal(r.hit({ id: 'dish', material: 'dish', speed: 3 }), 'propDishSpin');
+  assert.equal(r.hit({ id: 'dish', material: 'dish', speed: 2 }), null, 'a bounce straight after');
+  r.wait(1);
+  assert.equal(r.hit({ id: 'dish', material: 'dish', speed: 2 }), null, 'still spinning');
+});
+
 test('one thing rests between its sounds, but a crash cuts through the rest after a tap', () => {
   const r = rig();
   assert.equal(r.hit({ material: 'cart', speed: 0.8 }), 'propCartKnock');

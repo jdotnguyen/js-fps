@@ -1,6 +1,14 @@
 {
   "commit": "a97d09c",
   "clips": {
+    "cover_priya_run_02": [{ "wav": "priya-door-rescue/nurse.wav", "from": 0.25, "to": 2.55 }],
+    "sec_priya_18": [
+      { "wav": "priya-door-rescue/nurse.wav", "from": 3.45, "to": 4.4 },
+      { "wav": "priya-door-rescue/nurse.wav", "from": 5.45, "to": 6.05, "gap": 0.35 },
+      { "wav": "priya-door-rescue/nurse.wav", "from": 7.48, "to": 8.0, "gap": 0.45 }
+    ],
+    "sec_okafor_10": [{ "clip": "sec_okafor_10", "from": 0, "to": 0.62 }],
+
     "drop_heins_01": [{ "wav": "older/vo_chief_01.wav", "from": 30.43, "to": 35.54 }],
     "drop_heins_02": [{ "wav": "older/vo_chief_01.wav", "from": 36.4, "to": 37.88 }],
     "drop_heins_03": [{ "wav": "older/vo_chief_01.wav", "from": 38.73, "to": 41.79 }],

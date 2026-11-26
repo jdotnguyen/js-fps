@@ -27,7 +27,8 @@ async function labB(interact = true) {
   /** Every impact loud enough to be heard. */
   const heard: PropImpact[] = [];
   const props = interact ? new PhysicsProps(world, level, (i) => void (impactSound(i.material, i.speed) && heard.push(i))) : null;
-  const loose = level.physicsProps().filter((p) => p.loose);
+  // Lab B's own (R08's cart load is loose too: r08.test.ts).
+  const loose = level.physicsProps().filter((p) => p.loose && p.id.startsWith('labb_'));
   const noop = (): void => undefined;
   const handlers = new Map<string, Set<(p: unknown) => void>>();
   const emit = (name: string, payload: unknown): void => void [...(handlers.get(name) ?? [])].forEach((fn) => fn(payload));
@@ -63,7 +64,7 @@ async function labB(interact = true) {
     }
   };
   const poses = (): Map<string, { pos: THREE.Vector3; quat: THREE.Quaternion }> =>
-    new Map(level.physicsProps().filter((p) => p.loose).map((p) => [p.id, { pos: p.object.position.clone(), quat: p.object.quaternion.clone() }]));
+    new Map(loose.map((p) => [p.id, { pos: p.object.position.clone(), quat: p.object.quaternion.clone() }]));
   const kill = (instant: boolean): void => {
     void npcs.command('kill', { npc: 'researcher_b', kind: 'grownInside', glass: 'anchor:labb_glass', lines: { scratch: 'drop_voss_01', glass: 'drop_voss_02' }, instant });
   };

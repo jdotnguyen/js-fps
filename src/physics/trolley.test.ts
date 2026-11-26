@@ -18,8 +18,9 @@ const DOOR = { x: 18, z: 32 };
 const { level, doors } = loadSlice01();
 
 test('slice01 places the ROV Workshop trolley as the only physics prop that movement collides with', () => {
-  // Lab B's cart and its load are loose (labB.test.ts): movement ignores them.
-  const props = level.physicsProps().filter((p) => !p.loose);
+  // Lab B's cart and its load are loose (labB.test.ts): movement ignores them. The R08 instrument cart is a scripted
+  // (kinematic) body that physics never moves (livelier-cart-slam, r08.test.ts).
+  const props = level.physicsProps().filter((p) => !p.loose && !p.kinematic);
   assert.deepEqual(props.map((p) => p.id), ['rov_trolley']);
   assert.equal(props[0]!.mass, 45);
   assert.ok(props[0]!.colliders.length >= 2, 'deck and handle');

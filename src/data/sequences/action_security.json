@@ -88,10 +88,20 @@
    {
     "parallel": [
      {
-      "do": "say",
-      "line": "cover_okafor_run_01",
-      "wait": false,
-      "overlap": true
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 0.1
+       },
+       {
+        "do": "say",
+        "line": "cover_priya_run_02",
+        "wait": false,
+        "overlap": true
+       }
+      ]
      },
      {
       "do": "loop",
@@ -100,7 +110,7 @@
        {
         "do": "npcMoveTo",
         "npc": "priya",
-        "to": "anchor:priya_wait",
+        "to": "anchor:priya_door_in",
         "speed": 5.2,
         "wait": true
        }
@@ -112,18 +122,28 @@
       "steps": [
        {
         "do": "wait",
-        "s": 0.9
-       },
-       {
-        "do": "say",
-        "line": "cover_priya_run_01",
-        "wait": false,
-        "overlap": true
+        "s": 1.1
        },
        {
         "do": "npcAnim",
         "npc": "priya",
         "anim": "clip:priya_stumble"
+       }
+      ]
+     },
+     {
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "wait",
+        "s": 1.5
+       },
+       {
+        "do": "say",
+        "line": "cover_okafor_run_01",
+        "wait": false,
+        "overlap": true
        }
       ]
      },
@@ -195,7 +215,7 @@
        {
         "do": "npcAnim",
         "npc": "priya",
-        "anim": "priya_crouch"
+        "anim": "idle"
        }
       ]
      },
@@ -298,7 +318,7 @@
        {
         "do": "npcMoveTo",
         "npc": "okafor",
-        "to": "anchor:okafor_window",
+        "to": "anchor:r07_medbay_door",
         "speed": 2.2
        },
        {
@@ -316,28 +336,8 @@
         "anim": "idle"
        },
        {
-        "parallel": [
-         {
-          "do": "say",
-          "line": "sec_okafor_10"
-         },
-         {
-          "do": "loop",
-          "count": 1,
-          "steps": [
-           {
-            "do": "wait",
-            "s": 0.4
-           },
-           {
-            "do": "npcMoveTo",
-            "npc": "priya",
-            "to": "anchor:priya_window",
-            "speed": 1.3
-           }
-          ]
-         }
-        ]
+        "do": "say",
+        "line": "sec_okafor_10"
        },
        {
         "parallel": [

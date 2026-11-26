@@ -610,6 +610,12 @@ function fluidTrailMaterial(seed: number): THREE.MeshStandardMaterial {
 
 type Gen = (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuilder) => void;
 
+/**
+ * `instrument_cart` size (m): width, depth, the heights of its top and shelf faces (what loose things stand on), and
+ * the height of the top's lip (livelier-cart-slam D2).
+ */
+export const INSTRUMENT_CART = { w: 1.0, d: 0.55, top: 0.9, shelf: 0.29, lip: 0.025 } as const;
+
 // ------------------------------------------------------------------ props
 
 const GEN: Record<string, Gen> = {
@@ -2660,13 +2666,16 @@ const GEN: Record<string, Gen> = {
   },
 
   /**
-   * Steel instrument cart (medbay-attack spec, R08): about 1.0 x 0.55 m, a lipped top at 0.9 m, a lower shelf, casters,
-   * a push handle on the +X end and a few instruments. Long side along X. The top is the slam target (`r08_cart_top`).
+   * Steel instrument cart (medbay-attack spec, R08): about 1.0 x 0.55 m, a lipped top at 0.9 m, a lower shelf, casters
+   * and a push handle on the +X end. Long side along X. The top is the slam target (`r08_cart_top`).
+   *
+   * `instruments: false` leaves them off: the level then places them as loose `cart_item` props (livelier-cart-slam D1).
+   * Its boxes follow the frame (tray, lips, shelf, posts), not one block, so loose things rest on the drawn surfaces and
+   * can fall out between the posts (D2).
    */
   instrument_cart(p, rng, m, pb) {
-    const w = numParam(p, 'width', 1.0);
-    const d = 0.55;
-    const top = 0.9;
+    const w = numParam(p, 'width', INSTRUMENT_CART.w);
+    const { d, top, shelf } = INSTRUMENT_CART;
     for (const x of [-w / 2 + 0.03, w / 2 - 0.03]) for (const z of [-d / 2 + 0.03, d / 2 - 0.03]) {
       pb.add(cylinderBetween(V(x, 0.1, z), V(x, top - 0.02, z), 0.016, 8), m.steel);
       pb.add(new THREE.CylinderGeometry(0.04, 0.04, 0.03, 12), m.rubber, at(x, 0.04, z, PI / 2, 0, 0));
@@ -2676,17 +2685,27 @@ const GEN: Record<string, Gen> = {
     pb.add(rounded(w, 0.025, d, 0.006), m.steel, at(0, top - 0.0125, 0));
     for (const z of [-d / 2 + 0.008, d / 2 - 0.008]) pb.add(slab(w, 0.025, 0.016), m.steel, at(0, top + 0.0125, z));
     for (const x of [-w / 2 + 0.008, w / 2 - 0.008]) pb.add(slab(0.016, 0.025, d), m.steel, at(x, top + 0.0125, 0));
-    pb.add(slab(w - 0.04, 0.02, d - 0.04), m.steel, at(0, 0.28, 0));
+    pb.add(slab(w - 0.04, 0.02, d - 0.04), m.steel, at(0, shelf - 0.01, 0));
     // Push handle on the +X end.
     pb.add(cylinderBetween(V(w / 2 + 0.06, top - 0.02, -d / 2 + 0.06), V(w / 2 + 0.06, top - 0.02, d / 2 - 0.06), 0.012, 8), m.steel);
     for (const z of [-d / 2 + 0.06, d / 2 - 0.06]) pb.add(cylinderBetween(V(w / 2 - 0.02, top - 0.02, z), V(w / 2 + 0.06, top - 0.02, z), 0.01, 6), m.steel);
-    // Instruments: a kidney dish, a wrapped pack, a few thin tools, and a box and a basin on the shelf.
-    pb.add(lathe([[0, 0], [0.09, 0], [0.11, 0.035], [0.1, 0.04], [0, 0.04]], 14), m.steel, at(-w / 4, top + 0.002, rng.range(-0.08, 0.04)));
-    pb.add(rounded(0.22, 0.04, 0.16, 0.01), MAT.paper(), at(w / 5, top + 0.02, 0.08, 0, rng.range(-0.3, 0.3), 0));
-    for (let i = 0; i < 4; i++) pb.add(slab(0.14, 0.006, 0.012), m.steel, at(rng.range(-0.05, 0.2), top + 0.005, rng.range(-0.18, -0.06), 0, rng.range(-0.6, 0.6), 0));
-    pb.add(rounded(0.3, 0.12, 0.2, 0.01), m.cleanWall, at(-w / 5, 0.35, 0));
-    pb.add(lathe([[0, 0], [0.12, 0], [0.14, 0.06], [0, 0.06]], 14), m.steel, at(w / 4, 0.29, 0));
-    pb.solid(-w / 2, 0, -d / 2, w / 2, top + 0.025, d / 2, 'metal');
+    if (boolParam(p, 'instruments', true)) {
+      // Instruments: a kidney dish, a wrapped pack, a few thin tools, and a box and a basin on the shelf.
+      pb.add(lathe([[0, 0], [0.09, 0], [0.11, 0.035], [0.1, 0.04], [0, 0.04]], 14), m.steel, at(-w / 4, top + 0.002, rng.range(-0.08, 0.04)));
+      pb.add(rounded(0.22, 0.04, 0.16, 0.01), MAT.paper(), at(w / 5, top + 0.02, 0.08, 0, rng.range(-0.3, 0.3), 0));
+      for (let i = 0; i < 4; i++) pb.add(slab(0.14, 0.006, 0.012), m.steel, at(rng.range(-0.05, 0.2), top + 0.005, rng.range(-0.18, -0.06), 0, rng.range(-0.6, 0.6), 0));
+      pb.add(rounded(0.3, 0.12, 0.2, 0.01), m.cleanWall, at(-w / 5, 0.35, 0));
+      pb.add(lathe([[0, 0], [0.12, 0], [0.14, 0.06], [0, 0.06]], 14), m.steel, at(w / 4, 0.29, 0));
+    }
+    // Collision: the tray (its top face exactly at `top`), the lips, the shelf (top face at `shelf`) and the posts.
+    const lip = INSTRUMENT_CART.lip;
+    pb.solid(-w / 2, top - 0.025, -d / 2, w / 2, top, d / 2, 'metal');
+    pb.solid(-w / 2, top, -d / 2, w / 2, top + lip, -d / 2 + 0.016, 'metal');
+    pb.solid(-w / 2, top, d / 2 - 0.016, w / 2, top + lip, d / 2, 'metal');
+    pb.solid(-w / 2, top, -d / 2, -w / 2 + 0.016, top + lip, d / 2, 'metal');
+    pb.solid(w / 2 - 0.016, top, -d / 2, w / 2, top + lip, d / 2, 'metal');
+    pb.solid(-w / 2 + 0.02, shelf - 0.02, -d / 2 + 0.02, w / 2 - 0.02, shelf, d / 2 - 0.02, 'metal');
+    for (const x of [-w / 2 + 0.03, w / 2 - 0.03]) for (const z of [-d / 2 + 0.03, d / 2 - 0.03]) pb.solid(x - 0.025, 0, z - 0.025, x + 0.025, top - 0.025, z + 0.025, 'metal');
   },
 
   // ---------------------------------------------------------------- commons galley + lounge (R02)

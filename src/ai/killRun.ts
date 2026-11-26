@@ -180,7 +180,7 @@ export class KillRun {
       const beat = this.style.beats[i]!;
       const events = beat.events ?? [];
       const from = i === this.index ? this.fired : 0;
-      for (const e of events.slice(from)) if (e.do === 'tear' || e.do === 'die' || e.do === 'creature' || e.do === 'light' || e.do === 'infect' || e.do === 'face') this.hooks.event(e, beat);
+      for (const e of events.slice(from)) if (e.do === 'tear' || e.do === 'die' || e.do === 'creature' || e.do === 'light' || e.do === 'infect' || e.do === 'face' || e.do === 'layout') this.hooks.event(e, beat);
     }
     const last = this.style.beats[this.style.beats.length - 1];
     if (last) this.hooks.pose(last.poses[0]!, 0.01);

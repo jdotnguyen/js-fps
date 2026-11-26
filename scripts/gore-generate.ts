@@ -141,7 +141,19 @@ export const GORE_MANIFEST: readonly GoreAssetSpec[] = [
     prompt: `newborn alien creature unfolding wet chitinous limbs, insect-like clicking and joint popping, low wet breathing rasp, slime squelches, horror creature foley, ${DRY}`,
   },
   // The R08 kill (medbay-attack spec): her head on the steel cart, her body against the pane, her palm dragged across it.
-  // `cart_impact` (cart-impact.mp3) and `cart_glass_break` are downloaded clips, not generated: see CREDITS.md.
+  // The slam's steel impacts and rattle are CC0 cuts (`scripts/impacts-generate.ts`, banks `cartSlam`, `cartRattle`).
+  {
+    // livelier-cart-slam D7: the kidney dish thrown off the cart, landing hard (impacts.ts `dish` material). The kept
+    // file has Kenney's CC0 `impactMetal_medium_001` mixed in front (the landing clang, the spin 60 ms behind it), then
+    // a 0.2 s fade and -6 dB peak: regenerating replaces it with the spin alone (see CREDITS.md).
+    id: 'dish_spin',
+    sound: 'propDishSpin',
+    file: 'dish-spin.mp3',
+    loop: false,
+    duration: 2.6,
+    promptInfluence: 0.7,
+    prompt: `Euler disk effect: a metal bowl spinning on its rim on a tile floor, continuous wobbling metallic whirr that speeds up for two seconds, rising in pitch and getting faster, ending in a quick rattle and a final clack as it falls flat, close and dry, no room reverb, no music, no voice`,
+  },
   {
     id: 'body_glass_hit',
     sound: 'body_glass_hit',

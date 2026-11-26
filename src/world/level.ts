@@ -441,7 +441,9 @@ export class Level implements World, CaptureHost {
   /** Fixtures (glow, shaft, pooled light) that belong to a movable prop and move with it, keyed by prop id. */
   private readonly propLights = new Map<string, Array<{ objects: Array<{ object: THREE.Object3D; base: THREE.Vector3 }>; slotPos: THREE.Vector3; slotBase: THREE.Vector3 }>>();
   /** Props marked `dynamic` in the level data (a subset of `movableProps`), with their mass. */
-  private readonly dynamicProps = new Map<string, { mass: number; loose: boolean; sound: PropSound | null; room: string }>();
+  private readonly dynamicProps = new Map<string, { mass: number; loose: boolean; kinematic: boolean; sound: PropSound | null; room: string }>();
+  /** Where a skipped or restored kill leaves props, by `after.group` (livelier-cart-slam D11). */
+  private readonly afterPoses = new Map<string, Array<{ id: string; pos: THREE.Vector3; rotation: THREE.Quaternion }>>();
   private readonly npcList: LevelNpc[] = [];
   private readonly named = new Map<string, Set<() => void>>();
   /** Authored walks by id (ADR-0028). */
@@ -1061,8 +1063,16 @@ export class Level implements World, CaptureHost {
         grp.userData.dynamic = true;
         for (const child of [...out.object.children]) grp.add(child);
         out.object.add(grp);
-        this.dynamicProps.set(id, { mass: prop.dynamic.mass, loose: prop.dynamic.loose === true, sound: prop.dynamic.sound ?? null, room: r.id });
+        this.dynamicProps.set(id, { mass: prop.dynamic.mass, loose: prop.dynamic.loose === true, kinematic: prop.dynamic.kinematic === true, sound: prop.dynamic.sound ?? null, room: r.id });
         this.offs.push(this.casters.add(new RigidCaster(grp)));
+      }
+      if (prop.after) {
+        const id = typeof prop.params?.['id'] === 'string' ? prop.params['id'] : `${r.id}:${prop.kit}:${pi}`;
+        const q = prop.after.quat;
+        const rotation = q?.length === 4 ? new THREE.Quaternion(q[0], q[1], q[2], q[3]).normalize() : new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry);
+        const list = this.afterPoses.get(prop.after.group) ?? [];
+        list.push({ id, pos: new THREE.Vector3(...prop.after.pos), rotation });
+        this.afterPoses.set(prop.after.group, list);
       }
       this.integrate(room, out, matrix, ry, rawSlots);
     }
@@ -1490,13 +1500,29 @@ export class Level implements World, CaptureHost {
    * own frame, and the live `CollisionWorld` colliders that follow it (none for a loose prop). Empty for a level with
    * none.
    */
-  physicsProps(): Array<{ id: string; mass: number; loose: boolean; sound: PropSound | null; object: THREE.Object3D; localColliders: readonly BoxSpec[]; colliders: readonly Collider[] }> {
+  physicsProps(): Array<{ id: string; mass: number; loose: boolean; kinematic: boolean; sound: PropSound | null; object: THREE.Object3D; localColliders: readonly BoxSpec[]; colliders: readonly Collider[] }> {
     const out = [];
     for (const [id, d] of this.dynamicProps) {
       const mp = this.movableProps.get(id);
-      if (mp) out.push({ id, mass: d.mass, loose: d.loose, sound: d.sound, object: mp.object, localColliders: mp.localColliders, colliders: mp.colliders });
+      if (mp) out.push({ id, mass: d.mass, loose: d.loose, kinematic: d.kinematic, sound: d.sound, object: mp.object, localColliders: mp.localColliders, colliders: mp.colliders });
     }
     return out;
+  }
+
+  /**
+   * Put every prop of an `after` group at its authored pose (a skipped or restored kill's aftermath, livelier-cart-slam
+   * D11) and return the poses, so physics can move the bodies there too. Unknown groups lay out nothing.
+   */
+  layOut(group: string): Array<{ id: string; pos: THREE.Vector3; rotation: THREE.Quaternion }> {
+    const list = this.afterPoses.get(group) ?? [];
+    for (const a of list) this.setPropPose(a.id, a.pos, a.rotation);
+    return list.filter((a) => this.movableProps.has(a.id));
+  }
+
+  /** The current pose of a movable prop, in world space (a kill moving the cart it slams on). */
+  propPose(id: string): { pos: THREE.Vector3; rotation: THREE.Quaternion } | null {
+    const mp = this.movableProps.get(id);
+    return mp ? { pos: mp.object.position.clone(), rotation: mp.object.quaternion.clone() } : null;
   }
 
   /**

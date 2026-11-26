@@ -145,7 +145,30 @@ without one it is silent. `PhysicsProps` reports any step in which such a prop's
 `debris` switch). `ImpactAudio` (`src/audio/impacts.ts`) turns a report into a sound: nothing below 0.5 m/s, louder
 with speed, a separate recording for a cart crash (2.2 m/s and up) and a hard glass drop, a short rest per object, six
 voices at most, silent past 16 m. Clips are built by `npm run impacts:generate` from the CC0 downloads in
-`../audio-src/physics/`.
+`../audio-src/physics/`. A `dish` (the R08 kidney dish) clinks like `metal` and, landing hard, spins down to rest.
+
+**Kinematic props.** `"dynamic": { "mass": 30, "kinematic": true }` makes a scripted body: physics never moves it, and
+whatever rests on it rides along or is shoved when a script moves it (`PhysicsProps.drive`, with
+`Level.setPropPose` for its meshes and collision). Its collision stays in `CollisionWorld`, so it is still an
+obstacle. Without physics the script moves it the same way. The R08 instrument cart is one
+(openspec change `livelier-cart-slam`).
+
+**Bursts.** A kill's `slam` event can carry `"burst": { "reach": 0.5, "strength": 1.3, "up": 0.45 }`: when it lands,
+every loose prop whose centre is within `reach` m of the impact is thrown once, up and away, mostly along the slammed
+prop's long axis and partly toward the kill's glass (`BURST` in `interaction.ts`; strength 1 is about 2.5 m/s at the
+impact, less at the edge of the reach). Things below the impact, on a shelf, go out rather than up. The same slam can
+carry `"prop"` and `"jolt": { "slide": [x, z], "yaw": 2, "rock": 3.5, "edge": 0.275 }`, which rocks the prop it
+lands on about its bottom edge and leaves it slid and turned; the slam's mark moves with it. `"windup"` sets that
+slam's own wind-up. Skipped and restored kills throw and move nothing.
+
+**Layouts.** A prop can carry `"after": { "group": "r08_cart", "pos": [...], "quat": [...] }`: a kill's
+`{ "do": "layout", "prop": "r08_cart" }` event puts every prop of that group there, at rest and silent, but only in a
+skipped or restored kill, so the scene shows the aftermath a played one leaves. In R08 the poses are recorded from a
+headless run of the three bursts (`src/physics/r08.test.ts` runs the same); re-record them when the burst or the
+items change.
+
+R08 uses all three: nine loose instruments on the kinematic cart, thrown by the three head slams, the cart rocking
+and sliding about 8 cm, and laid out on the floor when the scene is skipped.
 
 ## Debug view
 

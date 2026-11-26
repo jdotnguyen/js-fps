@@ -841,6 +841,11 @@ export const SAMPLE_URLS = {
   propMetal: impactFiles('prop-metal', 6),
   propThud: impactFiles('prop-thud', 4),
   limbThud: impactFiles('limb-thud', 1),
+  // The R08 slam (livelier-cart-slam D6): the steel tray struck under her head, and its instruments jumping (CC0 cuts).
+  cartSlam: impactFiles('cart-slam', 3),
+  cartRattle: impactFiles('cart-rattle', 3),
+  // The kidney dish landing hard and spinning down (impacts.ts `dish`; ElevenLabs over a Kenney clang, gore-generate.ts).
+  propDishSpin: 'assets/audio/gore/dish-spin.mp3',
 
   // Infected-kill body sounds (ElevenLabs, scripts/gore-generate.ts; infection-kills spec, data/kills.json).
   kill_crunch: ['assets/audio/gore/kill-crunch-1.mp3', 'assets/audio/gore/kill-crunch-2.mp3', 'assets/audio/gore/kill-crunch-3.mp3', 'assets/audio/gore/kill-crunch-4.mp3'],
@@ -855,9 +860,6 @@ export const SAMPLE_URLS = {
   head_crunch_2: 'assets/audio/gore/kill-crunch-4.mp3',
   head_crunch_3: 'assets/audio/gore/kill-crunch-1.mp3',
   // Not generated yet (`npm run gore:generate -- --id <name>`): until they exist the kill plays the next id it names.
-  // The slam on the cart is two downloaded clips played together (CREDITS.md): a door slam and breaking glass.
-  cart_impact: 'assets/audio/gore/cart-impact.mp3',
-  cart_glass_break: 'assets/audio/gore/cart-glass-break.mp3',
   body_glass_hit: 'assets/audio/gore/body-glass-hit.mp3',
   // overhaul-priya-r08-death D26: the dark surgery, heard through the rescue.
   surgery_rattle: 'assets/audio/gore/surgery-rattle.mp3',

@@ -59,6 +59,9 @@ const VOICINGS: Readonly<Record<ImpactMaterial, Voicing>> = {
   glass: { sound: 'propGlass', gain: 0.35, full: 2.5, rest: 0.15, hard: { from: 2.2, sound: 'propGlassHard', gain: 0.5, rest: 0.6, life: 1.2 } },
   metal: { sound: 'propMetal', gain: 0.4, full: 3.5, rest: 0.15 },
   thud: { sound: 'propThud', gain: 0.5, full: 3.5, rest: 0.2 },
+  // The R08 kidney dish (livelier-cart-slam D7): a clink when nudged; landing hard, it spins down to rest. The long
+  // rest keeps its own bounces from cutting the spin off.
+  dish: { sound: 'propMetal', gain: 0.4, full: 3.5, rest: 0.15, hard: { from: 1.5, sound: 'propDishSpin', gain: 0.6, rest: 3, life: 2.6 } },
   flesh: { sound: 'limbThud', gain: 0.5, full: 5, rest: 0.25 },
 };
 

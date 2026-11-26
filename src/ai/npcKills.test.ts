@@ -334,6 +334,12 @@ function mauledSetup(
   const handlers = new Map<string, Set<(p: unknown) => void>>();
   const emitted: Array<{ name: string; at: number; payload: unknown }> = [];
   const sounds: string[] = [];
+  /** livelier-cart-slam: what the slams play (with the take), throw, move and lay out. */
+  const takes: Array<{ id: string; variant: number | undefined }> = [];
+  const bursts: Array<{ at: THREE.Vector3; reach: number; strength: number; along?: THREE.Vector3Like; toward?: THREE.Vector3Like }> = [];
+  const props = new Map<string, { pos: THREE.Vector3; rotation: THREE.Quaternion }>([['r08_cart', { pos: new THREE.Vector3(0, 0, 47.4), rotation: new THREE.Quaternion() }]]);
+  const moves: Array<{ id: string; pos: THREE.Vector3; rotation: THREE.Quaternion }> = [];
+  const layouts: string[] = [];
   const warnings: string[] = [];
   let now = 0;
   const kills = validate(validateKillTable, { ...killsJson, mauledTest: MAULED_TEST_STYLE, dragTest: DRAG_TEST_STYLE, ...extraStyles }, 'kills');
@@ -353,12 +359,23 @@ function mauledSetup(
       set.add(fn);
       return () => set.delete(fn);
     },
-    sfx: (ids) => {
+    sfx: (ids, _at, _gain, variant) => {
       sounds.push(ids[0]!);
+      takes.push({ id: ids[0]!, variant });
       return true;
     },
     warn: (m) => warnings.push(m),
     kills,
+    burst: (at, reach, strength, o) => void bursts.push({ at: new THREE.Vector3(at.x, at.y, at.z), reach, strength, ...(o.along ? { along: o.along } : {}), ...(o.toward ? { toward: o.toward } : {}) }),
+    propPose: (id) => {
+      const q = props.get(id);
+      return q ? { pos: q.pos.clone(), rotation: q.rotation.clone() } : null;
+    },
+    moveProp: (id, pos, rotation) => {
+      props.set(id, { pos: pos.clone(), rotation: rotation.clone() });
+      moves.push({ id, pos: pos.clone(), rotation: rotation.clone() });
+    },
+    layOut: (group) => void layouts.push(group),
   });
   npcs.setResolver((ref) => {
     const name = String(ref).replace(/^anchor:/, '');
@@ -379,7 +396,7 @@ function mauledSetup(
   };
   const beatAt = (b: string): number => emitted.find((e) => e.name === `kill:${b}`)?.at ?? -1;
   const beat = (): string | null => npcs.kills.running('priya')?.beatId ?? null;
-  return { npcs, goreCalls, emitted, sounds, warnings, step, beatAt, beat, emit, time: () => now };
+  return { npcs, goreCalls, emitted, sounds, takes, bursts, props, moves, layouts, warnings, step, beatAt, beat, emit, time: () => now };
 }
 
 const MAUL_STEP = {
@@ -824,6 +841,58 @@ test('the R08 kill (kills.json mauled) plays end to end on the slice01 anchors: 
   assert.ok(g.emitted.filter((e) => e.name === 'kill:noticed').length <= 1, 'it stares at Jay at most once (the rush is over before the nine-second stare)');
   const lurk = a['r08_lurk']!;
   assert.ok(Math.hypot(thing.position.x - lurk.x, thing.position.z - lurk.z) < 1.5, `it went back toward the surgery (${thing.position.x.toFixed(1)}, ${thing.position.z.toFixed(1)})`);
+});
+
+// livelier-cart-slam: the slams' rhythm, the cart's jolt, the sounds of each hit, what they throw.
+test('the R08 slams build, rock and slide the cart a little, sound a different steel each time and no glass, and throw what is near', () => {
+  const a = LEVEL_ANCHORS;
+  const g = mauledSetup({}, { marks: a, priya: a['priya_sit']!, thing: a['r08_lurk']!, jay: a['r07_glass_jay']! });
+  void g.npcs.command('kill', R08_KILL);
+  const priya = g.npcs.actor('priya')!;
+  const placed = g.props.get('r08_cart')!;
+  const headInCart: number[] = [];
+  g.step(40, () => {
+    const imp = g.emitted.filter((e) => e.name === 'kill:impact');
+    if (!imp.length || imp[imp.length - 1]!.at !== g.time()) return;
+    // Her head over the cart's top where the cart is now, in its own frame.
+    const cart = g.props.get('r08_cart')!;
+    const local = priya.body.jointWorld('head', new THREE.Vector3()).sub(cart.pos).applyQuaternion(cart.rotation.clone().invert());
+    headInCart.push(Math.abs(local.x) < 0.5 && Math.abs(local.z) < 0.3 && local.y > 0.85 ? 1 : 0);
+  });
+  const impacts = g.emitted.filter((e) => e.name === 'kill:impact').map((e) => e.at);
+  assert.equal(impacts.length, 3);
+  const [g1, g2] = [impacts[1]! - impacts[0]!, impacts[2]! - impacts[1]!];
+  assert.ok(g2 >= g1 + 0.3, `the last gap is the longest (${g1.toFixed(2)} s, then ${g2.toFixed(2)} s)`);
+  assert.deepEqual(headInCart, [1, 1, 1], 'her head lands on the cart top, where the cart is now, every time');
+  // Skewed, not far: every corner of the cart within 0.25 m of where it stood, and it did move.
+  const end = g.props.get('r08_cart')!;
+  let worst = 0;
+  for (const [x, z] of [[-0.5, -0.275], [0.5, -0.275], [-0.5, 0.275], [0.5, 0.275]]) {
+    const was = new THREE.Vector3(x, 0, z).applyQuaternion(placed.rotation).add(placed.pos);
+    const now = new THREE.Vector3(x, 0, z).applyQuaternion(end.rotation).add(end.pos);
+    worst = Math.max(worst, was.distanceTo(now));
+  }
+  assert.ok(worst > 0.02 && worst <= 0.25, `the cart ends skewed (${(worst * 100).toFixed(1)} cm at worst)`);
+  assert.ok(Math.abs(new THREE.Euler().setFromQuaternion(end.rotation, 'YXZ').x) < 1e-3, 'and back on its casters');
+  assert.ok(g.moves.some((m) => Math.abs(new THREE.Euler().setFromQuaternion(m.rotation, 'YXZ').x) > 0.02), 'it rocked on the way');
+  const steel = g.takes.filter((t) => t.id === 'cartSlam').map((t) => t.variant);
+  assert.deepEqual(steel, [0, 1, 2], 'a different steel impact on each slam');
+  assert.equal(g.takes.filter((t) => t.id === 'cartRattle').length, 3, 'and the instruments rattle each time');
+  assert.ok(g.sounds.every((id) => !/glass_break|cart_impact/.test(id)), 'no glass breaks');
+  assert.equal(g.bursts.length, 3);
+  assert.ok(g.bursts[0]!.reach < g.bursts[1]!.reach && g.bursts[1]!.reach < g.bursts[2]!.reach, 'each slam reaches further');
+  assert.ok(g.bursts.every((b) => b.along && b.toward), 'along the cart, and toward the glass');
+  assert.deepEqual(g.layouts, [], 'a played kill lays nothing out');
+});
+
+test('a skipped R08 kill throws nothing and leaves the cart where its layout puts it', () => {
+  const a = LEVEL_ANCHORS;
+  const g = mauledSetup({}, { marks: a, priya: a['priya_sit']!, jay: a['r07_glass_jay']! });
+  void g.npcs.command('kill', { npc: 'priya', kind: 'mauled', glass: 'anchor:medbay_c_glass', marks: { throwAt: 'anchor:r08_throw_point', rest: 'anchor:priya_rest' }, instant: true });
+  g.step(1);
+  assert.equal(g.bursts.length, 0, 'nothing thrown');
+  assert.equal(g.moves.length, 0, 'no jolt');
+  assert.deepEqual(g.layouts, ['r08_cart'], 'the cart and its instruments are laid out as a played kill leaves them');
 });
 
 test('medbay-attack restore: an instant R08 kill with no attacker leaves her dead at her resting spot and the centre pane marked, nothing thrown', () => {

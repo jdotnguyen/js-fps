@@ -26,7 +26,7 @@ import { COOKIE_KINDS } from '../../render/cookies.ts';
  */
 
 /** What a dynamic prop sounds like when it hits something (adopt-physics-engine D16). */
-export const PROP_SOUNDS = ['cart', 'glass', 'metal', 'thud'] as const;
+export const PROP_SOUNDS = ['cart', 'glass', 'metal', 'thud', 'dish'] as const;
 export type PropSound = (typeof PROP_SOUNDS)[number];
 
 export const DOOR_KITS = ['pressure_slide', 'bulkhead', 'glass_slide'] as const;
@@ -137,8 +137,16 @@ const propShape = {
    * never enter `CollisionWorld`, so the player, enemies and the navmesh pass it standing or fallen.
    *
    * `sound` (design D16): what it sounds like when it hits something; without one it is silent.
+   *
+   * `kinematic` (livelier-cart-slam D3): a scripted body. Physics never moves it; a kill does, and what rests on it
+   * rides along or is shoved. Its collision follows it for movement too. Without physics it moves the same way.
    */
-  dynamic: optional(obj({ mass: numRange(0.05, 500), loose: optional(bool), sound: optional(oneOf(PROP_SOUNDS)) })),
+  dynamic: optional(obj({ mass: numRange(0.05, 500), loose: optional(bool), sound: optional(oneOf(PROP_SOUNDS)), kinematic: optional(bool) })),
+  /**
+   * Where a skipped or restored kill leaves this prop (livelier-cart-slam D11): the kill's `layout` event for `group`
+   * puts it at `pos`, turned by `quat` [x, y, z, w] (default: its placed yaw). Needs `params.id` or `dynamic`.
+   */
+  after: optional(obj({ group: str, pos: vec3, quat: optional(arr(num)) })),
 };
 
 const lightShape = {

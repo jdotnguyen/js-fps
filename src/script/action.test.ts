@@ -557,15 +557,20 @@ test('R07: entering the security office after the cover fight starts the scene: 
   await until(g, () => at(g, 'score medbay enter') >= 0);
   inOrder(g, [
     'npc npcMoveTo priya instant', 'npc npcAnim priya priya_crouch instant', 'door D_R07_R08 sealed', 'catchUp R07',
-    'say cover_okafor_run_01 overlap', 'door D_R07_R08 open', 'npc npcAnim priya clip:priya_stumble', 'door D_R07_R08 sealed',
+    'door D_R07_R08 open', 'say cover_priya_run_02 overlap', 'npc npcAnim priya clip:priya_stumble', 'say cover_okafor_run_01 overlap', 'door D_R07_R08 sealed',
     'project okafor 3.5', 'score medbay enter',
   ]);
+  // priya-door-rescue: she shouts "Don't shoot!" as she bolts, Okafor calls after her as she reaches the door, and the run
+  // ends just inside it, facing it; she no longer runs to the beds and crouches, and nobody walks to the window.
+  assert.ok(g.log.includes('npc npcMoveTo priya'), 'she runs');
+  assert.equal(count(g, 'npc npcAnim priya priya_crouch'), 0, 'no crouch by the beds after the run');
   // D41: while the bars are up and Jay has walked in after her, the squad is put just behind him and the bulkhead seals,
   // so neither squadmate can be left on the R06 side of it.
   inOrder(g, ['catchUp R07', 'catchUp R07 force', 'door D_R06_R07 sealed', 'project okafor 3.5']);
   assert.equal(count(g, 'door D_R06_R07 sealed'), 1, 'sealed once, during the bars');
   assert.ok(!/Priya/.test(library.line('cover_okafor_run_01').text), 'the call does not use her name');
-  assert.equal(said(g, 'cover_priya_run_01'), 1, 'she sobs as she stumbles');
+  assert.equal(said(g, 'cover_priya_run_02'), 1, 'she shouts as she runs');
+  assert.equal(said(g, 'cover_priya_run_01'), 0, 'the shout replaces the sob');
   assert.equal(g.control.state.move, 'slow');
   assert.equal(g.control.state.look, 'free');
   assert.equal(g.control.state.weapons, true, 'medbay-attack "Weapons with the bars" (D34): the glass is armoured');

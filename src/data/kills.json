@@ -144,9 +144,10 @@
         "events": [
           { "t": 0, "do": "attackerPose", "pose": "maul_grip", "blend": 0.25 },
           { "t": 0, "do": "grip", "hand": "R", "joint": "head" },
-          { "t": 0.5, "do": "slam", "mark": "cart" },
-          { "t": 1.6, "do": "slam", "mark": "cart" },
-          { "t": 2.6, "do": "slam", "mark": "cart" }
+          { "t": 0, "do": "layout", "prop": "r08_cart" },
+          { "t": 0.5, "do": "slam", "mark": "cart", "prop": "r08_cart", "burst": { "reach": 0.35, "strength": 0.5, "up": 0.85 }, "jolt": { "slide": [0.01, -0.02], "yaw": 1.5, "rock": 2.5, "edge": 0.275 } },
+          { "t": 1.35, "do": "slam", "mark": "cart", "prop": "r08_cart", "burst": { "reach": 0.5, "strength": 1.3, "up": 0.45 }, "jolt": { "slide": [-0.015, -0.03], "yaw": 2, "rock": 3.5, "edge": 0.275 } },
+          { "t": 2.85, "do": "slam", "mark": "cart", "prop": "r08_cart", "windup": 0.7, "burst": { "reach": 0.9, "strength": 1.8, "up": 0.4 }, "jolt": { "slide": [0.02, -0.035], "yaw": 2, "rock": 4.5, "edge": 0.275 } }
         ]
       },
       {
@@ -160,6 +161,7 @@
         "events": [
           { "t": 0, "do": "grip", "release": true },
           { "t": 0, "do": "throw", "mark": "throwAt", "s": 0.55, "arc": 0.9 },
+          { "t": 0, "do": "knock", "reach": 0.55, "strength": 1.0 },
           { "t": 0.6, "do": "pose", "pose": "kill_slide", "blend": 0.5 }
         ]
       },

@@ -13,8 +13,8 @@ declare module '../core/events.ts' {
     'kill:say': { npc: string; line: string };
     /** A `mauled` victim's voice stops now (a slam impact, or the throw into the glass). */
     'kill:cut': { npc: string };
-    /** A slam impact landed (`n` counts from 1 in its beat): sequences wait on it. */
-    'kill:impact': { npc: string; n: number };
+    /** A slam impact landed (`n` counts from 1 in its beat) at `at`: sequences wait on it, the view jolts with it. */
+    'kill:impact': { npc: string; n: number; at?: Vec3Like; instant?: boolean };
     /** Bring a `mauled` attacker's stare forward (the first bang on the glass); `npc` is the victim, or every kill. */
     'kill:notice': { npc?: string };
     /** The attacker stopped to stare at Jay. */
@@ -32,8 +32,8 @@ export interface KillWorld {
   emit: (name: string, payload: unknown) => void;
   /** Subscribe to a bus event; returns the unsubscriber. */
   listen: ((name: string, fn: (payload: unknown) => void) => () => void) | undefined;
-  /** Play the first of `ids` that exists at `at`; false when none does. */
-  sfx: ((ids: readonly string[], at: Vec3Like, gain?: number) => boolean) | undefined;
+  /** Play the first of `ids` that exists at `at` (as `variant`, else a random one); false when none does. */
+  sfx: ((ids: readonly string[], at: Vec3Like, gain?: number, variant?: number) => boolean) | undefined;
   /** A low creature growl or groan (a short slice of a recorded one) from `at`. */
   growl?: ((at: Vec3Like) => void) | undefined;
   warn: (m: string) => void;
@@ -50,6 +50,13 @@ export interface KillWorld {
   playerEye: () => Vec3Like | null;
   /** Knock over loose props near a point (physics on only); `done` holds the ones already hit. */
   knock?: ((from: Vec3Like, travel: Vec3Like, reach: number, strength: number, done: Set<string>) => void) | undefined;
+  /** Throw the loose props near a slam's impact up and away (physics on only; livelier-cart-slam D4). */
+  burst?: ((at: Vec3Like, reach: number, strength: number, opts: { up?: number; along?: Vec3Like; toward?: Vec3Like; seed?: string }) => void) | undefined;
+  /** A movable prop's pose (the cart a slam lands on), and moving it: its meshes, collision and body (D3). */
+  propPose?: ((id: string) => { pos: THREE.Vector3; rotation: THREE.Quaternion } | null) | undefined;
+  moveProp?: ((id: string, pos: THREE.Vector3, rotation: THREE.Quaternion) => void) | undefined;
+  /** Lay out a prop group at its `after` poses (a skipped or restored kill, D11). */
+  layOut?: ((group: string) => void) | undefined;
 }
 
 /** The creature behind the glass after a kill: it hammers on the pane until the level lets it out (the contact scene). */
@@ -94,6 +101,23 @@ interface Slam {
   struck: boolean;
   /** The impact's effects wait until her head is on the surface (after the grip this frame). */
   pending: boolean;
+  /** This slam's wind-up (s). */
+  windup: number;
+  /** The props it throws when it lands, and the prop it lands on and how that jumps (livelier-cart-slam D3, D4). */
+  burst: KillEvent['burst'];
+  prop: string | undefined;
+  jolt: KillEvent['jolt'];
+}
+
+/** A prop a slam lands on (livelier-cart-slam D3): where it rests now, where it was placed, and the jump playing. */
+interface PropJolt {
+  id: string;
+  /** Its pose when the kill first slammed on it; marks on it are kept relative to this. */
+  base: { pos: THREE.Vector3; rotation: THREE.Quaternion };
+  /** Where it rests between jumps (the slides and turns so far). */
+  rest: { pos: THREE.Vector3; rotation: THREE.Quaternion };
+  /** The jump playing: from `from` to `rest`, rocking up to `rock` rad about its bottom edge `edge` m toward the attacker. */
+  play: { t: number; from: { pos: THREE.Vector3; rotation: THREE.Quaternion }; rock: number; side: number; edge: number } | null;
 }
 
 /** `mauled`: thrown into the glass, then sliding down it. */
@@ -138,6 +162,8 @@ interface ActiveKill {
   dragTo: THREE.Vector3 | null;
   /** A `knock` sweeping for the rest of its beat: what it has hit, and where she was a frame ago (her travel). */
   knock: { beat: string | null; reach: number; strength: number; done: Set<string>; from: THREE.Vector3 } | null;
+  /** Props the slams land on, by id. */
+  props: Map<string, PropJolt>;
   glass: Glass | null;
   arrived: boolean;
   creature: NpcActor | null;
@@ -160,6 +186,12 @@ const LYING_KILL_POSE = /^(corpse|writhing)/;
 export const MAUL = { gripStep: 0.5, gripDraw: 0.03, liftCarried: 0.5, haulMax: 1.4, walkMax: 2.2, rushMax: 8, windup: 0.32, strike: 0.1, hold: 0.08, lift: [-0.55, 0.15] as const, arc: 0.35, slideS: 0.9, reach: 0.7, inFront: 0.55, arriveSpare: 0.8, easeAllowance: 1.2 };
 /** Crunch variants, rotated so two impacts in a row never use the same one (stand-ins until the recordings exist). */
 const CRUNCHES = ['head_crunch_1', 'head_crunch_2', 'head_crunch_3'];
+/**
+ * A slammed prop's jump (livelier-cart-slam D3): seconds the rock lasts, and the seconds it takes to reach where it
+ * then rests. The steel and rattle takes of the slam cycle with the impact count (D6).
+ */
+export const JOLT = { rockS: 0.32, slideS: 0.12 } as const;
+const SLAM_VARIANTS = 3;
 const tmpA = new THREE.Vector3();
 /** A landed body's joints stay at least this far in front of `Glass.at` (itself 6 cm off the pane), clearing limb thickness. */
 const SIDE_MARGIN = 0;
@@ -278,6 +310,7 @@ export class KillDirector {
       stare: { t: 0, done: false, active: false },
       dragTo: null,
       knock: null,
+      props: new Map(),
       pinning: false,
       gripDrawn: false,
       backing: null,
@@ -343,6 +376,7 @@ export class KillDirector {
       this.updateStare(k, dt);
       if (k.backing) this.updateBacking(k, dt);
       if (k.knock) this.updateKnock(k);
+      if (k.props.size > 0) this.updateJolts(k, dt);
       if (k.pinning && k.attacker && !k.attacker.busy) k.pinning = false;
       const ap = k.approach;
       if (ap && ap.via.length > 0 && k.attacker && Math.hypot(ap.via[0]!.x - k.attacker.position.x, ap.via[0]!.z - k.attacker.position.z) < 0.6) ap.via.shift();
@@ -400,7 +434,7 @@ export class KillDirector {
     const a = k.attacker!;
     const v = k.actor;
     const slam = k.slam;
-    const holding = slam !== null && slam.struck && slam.t < MAUL.windup + MAUL.strike + MAUL.hold;
+    const holding = slam !== null && slam.struck && slam.t < slam.windup + MAUL.strike + MAUL.hold;
     const target = holding ? slam.target : a.body.jointWorld(g.hand, tmpA).clone();
     // Her body hangs away from the hand: she faces away from the attacker.
     const j0 = v.body.jointWorld(g.joint, tmpB);
@@ -546,15 +580,15 @@ export class KillDirector {
     const s = k.slam!;
     const a = k.attacker;
     s.t += dt;
-    if (!s.striking && s.t >= MAUL.windup) {
+    if (!s.striking && s.t >= s.windup) {
       s.striking = true;
       a?.body.setPose(this.w.ctx.poses.has('maul_impact') ? 'maul_impact' : 'kill_glass_0', MAUL.strike);
     }
-    if (!s.struck && s.t >= MAUL.windup + MAUL.strike) {
+    if (!s.struck && s.t >= s.windup + MAUL.strike) {
       s.struck = true;
       s.pending = true;
     }
-    if (s.struck && !s.pending && s.t >= MAUL.windup + MAUL.strike + MAUL.hold) {
+    if (s.struck && !s.pending && s.t >= s.windup + MAUL.strike + MAUL.hold) {
       k.slam = null;
       a?.body.setPose(k.attackerPose, 0.3);
     }
@@ -564,7 +598,7 @@ export class KillDirector {
   private impact(k: ActiveKill, s: Slam): void {
     const n = k.run.impact();
     const body = k.actor.body;
-    this.w.emit('kill:impact', { npc: k.npc, n });
+    this.w.emit('kill:impact', { npc: k.npc, n, at: { x: s.target.x, y: s.target.y, z: s.target.z }, instant: k.instant });
     if (k.instant) return;
     body.killKick('head', localDir('up', tmpA), 0.6 + 0.3 * n);
     body.killKick('neck', localDir('up', tmpA), 0.4 + 0.2 * n);
@@ -577,8 +611,79 @@ export class KillDirector {
     gore.pool(s.target.clone(), 0.25 + 0.15 * n);
     const order = CRUNCHES.slice((n - 1) % CRUNCHES.length).concat(CRUNCHES.slice(0, (n - 1) % CRUNCHES.length));
     if (this.w.sfx && !this.w.sfx([...order, 'kill_crunch', 'fleshTear'], head)) this.w.warn(`kill ${k.npc}: no head crunch sound yet`);
-    this.w.sfx?.(['cart_impact', 'metalKnock'], s.target);
-    this.w.sfx?.(['cart_glass_break'], s.target);
+    // The steel under her and its instruments jumping, a different take each time (livelier-cart-slam D6).
+    const variant = (n - 1) % SLAM_VARIANTS;
+    this.w.sfx?.(['cartSlam', 'metalKnock'], s.target, undefined, variant);
+    this.w.sfx?.(['cartRattle'], s.target, 0.8, variant);
+    const pj = s.prop ? k.props.get(s.prop) : undefined;
+    if (s.burst && this.w.burst) {
+      // Mostly along the surface's long axis, some toward the glass (D4).
+      const along = pj ? new THREE.Vector3(1, 0, 0).applyQuaternion(pj.rest.rotation) : undefined;
+      this.w.burst(s.target, s.burst.reach, s.burst.strength, {
+        ...(s.burst.up !== undefined ? { up: s.burst.up } : {}),
+        ...(along ? { along } : {}),
+        ...(k.glass ? { toward: k.glass.at } : {}),
+        seed: `${k.npc}:slam:${n}`,
+      });
+    }
+    if (pj && s.jolt) this.startJolt(k, pj, s.jolt);
+  }
+
+  /** The prop a slam lands on, first seen: where it stands now is its base. */
+  private slamProp(k: ActiveKill, id: string): PropJolt | null {
+    const known = k.props.get(id);
+    if (known) return known;
+    const pose = this.w.propPose?.(id);
+    if (!pose) return null;
+    const pj: PropJolt = { id, base: { pos: pose.pos.clone(), rotation: pose.rotation.clone() }, rest: pose, play: null };
+    k.props.set(id, pj);
+    return pj;
+  }
+
+  /** A mark on a slammed prop, carried with it: placed relative to the prop's base, shown where the prop rests now. */
+  private onProp(pj: PropJolt, at: THREE.Vector3): THREE.Vector3 {
+    const local = at.clone().sub(pj.base.pos).applyQuaternion(pj.base.rotation.clone().invert());
+    return local.applyQuaternion(pj.rest.rotation).add(pj.rest.pos);
+  }
+
+  /** Start a prop's jump: it slides and turns to a new rest, and rocks up on its far side and back. */
+  private startJolt(k: ActiveKill, pj: PropJolt, j: NonNullable<KillEvent['jolt']>): void {
+    const from = { pos: pj.rest.pos.clone(), rotation: pj.rest.rotation.clone() };
+    const [sx, sz] = j.slide ?? [0, 0];
+    pj.rest = {
+      pos: from.pos.clone().add(new THREE.Vector3(sx ?? 0, 0, sz ?? 0).applyQuaternion(from.rotation)),
+      rotation: from.rotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(j.yaw ?? 0))),
+    };
+    // Which side of it the attacker is on, in its own frame: that edge stays down, the far side lifts.
+    const a = k.attacker?.position;
+    const side = a ? Math.sign(a.clone().sub(from.pos).applyQuaternion(from.rotation.clone().invert()).z) || 1 : 1;
+    pj.play = { t: 0, from, rock: THREE.MathUtils.degToRad(j.rock ?? 0), side, edge: j.edge ?? 0 };
+  }
+
+  private updateJolts(k: ActiveKill, dt: number): void {
+    for (const pj of k.props.values()) {
+      const p = pj.play;
+      if (!p) continue;
+      p.t += dt;
+      const u = Math.min(1, p.t / JOLT.slideS);
+      const ease = 1 - (1 - u) ** 3;
+      const pos = p.from.pos.clone().lerp(pj.rest.pos, ease);
+      const rot = p.from.rotation.clone().slerp(pj.rest.rotation, ease);
+      const r = Math.min(1, p.t / JOLT.rockS);
+      // Up fast, down slower: a sine over the rock, damped toward its end.
+      const angle = -p.side * p.rock * Math.sin(Math.PI * r) * (1 - 0.5 * r);
+      if (angle !== 0) {
+        // About the bottom edge on the attacker's side: turn about the prop's X through that pivot.
+        const pivot = new THREE.Vector3(0, 0, p.side * p.edge);
+        const tip = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), angle);
+        pos.add(pivot.clone().sub(pivot.clone().applyQuaternion(tip)).applyQuaternion(rot));
+        rot.multiply(tip);
+      }
+      if (r >= 1 && u >= 1) {
+        pj.play = null;
+        this.w.moveProp?.(pj.id, pj.rest.pos.clone(), pj.rest.rotation.clone());
+      } else this.w.moveProp?.(pj.id, pos, rot);
+    }
   }
 
   private startThrow(k: ActiveKill, e: KillEvent): void {
@@ -853,6 +958,10 @@ export class KillDirector {
       case 'light':
         this.setLight(k, e.state ?? 'on');
         return;
+      case 'layout':
+        // Only a skipped or restored kill: a played one leaves things where they fell (livelier-cart-slam D11).
+        if (k.instant && e.prop) this.w.layOut?.(e.prop);
+        return;
       case 'knock':
         // A skipped or restored kill moves nothing (physical-interaction "Restored kill").
         if (!k.instant) k.knock = { beat: k.run.beatId, reach: e.reach ?? 1, strength: e.strength ?? 1, done: new Set(), from: k.actor.position.clone() };
@@ -958,8 +1067,12 @@ export class KillDirector {
       case 'slam': {
         const at = this.mark(k, e.mark);
         if (!at) return;
-        k.slam = { target: at, t: 0, striking: false, struck: false, pending: false };
-        k.attacker?.body.setPose(this.w.ctx.poses.has('maul_windup') ? 'maul_windup' : 'kill_glass_1', k.instant ? 0.01 : MAUL.windup * 0.8);
+        // On a prop the slam moves (the cart), the mark rides with it.
+        const pj = e.prop && !k.instant ? this.slamProp(k, e.prop) : null;
+        const target = pj ? this.onProp(pj, at) : at;
+        const windup = e.windup ?? MAUL.windup;
+        k.slam = { target, t: 0, striking: false, struck: false, pending: false, windup, burst: e.burst, prop: e.prop, jolt: e.jolt };
+        k.attacker?.body.setPose(this.w.ctx.poses.has('maul_windup') ? 'maul_windup' : 'kill_glass_1', k.instant ? 0.01 : windup * 0.8);
         return;
       }
       case 'throw':

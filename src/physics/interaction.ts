@@ -14,6 +14,7 @@
  * the level has just restored.
  */
 import * as THREE from 'three';
+import { Rng } from '../core/rng.ts';
 import type { PropSound } from '../data/types/level.ts';
 import type { BoxSpec } from '../world/kit/types.ts';
 import type { BodyHandle, Quat, Transform, V3 } from './engine.ts';
@@ -76,6 +77,8 @@ export interface PropSource {
     loose?: boolean;
     /** What it sounds like when it hits something (design D16); silent without one. */
     sound?: PropSound | null;
+    /** A scripted body (livelier-cart-slam D3): physics never moves it, `drive` does. */
+    kinematic?: boolean;
     object: THREE.Object3D;
     localColliders: readonly BoxSpec[];
     colliders: ReadonlyArray<{ readonly id: number }>;
@@ -100,6 +103,16 @@ export const KNOCK = { speed: 1.6, along: 0.4, up: 0.25, above: 0.45 } as const;
 export const IMPACT_NOISE = 0.35;
 const GRAVITY = 9.81;
 
+/**
+ * A slam's burst (livelier-cart-slam D4): the speed (m/s) it gives a prop at strength 1, how much of the outward throw
+ * goes along the surface's long axis and across it, the share bent toward the glass, how far above the prop's centre
+ * the push lands (a share of its height, so it tumbles), how much speed is lost at the edge of the reach, and the
+ * upward share for things below the impact (the shelf: thrown out, not up into the top).
+ */
+export const BURST = { speed: 2.5, along: 1, across: 0.45, toward: 0.8, above: 0.3, falloff: 0.5, below: 0.12 } as const;
+/** Steps after a `place` during which a prop reports no impacts (a restored kill is silent). */
+const PLACE_QUIET_STEPS = 30;
+
 /** A sounding prop's motion changed sharply: it struck something or was struck (design D16). */
 export interface PropImpact {
   id: string;
@@ -123,6 +136,20 @@ interface LiveProp {
   sound: PropSound | null;
   /** Velocity after the last step, to measure the change over the next one. */
   velocity: V3;
+  kinematic: boolean;
+  /** Steps left with no impact reports (just placed). */
+  quiet: number;
+}
+
+export interface BurstOptions {
+  /** Upward share of the throw, 0..1 (default 0.5). */
+  up?: number;
+  /** The surface's long axis (horizontal): most of the throw goes along it. */
+  along?: V3;
+  /** A point some of the throw bends toward (the glass). */
+  toward?: V3;
+  /** Seeds the spin, so a run is repeatable. */
+  seed?: string;
 }
 
 export class PhysicsProps {
@@ -194,6 +221,81 @@ export class PhysicsProps {
   }
 
   /**
+   * Throw the loose props whose centre is within `reach` m of `at` up and away from it (a slam landing,
+   * livelier-cart-slam D4), harder the nearer they are. Returns how many it threw.
+   */
+  burst(at: V3, reach: number, strength: number, opts: BurstOptions = {}): number {
+    if (this.world.resetting || this.generation !== this.world.generation) return 0;
+    const e = this.world.engine;
+    const rng = new Rng(opts.seed ?? 'burst');
+    const along = opts.along ? new THREE.Vector3(opts.along.x, 0, opts.along.z).normalize() : null;
+    let thrown = 0;
+    for (const p of this.live) {
+      if (!p.loose) continue;
+      const t = e.transform(p.body, this.t);
+      const q = new THREE.Quaternion(t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w);
+      const c = p.center.clone().applyQuaternion(q).add(t.position as THREE.Vector3Like);
+      const d = Math.hypot(c.x - at.x, c.y - at.y, c.z - at.z);
+      if (d > reach) continue;
+      thrown++;
+      const out = new THREE.Vector3(c.x - at.x, 0, c.z - at.z);
+      if (out.lengthSq() < 4e-4) out.set(Math.cos(rng.range(0, Math.PI * 2)), 0, Math.sin(rng.range(0, Math.PI * 2)));
+      out.normalize();
+      if (along) {
+        const a = out.dot(along);
+        const across = out.clone().addScaledVector(along, -a);
+        const side = Math.abs(a) > 0.05 ? Math.sign(a) : rng.next() < 0.5 ? -1 : 1;
+        out.copy(along).multiplyScalar(side * Math.max(Math.abs(a), 0.5) * BURST.along).addScaledVector(across, BURST.across);
+      }
+      if (opts.toward) out.add(new THREE.Vector3(opts.toward.x - at.x, 0, opts.toward.z - at.z).normalize().multiplyScalar(BURST.toward));
+      out.normalize();
+      const up = c.y < at.y - 0.3 ? BURST.below : THREE.MathUtils.clamp(opts.up ?? 0.5, 0, 1);
+      const dir = out.multiplyScalar(Math.sqrt(1 - up * up));
+      dir.y = up;
+      const speed = BURST.speed * strength * (1 - (BURST.falloff * d) / reach);
+      const j = dir.multiplyScalar(p.mass * speed);
+      const r = Math.max(0.01, p.height);
+      e.applyImpulse(p.body, { x: j.x, y: j.y, z: j.z }, { x: c.x + rng.range(-r, r), y: c.y + p.height * BURST.above, z: c.z + rng.range(-r, r) });
+    }
+    return thrown;
+  }
+
+  /** Move a kinematic prop's body to a pose by the end of the next step (the level's copy is the caller's). */
+  drive(id: string, pos: V3, rotation: Quat): boolean {
+    if (this.world.resetting || this.generation !== this.world.generation) return false;
+    const p = this.live.find((l) => l.id === id && l.kinematic);
+    if (!p) return false;
+    this.t.position = { x: pos.x, y: pos.y, z: pos.z };
+    this.t.rotation = { x: rotation.x, y: rotation.y, z: rotation.z, w: rotation.w };
+    this.world.engine.setTransform(p.body, this.t);
+    return true;
+  }
+
+  /**
+   * Put a prop's body at a pose, at rest (a skipped or restored kill's aftermath, livelier-cart-slam D11). It makes no
+   * impact sound while it settles. A body not built yet is built from the level's pose instead, which needs nothing.
+   */
+  place(id: string, pos: V3, rotation: Quat): boolean {
+    if (this.world.resetting || this.generation !== this.world.generation) return false;
+    const p = this.live.find((l) => l.id === id);
+    if (!p) return false;
+    const e = this.world.engine;
+    this.t.position = { x: pos.x, y: pos.y, z: pos.z };
+    this.t.rotation = { x: rotation.x, y: rotation.y, z: rotation.z, w: rotation.w };
+    if (p.kinematic) {
+      e.setBodyKind(p.body, 'dynamic');
+      e.setTransform(p.body, this.t);
+      e.setBodyKind(p.body, 'kinematic');
+    } else {
+      e.setTransform(p.body, this.t);
+      e.setVelocity(p.body, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 });
+    }
+    p.velocity.x = p.velocity.y = p.velocity.z = 0;
+    p.quiet = PLACE_QUIET_STEPS;
+    return true;
+  }
+
+  /**
    * Write each moving prop's pose back to the level and report impacts. Call once per fixed step, after the physics
    * step, with that step's length.
    */
@@ -202,6 +304,7 @@ export class PhysicsProps {
     if (this.generation !== this.world.generation) this.build();
     const e = this.world.engine;
     for (const p of this.live) {
+      if (p.kinematic) continue; // `drive` moves it, and its caller moves the level's copy
       if (e.isSleeping(p.body)) {
         p.velocity.x = p.velocity.y = p.velocity.z = 0;
         continue;
@@ -220,6 +323,10 @@ export class PhysicsProps {
     p.velocity.x = v.x;
     p.velocity.y = v.y;
     p.velocity.z = v.z;
+    if (p.quiet > 0) {
+      p.quiet--;
+      return;
+    }
     if (speed < IMPACT_NOISE) return;
     const r = this.t.rotation;
     const c = p.center.clone().applyQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w)).add(this.t.position as THREE.Vector3Like);
@@ -239,7 +346,7 @@ export class PhysicsProps {
       p.object.updateWorldMatrix(true, false);
       p.object.matrixWorld.decompose(pos, quat, scale);
       const body = e.createBody({
-        kind: 'dynamic',
+        kind: p.kinematic ? 'kinematic' : 'dynamic',
         position: { x: pos.x, y: pos.y, z: pos.z },
         rotation: { x: quat.x, y: quat.y, z: quat.z, w: quat.w },
         linearDamping: 0.3,
@@ -276,6 +383,8 @@ export class PhysicsProps {
         height: bounds.max.y - bounds.min.y,
         sound: p.sound ?? null,
         velocity: { x: 0, y: 0, z: 0 },
+        kinematic: p.kinematic === true,
+        quiet: 0,
       });
     }
   }

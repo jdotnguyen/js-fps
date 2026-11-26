@@ -876,6 +876,8 @@ test('medbay staging: clear spine, viewing strip, stage and lane; the shotgun fa
     const r = room(id);
     const out: Array<{ kit: string; box: THREE.Box3 }> = [];
     for (const p of r.props ?? []) {
+      // Loose props (the cart's instruments, livelier-cart-slam D12) have no collision for movement: never in the way.
+      if (p.dynamic?.loose) continue;
       const m = new THREE.Matrix4().compose(new THREE.Vector3(...p.pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, deg(p.rot ?? 0), 0, 'YXZ')), new THREE.Vector3(1, 1, 1));
       const made = registry.create(p.kit, { ceiling: r.height ?? 3.2, area: r.area ?? 'security', ...(p.params ?? {}) }, new Rng(`${id}:${p.kit}:${p.pos.join(',')}`), mats);
       for (const c of made.colliders) out.push({ kit: p.kit, box: new THREE.Box3(new THREE.Vector3(...c.min), new THREE.Vector3(...c.max)).applyMatrix4(m) });
@@ -1296,6 +1298,14 @@ test('medbay rescue staging: Priya\'s marks are reachable, the lockdown order is
     const path = nav.findPath({ x: from.x, y: 0, z: from.z }, { x: a.pos.x, y: 0, z: a.pos.z });
     assert.ok(path && path.length >= 1, `priya_wait -> ${id} reachable on navmesh`);
   }
+  // priya-door-rescue D1: her run ends just inside D_R07_R08 (x 4.0 on the partition at z 46.0), in R08, and she walks
+  // to the beds from there when told to sit.
+  const atDoor = level.anchor('priya_door_in')!;
+  assert.equal(level.roomAt(atDoor.pos)?.data.id, 'R08');
+  assert.ok(Math.hypot(atDoor.pos.x - 4.0, atDoor.pos.z - 46.0) <= 1.5 && atDoor.pos.z - 46.0 >= 0.9, 'within 1.5 m of the door, clear of its leaves');
+  const sit = level.anchor('priya_sit')!.pos;
+  const toSit = nav.findPath({ x: atDoor.pos.x, y: 0, z: atDoor.pos.z }, { x: sit.x, y: 0, z: sit.z });
+  assert.ok(toSit && toSit.length >= 1, 'priya_door_in -> priya_sit reachable on navmesh');
   const room = (id: string) => data.rooms.find((r) => r.id === id)!;
   const bank = room('R07').props!.find((p) => p.kit === 'console_bank')!;
   const notice = String(bank.params?.['notice'] ?? '');
