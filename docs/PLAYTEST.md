@@ -18,6 +18,14 @@ data checkpoints `cp_first_contact`, `cp_cover_me`, `cp_security`, `cp_flooded`,
 `cp_contact_clear`, `cp_cover_done`, `cp_security_done`, `cp_valve` (end of each beat).
 
 ## Per beat
+**Commons talk** (openspec commons-overheard-chatter; wear headphones, New game with `?slot=scratch`)
+- During the intro the table groups murmur under the story lines and neither pair says a written line.
+- After the intro, stand about 3 m from the two at the bar: they say four lines in turn, each from its own mouth, their murmur stops and the others drop back. Subtitles ("Crew") show only within about 6 m. Do the same with the pair by the wall; between the two, only the nearer one speaks.
+- Walk off mid-line: that line finishes, nothing follows, and coming back repeats nothing. Let Giles's "come on" or a hint land during an exchange: it cuts the exchange off at once.
+- After the briefing each pair has two more, at least 20 s apart. None starts while the researcher walks through. Listen over the radio for mush.
+- From hydroponics, the dive bay and Admin with the Commons door closed, the murmur is faint or gone. Pausing lowers it. Stay five minutes: both pairs are still in their places.
+- From the drop on, and after loading `cp_drop`, there is no written exchange and no murmur.
+
 **The drop opening** (gallery-drop-walk-to-heins)
 - After the third round the Lab B blinds are already up (check from the gallery with the lights as they are): Voss is typing behind the glass. Stand in the doorway and peek in: nothing starts. Walk a few steps in (as for the briefing): bars come on and Jay walks to the middle of the gallery facing Voss. Try the door side, the middle and the north walkway, with Giles and Okafor close behind and again left far back in the Commons: they end up beside Jay without ever popping into view, and the door seals only once all three are inside.
 - Voss is already scratching her arm and saying it is under her skin as Jay walks in, and keeps breathing hard and scratching until Okafor asks "Who's that in there? Is that Voss?". She then runs to the glass and Okafor says she is seizing as she goes. Check the breath repeats without sounding looped, and that Heins says nothing about the blinds.

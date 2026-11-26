@@ -110,7 +110,7 @@ import { Squad } from '../ai/squad.ts';
 import { REVIVE_TASK } from '../ai/squadBrain.ts';
 import { NpcDirector } from '../ai/npcs.ts';
 import { cameraForwardXZ } from '../ai/ambientLife.ts';
-import { npcCandidatesForSpeaker, npcIdForSpeaker, wireSpeechActing } from '../ai/speakerBodies.ts';
+import { npcCandidatesForSpeaker, npcIdForSpeaker, wireListenLook, wireSpeechActing } from '../ai/speakerBodies.ts';
 import { wireSquadToEnemies } from '../ai/squadEnemies.ts';
 import { setupEnemies, spawnPointsOf } from '../ai/enemyGame.ts';
 import type { SpawnPointData } from '../ai/spawner.ts';
@@ -127,6 +127,10 @@ import type { DialogueLine } from '../data/types/dialogue.ts';
 import type { ScriptSpeechOptions } from '../script/host.ts';
 import { WebAudioVoicePlayer } from '../dialogue/voicePlayer.ts';
 import { StoryDucker } from '../audio/storyDuck.ts';
+import { OverheardDirector } from '../ai/overheard.ts';
+import { ConversationMurmur } from '../audio/murmur.ts';
+import overheardJson from '../data/overheard.json';
+import { validateOverheard } from '../data/types/overheard.ts';
 import { Subtitles } from '../ui/hud/subtitles.ts';
 import type { LoadingScreen } from '../ui/loadingScreen.ts';
 import { DEFAULT_LEVEL, type AutoLoadPlan, type LaunchPlan } from './launch.ts';
@@ -287,6 +291,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
   let storyDucker: StoryDucker | null = null;
   let score: ScorePlayer | null = null;
   let speech: SpeechManager | null = null;
+  let overheard: OverheardDirector | null = null;
+  let murmur: ConversationMurmur | null = null;
   let sequences: SequenceManager | null = null;
   let cutscene: CutsceneController | null = null;
   let guidance: Guidance | null = null;
@@ -325,6 +331,9 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     sequences = null;
     speech?.stopAll();
     speech = null;
+    overheard = null;
+    murmur?.dispose();
+    murmur = null;
     if (score && !shell.releaseActiveScore(score)) score.stopAll();
     score = null;
     storyDucker?.dispose();
@@ -1152,14 +1161,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       const mapped = npcIdForSpeaker(stripped);
       return mapped && npcs!.has(mapped) ? mapped : null;
     };
-    events.on('speech:started', (info) => {
-      const id = talkerId(info.speaker);
-      if (id && (id === 'player' || npcs!.has(id))) npcs!.lineStarted(id, addresseeId(info.to));
-    });
-    events.on('speech:ended', (e) => {
-      const id = talkerId(e.speaker);
-      if (id) npcs!.lineEnded(id);
-    });
+    wireListenLook(events, npcs!, talkerId, addresseeId);
     events.on('speech:ended', (e) => pooledVoice.delete(e.speaker));
     new Subtitles(uiRoot, events, settings);
     storyDucker = new StoryDucker(events, audio);
@@ -1206,6 +1208,36 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     events.on('game:restarted', () => {
       speech!.stopAll();
       storyDucker!.reset();
+    });
+
+    // The voiced Commons pairs (in-world-audio: Overheard exchanges in the Commons).
+    const overheardData = validate(validateOverheard, overheardJson, 'data/overheard.json');
+    npcs!.keepInPlace(overheardData.exchanges.map((x) => x.chat), () => !game.flags['drop_started']);
+    overheard = new OverheardDirector(overheardData, {
+      say: (id, channel) => void say(id, { channel }),
+      stop: (id) => speech!.stop(id),
+      ready: (id) => voicePlayer!.hasRecorded(dialogue.line(id)),
+      flag: (name) => !!game.flags[name],
+      setFlag: (name) => void (game.flags[name] = true),
+      playerRoom: () => level?.roomAt(camera.position)?.data.id ?? null,
+      freeControl: () => player.alive && !player.onRails && !(sequences?.skippable ?? false),
+      sceneRunning: (room) => sequences?.runningIn(room) ?? false,
+      higherSpeech: () => speech!.speaking() !== null,
+      pair: (chat) => {
+        const g = npcs!.chatGroup(chat);
+        return g ? { distance: g.position.distanceTo(camera.position), free: g.free } : null;
+      },
+      suspend: (chat, on) => npcs!.suspendChat(chat, on),
+    });
+    events.on('speech:ended', (e) => overheard?.lineOver(e.id, e.reason));
+    events.on('speech:dropped', (e) => overheard?.lineOver(e.id, 'dropped'));
+    events.on('game:restarted', () => overheard!.reset());
+    // The other Commons conversations, and the pairs between exchanges (in-world-audio: Conversation murmur).
+    murmur = new ConversationMurmur(audio, (at) => (level ? voiceAudibility(level.voicePath(at, camera.position)).gain : 1));
+    // A new game or a title load puts the level back without a death restart.
+    events.on('level:reset', () => {
+      overheard?.reset();
+      murmur?.reset();
     });
 
     guidance = new Guidance({
@@ -1273,6 +1305,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       menuMusic.setMode(mode);
       ambience?.setMode(mode);
       propAudio?.setMode(mode);
+      murmur?.setMode(mode);
       if (mode !== 'title') {
         shellEvents.emit('game:mode', from === undefined ? { mode } : { mode, from });
       }
@@ -1902,6 +1935,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           npcs!.update(dt, camera.position, cameraForwardXZ(camera, npcCamFwd), cameraFeeds?.liveCameras());
           // After the director: it moves and animates held mates, and hides the ones out of range.
           squad!.syncWeaponLights();
+          overheard!.update(dt);
+          murmur!.update(npcs!.conversations(overheardData.room), overheard!.speakingChat, !!game.flags['drop_started']);
           gore!.update(dt);
           guidance!.update(dt);
           scoreFeet.x = player.body.x;

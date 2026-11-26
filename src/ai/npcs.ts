@@ -244,6 +244,9 @@ export class NpcDirector {
   /** Dynamic table/bar conversations formed when wandering NPCs share a prop group. */
   private readonly dynamicChats = new Map<string, { key: string; group: ChatGroup }>();
   private readonly authoredEngaged = new Set<string>();
+  /** Chat groups whose members keep their places while `when` holds (the overheard pairs). */
+  private stayPut: { chats: ReadonlySet<string>; when: () => boolean } | null = null;
+  private readonly headScratch = new THREE.Vector3();
   /** Listen-look (ADR-0029): who is speaking a story line now and who spoke before ('player' for Jay). */
   private talker: string | null = null;
   private lastTalker: string | null = null;
@@ -577,6 +580,51 @@ export class NpcDirector {
     return out;
   }
 
+  /** Keep the members of these chat groups from wandering while `when` holds (in-world-audio: Voiced pairs stay put). */
+  keepInPlace(chats: Iterable<string>, when: () => boolean): void {
+    this.stayPut = { chats: new Set(chats), when };
+  }
+
+  /** Where a chat group is (the middle of its heads) and whether all of it is gathered and free to talk. */
+  chatGroup(chat: string): { position: THREE.Vector3; free: boolean } | null {
+    const g = this.chats.get(chat);
+    if (!g) return null;
+    const position = this.headsCentre(g.members.map((m) => m.id));
+    if (!position) return null;
+    return { position, free: g.engaged.length === g.members.length && g.members.every((m) => m.available()) };
+  }
+
+  /** Hold or release a chat group's filler turns while it speaks written lines. */
+  suspendChat(chat: string, on: boolean): void {
+    this.chats.get(chat)?.suspend(on);
+  }
+
+  /** The conversations going on in a room now, level groups and ad hoc table groups alike: at least two taking part. */
+  conversations(room: string): Array<{ id: string; position: THREE.Vector3 }> {
+    const out: Array<{ id: string; position: THREE.Vector3 }> = [];
+    const add = (id: string, g: ChatGroup): void => {
+      const ids = g.engaged;
+      if (ids.length < 2 || this.levelSpawns.get(ids[0]!)?.room !== room) return;
+      const position = this.headsCentre(ids);
+      if (position) out.push({ id, position });
+    };
+    for (const [id, g] of this.chats) add(id, g);
+    for (const [id, d] of this.dynamicChats) add(`dyn:${id}`, d.group);
+    return out;
+  }
+
+  private headsCentre(ids: readonly string[]): THREE.Vector3 | null {
+    const sum = new THREE.Vector3();
+    let n = 0;
+    for (const id of ids) {
+      const h = this.actors.get(id)?.head(this.headScratch);
+      if (!h) continue;
+      sum.add(h);
+      n++;
+    }
+    return n ? sum.divideScalar(n) : null;
+  }
+
   /**
    * ADR-0029 phase 2: enable the ambient director over the level's activity spots.
    * Story NPCs and desk workers stay put; everyone else in multi-spot rooms periodically
@@ -593,6 +641,7 @@ export class NpcDirector {
         ...(s.roam?.length ? { roam: s.roam } : {}),
         initialSpot: s.spot ?? null,
         available: () => {
+          if (s.chat && this.stayPut?.chats.has(s.chat) && this.stayPut.when()) return false;
           const a = this.actors.get(id);
           return !!a && a.ambient && !a.busy && !a.offering && !a.givingWay && a.body.state === 'alive' && a.body.infection < 1;
         },

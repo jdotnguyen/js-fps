@@ -29,6 +29,8 @@ export interface AmbienceAssetSpec {
   duration: number;
   promptInfluence: number;
   prompt: string;
+  /** Downmix after generation: for a positional sound, where stereo only doubles its decoded memory. */
+  mono?: boolean;
 }
 
 export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
@@ -941,7 +943,7 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     prompt:
       'one single short clean electronic heart monitor beep, a pure soft sine tone, hospital vital signs monitor, one beep only, dry, no music, no voice',
   },
-  // detail-r11-power-bay: R11 Power Bay switchgear breaker throw, turbine spin-up, and continuous generator hum.
+  // detail-r11-power-bay: R11 Power Bay switchgear breaker throw and continuous generator hum.
   {
     id: 'breaker_clunk',
     file: 'oneshot-breaker-clunk.mp3',
@@ -951,16 +953,6 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     promptInfluence: 0.7,
     prompt:
       'heavy industrial high voltage electrical switchgear breaker throwing shut, deep metallic mechanical clunk followed by a crisp spring latch snap and brief electrical contact arc hum, dry, close, no music, no voice',
-  },
-  {
-    id: 'turbine_spinup',
-    file: 'oneshot-turbine-spinup.mp3',
-    category: 'oneshot',
-    loop: false,
-    duration: 3.0,
-    promptInfluence: 0.65,
-    prompt:
-      'large deep-sea industrial power plant turbine generator starting up and accelerating, deep heavy mechanical bearing rumble and rising turbine whine settling toward steady power, enclosed steel hall, no music, no voice',
   },
   {
     id: 'generator_hum',
@@ -1133,6 +1125,41 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     prompt:
       'very long drawn-out ferocious angry close-range deep-sea abyssal juggernaut monster sustained guttural roar and extended violent raspy shriek inside a cavernous dark concrete hall, enraged massive organic predator bellow held for several seconds with heavy sub-bass rumble, snarling rage, and long echoing cavernous reverb tail, raw terrifying creature sound, no music, no human voice',
   },
+  // Commons conversation murmur (in-world-audio: Conversation murmur). Played quietly from each talking group. Prompts that
+  // ask for "quiet" came back near silent with a steady tone under them; ask for the speech, and let the game set level.
+  {
+    id: 'murmurA',
+    file: 'emitter-murmur-a.mp3',
+    mono: true,
+    category: 'emitter',
+    loop: true,
+    duration: 12,
+    promptInfluence: 0.4,
+    prompt:
+      'indoor walla, two people having a relaxed conversation across the room, natural human speech rhythm heard as indistinct mumbling, words cannot be made out, no music, no tones, no hum',
+  },
+  {
+    id: 'murmurB',
+    file: 'emitter-murmur-b.mp3',
+    mono: true,
+    category: 'emitter',
+    loop: true,
+    duration: 12,
+    promptInfluence: 0.4,
+    prompt:
+      'indoor walla, a small group of three coworkers chatting in a break room, overlapping natural human voices heard as indistinct babble, words cannot be made out, no music, no tones, no hum',
+  },
+  {
+    id: 'murmurC',
+    file: 'emitter-murmur-c.mp3',
+    mono: true,
+    category: 'emitter',
+    loop: true,
+    duration: 12,
+    promptInfluence: 0.4,
+    prompt:
+      'indoor walla, a man and a woman talking in low voices across a quiet lounge, natural human speech rhythm heard as indistinct mumbling, words cannot be made out, no music, no tones, no hum',
+  },
 ];
 
 function loadApiKey(): string {
@@ -1208,6 +1235,12 @@ function normalizeLinear(filePath: string, category: AmbienceAssetSpec['category
   return `gain=${gainDb >= 0 ? '+' : ''}${gainDb.toFixed(1)}dB -> mean=${after?.mean.toFixed(1) ?? '?'}dB max=${after?.max.toFixed(1) ?? '?'}dB`;
 }
 
+function downmix(filePath: string): void {
+  const tmpPath = `${filePath}.mono.mp3`;
+  execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-i', filePath, '-ac', '1', '-c:a', 'libmp3lame', '-b:a', '96k', tmpPath], { stdio: ['ignore', 'pipe', 'pipe'] });
+  renameSync(tmpPath, filePath);
+}
+
 async function generateOne(spec: AmbienceAssetSpec, apiKey: string, force: boolean): Promise<'generated' | 'skipped'> {
   const outPath = join(OUT_DIR, spec.file);
   if (existsSync(outPath) && !force) {
@@ -1237,6 +1270,7 @@ async function generateOne(spec: AmbienceAssetSpec, apiKey: string, force: boole
   const buf = Buffer.from(await res.arrayBuffer());
   writeFileSync(outPath, buf);
   const norm = normalizeLinear(outPath, spec.category);
+  if (spec.mono) downmix(outPath);
   const cost = res.headers.get('character-cost') ?? res.headers.get('x-character-count');
   console.log(`[ok]   ${spec.id} -> ${spec.file} (${probeAudio(outPath)}${norm ? `, ${norm}` : ''}${cost ? `, cost=${cost}` : ''})`);
   return 'generated';

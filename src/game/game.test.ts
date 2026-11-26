@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
+import { readFileSync } from 'node:fs';
+import { heardFlag, OverheardDirector } from '../ai/overheard.ts';
+import { validate } from '../core/validate.ts';
 import { EventBus } from '../core/events.ts';
+import { validateOverheard } from '../data/types/overheard.ts';
 import { memoryStore } from '../core/storage.ts';
 import { Game, type GameDeps } from './game.ts';
 import { SAVE_VERSION, SaveStore, type SaveData } from './save.ts';
@@ -105,4 +109,36 @@ test('a death restart restores the autosave once, healed, without resetting the 
   assert.deepEqual(log.filter((l) => l.startsWith('restarted:')), ['restarted:cp_valve']);
   assert.ok(log.includes('toast:Restarted'));
   assert.equal(player.hp, 60, 'healed to the checkpoint heal');
+});
+
+test('an overheard exchange heard before a checkpoint stays heard after loading it', () => {
+  const data = validate(validateOverheard, JSON.parse(readFileSync(new URL('../data/overheard.json', import.meta.url), 'utf8')), 'overheard.json');
+  const { game, saves } = setup();
+  game.load(sample({ flags: { commons_free: true } }));
+  Object.assign((game as unknown as { d: GameDeps }).d.player, { eyePosition: (v: THREE.Vector3) => v, yaw: 0, pitch: 0 });
+  const said: string[] = [];
+  const director = () =>
+    new OverheardDirector(data, {
+      say: (id) => void said.push(id),
+      stop: () => undefined,
+      ready: () => true,
+      flag: (n) => !!game.flags[n],
+      setFlag: (n) => void (game.flags[n] = true),
+      playerRoom: () => data.room,
+      freeControl: () => true,
+      sceneRunning: () => false,
+      higherSpeech: () => false,
+      pair: (chat) => (chat === 'commons_bar' ? { distance: 2, free: true } : null),
+      suspend: () => undefined,
+    });
+  director().update(0.1);
+  assert.deepEqual(said, ['overheard_bar_before_01']);
+  game.reachCheckpoint('cp_test', 'Commons');
+  game.flags = {};
+  const saved = saves.read(0, 'auto');
+  assert.equal(saved.error, null);
+  game.load(saved.data!);
+  assert.equal(game.flags[heardFlag('overheard_bar_before')], true);
+  director().update(0.1);
+  assert.equal(said.length, 1, 'not said again');
 });

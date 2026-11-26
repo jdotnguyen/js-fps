@@ -23,7 +23,7 @@ test('shipped dialogue files are valid', () => {
   assert.ok(library.allLines().length > 0);
   for (const l of library.allLines()) assert.ok(library.speaker(l.speaker));
   const announcements = library.allLines().filter(l => l.speaker === 'pa');
-  assert.equal(announcements.length, 5);
+  assert.equal(announcements.length, 7);
   for (const l of announcements) {
     assert.equal(l.channel, 'pa');
     assert.equal(l.audio, `assets/vo/${l.id}.mp3`);

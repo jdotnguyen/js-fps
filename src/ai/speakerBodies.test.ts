@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventBus } from '../core/events.ts';
-import { npcCandidatesForSpeaker, npcIdForSpeaker, wireSpeechActing } from './speakerBodies.ts';
+import { npcCandidatesForSpeaker, npcIdForSpeaker, wireListenLook, wireSpeechActing } from './speakerBodies.ts';
 import type { Humanoid } from '../actors/humanoid.ts';
 import '../dialogue/speech.ts';
 
@@ -52,4 +52,27 @@ test('every local line in slice01 has a body to speak from, or a deliberately di
     }
   }
   assert.deepEqual(missing, [], `local lines whose speaker has no NPC in slice01: ${missing.join(', ')}`);
+});
+
+test('a background line turns no bystander, while its speaker still acts it', () => {
+  const bus = new EventBus();
+  const calls: string[] = [];
+  const body = {
+    speak: (text: string) => calls.push(`speak ${text}`),
+    stopSpeaking: () => calls.push('stop'),
+  } as unknown as Humanoid;
+  wireSpeechActing(bus, () => body);
+  const looks: string[] = [];
+  wireListenLook(
+    bus,
+    { has: () => true, lineStarted: (s) => looks.push(`started ${s}`), lineEnded: (s) => looks.push(`ended ${s}`) },
+    (speaker) => npcIdForSpeaker(speaker),
+    () => null,
+  );
+  const line = { id: 'bg', speaker: 'crew_bar_1', name: 'Crew', text: 'So?', emote: 'neutral' as const, channel: 'local' as const, priority: 'background' as const, duration: 1 };
+  bus.emit('speech:started', line);
+  assert.deepEqual(looks, [], 'nobody is turned');
+  assert.deepEqual(calls, ['speak So?']);
+  bus.emit('speech:started', { ...line, id: 's', speaker: 'engineer', priority: 'story' });
+  assert.deepEqual(looks, ['started giles'], 'other lines turn people as before');
 });

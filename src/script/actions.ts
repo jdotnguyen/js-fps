@@ -220,8 +220,9 @@ function addresseeTarget(ctx: ActionContext, to: unknown): TargetRef | null {
 function beginConversation(ctx: ActionContext, duration: number, give: number): void {
   let last: TargetRef | null = null;
   const off = ctx.listen('speech:started', (payload) => {
-    const { speaker, to } = (payload ?? {}) as { speaker?: unknown; to?: unknown };
-    if (typeof speaker !== 'string') return;
+    const { speaker, to, priority } = (payload ?? {}) as { speaker?: unknown; to?: unknown; priority?: unknown };
+    // Overheard crew talk never turns the view (dialogue-channels).
+    if (typeof speaker !== 'string' || priority === 'background') return;
     // A bodiless speaker (Jay) talking to someone turns the view to that addressee (intro-sequence spec).
     const who = ctx.host.speakerTarget?.(speaker) ?? addresseeTarget(ctx, to);
     if (!who || who === last) return; // Jay's unaddressed lines and unknown speakers keep the current shot

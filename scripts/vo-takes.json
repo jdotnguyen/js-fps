@@ -2117,5 +2117,85 @@
     ],
     "at": "2026-11-25T05:30:52.433Z",
     "source": "generated"
+  },
+  {
+    "batch": "retake_crew_crew_2_01",
+    "speakers": [
+      "crew_crew_2"
+    ],
+    "voices": [
+      "Umbriel"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_bar_before_01",
+      "overheard_bar_before_03",
+      "overheard_bar_after_1_02",
+      "overheard_bar_after_1_04",
+      "overheard_bar_after_2_01",
+      "overheard_bar_after_2_03"
+    ],
+    "at": "2026-11-26T03:39:48.142Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_bar_1_01",
+    "speakers": [
+      "crew_bar_1"
+    ],
+    "voices": [
+      "Autonoe"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_bar_before_02",
+      "overheard_bar_before_04",
+      "overheard_bar_after_1_01",
+      "overheard_bar_after_1_03",
+      "overheard_bar_after_2_02",
+      "overheard_bar_after_2_04"
+    ],
+    "at": "2026-11-26T03:40:09.380Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_chat_5_01",
+    "speakers": [
+      "crew_chat_5"
+    ],
+    "voices": [
+      "Schedar"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_wall_before_01",
+      "overheard_wall_before_03",
+      "overheard_wall_after_1_02",
+      "overheard_wall_after_1_04",
+      "overheard_wall_after_2_01",
+      "overheard_wall_after_2_03"
+    ],
+    "at": "2026-11-26T03:40:30.931Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_wall_1_01",
+    "speakers": [
+      "crew_wall_1"
+    ],
+    "voices": [
+      "Vindemiatrix"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_wall_before_02",
+      "overheard_wall_before_04",
+      "overheard_wall_after_1_01",
+      "overheard_wall_after_1_03",
+      "overheard_wall_after_2_02",
+      "overheard_wall_after_2_04"
+    ],
+    "at": "2026-11-26T03:40:51.971Z",
+    "source": "generated"
   }
 ]

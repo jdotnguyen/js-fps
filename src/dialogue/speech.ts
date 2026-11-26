@@ -3,18 +3,21 @@
  *
  * Each conversation speaks on its own channel (a sequence run passes its run as the channel). A channel says one
  * line at a time, in order, with a short gap; separate channels play at the same time. Within a channel the
- * priorities are story > hint > combat > idle: a higher priority interrupts, equal or lower waits. Across channels:
+ * priorities are story > hint > combat > idle > background: a higher priority interrupts, equal or lower waits.
+ * Across channels:
  * - a speaker never talks over themself: their line waits for the one they are saying elsewhere;
  * - Jay's line is dropped when the rest of its conversation is out of earshot (he answers the scene he can hear).
  *   A scene tied to a room does not rely on this: it ends whole when the player leaves (`stopChannel`, scene-presence);
  * - barks and hints wait while a story line the player can hear is playing, and a story line starting in earshot cuts
- *   off a bark or hint the player can hear.
+ *   off a bark or hint the player can hear;
+ * - `background` lines (overheard crew talk) wait behind any other line the player can hear, and any other line
+ *   starting in earshot cuts them all off. They do not count as someone speaking (`speaking()`).
  * `overlap: true` lines (a PA the squad talks over, a victim's voice) get a channel of their own and start at once.
- * combat/idle lines are dropped instead of waiting more than `maxWait` seconds, so stale barks never play late.
+ * combat/idle/background lines are dropped instead of waiting more than `maxWait` seconds, so stale ones never play late.
  *
  * How each line reaches the player comes from an injected `hearing` function (voice-playback: Voices carry through
- * the station); it drives the voice's gain and tone every frame and whether its subtitle shows (within 20 m and
- * audible, or always for radio and PA).
+ * the station); it drives the voice's gain and tone every frame and whether its subtitle shows (within 20 m, or 6 m for
+ * a background line, and audible, or always for radio and PA).
  *
  * Pure logic driven by `update(dt)`; sound goes through a `VoicePlayer`, so it is Node-testable with a fake player.
  */
@@ -117,6 +120,8 @@ export type Hearing = 'everywhere' | {
 
 /** Local subtitles show only within this many metres of the speaker (voice-playback: Subtitles follow the player's earshot). */
 export const SUBTITLE_RANGE_M = 20;
+/** The same for a `background` line: overheard talk is subtitled only when the player is close. */
+export const BACKGROUND_SUBTITLE_RANGE_M = 6;
 
 interface Entry {
   line: DialogueLine;
@@ -163,7 +168,7 @@ export interface SpeechOptions {
 /** Minimum subtitle hold for recorded VO clips so one-word barks stay readable (voice-playback spec). */
 export const MIN_VO_DURATION = 0.85;
 
-const DROPPABLE: ReadonlySet<Priority> = new Set(['combat', 'idle']);
+const DROPPABLE: ReadonlySet<Priority> = new Set(['combat', 'idle', 'background']);
 const DEFAULT_CHANNEL = 'default';
 /** After a heard story line ends, barks and hints wait this long, so they never cut in between a scene's lines. */
 const CONVERSATION_HOLD_S = 0.5;
@@ -342,14 +347,15 @@ export class SpeechManager {
 
   /**
    * What the player can hear speaking now, if anything (hints and barks check this so they never talk over story):
-   * the highest-priority line within earshot, preferring a conversation over an overlap voice.
+   * the highest-priority line within earshot, preferring a conversation over an overlap voice. Background lines are
+   * left out, so nothing waits for overheard talk (dialogue-channels).
    */
   speaking(): SpeechInfo | null {
     let best: Active | null = null;
     const score = (a: Active): number => priorityRank(a.line.priority) * 2 + (a.channel.startsWith('overlap:') ? 0 : 1);
     for (const lane of this.lanes.values()) {
       const a = lane.current;
-      if (!a || !a.audible) continue;
+      if (!a || !a.audible || a.line.priority === 'background') continue;
       if (!best || score(a) > score(best)) best = a;
     }
     return best ? this.info(best) : null;
@@ -382,6 +388,8 @@ export class SpeechManager {
         if (this.speakingElsewhere(next)) break;
         // Barks and hints give way to story the player can hear.
         if (next.line.priority !== 'story' && this.audibleStoryPlaying(lane)) break;
+        // Background talk gives way to any other line the player can hear.
+        if (next.line.priority === 'background' && this.audibleForegroundPlaying()) break;
         lane.queue.shift();
         // Jay answers the conversation he can hear: elsewhere, his line is dropped and the scene carries on.
         if (next.line.speaker === 'player' && lane.lastOther && !this.audibleNow(lane.lastOther)) {
@@ -394,11 +402,14 @@ export class SpeechManager {
   }
 
   private start(lane: Lane, e: Entry): void {
-    // A story line in earshot cuts off any bark or hint the player can hear.
-    if (e.line.priority === 'story' && this.audibleNow(e)) {
-      for (const other of this.lanes.values()) {
+    // A story line in earshot cuts off any bark or hint the player can hear; any line above background in earshot cuts
+    // off every background line, heard or not.
+    if (e.line.priority !== 'background' && this.audibleNow(e)) {
+      const story = e.line.priority === 'story';
+      for (const other of [...this.lanes.values()]) {
         const o = other.current;
-        if (other !== lane && o && o.line.priority !== 'story' && o.audible) this.finish(other, 'interrupted');
+        if (other === lane || !o) continue;
+        if (o.line.priority === 'background' || (story && o.line.priority !== 'story' && o.audible)) this.finish(other, 'interrupted');
       }
     }
     lane.current = this.begin(e);
@@ -419,7 +430,7 @@ export class SpeechManager {
     if (hearing !== 'everywhere') playback.setAudibility?.(hearing.gain, hearing.cutoffHz);
     const active: Active = {
       ...e, duration, playback, startedAt: this.now, endsAt: this.now + duration,
-      audible: audibleIn(hearing), shown: subtitleIn(hearing),
+      audible: audibleIn(hearing), shown: subtitleIn(hearing, e.line.priority),
     };
     const info = this.info(active);
     this.bus.emit('speech:started', active.audible ? info : { ...info, audible: false });
@@ -436,7 +447,7 @@ export class SpeechManager {
       a.audible = audible;
       this.bus.emit('speech:audible', { id: a.line.id, priority: a.line.priority, audible });
     }
-    const shown = subtitleIn(hearing);
+    const shown = subtitleIn(hearing, a.line.priority);
     if (shown === a.shown) return;
     a.shown = shown;
     if (shown) this.bus.emit('subtitle:show', { ...this.info(a), duration: Math.max(0, a.endsAt - this.now) });
@@ -470,6 +481,15 @@ export class SpeechManager {
       if (lane === except) continue;
       if (lane.current?.line.priority === 'story' && lane.current.audible) return true;
       if (!lane.current && this.now - lane.heardStoryEndedAt < CONVERSATION_HOLD_S) return true;
+    }
+    return false;
+  }
+
+  /** Any line above background that the player can hear is playing. */
+  private audibleForegroundPlaying(): boolean {
+    for (const lane of this.lanes.values()) {
+      const a = lane.current;
+      if (a && a.audible && a.line.priority !== 'background') return true;
     }
     return false;
   }
@@ -521,5 +541,6 @@ export class SpeechManager {
 }
 
 const audibleIn = (h: Hearing): boolean => h === 'everywhere' || h.audible || h.relayed === true;
-const subtitleIn = (h: Hearing): boolean => h === 'everywhere' || h.relayed === true || (h.audible && h.distance <= SUBTITLE_RANGE_M);
+const subtitleIn = (h: Hearing, priority: Priority): boolean =>
+  h === 'everywhere' || h.relayed === true || (h.audible && h.distance <= (priority === 'background' ? BACKGROUND_SUBTITLE_RANGE_M : SUBTITLE_RANGE_M));
 const headRank = (lane: Lane): number => (lane.queue[0] ? priorityRank(lane.queue[0].line.priority) : -1);

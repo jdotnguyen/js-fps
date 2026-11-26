@@ -11,7 +11,7 @@ before(() => {
 });
 after(() => uninstall());
 
-const started = (bus: EventBus, id: string, priority: 'story' | 'hint' | 'combat' | 'idle') =>
+const started = (bus: EventBus, id: string, priority: 'story' | 'hint' | 'combat' | 'idle' | 'background') =>
   bus.emit('speech:started', { id, speaker: 's', name: 'S', text: '', emote: null, channel: 'local', priority, duration: 2 });
 const ended = (bus: EventBus, id: string) => bus.emit('speech:ended', { id, speaker: 's', reason: 'finished' });
 
@@ -37,13 +37,14 @@ test('overlapping story lines keep the duck until the last one ends', () => {
   assert.equal(engine.duckGain('music'), 1);
 });
 
-test('combat, idle and hint lines never duck', () => {
+test('combat, idle, hint and background lines never duck', () => {
   const bus = new EventBus();
   const engine = new AudioEngine();
   new StoryDucker(bus, engine);
   started(bus, 'bark_1', 'combat');
   started(bus, 'bark_2', 'idle');
   started(bus, 'hint_1', 'hint');
+  started(bus, 'crew_1', 'background');
   assert.equal(engine.duckGain('music'), 1);
   assert.equal(engine.duckGain('ambience'), 1);
 });

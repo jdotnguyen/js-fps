@@ -1,0 +1,41 @@
+{
+  "room": "R02",
+  "exchanges": [
+    {
+      "id": "overheard_bar_before",
+      "chat": "commons_bar",
+      "phase": "before",
+      "lines": ["overheard_bar_before_01", "overheard_bar_before_02", "overheard_bar_before_03", "overheard_bar_before_04"]
+    },
+    {
+      "id": "overheard_wall_before",
+      "chat": "commons_wall",
+      "phase": "before",
+      "lines": ["overheard_wall_before_01", "overheard_wall_before_02", "overheard_wall_before_03", "overheard_wall_before_04"]
+    },
+    {
+      "id": "overheard_bar_after_1",
+      "chat": "commons_bar",
+      "phase": "after",
+      "lines": ["overheard_bar_after_1_01", "overheard_bar_after_1_02", "overheard_bar_after_1_03", "overheard_bar_after_1_04"]
+    },
+    {
+      "id": "overheard_bar_after_2",
+      "chat": "commons_bar",
+      "phase": "after",
+      "lines": ["overheard_bar_after_2_01", "overheard_bar_after_2_02", "overheard_bar_after_2_03", "overheard_bar_after_2_04"]
+    },
+    {
+      "id": "overheard_wall_after_1",
+      "chat": "commons_wall",
+      "phase": "after",
+      "lines": ["overheard_wall_after_1_01", "overheard_wall_after_1_02", "overheard_wall_after_1_03", "overheard_wall_after_1_04"]
+    },
+    {
+      "id": "overheard_wall_after_2",
+      "chat": "commons_wall",
+      "phase": "after",
+      "lines": ["overheard_wall_after_2_01", "overheard_wall_after_2_02", "overheard_wall_after_2_03", "overheard_wall_after_2_04"]
+    }
+  ]
+}

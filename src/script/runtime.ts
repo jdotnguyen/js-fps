@@ -176,6 +176,11 @@ export class SequenceManager {
     return this.runs.some((r) => r.def.id === id);
   }
 
+  /** A scene belonging to `room` (scene-presence) is running. */
+  runningIn(room: string): boolean {
+    return this.runs.some((r) => roomsOf(r.def).includes(room));
+  }
+
   running(): RunInfo[] {
     return this.runs.map((r) => ({
       id: r.def.id,

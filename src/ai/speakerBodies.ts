@@ -38,6 +38,39 @@ export function npcCandidatesForSpeaker(speaker: string): readonly string[] {
   return id ? [id] : [];
 }
 
+/** The listen-look surface of the NPC director (npc-conversation-gaze). */
+export interface ListenLook {
+  has(id: string): boolean;
+  lineStarted(speaker: string, addressee?: string | null): void;
+  lineEnded(speaker: string): void;
+}
+
+/**
+ * Turn the people nearby to whoever is speaking. `talkerOf` and `addresseeOf` give NPC ids (or 'player') for a line's
+ * speaker and `to`. Background lines turn nobody (dialogue-channels: Background lines leave the mix and bystanders
+ * alone): overheard talk keeps to its own conversation's gaze.
+ */
+export function wireListenLook(
+  bus: EventBus,
+  npcs: ListenLook,
+  talkerOf: (speaker: string) => string | null,
+  addresseeOf: (to: string | undefined) => string | null,
+): () => void {
+  const offA = bus.on('speech:started', (info: SpeechInfo) => {
+    if (info.priority === 'background') return;
+    const id = talkerOf(info.speaker);
+    if (id && (id === 'player' || npcs.has(id))) npcs.lineStarted(id, addresseeOf(info.to));
+  });
+  const offB = bus.on('speech:ended', (e: { speaker: string }) => {
+    const id = talkerOf(e.speaker);
+    if (id) npcs.lineEnded(id);
+  });
+  return () => {
+    offA();
+    offB();
+  };
+}
+
 /**
  * Make bodies act the lines they speak. `bodyOf` gives the body for a speaker (or null when nobody on screen says it).
  * A line that ends for any reason stops the acting, so an interrupted line closes the mouth at once.

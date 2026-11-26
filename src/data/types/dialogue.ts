@@ -8,8 +8,11 @@ export type Emote = (typeof EMOTES)[number];
 export const CHANNELS = ['local', 'radio', 'pa'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
-/** Lowest first. Higher interrupts lower; equal queues. */
-export const PRIORITIES = ['idle', 'combat', 'hint', 'story'] as const;
+/**
+ * Lowest first. Higher interrupts lower; equal queues. `background` is overheard crew talk: it gives way to every other
+ * line, whatever the conversation (dialogue-channels: Background lines give way to every other line).
+ */
+export const PRIORITIES = ['background', 'idle', 'combat', 'hint', 'story'] as const;
 export type Priority = (typeof PRIORITIES)[number];
 
 export const priorityRank = (p: Priority): number => PRIORITIES.indexOf(p);

@@ -1,0 +1,58 @@
+{
+  "chapter": "commons_overheard",
+  "lines": [
+    { "id": "overheard_bar_before_01", "speaker": "crew_crew_2", "text": "Lab B's lot didn't come in to eat yesterday.",
+      "emote": "neutral", "direction": "casual gossip over a drink, kept between the two of them", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_bar_before_01.mp3", "minDuration": 2, "choices": [] },
+    { "id": "overheard_bar_before_02", "speaker": "crew_bar_1", "text": "So? Maybe they packed their own.",
+      "emote": "question", "direction": "unbothered, half listening", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_bar_before_02.mp3", "minDuration": 1.8, "choices": [] },
+    { "id": "overheard_bar_before_03", "speaker": "crew_crew_2", "text": "Bram kept their plates warm till ten.",
+      "emote": "neutral", "direction": "the detail that bothers him, dry", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_bar_before_03.mp3", "minDuration": 1.8, "choices": [] },
+    { "id": "overheard_bar_before_04", "speaker": "crew_bar_1", "text": "Don't get him started. He'll blame the pipes.",
+      "emote": "laugh", "direction": "quiet amusement", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_bar_before_04.mp3", "minDuration": 2, "choices": [] },
+
+    { "id": "overheard_wall_before_01", "speaker": "crew_chat_5", "text": "Hear the pipes last night? Knocking till four.",
+      "emote": "question", "direction": "tired, off a bad night's sleep", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_wall_before_01.mp3", "minDuration": 2.2, "choices": [] },
+    { "id": "overheard_wall_before_02", "speaker": "crew_wall_1", "text": "They always knock.",
+      "emote": "neutral", "direction": "flat, heard it all before", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_wall_before_02.mp3", "minDuration": 1.2, "choices": [] },
+    { "id": "overheard_wall_before_03", "speaker": "crew_chat_5", "text": "Not in threes, they don't.",
+      "emote": "neutral", "direction": "insisting, quieter", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_wall_before_03.mp3", "minDuration": 1.4, "choices": [] },
+    { "id": "overheard_wall_before_04", "speaker": "crew_wall_1", "text": "Get some sleep. You're counting pipes now.",
+      "emote": "laugh", "direction": "friendly teasing", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_wall_before_04.mp3", "minDuration": 2, "choices": [] },
+
+    { "id": "overheard_bar_after_1_01", "speaker": "crew_bar_1", "text": "\"Routine quarantine.\" You hear how he said that?",
+      "emote": "question", "direction": "lowered voice, mimics the Director's smoothness on the first two words", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_bar_after_1_01.mp3", "minDuration": 2.4, "choices": [] },
+    { "id": "overheard_bar_after_1_02", "speaker": "crew_crew_2", "text": "Same voice he used for the air scrubbers.",
+      "emote": "neutral", "direction": "wry", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_bar_after_1_02.mp3", "minDuration": 2, "choices": [] },
+    { "id": "overheard_bar_after_1_03", "speaker": "crew_bar_1", "text": "What happened with the scrubbers?",
+      "emote": "question", "direction": "genuinely does not know", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_bar_after_1_03.mp3", "minDuration": 1.6, "choices": [] },
+    { "id": "overheard_bar_after_1_04", "speaker": "crew_crew_2", "text": "A week of headaches and a very nice memo.",
+      "emote": "neutral", "direction": "deadpan", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_bar_after_1_04.mp3", "minDuration": 2, "choices": [] },
+
+    { "id": "overheard_bar_after_2_01", "speaker": "crew_crew_2", "text": "Is your shower running warm? Mine won't go cold.",
+      "emote": "question", "direction": "offhand, a little puzzled", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_bar_after_2_01.mp3", "minDuration": 2.2, "choices": [] },
+    { "id": "overheard_bar_after_2_02", "speaker": "crew_bar_1", "text": "Enjoy it. Warm's a luxury down here.",
+      "emote": "relieved", "direction": "light, brushing it off", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_bar_after_2_02.mp3", "minDuration": 1.8, "choices": [] },
+    { "id": "overheard_bar_after_2_03", "speaker": "crew_crew_2", "text": "It's the cold tap.",
+      "emote": "neutral", "direction": "plain and quiet, no joke in it", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_bar_after_2_03.mp3", "minDuration": 1.2, "choices": [] },
+    { "id": "overheard_bar_after_2_04", "speaker": "crew_bar_1", "text": "...Put in a ticket, then.",
+      "emote": "neutral", "direction": "short hesitation, then deflects", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_bar_after_2_04.mp3", "minDuration": 1.6, "choices": [] },
+
+    { "id": "overheard_wall_after_1_01", "speaker": "crew_wall_1", "text": "My courier bag for Lab B came back.",
+      "emote": "neutral", "direction": "mildly put out", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_wall_after_1_01.mp3", "minDuration": 1.8, "choices": [] },
+    { "id": "overheard_wall_after_1_02", "speaker": "crew_chat_5", "text": "Came back how?",
+      "emote": "question", "direction": "paying attention now", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_wall_after_1_02.mp3", "minDuration": 1.2, "choices": [] },
+    { "id": "overheard_wall_after_1_03", "speaker": "crew_wall_1", "text": "Unopened. The slip says delivery was not completed.",
+      "emote": "neutral", "direction": "reads the slip's wording flatly", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_wall_after_1_03.mp3", "minDuration": 2.6, "choices": [] },
+    { "id": "overheard_wall_after_1_04", "speaker": "crew_chat_5", "text": "Nobody's completing anything in there this week.",
+      "emote": "neutral", "direction": "shrugging it off, not quite convinced", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_wall_after_1_04.mp3", "minDuration": 2.2, "choices": [] },
+
+    { "id": "overheard_wall_after_2_01", "speaker": "crew_chat_5", "text": "There's a pressure drop on the line past Lab B.",
+      "emote": "neutral", "direction": "low, work talk he does not want overheard", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_wall_after_2_01.mp3", "minDuration": 2.4, "choices": [] },
+    { "id": "overheard_wall_after_2_02", "speaker": "crew_wall_1", "text": "So log it.",
+      "emote": "neutral", "direction": "brisk", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_wall_after_2_02.mp3", "minDuration": 1.2, "choices": [] },
+    { "id": "overheard_wall_after_2_03", "speaker": "crew_chat_5", "text": "I did. It came back marked resolved.",
+      "emote": "neutral", "direction": "quiet, uneasy", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_wall_after_2_03.mp3", "minDuration": 2, "choices": [] },
+    { "id": "overheard_wall_after_2_04", "speaker": "crew_wall_1", "text": "Resolved by who?",
+      "emote": "question", "direction": "almost a whisper, and she means it", "channel": "local", "priority": "background", "audio": "assets/vo/overheard_wall_after_2_04.mp3", "minDuration": 1.4, "choices": [] }
+  ]
+}

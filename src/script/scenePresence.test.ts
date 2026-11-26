@@ -105,6 +105,16 @@ test('the room field also takes a list of level room ids', () => {
 
 const TWO = { room: ['R12a', 'R12b'] };
 
+test('runningIn names the rooms of the running scenes only', async () => {
+  const { m, state, tick } = setup(TWO);
+  state.at = 'R12a';
+  assert.equal(m.runningIn('R12a'), false);
+  m.start('scene');
+  assert.deepEqual(['R12a', 'R12b', 'R02'].map((r) => m.runningIn(r)), [true, true, false]);
+  await tick(12);
+  assert.equal(m.runningIn('R12a'), false);
+});
+
 test('a scene bound to two rooms carries on while the player walks from one into the other', async () => {
   const { m, state, host, log, ended, tick } = setup(TWO);
   state.at = 'R12a';

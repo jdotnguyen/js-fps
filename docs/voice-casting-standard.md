@@ -43,12 +43,18 @@ Every speaker ID in `src/data/dialogue/*.json` maps to one locked Gemini prebuil
 | `crew_assistant` | **Hale's Assistant** | `Crew` *(unauthored)* | **`Despina`** | `gemini-3.8-flash-tts` | 0 | Director Hale's administrative assistant; quiet, tense, anxious around corporate secrets. |
 | `crew_mess` | **Mess Crew** | `Crew` | **`Fenrir`** | `gemini-3.8-flash-tts` | 0 | Casual off-shift station crew member in the mess hall; wry morning greeting. |
 | `crew_maint` | **Maintenance Tech** | `Crew` | **`Iapetus`** | `gemini-3.8-flash-tts` | 0 | Tired maintenance tech in the dive bay; practical, low-key warning. |
+| `crew_crew_2` | **Commons bar man** | `Crew` *(unauthored)* | **`Umbriel`** | `gemini-3.8-flash-tts` | 0 — 6 lines recorded 2026-11-25 | 30s off-shift lab hand at the Commons bar; easygoing gossip who notices small odd things. Overheard talk only, spoken quietly. |
+| `crew_bar_1` | **Commons bar woman** | `Crew` *(unauthored)* | **`Autonoe`** | `gemini-3.8-flash-tts` | 0 — 6 lines recorded 2026-11-25 | 30s off-shift crew at the Commons bar; dry, unbothered, quick to brush things off. Overheard talk only, spoken quietly. |
+| `crew_wall_1` | **Commons wall woman** | `Crew` *(unauthored)* | **`Vindemiatrix`** | `gemini-3.8-flash-tts` | 0 — 6 lines recorded 2026-11-25 | 40s station clerk leaning on the Commons wall; practical, mildly teasing, slow to grow uneasy. Overheard talk only, spoken quietly. |
+| `crew_chat_5` | **Commons wall man** | `Crew` *(unauthored)* | **`Schedar`** | `gemini-3.8-flash-tts` | 0 — 6 lines recorded 2026-11-25 | 40s maintenance engineer standing in the Commons; tired, careful, worried by his readings. Overheard talk only, spoken quietly. |
 | `radio_ops` | **Station Ops** | `Station Ops` | **`Zephyr`** | `gemini-3.8-flash-tts` | 0 | 30s station comms operator on the open channel during the blackout (station-power spec); clipped, professional, fraying. Radio only. |
 | `radio_dock` | **Docking Ring** | `Docking Ring` | **`Algieba`** | `gemini-3.8-flash-tts` | 0 | Dock security guard calling in from the Docking Ring; out of breath, running, terrified. Radio only. |
 | `radio_hydro` | **Hydroponics** | `Hydroponics` | **`Erinome`** | `gemini-3.8-flash-tts` | 0 | Young hydroponics tech hiding in the Grow Hall; crying, whispering. Radio only. |
 | `radio_launch` | **Launch Hall** | `Launch Hall` | **`Sadaltager`** | `gemini-3.8-flash-tts` | 0 | Station diver in the Launch Hall shouting over rushing water; panicked, urgent. Radio only. |
 
 Free-tier quota note: `gemini-2.5-flash-preview-tts` and `gemini-3.1-flash-tts-preview` each allow **10 requests a day** on this project's key (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`, `limit: 10`, measured 2026-11-21); `gemini-2.5-pro-preview-tts` allows none. Empty and safety-blocked responses still count. One request covers a batch of up to 13 lines.
+
+**3.8 two-speaker requests**: on 2026-11-25 `gemini-3.8-flash-tts` rejected a two-speaker request (HTTP 400, "Multi-speaker generation requests must specify speech_metadata.speaker for each text part"), which `vo-generate.ts` does not send. Record its speakers one per request: `--ids` already does, and `--mode all` needs `--no-pair`.
 
 **2.5-flash retakes**: the long-pause retake note that stops 3.1 sighing makes 2.5-flash run on into minutes of silence, so 2.5-flash retakes use the plain note. Slow `dread` lines can still run away in a batch of 8; `--batch-size 4` worked. `vo-generate.ts` rejects any raw batch longer than `max(30 s, 8 s per line)` without writing clips (`<batch>.wav.rejected`).
 

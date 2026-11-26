@@ -1468,6 +1468,15 @@ test('speaker shot: Jay talking to someone turns to the addressee; NPC lines sti
   assert.deepEqual(g.lastAt(), g.spots['npc:giles'], 'an NPC speaking to someone is still shown speaking');
 });
 
+test('speaker shot: overheard background talk never turns the view', () => {
+  const g = shotHost();
+  const m = new SequenceManager(g.host, [g.def([{ do: 'playerFrame', target: 'speaker', initial: 'npc:start' }, { do: 'wait', s: 100 }])]);
+  m.start('shot');
+  const n = g.frames.length;
+  g.host.events.emit('speech:started', { id: 'x', speaker: 'medic', priority: 'background' });
+  assert.equal(g.frames.length, n);
+});
+
 test('speaker shot: a later explicit playerFrame ends it', () => {
   const g = shotHost();
   const m = new SequenceManager(g.host, [g.def([{ do: 'playerFrame', target: 'speaker' }, { do: 'wait', s: 1 }, { do: 'playerFrame', target: 'npc:giles', duration: 0 }, { do: 'wait', s: 100 }])]);

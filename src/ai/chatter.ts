@@ -77,6 +77,8 @@ export class ChatGroup {
   private left: number;
   private active: ChatMember[] = [];
   private readonly heads = new Map<ChatMember, THREE.Vector3>();
+  /** Someone else is giving this group its lines (an overheard exchange): no filler turns of its own. */
+  private held = false;
 
   constructor(id: string, members: readonly ChatMember[]) {
     this.id = id;
@@ -101,8 +103,25 @@ export class ChatGroup {
     this.rng = new Rng(`chat:${this.id}`);
     this.left = this.rng.range(0.2, 1.5);
     this.last = null;
+    this.held = false;
     for (const m of this.members) m.lookAt(null);
     this.active = [];
+  }
+
+  /**
+   * Hold the group's own turns while it speaks written lines, or take them up again. Holding closes any filler line or
+   * reaction at once, so nothing here moves or shuts a mouth that is saying a real one; the members keep facing each
+   * other.
+   */
+  suspend(on: boolean): void {
+    if (on === this.held) return;
+    this.held = on;
+    if (on) {
+      this.speaker = null;
+      for (const m of this.members) m.stopSpeaking();
+    } else {
+      this.left = this.rng.range(...CHAT_TUNING.beat);
+    }
   }
 
   update(dt: number): void {
@@ -110,6 +129,10 @@ export class ChatGroup {
     if (this.speaker && !this.active.includes(this.speaker)) this.endLine();
     if (this.active.length < 2) {
       this.endLine();
+      return;
+    }
+    if (this.held) {
+      this.active.forEach((m, i) => m.lookAt(this.headGetter(this.active[(i + 1) % this.active.length]!)));
       return;
     }
     this.left -= dt;

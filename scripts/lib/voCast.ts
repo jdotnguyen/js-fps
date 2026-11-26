@@ -121,6 +121,31 @@ export const CAST: Readonly<Record<string, CastMember>> = {
     model: 'gemini-3.1-flash-tts-preview',
     profile: '40s, dock security guard who has scanned the same crew every morning for years; patient, dry, warm under the routine.',
   },
+  // The overheard Commons pairs (in-world-audio spec), recorded one speaker per request (voice-casting-standard §2).
+  crew_crew_2: {
+    label: 'BarMan',
+    voice: 'Umbriel',
+    model: 'gemini-3.8-flash-tts',
+    profile: 'Off-shift lab hand on a stool at the Commons bar, 30s man; easygoing gossip who notices small odd things; talking quietly to the person beside him.',
+  },
+  crew_bar_1: {
+    label: 'BarWoman',
+    voice: 'Autonoe',
+    model: 'gemini-3.8-flash-tts',
+    profile: 'Off-shift crew member at the Commons bar, 30s woman; dry, unbothered, quick to brush things off; talking quietly to the person beside her.',
+  },
+  crew_wall_1: {
+    label: 'WallWoman',
+    voice: 'Vindemiatrix',
+    model: 'gemini-3.8-flash-tts',
+    profile: 'Station clerk leaning on the Commons wall, 40s woman; practical, mildly teasing, grows uneasy only slowly; talking quietly to a colleague.',
+  },
+  crew_chat_5: {
+    label: 'WallMan',
+    voice: 'Schedar',
+    model: 'gemini-3.8-flash-tts',
+    profile: 'Maintenance engineer standing in the Commons, 40s man; tired, careful, worried by what his readings say; talking quietly to a colleague.',
+  },
   // Station blackout radio chatter (station-power spec): voices only heard over the radio, each at a station post.
   radio_ops: {
     label: 'Ops',

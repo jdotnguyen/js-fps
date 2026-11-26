@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { EventBus } from '../core/events.ts';
+import { BarkSystem } from './barks.ts';
 import { DialogueLibrary } from './library.ts';
 import { SpeechManager, type Hearing, type VoicePlayer } from './speech.ts';
 
@@ -18,6 +19,8 @@ const library = new DialogueLibrary(speakers, {
       L('sung_1', 'crew_sung'), L('sung_2', 'crew_sung'), L('sung_stow', 'crew_sung'), L('jay_sung', 'player'),
       L('jay_alone', 'player'), L('bark', 'medic', 'idle'), L('hint', 'medic', 'hint'),
       L('brief', 'director', 'story', 'radio'),
+      L('bg_1', 'crew_bar_1', 'background'), L('bg_2', 'crew_crew_2', 'background'),
+      { ...L('story_long', 'crew_sung'), minDuration: 6 },
     ],
   },
 });
@@ -198,4 +201,83 @@ test('stopChannels with letFinish drops the queue but lets the line already play
   assert.ok(!subs.has('hale_1'));
   assert.ok(!log.includes('start jay_hale') && !log.includes('start hale_2'), 'nothing queued behind it plays');
   assert.ok(log.includes('end sung_1 finished'), 'the other conversation carries on');
+});
+
+test('a background line gives way: story, bark and hint lines in earshot each cut it off with its subtitle', () => {
+  for (const [line, channel] of [['sung_1', 'dive'], ['bark', 'ambient'], ['hint', 'ambient']] as const) {
+    const { sm, log, subs } = setup({ crew_bar_1: { distance: 3, audible: true }, crew_sung: { distance: 3, audible: true }, medic: { distance: 3, audible: true } });
+    sm.say('bg_1', { channel: 'overheard:bar' });
+    assert.ok(subs.has('bg_1'));
+    sm.say(line, { channel });
+    assert.deepEqual(log, ['start bg_1', 'end bg_1 interrupted', `start ${line}`], line);
+    assert.ok(!subs.has('bg_1'), 'its subtitle goes with it');
+  }
+});
+
+test('a background line cuts off nothing, and a higher line the player cannot hear leaves it alone', () => {
+  const { sm, log } = setup({ crew_bar_1: { distance: 3, audible: true }, director: { distance: 60, audible: false } });
+  sm.say('bg_1', { channel: 'overheard:bar' });
+  sm.say('hale_1', { channel: 'admin' });
+  assert.deepEqual(log, ['start bg_1', 'start hale_1']);
+  run(sm, 2.1);
+  assert.ok(log.includes('end bg_1 finished'));
+});
+
+test('a background line starts during a far-off scene', () => {
+  const { sm, log } = setup({ director: { distance: 60, audible: false }, crew_bar_1: { distance: 3, audible: true } });
+  sm.say('hale_1', { channel: 'admin' });
+  sm.say('bg_1', { channel: 'overheard:bar' });
+  assert.equal(log.at(-1), 'start bg_1');
+});
+
+test('a background line waits behind audible speech and is dropped rather than played late', async () => {
+  const long = setup({ crew_sung: { distance: 3, audible: true } });
+  long.sm.say('story_long', { channel: 'dive' });
+  const dropped = long.sm.say('bg_1', { channel: 'overheard:bar' });
+  run(long.sm, 8);
+  assert.equal(await dropped.done, 'dropped');
+  assert.ok(!long.log.includes('start bg_1'));
+
+  const short = setup({ crew_sung: { distance: 3, audible: true } });
+  short.sm.say('sung_1', { channel: 'dive' });
+  run(short.sm, 0.9);
+  short.sm.say('bg_1', { channel: 'overheard:bar' });
+  assert.ok(!short.log.includes('start bg_1'), 'not over him');
+  run(short.sm, 1.6);
+  assert.ok(short.log.includes('start bg_1'), 'under 2 s of waiting it still plays');
+
+  for (const [line, channel] of [['bark', 'ambient'], ['hint', 'ambient']] as const) {
+    const g = setup({ medic: { distance: 3, audible: true } });
+    g.sm.say(line, { channel });
+    g.sm.say('bg_1', { channel: 'overheard:bar' });
+    assert.ok(!g.log.includes('start bg_1'), `waits behind a ${line}`);
+  }
+});
+
+test('background talk does not count as speaking, so the squad idle bark comes due as in silence', () => {
+  const { sm } = setup({ crew_bar_1: { distance: 3, audible: true } });
+  const bus = new EventBus();
+  let due = 0;
+  bus.on('bark:idle' as never, (() => due++) as never);
+  const barks = new BarkSystem({ lines: [], speech: { speaking: () => sm.speaking(), say: () => undefined }, bus: bus as never, idleAfter: 75 });
+  for (let t = 0; t < 76; t += 0.5) {
+    if (!sm.speaking()) sm.say('bg_1', { channel: 'overheard:bar' });
+    sm.update(0.5);
+    barks.update(0.5);
+  }
+  assert.equal(sm.speaking(), null);
+  assert.equal(due, 1);
+});
+
+test('background subtitles show only within 6 m, re-checked during the line', () => {
+  const { sm, subs, spots, levels } = setup({ crew_bar_1: { distance: 8, audible: true } });
+  sm.say('bg_1', { channel: 'overheard:bar' });
+  assert.equal(subs.has('bg_1'), false, '8 m: heard, no subtitle');
+  assert.ok(levels.some(([id, g]) => id === 'bg_1' && g > 0));
+  spots.crew_bar_1 = { distance: 5.5, audible: true };
+  run(sm, 0.1);
+  assert.equal(subs.has('bg_1'), true);
+  spots.crew_bar_1 = { distance: 6.5, audible: true };
+  run(sm, 0.1);
+  assert.equal(subs.has('bg_1'), false);
 });
