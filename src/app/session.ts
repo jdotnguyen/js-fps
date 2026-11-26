@@ -1248,6 +1248,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       }
       if (dialogue.line(id).channel === 'pa') {
         const onboardTrainPa = id === 'r16_pa_01' || id === 'r16_pa_02';
+        const pinnedGrille = onboardTrainPa ? null : (level?.paSpeakerAt(camera.position, opts?.fixture)?.clone() ?? null);
         return speech!.say(id, {
           ...opts,
           // The train's own announcements stay overhead of Jay, wherever the ride carries him (voice-playback: Station PA).
@@ -1255,7 +1256,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           at: () =>
             onboardTrainPa
               ? new THREE.Vector3(camera.position.x, camera.position.y + 0.8, camera.position.z)
-              : (level?.paSpeakerAt(camera.position, opts?.fixture) ?? null),
+              : pinnedGrille,
         });
       }
       const line = dialogue.line(id);
