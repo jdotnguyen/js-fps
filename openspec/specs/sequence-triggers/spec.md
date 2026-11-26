@@ -33,12 +33,17 @@ When a one-shot level trigger fires and a sequence listening to it is held back 
 - **THEN** `armory_auto` does not start when `cover_done` is set
 
 ### Requirement: Repeatable events are not held
-An event that is not a one-shot level trigger SHALL NOT be held when a sequence's flags do not allow it; it SHALL be ignored for that sequence, as now.
+An event that is not a one-shot level trigger SHALL NOT be held when a sequence's flags do not allow it; it SHALL be ignored for that sequence, as now. This includes a level trigger that fires again each time Jay enters it (`once: false`): a sequence it reaches too early SHALL start only when Jay enters that trigger again after its flags allow it, never from wherever he is when the flag is set.
 
 #### Scenario: Med-lab door tried too early
 - **GIVEN** `sec_done` is not set
 - **WHEN** Jay tries D_R07_R09 and the door answers `door:denied`
 - **THEN** `medlab_door` does not start then or later from that try, and a later try after `sec_done` starts it
+
+#### Scenario: The drop spot crossed during the briefing
+- **GIVEN** `rounds_done` is not set
+- **WHEN** Jay stands on the drop spot during the morning briefing, and later finishes the last round elsewhere in the station
+- **THEN** the drop does not start when the rounds finish, and starts when he next walks onto the spot
 
 ### Requirement: A held trigger lasts until it runs or the checkpoint restarts
 A held trigger SHALL start its sequence at most once. Restarting from a checkpoint SHALL drop every held trigger, since the level re-arms its triggers on restart.

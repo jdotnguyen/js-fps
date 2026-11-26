@@ -6,7 +6,7 @@ Defines how a scripted scene waits for Jay and the squad to be inside a room bef
 ## Requirements
 
 ### Requirement: Scene waits for everyone before sealing
-A scene that seals or locks the door Jay came in by SHALL first make sure Jay and both squadmates are inside the room. A scene that leaves Jay free SHALL wait for them (`gatherIn`). The Observation Gallery drop walks Jay on rails and brings the squad in during the walk (see `gallery-drop`), so it seals `D_R02_R03` once all three are inside and does not wait on a timeout.
+A scene that seals or locks the door Jay came in by SHALL first make sure Jay and both squadmates are inside the room. A scene that leaves Jay free SHALL wait for them (`gatherIn`). The Observation Gallery drop is the exception: it starts only once Jay has walked onto its spot in the middle of the gallery, and brings the squad in out of his sight as he walks in and again as it starts (see `gallery-drop`). It does not wait on a timeout. It seals `D_R02_R03` only while all three are inside, trying after Voss's plea, again after Okafor's first line, and again at the lockdown announcement, so a Jay who stepped out is never shut out.
 
 #### Scenario: Jay runs ahead into the gallery
 - **WHEN** Jay enters a scene room several metres ahead of Giles and Okafor and the scene waits with `gatherIn`
@@ -16,9 +16,13 @@ A scene that seals or locks the door Jay came in by SHALL first make sure Jay an
 - **WHEN** Jay walks back out of the room before a waiting scene seals the door
 - **THEN** the door does not seal and the scene does not go on until he is back inside
 
-#### Scenario: The gallery drop seals after the walk
-- **WHEN** the Observation Gallery drop starts with Giles and Okafor still outside
-- **THEN** they are brought inside during Jay's walk, and `D_R02_R03` seals only after all three are in
+#### Scenario: The gallery drop seals once all three are in
+- **WHEN** Jay walks into the gallery and onto the drop's spot with Giles and Okafor still outside
+- **THEN** they are brought inside out of his sight, and `D_R02_R03` seals only after all three are in
+
+#### Scenario: Jay steps out during the drop
+- **WHEN** Jay walks back out into the Commons after the drop has started and before the door has sealed
+- **THEN** the door does not seal while he is outside, and seals at the next try once he is back inside with both squadmates
 
 ### Requirement: Stragglers are brought in after a timeout
 When the squad has not walked into the room within the step's timeout (8 s by default), each squadmate still outside SHALL be placed inside the room near Jay, out of his view where possible, and the scene SHALL go on.

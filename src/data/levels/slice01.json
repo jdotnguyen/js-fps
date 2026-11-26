@@ -3466,6 +3466,24 @@
           "on": "enter",
           "emit": "trigger:gallery_brief_spot",
           "once": false
+        },
+        {
+          "id": "trig_drop_spot",
+          "box": [
+            [
+              6.5,
+              0,
+              17.1
+            ],
+            [
+              9.5,
+              2.6,
+              20.1
+            ]
+          ],
+          "on": "enter",
+          "emit": "trigger:drop_spot",
+          "once": false
         }
       ],
       "anchors": [

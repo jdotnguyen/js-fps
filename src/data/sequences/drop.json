@@ -1,8 +1,23 @@
 [
  {
-  "id": "drop",
+  "id": "drop_approach",
   "trigger": {
    "event": "trigger:gallery_brief_spot",
+   "requires": "rounds_done",
+   "unless": "drop_started"
+  },
+  "steps": [
+   {
+    "do": "squadCatchUpIn",
+    "room": "R03",
+    "at": "anchor:gallery_enter"
+   }
+  ]
+ },
+ {
+  "id": "drop",
+  "trigger": {
+   "event": "trigger:drop_spot",
    "requires": "rounds_done",
    "unless": "drop_done"
   },
@@ -25,8 +40,6 @@
    },
    {
     "do": "playerControl",
-    "move": "locked",
-    "look": "locked",
     "weapons": false,
     "interact": false
    },
@@ -59,31 +72,9 @@
       "count": 1,
       "steps": [
        {
-        "parallel": [
-         {
-          "do": "playerLookAt",
-          "target": "npc:researcher_b",
-          "duration": 1.2
-         },
-         {
-          "do": "playerWalkTo",
-          "to": "anchor:drop_jay",
-          "speed": 1.6,
-          "timeout": 6,
-          "wait": true
-         },
-         {
-          "do": "squadCatchUpIn",
-          "room": "R03",
-          "at": "anchor:gallery_enter"
-         }
-        ]
-       },
-       {
-        "do": "playerLookAt",
-        "target": "npc:researcher_b",
-        "duration": 0.6,
-        "wait": true
+        "do": "squadCatchUpIn",
+        "room": "R03",
+        "at": "anchor:gallery_enter"
        },
        {
         "do": "npcMoveTo",
@@ -96,8 +87,17 @@
         "to": "anchor:brief_okafor"
        },
        {
+        "do": "waitFor",
+        "event": "kill:scratch",
+        "timeout": 3
+       },
+       {
+        "do": "say",
+        "line": "drop_voss_01"
+       },
+       {
         "do": "wait",
-        "s": 1.2
+        "s": 0.8
        },
        {
         "do": "doorState",
@@ -114,24 +114,10 @@
         "line": "drop_okafor_01"
        },
        {
-        "do": "playerControl",
-        "move": "free",
-        "look": "free"
-       }
-      ]
-     },
-     {
-      "do": "loop",
-      "count": 1,
-      "steps": [
-       {
-        "do": "waitFor",
-        "event": "kill:scratch",
-        "timeout": 3
-       },
-       {
-        "do": "say",
-        "line": "drop_voss_01"
+        "do": "doorState",
+        "id": "D_R02_R03",
+        "state": "sealed",
+        "ifAllIn": "R03"
        }
       ]
      },
@@ -281,6 +267,12 @@
     "fixture": "pa_gallery",
     "wait": false,
     "overlap": true
+   },
+   {
+    "do": "doorState",
+    "id": "D_R02_R03",
+    "state": "sealed",
+    "ifAllIn": "R03"
    },
    {
     "do": "say",

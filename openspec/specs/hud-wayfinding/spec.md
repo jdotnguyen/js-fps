@@ -51,12 +51,17 @@ A screen-projected in-world objective marker (icon and distance) SHALL appear **
 - **THEN** the in-world marker points directly at `anchor:hydro_log` with live distance
 
 ### Requirement: Quiet-half objectives resolve to concrete targets
-`obj_briefing` and the three morning round objectives (`round_hydro`, `round_dive`, `round_admin`) SHALL resolve to concrete target positions so compass distances and adjacent-room markers stay accurate throughout the quiet half. For `round_dive`, the target SHALL reflect the current sub-step (the sample case pickup before it is held, then the airlock locker once held).
+`obj_briefing`, the three morning round objectives (`round_hydro`, `round_dive`, `round_admin`) and the return to the gallery (`round_return`) SHALL resolve to concrete target positions so compass distances and adjacent-room markers stay accurate throughout the quiet half. For `round_dive`, the target SHALL reflect the current sub-step (the sample case pickup before it is held, then the airlock locker once held). `round_return` SHALL point at the spot in the middle of the gallery where the drop starts (see `gallery-drop`).
 
 #### Scenario: Dive bay objective target updates after taking the case
 - **GIVEN** `round_dive` is active
 - **WHEN** Jay has not yet picked up `sample_case`
 - **THEN** the target resolves to the sample case pickup in the dive bay; once Jay takes `sample_case`, the target updates to `anchor:dive_case_locker`
+
+#### Scenario: The return marker leads to the drop
+- **GIVEN** the rounds are done and `round_return` is active
+- **WHEN** Jay enters the Observation Gallery
+- **THEN** the in-world marker stands on the spot in the middle of the gallery where the drop starts, and it disappears when he steps onto it and the drop begins
 
 ### Requirement: Post-intro wayfinding spotlight callout
 When the intro finishes (played or skipped) and tutorials are enabled for a player who has not seen it, a non-fullscreen spotlight callout SHALL pause the simulation, dim the world behind the live top compass and right-side objective list so both HUD elements remain visibly highlighted, and display a brief callout explaining the compass, objective list, and nearby room markers. Pressing the dismiss input SHALL resume play and mark the callout as seen in the player profile.

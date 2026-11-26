@@ -172,7 +172,7 @@ test('slice01 Part A: the drop, the glimpse and the rounds have what they need i
   assert.deepEqual(creature.map((sp) => sp.id), ['r06_duct'], 'the only creature spawn is its drop into R06');
   assert.ok(data.rooms.find((r) => r.id === 'R04')!.props?.some((p) => p.kit === 'ceiling_vent' && p.params?.['id'] === 'labb_vent'), 'Lab B has the vent it escapes through');
   const emits = new Set(data.rooms.flatMap((r) => (r.triggers ?? []).map((t) => t.emit)));
-  for (const e of ['trigger:commons_to_gallery', 'trigger:gallery_brief_spot', 'trigger:gallery_enter', 'round:hydro_log', 'round:dive_case', 'trigger:hale_office', 'trigger:security_booth', 'trigger:hydro_store_enter', 'trigger:dive_lockers_enter', 'commons:radio']) assert.ok(emits.has(e), `trigger ${e}`);
+  for (const e of ['trigger:commons_to_gallery', 'trigger:gallery_brief_spot', 'trigger:drop_spot', 'trigger:gallery_enter', 'round:hydro_log', 'round:dive_case', 'trigger:hale_office', 'trigger:security_booth', 'trigger:hydro_store_enter', 'trigger:dive_lockers_enter', 'commons:radio']) assert.ok(emits.has(e), `trigger ${e}`);
   for (const a of ['cam04_pos', 'cam04_look', 'cam04_figure', 'dawdle_call', 'gallery_door', 'brief_giles', 'brief_okafor']) assert.ok(level.anchor(a), `anchor ${a}`);
   assert.ok(JSON.stringify(data).includes('"sample_case"'), 'the dive sample case is placed');
   const r03 = data.rooms.find((r) => r.id === 'R03')!;
@@ -300,7 +300,7 @@ test('slice01 critical path: nav-reachable and walkable through the real doors',
   const required = ['R01', 'R01w', 'R02', 'R03', 'R14a', 'R14b', 'R14c', 'R14e', 'R12a', 'R12b', 'R12e', 'R12d', 'R13a', 'R13b', 'R13e', 'R05', 'R06', 'R07', 'R07a', 'R09', 'R10', 'R11'];
   assert.equal(entered.includes('R13d'), false, 'the sealed maintenance corridor is never on the way (dive-bay spec)');
   for (const r of required) assert.ok(entered.includes(r), `entered ${r}`);
-  for (const e of ['trigger:commons_enter', 'trigger:gallery_enter', 'trigger:gallery_brief_spot', 'trigger:admin_enter', 'trigger:hale_office', 'trigger:security_booth', 'trigger:hydro_enter', 'trigger:hydro_store_enter', 'trigger:dive_enter', 'trigger:r05_enter', 'trigger:r06_enter', 'trigger:r07_enter', 'trigger:r09_enter', 'trigger:r10_enter', 'trigger:r11_enter', 'valve:r10_main']) {
+  for (const e of ['trigger:commons_enter', 'trigger:gallery_enter', 'trigger:gallery_brief_spot', 'trigger:drop_spot', 'trigger:admin_enter', 'trigger:hale_office', 'trigger:security_booth', 'trigger:hydro_enter', 'trigger:hydro_store_enter', 'trigger:dive_enter', 'trigger:r05_enter', 'trigger:r06_enter', 'trigger:r07_enter', 'trigger:r09_enter', 'trigger:r10_enter', 'trigger:r11_enter', 'valve:r10_main']) {
     assert.ok(fired.includes(e), `fired ${e}`);
   }
   console.info(`[slice01] walked ${entered.length} room entries in ${t.toFixed(0)} s of game time`);

@@ -75,8 +75,11 @@ declare module '../core/events.ts' {
     'door:unlocked': { id: string; by: UnlockSource };
     /** The player tried a door they cannot open; `reason` is shown to them. */
     'door:denied': { id: string; reason: string };
-    /** A level trigger fired; `event` is its "emit" name, e.g. "trigger:r06_enter". */
-    'trigger:fired': { id: string; event: string };
+    /**
+     * A level trigger fired; `event` is its "emit" name, e.g. "trigger:r06_enter". `once` is false for a trigger that
+     * fires again each time Jay enters it, so a sequence it reaches too early is not held (sequence-triggers spec).
+     */
+    'trigger:fired': { id: string; event: string; once?: boolean };
     /**
      * Compile this room's shaders now, under the current lighting, before a door shows them (a sequence `emit`). The
      * load warm-up compiles under main power; after the blackout a room never yet drawn would compile in the frame its
@@ -2594,7 +2597,7 @@ export class Level implements World, CaptureHost {
   private fire(t: TriggerRuntime): void {
     if (t.fired && t.data.once !== false) return;
     t.fired = true;
-    this.deps.events.emit('trigger:fired', { id: t.data.id, event: t.data.emit });
+    this.deps.events.emit('trigger:fired', { id: t.data.id, event: t.data.emit, once: t.data.once !== false });
     // The emit name is a bus event too (spawn points' `on`, `area:dark`, sequence triggers).
     (this.deps.events.emit as (name: string, payload: unknown) => void)(t.data.emit, { id: t.data.id });
     const set = this.named.get(t.data.emit);

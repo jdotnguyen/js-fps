@@ -1,0 +1,54 @@
+# Proposal
+
+## Why
+
+Dr. Voss's death in the Lab B drop is the slice's first horror beat, and it does not sell. Her whole kill is pairs of held poses swapped on a timer, with captured motion, foot planting and footsteps switched off:
+
+- While she scratches, two poses swap every 0.2 s, and her head, trunk and legs shimmy along with her hands.
+- Her run to the glass swaps two flailing poses every 0.34 s. She never braces on anything or loses her footing.
+- Her scream holds her jaw wide open for the whole line and ignores the recording.
+- She falls by blending to a lying pose in 0.55 s.
+- From the gallery, Lab B sounds as if Jay were standing in it: the glass barely muffles it, and the intercom's radio copy is buried under the direct sound.
+
+## What Changes
+
+- **Holding it together.** While she waits for Okafor's question, which takes longer or shorter depending on Jay's arrival, her hands scratch fast but the rest of her moves slowly: laboured breathing, weight shifts, glances at the people behind the glass. The shimmy goes. Her first line stays as recorded.
+- **A fixed-length death.** From the end of Okafor's question, the rest of her kill runs on a fixed clock of about 13 s, the same on every run, so every movement, prop, sound and line lands on its frame. The beats keep their names and order, and the drop's lines, lights and alarm keep waiting on them.
+- **A staged run through the lab.** A jolt from inside throws her forward into the bench beside her. She sweeps it clear, doubles over, pushes off, stumbles and nearly goes down, recovers, grabs the prep cart, drags it over and reaches the glass. She follows an authored route with her feet planted and her footsteps heard. Captured stumble, hurt-walk and scared takes from free sources carry her travel; hand-authored poses carry the contacts.
+- **Clips that travel.** A kill beat can move its victim along an authored route while it plays a clip, instead of holding her in place.
+- **At the glass.** Palms and face to the pane, then the existing scream, with her jaw following the recording's loudness, straining and trembling instead of held open.
+- **A real collapse.** After the burst her knees give, she slides down the pane and crumples. She ends where the creature still has room to stand where rig-necromorph placed it.
+- **Props that react on cue.** The glassware on the bench beside her becomes loose. The cart's fall is scripted, so it goes over on the same frame every run, even with physical interaction off. The smaller objects fall by physics, and lie at authored resting spots when physics is off or after a restore.
+- **Designed sound.** New ElevenLabs recordings: the bench sweep, the cart going over, her body hitting the bench, her knee hitting the floor, her palms on the glass, her scuffs, and her gasps and grunts in her existing voice. Each crash is one designed sound at its scripted time, over quieter physics impacts.
+- **Lab B heard through the intercom.** Lab B's observation glass muffles hard, so from the gallery the room comes mainly through the intercom's radio. Hits on the pane itself stay direct. R08's window is unchanged.
+- **The drop's timing.** The beat deadlines in `drop.json` move to the fixed clock.
+
+Not in this change: the blade creature (rig-necromorph), new dialogue lines, ragdolls (`add-physics-ragdolls`), and recorded performance capture.
+
+## Capabilities
+
+### New Capabilities
+
+None.
+
+### Modified Capabilities
+
+- `infection-kills`: a beat can run a fixed length instead of following its audio, so Lab B's scream no longer starts the arch. A clip can carry the victim along a route instead of holding her in place. Voss's scream is seen as well as heard: her jaw follows the recording. New requirements cover her staged run, her planted feet and footsteps, and her collapse.
+- `gallery-drop`: "Voss is already distressed as the drop starts" gains her slow waiting motion, and her staged run replaces her run to the glass.
+- `physical-interaction`: "Lab B is furnished with loose lab objects" gains loose glassware on the bench by Voss. "Scripted kills knock loose objects over" becomes a sweep and a cart fall at authored moments, with the cart falling even when physics is off.
+- `in-world-audio`: "Glass muffles lightly" gains an exception for sealed observation glass, which Lab B's pane becomes.
+
+## Impact
+
+- **Code:** `src/ai/npcKills.ts` and `src/ai/killRun.ts` (route and fixed timing); `src/actors/humanoid.ts` and `src/actors/animator.ts` (a clip that travels, foot planting and footsteps during a human kill, the jaw following a scream's loudness); `src/actors/speechActing.ts`; `src/physics/interaction.ts` (the scripted cart); `src/audio/occlusion.ts` (per-pane sealed glass).
+- **Data:**
+  - `src/data/kills.json` (`grownInside`).
+  - `src/data/poses.json`: Voss's `kill_*` poses. The names `kill_glass_0` and `kill_glass_1` stay, because the blade creature's pose map borrows them.
+  - Voss's clip pack, `src/data/mocap/voss.json`, through `scripts/mocap.sources.json`.
+  - `src/data/levels/slice01.json` and `scripts/gen-slice01.mjs` (route marks, loose bench items, the sealed pane).
+  - `src/data/sequences/drop.json`, and `quiet_restore.json` for the aftermath.
+- **Audio and credits:** new files under `public/assets/audio/` and entries in `src/audio/sounds.ts`, following `docs/audio-assets.md`. Her gasps and grunts follow `docs/voice-casting-standard.md`. New sounds and capture takes are credited in `CREDITS.md`, and the takes in `docs/mocap-sources.md`.
+- **Order with other work:**
+  - rig-necromorph has uncommitted work in `humanoid.ts`, `animator.ts`, `npcKills.ts`, `kills.json` and `poses.json`. The motion and kill work waits until that is committed and its review of the drop (its task 8.1) is done.
+  - The creature's unfold is cued from Voss's burst, and her final resting place must leave its stand point clear.
+  - The sounds, the scratch fix, the bench props, the sealed glass and the clip bake can start first.

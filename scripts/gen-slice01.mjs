@@ -640,6 +640,8 @@ npc(R03, 'heins', 'heins', 'brief_heins', 'idle_crossed');
 npc(R04, 'researcher_b', 'voss', 'labb_victim', 'typing', { transformable: true }); // Dr. Voss: transforms in the drop (ADR-0023)
 trigger(R03, 'trig_gallery_enter', cellBox(1, 3, 4, 5), 'trigger:gallery_enter', { once: false });
 trigger(R03, 'trig_gallery_brief', [[2.3, 0, 14.3], [11.8, 2.6, 21.7]], 'trigger:gallery_brief_spot', { once: false });
+// gallery-drop spec: the drop starts only when Jay walks onto the spot `round_return` marks (`drop_jay`), not on entry.
+trigger(R03, 'trig_drop_spot', [[6.5, 0, 17.1], [9.5, 2.6, 20.1]], 'trigger:drop_spot', { once: false });
 
 // ---------------------------------------------------------------- R05 lab junction, R06 pressure door hall (labs)
 // rebuild-lab-wing: the wing is in lockdown when the player first enters it (after the drop). Red alarm light, with one

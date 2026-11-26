@@ -318,6 +318,23 @@ test('a repeatable bus event is not held', () => {
   assert.equal(t.host.flags.ran, true, 'a try after sec_done starts it');
 });
 
+test('a repeatable level trigger reached before `requires` is not held: it starts only when Jay comes back', () => {
+  const { t, m } = manager([GATED_ROOM]);
+  // A `once: false` trigger, as the level announces it (Level.fire).
+  const enterAgain = (): void => {
+    t.host.events.emit('trigger:fired', { id: 'trig_r07_enter', event: 'trigger:r07_enter', once: false });
+    t.host.events.emit('trigger:r07_enter', {});
+  };
+  enterAgain();
+  tick(m, 0.1);
+  t.host.flags.cover_done = true;
+  tick(m, 0.5);
+  assert.ok(!t.host.flags.ran_count, 'not started from afar when the flag is set');
+  enterAgain();
+  tick(m, 0.1);
+  assert.equal(t.host.flags.ran_count, 1, 'entering again after the flag starts it');
+});
+
 test('death and checkpoint restart drop held level triggers', () => {
   const { t, m } = manager([GATED_ROOM]);
   enterTrigger(t, 'r07_enter');

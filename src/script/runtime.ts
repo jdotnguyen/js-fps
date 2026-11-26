@@ -311,7 +311,8 @@ export class SequenceManager {
       byEvent.set(d.trigger.event, list);
     }
     // `hold`: the event is a one-shot level trigger, so a sequence held back only by its `requires` flag is kept
-    // for later instead of dropped (it can't fire again). Repeatable bus events are dropped as before.
+    // for later instead of dropped (it can't fire again). Repeatable bus events and level triggers are dropped: Jay
+    // sets them off again when he comes back (a held drop once started from the far end of the station).
     const fire = (list: SequenceDef[], payload?: unknown, hold = false): void => {
       for (const d of list) {
         const want = d.trigger?.match;
@@ -337,12 +338,15 @@ export class SequenceManager {
     // triggers write e.g. `round:hydro_log`): a sequence trigger matches either spelling.
     this.subs.push(
       this.host.events.on('trigger:fired', (p) => {
-        const emitted = (p as { event?: string } | null)?.event ?? '';
+        const fired = (p as { event?: string; once?: boolean } | null) ?? {};
+        const emitted = fired.event ?? '';
         if (!emitted) return;
+        // Only a one-shot trigger is held (sequence-triggers spec); one that says `once: false` fires again.
+        const hold = fired.once !== false;
         const prefixed = byEvent.get(`trigger:${emitted}`);
-        if (prefixed) fire(prefixed, p, true);
+        if (prefixed) fire(prefixed, p, hold);
         const plain = byEvent.get(emitted);
-        if (plain) fire(plain, p, true);
+        if (plain) fire(plain, p, hold);
       }),
     );
   }
