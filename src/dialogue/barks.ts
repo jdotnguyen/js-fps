@@ -96,6 +96,29 @@ export const COMBAT_HOLD = 8;
 /** Events that mean a fight is on. */
 const COMBAT_EVENTS = ['enemy:spotted', 'enemy:alerted', 'enemy:hit', 'enemy:attack', 'enemy:grab', 'player:damaged', 'player:grabbed', 'weapon:fired', 'combat:first', 'squad:downed'];
 
+export interface RoomCommentarySpec {
+  readonly lineId: string;
+  readonly speaker: string;
+  readonly rooms: readonly string[];
+  readonly phase: 'morning' | 'post_drop';
+  readonly requires?: readonly string[];
+}
+
+export const ROOM_COMMENTARY_DWELL_S = 3.0;
+
+export const ROOM_COMMENTARY: readonly RoomCommentarySpec[] = [
+  { lineId: 'room_comm_r01_01', speaker: 'engineer', rooms: ['R01'], phase: 'morning', requires: ['briefingSeen'] },
+  { lineId: 'room_comm_r12_01', speaker: 'medic', rooms: ['R12b', 'R12c'], phase: 'morning', requires: ['briefingSeen'] },
+  { lineId: 'room_comm_r13_01', speaker: 'engineer', rooms: ['R13a', 'R13b', 'R13e'], phase: 'morning', requires: ['briefingSeen'] },
+  { lineId: 'room_comm_r14_01', speaker: 'engineer', rooms: ['R14b', 'R14d'], phase: 'morning', requires: ['briefingSeen'] },
+  { lineId: 'room_comm_r06_01', speaker: 'engineer', rooms: ['R06'], phase: 'post_drop' },
+  { lineId: 'room_comm_r07a_01', speaker: 'medic', rooms: ['R07a'], phase: 'post_drop' },
+  { lineId: 'room_comm_r08b_01', speaker: 'player', rooms: ['R08b'], phase: 'post_drop' },
+  { lineId: 'room_comm_r16c_01', speaker: 'player', rooms: ['R16c'], phase: 'post_drop' },
+];
+
+export const roomCommentaryFlag = (lineId: string): string => `heard_${lineId}`;
+
 export interface BarkDeps {
   lines: readonly BarkLine[];
   speech: BarkSpeech;
@@ -107,6 +130,17 @@ export interface BarkDeps {
   rules?: readonly BarkRule[];
   /** Seconds of quiet before an idle bark may play; null disables idle barks. */
   idleAfter?: number | null;
+  /** Station phase for idle bark & room commentary gating (defaults to 'morning'). */
+  phase?: () => 'morning' | 'post_drop';
+  /** Current player room id for one-time contextual room commentary. */
+  playerRoom?: () => string | null;
+  /** True when a scripted scene belonging to `room` is running. */
+  sceneRunning?: (room: string) => boolean;
+  /** Save-persisted game flag access for one-time room remarks. */
+  flag?: (name: string) => boolean;
+  setFlag?: (name: string) => void;
+  /** Optional override list of contextual room remarks (defaults to ROOM_COMMENTARY). */
+  roomCommentary?: readonly RoomCommentarySpec[];
 }
 
 export class BarkSystem {
@@ -114,6 +148,7 @@ export class BarkSystem {
   now = 0;
   private readonly d: BarkDeps;
   private readonly pools = new Map<string, BarkLine[]>();
+  private readonly lineIds = new Set<string>();
   private readonly ready = new Map<BarkRule, number>();
   private readonly counts = new Map<BarkRule, number[]>();
   private readonly lastLine = new Map<string, string>();
@@ -121,12 +156,15 @@ export class BarkSystem {
   private globalReady = 0;
   private lastCombat = -Infinity;
   private quiet = 0;
+  private dwellRoom: string | null = null;
+  private dwellTime = 0;
   private readonly random: () => number;
 
   constructor(deps: BarkDeps) {
     this.d = deps;
     this.random = deps.random ?? Math.random;
     for (const line of deps.lines) {
+      this.lineIds.add(line.id);
       const m = /^bark_(.+)_[^_]+$/.exec(line.id);
       if (!m) continue;
       const pool = m[1]!;
@@ -152,9 +190,10 @@ export class BarkSystem {
 
   update(dt: number): void {
     this.now += dt;
+    const busy = this.d.speech.speaking() !== null || this.inCombat || (this.d.blocked?.() ?? false);
+    this.updateRoomCommentary(dt, busy);
     const idleAfter = this.d.idleAfter === undefined ? 60 : this.d.idleAfter;
     if (idleAfter === null) return;
-    const busy = this.d.speech.speaking() !== null || this.inCombat || (this.d.blocked?.() ?? false);
     this.quiet = busy ? 0 : this.quiet + dt;
     if (this.quiet >= idleAfter) {
       this.quiet = 0;
@@ -169,10 +208,38 @@ export class BarkSystem {
     this.globalReady = 0;
     this.lastCombat = -Infinity;
     this.quiet = 0;
+    this.dwellRoom = null;
+    this.dwellTime = 0;
   }
 
   dispose(): void {
     for (const off of this.offs) off();
+  }
+
+  private updateRoomCommentary(dt: number, busy: boolean): void {
+    if (!this.d.playerRoom || !this.d.flag || !this.d.setFlag) return;
+    const room = this.d.playerRoom();
+    if (room !== this.dwellRoom) {
+      this.dwellRoom = room;
+      this.dwellTime = 0;
+    }
+    if (!room || busy || this.d.sceneRunning?.(room)) return;
+    this.dwellTime += dt;
+    if (this.dwellTime < ROOM_COMMENTARY_DWELL_S || this.now < this.globalReady) return;
+    const phase = this.d.phase?.() ?? 'morning';
+    const specs = this.d.roomCommentary ?? ROOM_COMMENTARY;
+    for (const spec of specs) {
+      if (spec.phase !== phase || !spec.rooms.includes(room)) continue;
+      if (!this.lineIds.has(spec.lineId)) continue;
+      const flag = roomCommentaryFlag(spec.lineId);
+      if (this.d.flag(flag)) continue;
+      if (spec.requires && !spec.requires.every((f) => this.d.flag!(f))) continue;
+      this.d.setFlag(flag);
+      this.globalReady = this.now + GLOBAL_COOLDOWN;
+      this.quiet = 0;
+      this.d.speech.say(spec.lineId, spec.speaker);
+      return;
+    }
   }
 
   /** Try a rule for an event. Returns the line id said, or null. Public for tests. */
@@ -192,18 +259,19 @@ export class BarkSystem {
     // A story or hint line is up: a bark would only be dropped (or worse, queued). Skip it.
     if (speaking && (speaking.priority === 'story' || speaking.priority === 'hint') && !rule.reaction) return null;
     if (rule.chance !== undefined && this.random() >= rule.chance) return null;
-    const line = this.pick(rule, p);
+    const poolName = rule.pool === 'idle' && this.d.phase?.() === 'post_drop' ? 'idle_dark' : rule.pool;
+    const line = this.pick(poolName, rule, p);
     if (!line) return null;
     this.ready.set(rule, this.now + rule.cooldown);
     if (!rule.reaction) this.globalReady = this.now + GLOBAL_COOLDOWN;
     if (rule.count) this.counts.set(rule, []);
-    this.lastLine.set(rule.pool, line.id);
+    this.lastLine.set(poolName, line.id);
     this.d.speech.say(line.id, line.speaker);
     return line.id;
   }
 
-  private pick(rule: BarkRule, p: Record<string, unknown>): BarkLine | null {
-    const pool = this.pools.get(rule.pool);
+  private pick(poolName: string, rule: BarkRule, p: Record<string, unknown>): BarkLine | null {
+    const pool = this.pools.get(poolName);
     if (!pool?.length) return null;
     const who = rule.who ?? 'any';
     const about = whoOf(p);
@@ -226,7 +294,7 @@ export class BarkSystem {
     }
     let options = speakers ? pool.filter((l) => speakers!.includes(l.speaker)) : [...pool];
     if (options.length === 0) return null;
-    const last = this.lastLine.get(rule.pool);
+    const last = this.lastLine.get(poolName);
     if (options.length > 1) options = options.filter((l) => l.id !== last);
     return options[Math.floor(this.random() * options.length) % options.length] ?? null;
   }

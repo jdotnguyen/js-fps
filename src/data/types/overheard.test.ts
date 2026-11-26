@@ -8,28 +8,42 @@ import { validateOverheard } from './overheard.ts';
 
 const json = (rel: string): unknown => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
 const data = validate(validateOverheard, json('../overheard.json'), 'data/overheard.json');
-const chapter = validate(validateChapter, json('../dialogue/commons_overheard.json'), 'commons_overheard');
-const lines = new Map(chapter.lines.map((l) => [l.id, l]));
+const commonsChapter = validate(validateChapter, json('../dialogue/commons_overheard.json'), 'commons_overheard');
+const stationChapter = validate(validateChapter, json('../dialogue/station_overheard.json'), 'station_overheard');
+const allLines = [...commonsChapter.lines, ...stationChapter.lines];
+const lines = new Map(allLines.map((l) => [l.id, l]));
 const level = json('../levels/slice01.json') as { rooms: Array<{ id: string; npcs?: Array<{ id: string; chat?: string }> }> };
-const crew = level.rooms.find((r) => r.id === data.room)?.npcs ?? [];
+const roomNpcs = (roomId: string) => level.rooms.find((r) => r.id === roomId)?.npcs ?? [];
 
-test('every exchange names real lines, a real chat group of its room, and speakers who are in that group', () => {
+test('every exchange names real lines, a real chat group or solo speaker in its room, and valid speakers', () => {
   for (const x of data.exchanges) {
-    const members = crew.filter((n) => n.chat === x.chat).map((n) => n.id);
-    assert.equal(members.length, 2, `${x.id}: "${x.chat}" is a pair in ${data.room}`);
-    const speakers = new Set<string>();
-    for (const id of x.lines) {
-      const line = lines.get(id);
-      assert.ok(line, `${x.id}: unknown line ${id}`);
-      const npc = npcIdForSpeaker(line.speaker);
-      assert.ok(npc && members.includes(npc), `${id}: ${line.speaker} is not in ${x.chat}`);
-      speakers.add(npc);
+    const room = x.room ?? data.room;
+    const crew = roomNpcs(room);
+    if (x.chat) {
+      const members = crew.filter((n) => n.chat === x.chat).map((n) => n.id);
+      assert.ok(members.length >= 2, `${x.id}: "${x.chat}" has at least 2 members in ${room}`);
+      const speakers = new Set<string>();
+      for (const id of x.lines) {
+        const line = lines.get(id);
+        assert.ok(line, `${x.id}: unknown line ${id}`);
+        const npc = npcIdForSpeaker(line.speaker);
+        assert.ok(npc && members.includes(npc), `${id}: ${line.speaker} (${npc}) is not in ${x.chat}`);
+        speakers.add(npc);
+      }
+      assert.ok(speakers.size >= 2, `${x.id}: at least two members speak`);
+    } else {
+      assert.ok(x.speaker, `${x.id}: solo snippet names a speaker`);
+      assert.ok(crew.some((n) => n.id === x.speaker), `${x.id}: solo speaker "${x.speaker}" is in ${room}`);
+      for (const id of x.lines) {
+        const line = lines.get(id);
+        assert.ok(line, `${x.id}: unknown line ${id}`);
+        assert.equal(npcIdForSpeaker(line.speaker), x.speaker, `${id}: ${line.speaker} maps to ${x.speaker}`);
+      }
     }
-    assert.equal(speakers.size, 2, `${x.id}: both of them speak`);
   }
 });
 
-test('each pair has one exchange before the briefing and two after it, and no line is spare or reused', () => {
+test('each Commons pair keeps its 1-before/2-after cadence, and no overheard line is spare or reused', () => {
   const count = (chat: string, phase: string): number => data.exchanges.filter((x) => x.chat === chat && x.phase === phase).length;
   for (const chat of ['commons_bar', 'commons_wall']) {
     assert.equal(count(chat, 'before'), 1, chat);
@@ -40,17 +54,21 @@ test('each pair has one exchange before the briefing and two after it, and no li
 });
 
 test('overheard lines are local background lines with their own recording path, and Jay says none', () => {
-  assert.equal(chapter.lines.length, 24);
-  for (const l of chapter.lines) {
+  assert.equal(commonsChapter.lines.length, 24);
+  assert.ok(stationChapter.lines.length >= 40);
+  for (const l of commonsChapter.lines) assert.equal(l.audio, `assets/vo/${l.id}.mp3`, l.id);
+  for (const l of allLines) {
     assert.equal(l.channel, 'local', l.id);
     assert.equal(l.priority, 'background', l.id);
-    assert.equal(l.audio, `assets/vo/${l.id}.mp3`, l.id);
+    if (l.audio !== null) assert.equal(l.audio, `assets/vo/${l.id}.mp3`, l.id);
     assert.notEqual(l.speaker, 'player', l.id);
   }
 });
 
-test('the validator rejects a duplicate id and an empty exchange', () => {
+test('the validator rejects duplicate ids, empty exchanges, and missing or ambiguous chat/speaker', () => {
   const x = { id: 'a', chat: 'c', phase: 'before', lines: ['l'] };
   assert.throws(() => validate(validateOverheard, { room: 'R02', exchanges: [x, x] }, 't'), /duplicate exchange id/);
   assert.throws(() => validate(validateOverheard, { room: 'R02', exchanges: [{ ...x, lines: [] }] }, 't'), /at least one line/);
+  assert.throws(() => validate(validateOverheard, { room: 'R02', exchanges: [{ id: 'b', lines: ['l'] }] }, 't'), /exactly one of "chat" or "speaker"/);
+  assert.throws(() => validate(validateOverheard, { room: 'R02', exchanges: [{ id: 'c', chat: 'g', speaker: 's', lines: ['l'] }] }, 't'), /exactly one of "chat" or "speaker"/);
 });

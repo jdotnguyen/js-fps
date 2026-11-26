@@ -33,7 +33,7 @@
         "fogDensity": 0.018,
         "ambient": "dock",
         "reverb": "metal_hall",
-        "ambience": "hull_hum"
+        "ambience": "dock_ring"
       },
       "visibleFrom": [
         "R01w"
@@ -962,7 +962,7 @@
         "fogDensity": 0.018,
         "ambient": "dock",
         "reverb": "metal_corridor",
-        "ambience": "hull_hum"
+        "ambience": "dock_walk"
       },
       "visibleFrom": [
         "R01"
@@ -1270,7 +1270,8 @@
       "atmosphere": {
         "fog": "#070b0d",
         "fogDensity": 0.028,
-        "reverb": "small_office"
+        "reverb": "small_office",
+        "ambience": "dock_airlock"
       },
       "visibleFrom": [
         "R01",
@@ -2971,7 +2972,7 @@
         "fog": "#06090b",
         "fogDensity": 0.03,
         "reverb": "metal_hall",
-        "ambience": "hull_hum",
+        "ambience": "obs_gallery",
         "ambient": "gallery"
       },
       "visibleFrom": [
@@ -5614,7 +5615,7 @@
         "fog": "#090d11",
         "fogDensity": 0.022,
         "reverb": "small_office",
-        "ambience": "office_hvac"
+        "ambience": "security_office"
       },
       "visibleFrom": [
         "R08"
@@ -6180,7 +6181,8 @@
       "atmosphere": {
         "fog": "#0c1014",
         "fogDensity": 0.018,
-        "reverb": "small_office"
+        "reverb": "small_office",
+        "ambience": "armory"
       },
       "pieces": [
         {
@@ -7274,7 +7276,8 @@
       "atmosphere": {
         "fog": "#081012",
         "fogDensity": 0.022,
-        "reverb": "small_office"
+        "reverb": "small_office",
+        "ambience": "surgery"
       },
       "pieces": [
         {
@@ -8914,7 +8917,7 @@
         "fog": "#060a0e",
         "fogDensity": 0.018,
         "reverb": "metal_hall",
-        "ambience": "hull_hum"
+        "ambience": "power_bay"
       },
       "pieces": [
         {
@@ -9610,7 +9613,7 @@
         "fog": "#060a0e",
         "fogDensity": 0.014,
         "reverb": "metal_hall",
-        "ambience": "hull_hum"
+        "ambience": "transit_boarding"
       },
       "pieces": [
         {
@@ -10340,7 +10343,7 @@
         "fog": "#02090d",
         "fogDensity": 0.026,
         "reverb": "metal_hall",
-        "ambience": "hull_hum"
+        "ambience": "transit_tunnel"
       },
       "pieces": [
         {
@@ -10539,7 +10542,7 @@
         "fog": "#060a0e",
         "fogDensity": 0.014,
         "reverb": "metal_hall",
-        "ambience": "hull_hum"
+        "ambience": "transit_dock"
       },
       "visibleFrom": [
         "R16b"
@@ -11741,7 +11744,7 @@
         "fog": "#060a0e",
         "fogDensity": 0.012,
         "reverb": "metal_hall",
-        "ambience": "hull_hum"
+        "ambience": "transit_concourse"
       },
       "visibleFrom": [
         "R16a"
@@ -15992,7 +15995,7 @@
         "fog": "#060a0e",
         "fogDensity": 0.014,
         "reverb": "small_office",
-        "ambience": "hull_hum"
+        "ambience": "transit_dispatch"
       },
       "pieces": [
         {
@@ -16803,7 +16806,8 @@
             "R12b",
             "R12d"
           ],
-          "pose": "crouchWork"
+          "pose": "crouchWork",
+          "chat": "hydro_grow"
         },
         {
           "id": "botanist_2",
@@ -16812,7 +16816,8 @@
           "roam": [
             "R12b"
           ],
-          "pose": "clipboard"
+          "pose": "clipboard",
+          "chat": "hydro_grow"
         }
       ]
     },
@@ -17427,7 +17432,7 @@
         "fog": "#0b1316",
         "fogDensity": 0.015,
         "reverb": "metal_corridor",
-        "ambience": "dive_drip"
+        "ambience": "wet_vestibule"
       },
       "pieces": [
         {
@@ -18222,7 +18227,8 @@
             0,
             35.4
           ],
-          "pose": "idle_hips"
+          "pose": "idle_hips",
+          "chat": "dive_launch"
         },
         {
           "id": "maint_1",
@@ -18233,7 +18239,8 @@
             37.9
           ],
           "yaw": 270,
-          "pose": "crouchWork"
+          "pose": "crouchWork",
+          "chat": "dive_launch"
         }
       ]
     },
@@ -18245,7 +18252,7 @@
         "fog": "#0b1316",
         "fogDensity": 0.015,
         "reverb": "small_office",
-        "ambience": "dive_drip"
+        "ambience": "rov_workshop"
       },
       "pieces": [
         {
@@ -18738,7 +18745,7 @@
         "fog": "#0b1316",
         "fogDensity": 0.015,
         "reverb": "small_office",
-        "ambience": "dive_drip"
+        "ambience": "sample_store"
       },
       "pieces": [
         {
@@ -19010,7 +19017,7 @@
         "fogDensity": 0.012,
         "ambient": "admin",
         "reverb": "small_office",
-        "ambience": "office_hvac"
+        "ambience": "admin_reception"
       },
       "pieces": [
         {
@@ -19254,7 +19261,8 @@
             10.7
           ],
           "yaw": 90,
-          "pose": "sit_typing"
+          "pose": "sit_typing",
+          "chat": "admin_reception"
         },
         {
           "id": "admin_visitor",
@@ -19265,7 +19273,8 @@
             8.4
           ],
           "spot": "sit_sofa",
-          "model": "botanist1"
+          "model": "botanist1",
+          "chat": "admin_reception"
         }
       ]
     },
@@ -19278,7 +19287,7 @@
         "fogDensity": 0.012,
         "ambient": "admin",
         "reverb": "small_office",
-        "ambience": "office_hvac"
+        "ambience": "admin_open_office"
       },
       "visibleFrom": [
         "R14d",
@@ -19661,7 +19670,7 @@
             8.12
           ],
           "yaw": 0,
-          "model": "botanist2",
+          "model": "office3",
           "pose": "sit_typing"
         },
         {
@@ -19674,7 +19683,7 @@
           ],
           "yaw": 90,
           "chat": "admin_hall",
-          "model": "office3",
+          "model": "botanist2",
           "pose": "idle"
         },
         {
@@ -19701,7 +19710,7 @@
         "fogDensity": 0.012,
         "ambient": "admin",
         "reverb": "small_office",
-        "ambience": "office_hvac"
+        "ambience": "directors_office"
       },
       "visibleFrom": [
         "R14b"
@@ -19970,7 +19979,7 @@
         "fogDensity": 0.011,
         "ambient": "admin",
         "reverb": "small_office",
-        "ambience": "office_hvac"
+        "ambience": "admin_boardroom"
       },
       "visibleFrom": [
         "R14b"
@@ -20297,7 +20306,7 @@
           ],
           "spot": "sit_chair",
           "chat": "admin_boardroom",
-          "model": "office1"
+          "model": "office3"
         },
         {
           "id": "board_2",
@@ -20333,7 +20342,7 @@
           ],
           "yaw": 270,
           "chat": "admin_boardroom",
-          "model": "office3",
+          "model": "office1",
           "pose": "idle"
         }
       ]
@@ -20347,7 +20356,7 @@
         "fogDensity": 0.02,
         "ambient": "normal",
         "reverb": "small_office",
-        "ambience": "office_hvac"
+        "ambience": "security_booth"
       },
       "pieces": [
         {

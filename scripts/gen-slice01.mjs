@@ -1627,7 +1627,7 @@ workstation(R14b, [41.6, 0, 7.4], 180, { width: 1.6, papers: 2 });
 workstation(R14b, [45.6, 0, 7.4], 180, {
   width: 1.6,
   papers: 2,
-  npc: { id: 'exec_4', look: 'exec', pose: 'sit_typing', extra: { model: 'botanist2' } },
+  npc: { id: 'exec_4', look: 'exec', pose: 'sit_typing', extra: { model: 'office3' } },
 });
 prop(R14b, 'bookshelf', [48.4, 0, 9.52], 0, { width: 1.6 });
 for (const [x, z, kind] of [[38.65, 2.65, 'tall'], [49.35, 2.65, 'fern'], [38.65, 9.35, 'shrub'], [43.6, 9.35, 'palm']]) prop(R14b, 'potted_plant', [x, 0, z], 0, { kind, pot: 'white' });
@@ -1649,10 +1649,10 @@ prop(R14d, 'tag_poster', [49.69, 0, -4.4], 90, { slogan: 'DEEPER. FURTHER. TOGET
 prop(R14d, 'potted_plant', [38.7, 0, -5.25], 0, { kind: 'palm', pot: 'dark', size: 1.1 });
 prop(R14d, 'potted_plant', [49.25, 0, -5.25], 0, { kind: 'tall', pot: 'white', size: 1.0 });
 prop(R14d, 'potted_plant', [38.7, 0, 1.25], 0, { kind: 'fern', pot: 'white', size: 1.0 });
-npc(R14d, 'board_1', 'exec', [42.5, 0, -3.07], undefined, { spot: 'sit_chair', chat: 'admin_boardroom', model: 'office1' });
+npc(R14d, 'board_1', 'exec', [42.5, 0, -3.07], undefined, { spot: 'sit_chair', chat: 'admin_boardroom', model: 'office3' });
 npc(R14d, 'board_2', 'exec', [45.5, 0, -3.07], undefined, { spot: 'sit_chair', chat: 'admin_boardroom', model: 'office2' });
 npc(R14d, 'board_3', 'lab', [44.0, 0, -0.93], undefined, { spot: 'sit_chair', chat: 'admin_boardroom', model: 'scientist1' });
-npc(R14d, 'board_4', 'exec', [40.5, 0, -2.0], 'idle', { yaw: 270, chat: 'admin_boardroom', model: 'office3' });
+npc(R14d, 'board_4', 'exec', [40.5, 0, -2.0], 'idle', { yaw: 270, chat: 'admin_boardroom', model: 'office1' });
 prop(R14e, 'security_monitor', [36, 0, 2.8], 180, { id: 'admin_cam', camera: 'CAM 04  MEDICAL BAY', feed: 'live' });
 prop(R14e, 'chair', [35.2, 0, 3.9], 0, { fixed: true });
 pickups.push({ id: 'P_card_l2', room: 'R14c', item: 'card_l2', pos: [52.4, 0.78, 5.5], rot: 15 });
@@ -1664,7 +1664,7 @@ anchor(R14c, 'hale_stand', [52.4, 0, 8.3], 90);
 anchor(R14c, 'cp_round_admin', [51, 0, 5.4], 270);
 anchor(R14e, 'admin_cam_monitor', [36, 1.4, 2.6]);
 anchor(R14e, 'admin_cam_view', [36.4, 0, 4.2], 0);
-npc(R14b, 'exec_1', 'exec', [44.2, 0, 5.6], 'idle', { yaw: 90, chat: 'admin_hall', model: 'office3' });
+npc(R14b, 'exec_1', 'exec', [44.2, 0, 5.6], 'idle', { yaw: 90, chat: 'admin_hall', model: 'botanist2' });
 npc(R14b, 'exec_3', 'exec', [43.2, 0, 5.6], 'clipboard', { yaw: 270, chat: 'admin_hall', model: 'office2' });
 npc(R14c, 'hale', 'hale', 'hale_stand', 'idle_hips');
 trigger(R14a, 'trig_admin_enter', cellBox(9, 9, 3, 3), 'trigger:admin_enter', { once: false });

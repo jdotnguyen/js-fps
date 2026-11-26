@@ -245,3 +245,90 @@ test('all five Hydroponics room presets resolve, crossfade, and hot-swap ElevenL
 
   dir.dispose();
 });
+
+test('living-station presets resolve, crossfade, and hot-swap ElevenLabs beds', () => {
+  const newPresets = [
+    ['dock_ring', 'ambDockRing'],
+    ['dock_walk', 'ambDockWalk'],
+    ['dock_airlock', 'ambDockAirlock'],
+    ['obs_gallery', 'ambObsGallery'],
+    ['security_office', 'ambSecurityOffice'],
+    ['armory', 'ambArmory'],
+    ['surgery', 'ambSurgery'],
+    ['power_bay', 'ambPowerBay'],
+    ['wet_vestibule', 'ambWetVestibule'],
+    ['rov_workshop', 'ambRovWorkshop'],
+    ['sample_store', 'ambSampleStore'],
+    ['admin_reception', 'ambAdminReception'],
+    ['admin_open_office', 'ambAdminOpenOffice'],
+    ['directors_office', 'ambDirectorsOffice'],
+    ['admin_boardroom', 'ambAdminBoardroom'],
+    ['security_booth', 'ambSecurityBooth'],
+    ['transit_boarding', 'ambTransitBoarding'],
+    ['transit_tunnel', 'ambTransitTunnel'],
+    ['transit_dock', 'ambTransitDock'],
+    ['transit_concourse', 'ambTransitConcourse'],
+    ['transit_dispatch', 'ambTransitDispatch'],
+    ['dead_station', 'ambDeadStation'],
+  ] as const;
+
+  const audio = new MockAmbienceAudio();
+  const dir = new AmbienceDirector(audio, new Rng('living-presets'));
+  dir.setMode('playing');
+
+  for (const [preset, sample] of newPresets) {
+    assert.ok(isAmbiencePreset(preset), `${preset} exists`);
+    dir.enterRoom(preset, [], 1.5);
+    assert.equal(dir.currentPreset, preset);
+    audio.emitSampleLoaded(sample);
+    const active = audio.loops.filter((l) => l.stoppedWith === null);
+    assert.ok(active.some((l) => l.name === sample), `${preset} hot-swaps to ${sample}`);
+  }
+
+  dir.dispose();
+});
+
+test('station phase shifts inhabited presets to dead_station under blackout and gates distantMoan out of morning', () => {
+  const audio = new MockAmbienceAudio();
+  audio.emitSampleLoaded('ambAdminOpenOffice');
+  audio.emitSampleLoaded('ambDeadStation');
+  audio.emitSampleLoaded('ambWetVestibule');
+  audio.emitSampleLoaded('ambPowerBay');
+
+  const dir = new AmbienceDirector(audio, new Rng('phase-test'));
+  dir.setMode('playing');
+
+  // Morning shift in wet_vestibule: distantMoan never fires over 300 s.
+  dir.enterRoom('wet_vestibule', [], 0);
+  for (let t = 0; t < 300; t += 1) dir.update(t, new THREE.Vector3(0, 1.6, 0));
+  assert.equal(audio.plays.filter((p) => p.name === 'distantMoan').length, 0, 'no distantMoan during morning');
+
+  // Switching to blackout unlocks distantMoan in wet_vestibule.
+  dir.setPhase('blackout', 1.5);
+  for (let t = 300; t < 600; t += 1) dir.update(t, new THREE.Vector3(0, 1.6, 0));
+  assert.ok(audio.plays.filter((p) => p.name === 'distantMoan').length > 0, 'distantMoan fires under blackout');
+
+  // Entering an inhabited office under blackout immediately plays dead_station.
+  dir.enterRoom('admin_open_office', [], 0);
+  assert.equal(dir.currentPreset, 'dead_station');
+
+  // Returning to morning crossfades back to admin_open_office; lockdown shifts commons_murmur to dead_station.
+  dir.setPhase('morning', 2.0);
+  assert.equal(dir.currentPreset, 'admin_open_office');
+  dir.enterRoom('commons_murmur', [], 0);
+  assert.equal(dir.currentPreset, 'commons_murmur');
+  dir.setPhase('lockdown', 2.0);
+  assert.equal(dir.currentPreset, 'dead_station');
+
+  // Power Bay scales bed gain up when station power is restored.
+  dir.setPhase('blackout', 0);
+  dir.enterRoom('power_bay', [], 0);
+  dir.update(601, new THREE.Vector3(0, 1.6, 0));
+  const activePower = audio.loops.find((l) => l.name === 'ambPowerBay' && l.stoppedWith === null)!;
+  const beforeRestore = activePower.gains.at(-1)!;
+  dir.setPowerRestored(true, 1.0);
+  const afterRestore = activePower.gains.at(-1)!;
+  assert.ok(afterRestore > beforeRestore * 1.2, 'power_bay bed scales up on power restore');
+
+  dir.dispose();
+});

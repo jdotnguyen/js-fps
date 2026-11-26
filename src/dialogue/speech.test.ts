@@ -252,3 +252,62 @@ test('onlySpeakers cuts everyone else off and drops their new lines until lifted
   run(sm, 0.3);
   assert.equal(sm.speaking()?.id, 'story_a', 'everyone back once lifted');
 });
+
+test('background PA shows subtitles only within 12 m and audible, hides on leaving, and yields to higher speech', () => {
+  const bus = new EventBus();
+  const visible = new Set<string>();
+  const log: string[] = [];
+  bus.on('subtitle:show', (l) => visible.add(l.id));
+  bus.on('subtitle:hide', (l) => visible.delete(l.id));
+  bus.on('speech:started', (e) => log.push(`start ${e.id}`));
+  bus.on('speech:ended', (e) => log.push(`end ${e.id} ${e.reason}`));
+  const lib = new DialogueLibrary(speakers, {
+    't.json': {
+      chapter: 't',
+      lines: [
+        L('story_a', 'story'),
+        { ...L('pa_story', 'story', 'Quarantine notice.', 'pa'), channel: 'pa' },
+        { ...L('pa_bg', 'background', 'Stay hydrated.', 'pa'), channel: 'pa' },
+      ],
+    },
+  });
+  let paDist = 6;
+  let paAudible = true;
+  const sm = new SpeechManager(
+    bus,
+    lib,
+    { play: () => ({ stop: () => {} }) },
+    {
+      hearing: (line) => {
+        if (line.channel === 'pa' && line.priority === 'background') {
+          return { gain: paAudible ? 0.8 : 0, cutoffHz: 20000, distance: paDist, audible: paAudible };
+        }
+        return 'everywhere';
+      },
+    },
+  );
+
+  // Within 12 m: background PA subtitle shows, but does not count as foreground speaking().
+  sm.say('pa_bg', { channel: 'ambient:pa' });
+  assert.ok(visible.has('pa_bg'));
+  assert.equal(sm.speaking(), null, 'background PA never holds back barks or idle timers');
+
+  // Walking beyond 12 m hides the subtitle dynamically.
+  paDist = 15;
+  sm.update(0.1);
+  assert.ok(!visible.has('pa_bg'));
+
+  // Walking back in shows it again.
+  paDist = 8;
+  sm.update(0.1);
+  assert.ok(visible.has('pa_bg'));
+
+  // Story line cuts off background PA immediately; story PA stays visible regardless of distance.
+  sm.say('story_a');
+  assert.ok(!visible.has('pa_bg'));
+  assert.ok(log.includes('end pa_bg interrupted'));
+  paDist = 40;
+  paAudible = false;
+  sm.say('pa_story', { overlap: true });
+  assert.ok(visible.has('pa_story'), 'story PA shows subtitles station-wide');
+});

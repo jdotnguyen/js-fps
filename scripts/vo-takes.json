@@ -2334,5 +2334,580 @@
     ],
     "at": "2026-11-26T05:25:49.805Z",
     "source": "generated"
+  },
+  {
+    "batch": "vo_crew_exec_1_01",
+    "speakers": [
+      "crew_exec_1"
+    ],
+    "voices": [
+      "Zubenelgenubi"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_admin_hall_1_01",
+      "overheard_admin_hall_1_03",
+      "overheard_admin_hall_2_02",
+      "overheard_admin_hall_2_04"
+    ],
+    "at": "2026-11-26T17:15:18.205Z",
+    "source": "generated"
+  },
+  {
+    "batch": "vo_crew_exec_3_01",
+    "speakers": [
+      "crew_exec_3"
+    ],
+    "voices": [
+      "Callirrhoe"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_admin_hall_1_02",
+      "overheard_admin_hall_1_04",
+      "overheard_admin_hall_2_01",
+      "overheard_admin_hall_2_03"
+    ],
+    "at": "2026-11-26T17:15:40.317Z",
+    "source": "generated"
+  },
+  {
+    "batch": "vo_crew_board_1_01",
+    "speakers": [
+      "crew_board_1"
+    ],
+    "voices": [
+      "Pulcherrima"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_boardroom_1_01",
+      "overheard_boardroom_1_04"
+    ],
+    "at": "2026-11-26T17:15:58.352Z",
+    "source": "generated"
+  },
+  {
+    "batch": "vo_crew_board_2_01",
+    "speakers": [
+      "crew_board_2"
+    ],
+    "voices": [
+      "Achernar"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_boardroom_1_02",
+      "overheard_boardroom_2_03"
+    ],
+    "at": "2026-11-26T17:16:23.608Z",
+    "source": "generated"
+  },
+  {
+    "batch": "vo_crew_board_3_01",
+    "speakers": [
+      "crew_board_3"
+    ],
+    "voices": [
+      "Fenrir"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_boardroom_1_03",
+      "overheard_boardroom_2_02"
+    ],
+    "at": "2026-11-26T17:16:40.617Z",
+    "source": "generated"
+  },
+  {
+    "batch": "vo_crew_board_4_01",
+    "speakers": [
+      "crew_board_4"
+    ],
+    "voices": [
+      "Schedar"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_boardroom_2_01"
+    ],
+    "at": "2026-11-26T17:16:59.522Z",
+    "source": "generated"
+  },
+  {
+    "batch": "vo_crew_board_4_01",
+    "speakers": [
+      "crew_board_4"
+    ],
+    "voices": [
+      "Schedar"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_boardroom_2_04"
+    ],
+    "at": "2026-11-26T17:17:01.139Z",
+    "source": "generated"
+  },
+  {
+    "batch": "vo_crew_admin_visitor_01",
+    "speakers": [
+      "crew_admin_visitor"
+    ],
+    "voices": [
+      "Umbriel"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_reception_1_01",
+      "overheard_reception_1_03"
+    ],
+    "at": "2026-11-26T17:17:23.002Z",
+    "source": "generated"
+  },
+  {
+    "batch": "vo_crew_assistant_01",
+    "speakers": [
+      "crew_assistant"
+    ],
+    "voices": [
+      "Despina"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_reception_1_02"
+    ],
+    "at": "2026-11-26T17:17:41.464Z",
+    "source": "generated"
+  },
+  {
+    "batch": "vo_crew_assistant_01",
+    "speakers": [
+      "crew_assistant"
+    ],
+    "voices": [
+      "Despina"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_reception_1_04"
+    ],
+    "at": "2026-11-26T17:17:43.124Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_player_01",
+    "speakers": [
+      "player"
+    ],
+    "voices": [
+      "Orus"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "room_comm_r08b_01",
+      "room_comm_r16c_01"
+    ],
+    "at": "2026-11-26T17:21:09.369Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_dock_guard_01",
+    "speakers": [
+      "crew_dock_guard"
+    ],
+    "voices": [
+      "Alnilam"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "overheard_dock_guard_1_01"
+    ],
+    "at": "2026-11-26T17:21:14.816Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_dock_guard_01",
+    "speakers": [
+      "crew_dock_guard"
+    ],
+    "voices": [
+      "Alnilam"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "overheard_dock_guard_1_02"
+    ],
+    "at": "2026-11-26T17:21:20.571Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_engineer_01",
+    "speakers": [
+      "engineer"
+    ],
+    "voices": [
+      "Algenib"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "bark_idle_dark_01",
+      "bark_idle_dark_03",
+      "bark_idle_dark_05",
+      "room_comm_r01_01"
+    ],
+    "at": "2026-11-26T17:21:34.000Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_engineer_02",
+    "speakers": [
+      "engineer"
+    ],
+    "voices": [
+      "Algenib"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "room_comm_r13_01",
+      "room_comm_r14_01",
+      "room_comm_r06_01"
+    ],
+    "at": "2026-11-26T17:21:52.040Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_medic_02",
+    "speakers": [
+      "medic"
+    ],
+    "voices": [
+      "Charon"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "room_comm_r12_01",
+      "room_comm_r07a_01"
+    ],
+    "at": "2026-11-26T17:22:22.723Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_medic_01",
+    "speakers": [
+      "medic"
+    ],
+    "voices": [
+      "Charon"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "bark_idle_dark_02"
+    ],
+    "at": "2026-11-26T17:22:43.158Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_medic_01",
+    "speakers": [
+      "medic"
+    ],
+    "voices": [
+      "Charon"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "bark_idle_dark_04"
+    ],
+    "at": "2026-11-26T17:22:47.146Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_medic_01",
+    "speakers": [
+      "medic"
+    ],
+    "voices": [
+      "Charon"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "bark_idle_dark_06"
+    ],
+    "at": "2026-11-26T17:22:50.938Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_pa_01",
+    "speakers": [
+      "pa"
+    ],
+    "voices": [
+      "Gacrux"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "amb_pa_dark_04",
+      "amb_pa_dark_05"
+    ],
+    "at": "2026-11-26T17:24:07.972Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_pa_01",
+    "speakers": [
+      "pa"
+    ],
+    "voices": [
+      "Gacrux"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "amb_pa_dark_06",
+      "amb_pa_dark_07"
+    ],
+    "at": "2026-11-26T17:24:18.455Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_pa_01",
+    "speakers": [
+      "pa"
+    ],
+    "voices": [
+      "Gacrux"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "amb_pa_morning_01",
+      "amb_pa_morning_02",
+      "amb_pa_morning_03",
+      "amb_pa_morning_04",
+      "amb_pa_morning_05",
+      "amb_pa_morning_06",
+      "amb_pa_morning_07",
+      "amb_pa_morning_08"
+    ],
+    "at": "2026-11-26T17:23:18.000Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_pa_02",
+    "speakers": [
+      "pa"
+    ],
+    "voices": [
+      "Gacrux"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "amb_pa_morning_09",
+      "amb_pa_dark_01",
+      "amb_pa_dark_02",
+      "amb_pa_dark_03"
+    ],
+    "at": "2026-11-26T17:24:00.000Z",
+    "source": "generated"
+  },
+  {
+    "batch": "vo_crew_botanist_1_01",
+    "speakers": [
+      "crew_botanist_1"
+    ],
+    "voices": [
+      "Autonoe"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_hydro_grow_1_01",
+      "overheard_hydro_grow_1_03",
+      "overheard_hydro_grow_2_02",
+      "overheard_hydro_grow_2_04"
+    ],
+    "at": "2026-11-26T17:24:02.000Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_botanist_2_01",
+    "speakers": [
+      "crew_botanist_2"
+    ],
+    "voices": [
+      "Vindemiatrix"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_hydro_grow_1_02",
+      "overheard_hydro_grow_1_04",
+      "overheard_hydro_grow_2_01",
+      "overheard_hydro_grow_2_03"
+    ],
+    "at": "2026-11-26T17:38:19.758Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_diver_1_01",
+    "speakers": [
+      "crew_diver_1"
+    ],
+    "voices": [
+      "Zubenelgenubi"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_dive_launch_1_01",
+      "overheard_dive_launch_1_03",
+      "overheard_dive_launch_2_02",
+      "overheard_dive_launch_2_04"
+    ],
+    "at": "2026-11-26T17:38:41.064Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_maint_01",
+    "speakers": [
+      "crew_maint"
+    ],
+    "voices": [
+      "Iapetus"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_dive_launch_1_02",
+      "overheard_dive_launch_1_04",
+      "overheard_dive_launch_2_01",
+      "overheard_dive_launch_2_03"
+    ],
+    "at": "2026-11-26T17:39:02.289Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_exec_2_01",
+    "speakers": [
+      "crew_exec_2"
+    ],
+    "voices": [
+      "Sadachbia"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_exec2_call_1_01",
+      "overheard_exec2_call_1_02"
+    ],
+    "at": "2026-11-26T17:39:19.209Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_exec_4_01",
+    "speakers": [
+      "crew_exec_4"
+    ],
+    "voices": [
+      "Laomedeia"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_exec4_call_1_01",
+      "overheard_exec4_call_1_02"
+    ],
+    "at": "2026-11-26T17:41:16.498Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_botanist_3_01",
+    "speakers": [
+      "crew_botanist_3"
+    ],
+    "voices": [
+      "Callirrhoe"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_botanist3_1_02"
+    ],
+    "at": "2026-11-26T17:41:37.420Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_diver_2_01",
+    "speakers": [
+      "crew_diver_2"
+    ],
+    "voices": [
+      "Sadachbia"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_diver2_1_01",
+      "overheard_diver2_1_02"
+    ],
+    "at": "2026-11-26T17:41:59.031Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_botanist_3_01",
+    "speakers": [
+      "crew_botanist_3"
+    ],
+    "voices": [
+      "Sadaltager"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_botanist3_1_02"
+    ],
+    "at": "2026-11-26T17:45:29.063Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_botanist_3_01",
+    "speakers": [
+      "crew_botanist_3"
+    ],
+    "voices": [
+      "Sadaltager"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_botanist3_1_01"
+    ],
+    "at": "2026-11-26T17:45:26.612Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_botanist_1_01",
+    "speakers": [
+      "crew_botanist_1"
+    ],
+    "voices": [
+      "Algieba"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_hydro_grow_1_01",
+      "overheard_hydro_grow_1_03",
+      "overheard_hydro_grow_2_02",
+      "overheard_hydro_grow_2_04"
+    ],
+    "at": "2026-11-26T17:48:21.992Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_crew_botanist_2_01",
+    "speakers": [
+      "crew_botanist_2"
+    ],
+    "voices": [
+      "Enceladus"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "overheard_hydro_grow_1_02",
+      "overheard_hydro_grow_1_04",
+      "overheard_hydro_grow_2_01",
+      "overheard_hydro_grow_2_03"
+    ],
+    "at": "2026-11-26T17:48:43.036Z",
+    "source": "generated"
   }
 ]

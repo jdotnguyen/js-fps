@@ -51,6 +51,20 @@ Every speaker ID in `src/data/dialogue/*.json` maps to one locked Gemini prebuil
 | `radio_dock` | **Docking Ring** | `Docking Ring` | **`Algieba`** | `gemini-3.8-flash-tts` | 0 | Dock security guard calling in from the Docking Ring; out of breath, running, terrified. Radio only. |
 | `radio_hydro` | **Hydroponics** | `Hydroponics` | **`Erinome`** | `gemini-3.8-flash-tts` | 0 | Young hydroponics tech hiding in the Grow Hall; crying, whispering. Radio only. |
 | `radio_launch` | **Launch Hall** | `Launch Hall` | **`Sadaltager`** | `gemini-3.8-flash-tts` | 0 | Station diver in the Launch Hall shouting over rushing water; panicked, urgent. Radio only. |
+| `crew_exec_1` | **Admin Office analyst** | `Crew` *(unauthored)* | **`Zubenelgenubi`** | `gemini-3.8-flash-tts` | 0 | 30s male TAG operations analyst in `R14b`; cautious office gossip. Overheard only. |
+| `crew_exec_3` | **Admin Office coordinator** | `Crew` *(unauthored)* | **`Callirrhoe`** | `gemini-3.8-flash-tts` | 0 | 30s female TAG compliance coordinator in `R14b`; dry, observant. Overheard only. |
+| `crew_exec_2` | **Admin Desk manager** | `Crew` *(unauthored)* | **`Sadachbia`** | `gemini-3.8-flash-tts` | 0 | 40s male logistics manager on a hushed desk call in `R14b`. Overheard only. |
+| `crew_exec_4` | **Admin Desk clerk** | `Crew` *(unauthored)* | **`Laomedeia`** | `gemini-3.8-flash-tts` | 0 | 30s female procurement clerk on a hushed desk call in `R14b`. Overheard only. |
+| `crew_board_1` | **Boardroom chair** | `Crew` *(unauthored)* | **`Pulcherrima`** | `gemini-3.8-flash-tts` | 0 | 40s female senior VP chairing the `R14d` board meeting. Overheard only. |
+| `crew_board_2` | **Boardroom legal** | `Crew` *(unauthored)* | **`Achernar`** | `gemini-3.8-flash-tts` | 0 | 40s female legal/risk director in `R14d`; careful, clipped. Overheard only. |
+| `crew_board_3` | **Boardroom research** | `Crew` *(unauthored)* | **`Fenrir`** | `gemini-3.8-flash-tts` | 0 | 50s male research liaison in `R14d` (distinct wing from `crew_mess`). Overheard only. |
+| `crew_board_4` | **Boardroom ops** | `Crew` *(unauthored)* | **`Schedar`** | `gemini-3.8-flash-tts` | 0 | 40s male operations controller in `R14d` (distinct wing from Commons `crew_chat_5`). Overheard only. |
+| `crew_admin_visitor` | **Reception visitor** | `Crew` *(unauthored)* | **`Umbriel`** | `gemini-3.8-flash-tts` | 0 | 30s male lab tech in `R14a` Reception (distinct wing from Commons `crew_crew_2`). Overheard only. |
+| `crew_botanist_1` | **Grow Hall botanist A** | `Crew` *(unauthored)* | **`Algieba`** | `gemini-3.8-flash-tts` | 0 | 30s male botanist in `R12b` (his body, `botanist_1`, is a male model; the voice is shared with radio-only `radio_dock`). Overheard only. |
+| `crew_botanist_2` | **Grow Hall botanist B** | `Crew` *(unauthored)* | **`Enceladus`** | `gemini-3.8-flash-tts` | 0 | 40s male senior hydroponics tech in `R12b` (his body, `botanist_2`, is a male model; distinct wing from Commons `crew_cook`). Overheard only. |
+| `crew_botanist_3` | **Seed Lab specialist** | `Crew` *(unauthored)* | **`Sadaltager`** | `gemini-3.8-flash-tts` | 0 | 30s male seed-lab tech muttering in `R12c` (his body, `botanist_3`, is a male model; the voice is shared with radio-only `radio_launch` in the dive bay). Overheard only. |
+| `crew_diver_1` | **Launch Hall diver** | `Crew` *(unauthored)* | **`Zubenelgenubi`** | `gemini-3.8-flash-tts` | 0 | 30s male diver in `R13b` (distinct wing from Admin `crew_exec_1`). Overheard only. |
+| `crew_diver_2` | **Sample Store diver** | `Crew` *(unauthored)* | **`Sadachbia`** | `gemini-3.8-flash-tts` | 0 | 30s male sample handler in `R13e` (distinct wing from Admin `crew_exec_2`). Overheard only. |
 
 Free-tier quota note: `gemini-2.5-flash-preview-tts` and `gemini-3.1-flash-tts-preview` each allow **10 requests a day** on this project's key (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`, `limit: 10`, measured 2026-11-21); `gemini-2.5-pro-preview-tts` allows none. Empty and safety-blocked responses still count. One request covers a batch of up to 13 lines.
 

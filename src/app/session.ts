@@ -54,7 +54,7 @@ import { Sparks } from '../render/fx/sparks.ts';
 import { WaterDisturbances, type SplashEvent, type StepKind } from '../world/waterDisturbances.ts';
 import type { LightBudget, World } from '../world/world.ts';
 import type { DemoRoomAudio } from '../world/demoRoomAudio.ts';
-import { AMBIENCE_PRESETS, AmbienceDirector } from '../audio/ambience.ts';
+import { AMBIENCE_PRESETS, AmbienceDirector, type StationPhase } from '../audio/ambience.ts';
 import { DoorAudio } from '../audio/doorAudio.ts';
 import type { AudioEngine } from '../audio/engine.ts';
 import { CasingAudio, ejectOnWeaponEvents } from '../audio/casings.ts';
@@ -130,11 +130,15 @@ import type { ScriptSpeechOptions } from '../script/host.ts';
 import { WebAudioVoicePlayer } from '../dialogue/voicePlayer.ts';
 import { StoryDucker } from '../audio/storyDuck.ts';
 import { OverheardDirector } from '../ai/overheard.ts';
+import { AmbientPaDirector } from '../ai/ambientPa.ts';
 import { ConversationMurmur } from '../audio/murmur.ts';
 import { COMMONS_OPEN_FLAG, CommonsSounds } from '../audio/commonsSounds.ts';
+import { RoomFoleyDirector } from '../audio/roomFoley.ts';
 import { COOK_BREW_TUNING, CookBrew } from '../ai/cookBrew.ts';
 import overheardJson from '../data/overheard.json';
+import roomFoleyJson from '../data/roomFoley.json';
 import { validateOverheard } from '../data/types/overheard.ts';
+import { validateRoomFoley } from '../data/types/roomFoley.ts';
 import { Subtitles } from '../ui/hud/subtitles.ts';
 import type { LoadingScreen } from '../ui/loadingScreen.ts';
 import { DEFAULT_LEVEL, type AutoLoadPlan, type LaunchPlan } from './launch.ts';
@@ -297,8 +301,10 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
   let score: ScorePlayer | null = null;
   let speech: SpeechManager | null = null;
   let overheard: OverheardDirector | null = null;
+  let ambientPa: AmbientPaDirector | null = null;
   let murmur: ConversationMurmur | null = null;
   let commonsSounds: CommonsSounds | null = null;
+  let roomFoley: RoomFoleyDirector | null = null;
   let cookBrew: CookBrew | null = null;
   let sequences: SequenceManager | null = null;
   let cutscene: CutsceneController | null = null;
@@ -339,10 +345,13 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     speech?.stopAll();
     speech = null;
     overheard = null;
+    ambientPa = null;
     murmur?.dispose();
     murmur = null;
     commonsSounds?.reset();
     commonsSounds = null;
+    roomFoley?.dispose();
+    roomFoley = null;
     cookBrew?.reset();
     cookBrew = null;
     if (score && !shell.releaseActiveScore(score)) score.stopAll();
@@ -1148,6 +1157,15 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
 
     const voiceFrom = new THREE.Vector3();
     const hearing = (line: DialogueLine, at: SayOptions['at']): Hearing => {
+      if (line.channel === 'pa') {
+        if (line.priority !== 'background' || !at || !level) return 'everywhere';
+        const p = at();
+        if (!p) return 'everywhere';
+        voiceFrom.set(p.x, p.y, p.z);
+        const a = voiceAudibility(level.voicePath(voiceFrom, camera.position));
+        const distance = voiceFrom.distanceTo(camera.position);
+        return { gain: a.gain, cutoffHz: a.cutoffHz, distance, audible: a.level >= EARSHOT_LEVEL };
+      }
       if (line.channel !== 'local' || !at || !level) return 'everywhere';
       const p = at();
       if (!p) return 'everywhere';
@@ -1259,10 +1277,15 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     const commonsTalk = (): boolean => speech!.speaking() !== null || overheard!.current !== null;
     /** The intro is over, so the Commons is Jay's to walk round. */
     const commonsOpen = (): boolean => !!game.flags[COMMONS_OPEN_FLAG];
+    const currentStationPhase = (): StationPhase =>
+      game.flags['station_power'] === 'backup' ? 'blackout' : game.flags['drop_started'] ? 'lockdown' : 'morning';
 
-    // The voiced Commons pairs (in-world-audio: Overheard exchanges in the Commons).
+    // The voiced station pairs/groups and solo ambient speakers (in-world-audio: Multi-room overheard).
     const overheardData = validate(validateOverheard, overheardJson, 'data/overheard.json');
-    npcs!.keepInPlace(overheardData.exchanges.map((x) => x.chat), () => !game.flags['drop_started']);
+    npcs!.keepInPlace(
+      overheardData.exchanges.map((x) => x.chat).filter((c): c is string => c !== undefined),
+      () => !game.flags['drop_started'],
+    );
     overheard = new OverheardDirector(overheardData, {
       say: (id, channel) => void say(id, { channel }),
       stop: (id) => speech!.stop(id),
@@ -1277,15 +1300,50 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         const g = npcs!.chatGroup(chat);
         return g ? { distance: g.position.distanceTo(camera.position), free: g.free } : null;
       },
+      solo: (npcId) => {
+        const s = npcs!.soloSpeaker(npcId);
+        return s ? { distance: s.position.distanceTo(camera.position), free: s.free } : null;
+      },
       suspend: (chat, on) => npcs!.suspendChat(chat, on),
     });
     events.on('speech:ended', (e) => overheard?.lineOver(e.id, e.reason));
     events.on('speech:dropped', (e) => overheard?.lineOver(e.id, 'dropped'));
     events.on('game:restarted', () => overheard!.reset());
+
+    // Periodic ambient Station PA announcements (in-world-audio & dialogue-channels specs).
+    const allPaLines = dialogue.allLines().filter((l) => l.channel === 'pa' && l.priority === 'background');
+    ambientPa = new AmbientPaDirector(
+      {
+        morning: allPaLines.filter((l) => l.id.startsWith('amb_pa_morning_')).map((l) => l.id),
+        dark: allPaLines.filter((l) => l.id.startsWith('amb_pa_dark_')).map((l) => l.id),
+      },
+      {
+        say: (id, channel) => void say(id, { channel }),
+        stop: (id) => speech!.stop(id),
+        ready: (id) => voicePlayer!.hasRecorded(dialogue.line(id)),
+        phase: currentStationPhase,
+        introOver: commonsOpen,
+        freeControl,
+        inCombat: () => guidance?.barks.inCombat ?? false,
+        playerRoom: () => level?.roomAt(camera.position)?.data.id ?? null,
+        sceneRunning: (room) => sequences?.runningIn(room) ?? false,
+        higherSpeech: () => speech!.speaking() !== null,
+        overheardRunning: () => overheard!.current !== null,
+        grilleDistance: () => {
+          const g = level?.paSpeakerAt(camera.position);
+          return g ? g.distanceTo(camera.position) : null;
+        },
+      },
+    );
+    events.on('speech:ended', (e) => ambientPa?.lineOver(e.id));
+    events.on('speech:dropped', (e) => ambientPa?.lineOver(e.id));
+    events.on('game:restarted', () => ambientPa?.reset());
+    events.on('level:reset', () => ambientPa?.reset());
     // The other Commons conversations, and the pairs between exchanges (in-world-audio: Conversation murmur).
     murmur = new ConversationMurmur(audio, (at) => (level ? voiceAudibility(level.voicePath(at, camera.position)).gain : 1));
     // The room itself (in-world-audio: Chairs scrape, Cups and cutlery, Kitchen sounds, Bram makes a brew).
     commonsSounds = new CommonsSounds(audio, { room: overheardData.room, counter: level?.anchor('counter')?.pos ?? null });
+    roomFoley = new RoomFoleyDirector(audio, validate(validateRoomFoley, roomFoleyJson, 'data/roomFoley.json'));
     npcs!.watchSpots((_, spot) => commonsSounds?.chair(spot));
     const cookStand = level?.anchor('cook_stand');
     const cookCoffee = level?.anchor('cook_coffee');
@@ -1309,6 +1367,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     }
     events.on('game:restarted', () => {
       commonsSounds?.reset();
+      roomFoley?.reset();
       cookBrew?.reset();
     });
     // A new game or a title load puts the level back without a death restart.
@@ -1316,6 +1375,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       overheard?.reset();
       murmur?.reset();
       commonsSounds?.reset();
+      roomFoley?.reset();
       cookBrew?.reset();
     });
 
@@ -1332,7 +1392,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       model: mapModel,
       mapState,
       objectives: validate(objectivesValidator(new Set(dialogue.allLines().map((l) => l.id))), objectivesJson, 'data/objectives.json'),
-      barkLines: dialogue.allLines().filter((l) => l.id.startsWith('bark_') || l.id.startsWith('hint_')),
+      barkLines: dialogue.allLines().filter((l) => l.id.startsWith('bark_') || l.id.startsWith('hint_') || l.id.startsWith('room_comm_')),
+      sceneRunning: (room) => sequences?.runningIn(room) ?? false,
       speech: { speaking: () => speech!.speaking(), say },
       speakerAt: (sp) => {
         if (sp === 'engineer' || sp === 'medic') {
@@ -1385,6 +1446,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       ambience?.setMode(mode);
       propAudio?.setMode(mode);
       murmur?.setMode(mode);
+      roomFoley?.setMode(mode);
       if (mode === 'title') {
         commonsSounds?.reset();
         cookBrew?.reset();
@@ -1613,14 +1675,22 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     });
 
     let ambienceRoom: string | null = null;
+    const syncAmbiencePhase = (fadeSeconds?: number): void => {
+      ambience?.setPhase(currentStationPhase(), fadeSeconds);
+      ambience?.setPowerRestored(!!game.flags['r11_powered'], fadeSeconds);
+    };
     events.on('room:entered', (r) => {
       ambienceRoom = r.id;
+      syncAmbiencePhase(0);
       audio.setRoomReverb(r.reverb);
       ambience?.enterRoom(r.ambience, level?.roomLights(r.id) ?? []);
     });
     events.on('power:changed', () => {
+      syncAmbiencePhase();
       if (ambienceRoom) ambience?.rebindLights(level?.roomLights(ambienceRoom) ?? []);
     });
+    events.on('level:reset', () => syncAmbiencePhase(0));
+    events.on('game:restarted', () => syncAmbiencePhase(0));
 
     if (waterFx) {
       events.on('camera:shake', ({ amount }) => waterFx.shake(amount));
@@ -2053,8 +2123,10 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
           npcs!.update(dt, camera.position, cameraForwardXZ(camera, npcCamFwd), cameraFeeds?.liveCameras());
           // After the director: it moves and animates held mates, and hides the ones out of range.
           squad!.syncWeaponLights();
+          syncAmbiencePhase();
           overheard!.update(dt);
-          murmur!.update(npcs!.conversations(overheardData.room), overheard!.speakingChat, !!game.flags['drop_started']);
+          ambientPa?.update(dt);
+          murmur!.update(npcs!.conversations(), overheard!.speakingChat, !!game.flags['drop_started']);
           cookBrew?.update(dt);
           commonsSounds!.update(dt, {
             listener: camera.position,
@@ -2064,6 +2136,12 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
             introOver: commonsOpen(),
             cookAtStation: cookBrew?.atStation() ?? false,
             sceneRunning: sequences?.runningIn(overheardData.room) ?? false,
+          });
+          roomFoley!.update(dt, {
+            listener: camera.position,
+            phase: currentStationPhase(),
+            talking: commonsTalk(),
+            introOver: commonsOpen(),
           });
           gore!.update(dt);
           guidance!.update(dt);

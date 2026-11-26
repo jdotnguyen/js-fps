@@ -70,6 +70,8 @@ export interface GuidanceDeps {
   mode: () => string;
   /** On rails, cutscene, or a tutorial pop-up open: no map, hints or barks. */
   busy: () => boolean;
+  /** True when a scripted scene belonging to `room` is currently running. */
+  sceneRunning?: (room: string) => boolean;
   /** On rails (letterbox bars): hide the compass, objective list, and world markers. */
   onRails?: () => boolean;
   openMap: () => void;
@@ -130,7 +132,7 @@ export class Guidance {
     const speaking = (): { priority: string } | null => speech?.speaking() ?? null;
     const say = (id: string, speaker?: string): void => {
       if (!speech) return;
-      const at = speaker && d.speakerAt ? (): { x: number; y: number; z: number } => d.speakerAt!(speaker) ?? d.player.feet() : undefined;
+      const at = speaker && speaker !== 'player' && d.speakerAt ? (): { x: number; y: number; z: number } => d.speakerAt!(speaker) ?? d.player.feet() : undefined;
       // Barks and hints share one channel of their own, so they never wait on a scene the player cannot hear (dialogue-channels).
       speech.say(id, at ? { at, channel: 'ambient' } : { channel: 'ambient' });
     };
@@ -140,6 +142,16 @@ export class Guidance {
       speech: { speaking, say: (id, sp) => say(id, sp) },
       blocked: () => d.mode() !== 'playing' || d.busy(),
       idleAfter: 75,
+      phase: () => (d.flags()['drop_started'] ? 'post_drop' : 'morning'),
+      playerRoom: () => {
+        if (!d.level) return null;
+        const f = d.player.feet();
+        this.tmpPos.set(f.x, f.y + 1, f.z);
+        return d.level.roomAt(this.tmpPos)?.data.id ?? null;
+      },
+      ...(d.sceneRunning ? { sceneRunning: d.sceneRunning } : {}),
+      flag: (name) => !!d.flags()[name],
+      setFlag: (name) => void (d.flags()[name] = true),
     });
     const lineSpeaker = new Map(d.barkLines.map((l) => [l.id, l.speaker]));
     this.hints = new HintDirector({

@@ -1,6 +1,9 @@
-import { arr, obj, oneOf, str, type Infer, type Validator, ValidationError } from '../../core/validate.ts';
+import { arr, obj, oneOf, optional, str, type Infer, type Validator, ValidationError } from '../../core/validate.ts';
 
-/** data/overheard.json: the voiced exchanges the player can overhear (in-world-audio spec). Lines are dialogue data. */
+/**
+ * data/overheard.json: voiced background exchanges and solo ambient work snippets across populated
+ * quiet-half rooms (in-world-audio spec). Lines are dialogue data.
+ */
 
 export const OVERHEARD_PHASES = ['before', 'after'] as const;
 export type OverheardPhase = (typeof OVERHEARD_PHASES)[number];
@@ -8,17 +11,25 @@ export type OverheardPhase = (typeof OVERHEARD_PHASES)[number];
 const exchangeShape = {
   /** Also names the "already heard" game flag, `heard_<id>`. */
   id: str,
-  /** The level `chat` group that speaks it; its members stay at their places until the drop. */
-  chat: str,
-  /** Before or after the morning briefing. Exchanges of one group and phase play in the order listed. */
-  phase: oneOf(OVERHEARD_PHASES),
+  /** Room id where this exchange or snippet plays; falls back to top-level `room` when omitted. */
+  room: optional(str),
+  /** Level `chat` group (2+ NPCs) that speaks it; mutually exclusive with `speaker`. */
+  chat: optional(str),
+  /** Single NPC id for a solo ambient work snippet; mutually exclusive with `chat`. */
+  speaker: optional(str),
+  /** Legacy Commons phase (`before` or `after` morning briefing); optional when `requires`/`unless` are set. */
+  phase: optional(oneOf(OVERHEARD_PHASES)),
+  /** Game flags that must all be true before this item may start. */
+  requires: optional(arr(str)),
+  /** Game flags that must all be false for this item to start. */
+  unless: optional(arr(str)),
   /** Dialogue line ids, spoken in order. */
   lines: arr(str),
 };
 export type OverheardExchange = Infer<typeof exchangeShape>;
 
 const shape = {
-  /** The room the exchanges and the conversation murmur belong to. */
+  /** Default room (Commons `R02`) for exchanges that omit `room` and for Commons-scoped helpers. */
   room: str,
   exchanges: arr(obj(exchangeShape)),
 };
@@ -34,6 +45,11 @@ export const validateOverheard: Validator<OverheardData> = (v, p) => {
     if (seen.has(x.id)) throw new ValidationError(`${at} > id`, `duplicate exchange id "${x.id}"`);
     seen.add(x.id);
     if (x.lines.length === 0) throw new ValidationError(`${at} > lines`, 'an exchange needs at least one line');
+    const hasChat = x.chat !== undefined;
+    const hasSpeaker = x.speaker !== undefined;
+    if (hasChat === hasSpeaker) {
+      throw new ValidationError(at, 'an exchange must specify exactly one of "chat" or "speaker"');
+    }
   });
   return data;
 };

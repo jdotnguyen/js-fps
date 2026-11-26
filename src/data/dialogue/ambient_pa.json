@@ -1,0 +1,38 @@
+{
+  "chapter": "ambient_pa",
+  "lines": [
+    { "id": "amb_pa_morning_01", "speaker": "pa", "text": "Reminder: Supply sub Halcyon completes cargo transfer at fourteen hundred hours. Please keep Docking Ring lanes clear.",
+      "emote": "neutral", "direction": "smooth, overly polite automated TAG corporate PA", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_morning_01.mp3", "minDuration": 4.0, "choices": [] },
+    { "id": "amb_pa_morning_02", "speaker": "pa", "text": "Routine hydrostatic ballast cycle in Sector Three will begin in ten minutes. Minor hull vibration is normal.",
+      "emote": "neutral", "direction": "calm, detached facility announcement", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_morning_02.mp3", "minDuration": 3.8, "choices": [] },
+    { "id": "amb_pa_morning_03", "speaker": "pa", "text": "TAG Industries reminds all personnel to stay hydrated. Recycled water stations are available in every wing.",
+      "emote": "neutral", "direction": "warm corporate wellness reminder, faintly impersonal", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_morning_03.mp3", "minDuration": 3.6, "choices": [] },
+    { "id": "amb_pa_morning_04", "speaker": "pa", "text": "Galley notice: Hot lunch service begins at eleven thirty in the Commons. Today's menu features protein stew.",
+      "emote": "neutral", "direction": "pleasant, rehearsed automated cafeteria announcement", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_morning_04.mp3", "minDuration": 3.8, "choices": [] },
+    { "id": "amb_pa_morning_05", "speaker": "pa", "text": "Attention: East Corridor environmental maintenance remains underway. Please route laboratory deliveries through Admin.",
+      "emote": "neutral", "direction": "smooth corporate euphemism, calm and unhurried", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_morning_05.mp3", "minDuration": 3.8, "choices": [] },
+    { "id": "amb_pa_morning_06", "speaker": "pa", "text": "Hydroponics advises that fresh greens from Grow Hall batch twelve will be available in the Commons this evening.",
+      "emote": "neutral", "direction": "bright corporate bulletin, polite", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_morning_06.mp3", "minDuration": 3.8, "choices": [] },
+    { "id": "amb_pa_morning_07", "speaker": "pa", "text": "Security reminder: Please wear your clearance badge visibly at all times. Unbadged personnel will be delayed at checkpoints.",
+      "emote": "neutral", "direction": "firm yet polite automated security policy", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_morning_07.mp3", "minDuration": 4.0, "choices": [] },
+    { "id": "amb_pa_morning_08", "speaker": "pa", "text": "Dive Bay notice: All wet-deck equipment must be logged before launch trunk cycling. Thank you for your cooperation.",
+      "emote": "neutral", "direction": "measured operational reminder", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_morning_08.mp3", "minDuration": 3.8, "choices": [] },
+    { "id": "amb_pa_morning_09", "speaker": "pa", "text": "TAG Industries appreciates your service beneath the surface. Safety is our shared commitment.",
+      "emote": "neutral", "direction": "polished retro-corporate slogan", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_morning_09.mp3", "minDuration": 3.2, "choices": [] },
+
+    { "id": "amb_pa_dark_01", "speaker": "pa", "text": "Automated notice. Sector Four biological containment seal remains active. Do not attempt manual override.",
+      "emote": "neutral", "direction": "eerily calm automated emergency loop", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_dark_01.mp3", "minDuration": 3.8, "choices": [] },
+    { "id": "amb_pa_dark_02", "speaker": "pa", "text": "Warning. Main electrical bus voltage below operational threshold. Non-essential life support is on reserve.",
+      "emote": "neutral", "direction": "flat, detached automated power fault", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_dark_02.mp3", "minDuration": 3.8, "choices": [] },
+    { "id": "amb_pa_dark_03", "speaker": "pa", "text": "Attention all personnel. Please remain at your assigned muster station until clearance is confirmed.",
+      "emote": "neutral", "direction": "calm polite emergency protocol spoken into an empty station", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_dark_03.mp3", "minDuration": 3.6, "choices": [] },
+    { "id": "amb_pa_dark_04", "speaker": "pa", "text": "Automated alert. Ventilation filtration bypass detected in East Wing ducts. Maintenance has been notified.",
+      "emote": "neutral", "direction": "smoothly oblivious automated diagnostic", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_dark_04.mp3", "minDuration": 3.8, "choices": [] },
+    { "id": "amb_pa_dark_05", "speaker": "pa", "text": "Notice. Surface communications uplink is currently unavailable. Messages will queue for next scheduled burst.",
+      "emote": "neutral", "direction": "calm, isolating automated comms status", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_dark_05.mp3", "minDuration": 3.8, "choices": [] },
+    { "id": "amb_pa_dark_06", "speaker": "pa", "text": "Transit advisory. Primary rail traction power is offline. Emergency shuttle boarding is suspended.",
+      "emote": "neutral", "direction": "detached automated transit outage notice", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_dark_06.mp3", "minDuration": 3.6, "choices": [] },
+    { "id": "amb_pa_dark_07", "speaker": "pa", "text": "Automated status. External hull integrity nominal. Internal security lockdown remains in effect.",
+      "emote": "neutral", "direction": "coldly reassuring automated station report", "channel": "pa", "priority": "background", "audio": "assets/vo/amb_pa_dark_07.mp3", "minDuration": 3.6, "choices": [] }
+  ]
+}

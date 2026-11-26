@@ -3,39 +3,142 @@
   "exchanges": [
     {
       "id": "overheard_bar_before",
+      "room": "R02",
       "chat": "commons_bar",
       "phase": "before",
       "lines": ["overheard_bar_before_01", "overheard_bar_before_02", "overheard_bar_before_03", "overheard_bar_before_04"]
     },
     {
       "id": "overheard_wall_before",
+      "room": "R02",
       "chat": "commons_wall",
       "phase": "before",
       "lines": ["overheard_wall_before_01", "overheard_wall_before_02", "overheard_wall_before_03", "overheard_wall_before_04"]
     },
     {
       "id": "overheard_bar_after_1",
+      "room": "R02",
       "chat": "commons_bar",
       "phase": "after",
       "lines": ["overheard_bar_after_1_01", "overheard_bar_after_1_02", "overheard_bar_after_1_03", "overheard_bar_after_1_04"]
     },
     {
       "id": "overheard_bar_after_2",
+      "room": "R02",
       "chat": "commons_bar",
       "phase": "after",
       "lines": ["overheard_bar_after_2_01", "overheard_bar_after_2_02", "overheard_bar_after_2_03", "overheard_bar_after_2_04"]
     },
     {
       "id": "overheard_wall_after_1",
+      "room": "R02",
       "chat": "commons_wall",
       "phase": "after",
       "lines": ["overheard_wall_after_1_01", "overheard_wall_after_1_02", "overheard_wall_after_1_03", "overheard_wall_after_1_04"]
     },
     {
       "id": "overheard_wall_after_2",
+      "room": "R02",
       "chat": "commons_wall",
       "phase": "after",
       "lines": ["overheard_wall_after_2_01", "overheard_wall_after_2_02", "overheard_wall_after_2_03", "overheard_wall_after_2_04"]
+    },
+    {
+      "id": "overheard_admin_hall_1",
+      "room": "R14b",
+      "chat": "admin_hall",
+      "requires": ["briefingSeen"],
+      "lines": ["overheard_admin_hall_1_01", "overheard_admin_hall_1_02", "overheard_admin_hall_1_03", "overheard_admin_hall_1_04"]
+    },
+    {
+      "id": "overheard_admin_hall_2",
+      "room": "R14b",
+      "chat": "admin_hall",
+      "requires": ["briefingSeen"],
+      "lines": ["overheard_admin_hall_2_01", "overheard_admin_hall_2_02", "overheard_admin_hall_2_03", "overheard_admin_hall_2_04"]
+    },
+    {
+      "id": "overheard_boardroom_1",
+      "room": "R14d",
+      "chat": "admin_boardroom",
+      "requires": ["briefingSeen"],
+      "lines": ["overheard_boardroom_1_01", "overheard_boardroom_1_02", "overheard_boardroom_1_03", "overheard_boardroom_1_04"]
+    },
+    {
+      "id": "overheard_boardroom_2",
+      "room": "R14d",
+      "chat": "admin_boardroom",
+      "requires": ["briefingSeen"],
+      "lines": ["overheard_boardroom_2_01", "overheard_boardroom_2_02", "overheard_boardroom_2_03", "overheard_boardroom_2_04"]
+    },
+    {
+      "id": "overheard_reception_1",
+      "room": "R14a",
+      "chat": "admin_reception",
+      "requires": ["briefingSeen"],
+      "lines": ["overheard_reception_1_01", "overheard_reception_1_02", "overheard_reception_1_03", "overheard_reception_1_04"]
+    },
+    {
+      "id": "overheard_hydro_grow_1",
+      "room": "R12b",
+      "chat": "hydro_grow",
+      "requires": ["briefingSeen"],
+      "lines": ["overheard_hydro_grow_1_01", "overheard_hydro_grow_1_02", "overheard_hydro_grow_1_03", "overheard_hydro_grow_1_04"]
+    },
+    {
+      "id": "overheard_hydro_grow_2",
+      "room": "R12b",
+      "chat": "hydro_grow",
+      "requires": ["briefingSeen"],
+      "lines": ["overheard_hydro_grow_2_01", "overheard_hydro_grow_2_02", "overheard_hydro_grow_2_03", "overheard_hydro_grow_2_04"]
+    },
+    {
+      "id": "overheard_dive_launch_1",
+      "room": "R13b",
+      "chat": "dive_launch",
+      "requires": ["briefingSeen"],
+      "lines": ["overheard_dive_launch_1_01", "overheard_dive_launch_1_02", "overheard_dive_launch_1_03", "overheard_dive_launch_1_04"]
+    },
+    {
+      "id": "overheard_dive_launch_2",
+      "room": "R13b",
+      "chat": "dive_launch",
+      "requires": ["briefingSeen"],
+      "lines": ["overheard_dive_launch_2_01", "overheard_dive_launch_2_02", "overheard_dive_launch_2_03", "overheard_dive_launch_2_04"]
+    },
+    {
+      "id": "overheard_exec2_call_1",
+      "room": "R14b",
+      "speaker": "exec_2",
+      "requires": ["briefingSeen"],
+      "lines": ["overheard_exec2_call_1_01", "overheard_exec2_call_1_02"]
+    },
+    {
+      "id": "overheard_exec4_call_1",
+      "room": "R14b",
+      "speaker": "exec_4",
+      "requires": ["briefingSeen"],
+      "lines": ["overheard_exec4_call_1_01", "overheard_exec4_call_1_02"]
+    },
+    {
+      "id": "overheard_botanist3_1",
+      "room": "R12c",
+      "speaker": "botanist_3",
+      "requires": ["briefingSeen"],
+      "lines": ["overheard_botanist3_1_01", "overheard_botanist3_1_02"]
+    },
+    {
+      "id": "overheard_diver2_1",
+      "room": "R13e",
+      "speaker": "diver_2",
+      "requires": ["briefingSeen"],
+      "lines": ["overheard_diver2_1_01", "overheard_diver2_1_02"]
+    },
+    {
+      "id": "overheard_dock_guard_1",
+      "room": "R01",
+      "speaker": "dock_guard",
+      "lines": ["overheard_dock_guard_1_01", "overheard_dock_guard_1_02"]
     }
   ]
 }

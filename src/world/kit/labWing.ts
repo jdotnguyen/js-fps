@@ -259,6 +259,7 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     pb.add(cylinderBetween(V(0.35, 0.6, 0.3), V(0.35, 0.6, 0.65), 0.05, 10), P.lagging());
     pb.add(cylinderBetween(V(0.35, 0.6, 0.65), V(0.35, 2.9, 0.65), 0.05, 10), P.lagging());
     pb.solidC(0, 1.35, 0, 1.2, 2.7, 1.2, 'metal');
+    pb.soundLoop({ sound: 'cultureBubble', pos: [0, 1.35, 0], gain: 0.24, maxDist: 9, reverb: 0.25 });
   },
 
   /** Class II biosafety cabinet, wall-backed: stand, work cavity behind a sloped sash, blower hood, status strip. */
@@ -286,6 +287,7 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     pb.add(rounded(0.05, 0.5, 0.06, 0.02), P.steel(), at(-0.32, 1.0, -0.9));
     pb.add(slab(0.18, 0.06, 0.01), lamp('freezer-readout', 0xff4a3a, 1.8), at(0.15, 1.8, -0.882));
     pb.solid(-0.425, 0, -0.85, 0.425, 1.95, 0, 'metal');
+    pb.soundLoop({ sound: 'freezerHum', pos: [0, 0.95, -0.45], gain: 0.26, maxDist: 9.5, reverb: 0.2 });
   },
 
   /** Two stacked CO2 incubators on a stand, wall-backed, with green 37.0 readouts. */
@@ -696,6 +698,9 @@ const GEN: Record<string, (p: PieceParams, rng: Rng, m: Materials, pb: PieceBuil
     }
     pb.add(slab(1.15, 0.01, 0.55, 1), P.trench(), at(0, y + 0.42, 0));
     for (const s of [-1, 1]) pb.add(cylinderBetween(V(s * (half - 0.4), y + 0.45, 0), V(s * (half - 0.4), y + 0.8, 0), 0.01, 6), P.darkSteel());
+    if (!boolParam(p, 'sealed', false)) {
+      pb.soundLoop({ sound: 'ductHiss', pos: [0, y, 0], gain: 0.3, maxDist: 14, reverb: 0.35, bus: 'ambience' });
+    }
   },
 };
 

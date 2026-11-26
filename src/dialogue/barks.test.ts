@@ -127,3 +127,50 @@ test('idle bark after a quiet stretch, never in combat', () => {
   for (let i = 0; i < 70; i++) s.sys.update(0.5);
   assert.match(s.said[1]![0], /^bark_idle_/);
 });
+
+test('phase-gated idle barks never play morning jokes post-drop and contextual room commentary plays once', () => {
+  const roomComm = JSON.parse(readFileSync(new URL('../data/dialogue/room_commentary.json', import.meta.url), 'utf8')) as { lines: BarkLine[] };
+  const b = bus();
+  const said: Array<[string, string]> = [];
+  const flags = new Set<string>(['briefingSeen']);
+  let phase: 'morning' | 'post_drop' = 'post_drop';
+  let room: string | null = 'R07a';
+  let scene = false;
+  const sys = new BarkSystem({
+    lines: [...lines, ...roomComm.lines],
+    bus: b,
+    speech: { speaking: () => null, say: (id, sp) => said.push([id, sp]) },
+    random: () => 0,
+    idleAfter: 20,
+    phase: () => phase,
+    playerRoom: () => room,
+    sceneRunning: () => scene,
+    flag: (n) => flags.has(n),
+    setFlag: (n) => void flags.add(n),
+  });
+
+  // While a scripted scene runs in R07a, room commentary waits.
+  scene = true;
+  for (let i = 0; i < 10; i++) sys.update(0.5);
+  assert.equal(said.length, 0);
+
+  // Scene ends: after 3 s dwell, one-time Armory remark plays from Okafor.
+  scene = false;
+  for (let i = 0; i < 8; i++) sys.update(0.5);
+  assert.deepEqual(said, [['room_comm_r07a_01', 'medic']]);
+  assert.ok(flags.has('heard_room_comm_r07a_01'));
+
+  // Re-entering R07a does not repeat the remark; quiet stretch plays only idle_dark post-drop.
+  room = 'R07';
+  sys.update(0.5);
+  room = 'R07a';
+  for (let i = 0; i < 50; i++) sys.update(0.5);
+  assert.equal(said.length, 2);
+  assert.match(said[1]![0], /^bark_idle_dark_/, 'post-drop uses dark idle pool, never morning jokes');
+
+  // Switching to morning in R14b triggers the morning Admin remark once.
+  phase = 'morning';
+  room = 'R14b';
+  for (let i = 0; i < 8; i++) sys.update(0.5);
+  assert.equal(said[2]![0], 'room_comm_r14_01');
+});

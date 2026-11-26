@@ -1,0 +1,21 @@
+{
+  "chapter": "room_commentary",
+  "lines": [
+    { "id": "room_comm_r01_01", "speaker": "engineer", "text": "Halcyon's still moored. Funny how small she looks when you're stuck down here.",
+      "emote": "neutral", "direction": "wry, glancing toward the docking bay window", "channel": "local", "priority": "idle", "audio": "assets/vo/room_comm_r01_01.mp3", "minDuration": 2.6, "choices": [] },
+    { "id": "room_comm_r12_01", "speaker": "medic", "text": "Best air on the whole station in here. Almost smells like rain.",
+      "emote": "relieved", "direction": "warm, quietly appreciative", "channel": "local", "priority": "idle", "audio": "assets/vo/room_comm_r12_01.mp3", "minDuration": 2.4, "choices": [] },
+    { "id": "room_comm_r13_01", "speaker": "engineer", "text": "Still gives me the creeps knowing four hundred metres of ocean is one hatch away.",
+      "emote": "neutral", "direction": "dry blue-collar humour hiding genuine unease", "channel": "local", "priority": "idle", "audio": "assets/vo/room_comm_r13_01.mp3", "minDuration": 2.8, "choices": [] },
+    { "id": "room_comm_r14_01", "speaker": "engineer", "text": "Real carpet and potted plants. Nice to see where our hazard pay went.",
+      "emote": "laugh", "direction": "dry sardonic amusement", "channel": "local", "priority": "idle", "audio": "assets/vo/room_comm_r14_01.mp3", "minDuration": 2.5, "choices": [] },
+    { "id": "room_comm_r06_01", "speaker": "engineer", "text": "Pressure door hall's torn up. Whatever came through that duct didn't use the latch.",
+      "emote": "dread", "direction": "low, rattled, keeping his voice down", "channel": "local", "priority": "idle", "audio": "assets/vo/room_comm_r06_01.mp3", "minDuration": 2.8, "choices": [] },
+    { "id": "room_comm_r07a_01", "speaker": "medic", "text": "Check the racks, Jay. Take every shell you can carry.",
+      "emote": "neutral", "direction": "calm, hushed urgency", "channel": "local", "priority": "idle", "audio": "assets/vo/room_comm_r07a_01.mp3", "minDuration": 2.2, "choices": [] },
+    { "id": "room_comm_r08b_01", "speaker": "player", "text": "Still cold in here. They cleared out in a hurry.",
+      "emote": "dread", "direction": "quiet, hushed observation under his breath", "channel": "local", "priority": "idle", "audio": "assets/vo/room_comm_r08b_01.mp3", "minDuration": 2.2, "choices": [] },
+    { "id": "room_comm_r16c_01", "speaker": "player", "text": "Dispatch desk is dead. Nobody's answering from topside.",
+      "emote": "dread", "direction": "quiet, sober realization", "channel": "local", "priority": "idle", "audio": "assets/vo/room_comm_r16c_01.mp3", "minDuration": 2.4, "choices": [] }
+  ]
+}

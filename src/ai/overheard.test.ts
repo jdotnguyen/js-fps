@@ -215,3 +215,75 @@ test('nothing starts once the drop has begun', () => {
   g.run(30);
   assert.deepEqual(g.said, []);
 });
+
+test('multi-room exchanges and solo work snippets obey per-room scoping, flag gates, and no-suspend for solo', () => {
+  const multi = validate(
+    validateOverheard,
+    {
+      room: 'R02',
+      exchanges: [
+        {
+          id: 'boardroom_1',
+          room: 'R14d',
+          chat: 'admin_boardroom',
+          requires: ['briefingSeen'],
+          lines: ['b_01', 'b_02'],
+        },
+        {
+          id: 'exec2_call',
+          room: 'R14b',
+          speaker: 'exec_2',
+          requires: ['briefingSeen'],
+          lines: ['e2_01'],
+        },
+      ],
+    },
+    'multi',
+  );
+  const flags = new Set(['introSeen', 'briefingSeen']);
+  let room = 'R14d';
+  const said: string[] = [];
+  const suspended = new Set<string>();
+  let playing: string | null = null;
+  const dir = new OverheardDirector(multi, {
+    say: (id) => {
+      said.push(id);
+      playing = id;
+    },
+    stop: () => {
+      playing = null;
+    },
+    ready: () => true,
+    flag: (n) => flags.has(n),
+    setFlag: (n) => void flags.add(n),
+    playerRoom: () => room,
+    freeControl: () => true,
+    sceneRunning: () => false,
+    higherSpeech: () => false,
+    pair: (chat) => (chat === 'admin_boardroom' ? { distance: 3, free: true } : null),
+    solo: (id) => (id === 'exec_2' ? { distance: 2.5, free: true } : null),
+    suspend: (chat, on) => void (on ? suspended.add(chat) : suspended.delete(chat)),
+  });
+
+  // In R14d: boardroom group speaks and is suspended for filler turns.
+  dir.update(0.1);
+  assert.equal(dir.current, 'boardroom_1');
+  assert.equal(dir.speakingChat, 'admin_boardroom');
+  assert.ok(suspended.has('admin_boardroom'));
+  dir.lineOver(playing!, 'finished');
+  dir.update(1.0);
+  assert.deepEqual(said, ['b_01', 'b_02']);
+  dir.lineOver(playing!, 'finished');
+  assert.equal(dir.current, null);
+  assert.equal(suspended.size, 0);
+
+  // Move to R14b: solo snippet plays without suspending any chat group or setting speakingChat.
+  room = 'R14b';
+  dir.update(0.1);
+  assert.equal(dir.current, 'exec2_call');
+  assert.equal(dir.speakingChat, null);
+  assert.equal(suspended.size, 0);
+  assert.deepEqual(said, ['b_01', 'b_02', 'e2_01']);
+  dir.lineOver(playing!, 'finished');
+  assert.ok(flags.has(heardFlag('exec2_call')));
+});

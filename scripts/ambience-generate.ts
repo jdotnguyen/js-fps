@@ -1257,6 +1257,430 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     prompt:
       'indoor walla, a man and a woman talking in low voices across a quiet lounge, natural human speech rhythm heard as indistinct mumbling, words cannot be made out, no music, no tones, no hum',
   },
+
+  // ---- Living-station full pass: bespoke per-room stereo beds (living-station-audio) ----
+  {
+    id: 'dock_ring',
+    file: 'bed-dock-ring.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 18,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of a large pressurized underwater station docking bay hall with a moored supply submarine outside the hull, deep hollow steel chamber resonance, low ocean pressure against thick bulkheads, subtle steady airlock ventilation and distant gantry machinery hum, no music, no voices, constant steady bed',
+  },
+  {
+    id: 'dock_walk',
+    file: 'bed-dock-walk.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of a narrow pressurized steel connecting corridor beside an underwater docking bay, warm steady overhead air duct flow, faint muffled sub-bay hydraulic hum behind bulkhead walls, deep ocean pressure undertone, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'dock_airlock',
+    file: 'bed-dock-airlock.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone inside a tight sealed heavy steel submarine docking airlock chamber, pressurized air equalization whisper, faint rubber seal creak tension, deep muted abyssal water pressure outside the outer hatch, claustrophobic enclosed acoustics, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'obs_gallery',
+    file: 'bed-obs-gallery.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of a quiet retro-industrial underwater observation gallery overlooking a sealed research lab behind thick glass, soft overhead briefing-room air conditioning, gentle wall-screen and console cooling hum, very faint muffled laboratory air filtration through thick observation glass, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'security_office',
+    file: 'bed-security-office.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of a 1980s retro industrial station security office, steady low CRT monitor bank and console electronics hum, soft office air conditioning vent, faint muted rack cooling fan, dry enclosed room acoustics, no music, no voices, no beeps, constant steady loop',
+  },
+  {
+    id: 'armory',
+    file: 'bed-armory.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of a small sealed dry steel weapons armory vault inside an underwater station, hushed dead acoustic room air, very quiet locker climate dehumidifier hum, heavy quiet steel walls, tense stillness, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'surgery',
+    file: 'bed-surgery.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of a sterile ultra-quiet surgical operating room inside a deep-sea facility, crisp cleanroom positive-pressure air filtration whisper, subtle steady medical equipment standby hum, cold clinical tiled stillness, no music, no voices, no loud beeps, constant steady loop',
+  },
+  {
+    id: 'power_bay',
+    file: 'bed-power-bay.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 18,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient soundscape of a vast deep-sea industrial power generator and switchgear hall, deep heavy 60Hz electrical transformer hum, massive subterranean turbine bay low-frequency resonance, subtle high-voltage switchgear vibration, cavernous steel acoustics, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'wet_vestibule',
+    file: 'bed-wet-vestibule.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of a damp industrial dive-bay changing vestibule and boot-wash room, subtle floor-drain trickle, steady dehumidifier ventilation airflow, faint muffled water resonance from the launch hall beyond the bulkhead, calm working acoustics, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'rov_workshop',
+    file: 'bed-rov-workshop.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of an underwater diving ROV maintenance workshop, steady heavy battery charger transformer hum, faint overhead exhaust ventilation, subtle pressurized air-line readiness whisper, metallic workshop acoustics, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'sample_store',
+    file: 'bed-sample-store.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of a chilled deep-sea core sample cold-storage room, steady cold-store refrigeration compressor hum and circulating freezer evaporator fan, crisp chilly enclosed metal locker acoustics, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'admin_reception',
+    file: 'bed-admin-reception.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of a quiet polished 1980s corporate reception lobby inside an underwater headquarters, smooth hushed central air conditioning, soft carpet and wood acoustic warmth, very faint distant office life murmur behind glass doors, no music, no intelligible speech, constant steady loop',
+  },
+  {
+    id: 'admin_open_office',
+    file: 'bed-admin-open-office.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 18,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of a quiet carpeted 1980s corporate open-plan office, warm central HVAC airflow, gentle hum of desktop computer terminals and fluorescent lighting, soft carpeted acoustics of a calm working floor, no music, no voices, no loud typing, constant steady loop',
+  },
+  {
+    id: 'directors_office',
+    file: 'bed-directors-office.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of a private hushed corporate executive office with heavy carpet and wood bookshelves inside an underwater facility, ultra-quiet dampened air conditioning whisper, subtle prestige isolation and stillness, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'admin_boardroom',
+    file: 'bed-admin-boardroom.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone of an enclosed glass-walled corporate boardroom with a large wood conference table, quiet balanced conference-room ventilation air, subtle wall-screen standby hum, intimate enclosed acoustics, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'security_booth',
+    file: 'bed-security-booth.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone inside a cramped corporate security CCTV monitoring booth, close steady CRT monitor flyback hum and video switcher cooling fan whirr, tight small-booth acoustics, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'transit_boarding',
+    file: 'bed-transit-boarding.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 18,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient soundscape of an empty subterranean deep-sea monorail boarding station under emergency power, hollow vaulted concrete and steel platform, eerie cold draft from the dark rail tunnel bore, low electrical traction bus transformer hum, dark sci-fi horror atmosphere, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'transit_tunnel',
+    file: 'bed-transit-tunnel.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 18,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient soundscape inside an abyssal undersea transit tunnel deep on the ocean floor, immense heavy low-frequency ocean current rumble and crushing hydrostatic water pressure outside thick glass and steel tunnel rings, dark claustrophobic horror tension, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'transit_dock',
+    file: 'bed-transit-dock.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 18,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient soundscape of an abandoned dark underwater rail arrival dock on auxiliary power, hollow metallic platform acoustics, faint cooling rail traction hiss, damp cold tunnel air draft, uneasy horror stillness, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'transit_concourse',
+    file: 'bed-transit-concourse.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 20,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless dark ambient soundscape of a massive cavernous abandoned underwater transit concourse hall, vast high steel truss echo, eerie slow cold air drafts through empty check-in booths, distant abyssal hull rumble, oppressive survival horror silence, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'transit_dispatch',
+    file: 'bed-transit-dispatch.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 16,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless ambient room tone inside an abandoned glass-fronted rail dispatch control booth, faint dead radio receiver static hiss, low emergency console fan hum, cramped eerie glass-enclosed stillness, no music, no voices, constant steady loop',
+  },
+  {
+    id: 'dead_station',
+    file: 'bed-dead-station.mp3',
+    category: 'bed',
+    loop: true,
+    duration: 18,
+    promptInfluence: 0.45,
+    prompt:
+      'seamless dark ambient room tone of an evacuated underwater research station after main power blackout, dead ventilation silence, cold still indoor air with very faint deep ocean pressure through steel hull walls, eerie empty survival horror dread, no music, no voices, no fans, constant steady loop',
+  },
+
+  // ---- Living-station positional emitters (mono loops) ----
+  {
+    id: 'freezerHum',
+    file: 'emitter-freezer-hum.mp3',
+    mono: true,
+    category: 'emitter',
+    loop: true,
+    duration: 10,
+    promptInfluence: 0.5,
+    prompt:
+      'close-up seamless loop of a laboratory ultra-low temperature freezer compressor humming steadily with soft cold fan airflow, realistic scientific refrigeration hum, no music, no voice',
+  },
+  {
+    id: 'cultureBubble',
+    file: 'emitter-culture-bubble.mp3',
+    mono: true,
+    category: 'emitter',
+    loop: true,
+    duration: 10,
+    promptInfluence: 0.5,
+    prompt:
+      'close-up seamless loop of a glass biological culture tank aerator gently bubbling underwater with a tiny soft circulation pump hum, clinical laboratory fluid sound, no music, no voice',
+  },
+  {
+    id: 'ductHiss',
+    file: 'emitter-duct-hiss.mp3',
+    mono: true,
+    category: 'emitter',
+    loop: true,
+    duration: 10,
+    promptInfluence: 0.5,
+    prompt:
+      'close-up seamless loop of pressurized air hissing steadily from a ruptured industrial steel ventilation duct flange, continuous escaping compressed air draft, no music, no voice',
+  },
+
+  // ---- Living-station room-life foley one-shots (mono) ----
+  {
+    id: 'officeType1',
+    file: 'oneshot-office-type-1.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 2.6,
+    promptInfluence: 0.55,
+    prompt:
+      'brief natural burst of typing on a vintage 1980s mechanical computer keyboard in a quiet carpeted office, a few unhurried keystrokes ending with a return key click, realistic foley, no music, no voice',
+  },
+  {
+    id: 'officeType2',
+    file: 'oneshot-office-type-2.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 2.2,
+    promptInfluence: 0.55,
+    prompt:
+      'short casual burst of retro tactile keyboard typing followed by a quick pause and two soft key taps in a quiet corporate office, realistic dry foley, no music, no voice',
+  },
+  {
+    id: 'officePhone1',
+    file: 'oneshot-office-phone-1.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 1.8,
+    promptInfluence: 0.55,
+    prompt:
+      'single soft muted 1980s corporate desk telephone electronic chirp chime, polite low-volume office intercom ring once, realistic indoor foley, no music, no voice',
+  },
+  {
+    id: 'officePhone2',
+    file: 'oneshot-office-phone-2.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 1.6,
+    promptInfluence: 0.55,
+    prompt:
+      'quiet two-pulse retro office desk phone alert chime heard across a carpeted room, understated corporate telephone tone, no music, no voice',
+  },
+  {
+    id: 'officePrinter',
+    file: 'oneshot-office-printer.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 3.2,
+    promptInfluence: 0.55,
+    prompt:
+      'short mechanical cycle of a vintage 1980s office printer or photocopier feeding a single paper sheet with soft roller whirr and quiet paper slide, realistic office foley, no music, no voice',
+  },
+  {
+    id: 'officeChair1',
+    file: 'oneshot-office-chair-1.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 1.4,
+    promptInfluence: 0.55,
+    prompt:
+      'subtle realistic squeak and creak of someone leaning back in an office swivel chair in a quiet corporate room, brief natural chair spring sound, no music, no voice',
+  },
+  {
+    id: 'officeChair2',
+    file: 'oneshot-office-chair-2.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 1.3,
+    promptInfluence: 0.55,
+    prompt:
+      'brief soft shift of a padded leather conference room chair creaking gently as someone adjusts posture, realistic indoor foley, no music, no voice',
+  },
+  {
+    id: 'paperRustle1',
+    file: 'oneshot-paper-rustle-1.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 1.5,
+    promptInfluence: 0.55,
+    prompt:
+      'crisp subtle sound of a person turning a page and shuffling a manila file folder on a wooden conference table, quiet office foley, no music, no voice',
+  },
+  {
+    id: 'paperRustle2',
+    file: 'oneshot-paper-rustle-2.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 1.4,
+    promptInfluence: 0.55,
+    prompt:
+      'soft tap of squaring a small stack of printed papers neatly on an office desk, quiet realistic indoor foley, no music, no voice',
+  },
+  {
+    id: 'relayClick1',
+    file: 'oneshot-relay-click-1.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 1.0,
+    promptInfluence: 0.55,
+    prompt:
+      'crisp mechanical click of an industrial electrical relay switch or CCTV monitor channel switcher snapping once inside a metal console, dry foley, no music, no voice',
+  },
+  {
+    id: 'relayClick2',
+    file: 'oneshot-relay-click-2.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 1.2,
+    promptInfluence: 0.55,
+    prompt:
+      'double electrical contactor relay click with a tiny faint static tick inside an aging retro security console or departure board, realistic foley, no music, no voice',
+  },
+  {
+    id: 'airlockHiss',
+    file: 'oneshot-airlock-hiss.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 2.4,
+    promptInfluence: 0.55,
+    prompt:
+      'brief pneumatic pressure equalization hiss from an underwater airlock valve or steel pressure manifold venting for two seconds then sealing shut with a soft clunk, realistic industrial foley, no music, no voice',
+  },
+  {
+    id: 'gantryCreak',
+    file: 'oneshot-gantry-creak.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 3.2,
+    promptInfluence: 0.5,
+    prompt:
+      'slow heavy overhead steel gantry crane or high vaulted truss beam settling and creaking subtly inside a cavernous industrial hall, realistic structural metal groan, no music, no voice',
+  },
+  {
+    id: 'railCreak',
+    file: 'oneshot-rail-creak.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 2.8,
+    promptInfluence: 0.5,
+    prompt:
+      'hollow metallic thermal contraction tick and distant steel rail groan echoing down an empty underground transit tunnel, eerie industrial foley, no music, no voice',
+  },
+  {
+    id: 'surgicalPulse',
+    file: 'oneshot-surgical-pulse.mp3',
+    mono: true,
+    category: 'oneshot',
+    loop: false,
+    duration: 2.2,
+    promptInfluence: 0.55,
+    prompt:
+      'very quiet soft pneumatic medical ventilator cycle breath hiss in an empty sterile hospital operating room, subtle clinical exhale sound, no music, no voice',
+  },
 ];
 
 function loadApiKey(): string {

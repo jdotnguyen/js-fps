@@ -120,8 +120,10 @@ export type Hearing = 'everywhere' | {
 
 /** Local subtitles show only within this many metres of the speaker (voice-playback: Subtitles follow the player's earshot). */
 export const SUBTITLE_RANGE_M = 20;
-/** The same for a `background` line: overheard talk is subtitled only when the player is close. */
+/** The same for a local `background` line: overheard talk is subtitled only when the player is close. */
 export const BACKGROUND_SUBTITLE_RANGE_M = 6;
+/** The same for a `background` PA line: ambient PA subtitles show only near the playing wall grille. */
+export const BACKGROUND_PA_SUBTITLE_RANGE_M = 12;
 
 interface Entry {
   line: DialogueLine;
@@ -430,7 +432,8 @@ export class SpeechManager {
     if (hearing !== 'everywhere') playback.setAudibility?.(hearing.gain, hearing.cutoffHz);
     const active: Active = {
       ...e, duration, playback, startedAt: this.now, endsAt: this.now + duration,
-      audible: audibleIn(hearing), shown: subtitleIn(hearing, e.line.priority),
+      audible: audibleIn(hearing, e.line.priority, e.line.channel),
+      shown: subtitleIn(hearing, e.line.priority, e.line.channel),
     };
     const info = this.info(active);
     this.bus.emit('speech:started', active.audible ? info : { ...info, audible: false });
@@ -442,12 +445,12 @@ export class SpeechManager {
   private refreshHearing(a: Active): void {
     const hearing = this.hearingOf(a);
     if (hearing !== 'everywhere') a.playback.setAudibility?.(hearing.gain, hearing.cutoffHz);
-    const audible = audibleIn(hearing);
+    const audible = audibleIn(hearing, a.line.priority, a.line.channel);
     if (audible !== a.audible) {
       a.audible = audible;
       this.bus.emit('speech:audible', { id: a.line.id, priority: a.line.priority, audible });
     }
-    const shown = subtitleIn(hearing, a.line.priority);
+    const shown = subtitleIn(hearing, a.line.priority, a.line.channel);
     if (shown === a.shown) return;
     a.shown = shown;
     if (shown) this.bus.emit('subtitle:show', { ...this.info(a), duration: Math.max(0, a.endsAt - this.now) });
@@ -499,7 +502,7 @@ export class SpeechManager {
   }
 
   private audibleNow(e: Entry): boolean {
-    return audibleIn(this.hearingOf(e));
+    return audibleIn(this.hearingOf(e), e.line.priority, e.line.channel);
   }
 
   private drop(e: Entry): void {
@@ -540,7 +543,10 @@ export class SpeechManager {
   }
 }
 
-const audibleIn = (h: Hearing): boolean => h === 'everywhere' || h.audible || h.relayed === true;
-const subtitleIn = (h: Hearing, priority: Priority): boolean =>
-  h === 'everywhere' || h.relayed === true || (h.audible && h.distance <= (priority === 'background' ? BACKGROUND_SUBTITLE_RANGE_M : SUBTITLE_RANGE_M));
+const subtitleRange = (channel: Channel, priority: Priority): number =>
+  priority !== 'background' ? SUBTITLE_RANGE_M : channel === 'pa' ? BACKGROUND_PA_SUBTITLE_RANGE_M : BACKGROUND_SUBTITLE_RANGE_M;
+const audibleIn = (h: Hearing, priority: Priority, channel: Channel): boolean =>
+  h === 'everywhere' || h.relayed === true || (h.audible && (channel !== 'pa' || priority !== 'background' || h.distance <= BACKGROUND_PA_SUBTITLE_RANGE_M));
+const subtitleIn = (h: Hearing, priority: Priority, channel: Channel): boolean =>
+  h === 'everywhere' || h.relayed === true || (h.audible && h.distance <= subtitleRange(channel, priority));
 const headRank = (lane: Lane): number => (lane.queue[0] ? priorityRank(lane.queue[0].line.priority) : -1);

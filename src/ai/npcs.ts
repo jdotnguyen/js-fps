@@ -646,17 +646,28 @@ export class NpcDirector {
     return { position, free: g.engaged.length === g.members.length && g.members.every((m) => m.available()) };
   }
 
+  /** Where a single NPC's head is and whether they are free to speak an ambient solo snippet. */
+  soloSpeaker(id: string): { position: THREE.Vector3; free: boolean } | null {
+    const a = this.actors.get(id);
+    if (!a) return null;
+    const position = a.head(new THREE.Vector3());
+    if (!position) return null;
+    const free = a.ambient && !a.busy && !a.offering && !a.givingWay && a.body.state === 'alive' && a.body.infection < 1 && a.body.group.visible;
+    return { position, free };
+  }
+
   /** Hold or release a chat group's filler turns while it speaks written lines. */
   suspendChat(chat: string, on: boolean): void {
     this.chats.get(chat)?.suspend(on);
   }
 
-  /** The conversations going on in a room now, level groups and ad hoc table groups alike: at least two taking part. */
-  conversations(room: string): Array<{ id: string; position: THREE.Vector3 }> {
+  /** The conversations going on right now (in `room`, or across the whole station when omitted): at least two taking part. */
+  conversations(room?: string): Array<{ id: string; position: THREE.Vector3 }> {
     const out: Array<{ id: string; position: THREE.Vector3 }> = [];
     const add = (id: string, g: ChatGroup): void => {
       const ids = g.engaged;
-      if (ids.length < 2 || this.levelSpawns.get(ids[0]!)?.room !== room) return;
+      if (ids.length < 2) return;
+      if (room !== undefined && this.levelSpawns.get(ids[0]!)?.room !== room) return;
       const position = this.headsCentre(ids);
       if (position) out.push({ id, position });
     };

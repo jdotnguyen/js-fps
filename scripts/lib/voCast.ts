@@ -171,6 +171,91 @@ export const CAST: Readonly<Record<string, CastMember>> = {
     model: 'gemini-3.8-flash-tts',
     profile: 'Station diver in the Launch Hall, shouting over rushing water and alarms; panicked, urgent.',
   },
+  // Multi-room overheard crew & solo ambient speakers (living-station-audio), recorded single-speaker on 3.8.
+  crew_exec_1: {
+    label: 'ExecMan',
+    voice: 'Zubenelgenubi',
+    model: 'gemini-3.8-flash-tts',
+    profile: '30s male TAG operations analyst in the Admin Open Office; low-key, cautious corporate gossip, speaking quietly to a coworker.',
+  },
+  crew_exec_3: {
+    label: 'ExecWoman',
+    voice: 'Callirrhoe',
+    model: 'gemini-3.8-flash-tts',
+    profile: '30s female TAG compliance coordinator in the Admin Open Office; dry, observant, lowered voice in an open office.',
+  },
+  crew_exec_2: {
+    label: 'DeskMan',
+    voice: 'Sadachbia',
+    model: 'gemini-3.8-flash-tts',
+    profile: '40s male TAG logistics manager speaking quietly into a desk telephone; polite, tired corporate routine.',
+  },
+  crew_exec_4: {
+    label: 'DeskWoman',
+    voice: 'Laomedeia',
+    model: 'gemini-3.8-flash-tts',
+    profile: '30s female TAG procurement clerk speaking quietly into a desk telephone; brisk, mildly exasperated.',
+  },
+  crew_board_1: {
+    label: 'BoardChair',
+    voice: 'Pulcherrima',
+    model: 'gemini-3.8-flash-tts',
+    profile: '40s female TAG senior VP chairing a closed boardroom meeting; crisp, polished, measured corporate authority.',
+  },
+  crew_board_2: {
+    label: 'BoardLegal',
+    voice: 'Achernar',
+    model: 'gemini-3.8-flash-tts',
+    profile: '40s female TAG legal and risk director in the boardroom; careful, clipped, wary of liability.',
+  },
+  crew_board_3: {
+    label: 'BoardScience',
+    voice: 'Fenrir',
+    model: 'gemini-3.8-flash-tts',
+    profile: '50s male TAG research liaison in the boardroom; gravelly, pragmatic, pushing back gently against corporate spin.',
+  },
+  crew_board_4: {
+    label: 'BoardOps',
+    voice: 'Schedar',
+    model: 'gemini-3.8-flash-tts',
+    profile: '40s male TAG operations controller in the boardroom; bottom-line focused, impatient about downtime.',
+  },
+  crew_admin_visitor: {
+    label: 'AdminVisitor',
+    voice: 'Umbriel',
+    model: 'gemini-3.8-flash-tts',
+    profile: '30s male station lab technician waiting in TAG Reception; mildly frustrated, trying to stay polite.',
+  },
+  crew_botanist_1: {
+    label: 'HydroManA',
+    voice: 'Algieba',
+    model: 'gemini-3.8-flash-tts',
+    profile: '30s male hydroponics botanist in the Grow Hall; practical, attentive to his plants, quietly puzzled.',
+  },
+  crew_botanist_2: {
+    label: 'HydroManB',
+    voice: 'Enceladus',
+    model: 'gemini-3.8-flash-tts',
+    profile: '40s male senior hydroponics technician in the Grow Hall; dry, observant, unimpressed by maintenance excuses.',
+  },
+  crew_botanist_3: {
+    label: 'SeedTech',
+    voice: 'Sadaltager',
+    model: 'gemini-3.8-flash-tts',
+    profile: '30s male seed-lab specialist muttering quietly to himself while checking trays in the Seed Lab; calm, absorbed.',
+  },
+  crew_diver_1: {
+    label: 'LaunchDiver',
+    voice: 'Zubenelgenubi',
+    model: 'gemini-3.8-flash-tts',
+    profile: '30s male deep-sea diver in the Launch Hall; grounded, plainspoken, slightly unsettled by the last dive.',
+  },
+  crew_diver_2: {
+    label: 'StoreDiver',
+    voice: 'Sadachbia',
+    model: 'gemini-3.8-flash-tts',
+    profile: '30s male dive-bay sample handler muttering quietly over cold-store manifests in Sample Store; methodical, dry.',
+  },
 };
 
 /** The cast entry for `speaker`. Throws before any request is made when the speaker has none. */

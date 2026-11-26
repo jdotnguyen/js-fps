@@ -36,6 +36,8 @@ export interface BedLayerSpec {
 
 export type OneShotPlacement = 'perimeter' | 'ceiling' | 'far' | 'near';
 
+export type StationPhase = 'morning' | 'lockdown' | 'blackout';
+
 export interface AmbienceOneShot {
   sound: SoundName;
   /** Optional fallback if `sound` is a sample-only name that has not loaded yet. */
@@ -47,6 +49,8 @@ export interface AmbienceOneShot {
   reverb?: number;
   muffled?: boolean;
   rateRange?: readonly [number, number];
+  /** Station phases in which this one-shot may fire; omitted means all phases. */
+  phases?: readonly StationPhase[];
 }
 
 export interface AmbiencePreset {
@@ -56,6 +60,12 @@ export interface AmbiencePreset {
   breathing: { depth: number; periodA: number; periodB: number };
   /** Room-appropriate spatialized environmental one-shots. */
   oneshots: readonly AmbienceOneShot[];
+  /** Optional preset to substitute under `lockdown` (e.g. evacuated crew spaces). */
+  lockdownPreset?: string;
+  /** Optional preset to substitute under `blackout` (main power failed). */
+  blackoutPreset?: string;
+  /** Optional gain multiplier when station power has been restored (`R11 Power Bay`). */
+  restoredGainScale?: number;
 }
 
 export const DEFAULT_AMBIENCE = 'hull_hum';
@@ -101,6 +111,8 @@ export const AMBIENCE_PRESETS = {
       { sound: 'creak', every: [24, 52], gain: 0.16, placement: 'ceiling', reverb: 0.35, rateRange: [0.92, 1.08] },
       { sound: 'metalKnock', every: [30, 64], gain: 0.22, placement: 'far', muffled: true, reverb: 0.55, rateRange: [0.85, 1.06] },
     ],
+    lockdownPreset: 'dead_station',
+    blackoutPreset: 'dead_station',
   },
   lab_hum: {
     beds: [
@@ -236,7 +248,7 @@ export const AMBIENCE_PRESETS = {
       { sound: 'drip', every: [2.2, 6.5], gain: 0.36, placement: 'perimeter', reverb: 0.65, rateRange: [0.86, 1.16] },
       { sound: 'hullGroan', every: [18, 38], gain: 0.48, placement: 'far', muffled: true, reverb: 0.7, rateRange: [0.85, 1.03] },
       { sound: 'pressurePing', every: [24, 52], gain: 0.24, placement: 'far', muffled: true, reverb: 0.85, rateRange: [0.94, 1.05] },
-      { sound: 'distantMoan', every: [55, 110], gain: 0.35, placement: 'far', muffled: true, reverb: 0.9, rateRange: [0.94, 1.04] },
+      { sound: 'distantMoan', every: [55, 110], gain: 0.35, placement: 'far', muffled: true, reverb: 0.9, rateRange: [0.94, 1.04], phases: ['lockdown', 'blackout'] },
     ],
   },
   // The Launch Hall (rebuild-dive-bay): hydraulic plant hum and water moving in the trunk, winch and
@@ -253,6 +265,258 @@ export const AMBIENCE_PRESETS = {
       { sound: 'metalKnock', every: [35, 70], gain: 0.22, placement: 'ceiling', reverb: 0.55, rateRange: [0.85, 1.0] },
       { sound: 'pressurePing', every: [26, 56], gain: 0.22, placement: 'far', muffled: true, reverb: 0.85, rateRange: [0.94, 1.05] },
       { sound: 'hullGroan', every: [40, 80], gain: 0.32, placement: 'far', muffled: true, reverb: 0.7, rateRange: [0.88, 1.02] },
+    ],
+  },
+  // ---- Living-station full-pass bespoke room presets (living-station-audio) ----
+  dock_ring: {
+    beds: [
+      { sample: 'ambDockRing', fallback: 'roomTone', gain: 0.54 },
+      { sample: 'waterRumble', fallback: 'waterRumble', gain: 0.16, rate: 0.92, cutoff: 320 },
+    ],
+    breathing: { depth: 0.08, periodA: 21, periodB: 35 },
+    oneshots: [
+      { sound: 'gantryCreak', fallback: 'creak', every: [18, 42], gain: 0.26, placement: 'ceiling', reverb: 0.55, rateRange: [0.92, 1.06] },
+      { sound: 'hullGroan', every: [26, 54], gain: 0.36, placement: 'far', muffled: true, reverb: 0.6, rateRange: [0.88, 1.04] },
+      { sound: 'pressurePing', every: [36, 74], gain: 0.16, placement: 'far', muffled: true, reverb: 0.8, rateRange: [0.95, 1.04] },
+    ],
+    blackoutPreset: 'dead_station',
+  },
+  dock_walk: {
+    beds: [
+      { sample: 'ambDockWalk', fallback: 'roomTone', gain: 0.5 },
+      { sample: 'waterRumble', fallback: 'waterRumble', gain: 0.14, rate: 0.95, cutoff: 300 },
+    ],
+    breathing: { depth: 0.07, periodA: 19, periodB: 31 },
+    oneshots: [
+      { sound: 'creak', every: [20, 46], gain: 0.2, placement: 'ceiling', reverb: 0.4, rateRange: [0.9, 1.08] },
+      { sound: 'metalKnock', every: [26, 56], gain: 0.28, placement: 'far', muffled: true, reverb: 0.6, rateRange: [0.85, 1.06] },
+    ],
+  },
+  dock_airlock: {
+    beds: [
+      { sample: 'ambDockAirlock', fallback: 'roomTone', gain: 0.52 },
+      { sample: 'waterRumble', fallback: 'waterRumble', gain: 0.2, rate: 0.88, cutoff: 280 },
+    ],
+    breathing: { depth: 0.06, periodA: 16, periodB: 27 },
+    oneshots: [
+      { sound: 'airlockHiss', fallback: 'creak', every: [16, 36], gain: 0.24, placement: 'perimeter', reverb: 0.35, rateRange: [0.94, 1.06] },
+      { sound: 'hullGroan', every: [24, 52], gain: 0.32, placement: 'far', muffled: true, reverb: 0.55, rateRange: [0.88, 1.04] },
+    ],
+  },
+  obs_gallery: {
+    beds: [
+      { sample: 'ambObsGallery', fallback: 'roomTone', gain: 0.48 },
+      { sample: 'consoleHum', fallback: 'consoleHum', gain: 0.09, rate: 0.98, cutoff: 1300 },
+    ],
+    breathing: { depth: 0.06, periodA: 23, periodB: 37 },
+    oneshots: [
+      { sound: 'creak', every: [24, 54], gain: 0.16, placement: 'ceiling', reverb: 0.4, rateRange: [0.92, 1.08] },
+      { sound: 'consoleBeep', every: [22, 48], gain: 0.12, placement: 'perimeter', reverb: 0.25, rateRange: [0.97, 1.03], phases: ['morning'] },
+      { sound: 'hullGroan', every: [28, 60], gain: 0.34, placement: 'far', muffled: true, reverb: 0.55, rateRange: [0.88, 1.04] },
+    ],
+    blackoutPreset: 'dead_station',
+  },
+  security_office: {
+    beds: [
+      { sample: 'ambSecurityOffice', fallback: 'roomTone', gain: 0.5 },
+      { sample: 'consoleHum', fallback: 'consoleHum', gain: 0.13, rate: 0.96, cutoff: 1500 },
+    ],
+    breathing: { depth: 0.06, periodA: 22, periodB: 35 },
+    oneshots: [
+      { sound: 'relayClick', fallback: 'consoleBeep', every: [12, 28], gain: 0.18, placement: 'near', reverb: 0.2, rateRange: [0.94, 1.06] },
+      { sound: 'creak', every: [24, 52], gain: 0.14, placement: 'ceiling', reverb: 0.25, rateRange: [0.92, 1.08] },
+    ],
+  },
+  armory: {
+    beds: [
+      { sample: 'ambArmory', fallback: 'roomTone', gain: 0.42 },
+    ],
+    breathing: { depth: 0.05, periodA: 25, periodB: 41 },
+    oneshots: [
+      { sound: 'creak', every: [28, 62], gain: 0.14, placement: 'ceiling', reverb: 0.2, rateRange: [0.92, 1.08] },
+      { sound: 'metalKnock', every: [34, 70], gain: 0.22, placement: 'far', muffled: true, reverb: 0.45, rateRange: [0.85, 1.05] },
+    ],
+  },
+  surgery: {
+    beds: [
+      { sample: 'ambSurgery', fallback: 'roomTone', gain: 0.46 },
+    ],
+    breathing: { depth: 0.06, periodA: 18, periodB: 31 },
+    oneshots: [
+      { sound: 'surgicalPulse', fallback: 'medBeep', every: [9, 20], gain: 0.2, placement: 'near', reverb: 0.25, rateRange: [0.96, 1.04] },
+      { sound: 'medBeep', fallback: 'consoleBeep', every: [14, 30], gain: 0.16, placement: 'perimeter', reverb: 0.25, rateRange: [0.98, 1.02] },
+    ],
+  },
+  power_bay: {
+    beds: [
+      { sample: 'ambPowerBay', fallback: 'roomTone', gain: 0.56 },
+      { sample: 'waterRumble', fallback: 'waterRumble', gain: 0.18, rate: 0.93, cutoff: 360 },
+    ],
+    breathing: { depth: 0.1, periodA: 15, periodB: 26 },
+    oneshots: [
+      { sound: 'metalKnock', every: [14, 32], gain: 0.36, placement: 'far', muffled: true, reverb: 0.65, rateRange: [0.84, 1.08] },
+      { sound: 'hullGroan', every: [20, 44], gain: 0.46, placement: 'far', muffled: true, reverb: 0.65, rateRange: [0.86, 1.04] },
+      { sound: 'relayClick', fallback: 'creak', every: [18, 38], gain: 0.22, placement: 'perimeter', reverb: 0.45, rateRange: [0.92, 1.08] },
+    ],
+    restoredGainScale: 1.35,
+  },
+  wet_vestibule: {
+    beds: [
+      { sample: 'ambWetVestibule', fallback: 'waterRumble', gain: 0.5 },
+      { sample: 'waterRumble', fallback: 'waterRumble', gain: 0.14, rate: 0.93, cutoff: 340 },
+    ],
+    breathing: { depth: 0.08, periodA: 19, periodB: 32 },
+    oneshots: [
+      { sound: 'drip', every: [3.0, 8.0], gain: 0.28, placement: 'perimeter', reverb: 0.45, rateRange: [0.88, 1.15] },
+      { sound: 'creak', every: [22, 48], gain: 0.18, placement: 'ceiling', reverb: 0.4, rateRange: [0.9, 1.08] },
+      { sound: 'distantMoan', every: [55, 110], gain: 0.32, placement: 'far', muffled: true, reverb: 0.85, rateRange: [0.94, 1.04], phases: ['lockdown', 'blackout'] },
+    ],
+  },
+  rov_workshop: {
+    beds: [
+      { sample: 'ambRovWorkshop', fallback: 'roomTone', gain: 0.5 },
+      { sample: 'consoleHum', fallback: 'consoleHum', gain: 0.1, rate: 0.94, cutoff: 1100 },
+    ],
+    breathing: { depth: 0.07, periodA: 20, periodB: 33 },
+    oneshots: [
+      { sound: 'airlockHiss', fallback: 'creak', every: [18, 42], gain: 0.16, placement: 'perimeter', reverb: 0.3, rateRange: [0.95, 1.08] },
+      { sound: 'metalKnock', every: [24, 52], gain: 0.22, placement: 'far', muffled: true, reverb: 0.5, rateRange: [0.86, 1.08] },
+      { sound: 'distantMoan', every: [60, 120], gain: 0.3, placement: 'far', muffled: true, reverb: 0.85, rateRange: [0.94, 1.04], phases: ['lockdown', 'blackout'] },
+    ],
+  },
+  sample_store: {
+    beds: [
+      { sample: 'ambSampleStore', fallback: 'roomTone', gain: 0.52 },
+      { sample: 'freezerHum', fallback: 'ventFan', gain: 0.14, rate: 0.97, cutoff: 1400 },
+    ],
+    breathing: { depth: 0.06, periodA: 18, periodB: 31 },
+    oneshots: [
+      { sound: 'creak', every: [24, 54], gain: 0.14, placement: 'ceiling', reverb: 0.25, rateRange: [0.92, 1.08] },
+      { sound: 'distantMoan', every: [60, 120], gain: 0.3, placement: 'far', muffled: true, reverb: 0.85, rateRange: [0.94, 1.04], phases: ['lockdown', 'blackout'] },
+    ],
+  },
+  admin_reception: {
+    beds: [
+      { sample: 'ambAdminReception', fallback: 'roomTone', gain: 0.48 },
+    ],
+    breathing: { depth: 0.06, periodA: 24, periodB: 39 },
+    oneshots: [
+      { sound: 'creak', every: [28, 60], gain: 0.12, placement: 'ceiling', reverb: 0.2, rateRange: [0.92, 1.08] },
+    ],
+    blackoutPreset: 'dead_station',
+  },
+  admin_open_office: {
+    beds: [
+      { sample: 'ambAdminOpenOffice', fallback: 'roomTone', gain: 0.5 },
+      { sample: 'consoleHum', fallback: 'consoleHum', gain: 0.08, rate: 0.98, cutoff: 1200 },
+    ],
+    breathing: { depth: 0.06, periodA: 23, periodB: 37 },
+    oneshots: [
+      { sound: 'creak', every: [26, 56], gain: 0.12, placement: 'ceiling', reverb: 0.2, rateRange: [0.92, 1.08] },
+    ],
+    blackoutPreset: 'dead_station',
+  },
+  directors_office: {
+    beds: [
+      { sample: 'ambDirectorsOffice', fallback: 'roomTone', gain: 0.44 },
+    ],
+    breathing: { depth: 0.05, periodA: 26, periodB: 43 },
+    oneshots: [
+      { sound: 'creak', every: [32, 68], gain: 0.11, placement: 'ceiling', reverb: 0.18, rateRange: [0.92, 1.08] },
+    ],
+    blackoutPreset: 'dead_station',
+  },
+  admin_boardroom: {
+    beds: [
+      { sample: 'ambAdminBoardroom', fallback: 'roomTone', gain: 0.46 },
+    ],
+    breathing: { depth: 0.05, periodA: 25, periodB: 41 },
+    oneshots: [
+      { sound: 'creak', every: [30, 64], gain: 0.12, placement: 'ceiling', reverb: 0.2, rateRange: [0.92, 1.08] },
+    ],
+    blackoutPreset: 'dead_station',
+  },
+  security_booth: {
+    beds: [
+      { sample: 'ambSecurityBooth', fallback: 'roomTone', gain: 0.5 },
+      { sample: 'consoleHum', fallback: 'consoleHum', gain: 0.14, rate: 1.02, cutoff: 1800 },
+    ],
+    breathing: { depth: 0.05, periodA: 19, periodB: 31 },
+    oneshots: [
+      { sound: 'relayClick', fallback: 'consoleBeep', every: [10, 24], gain: 0.18, placement: 'near', reverb: 0.15, rateRange: [0.94, 1.06] },
+    ],
+    blackoutPreset: 'dead_station',
+  },
+  transit_boarding: {
+    beds: [
+      { sample: 'ambTransitBoarding', fallback: 'roomTone', gain: 0.56 },
+      { sample: 'waterRumble', fallback: 'waterRumble', gain: 0.18, rate: 0.91, cutoff: 340 },
+    ],
+    breathing: { depth: 0.1, periodA: 17, periodB: 29 },
+    oneshots: [
+      { sound: 'railCreak', fallback: 'creak', every: [14, 34], gain: 0.34, placement: 'far', reverb: 0.65, rateRange: [0.9, 1.06] },
+      { sound: 'relayClick', fallback: 'consoleBeep', every: [18, 40], gain: 0.2, placement: 'perimeter', reverb: 0.45, rateRange: [0.92, 1.08] },
+      { sound: 'hullGroan', every: [22, 48], gain: 0.42, placement: 'far', muffled: true, reverb: 0.7, rateRange: [0.85, 1.03] },
+    ],
+  },
+  transit_tunnel: {
+    beds: [
+      { sample: 'ambTransitTunnel', fallback: 'waterRumble', gain: 0.64 },
+      { sample: 'waterRumble', fallback: 'waterRumble', gain: 0.28, rate: 0.88, cutoff: 360 },
+    ],
+    breathing: { depth: 0.13, periodA: 14, periodB: 25 },
+    oneshots: [
+      { sound: 'hullGroan', every: [12, 26], gain: 0.56, placement: 'far', muffled: true, reverb: 0.75, rateRange: [0.84, 1.02] },
+      { sound: 'railCreak', fallback: 'creak', every: [10, 24], gain: 0.38, placement: 'perimeter', reverb: 0.65, rateRange: [0.88, 1.08] },
+      { sound: 'pressurePing', every: [22, 48], gain: 0.24, placement: 'far', muffled: true, reverb: 0.85, rateRange: [0.94, 1.04] },
+    ],
+  },
+  transit_dock: {
+    beds: [
+      { sample: 'ambTransitDock', fallback: 'roomTone', gain: 0.54 },
+      { sample: 'waterRumble', fallback: 'waterRumble', gain: 0.18, rate: 0.9, cutoff: 320 },
+    ],
+    breathing: { depth: 0.1, periodA: 18, periodB: 31 },
+    oneshots: [
+      { sound: 'railCreak', fallback: 'creak', every: [16, 36], gain: 0.32, placement: 'far', reverb: 0.65, rateRange: [0.9, 1.06] },
+      { sound: 'drip', every: [4.0, 11.0], gain: 0.24, placement: 'perimeter', reverb: 0.6, rateRange: [0.88, 1.14] },
+      { sound: 'hullGroan', every: [20, 44], gain: 0.44, placement: 'far', muffled: true, reverb: 0.7, rateRange: [0.85, 1.03] },
+    ],
+  },
+  transit_concourse: {
+    beds: [
+      { sample: 'ambTransitConcourse', fallback: 'roomTone', gain: 0.58 },
+      { sample: 'waterRumble', fallback: 'waterRumble', gain: 0.22, rate: 0.89, cutoff: 340 },
+    ],
+    breathing: { depth: 0.12, periodA: 16, periodB: 29 },
+    oneshots: [
+      { sound: 'gantryCreak', fallback: 'creak', every: [15, 34], gain: 0.36, placement: 'ceiling', reverb: 0.75, rateRange: [0.86, 1.04] },
+      { sound: 'hullGroan', every: [16, 36], gain: 0.52, placement: 'far', muffled: true, reverb: 0.8, rateRange: [0.84, 1.02] },
+      { sound: 'drip', every: [5.0, 13.0], gain: 0.26, placement: 'perimeter', reverb: 0.7, rateRange: [0.86, 1.14] },
+      { sound: 'distantMoan', every: [48, 96], gain: 0.36, placement: 'far', muffled: true, reverb: 0.9, rateRange: [0.92, 1.04], phases: ['lockdown', 'blackout'] },
+    ],
+  },
+  transit_dispatch: {
+    beds: [
+      { sample: 'ambTransitDispatch', fallback: 'roomTone', gain: 0.48 },
+      { sample: 'consoleHum', fallback: 'consoleHum', gain: 0.08, rate: 0.95, cutoff: 1400 },
+    ],
+    breathing: { depth: 0.07, periodA: 21, periodB: 35 },
+    oneshots: [
+      { sound: 'relayClick', fallback: 'consoleBeep', every: [14, 32], gain: 0.18, placement: 'near', reverb: 0.25, rateRange: [0.92, 1.06] },
+      { sound: 'hullGroan', every: [24, 52], gain: 0.38, placement: 'far', muffled: true, reverb: 0.65, rateRange: [0.86, 1.04] },
+    ],
+  },
+  dead_station: {
+    beds: [
+      { sample: 'ambDeadStation', fallback: 'roomTone', gain: 0.5 },
+      { sample: 'waterRumble', fallback: 'waterRumble', gain: 0.18, rate: 0.88, cutoff: 300 },
+    ],
+    breathing: { depth: 0.11, periodA: 17, periodB: 31 },
+    oneshots: [
+      { sound: 'hullGroan', every: [16, 36], gain: 0.48, placement: 'far', muffled: true, reverb: 0.65, rateRange: [0.84, 1.03] },
+      { sound: 'creak', every: [12, 28], gain: 0.24, placement: 'ceiling', reverb: 0.45, rateRange: [0.88, 1.1] },
+      { sound: 'metalKnock', every: [20, 44], gain: 0.32, placement: 'far', muffled: true, reverb: 0.65, rateRange: [0.82, 1.08] },
     ],
   },
   silent: {
@@ -306,6 +570,8 @@ export class AmbienceDirector {
   private readonly offSample: () => void;
 
   private mode: GameMode = 'title';
+  private phase: StationPhase = 'morning';
+  private powerRestored = false;
   private roomPreset: AmbiencePresetId | null = null;
   private overridePreset: AmbiencePresetId | null = null;
   private activePreset: AmbiencePresetId | null = null;
@@ -328,6 +594,11 @@ export class AmbienceDirector {
     return this.activePreset;
   }
 
+  /** Current station phase (`morning`, `lockdown`, or `blackout`). */
+  get currentPhase(): StationPhase {
+    return this.phase;
+  }
+
   /** Set game mode: silent on title (MenuMusic owns it), ducked on pause, full while playing. */
   setMode(mode: GameMode): void {
     if (mode === this.mode) return;
@@ -337,12 +608,40 @@ export class AmbienceDirector {
     this.applyBuzzGains(MODE_SCALE[mode].tc);
   }
 
+  /**
+   * Update the station phase (`morning` -> `lockdown` -> `blackout`) so inhabited presets shift to dead/reduced
+   * variants and phase-gated horror one-shots (such as `distantMoan`) unlock only after the drop.
+   */
+  setPhase(phase: StationPhase, fadeSeconds = AMBIENCE_CROSSFADE): void {
+    if (phase === this.phase) return;
+    this.phase = phase;
+    if (this.overridePreset !== null) {
+      this.rebuildScheduler(AMBIENCE_PRESETS[this.overridePreset]);
+      return;
+    }
+    if (this.roomPreset !== null) {
+      const target = this.effectivePreset(this.roomPreset);
+      if (target !== this.activePreset) {
+        this.transitionTo(target, fadeSeconds);
+      } else {
+        this.rebuildScheduler(AMBIENCE_PRESETS[target]);
+      }
+    }
+  }
+
+  /** Scale up `power_bay` (and any preset with `restoredGainScale`) once station power is restored. */
+  setPowerRestored(restored: boolean, fadeSeconds = 1.5): void {
+    if (restored === this.powerRestored) return;
+    this.powerRestored = restored;
+    this.applyBedGains(this.lastTime, Math.max(0.05, fadeSeconds * 0.45));
+  }
+
   /** Called on `room:entered` with the room's `atmosphere.ambience` id and optional light fixtures. */
   enterRoom(ambienceId: string | undefined, lights: readonly AmbienceLightSource[] = [], fadeSeconds = AMBIENCE_CROSSFADE): void {
     this.roomPreset = resolveAmbience(ambienceId);
     this.bindRoomLights(lights);
     if (this.overridePreset === null) {
-      this.transitionTo(this.roomPreset, fadeSeconds);
+      this.transitionTo(this.effectivePreset(this.roomPreset), fadeSeconds);
     }
   }
 
@@ -355,7 +654,7 @@ export class AmbienceDirector {
   setOverride(ambienceId: string | null, fadeSeconds = AMBIENCE_CROSSFADE): void {
     if (ambienceId === null) {
       this.overridePreset = null;
-      if (this.roomPreset !== null) this.transitionTo(this.roomPreset, fadeSeconds);
+      if (this.roomPreset !== null) this.transitionTo(this.effectivePreset(this.roomPreset), fadeSeconds);
       return;
     }
     this.overridePreset = resolveAmbience(ambienceId);
@@ -367,7 +666,7 @@ export class AmbienceDirector {
     this.overridePreset = null;
     this.clearBuzzers(0.25);
     if (this.roomPreset !== null) {
-      this.transitionTo(this.roomPreset, 0.8);
+      this.transitionTo(this.effectivePreset(this.roomPreset), 0.8);
     }
   }
 
@@ -418,6 +717,23 @@ export class AmbienceDirector {
 
   // ---------------------------------------------------------------- internals
 
+  private effectivePreset(base: AmbiencePresetId): AmbiencePresetId {
+    const spec: AmbiencePreset = AMBIENCE_PRESETS[base];
+    if (this.phase === 'blackout' && spec.blackoutPreset && isAmbiencePreset(spec.blackoutPreset)) {
+      return spec.blackoutPreset;
+    }
+    if (this.phase === 'lockdown' && spec.lockdownPreset && isAmbiencePreset(spec.lockdownPreset)) {
+      return spec.lockdownPreset;
+    }
+    return base;
+  }
+
+  private phaseGainScale(): number {
+    if (!this.activePreset || !this.powerRestored) return 1;
+    const spec: AmbiencePreset = AMBIENCE_PRESETS[this.activePreset];
+    return spec.restoredGainScale ?? 1;
+  }
+
   private transitionTo(next: AmbiencePresetId, fadeSeconds: number): void {
     if (next === this.activePreset && this.beds.length > 0) return;
     if (next === this.activePreset && AMBIENCE_PRESETS[next].beds.length === 0) return;
@@ -429,7 +745,7 @@ export class AmbienceDirector {
     this.activePreset = next;
     const spec = AMBIENCE_PRESETS[next];
     const tc = Math.max(0.05, fadeSeconds * 0.45);
-    const modeScale = MODE_SCALE[this.mode].scale;
+    const modeScale = MODE_SCALE[this.mode].scale * this.phaseGainScale();
 
     for (const layer of spec.beds) {
       const active = this.startBedLayer(layer, 0);
@@ -461,6 +777,7 @@ export class AmbienceDirector {
 
   private handleSampleLoaded(name: SampleName): void {
     const modeScale = MODE_SCALE[this.mode].scale;
+    const bedScale = modeScale * this.phaseGainScale();
     const breath = this.breathFactor(this.lastTime);
 
     // Hot-swap any active bed layer waiting for its recorded ElevenLabs sample.
@@ -470,7 +787,7 @@ export class AmbienceDirector {
         const replacement = this.startBedLayer(b.spec, 0);
         if (!replacement) continue;
         b.handle.stop(1.0);
-        replacement.handle.setGain(b.spec.gain * modeScale * breath, 0.45);
+        replacement.handle.setGain(b.spec.gain * bedScale * breath, 0.45);
         this.beds[i] = replacement;
       }
     }
@@ -498,12 +815,13 @@ export class AmbienceDirector {
   }
 
   private rebuildScheduler(preset: AmbiencePreset): void {
-    if (preset.oneshots.length === 0) {
+    const allowed = preset.oneshots.filter((s) => !s.phases || s.phases.includes(this.phase));
+    if (allowed.length === 0) {
       this.scheduler = null;
       return;
     }
-    const sched = new Scheduler(this.rng.fork(`oneshots:${this.activePreset ?? 'none'}`));
-    for (const shot of preset.oneshots) {
+    const sched = new Scheduler(this.rng.fork(`oneshots:${this.activePreset ?? 'none'}:${this.phase}`));
+    for (const shot of allowed) {
       sched.add(shot.every, () => this.fireOneShot(shot));
     }
     this.scheduler = sched;
@@ -619,10 +937,10 @@ export class AmbienceDirector {
   }
 
   private applyBedGains(t: number, tc: number): void {
-    const modeScale = MODE_SCALE[this.mode].scale;
+    const bedScale = MODE_SCALE[this.mode].scale * this.phaseGainScale();
     const breath = this.breathFactor(t);
     for (const b of this.beds) {
-      b.handle.setGain(b.spec.gain * modeScale * breath, tc);
+      b.handle.setGain(b.spec.gain * bedScale * breath, tc);
     }
   }
 
