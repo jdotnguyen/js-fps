@@ -742,7 +742,7 @@ export const SAMPLE_URLS = {
   pistolShot: 'assets/audio/weapons/pistol-shot.mp3',
   pistolReloadOut: 'assets/audio/weapons/pistol-reload-out.mp3',
   pistolReloadIn: 'assets/audio/weapons/pistol-reload-in.mp3',
-  pistolReloadSlide: 'assets/audio/weapons/pistol-reload-slide.mp3',
+  pistolReloadSlide: 'assets/audio/weapons/pistol-cock-fit.mp3', // pull back + slide home, at the end of a reload and a draw (scripts/fit-weapon-audio.mjs)
   shotgunShot: 'assets/audio/weapons/shotgun-shot.mp3',
   shotgunPump: 'assets/audio/weapons/shotgun-pump-fit.mp3', // stretched x1.1 to match the old PostFire clip (scripts/fit-weapon-audio.mjs); the new Shoot racks quicker, see swap-viewmodels-to-just-models
   shotgunShell: 'assets/audio/weapons/shotgun-shell.mp3',

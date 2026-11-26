@@ -43,8 +43,18 @@ export const CUES = {
     magOut: 0.62,
     /** Fresh magazine seats. */
     magIn: 2.15,
-    /** Slide drops forward at the end of the reload. */
-    slide: 3.1,
+    /**
+     * Rack sound start, near the end of the reload: the slide starts back at 3.05 s and is home at 3.25 s, and the sample's
+     * two clicks (0.07 s and 0.21 s into it) land on the pull and on the snap home.
+     */
+    slide: 3.04,
+    /**
+     * Drawing the pistol ends with the same rack: after Take, Reload plays from here (the support hand on its way to the
+     * slide) to its end. `Take` itself never moves the slide.
+     */
+    rackFrom: 2.55,
+    /** Cross-fade from the drawn pose into the rack, seconds. */
+    rackFade: 0.2,
   },
   shotgun: {
     /** Pump sound start, into Shoot: the rack back begins about 0.6 s in. */
@@ -226,6 +236,8 @@ export class Viewmodel {
   private busyUntil = 0;
   /** After a one-shot clip, go back to the rest pose at this time. */
   private restAt = Infinity;
+  /** The pistol's draw goes on into the slide rack at this time. */
+  private rackAt = Infinity;
   private cues: PendingCue[] = [];
   private readonly recZ = new Spring(420, 26);
   private readonly recRx = new Spring(380, 24);
@@ -447,6 +459,7 @@ export class Viewmodel {
   private clearTimeline(): void {
     this.cues.length = 0;
     this.restAt = Infinity;
+    this.rackAt = Infinity;
   }
 
   /** Play a one-shot clip on the current weapon; afterwards it settles back to the rest pose. */
@@ -465,6 +478,13 @@ export class Viewmodel {
       if (this.time < c.at) continue;
       this.cues.splice(i, 1);
       this.d.events.emit('weapon:cue', { weapon: c.weapon, cue: c.cue });
+    }
+    if (this.time >= this.rackAt) {
+      this.rackAt = Infinity;
+      const { rackFrom, rackFade, slide } = CUES.pistol;
+      rig.play('Reload', { fade: rackFade, from: rackFrom });
+      this.restAt = this.time + rig.duration('Reload') - rackFrom;
+      this.schedule(slide - rackFrom, 'pistol', 'slide');
     }
     if (this.time >= this.restAt && !this.reload && this.phase === 'idle') {
       this.restAt = Infinity;
@@ -489,14 +509,18 @@ export class Viewmodel {
     }
   }
 
-  /** Bring a weapon up with its Take clip (the shotgun's racks the pump as it comes up). */
+  /**
+   * Bring a weapon up with its Take clip. The shotgun's racks the pump as it comes up; the pistol goes on to rack its
+   * slide, which like any rest-bound clip a shot, a reload or a switch cuts short.
+   */
   private startDraw(id: WeaponId): void {
     this.cancelReload();
     this.clearTimeline();
     const rig = this.rigs[id];
     rig.play('Take', { fade: 0 });
     const len = rig.duration('Take');
-    this.restAt = this.time + len;
+    if (id === 'pistol') this.rackAt = this.time + len;
+    else this.restAt = this.time + len;
     this.busyUntil = this.time + Math.min(len, 0.5);
     if (id === 'shotgun') this.schedule(CUES.shotgun.pumpDraw, 'shotgun', 'pump');
   }

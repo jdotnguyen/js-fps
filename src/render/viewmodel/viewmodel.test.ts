@@ -218,16 +218,40 @@ test('shotgun: with no shell loaded yet, firing mid-reload does nothing', () => 
   assert.ok(times(r, 'shell').length >= 1, 'the reload carries on');
 });
 
-test('the draw racks the shotgun pump but not the pistol', () => {
+const cuesIn = (r: Rig): `cue ${WeaponCue}`[] => r.log.filter((e) => e.what.startsWith('cue ')).map((e) => e.what as `cue ${WeaponCue}`);
+/** From pressing the pistol's key with the shotgun out to its slide sound: Hide, Take, then the rack up to the cue. */
+const PISTOL_RACK_AT = 0.63 + 0.33 + (CUES.pistol.slide - CUES.pistol.rackFrom);
+
+test('the draw racks the shotgun pump, and the pistol draw ends in a slide rack with one sound', () => {
   const r = rig();
   r.press('weapon2');
   r.step(2);
-  const cues = r.log.filter((e) => e.what.startsWith('cue ')).map((e) => e.what as `cue ${WeaponCue}`);
-  assert.deepEqual(cues, ['cue pump'], 'the shotgun racks as it comes up');
+  assert.deepEqual(cuesIn(r), ['cue pump'], 'the shotgun racks as it comes up');
   r.log.length = 0;
+  const loaded = r.vm.ammoOf('pistol').loaded;
+  const t0 = r.now();
   r.press('weapon1');
+  r.step(1.1);
+  assert.equal(r.models.pistol.clip, 'Reload', 'the rack is the end of the reload motion');
+  assert.equal(r.vm.reloading, false, 'but it is not a reload');
   r.step(2);
-  assert.deepEqual(r.log.filter((e) => e.what.startsWith('cue ')), [], 'the pistol draw has no rack sound');
+  assert.deepEqual(cuesIn(r), ['cue slide']);
+  assert.ok(Math.abs((times(r, 'cue slide')[0] ?? NaN) - t0 - PISTOL_RACK_AT) < 0.08, `slide at ${(times(r, 'cue slide')[0] ?? NaN) - t0}`);
+  assert.equal(r.models.pistol.clip, 'Rest', 'then it settles');
+  assert.deepEqual(times(r, 'reloaded pistol'), []);
+  assert.equal(r.vm.ammoOf('pistol').loaded, loaded);
+});
+
+test('pistol: a shot cuts the draw rack short, without its sound', () => {
+  const r = rig();
+  toShotgun(r);
+  r.press('weapon1');
+  r.step(0.63 + 0.33 + 0.2);
+  r.press('fire');
+  assert.equal(times(r, 'fired pistol').length, 1, 'the rack does not hold the trigger');
+  r.step(2);
+  assert.deepEqual(cuesIn(r), []);
+  assert.equal(r.models.pistol.clip, 'Rest');
 });
 
 test('the rest pose breathes: the weapon is never perfectly still, and the drift is small', () => {
