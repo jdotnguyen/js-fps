@@ -921,7 +921,7 @@ export const SAMPLE_URLS = {
   intercomStatic: 'assets/audio/ambience/oneshot-intercom-static.mp3',
   monitorBeep: 'assets/audio/ambience/oneshot-monitor-beep.mp3',
   // Dock checkpoint (dock-checkpoint spec): the walk-through arch and the guard's hand wand. Generate with
-  // `npm run ambience:generate -- --id archPass` (and archAlarm, wandBeep). Until the files exist, scans play with light only.
+  // `npm run ambience:generate -- --id archPass` (and archAlarm, wandBeep, which is also cut by hand: see the manifest).
   archPass: 'assets/audio/ambience/oneshot-arch-pass.mp3',
   archAlarm: 'assets/audio/ambience/oneshot-arch-alarm.mp3',
   wandBeep: 'assets/audio/ambience/oneshot-wand-beep.mp3',

@@ -297,6 +297,7 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     loop: false,
     duration: 1.0,
     promptInfluence: 0.7,
+    mono: true,
     prompt:
       'single short soft two-tone electronic confirmation chime from a walk-through airport security metal detector, clean and friendly, slight metal room reverb, no alarm, no music, no voice',
   },
@@ -307,9 +308,12 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     loop: false,
     duration: 1.6,
     promptInfluence: 0.7,
+    mono: true,
     prompt:
       'walk-through airport security metal detector alarm, a fast repeating electronic warning beep for about one second, loud but not harsh, slight metal room reverb, no siren, no music, no voice',
   },
+  // The shipped file is a take cut by hand to its first two beeps (regenerating needs the same cut):
+  //   ffmpeg -i raw.mp3 -t 0.25 -af "afade=t=out:st=0.235:d=0.015" -c:a libmp3lame -b:a 96k oneshot-wand-beep.mp3
   {
     id: 'wandBeep',
     file: 'oneshot-wand-beep.mp3',
@@ -317,8 +321,9 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
     loop: false,
     duration: 1.2,
     promptInfluence: 0.7,
+    mono: true,
     prompt:
-      'handheld security metal detector wand being swept over a person, quiet rising and falling electronic hum with two short soft beeps, close and dry, no alarm, no music, no voice',
+      'two short soft electronic beeps from a handheld security metal detector wand, a brief beep then a second brief beep with silence between them, quiet, close and dry, no continuous tone, no whine, no hum, no alarm, no music, no voice',
   },
   // Dive bay launch hall (rebuild-dive-bay, dive-bay spec): the `launch_bay` bed and the trunk secure event.
   {

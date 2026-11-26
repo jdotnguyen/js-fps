@@ -15,6 +15,8 @@
     "dive_sung_03": [{ "wav": "older/vo_crew_sung_crew_botanist.wav", "from": 21.75, "to": 23.53 }],
     "hydro_botanist_01": [{ "wav": "older/vo_crew_sung_crew_botanist.wav", "from": 24.29, "to": 28.64 }],
 
+    "intro_sung_01": [{ "clip": "intro_sung_01", "from": 0, "to": 1.08 }],
+
     "intro_jay_05": [{ "clip": "intro_jay_05", "from": 0, "to": 4.31 }],
     "dive_jay_01": [{ "clip": "intro_jay_05", "from": 5.93, "to": 6.45, "gainDb": -3 }],
     "admin_jay_01": [{ "clip": "dive_jay_01", "from": 0, "to": 99 }],
