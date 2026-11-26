@@ -17,6 +17,14 @@ Skip: hold the skip key during the reveal (`cliffhanger`) or the stinger. The re
 data checkpoints `cp_first_contact`, `cp_cover_me`, `cp_security`, `cp_flooded`, `cp_climax` (on room entry) plus sequence ones
 `cp_contact_clear`, `cp_cover_done`, `cp_security_done`, `cp_valve` (end of each beat).
 
+## Tomas’s squad arrival
+
+In a clear corridor with both squadmates following, walk straight ahead, stop until Tomas catches up, then double back past him and stop again. Watch his head against his coat buttons as he slows. On the second arrival he and Giles cross sides and stop close together: Tomas steps away from Giles still facing Jay, with no turn past Jay and back. When Jay walks past or straight at either of them while they stand, they step aside without turning their backs, and Jay gets through. Check once before the Lab B drop with his hands free.
+
+Whenever Tomas stands idle (in the intro: after he walks in, at the scan arch and at his post), his arms hang at his sides with the palms toward his thighs. Look for palms turned forward or hands held out in front of his coat: both used to show, from his model's clipboard bind pose and from his idle capture.
+
+In the demo corridor (`?level=demo&slot=scratch&physics=off`), walking from z = 6 to −6 and back used to turn Tomas from −156° through 0° to +129° over 3.25 s on the second arrival: Giles's keep-apart push steered him away from Giles, past Jay's back. He now holds −162° (16° off Jay) and settles 0.90 m from Giles.
+
 ## Per beat
 **Commons talk** (openspec commons-overheard-chatter; wear headphones, New game with `?slot=scratch`)
 - During the intro the table groups murmur under the story lines and neither pair says a written line.

@@ -2,7 +2,7 @@
 //   node scripts/fix-doctor-glb.mjs <source.glb> [public/assets/models/squad/doctor.glb]
 // The source is a hand-modelled, rigged character (3ds Max Biped, 33 joints, ~11.6k triangles, 4 materials, one 3.4 s clipboard
 // animation that the game does not use). Its arms are modelled apart from the body, so it needs none of the scan pipeline's
-// cutting; it keeps the artist's own skin weights. What it does:
+// cutting. It keeps the artist's skin weights except for the coat skirt, which follows the thighs. What it does:
 //   - bakes the bind pose (Sketchfab's Z-up/FBX wrapper included) into metres, facing +Z, left at +X, feet at y = 0, 1.80 m tall;
 //   - renames the Biped bones to the Mixamo names bodyModel maps (Bip001/Pelvis -> Hips, Clavicle -> Shoulder, Calf -> Leg, ...);
 //   - adds a Jaw bone and weights the lower lip, chin and beard below the mouth to it (ADR-0027);
@@ -11,11 +11,13 @@
 //     the fingers, modelled bent at the knuckles around the clipboard, are opened to a relaxed hand first;
 //   - drops the glasses' lenses (a transmission material the game does not render), the clipboard and the pen (unskinned props);
 //   - packs both texture sets (body 1024, head 512) side by side into one atlas at full resolution, re-encoded as WebP q95
-//     (visually lossless), and the mesh with meshopt compression and quantised attributes. No triangle is removed.
+//     (visually lossless), and the mesh with meshopt compression and quantised attributes;
+//   - trims the shirt behind the coat, keeping the opening, neckline and cuffs.
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
+import { Triangle, Vector3 } from 'three';
 import { readGlb, packBody, smooth } from './lib/scan-body.mjs';
 
 const [src, dst = 'public/assets/models/squad/doctor.glb'] = process.argv.slice(2);
@@ -124,10 +126,27 @@ const PARENT = {
 const ATLAS_W = 1536, ATLAS_H = 1024;
 const pos = [], nor = [], uv = [], indices = [], vJ = [], isHead = [], vPart = [], vDom = [];
 const srcJointName = srcNames.map(owner);
+// Leave an overlap under the open lapels, neck and sleeve hems. The rest of the shirt is
+// painted black and intersects the coat when the clipboard bind pose is straightened.
+function exposedShirt([x, y, z]) {
+  const halfOpening = 0.069 + 0.036 * smooth(1.39, 1.53, y);
+  if (Math.abs(x) < halfOpening && z > 0.035) return true;
+  const side = x > 0 ? 'Left' : 'Right';
+  const wrist = J[`${side}Hand`], elbow = J[`${side}ForeArm`];
+  const axis = wrist.map((value, k) => value - elbow[k]);
+  return ((x - wrist[0]) * axis[0] + (y - wrist[1]) * axis[1] + (z - wrist[2]) * axis[2]) / Math.hypot(...axis) > -0.012;
+}
+
 for (const p of parts) {
   const map = new Map();
+  const finalPos = (v) => toFinal(xf(Wm, p.P.subarray(v * 3, v * 3 + 3)));
   for (let t = 0; t < p.I.length; t += 3) {
     const tri = [p.I[t], p.I[t + 1], p.I[t + 2]];
+    if (p.name.startsWith('shirt_')) {
+      const centre = new Vector3();
+      for (const v of tri) centre.add(new Vector3(...finalPos(v)));
+      if (!exposedShirt(centre.divideScalar(3).toArray())) continue;
+    }
     const su = Math.floor(Math.min(...tri.map((v) => p.UV[v * 2]))), sv = Math.floor(Math.min(...tri.map((v) => p.UV[v * 2 + 1])));
     for (const v of tri) {
       const key = `${v}|${su}|${sv}`;
@@ -135,7 +154,8 @@ for (const p of parts) {
       if (id === undefined) {
         id = pos.length / 3;
         map.set(key, id);
-        pos.push(...toFinal(xf(Wm, [p.P[v * 3], p.P[v * 3 + 1], p.P[v * 3 + 2]])));
+        const point = finalPos(v);
+        pos.push(...point);
         const n = xfDir(Wm, [p.N[v * 3], p.N[v * 3 + 1], p.N[v * 3 + 2]]), nl = Math.hypot(...n) || 1;
         nor.push(n[0] / nl, n[1] / nl, n[2] / nl);
         const u = p.UV[v * 2] - su, w = p.UV[v * 2 + 1] - sv;
@@ -151,8 +171,93 @@ for (const p of parts) {
     }
   }
 }
-const nV = pos.length / 3;
 const P = (v) => [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]];
+
+// A large coat triangle can cut straight through the bent hip while the smaller
+// pocket triangles follow its curve. Give both layers comparable spacing at the fold.
+const midpoints = new Map();
+function midpoint(a, b) {
+  const key = a < b ? `${a}/${b}` : `${b}/${a}`;
+  if (midpoints.has(key)) return midpoints.get(key);
+  const id = pos.length / 3;
+  const mean = (attr, size) => Array.from({ length: size }, (_, k) => (attr[a * size + k] + attr[b * size + k]) / 2);
+  pos.push(...mean(pos, 3));
+  nor.push(...new Vector3(...mean(nor, 3)).normalize().toArray());
+  uv.push(...mean(uv, 2));
+  const weights = new Map();
+  for (const v of [a, b]) for (const [bone, w] of vJ[v]) weights.set(bone, (weights.get(bone) ?? 0) + w / 2);
+  vJ.push(weights);
+  vPart.push(vPart[a]);
+  isHead.push(false);
+  vDom.push(vDom[a]);
+  midpoints.set(key, id);
+  return id;
+}
+function addSkirtTriangle(ids) {
+  let longest = 0.045, edge = -1;
+  for (let k = 0; k < 3; k++) {
+    const a = ids[k], b = ids[(k + 1) % 3];
+    if (Math.min(pos[a * 3 + 1], pos[b * 3 + 1]) > 1.03 || Math.max(pos[a * 3 + 1], pos[b * 3 + 1]) < 0.78) continue;
+    const len = Math.hypot(...P(a).map((x, i) => x - pos[b * 3 + i]));
+    if (len > longest) { longest = len; edge = k; }
+  }
+  if (edge < 0) { indices.push(...ids); return; }
+  const a = ids[edge], b = ids[(edge + 1) % 3], c = ids[(edge + 2) % 3], mid = midpoint(a, b);
+  addSkirtTriangle([a, mid, c]);
+  addSkirtTriangle([mid, b, c]);
+}
+const sourceIndices = indices.splice(0);
+for (let i = 0; i < sourceIndices.length; i += 3) {
+  const tri = sourceIndices.slice(i, i + 3);
+  if (vPart[tri[0]].startsWith('coat_')) addSkirtTriangle(tri);
+  else indices.push(...tri);
+}
+const nV = pos.length / 3;
+
+// Sample the trouser skin under the skirt. The seat bends lower than the front hip crease.
+// Matching at the same height keeps the fabric over the trousers as the legs fold.
+const garmentPoint = (v) => new Vector3(pos[v * 3], 3 * pos[v * 3 + 1], pos[v * 3 + 2]);
+const trousers = [];
+for (let i = 0; i < indices.length; i += 3) {
+  const ids = indices.slice(i, i + 3);
+  if (!vPart[ids[0]].startsWith('trousers_')) continue;
+  if (ids.every((v) => pos[v * 3 + 1] < 0.6)) continue;
+  trousers.push({ ids, tri: new Triangle(...ids.map(garmentPoint)) });
+}
+const nearest = new Vector3(), bary = new Vector3();
+for (let v = 0; v < nV; v++) {
+  if (!vPart[v].startsWith('coat_') && !vPart[v].startsWith('button')) continue;
+  const follow = smooth(1.065, 1.00, pos[v * 3 + 1]);
+  if (follow === 0) continue;
+  const p = garmentPoint(v);
+  let best, distance = Infinity;
+  for (const face of trousers) {
+    face.tri.closestPointToPoint(p, nearest);
+    const d = nearest.distanceToSquared(p);
+    if (d < distance && face.tri.getBarycoord(nearest, bary)) {
+      best = { ids: face.ids, blend: bary.toArray() };
+      distance = d;
+    }
+  }
+  if (!best) throw new Error('No trouser surface found under the coat');
+  const acc = vJ[v];
+  for (const [bone, weight] of acc) acc.set(bone, weight * (1 - follow));
+  best.ids.forEach((id, k) => {
+    for (const [bone, weight] of vJ[id]) acc.set(bone, (acc.get(bone) ?? 0) + weight * best.blend[k] * follow);
+  });
+}
+
+// Give the hidden seat clearance through a deep hip bend. Leave the waistband, the
+// trouser fronts seen through the coat opening and the exposed legs at their full size.
+for (let v = 0; v < nV; v++) {
+  if (!vPart[v].startsWith('trousers_')) continue;
+  const [x, y, z] = P(v);
+  const covered = smooth(0.69, 0.80, y) * smooth(1.045, 0.97, y);
+  const back = smooth(0.04, -0.065, z);
+  pos[v * 3 + 2] += 0.045 * covered * back;
+  pos[v * 3 + 2] -= 0.03 * covered * smooth(0.04, 0.11, z) * smooth(0.045, 0.10, Math.abs(x));
+  pos[v * 3] -= Math.sign(x) * 0.018 * covered * smooth(0.06, 0.16, Math.abs(x));
+}
 
 // ------------------------------------------------------------------ jaw
 // Measured off the head mesh (final frame): mouth slit y 1.601 at the midline, chin underside 1.546, face front z 0.13. The hinge
@@ -268,6 +373,36 @@ for (const side of ['Left', 'Right']) {
   console.log(`${side} fingers opened (${KEEP_BEND * 100}% of the knuckle bend kept): ${report.join(', ')}`);
 }
 
+// ------------------------------------------------------------------ hands turned to rest
+// The source holds its clipboard with the forearms turned palm-forward. Hung at the sides by bodyModel, the palms faced 30° (left)
+// and 42° (right) forward of the thighs, where the rest of the cast rests within 10°, and every clip played on top of that: in
+// his idle the palms turned almost outward. Each hand turns back about its forearm (elbow -> wrist), and the forearm skin turns
+// with it by its distance from the elbow, as a forearm pronates, so the wrist does not pinch. The angles were measured on the
+// prepared body (the knuckle row against the thigh with the arms hanging).
+const HAND_ROLL = { Left: 30, Right: -42 };
+for (const side of ['Left', 'Right']) {
+  const elbow = J[`${side}ForeArm`], wrist = J[`${side}Hand`];
+  const len = Math.hypot(...sub(wrist, elbow));
+  const axis = norm(sub(wrist, elbow));
+  const ang = (HAND_ROLL[side] * Math.PI) / 180;
+  let moved = 0;
+  for (let v = 0; v < nV; v++) {
+    const w = vJ[v];
+    const share = (w.get(`${side}Hand`) ?? 0) + (w.get(`${side}ForeArm`) ?? 0) * smooth(0, 1, dot(sub(P(v), elbow), axis) / len);
+    if (share < 1e-4) continue;
+    const q = rotate(sub(P(v), elbow), axis, ang * share);
+    for (let k = 0; k < 3; k++) pos[v * 3 + k] = elbow[k] + q[k];
+    const n = rotate([nor[v * 3], nor[v * 3 + 1], nor[v * 3 + 2]], axis, ang * share);
+    for (let k = 0; k < 3; k++) nor[v * 3 + k] = n[k];
+    moved++;
+  }
+  for (const nm of Object.keys(J)) {
+    if (!nm.startsWith(`${side}Hand`) || nm === `${side}Hand`) continue;
+    J[nm] = r4(rotate(sub(J[nm], elbow), axis, ang).map((x, k) => x + elbow[k]));
+  }
+  console.log(`${side} hand turned ${HAND_ROLL[side]}° about the forearm (${moved} vertices)`);
+}
+
 // ------------------------------------------------------------------ skin
 const names = Object.keys(PARENT);
 const boneIndex = new Map(names.map((n, i) => [n, i]));
@@ -286,10 +421,10 @@ const imgFile = (texIndex, key) => { const f = path.join(tmp, `${key}.png`); fs.
 const bodyMat = j.materials[MAT_BODY], headMat = j.materials[MAT_HEAD];
 const atlas = (bodyTex, headTex, fill, key) => {
   const out = path.join(tmp, `${key}.webp`);
-  execFileSync('convert', ['-size', `${ATLAS_W}x${ATLAS_H}`, `xc:${fill}`,
+  execFileSync(process.platform === 'win32' ? 'magick' : 'convert', ['-size', `${ATLAS_W}x${ATLAS_H}`, `xc:${fill}`,
     imgFile(bodyTex, `${key}_b`), '-geometry', '+0+0', '-composite',
     imgFile(headTex, `${key}_h`), '-geometry', '+1024+0', '-composite',
-    '-quality', '95', '-define', 'webp:method=6', '-strip', out]);
+    '-quality', '95', '-define', 'webp:method=6', '-strip', out], { stdio: 'inherit' });
   return fs.readFileSync(out);
 };
 const color = atlas(bodyMat.pbrMetallicRoughness.baseColorTexture.index, headMat.pbrMetallicRoughness.baseColorTexture.index, '#808080', 'color');

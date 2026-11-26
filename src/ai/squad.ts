@@ -227,6 +227,8 @@ export class SquadMate {
   private repathT = 0;
   private stuckT = 0;
   private readonly lastPos = new THREE.Vector3();
+  /** The velocity the last step moved him with (a keep-apart sidestep carries it on). */
+  private readonly stepVel = new THREE.Vector3();
   /** The target's aim point this mate looks and points the pistol at. */
   private readonly aimPoint = new THREE.Vector3();
   /** Side committed to while dodging out of the aim cone (0 = not dodging). */
@@ -832,6 +834,7 @@ export class SquadMate {
     this.pathTarget.set(Infinity, 0, 0);
     this.stuckT = 0;
     this.lastPos.copy(this.body.group.position);
+    this.stepVel.set(0, 0, 0);
   }
 
   /** Choose a target (formation slot, trail point or aim-cone sidestep). */
@@ -918,6 +921,8 @@ export class SquadMate {
 
   update(dt: number, squad: Squad, player: SquadPlayer, cameraPos: THREE.Vector3 | null): void {
     this.publishRevive(squad);
+    // Held, scripted or down, the follow step below does not move him.
+    if (this.rideLocked || this.scripted || this.downed) this.stepVel.set(0, 0, 0);
     // Riding the train: stand where placed, face Jay, move only when his body pushes them (the director's player pass).
     if (this.rideLocked) {
       this.path = null;
@@ -1035,6 +1040,7 @@ export class SquadMate {
 
     // Keep apart from Jay and each other (a softer shove than the give-way above).
     // Skip during panel tasks so Jay watching nearby never blocks the approach or slides a worker off the device.
+    let face: number | undefined;
     if (this.behaviour !== 'task') {
       const sep = tmpE.set(0, 0, 0);
       const push = (o: P3, radius: number): void => {
@@ -1049,13 +1055,23 @@ export class SquadMate {
       if (!yielding) push(squad.playerFeet, SQUAD_TUNING.personalPlayer);
       for (const m of squad.mates) if (m !== this) push(m.position, SQUAD_TUNING.personalMate);
       if (sep.lengthSq() > 1e-6) {
+        // Standing in follow (nothing else sets his facing): the push steps him aside as he faces, at its own pace,
+        // carrying on whatever way he was still moving. Steering into it turned him away from whoever crowded him, so
+        // a mate stopping beside the other could swing past Jay's back and his turn toward Jay then went the long way round.
+        const sidestep = this.behaviour === 'follow' && desired.lengthSq() < 1e-6;
         desired.addScaledVector(sep, 2.2);
         speed = Math.max(speed, 1.0);
+        if (sidestep) {
+          face = this.body.heading;
+          speed *= Math.min(1, desired.length());
+          desired.add(this.stepVel);
+        }
       }
     }
 
     if (this.working && desired.lengthSq() < 1e-6) accel = 7;
-    const vel = this.body.steer(desired.lengthSq() > 1e-6 ? desired : null, dt, { maxSpeed: speed, turnRate, accel });
+    const vel = this.body.steer(desired.lengthSq() > 1e-6 ? desired : null, dt, { maxSpeed: speed, turnRate, accel, ...(face !== undefined ? { face } : {}) });
+    this.stepVel.copy(vel);
     moveBody(this.motor, vel.x * dt, vel.z * dt, dt, MOTOR, squad.colliders);
     this.body.group.position.set(this.motor.x, this.motor.y, this.motor.z);
 

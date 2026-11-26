@@ -873,7 +873,9 @@ for (const spec of MANIFEST.clips) {
       // levelTrunk (standing-posture-stability): the trunk's average forward pitch before -> after, pelvis/spine/chest.
       (info.trunk
         ? ` trunk levelled ${['pelvis', 'spine', 'chest'].map((j) => `${info.trunk.before[j].toFixed(0)}->${info.trunk.after[j].toFixed(0)}`).join('/')} deg`
-        : ''),
+        : '') +
+      // hangArms (standing-posture-stability): each upper arm's average forward swing before -> after, left/right.
+      (info.arms ? ` arms hung ${['L', 'R'].map((s) => `${info.arms.before[s].toFixed(0)}->${info.arms.after[s].toFixed(0)}`).join('/')} deg` : ''),
   );
 }
 

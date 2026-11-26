@@ -80,6 +80,46 @@ test('squad follows Jay down the corridor, stays out of walls and out of his aim
   assert.ok(SQUAD_TUNING.aimCone > 0.2);
 });
 
+test('squad arrival: a mate stopping beside Giles keeps facing Jay instead of turning round (keep-apart push)', () => {
+  // Jay walks down the corridor, waits for the squad, doubles back and stops (previews/okafor-posture-qa/game.cjs). The
+  // slots swap sides as he turns, so Tomas and Giles cross and Tomas stops half a metre from Giles. Their keep-apart push
+  // used to steer him to face away from Giles, past Jay's back, and his turn toward Jay then went on the long way round:
+  // -156° through 0° to +129° in 3.25 s.
+  const { squad, player, colliders } = setup();
+  player.body.z = 6;
+  const dt = 1 / 40;
+  const tomas = squad.mate('medic');
+  const giles = squad.mate('engineer');
+  const offJay = (m: SquadMate): number => {
+    const want = Math.atan2(-(player.body.x - m.position.x), -(player.body.z - m.position.z));
+    return Math.abs(Math.atan2(Math.sin(want - m.body.heading), Math.cos(want - m.body.heading)));
+  };
+  const deg = (r: number): string => ((r * 180) / Math.PI).toFixed(0);
+  let worst = 0;
+  let turned = 0;
+  let last = 0;
+  for (let i = 0; i < 900; i++) {
+    const t = i * dt;
+    if (t < 3.75) moveBody(player.body, 0, -3.2 * dt, dt, DEFAULT_MOTOR, colliders);
+    if (t >= 10 && t < 14) {
+      player.yaw = Math.PI;
+      moveBody(player.body, 0, 3 * dt, dt, DEFAULT_MOTOR, colliders);
+    }
+    squad.update(dt, null);
+    if (t >= 14) {
+      turned += Math.abs(Math.atan2(Math.sin(tomas.body.heading - last), Math.cos(tomas.body.heading - last)));
+      if (tomas.mode === 'idle') worst = Math.max(worst, offJay(tomas));
+    }
+    last = tomas.body.heading;
+  }
+  assert.ok(worst < Math.PI / 2, `stopped, Tomas never turns his back on Jay (worst ${deg(worst)}° off)`);
+  assert.ok(turned < Math.PI / 2, `no long turn once Jay has stopped (${deg(turned)}° in all)`);
+  assert.ok(offJay(tomas) < 0.9, `Tomas ends up facing Jay (${deg(offJay(tomas))}° off)`);
+  assert.ok(Math.hypot(tomas.position.x - player.body.x, tomas.position.z - player.body.z) <= 4.6, 'Tomas caught up');
+  const apart = tomas.position.distanceTo(giles.position);
+  assert.ok(apart >= 0.85, `Tomas and Giles still keep apart (${apart.toFixed(2)} m)`);
+});
+
 test('a big jump (restart) brings the squad along', () => {
   const { squad, player } = setup();
   squad.update(1 / 60, null);

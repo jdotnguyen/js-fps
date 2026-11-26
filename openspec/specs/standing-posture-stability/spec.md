@@ -44,11 +44,11 @@ Foot-locking IK SHALL clamp pinned-foot drift tightly (~0.14 m) and smoothly rel
 - **THEN** the NPC turns to align with the counter facing before blending into `lean_back` instead of leaning backward in mid-air while spinning
 
 ### Requirement: Standing idle and talk mocap keeps an upright trunk
-Every standing idle and talk mocap clip a living humanoid plays SHALL keep the pelvis, averaged over the clip, within 10° of upright forward or back. Its upper back SHALL bend no more than 12° backwards relative to its lower back, so no clip stands in a swayback (pelvis tipped forward, chest pushed out). Only the average posture is limited; the motion around it is not.
+Every standing idle and talk mocap clip a living humanoid plays SHALL keep the pelvis, averaged over the clip, within 10° of upright forward or back. Its upper back SHALL bend no more than 12° backwards relative to its lower back, so no clip stands in a swayback (pelvis tipped forward, chest pushed out). The magnitude of the average sideways tilt of the chest and head SHALL be at most 10° each, measured in the horizontal facing frame of the pelvis. These cast-wide limits apply to the average pose over the clip.
 
 #### Scenario: Cast-wide check over every pack
 - **WHEN** the posture check samples every standing idle and talk clip in the core library and every character pack
-- **THEN** each clip's average pelvis tilt is within 10° of upright and its upper back bends at most 12° backwards relative to its lower back, and a clip that fails is reported by id with its measured angles
+- **THEN** each clip's average pelvis tilt is within 10° of upright and its upper back bends at most 12° backwards relative to its lower back, and average chest and head side tilt each stay within 10°. A failing clip is reported by id with its measured angles
 
 #### Scenario: Bram stands upright in the intro kitchen
 - **WHEN** Bram stands at the coffee machine and at `cook_stand` in `intro_shift_change`, idling or delivering his lines
@@ -59,5 +59,18 @@ Every standing idle and talk mocap clip a living humanoid plays SHALL keep the p
 - **THEN** the trunk under the action is the levelled idle's, the mug stays in hand and upright, and the offering hand lands where the hand-off expects it
 
 #### Scenario: Levelling keeps the motion
-- **WHEN** a clip is levelled
+- **WHEN** a clip uses forward/back trunk levelling
 - **THEN** its weight shifts, breathing and gestures keep their timing and size, its feet stay planted where the source planted them, and its head keeps its angle to the chest
+
+#### Scenario: Okafor waits for Jay
+- **WHEN** Okafor stands idle or holds a seated, kneeling or leaning pose
+- **THEN** his eight-second standing capture provides quiet movement, and his head settles into the pose without a recurring conversational nod
+- **AND** his standing talk keeps its trunk gestures with his average chest and head centred
+- **AND** standing idle, his arms hang at his sides with his palms toward his thighs (within 20° on average), not held in front of him with the palms turned out
+
+### Requirement: Standing idle arms hang at the sides
+A standing idle mocap clip whose performer carried the arms forward SHALL be baked with each upper arm's average swing hanging straight down from the shoulder (`hangArms`). Only that average SHALL change: the swing around it, the elbow bend, the wrist and the rest of the take SHALL be kept.
+
+#### Scenario: Hanging a take's arms
+- **WHEN** a standing idle is baked with `hangArms`
+- **THEN** each upper arm's average forward swing over the clip is straight down, every frame keeps its swing around that average, and the elbows, wrists, shoulders, trunk and legs are unchanged

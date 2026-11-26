@@ -64,6 +64,26 @@ const foot = (w: Sample, side: 'L' | 'R'): THREE.Vector3 =>
 const against = (w: Sample, parent: string, child: string): THREE.Quaternion => w[parent]!.clone().invert().multiply(w[child]!);
 const deg = (a: THREE.Quaternion, b: THREE.Quaternion): number => THREE.MathUtils.radToDeg(a.angleTo(b));
 
+test('upright talk levels sustained side tilt and centres gaze while preserving the gesture and stance', () => {
+  const samples = take(0, 0, 0);
+  const leanLeft = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 0.35);
+  for (const w of samples) {
+    for (const j of ['spine', 'chest', 'neck', 'head', 'shoulder_R', 'upperArm_R', 'foreArm_R', 'hand_R']) {
+      w[j]!.premultiply(leanLeft);
+    }
+  }
+  const original = copy(samples);
+  levelTrunk(samples, samples, true, 0.1);
+  const meanUp = new THREE.Vector3();
+  for (const [i, w] of samples.entries()) {
+    meanUp.add(UP.clone().applyQuaternion(w['chest']!));
+    assert.ok(deg(w['head']!, yaw) < 3, 'the eyes face ahead');
+    assert.ok(deg(against(w, 'chest', 'hand_R'), against(original[i]!, 'chest', 'hand_R')) < 0.001);
+    for (const side of ['L', 'R'] as const) assert.ok(foot(w, side).distanceTo(foot(original[i]!, side)) < 0.002);
+  }
+  assert.ok(Math.abs(meanUp.normalize().dot(RIGHT)) < 0.02, 'the chest is centred over the loop');
+});
+
 test('levelTrunk: a swayback take comes upright, keeping its motion, its feet and its head against the chest', () => {
   const src = take(16, 34, 10);
   const ws = copy(src);

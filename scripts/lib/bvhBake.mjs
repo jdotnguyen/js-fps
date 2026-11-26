@@ -410,7 +410,8 @@ export function bakeBvh(text, map, spec) {
   for (let f = 0; f < numFrames; f++) W.push(worldAt(t0 + f * dt));
   // Loop-closing sample (one past the end) for in-place travel removal.
   const closing = worldAt(t0 + numFrames * dt);
-  const trunk = spec.levelTrunk ? levelTrunk(W, [...W, closing]) : null;
+  const trunk = spec.levelTrunk ? levelTrunk(W, [...W, closing], spec.levelTrunk === 'upright', spec.gazeMotion) : null;
+  const arms = spec.hangArms !== undefined ? hangArms(W, [...W, closing], spec.hangArms === true ? HANG_ARMS : spec.hangArms) : null;
 
   // ---- 6. Local joint rotations.
   const jointNames = THALASSA_JOINTS.map((j) => j.name).filter((n) => n !== 'root' && n !== 'jaw');
@@ -560,7 +561,7 @@ export function bakeBvh(text, map, spec) {
     out.contactL = contact(footL);
     out.contactR = contact(footR);
   }
-  return { clip: out, info: { fidelity, segmentError, segmentErrorMax: angMax, segmentWorst: angWorst, scale, yaw, start: t0, end: tEnd, srcFps, frames: numFrames, calibrated: Object.keys(calib).filter((k) => calib[k]), trunk } };
+  return { clip: out, info: { fidelity, segmentError, segmentErrorMax: angMax, segmentWorst: angWorst, scale, yaw, start: t0, end: tEnd, srcFps, frames: numFrames, calibrated: Object.keys(calib).filter((k) => calib[k]), trunk, arms } };
 }
 
 /** How far the levelled chest may still lean, degrees (standing-posture-stability: upright trunk): a little toward the work, barely back. */
@@ -595,9 +596,11 @@ export function trunkPitch(samples, right) {
  *   - the arms, neck and head ride with the chest (their pose against it is kept, so a head tipped back only by the trunk comes level);
  *   - the thighs keep their world rotation (legs untouched);
  *   - the hips shift so the hip joints, and so the feet, stay where they were.
+ * The optional upright mode also centres side tilt above the hips. Its gazeMotion sets how much of the original neck/head
+ * rotation around their mean to retain when facing ahead. The arm chain always follows the corrected chest.
  * `measure` are the samples the average comes from, `apply` every sample to correct (with the loop-closing one). Mutates `apply`.
  */
-export function levelTrunk(measure, apply) {
+export function levelTrunk(measure, apply, upright = false, gazeMotion = 1) {
   // The clip's horizontal right axis, from the pelvis (the same for every sample, so turning and side-lean are untouched).
   const right = new THREE.Vector3();
   for (const w of measure) right.add(new THREE.Vector3(1, 0, 0).applyQuaternion(w.pelvis).setY(0));
@@ -608,16 +611,84 @@ export function levelTrunk(measure, apply) {
   // A forward tilt of a degrees is a rotation of -a about the right axis (+Y toward -Z with right = +X).
   const tilt = (j) => new THREE.Quaternion().setFromAxisAngle(right, -THREE.MathUtils.degToRad(target[j] - before[j]));
   const rot = { pelvis: tilt('pelvis'), spine: tilt('spine'), chest: tilt('chest') };
+  const gazeMean = {};
+  if (upright) {
+    // Remove sustained side tilt above the hips. Use a single swing per segment so a nod or weight shift
+    // still plays through, and leave the pelvis's lateral balance (and both hip joint heights) alone.
+    const up = new THREE.Vector3(0, 1, 0);
+    const heading = new THREE.Quaternion().setFromAxisAngle(up, Math.atan2(-right.z, right.x));
+    for (const j of ['spine', 'chest', 'neck', 'head']) {
+      const meanUp = new THREE.Vector3();
+      for (const w of measure) meanUp.add(up.clone().applyQuaternion(w[j]));
+      const pitch = target[j] ?? 0;
+      const aim = up.clone().applyAxisAngle(right, -THREE.MathUtils.degToRad(pitch));
+      rot[j] = new THREE.Quaternion().setFromUnitVectors(meanUp.normalize(), aim);
+      if (gazeMotion < 1 && (j === 'head' || j === 'neck')) {
+        gazeMean[j] = averageQuat(measure.map((w) => ({ q: w[j], w: 1 })));
+        // This standing performer scans the room. Centre his gaze on the body's heading,
+        // then retain a small share of the movement around that direction.
+        rot[j] = heading.clone().multiply(gazeMean[j].clone().invert());
+      }
+    }
+  }
   const hipsDrop = new THREE.Vector3(...THALASSA_JOINTS.find((j) => j.name === 'thigh_L').offset).setX(0);
   for (const w of apply) {
     // Keep the midpoint between the hip joints where it was: the pelvis turns about its own origin, which sits above them.
     const was = hipsDrop.clone().applyQuaternion(w.pelvis);
     for (const j of TRUNK) w[j] = rot[j].clone().multiply(w[j]).normalize();
-    for (const j of ABOVE_CHEST) if (w[j]) w[j] = rot.chest.clone().multiply(w[j]).normalize();
+    for (const j of ABOVE_CHEST) {
+      if (!w[j]) continue;
+      const pose = gazeMean[j] ? gazeMean[j].clone().slerp(w[j], gazeMotion) : w[j];
+      w[j] = (rot[j] ?? rot.chest).clone().multiply(pose).normalize();
+    }
     const now = hipsDrop.clone().applyQuaternion(w.pelvis);
     // Both offsets are in shared-skeleton metres, like the scaled hips samples.
     w.hips.add(was.sub(now));
   }
   return { before, after: trunkPitch(measure, right) };
+}
+
+/** Where `hangArms: true` puts each upper arm's average forward swing, degrees: hanging straight down from the shoulder. */
+export const HANG_ARMS = 0;
+
+/**
+ * Average forward swing (degrees, positive forward) of each upper arm over world-rotation samples: the shoulder-to-elbow segment
+ * against straight down, about the horizontal `right` axis.
+ */
+export function armPitch(samples, right) {
+  const fwd = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), right);
+  const d = new THREE.Vector3();
+  const out = {};
+  for (const s of ['L', 'R']) {
+    const bone = new THREE.Vector3(...THALASSA_JOINTS.find((j) => j.name === `foreArm_${s}`).offset);
+    let sum = 0;
+    for (const w of samples) {
+      d.copy(bone).applyQuaternion(w[`upperArm_${s}`]);
+      sum += THREE.MathUtils.radToDeg(Math.atan2(d.dot(fwd), -d.y));
+    }
+    out[s] = sum / samples.length;
+  }
+  return out;
+}
+
+/**
+ * Hang a standing take's arms at the sides (standing-posture-stability). A performer who carries both arms a little forward
+ * reads, on a character, as hands held out in front of the thighs. Turns each arm from the shoulder about the clip's right axis
+ * so its upper arm's average forward swing becomes `target` degrees. Only that constant average changes: every frame keeps its
+ * swing around it, and the elbow bend, wrist and hand ride along unchanged; the shoulders, trunk and legs are untouched. Run
+ * after levelTrunk, on the arms the levelled chest carries. `measure` are the samples the average comes from, `apply` every
+ * sample to correct (with the loop-closing one). Mutates `apply`.
+ */
+export function hangArms(measure, apply, target = HANG_ARMS) {
+  const right = new THREE.Vector3();
+  for (const w of measure) right.add(new THREE.Vector3(1, 0, 0).applyQuaternion(w.pelvis).setY(0));
+  right.normalize();
+  const before = armPitch(measure, right);
+  for (const s of ['L', 'R']) {
+    // A segment pointing down swings forward under a positive turn about the right axis (Thalassa faces -Z).
+    const rot = new THREE.Quaternion().setFromAxisAngle(right, THREE.MathUtils.degToRad(target - before[s]));
+    for (const w of apply) for (const j of [`upperArm_${s}`, `foreArm_${s}`, `hand_${s}`]) w[j] = rot.clone().multiply(w[j]).normalize();
+  }
+  return { before, after: armPitch(measure, right) };
 }
 

@@ -41,7 +41,11 @@ A standing idle loops for whole scenes, so its take must not carry an incidental
 - **What it leaves alone.** The legs keep their world angles and the feet stay planted. The arms, neck and head keep their pose against the chest. Turning and side-lean are unchanged. The bake log prints the pelvis/spine/chest pitch before and after.
 - **When to use it.** Use it for standing idle, talk and their posture holds (`src/actors/mocapPosture.test.ts` fails any standing idle or talk whose pelvis is more than 10° from upright or whose upper back bends more than 12° backwards). Don't use it on walks and runs, which lean into their speed, or on kneels, crouches and get-ups.
 
+Some performers also carry both arms a little forward while they wait. On a character that reads as hands held out in front of the thighs. `"hangArms": true` on a standing idle turns each arm from the shoulder so the upper arm's average swing hangs straight down (a number sets another average, in degrees forward). Like `levelTrunk`, it only changes the average: the arm swing around it, the elbow bend, the wrist and everything else in the take are kept. The bake log prints each upper arm's average swing before and after (`arms hung L/R`). The other named characters' standing idles carry an upper arm at most about 6° forward (Hale's left); Okafor's carried his left arm 7° forward. Run it on idles, not on talk, whose gestures are the point, and not on additive holds, which keep only the motion around their own average.
+
 None of the BVH sources record finger joints. Finger tracks come only from the Quaternius clips; everyone else's fingers come from the hand solver (`src/actors/handPhysics.ts`) and each character's hand personality.
+
+Okafor uses the standing portion of CMU `82_08` (0.5–8.5 s) for idle and the additive hold. The later part of the take walks forward. His talk uses the conversation in `18_08`. On these clips, `"levelTrunk": "upright"` centres the average side tilt of the spine and chest and levels the neck and head. `gazeMotion` centres the neck and head on the body’s heading and retains a fraction of their recorded rotation around the mean (0.1 for idle and hold, 0.45 for talk). The cast posture check allows up to 10° of sustained side tilt at the chest and head. His idle also hangs its arms (`"hangArms": true`): the performer held his left upper arm 7° forward and his right 2°. His aim clip, `okafor_pistol`, is not baked: it is `pistol_idle` with his hands turned to suit his model (fix-squad-pistol-grips). It once cancelled the model's palm-forward rest roll; since `scripts/fix-doctor-glb.mjs` turns his hands back to rest palm to thigh, its hand tracks carry that turn instead (30° left, 42° right about the hanging forearm), so his aim is unchanged.
 
 Every source used by a clip needs a row in `CREDITS.md` (Animations) and an entry in the in-game credits.
 
@@ -52,7 +56,7 @@ The core library loads at start and must stay within 2 MB. Every other named cha
 <!-- sizes:begin -->
 | Pack | Clips | Size |
 |---|---|---|
-| core | 39 | 895.5 KB |
+| core | 41 | 1002.6 KB |
 | bram | 8 | 223.4 KB |
 | hale | 5 | 148.4 KB |
 | heins | 4 | 56.2 KB |

@@ -73,6 +73,13 @@ The body of every named character SHALL carry weighted finger bones (three per f
 - **THEN** on each hand the thumb grows from the index side, and the index-to-pinky direction across the knuckles matches the other hand's, mirrored left to right (within 60°)
 - **AND** curling the fingers of either hand closes them toward that hand's palm, never toward the back of the hand
 
+### Requirement: A prepared body's hands rest toward the thighs
+Hung in the game's rest pose, a named character's prepared body SHALL turn each palm toward its thigh, within 25°. A model bound with its forearms turned (for example around a prop it holds) SHALL be turned back when it is prepared, with the forearm skin following progressively from elbow to wrist so the wrist does not pinch.
+
+#### Scenario: Okafor's clipboard bind pose
+- **WHEN** Okafor's body, bound holding a clipboard with its forearms turned palm-forward, is prepared and hung in the rest pose
+- **THEN** both palms face his thighs, so his clips play from that rest and he does not stand with his palms turned out
+
 ### Requirement: Fingers follow the character's hands
 Finger bones SHALL follow the clip's finger track when the clip has one. Otherwise they SHALL take a grip from the hand's state: relaxed when empty, wrapped around a held prop (mug, pistol, clipboard, penlight), flat when the hand rests on a surface. Grip changes SHALL ease over at least 0.1 s.
 
