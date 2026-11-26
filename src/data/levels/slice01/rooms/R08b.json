@@ -9,58 +9,18 @@
     "reverb": "small_office",
     "ambience": "surgery"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         2,
-        0,
         13
       ]
-    },
-    {
-      "kit": "floor_tiles",
-      "cells": [
-        [
-          2,
-          0,
-          13
-        ]
-      ]
-    },
-    {
-      "kit": "wall_tiles",
-      "cells": [
-        [
-          2,
-          0,
-          13
-        ]
-      ]
-    },
-    {
-      "kit": "wall_tiles",
-      "cells": [
-        [
-          2,
-          0,
-          13
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_tiles",
-      "cells": [
-        [
-          2,
-          0,
-          13
-        ]
-      ],
-      "rot": 180
-    }
-  ],
+    ],
+    "floor": "floor_tiles",
+    "walls": [
+      "wall_tiles"
+    ]
+  },
   "props": [
     {
       "kit": "med_bed",

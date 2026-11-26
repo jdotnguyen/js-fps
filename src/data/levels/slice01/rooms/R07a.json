@@ -8,67 +8,18 @@
     "reverb": "small_office",
     "ambience": "armory"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         2,
-        0,
         10
       ]
-    },
-    {
-      "kit": "floor",
-      "cells": [
-        [
-          2,
-          0,
-          10
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          2,
-          0,
-          10
-        ]
-      ],
-      "params": {
-        "material": "cleanWall"
-      }
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          2,
-          0,
-          10
-        ]
-      ],
-      "params": {
-        "material": "cleanWall"
-      },
-      "rot": 270
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          2,
-          0,
-          10
-        ]
-      ],
-      "params": {
-        "material": "cleanWall"
-      },
-      "rot": 180
-    }
-  ],
+    ],
+    "walls": [
+      "wall_plain"
+    ],
+    "wallMaterial": "cleanWall"
+  },
   "props": [
     {
       "kit": "armory_rack",

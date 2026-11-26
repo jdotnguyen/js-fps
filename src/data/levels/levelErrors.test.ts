@@ -4,8 +4,10 @@ import { ValidationError, validate } from '../../core/validate.ts';
 import { levelValidator, type KitIds } from '../types/level.ts';
 import { assembleLevel, type LevelParts } from './assembleLevel.ts';
 
-const kits: KitIds = { structure: new Set(['floor']), prop: new Set(['crate']) };
-const room = (id: string, more: Record<string, unknown> = {}): Record<string, unknown> => ({ id, name: id, pieces: [{ kit: 'floor', cell: [0, 0, 0] }], ...more });
+const kits: KitIds = { structure: new Set(['floor', 'ceiling', 'wall_plain']), prop: new Set(['crate']) };
+// R01 at cell 0,0 and R16b north of it, through the door.
+const CELL: Record<string, [number, number]> = { R01: [0, 0], R16b: [0, -1] };
+const room = (id: string, more: Record<string, unknown> = {}): Record<string, unknown> => ({ id, name: id, layout: { cells: [CELL[id]], walls: ['wall_plain'] }, ...more });
 
 function parts(): LevelParts {
   return {
@@ -35,6 +37,11 @@ test('the unspoiled parts validate', () => {
 test('a bad kit id in a room file names that file and the field in it', () => {
   const message = failure((p) => (p.rooms['R16b'] = room('R16b', { props: [{ kit: 'crate', pos: [0, 0, 0] }, { kit: 'crat', pos: [0, 0, 0] }] })));
   assert.match(message, /^data\/levels\/deck\/rooms\/R16b\.json > props\[1\] > kit: unknown prop "crat"/);
+});
+
+test('a bad kit id in a room layout names that file and the layout field', () => {
+  const message = failure((p) => (p.rooms['R16b'] = room('R16b', { layout: { cells: [[0, -1]], walls: ['wall_plain', 'wall_plian'] } })));
+  assert.match(message, /^data\/levels\/deck\/rooms\/R16b\.json > layout > walls\[1\]: unknown structure piece "wall_plian"/);
 });
 
 test('a bad field shape in a room file names that file too', () => {

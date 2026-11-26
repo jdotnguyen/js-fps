@@ -139,299 +139,111 @@
   "visibleFrom": [
     "R10"
   ],
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         2,
-        0,
         11
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         3,
-        0,
         11
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         4,
-        0,
         11
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         4,
-        0,
         12
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         5,
-        0,
         12
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         6,
-        0,
         12
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         7,
-        0,
         12
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         7,
-        0,
         13
       ]
+    ],
+    "floor": "floor_grate",
+    "ceiling": "ceiling_pipes",
+    "walls": [
+      "wall_plain"
+    ],
+    "wallOverride": {
+      "7,13,e": "wall_glass_partition"
     },
-    {
-      "kit": "floor_grate",
-      "cells": [
-        [
+    "wallMaterial": "concrete",
+    "extraPieces": [
+      {
+        "kit": "stairs",
+        "cell": [
           2,
           0,
           11
         ],
-        [
-          3,
-          0,
-          11
-        ],
-        [
-          4,
-          0,
-          11
-        ],
-        [
-          4,
-          0,
-          12
-        ],
-        [
-          5,
-          0,
-          12
-        ],
-        [
-          6,
-          0,
-          12
-        ],
-        [
-          7,
-          0,
-          12
-        ],
-        [
-          7,
-          0,
-          13
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
+        "rot": 90,
+        "params": {
+          "rise": 1.2,
+          "run": 2.4,
+          "offset": 0.6,
+          "grate": true
+        }
+      },
+      {
+        "kit": "floor_landing",
+        "cell": [
           2,
           0,
           11
         ],
-        [
-          3,
-          0,
-          11
-        ],
-        [
-          4,
-          0,
-          11
-        ],
-        [
-          5,
-          0,
-          12
-        ],
-        [
-          6,
-          0,
-          12
-        ],
-        [
+        "rot": 90,
+        "params": {
+          "rise": 1.2,
+          "depth": 1.4,
+          "grate": true
+        }
+      },
+      {
+        "kit": "stairs",
+        "cell": [
           7,
           0,
           12
-        ]
-      ],
-      "params": {
-        "material": "concrete"
-      }
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          2,
-          0,
-          11
         ],
-        [
-          3,
-          0,
-          11
-        ],
-        [
-          4,
-          0,
-          12
-        ],
-        [
-          5,
-          0,
-          12
-        ],
-        [
-          6,
-          0,
-          12
-        ],
-        [
+        "rot": 270,
+        "params": {
+          "rise": 1.2,
+          "run": 2.4,
+          "offset": 0.6,
+          "grate": true
+        }
+      },
+      {
+        "kit": "floor_landing",
+        "cell": [
           7,
           0,
-          13
-        ]
-      ],
-      "params": {
-        "material": "concrete"
-      },
-      "rot": 180
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          4,
-          0,
-          11
-        ]
-      ],
-      "params": {
-        "material": "concrete"
-      },
-      "rot": 270
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          4,
-          0,
           12
         ],
-        [
-          7,
-          0,
-          13
-        ]
-      ],
-      "params": {
-        "material": "concrete"
-      },
-      "rot": 90
-    },
-    {
-      "kit": "wall_glass_partition",
-      "cells": [
-        [
-          7,
-          0,
-          13
-        ]
-      ],
-      "params": {
-        "material": "concrete"
-      },
-      "rot": 270
-    },
-    {
-      "kit": "stairs",
-      "cell": [
-        2,
-        0,
-        11
-      ],
-      "rot": 90,
-      "params": {
-        "rise": 1.2,
-        "run": 2.4,
-        "offset": 0.6,
-        "grate": true
+        "rot": 270,
+        "params": {
+          "rise": 1.2,
+          "depth": 1.4,
+          "grate": true
+        }
       }
-    },
-    {
-      "kit": "floor_landing",
-      "cell": [
-        2,
-        0,
-        11
-      ],
-      "rot": 90,
-      "params": {
-        "rise": 1.2,
-        "depth": 1.4,
-        "grate": true
-      }
-    },
-    {
-      "kit": "stairs",
-      "cell": [
-        7,
-        0,
-        12
-      ],
-      "rot": 270,
-      "params": {
-        "rise": 1.2,
-        "run": 2.4,
-        "offset": 0.6,
-        "grate": true
-      }
-    },
-    {
-      "kit": "floor_landing",
-      "cell": [
-        7,
-        0,
-        12
-      ],
-      "rot": 270,
-      "params": {
-        "rise": 1.2,
-        "depth": 1.4,
-        "grate": true
-      }
-    }
-  ],
+    ]
+  },
   "props": [
     {
       "kit": "hanging_tube",

@@ -13,163 +13,55 @@
   "visibleFrom": [
     "R04"
   ],
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         1,
-        0,
         4
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        2,
-        0,
-        4
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        3,
-        0,
-        4
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        1,
-        0,
-        5
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        2,
-        0,
-        5
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        3,
-        0,
-        5
-      ]
-    },
-    {
-      "kit": "floor_carpet",
-      "cells": [
-        [
-          1,
-          0,
-          4
-        ],
-        [
-          2,
-          0,
-          4
-        ],
-        [
-          3,
-          0,
-          4
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          1,
-          0,
-          4
-        ],
-        [
-          2,
-          0,
-          4
-        ],
-        [
-          3,
-          0,
-          4
-        ]
-      ]
-    },
-    {
-      "kit": "floor_carpet",
-      "cells": [
-        [
-          1,
-          0,
-          5
-        ],
-        [
-          2,
-          0,
-          5
-        ],
-        [
-          3,
-          0,
-          5
-        ]
       ],
-      "params": {
+      [
+        2,
+        4
+      ],
+      [
+        3,
+        4
+      ],
+      [
+        1,
+        5
+      ],
+      [
+        2,
+        5
+      ],
+      [
+        3,
+        5
+      ]
+    ],
+    "floor": "floor_carpet",
+    "floorParams": {
+      "1,5": {
+        "bareEdge": "s",
+        "bareWidth": 1.25
+      },
+      "2,5": {
+        "bareEdge": "s",
+        "bareWidth": 1.25
+      },
+      "3,5": {
         "bareEdge": "s",
         "bareWidth": 1.25
       }
     },
-    {
-      "kit": "wall_glass_partition",
-      "cells": [
-        [
-          1,
-          0,
-          5
-        ],
-        [
-          2,
-          0,
-          5
-        ],
-        [
-          3,
-          0,
-          5
-        ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          1,
-          0,
-          5
-        ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          3,
-          0,
-          5
-        ]
-      ],
-      "rot": 270
+    "wallOverride": {
+      "1,5,s": "wall_glass_partition",
+      "2,5,s": "wall_glass_partition",
+      "3,5,s": "wall_glass_partition",
+      "2,4,n": "wall_plain"
     }
-  ],
+  },
   "props": [
     {
       "kit": "wall_screen",

@@ -1008,7 +1008,7 @@ test('medbay-attack "It leaves through the door" (D37): in and out of the surger
   const g = mauledSetup({}, { marks: a, priya: a['priya_sit']!, thing: a['r08_lurk']!, jay: a['r07_glass_jay']! });
   void g.npcs.command('kill', R08_KILL);
   const thing = g.npcs.actor('r08_thing')!;
-  // R08's east wall is at x 6; the surgery door is centred on z 52 (scripts/gen-slice01.mjs, D_R08_R08b).
+  // R08's east wall is at x 6; the surgery door is centred on z 52 (D_R08_R08b in data/levels/slice01/doors.json).
   const crossings: number[] = [];
   let prev = thing.position.clone();
   let stillFrom = -1;

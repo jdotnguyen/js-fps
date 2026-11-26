@@ -11,134 +11,35 @@
   "visibleFrom": [
     "R09"
   ],
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         8,
-        0,
         12
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         9,
-        0,
         12
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         8,
-        0,
+        13
+      ],
+      [
+        9,
         13
       ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
-        9,
-        0,
-        13
-      ]
-    },
-    {
-      "kit": "floor",
-      "cells": [
-        [
-          8,
-          0,
-          12
-        ],
-        [
-          9,
-          0,
-          12
-        ],
-        [
-          8,
-          0,
-          13
-        ],
-        [
-          9,
-          0,
-          13
-        ]
-      ]
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          9,
-          0,
-          12
-        ]
-      ],
-      "params": {
-        "material": "concrete"
-      }
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          9,
-          0,
-          12
-        ]
-      ],
-      "params": {
-        "material": "concrete"
-      },
-      "rot": 270
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          8,
-          0,
-          13
-        ]
-      ],
-      "params": {
-        "material": "concrete"
-      },
-      "rot": 180
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          9,
-          0,
-          13
-        ]
-      ],
-      "params": {
-        "material": "concrete"
-      },
-      "rot": 270
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          9,
-          0,
-          13
-        ]
-      ],
-      "params": {
-        "material": "concrete"
-      },
-      "rot": 180
-    }
-  ],
+    ],
+    "ceiling": "ceiling_pipes",
+    "walls": [
+      "wall_plain",
+      "wall_panel"
+    ],
+    "wallMaterial": "concrete",
+    "open": [
+      "8,13,w"
+    ]
+  },
   "props": [
     {
       "kit": "valve_wheel",

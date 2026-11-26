@@ -10,418 +10,136 @@
     "reverb": "metal_hall",
     "ambience": "commons_murmur"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         4,
-        0,
         3
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      [
         5,
-        0,
-        3
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        6,
-        0,
         3
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      [
+        6,
+        3
+      ],
+      [
         7,
-        0,
         3
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         8,
-        0,
         3
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         4,
-        0,
         4
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      [
         5,
-        0,
         4
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         6,
-        0,
         4
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      [
         7,
-        0,
-        4
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        8,
-        0,
         4
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      [
+        8,
+        4
+      ],
+      [
         4,
-        0,
         5
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         5,
-        0,
         5
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      [
         6,
-        0,
         5
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      [
         7,
-        0,
         5
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      [
         8,
-        0,
         5
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      [
         4,
-        0,
         6
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      [
         5,
-        0,
         6
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         6,
-        0,
         6
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      [
         7,
-        0,
         6
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         8,
-        0,
+        6
+      ]
+    ],
+    "floorOverride": {
+      "7,3": "floor_tiles",
+      "8,3": "floor_tiles"
+    },
+    "wallOverride": {
+      "7,3,n": "wall_tiles",
+      "8,3,n": "wall_tiles",
+      "4,6,s": "wall_sanity_screen",
+      "5,6,s": "wall_sanity_screen",
+      "7,6,s": "wall_sanity_screen",
+      "8,6,s": "wall_sanity_screen"
+    },
+    "fixtures": [
+      [
+        5,
+        3
+      ],
+      [
+        7,
+        3
+      ],
+      [
+        8,
+        3
+      ],
+      [
+        5,
+        4
+      ],
+      [
+        7,
+        4
+      ],
+      [
+        4,
+        5
+      ],
+      [
+        5,
         6
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "floor",
-      "cells": [
-        [
-          4,
-          0,
-          3
-        ],
-        [
-          5,
-          0,
-          3
-        ],
-        [
-          6,
-          0,
-          3
-        ],
-        [
-          4,
-          0,
-          4
-        ],
-        [
-          5,
-          0,
-          4
-        ],
-        [
-          6,
-          0,
-          4
-        ],
-        [
-          7,
-          0,
-          4
-        ],
-        [
-          8,
-          0,
-          4
-        ],
-        [
-          4,
-          0,
-          5
-        ],
-        [
-          5,
-          0,
-          5
-        ],
-        [
-          6,
-          0,
-          5
-        ],
-        [
-          7,
-          0,
-          5
-        ],
-        [
-          8,
-          0,
-          5
-        ],
-        [
-          4,
-          0,
-          6
-        ],
-        [
-          5,
-          0,
-          6
-        ],
-        [
-          6,
-          0,
-          6
-        ],
-        [
-          7,
-          0,
-          6
-        ],
-        [
-          8,
-          0,
-          6
-        ]
+      [
+        7,
+        6
       ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          4,
-          0,
-          3
-        ]
-      ]
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          4,
-          0,
-          3
-        ],
-        [
-          4,
-          0,
-          5
-        ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          5,
-          0,
-          3
-        ]
-      ]
-    },
-    {
-      "kit": "floor_tiles",
-      "cells": [
-        [
-          7,
-          0,
-          3
-        ],
-        [
-          8,
-          0,
-          3
-        ]
-      ]
-    },
-    {
-      "kit": "wall_tiles",
-      "cells": [
-        [
-          7,
-          0,
-          3
-        ],
-        [
-          8,
-          0,
-          3
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          8,
-          0,
-          4
-        ],
-        [
-          8,
-          0,
-          6
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_sanity_screen",
-      "cells": [
-        [
-          4,
-          0,
-          6
-        ],
-        [
-          5,
-          0,
-          6
-        ],
-        [
-          7,
-          0,
-          6
-        ],
-        [
-          8,
-          0,
-          6
-        ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          4,
-          0,
-          6
-        ]
-      ],
-      "rot": 90
-    }
-  ],
+    ]
+  },
   "props": [
     {
       "kit": "kitchen_counter",

@@ -13,293 +13,175 @@
   "visibleFrom": [
     "R16b"
   ],
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         20,
-        0,
         8
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         21,
-        0,
         8
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         22,
-        0,
         8
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         20,
-        0,
         9
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         21,
-        0,
         9
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         22,
-        0,
         9
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         20,
-        0,
         10
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         21,
-        0,
-        10
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        22,
-        0,
-        10
-      ]
-    },
-    {
-      "kit": "floor",
-      "cells": [
-        [
-          20,
-          0,
-          8
-        ],
-        [
-          21,
-          0,
-          8
-        ],
-        [
-          22,
-          0,
-          8
-        ],
-        [
-          20,
-          0,
-          9
-        ],
-        [
-          21,
-          0,
-          9
-        ],
-        [
-          22,
-          0,
-          9
-        ],
-        [
-          20,
-          0,
-          10
-        ],
-        [
-          21,
-          0,
-          10
-        ],
-        [
-          22,
-          0,
-          10
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          20,
-          0,
-          8
-        ],
-        [
-          21,
-          0,
-          8
-        ]
-      ]
-    },
-    {
-      "kit": "transit_blast_gate",
-      "cell": [
-        22,
-        0,
-        8
-      ],
-      "params": {
-        "gateId": "r16a_north",
-        "height": 5
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        22,
-        0,
-        4
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        22,
-        0,
-        5
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        22,
-        0,
-        6
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        22,
-        0,
-        7
-      ]
-    },
-    {
-      "kit": "wall_window",
-      "cells": [
-        [
-          22,
-          0,
-          8
-        ],
-        [
-          22,
-          0,
-          9
-        ],
-        [
-          22,
-          0,
-          10
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "stairs",
-      "cell": [
-        20,
-        0,
-        8
-      ],
-      "rot": 90,
-      "params": {
-        "rise": 0.6,
-        "run": 1.8,
-        "steps": 3,
-        "width": 3.98,
-        "offset": -1.1,
-        "rails": "none"
-      }
-    },
-    {
-      "kit": "stairs",
-      "cell": [
-        20,
-        0,
-        9
-      ],
-      "rot": 90,
-      "params": {
-        "rise": 0.6,
-        "run": 1.8,
-        "steps": 3,
-        "width": 3.98,
-        "offset": -1.1,
-        "rails": "none"
-      }
-    },
-    {
-      "kit": "stairs",
-      "cell": [
-        20,
-        0,
         10
       ],
-      "rot": 90,
-      "params": {
-        "rise": 0.6,
-        "run": 1.8,
-        "steps": 3,
-        "width": 3.98,
-        "offset": -1.1,
-        "rails": "none"
-      }
+      [
+        22,
+        10
+      ]
+    ],
+    "ceiling": "ceiling_pipes",
+    "walls": [
+      "wall_plain"
+    ],
+    "open": [
+      "20,8,w",
+      "22,8,n",
+      "20,9,w",
+      "20,10,w",
+      "22,10,s"
+    ],
+    "wallOverride": {
+      "22,8,e": "wall_window",
+      "22,9,e": "wall_window",
+      "22,10,e": "wall_window"
     },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
+    "extraPieces": [
+      {
+        "kit": "transit_blast_gate",
+        "cell": [
+          22,
+          0,
+          8
+        ],
+        "params": {
+          "gateId": "r16a_north",
+          "height": 5
+        }
+      },
+      {
+        "kit": "ceiling",
+        "cell": [
+          22,
+          0,
+          4
+        ]
+      },
+      {
+        "kit": "ceiling",
+        "cell": [
+          22,
+          0,
+          5
+        ]
+      },
+      {
+        "kit": "ceiling",
+        "cell": [
+          22,
+          0,
+          6
+        ]
+      },
+      {
+        "kit": "ceiling",
+        "cell": [
+          22,
+          0,
+          7
+        ]
+      },
+      {
+        "kit": "stairs",
+        "cell": [
+          20,
+          0,
+          8
+        ],
+        "rot": 90,
+        "params": {
+          "rise": 0.6,
+          "run": 1.8,
+          "steps": 3,
+          "width": 3.98,
+          "offset": -1.1,
+          "rails": "none"
+        }
+      },
+      {
+        "kit": "stairs",
+        "cell": [
+          20,
+          0,
+          9
+        ],
+        "rot": 90,
+        "params": {
+          "rise": 0.6,
+          "run": 1.8,
+          "steps": 3,
+          "width": 3.98,
+          "offset": -1.1,
+          "rails": "none"
+        }
+      },
+      {
+        "kit": "stairs",
+        "cell": [
           20,
           0,
           10
         ],
-        [
-          21,
+        "rot": 90,
+        "params": {
+          "rise": 0.6,
+          "run": 1.8,
+          "steps": 3,
+          "width": 3.98,
+          "offset": -1.1,
+          "rails": "none"
+        }
+      },
+      {
+        "kit": "ceiling",
+        "cell": [
+          22,
           0,
-          10
+          11
         ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        22,
-        0,
-        11
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        22,
-        0,
-        12
-      ]
-    }
-  ],
+      },
+      {
+        "kit": "ceiling",
+        "cell": [
+          22,
+          0,
+          12
+        ]
+      }
+    ]
+  },
   "props": [
     {
       "kit": "track_bed",

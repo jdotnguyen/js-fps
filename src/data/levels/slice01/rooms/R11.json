@@ -9,221 +9,47 @@
     "reverb": "metal_hall",
     "ambience": "power_bay"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         8,
-        0,
         9
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         9,
-        0,
         9
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         10,
-        0,
         9
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         8,
-        0,
         10
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         9,
-        0,
         10
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         10,
-        0,
         10
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         8,
-        0,
+        11
+      ],
+      [
+        9,
+        11
+      ],
+      [
+        10,
         11
       ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
-        9,
-        0,
-        11
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        10,
-        0,
-        11
-      ]
-    },
-    {
-      "kit": "floor",
-      "cells": [
-        [
-          8,
-          0,
-          9
-        ],
-        [
-          9,
-          0,
-          9
-        ],
-        [
-          10,
-          0,
-          9
-        ],
-        [
-          8,
-          0,
-          10
-        ],
-        [
-          9,
-          0,
-          10
-        ],
-        [
-          10,
-          0,
-          10
-        ],
-        [
-          8,
-          0,
-          11
-        ],
-        [
-          9,
-          0,
-          11
-        ],
-        [
-          10,
-          0,
-          11
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          8,
-          0,
-          9
-        ],
-        [
-          10,
-          0,
-          9
-        ]
-      ]
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          8,
-          0,
-          9
-        ],
-        [
-          8,
-          0,
-          11
-        ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          10,
-          0,
-          9
-        ],
-        [
-          10,
-          0,
-          11
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          8,
-          0,
-          10
-        ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          10,
-          0,
-          10
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          9,
-          0,
-          11
-        ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          10,
-          0,
-          11
-        ]
-      ],
-      "rot": 180
-    }
-  ],
+    ],
+    "ceiling": "ceiling_pipes"
+  },
   "props": [
     {
       "kit": "power_terminal",

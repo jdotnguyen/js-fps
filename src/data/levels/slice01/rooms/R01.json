@@ -12,214 +12,84 @@
   "visibleFrom": [
     "R01w"
   ],
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
-        0,
+  "layout": {
+    "cells": [
+      [
         0,
         0
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         1,
-        0,
-        0
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        2,
-        0,
         0
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
-        3,
-        0,
+      [
+        2,
         0
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        0,
+      ],
+      [
+        3,
+        0
+      ],
+      [
         0,
         1
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      [
         1,
-        0,
         1
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         2,
-        0,
         1
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         3,
-        0,
         1
-      ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "floor",
-      "cells": [
-        [
-          0,
-          0,
-          0
-        ],
-        [
-          1,
-          0,
-          0
-        ],
-        [
-          2,
-          0,
-          0
-        ],
-        [
-          3,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          1
-        ],
-        [
-          1,
-          0,
-          1
-        ],
-        [
-          2,
-          0,
-          1
-        ],
-        [
-          3,
-          0,
-          1
-        ]
       ]
+    ],
+    "ceiling": "ceiling_pipes",
+    "wallOverride": {
+      "1,0,n": "wall_window",
+      "2,0,n": "wall_window",
+      "3,0,n": "wall_window"
     },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          0,
-          0,
-          0
-        ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_window",
-      "cells": [
-        [
-          1,
-          0,
-          0
-        ],
-        [
-          2,
-          0,
-          0
-        ],
-        [
-          3,
-          0,
-          0
-        ]
-      ],
-      "params": {
+    "wallParams": {
+      "1,0,n": {
+        "flicker": true
+      },
+      "2,0,n": {
+        "flicker": true
+      },
+      "3,0,n": {
         "flicker": true
       }
     },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          0,
-          0,
-          1
-        ],
-        [
-          2,
-          0,
-          1
-        ]
+    "open": [
+      "3,0,e"
+    ],
+    "fixtures": [
+      [
+        0,
+        0
       ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          0,
-          0,
-          1
-        ]
+      [
+        1,
+        0
       ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          1,
-          0,
-          1
-        ],
-        [
-          3,
-          0,
-          1
-        ]
+      [
+        3,
+        0
       ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          3,
-          0,
-          1
-        ]
+      [
+        1,
+        1
       ],
-      "rot": 270
-    }
-  ],
+      [
+        2,
+        1
+      ]
+    ]
+  },
   "props": [
     {
       "kit": "supply_sub",

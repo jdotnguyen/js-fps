@@ -12,180 +12,53 @@
   "visibleFrom": [
     "R01"
   ],
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         4,
-        0,
-        0
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
-        5,
-        0,
         0
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        6,
-        0,
+      [
+        5,
         0
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         6,
-        0,
+        0
+      ],
+      [
+        6,
         1
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      [
         6,
-        0,
         2
       ]
+    ],
+    "ceiling": "ceiling_pipes",
+    "wallOverride": {
+      "5,0,n": "wall_window",
+      "6,0,n": "wall_window",
+      "6,1,e": "wall_window"
     },
-    {
-      "kit": "floor",
-      "cells": [
-        [
-          4,
-          0,
-          0
-        ],
-        [
-          5,
-          0,
-          0
-        ],
-        [
-          6,
-          0,
-          0
-        ],
-        [
-          6,
-          0,
-          1
-        ],
-        [
-          6,
-          0,
-          2
-        ]
+    "open": [
+      "4,0,w"
+    ],
+    "fixtures": [
+      [
+        4,
+        0
+      ],
+      [
+        6,
+        0
+      ],
+      [
+        6,
+        2
       ]
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          4,
-          0,
-          0
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          4,
-          0,
-          0
-        ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_window",
-      "cells": [
-        [
-          5,
-          0,
-          0
-        ],
-        [
-          6,
-          0,
-          0
-        ]
-      ]
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          5,
-          0,
-          0
-        ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          6,
-          0,
-          0
-        ],
-        [
-          6,
-          0,
-          2
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_window",
-      "cells": [
-        [
-          6,
-          0,
-          1
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          6,
-          0,
-          1
-        ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          6,
-          0,
-          2
-        ]
-      ],
-      "rot": 90
-    }
-  ],
+    ]
+  },
   "props": [
     {
       "kit": "pipe_run",

@@ -42,24 +42,36 @@ tell the user which change or file is blocking.
 
 ## 2. Phase 1b: build room shells from layouts (Opus 5.5, high)
 
-- [ ] 2.1 Port the generator's piece rules to `src/world/shell.ts`: ceilings first per cell, floor overrides and params,
+- [x] 2.1 Port the generator's piece rules to `src/world/shell.ts`: ceilings first per cell, floor overrides and params,
   hashed wall choice, door, glass and open edge skips, `noDeadFixtures` fixtures, `extraPieces` (design D3). Verify:
   unit tests on small rooms cover each rule.
-- [ ] 2.2 Write a one-time script that, for each room, builds pieces from the generator's room table and compares them
+- [x] 2.2 Write a one-time script that, for each room, builds pieces from the generator's room table and compares them
   with the room file's `pieces` as an unordered set (design D4). Verify: a report lists each room as match or diff.
-- [ ] 2.3 Add `layout` to each matching room file and fix the layout of each differing room (R15b at least) until it
+- [x] 2.3 Add `layout` to each matching room file and fix the layout of each differing room (R15b at least) until it
   matches, without taking any non-layout content from the generator. List any difference kept on purpose in the
   change's notes. Verify: the script reports every room as a match, or each listed difference is approved by the user.
-- [ ] 2.4 Make `assembleLevel` build `pieces` from `layout` plus doors, then remove the stored `pieces` from room files
+- [x] 2.4 Make `assembleLevel` build `pieces` from `layout` plus doors, then remove the stored `pieces` from room files
   and add `layout` to the level validator and `src/data/types/level.ts`. Verify: the assembled `pieces` equal the
   phase 1a pieces per room (test), and `npm test -- src/world/slice01.test.ts` passes.
-- [ ] 2.5 Add a test that every numeric light slot points at the same fixture position as before the change. Verify:
+  Result (2026-11-26): the one-time check compared `readLevel('slice01')` with HEAD's (4409f6b) stored pieces. 33 rooms
+  are equal piece for piece. R16a and R16b have the same tiles and slot order in a different piece order (see the
+  design's phase 1b notes). Every other room field is unchanged. As in 1.8, the old-data half was not kept as a test.
+  The lasting guards are `shell.test.ts`, the assembler tests and the 2.5 slot test. `slice01.test.ts` passes (48).
+- [x] 2.5 Add a test that every numeric light slot points at the same fixture position as before the change. Verify:
   the test passes and fails when the ceiling order is reversed.
-- [ ] 2.6 Delete `scripts/gen-slice01.mjs`, update docs that mention it, and delete the level-generator-drift memory note.
+- [x] 2.6 Delete `scripts/gen-slice01.mjs`, update docs that mention it, and delete the level-generator-drift memory note.
   Measure the shell build time once on load. Verify: `grep -rn gen-slice01` finds only archived changes, and the build
   time is under 5 ms.
-- [ ] 2.7 Playtest per `docs/PLAYTEST.md`: walk R02, R04 (Lab B), R08, R11, R15b and R16b and compare against
+  Result (2026-11-26): outside archived changes, the grep finds only this change's own planning files. Building all 35
+  shells (407 pieces, layouts validated) takes 1.7 ms cold and 0.4 ms warm in Node.
+- [x] 2.7 Playtest per `docs/PLAYTEST.md`: walk R02, R04 (Lab B), R08, R11, R15b and R16b and compare against
   screenshots taken before 2.4. Verify: no missing or extra walls, floors or fixtures. Close the browser afterwards.
+  Result (2026-11-26): two private `playtest:serve` builds, a clean HEAD (4409f6b, pieces stored) and the tree with
+  layouts. A headless script took 27 views in R02, R04, R08, R11, R13d, R15a, R15b, R16a and R16b from the same eye
+  points (`?level=slice01&debug&slot=scratch&jump=r16b`). Pixel diffs are at noise level, except for views where a
+  running scene moved lights, fish or the squad. Those pairs were compared by eye: the geometry is the same, and no
+  wall, floor or fixture is missing or extra. Neither build logged an overlapping-wall or missing-slot warning. Both
+  servers and browsers were closed.
 
 ## 3. Phase 2: cast, creature and pose folders (Sonnet 5.5, medium)
 

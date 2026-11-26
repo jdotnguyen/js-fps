@@ -9,48 +9,51 @@
     "reverb": "metal_hall",
     "ambience": "transit_tunnel"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
-        32,
-        0,
-        8
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        32,
-        0,
-        9
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        32,
-        0,
-        10
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        32,
-        0,
-        11
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        32,
-        0,
-        12
-      ]
-    }
-  ],
+  "layout": {
+    "cells": [],
+    "extraPieces": [
+      {
+        "kit": "ceiling",
+        "cell": [
+          32,
+          0,
+          8
+        ]
+      },
+      {
+        "kit": "ceiling",
+        "cell": [
+          32,
+          0,
+          9
+        ]
+      },
+      {
+        "kit": "ceiling",
+        "cell": [
+          32,
+          0,
+          10
+        ]
+      },
+      {
+        "kit": "ceiling",
+        "cell": [
+          32,
+          0,
+          11
+        ]
+      },
+      {
+        "kit": "ceiling",
+        "cell": [
+          32,
+          0,
+          12
+        ]
+      }
+    ]
+  },
   "props": [
     {
       "kit": "transit_train_shell",

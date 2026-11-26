@@ -12,88 +12,39 @@
   "visibleFrom": [
     "R12b"
   ],
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         13,
-        0,
         4
       ],
-      "params": {
-        "material": "officeCeiling"
-      }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      [
         13,
-        0,
         5
-      ],
-      "params": {
-        "material": "officeCeiling"
-      }
-    },
-    {
-      "kit": "floor_tiles",
-      "cells": [
-        [
-          13,
-          0,
-          4
-        ],
-        [
-          13,
-          0,
-          5
-        ]
       ]
+    ],
+    "floor": "floor_tiles",
+    "ceilingMaterial": "officeCeiling",
+    "walls": [
+      "wall_tiles"
+    ],
+    "wallOverride": {
+      "13,4,e": "wall_sanity_screen"
     },
-    {
-      "kit": "wall_tiles",
-      "cells": [
-        [
-          13,
-          0,
-          4
-        ]
+    "open": [
+      "13,5,w"
+    ],
+    "fixtures": [
+      [
+        13,
+        4
+      ],
+      [
+        13,
+        5
       ]
-    },
-    {
-      "kit": "wall_sanity_screen",
-      "cells": [
-        [
-          13,
-          0,
-          4
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_tiles",
-      "cells": [
-        [
-          13,
-          0,
-          5
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_tiles",
-      "cells": [
-        [
-          13,
-          0,
-          5
-        ]
-      ],
-      "rot": 180
-    }
-  ],
+    ]
+  },
   "props": [
     {
       "kit": "germination_cabinet",

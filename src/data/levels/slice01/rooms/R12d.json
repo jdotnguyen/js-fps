@@ -9,108 +9,38 @@
     "reverb": "metal_corridor",
     "ambience": "hydro_plant_room"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         11,
-        0,
         7
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         12,
-        0,
         7
       ]
+    ],
+    "floor": "floor_tiles",
+    "ceiling": "ceiling_pipes",
+    "walls": [
+      "wall_plain",
+      "wall_panel"
+    ],
+    "wallOverride": {
+      "12,7,e": "wall_vent"
     },
-    {
-      "kit": "floor_tiles",
-      "cells": [
-        [
-          11,
-          0,
-          7
-        ],
-        [
-          12,
-          0,
-          7
-        ]
+    "wallMaterial": "tileWall",
+    "fixtures": [
+      [
+        11,
+        7
+      ],
+      [
+        12,
+        7
       ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          11,
-          0,
-          7
-        ]
-      ],
-      "params": {
-        "material": "tileWall"
-      }
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          11,
-          0,
-          7
-        ]
-      ],
-      "params": {
-        "material": "tileWall"
-      },
-      "rot": 180
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          11,
-          0,
-          7
-        ]
-      ],
-      "params": {
-        "material": "tileWall"
-      },
-      "rot": 90
-    },
-    {
-      "kit": "wall_vent",
-      "cells": [
-        [
-          12,
-          0,
-          7
-        ]
-      ],
-      "params": {
-        "material": "tileWall"
-      },
-      "rot": 270
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          12,
-          0,
-          7
-        ]
-      ],
-      "params": {
-        "material": "tileWall"
-      },
-      "rot": 180
-    }
-  ],
+    ]
+  },
   "props": [
     {
       "kit": "fertigation_tank",

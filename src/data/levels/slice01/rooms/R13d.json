@@ -9,99 +9,31 @@
     "reverb": "metal_corridor",
     "ambience": "hull_groan"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         8,
-        0,
         8
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         9,
-        0,
         8
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         10,
-        0,
         8
       ]
-    },
-    {
-      "kit": "floor",
-      "cells": [
-        [
-          8,
-          0,
-          8
-        ],
-        [
-          9,
-          0,
-          8
-        ],
-        [
-          10,
-          0,
-          8
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          8,
-          0,
-          8
-        ],
-        [
-          9,
-          0,
-          8
-        ],
-        [
-          10,
-          0,
-          8
-        ]
-      ]
-    },
-    {
-      "kit": "wall_vent",
-      "cells": [
-        [
-          8,
-          0,
-          8
-        ],
-        [
-          10,
-          0,
-          8
-        ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          8,
-          0,
-          8
-        ]
-      ],
-      "rot": 90
+    ],
+    "ceiling": "ceiling_pipes",
+    "walls": [
+      "wall_plain",
+      "wall_vent"
+    ],
+    "wallOverride": {
+      "8,8,w": "wall_panel",
+      "9,8,n": "wall_plain"
     }
-  ],
+  },
   "props": [
     {
       "kit": "room_sign",

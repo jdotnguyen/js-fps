@@ -9,61 +9,19 @@
     "reverb": "small_office",
     "ambience": "security_booth"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         9,
-        0,
         1
-      ],
-      "params": {
-        "material": "boltPanel"
-      }
-    },
-    {
-      "kit": "floor_carpet",
-      "cells": [
-        [
-          9,
-          0,
-          1
-        ]
       ]
-    },
-    {
-      "kit": "wall_wood",
-      "cells": [
-        [
-          9,
-          0,
-          1
-        ]
-      ]
-    },
-    {
-      "kit": "wall_wood",
-      "cells": [
-        [
-          9,
-          0,
-          1
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_wood",
-      "cells": [
-        [
-          9,
-          0,
-          1
-        ]
-      ],
-      "rot": 90
-    }
-  ],
+    ],
+    "floor": "floor_carpet",
+    "ceilingMaterial": "boltPanel",
+    "walls": [
+      "wall_wood"
+    ]
+  },
   "props": [
     {
       "kit": "security_monitor",

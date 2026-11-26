@@ -9,116 +9,22 @@
     "reverb": "small_office",
     "ambience": "transit_dispatch"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         16,
-        0,
         12
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         17,
-        0,
         12
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         18,
-        0,
         12
       ]
-    },
-    {
-      "kit": "floor",
-      "cells": [
-        [
-          16,
-          0,
-          12
-        ],
-        [
-          17,
-          0,
-          12
-        ],
-        [
-          18,
-          0,
-          12
-        ]
-      ]
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          16,
-          0,
-          12
-        ],
-        [
-          18,
-          0,
-          12
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          16,
-          0,
-          12
-        ],
-        [
-          18,
-          0,
-          12
-        ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          16,
-          0,
-          12
-        ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          17,
-          0,
-          12
-        ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          18,
-          0,
-          12
-        ]
-      ],
-      "rot": 270
-    }
-  ],
+    ]
+  },
   "lights": [
     {
       "slot": 0,

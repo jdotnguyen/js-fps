@@ -11,139 +11,42 @@
   "visibleFrom": [
     "R07"
   ],
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         -1,
+        12
+      ],
+      [
         0,
         12
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        0,
-        0,
-        12
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         1,
-        0,
         12
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         -1,
+        13
+      ],
+      [
         0,
         13
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        0,
-        0,
-        13
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         1,
-        0,
         13
       ]
-    },
-    {
-      "kit": "floor_tiles",
-      "cells": [
-        [
-          -1,
-          0,
-          12
-        ],
-        [
-          0,
-          0,
-          12
-        ],
-        [
-          1,
-          0,
-          12
-        ],
-        [
-          -1,
-          0,
-          13
-        ],
-        [
-          0,
-          0,
-          13
-        ],
-        [
-          1,
-          0,
-          13
-        ]
-      ]
-    },
-    {
-      "kit": "wall_tiles",
-      "cells": [
-        [
-          -1,
-          0,
-          12
-        ],
-        [
-          -1,
-          0,
-          13
-        ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_tiles",
-      "cells": [
-        [
-          1,
-          0,
-          12
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_tiles",
-      "cells": [
-        [
-          -1,
-          0,
-          13
-        ],
-        [
-          0,
-          0,
-          13
-        ],
-        [
-          1,
-          0,
-          13
-        ]
-      ],
-      "rot": 180
-    }
-  ],
+    ],
+    "floor": "floor_tiles",
+    "walls": [
+      "wall_tiles"
+    ],
+    "open": [
+      "-1,12,n",
+      "0,12,n"
+    ]
+  },
   "props": [
     {
       "kit": "instrument_cart",

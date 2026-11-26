@@ -11,138 +11,39 @@
   "visibleFrom": [
     "R08"
   ],
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         -1,
+        10
+      ],
+      [
         0,
         10
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        0,
-        0,
-        10
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         1,
-        0,
         10
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         -1,
+        11
+      ],
+      [
         0,
         11
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        0,
-        0,
-        11
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         1,
-        0,
         11
       ]
-    },
-    {
-      "kit": "floor",
-      "cells": [
-        [
-          -1,
-          0,
-          10
-        ],
-        [
-          0,
-          0,
-          10
-        ],
-        [
-          1,
-          0,
-          10
-        ],
-        [
-          -1,
-          0,
-          11
-        ],
-        [
-          0,
-          0,
-          11
-        ],
-        [
-          1,
-          0,
-          11
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          -1,
-          0,
-          10
-        ],
-        [
-          1,
-          0,
-          10
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          -1,
-          0,
-          10
-        ],
-        [
-          -1,
-          0,
-          11
-        ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_glass_partition",
-      "cells": [
-        [
-          -1,
-          0,
-          11
-        ],
-        [
-          0,
-          0,
-          11
-        ]
-      ],
-      "rot": 180
+    ],
+    "wallOverride": {
+      "-1,11,s": "wall_glass_partition",
+      "0,11,s": "wall_glass_partition",
+      "-1,10,w": "wall_plain"
     }
-  ],
+  },
   "props": [
     {
       "kit": "glass_cracks",

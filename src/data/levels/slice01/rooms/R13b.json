@@ -9,215 +9,51 @@
     "reverb": "metal_hall",
     "ambience": "launch_bay"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         5,
-        0,
         8
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         6,
-        0,
         8
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         7,
-        0,
         8
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         5,
-        0,
         9
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         6,
-        0,
         9
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         7,
-        0,
         9
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         5,
-        0,
+        10
+      ],
+      [
+        6,
+        10
+      ],
+      [
+        7,
         10
       ]
+    ],
+    "floor": "floor_grate",
+    "floorOverride": {
+      "6,9": "floor_moonpool"
     },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
-        6,
-        0,
-        10
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        7,
-        0,
-        10
-      ]
-    },
-    {
-      "kit": "floor_grate",
-      "cells": [
-        [
-          5,
-          0,
-          8
-        ],
-        [
-          6,
-          0,
-          8
-        ],
-        [
-          7,
-          0,
-          8
-        ],
-        [
-          5,
-          0,
-          9
-        ],
-        [
-          7,
-          0,
-          9
-        ],
-        [
-          5,
-          0,
-          10
-        ],
-        [
-          6,
-          0,
-          10
-        ],
-        [
-          7,
-          0,
-          10
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          5,
-          0,
-          8
-        ],
-        [
-          7,
-          0,
-          8
-        ]
-      ]
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          7,
-          0,
-          8
-        ],
-        [
-          7,
-          0,
-          10
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          5,
-          0,
-          9
-        ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "floor_moonpool",
-      "cells": [
-        [
-          6,
-          0,
-          9
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          7,
-          0,
-          9
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          5,
-          0,
-          10
-        ],
-        [
-          7,
-          0,
-          10
-        ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          6,
-          0,
-          10
-        ]
-      ],
-      "rot": 180
-    }
-  ],
+    "ceiling": "ceiling_pipes"
+  },
   "props": [
     {
       "kit": "gantry_crane",

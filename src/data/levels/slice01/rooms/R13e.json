@@ -8,58 +8,15 @@
     "reverb": "small_office",
     "ambience": "sample_store"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         4,
-        0,
         10
       ]
-    },
-    {
-      "kit": "floor_tiles",
-      "cells": [
-        [
-          4,
-          0,
-          10
-        ]
-      ]
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          4,
-          0,
-          10
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          4,
-          0,
-          10
-        ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          4,
-          0,
-          10
-        ]
-      ],
-      "rot": 90
-    }
-  ],
+    ],
+    "floor": "floor_tiles"
+  },
   "props": [
     {
       "kit": "room_sign",

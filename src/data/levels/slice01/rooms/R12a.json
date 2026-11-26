@@ -9,50 +9,22 @@
     "reverb": "small_office",
     "ambience": "hydro_vestibule"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         9,
-        0,
         5
-      ],
-      "params": {
-        "material": "officeCeiling"
-      }
-    },
-    {
-      "kit": "floor_tiles",
-      "cells": [
-        [
-          9,
-          0,
-          5
-        ]
       ]
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          9,
-          0,
-          5
-        ]
+    ],
+    "floor": "floor_tiles",
+    "ceilingMaterial": "officeCeiling",
+    "fixtures": [
+      [
+        9,
+        5
       ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          9,
-          0,
-          5
-        ]
-      ],
-      "rot": 180
-    }
-  ],
+    ]
+  },
   "props": [
     {
       "kit": "map_station",

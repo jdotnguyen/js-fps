@@ -9,172 +9,38 @@
     "reverb": "metal_hall",
     "ambience": "hull_groan"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         -1,
+        7
+      ],
+      [
         0,
         7
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
-        0,
-        0,
-        7
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         -1,
+        8
+      ],
+      [
         0,
         8
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
-        0,
-        0,
-        8
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         -1,
+        9
+      ],
+      [
         0,
         9
       ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
-        0,
-        0,
-        9
-      ]
-    },
-    {
-      "kit": "floor",
-      "cells": [
-        [
-          -1,
-          0,
-          7
-        ],
-        [
-          0,
-          0,
-          7
-        ],
-        [
-          -1,
-          0,
-          8
-        ],
-        [
-          0,
-          0,
-          8
-        ],
-        [
-          -1,
-          0,
-          9
-        ],
-        [
-          0,
-          0,
-          9
-        ]
-      ]
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          -1,
-          0,
-          7
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          -1,
-          0,
-          7
-        ],
-        [
-          -1,
-          0,
-          9
-        ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          0,
-          0,
-          7
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          -1,
-          0,
-          8
-        ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          0,
-          0,
-          8
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          -1,
-          0,
-          9
-        ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_vent",
-      "cells": [
-        [
-          0,
-          0,
-          9
-        ]
-      ],
-      "rot": 270
+    ],
+    "ceiling": "ceiling_pipes",
+    "wallOverride": {
+      "0,9,e": "wall_vent"
     }
-  ],
+  },
   "props": [
     {
       "kit": "pump_skid",

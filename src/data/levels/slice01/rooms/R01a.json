@@ -12,61 +12,21 @@
     "R01",
     "R01w"
   ],
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
-        0,
+  "layout": {
+    "cells": [
+      [
         0,
         -1
-      ],
-      "params": {
-        "material": "boltPanel"
-      }
-    },
-    {
-      "kit": "floor",
-      "cells": [
-        [
-          0,
-          0,
-          -1
-        ]
       ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          0,
-          0,
-          -1
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          0,
-          0,
-          -1
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_vent",
-      "cells": [
-        [
-          0,
-          0,
-          -1
-        ]
-      ],
-      "rot": 90
+    ],
+    "ceilingMaterial": "boltPanel",
+    "walls": [
+      "wall_plain"
+    ],
+    "wallOverride": {
+      "0,-1,w": "wall_vent"
     }
-  ],
+  },
   "props": [
     {
       "kit": "locker",

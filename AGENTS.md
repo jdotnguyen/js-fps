@@ -12,7 +12,7 @@ Edit the file that owns what you are working on, so agents on different work sta
 
 | Work | Where |
 | --- | --- |
-| A room: pieces, props, lights, atmosphere, water, NPCs, anchors, walks, spawns, triggers | `src/data/levels/slice01/rooms/<id>.json` (for example `R02.json`) |
+| A room: layout (cells, floor, wall and ceiling finishes, extra pieces), props, lights, atmosphere, water, NPCs, anchors, walks, spawns, triggers | `src/data/levels/slice01/rooms/<id>.json` (for example `R02.json`) |
 | Doors and vents, which span two rooms | `src/data/levels/slice01/doors.json` |
 | The level: room list and order, player and squad starts, pickups, map stations, checkpoints | `src/data/levels/slice01/level.json` |
 | A scene sequence | `src/data/sequences/<scene>.json` |
@@ -20,7 +20,7 @@ Edit the file that owns what you are working on, so agents on different work sta
 | Character body models | `src/data/body-models.json` |
 | Sounds | `src/audio/sounds.ts` |
 
-Read a level in tests and tools with `readLevel` (`src/data/levels/readLevel.ts`), not by opening its files. No script writes the level files (`scripts/gen-slice01.mjs` is frozen). OpenSpec change `split-level-data` splits the pose, body and sound files per owner in later phases.
+Read a level in tests and tools with `readLevel` (`src/data/levels/readLevel.ts`), not by opening its files. No script writes the level files. A room's floors, walls and ceilings are built from its `layout` when the level loads (`docs/modular-grid-standard.md`). OpenSpec change `split-level-data` splits the pose, body and sound files per owner in later phases.
 
 ## Build, Test, and Development Commands
 

@@ -170,6 +170,23 @@ loader. During phase 1a the equality test compares the assembled data against th
 file is deleted. Phase 1b's equality test compares built pieces against the phase 1a room files' stored pieces before
 those are dropped. Commits follow the shared-checkout practice (private index, own paths only).
 
+### Phase 1b migration notes (2026-11-26)
+
+- Layout fields: `cells` (deck-0 `[x, z]`, in ceiling order), `floor`, `floorOverride`, `floorParams`, `floorMaterial`,
+  `ceiling`, `ceilingMaterial`, `walls`, `wallOverride`, `wallParams`, `wallMaterial`, `open`, `fixtures`,
+  `extraPieces`. Two generator inputs changed form. A glass pane is the owner's `wallOverride`, and the room behind
+  lists that side in `open`, like an open seam. `noDeadFixtures` became `fixtures`, the cells whose ceilings carry a
+  housing, because lights store their final slot numbers and can no longer say which cells are lit. Room `height`
+  stays a room field, since the builder does not use it.
+- 29 rooms took their layout from the generator's table and build exactly the stored pieces in the same order.
+- R13d, R15a, R16a, R16b and R16c were reworked by hand after the generator (Phase 2b, fix-r13d-r16-finale), and R15b
+  exists only in the data. Their layouts were derived from the stored pieces. The generator tables were not used, so
+  R13d keeps the plain finish Phase 2b gave it, not the generator's rust.
+- Differences kept on purpose: R16a and R16b build the same pieces in a different order. Their windows, stairs, plain
+  walls and panel walls group differently. None of those pieces holds a light slot, so the slot order and every
+  light's position stay the same (`lightSlots` snapshot test). R15b has no `cells`. Its five ceilings are
+  `extraPieces`, because the room has no floor or walls of its own.
+
 ## Open Questions
 
 - Whether the after-groups and kill-aftermath prop logic (`layOut`, `propPose`) count as a set piece or as a generic

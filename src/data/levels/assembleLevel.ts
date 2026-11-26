@@ -3,13 +3,21 @@
  *
  *   data/levels/<id>/level.json        the whole-level data, with `rooms` listing room ids in level order
  *   data/levels/<id>/doors.json        `doors` and `vents`, which span two rooms
- *   data/levels/<id>/rooms/<room>.json one file per room
+ *   data/levels/<id>/rooms/<room>.json one file per room, with the `layout` its shell is built from
  *
  * This module is pure: the browser (`<id>/<id>.level.ts`) and Node (`readLevel.ts`) read the files, it puts them
  * together into the level data the validator, the game and the tests see.
  */
 import { ValidationError } from '../../core/validate.ts';
+import { layoutValidator } from '../types/layout.ts';
 import type { LevelData } from '../types/level.ts';
+import { buildShell, doorEdges, type ShellDoor } from '../../world/shell.ts';
+
+/** A door that names an edge; anything else is left for the level validator to report. */
+function isDoorEdge(d: unknown): d is ShellDoor {
+  const cell = (d as { cell?: unknown } | null)?.cell;
+  return Array.isArray(cell) && cell.length === 3 && cell.every((n) => typeof n === 'number') && typeof (d as { rot?: unknown }).rot === 'number';
+}
 
 /** A level folder's files as parsed JSON. */
 export interface LevelParts {
@@ -83,7 +91,17 @@ export function assembleLevel(parts: LevelParts): LevelData {
     );
   }
 
-  const assembled = { ...level, ...doors, rooms } as unknown as LevelData;
+  // Room shells (D3): each room's floors, walls and ceilings, built from its layout and the doors, never stored.
+  const doorList = Array.isArray(doors['doors']) ? (doors['doors'] as unknown[]) : [];
+  const edges = doorEdges(doorList.filter((d): d is ShellDoor => isDoorEdge(d)));
+  const built = rooms.map((room, i) => {
+    const file = `${folder}/rooms/${order[i]}.json`;
+    if ('pieces' in room) throw new ValidationError(`${file} > pieces`, 'room files store a "layout"; the pieces are built from it');
+    if (!('layout' in room)) throw new ValidationError(file, 'missing "layout" (the cells and finishes its floors, walls and ceilings are built from)');
+    return { ...room, pieces: buildShell(layoutValidator(room['layout'], `${file} > layout`), edges) };
+  });
+
+  const assembled = { ...level, ...doors, rooms: built } as unknown as LevelData;
   origins.set(assembled, { folder, rooms: order });
   return assembled;
 }

@@ -12,82 +12,29 @@
   "visibleFrom": [
     "R14b"
   ],
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         13,
-        0,
         1
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         13,
-        0,
         2
       ]
+    ],
+    "floor": "floor_carpet",
+    "walls": [
+      "wall_wood"
+    ],
+    "wallOverride": {
+      "13,1,n": "wall_sanity_screen",
+      "13,1,e": "wall_sanity_screen"
     },
-    {
-      "kit": "floor_carpet",
-      "cells": [
-        [
-          13,
-          0,
-          1
-        ],
-        [
-          13,
-          0,
-          2
-        ]
-      ]
-    },
-    {
-      "kit": "wall_sanity_screen",
-      "cells": [
-        [
-          13,
-          0,
-          1
-        ]
-      ]
-    },
-    {
-      "kit": "wall_sanity_screen",
-      "cells": [
-        [
-          13,
-          0,
-          1
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_wood",
-      "cells": [
-        [
-          13,
-          0,
-          2
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_wood",
-      "cells": [
-        [
-          13,
-          0,
-          2
-        ]
-      ],
-      "rot": 180
-    }
-  ],
+    "open": [
+      "13,2,w"
+    ]
+  },
   "props": [
     {
       "kit": "office_desk",

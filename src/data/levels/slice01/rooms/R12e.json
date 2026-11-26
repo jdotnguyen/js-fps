@@ -9,59 +9,24 @@
     "reverb": "small_office",
     "ambience": "hydro_storeroom"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         10,
-        0,
         7
       ]
-    },
-    {
-      "kit": "floor_tiles",
-      "cells": [
-        [
-          10,
-          0,
-          7
-        ]
+    ],
+    "floor": "floor_tiles",
+    "walls": [
+      "wall_plain"
+    ],
+    "fixtures": [
+      [
+        10,
+        7
       ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          10,
-          0,
-          7
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          10,
-          0,
-          7
-        ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          10,
-          0,
-          7
-        ]
-      ],
-      "rot": 90
-    }
-  ],
+    ]
+  },
   "props": [
     {
       "kit": "fertiliser_pallet",

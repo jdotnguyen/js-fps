@@ -8,48 +8,16 @@
     "reverb": "metal_corridor",
     "ambience": "wet_vestibule"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         6,
-        0,
         7
       ]
-    },
-    {
-      "kit": "floor_grate",
-      "cells": [
-        [
-          6,
-          0,
-          7
-        ]
-      ]
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          6,
-          0,
-          7
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          6,
-          0,
-          7
-        ]
-      ],
-      "rot": 90
-    }
-  ],
+    ],
+    "floor": "floor_grate",
+    "ceiling": "ceiling_pipes"
+  },
   "props": [
     {
       "kit": "map_station",

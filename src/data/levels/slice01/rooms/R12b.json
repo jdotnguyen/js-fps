@@ -13,224 +13,75 @@
   "visibleFrom": [
     "R12c"
   ],
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         10,
-        0,
         4
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      [
         11,
-        0,
-        4
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        12,
-        0,
         4
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
-        10,
-        0,
-        5
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        11,
-        0,
-        5
-      ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      [
         12,
-        0,
-        5
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+        4
+      ],
+      [
         10,
-        0,
-        6
+        5
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      [
         11,
-        0,
-        6
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+        5
+      ],
+      [
         12,
-        0,
+        5
+      ],
+      [
+        10,
         6
       ],
-      "params": {
-        "fixture": false
-      }
-    },
-    {
-      "kit": "floor_grate",
-      "cells": [
-        [
-          10,
-          0,
-          4
-        ],
-        [
-          12,
-          0,
-          4
-        ],
-        [
-          10,
-          0,
-          5
-        ],
-        [
-          12,
-          0,
-          5
-        ],
-        [
-          10,
-          0,
-          6
-        ],
-        [
-          12,
-          0,
-          6
-        ]
-      ]
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          10,
-          0,
-          4
-        ],
-        [
-          12,
-          0,
-          4
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          10,
-          0,
-          4
-        ],
-        [
-          10,
-          0,
-          6
-        ]
+      [
+        11,
+        6
       ],
-      "rot": 90
-    },
-    {
-      "kit": "floor_tiles",
-      "cells": [
-        [
-          11,
-          0,
-          4
-        ],
-        [
-          11,
-          0,
-          5
-        ],
-        [
-          11,
-          0,
-          6
-        ]
+      [
+        12,
+        6
       ]
+    ],
+    "floor": "floor_grate",
+    "floorOverride": {
+      "11,4": "floor_tiles",
+      "11,5": "floor_tiles",
+      "11,6": "floor_tiles"
     },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          11,
-          0,
-          4
-        ]
+    "ceiling": "ceiling_pipes",
+    "wallOverride": {
+      "12,6,e": "wall_window",
+      "12,5,e": "wall_glass_partition"
+    },
+    "fixtures": [
+      [
+        11,
+        4
+      ],
+      [
+        10,
+        5
+      ],
+      [
+        12,
+        5
+      ],
+      [
+        11,
+        6
       ]
-    },
-    {
-      "kit": "wall_glass_partition",
-      "cells": [
-        [
-          12,
-          0,
-          5
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          11,
-          0,
-          6
-        ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_window",
-      "cells": [
-        [
-          12,
-          0,
-          6
-        ]
-      ],
-      "rot": 270
-    }
-  ],
+    ]
+  },
   "props": [
     {
       "kit": "plant_rack",

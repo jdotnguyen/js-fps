@@ -39,11 +39,25 @@ Any GLB replacing a kit piece must sit on the `4 m` pivot (`y = 0` floor, `x, z 
 
 | File in `src/data/levels/slice01/` | Holds |
 | --- | --- |
-| `rooms/<id>.json` | One room: its `pieces` (floors, walls, ceilings), `height`, props, lights, atmosphere, water, NPCs, anchors, walks, spawns and triggers. |
+| `rooms/<id>.json` | One room: its `layout` (what its floors, walls and ceilings are built from), `height`, props, lights, atmosphere, water, NPCs, anchors, walks, spawns and triggers. |
 | `doors.json` | `doors` and `vents`, which span two rooms. |
 | `level.json` | Id, seed, player and squad starts, `rooms` (every room id, in level order), pickups, map stations and checkpoints. |
 
-A new room needs its file and its id in `level.json`. No script writes these files. A single-file level (`kit_test.json`) also loads.
+A new room needs its file and its id in `level.json`. No script writes these files. A single-file level (`kit_test.json`) stores `pieces` and also loads.
+
+### A room's shell: `layout`
+
+The level builds each room's floors, walls and ceilings from its `layout` and the doors when it loads (`src/world/shell.ts`). The built pieces are never stored. Moving a door in `doors.json` removes the wall on both sides of its new edge and puts one back on the old edge.
+
+| Field | Meaning |
+| --- | --- |
+| `cells` | `[x, z]` grid cells, deck 0. Each cell gets one ceiling, built in this order, and numeric light slots count the ceilings in this order. Add a cell at the end so existing lights keep their slots. |
+| `floor`, `floorOverride`, `floorParams`, `floorMaterial` | Floor kit (default `floor`), a kit per cell (`"x,z"`), params per cell, and `params.material` for the other cells. |
+| `ceiling`, `ceilingMaterial` | Ceiling kit (default `ceiling`; `ceiling_pipes` alternates with plain `ceiling`) and its material. |
+| `walls`, `wallOverride`, `wallParams`, `wallMaterial` | Wall finishes, chosen per side by a fixed hash (default `wall_panel`, `wall_plain`). Also a kit and params per side (`"x,z,side"`, side `n`, `e`, `s` or `w`), such as a window or a glass partition, and `params.material` for the rest. |
+| `open` | Outer sides with no wall that no door explains: an open seam into the next room, or this room's side of the next room's glass. |
+| `fixtures` | When given, only these cells' ceilings carry a light housing, and numeric light slots count only them. |
+| `extraPieces` | Pieces placed by hand after the built tiles (stairs, landings, blast gates), exactly as given. |
 
 ---
 

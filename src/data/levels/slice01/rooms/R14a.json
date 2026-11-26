@@ -9,72 +9,22 @@
     "reverb": "small_office",
     "ambience": "admin_reception"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         9,
-        0,
         2
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         9,
-        0,
         3
       ]
-    },
-    {
-      "kit": "floor_carpet",
-      "cells": [
-        [
-          9,
-          0,
-          2
-        ],
-        [
-          9,
-          0,
-          3
-        ]
-      ]
-    },
-    {
-      "kit": "wall_wood",
-      "cells": [
-        [
-          9,
-          0,
-          2
-        ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_wood",
-      "cells": [
-        [
-          9,
-          0,
-          3
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_wood",
-      "cells": [
-        [
-          9,
-          0,
-          3
-        ]
-      ],
-      "rot": 180
-    }
-  ],
+    ],
+    "floor": "floor_carpet",
+    "walls": [
+      "wall_wood"
+    ]
+  },
   "props": [
     {
       "kit": "map_station",

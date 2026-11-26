@@ -9,302 +9,116 @@
     "reverb": "metal_hall",
     "ambience": "transit_boarding"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         11,
-        0,
         8
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         12,
-        0,
         8
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         13,
-        0,
         8
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         11,
-        0,
         9
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         12,
-        0,
         9
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         13,
-        0,
         9
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         11,
-        0,
         10
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         12,
-        0,
         10
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         13,
-        0,
         10
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         11,
-        0,
         11
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         12,
-        0,
         11
-      ]
-    },
-    {
-      "kit": "ceiling_pipes",
-      "cell": [
+      ],
+      [
         13,
-        0,
         11
       ]
+    ],
+    "ceiling": "ceiling_pipes",
+    "wallOverride": {
+      "13,8,e": "wall_window",
+      "13,9,e": "wall_window",
+      "11,10,w": "wall_plain",
+      "13,10,e": "wall_window",
+      "13,11,e": "wall_window"
     },
-    {
-      "kit": "floor",
-      "cells": [
-        [
-          11,
-          0,
-          8
-        ],
-        [
-          12,
-          0,
-          8
-        ],
-        [
-          13,
-          0,
-          8
-        ],
-        [
-          11,
-          0,
-          9
-        ],
-        [
-          12,
-          0,
-          9
-        ],
-        [
-          13,
-          0,
-          9
-        ],
-        [
-          11,
-          0,
-          10
-        ],
-        [
-          12,
-          0,
-          10
-        ],
-        [
-          13,
-          0,
-          10
-        ],
-        [
-          11,
-          0,
-          11
-        ],
-        [
+    "open": [
+      "12,11,s"
+    ],
+    "extraPieces": [
+      {
+        "kit": "transit_blast_gate",
+        "cell": [
           12,
           0,
           11
         ],
-        [
-          13,
-          0,
-          11
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          11,
-          0,
-          8
-        ],
-        [
-          13,
-          0,
-          8
-        ]
-      ]
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
+        "rot": 180,
+        "params": {
+          "gateId": "r15a_south",
+          "height": 5
+        }
+      },
+      {
+        "kit": "ceiling",
+        "cell": [
           12,
           0,
-          8
+          12
         ]
-      ]
-    },
-    {
-      "kit": "wall_window",
-      "cells": [
-        [
-          13,
+      },
+      {
+        "kit": "ceiling",
+        "cell": [
+          12,
           0,
-          8
-        ],
-        [
-          13,
-          0,
-          9
-        ],
-        [
-          13,
-          0,
-          10
-        ],
-        [
-          13,
-          0,
-          11
+          13
         ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          11,
+      },
+      {
+        "kit": "ceiling",
+        "cell": [
+          12,
           0,
-          9
-        ],
-        [
-          11,
-          0,
-          10
-        ],
-        [
-          11,
-          0,
-          11
+          14
         ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          11,
+      },
+      {
+        "kit": "ceiling",
+        "cell": [
+          12,
           0,
-          11
-        ],
-        [
-          13,
-          0,
-          11
+          15
         ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "transit_blast_gate",
-      "cell": [
-        12,
-        0,
-        11
-      ],
-      "rot": 180,
-      "params": {
-        "gateId": "r15a_south",
-        "height": 5
       }
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        12,
-        0,
-        12
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        12,
-        0,
-        13
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        12,
-        0,
-        14
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
-        12,
-        0,
-        15
-      ]
-    }
-  ],
+    ]
+  },
   "props": [
     {
       "kit": "track_bed",

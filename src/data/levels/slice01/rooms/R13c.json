@@ -8,93 +8,19 @@
     "reverb": "small_office",
     "ambience": "rov_workshop"
   },
-  "pieces": [
-    {
-      "kit": "ceiling",
-      "cell": [
+  "layout": {
+    "cells": [
+      [
         4,
-        0,
         8
-      ]
-    },
-    {
-      "kit": "ceiling",
-      "cell": [
+      ],
+      [
         4,
-        0,
         9
       ]
-    },
-    {
-      "kit": "floor_tiles",
-      "cells": [
-        [
-          4,
-          0,
-          8
-        ],
-        [
-          4,
-          0,
-          9
-        ]
-      ]
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          4,
-          0,
-          8
-        ]
-      ]
-    },
-    {
-      "kit": "wall_plain",
-      "cells": [
-        [
-          4,
-          0,
-          8
-        ]
-      ],
-      "rot": 90
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          4,
-          0,
-          9
-        ]
-      ],
-      "rot": 270
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          4,
-          0,
-          9
-        ]
-      ],
-      "rot": 180
-    },
-    {
-      "kit": "wall_panel",
-      "cells": [
-        [
-          4,
-          0,
-          9
-        ]
-      ],
-      "rot": 90
-    }
-  ],
+    ],
+    "floor": "floor_tiles"
+  },
   "props": [
     {
       "kit": "room_sign",

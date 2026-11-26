@@ -17,6 +17,7 @@ import {
 import { LIGHT_PATTERNS } from '../../render/lights.ts';
 import { COOKIE_KINDS } from '../../render/cookies.ts';
 import { inLevelFile } from '../levels/assembleLevel.ts';
+import { cell, int, layoutValidator, params, pieceShape, rot90, type RoomLayout } from './layout.ts';
 
 /**
  * Level JSON (ADR-0003). All positions are world metres; `cell` values are grid indices
@@ -76,23 +77,6 @@ const color: Validator<string> = (v, p) => {
   return s;
 };
 
-const int: Validator<number> = (v, p) => {
-  const n = num(v, p);
-  if (!Number.isInteger(n)) throw new ValidationError(p, `expected a whole number, got ${n}`);
-  return n;
-};
-
-const cell: Validator<[number, number, number]> = (v, p) => {
-  if (!Array.isArray(v) || v.length !== 3) throw new ValidationError(p, 'expected [x, deck, z] grid cell');
-  return [int(v[0], `${p}[0]`), int(v[1], `${p}[1]`), int(v[2], `${p}[2]`)];
-};
-
-const rot90: Validator<0 | 90 | 180 | 270> = (v, p) => {
-  const n = num(v, p);
-  if (n !== 0 && n !== 90 && n !== 180 && n !== 270) throw new ValidationError(p, `expected 0, 90, 180 or 270, got ${n}`);
-  return n;
-};
-
 const vec2: Validator<[number, number]> = (v, p) => {
   if (!Array.isArray(v) || v.length !== 2) throw new ValidationError(p, 'expected [x, z]');
   return [num(v[0], `${p}[0]`), num(v[1], `${p}[1]`)];
@@ -112,16 +96,6 @@ const box: Validator<[[number, number, number], [number, number, number]]> = (v,
 };
 
 const slot: Validator<number | (typeof SLOT_KINDS)[number]> = (v, p) => (typeof v === 'number' ? int(v, p) : oneOf(SLOT_KINDS)(v, p));
-
-const params = record(scalar);
-
-const pieceShape = {
-  kit: str,
-  cell: optional(cell),
-  cells: optional(arr(cell)),
-  rot: optional(rot90),
-  params: optional(params),
-};
 
 const propShape = {
   kit: str,
@@ -312,6 +286,12 @@ const roomShape = {
     }),
   ),
   visibleFrom: optional(arr(id)),
+  /**
+   * What the room's floors, walls and ceilings are built from (spec content-layout, `world/shell.ts`). In a level
+   * folder the room file stores the layout and `assembleLevel` builds `pieces` from it and the doors; a single-file
+   * level stores `pieces` itself.
+   */
+  layout: optional(layoutValidator),
   pieces: arr(obj(pieceShape)),
   props: optional(arr(obj(propShape))),
   lights: optional(arr(obj(lightShape))),
@@ -464,6 +444,19 @@ function unique(ids: string[], path: string, what: string): void {
   }
 }
 
+/** Every structure kit a layout names, with its path inside the layout. */
+function layoutKits(l: RoomLayout): Array<[string, string]> {
+  const out: Array<[string, string]> = [];
+  if (l.floor !== undefined) out.push([l.floor, 'floor']);
+  if (l.ceiling !== undefined) out.push([l.ceiling, 'ceiling']);
+  // A `ceiling_pipes` room alternates with plain ceilings.
+  if (l.ceiling === 'ceiling_pipes') out.push(['ceiling', 'ceiling']);
+  (l.walls ?? []).forEach((k, i) => out.push([k, `walls[${i}]`]));
+  for (const field of ['floorOverride', 'wallOverride'] as const) for (const [key, k] of Object.entries(l[field] ?? {})) out.push([k, `${field} > ${key}`]);
+  (l.extraPieces ?? []).forEach((pc, i) => out.push([pc.kit, `extraPieces[${i}] > kit`]));
+  return out;
+}
+
 function suggest(name: string, known: ReadonlySet<string>): string {
   const list = [...known];
   const close = list.filter((k) => k.startsWith(name.slice(0, 4)));
@@ -515,6 +508,9 @@ function levelCheck(kits: KitIds, refs: LevelRefs): Validator<LevelData> {
     );
     const room = (rid: string, path: string): void => {
       if (!roomIds.has(rid)) throw new ValidationError(path, `unknown room "${rid}"`);
+    };
+    const structure = (kit: string, path: string): void => {
+      if (!kits.structure.has(kit)) throw new ValidationError(path, `unknown structure piece "${kit}" (known: ${suggest(kit, kits.structure)})`);
     };
     unique(
       [...(level.vents ?? []).map((x) => x.id), ...(level.pickups ?? []).map((x) => x.id)],
@@ -591,10 +587,12 @@ function levelCheck(kits: KitIds, refs: LevelRefs): Validator<LevelData> {
     level.rooms.forEach((r, ri) => {
       const rp = `${p} > rooms[${ri}]`;
       (r.visibleFrom ?? []).forEach((x, k) => room(x, `${rp} > visibleFrom[${k}]`));
+      // The layout's kits first, so a typo there is reported where it is written rather than in the built pieces.
+      if (r.layout) for (const [kit, path] of layoutKits(r.layout)) structure(kit, `${rp} > layout > ${path}`);
       r.pieces.forEach((pc, k) => {
         const pp = `${rp} > pieces[${k}]`;
         if ((pc.cell ? 1 : 0) + (pc.cells ? 1 : 0) !== 1) throw new ValidationError(pp, 'give exactly one of "cell" or "cells"');
-        if (!kits.structure.has(pc.kit)) throw new ValidationError(`${pp} > kit`, `unknown structure piece "${pc.kit}" (known: ${suggest(pc.kit, kits.structure)})`);
+        structure(pc.kit, `${pp} > kit`);
       });
       (r.props ?? []).forEach((pr, k) => {
         if (!kits.prop.has(pr.kit)) throw new ValidationError(`${rp} > props[${k}] > kit`, `unknown prop "${pr.kit}" (known: ${suggest(pr.kit, kits.prop)})`);

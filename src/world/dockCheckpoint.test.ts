@@ -9,7 +9,7 @@ import { loadSlice01 } from './headlessSlice.ts';
 const { level } = loadSlice01();
 const nav = level.navGraph();
 
-/** The detector line (x), and the arch opening along it (z), as laid out in scripts/gen-slice01.mjs. */
+/** The detector line (x), and the arch opening along it (z), as laid out in data/levels/slice01/rooms/R01.json. */
 const LINE_X = 7.675;
 const ARCH_Z: [number, number] = [0.57, 1.77];
 const WINDOW_Z = -1.875;
