@@ -50,18 +50,19 @@ export const NPC_ANIMS: Readonly<Record<string, { pose: string; hold: number; bl
 
 /** Small ambient gestures by base pose, picked now and then while an NPC is idle. */
 const AMBIENT_GESTURES: Readonly<Record<string, readonly string[]>> = {
-  idle: ['idle_weight', 'idle_shift', 'glance', 'glance_other', 'idle_crossed', 'talk_gesture', 'look_down', 'look_up', 'head_tilt'],
-  idle_crossed: ['glance', 'glance_other', 'idle_weight', 'look_down'],
-  idle_hips: ['glance', 'glance_other', 'idle_weight', 'look_up'],
-  idle_weight: ['glance', 'glance_other', 'idle_shift', 'idle_crossed', 'look_down', 'head_tilt'],
+  idle: ['idle_weight', 'idle_shift', 'glance', 'glance_other', 'talk_gesture', 'look_down', 'look_up', 'head_tilt'],
+  // Placed arms stay placed: these gestures move only the head (keep-crossed-arms).
+  idle_crossed: ['idle_crossed_glance', 'idle_crossed_glance_other', 'idle_crossed_look_down'],
+  idle_hips: ['idle_hips_glance', 'idle_hips_glance_other', 'idle_hips_look_up'],
+  idle_weight: ['glance', 'glance_other', 'idle_shift', 'look_down', 'head_tilt'],
   idle_mug: ['drink', 'glance', 'glance_other'],
   clipboard: ['glance', 'glance_other'],
   typing: ['glance', 'glance_other'],
   // ADR-0029 seated and leaning bodies: each gesture extends its base pose, so the legs stay put.
   // Drink gestures only where the base already holds a mug, so a mug never pops into an empty hand.
-  sit_chair: ['sit_chair_glance', 'sit_chair_glance_other', 'sit_chair_look_down', 'sit_chair_lean', 'sit_chair_hands', 'sit_chair_crossed'],
+  sit_chair: ['sit_chair_glance', 'sit_chair_glance_other', 'sit_chair_look_down', 'sit_chair_lean', 'sit_chair_hands'],
   sit_stool: ['sit_stool_glance', 'sit_stool_glance_other', 'sit_stool_look_down'],
-  sit_sofa: ['sit_sofa_glance', 'sit_sofa_glance_other', 'sit_sofa_look_down', 'sit_sofa_crossed'],
+  sit_sofa: ['sit_sofa_glance', 'sit_sofa_glance_other', 'sit_sofa_look_down'],
   lean_wall: ['lean_wall_glance', 'lean_wall_glance_other', 'lean_wall_look_down', 'lean_wall_hands'],
   lean_counter: ['lean_counter_glance', 'lean_counter_glance_other', 'lean_counter_look_down'],
   lean_back: ['lean_back_glance', 'lean_back_glance_other', 'lean_back_look_down'],

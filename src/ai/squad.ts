@@ -159,7 +159,7 @@ export const SQUAD_TUNING = {
 const MOTOR: MotorConfig = { ...DEFAULT_MOTOR, radius: 0.3 };
 
 /** Quiet idle poses for the squad (no head yaw: the look-at layer already turns their heads). */
-const SQUAD_FIDGETS: readonly string[] = ['idle_weight', 'idle_shift', 'look_down', 'head_tilt', 'idle_crossed'];
+const SQUAD_FIDGETS: readonly string[] = ['idle_weight', 'idle_shift', 'look_down', 'head_tilt'];
 
 /** `squadRegroup`: squadmates within this distance of Jay are never moved (squad-tasks spec). */
 export const REGROUP_DISTANCE = 12;

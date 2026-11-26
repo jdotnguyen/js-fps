@@ -876,3 +876,17 @@ test('a teleported mate has its weapon light at the new muzzle in the same step'
   assert.ok(m!.position.z > -20, `caught up (z ${m!.position.z.toFixed(1)})`);
   assertAtMuzzle(m!, 'caught up');
 });
+
+test('no brief crossing (keep-crossed-arms): idle squadmates left for five minutes never cross their arms', () => {
+  const { squad } = setup();
+  const seen = new Map(squad.mates.map((m) => [m, new Set<string>()]));
+  for (let i = 0; i < 300 * 30; i++) {
+    squad.update(1 / 30, null);
+    for (const [m, taken] of seen) taken.add(m.body.idlePose);
+  }
+  for (const [m, taken] of seen) {
+    assert.ok(taken.size > 2, `${m.id} still fidgets (${[...taken].join(', ')})`);
+    const crossed = [...taken].filter((p) => p.includes('crossed'));
+    assert.deepEqual(crossed, [], `${m.id} crossed its arms`);
+  }
+});

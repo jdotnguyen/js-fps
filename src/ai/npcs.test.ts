@@ -549,7 +549,7 @@ test('endScene (scene-presence): a gesture in flight and a scripted look stop, a
   void npcs.command('npcAnim', { npc: 'priya', anim: 'glance' }).then(() => (done = true));
   void npcs.command('npcLookAt', { npc: 'priya', target: 'player' });
   npcs.update(1 / 60, null);
-  assert.equal(a.body.idlePose, 'glance');
+  assert.equal(a.body.idlePose, 'idle_hips_glance', 'her hands stay on her hips as she glances');
   assert.ok(a.body.lookTarget, 'she looks at Jay');
   npcs.endScene(['priya', 'nobody_here']);
   await Promise.resolve();
@@ -621,4 +621,47 @@ test('spawnFromLevelAsync forwards dead corpses as role corpse with ambient disa
   const corpse = npcs.actor('r16b_corpse_test')!;
   assert.equal(corpse.body.spec.role, 'corpse', 'spawned as a corpse, not a living NPC');
   assert.equal(corpse.ambient, false, 'ambient life disabled on dead corpses');
+});
+
+for (const base of ['idle_crossed', 'idle_hips']) {
+  test(`placed arms (keep-crossed-arms): resting in ${base}, idle gestures and a scripted glance stay in that pose family`, async () => {
+    const { npcs } = setup();
+    npcs.spawnFromLevel([{ id: 'heins', look: 'heins', pos: new THREE.Vector3(0, 0, 2), yaw: 0, pose: base }]);
+    const a = npcs.actor('heins')!;
+    const seen = new Set<string>();
+    for (let i = 0; i < 120 * 30; i++) {
+      npcs.update(1 / 30, null);
+      seen.add(a.body.idlePose);
+    }
+    const stray = [...seen].filter((p) => p !== base && !p.startsWith(`${base}_`));
+    assert.deepEqual(stray, [], `left the family: ${stray.join(', ')}`);
+    seen.delete(base);
+    assert.ok(seen.size >= 2, `at least two gestures (${[...seen].join(', ')})`);
+
+    let done = false;
+    void npcs.command('npcAnim', { npc: 'heins', anim: 'glance' }).then(() => (done = true));
+    assert.equal(a.body.idlePose, `${base}_glance`);
+    for (let i = 0; i < 10 * 30 && !done; i++) {
+      npcs.update(1 / 30, null);
+      await Promise.resolve();
+    }
+    assert.ok(done, 'the glance ends');
+    assert.equal(a.body.idlePose, base);
+  });
+}
+
+test('no brief crossing (keep-crossed-arms): standing and seated NPCs left for five minutes never cross their arms', () => {
+  const { npcs } = setup();
+  const poses = ['idle', 'idle_weight', 'sit_chair', 'sit_sofa'];
+  npcs.spawnFromLevel(poses.map((pose, i) => ({ id: `n_${pose}`, look: 'botanist', pos: new THREE.Vector3(0, 0, -6 + i * 4), yaw: 0, pose })));
+  const seen = new Map(poses.map((p) => [p, new Set<string>()]));
+  for (let i = 0; i < 300 * 30; i++) {
+    npcs.update(1 / 30, null);
+    for (const p of poses) seen.get(p)!.add(npcs.actor(`n_${p}`)!.body.idlePose);
+  }
+  for (const [p, taken] of seen) {
+    assert.ok(taken.size > 2, `${p} still fidgets (${[...taken].join(', ')})`);
+    const crossed = [...taken].filter((t) => t.includes('crossed'));
+    assert.deepEqual(crossed, [], `${p} crossed its arms`);
+  }
 });

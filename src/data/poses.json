@@ -3388,6 +3388,51 @@
     ]
    }
   },
+  "idle_crossed_glance": {
+   "extends": "idle_crossed",
+   "joints": {
+    "neck": [
+     0,
+     14,
+     0
+    ],
+    "head": [
+     -2,
+     22,
+     0
+    ]
+   }
+  },
+  "idle_crossed_glance_other": {
+   "extends": "idle_crossed",
+   "joints": {
+    "neck": [
+     0,
+     -14,
+     0
+    ],
+    "head": [
+     -2,
+     -22,
+     0
+    ]
+   }
+  },
+  "idle_crossed_look_down": {
+   "extends": "idle_crossed",
+   "joints": {
+    "neck": [
+     -6,
+     0,
+     0
+    ],
+    "head": [
+     -14,
+     0,
+     0
+    ]
+   }
+  },
   "idle_hips": {
    "joints": {
     "spine": [
@@ -3439,6 +3484,51 @@
      0,
      0,
      3
+    ]
+   }
+  },
+  "idle_hips_glance": {
+   "extends": "idle_hips",
+   "joints": {
+    "neck": [
+     0,
+     14,
+     0
+    ],
+    "head": [
+     -2,
+     22,
+     0
+    ]
+   }
+  },
+  "idle_hips_glance_other": {
+   "extends": "idle_hips",
+   "joints": {
+    "neck": [
+     0,
+     -14,
+     0
+    ],
+    "head": [
+     -2,
+     -22,
+     0
+    ]
+   }
+  },
+  "idle_hips_look_up": {
+   "extends": "idle_hips",
+   "joints": {
+    "neck": [
+     4,
+     0,
+     0
+    ],
+    "head": [
+     8,
+     0,
+     0
     ]
    }
   },

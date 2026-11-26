@@ -98,8 +98,6 @@ type StandingOverlayKind = 'arms' | 'head' | 'idle';
 const STANDING_ARMS_OVERLAY: ReadonlySet<string> = new Set([
   'offer_mug',
   'drink',
-  'idle_crossed',
-  'idle_hips',
   'idle_mug',
   'idle_wand',
   'idle_pistol',
@@ -120,12 +118,24 @@ const OVERLAY_ARMS_JOINTS: readonly JointName[] = [
 ];
 const OVERLAY_HEAD_JOINTS: readonly JointName[] = ['neck', 'head'];
 
+type PlacedArms = 'crossed' | 'hips';
+
+/**
+ * Which placed-arms family a pose is in: the resting pose (`idle_crossed`, `idle_hips`) or one of its head gestures
+ * (`idle_crossed_glance`), with or without a character prefix. The whole family keeps its arms where they are.
+ */
+function placedArms(poseName: string): PlacedArms | null {
+  return (/(?:^|_)idle_(crossed|hips)(?:_|$)/.exec(poseName)?.[1] as PlacedArms | undefined) ?? null;
+}
+
 /**
  * Standing upper-body actions and ambient fidgets keep the mocap trunk/legs active instead of dropping
  * `mocapW` to 0 (standing-posture-stability spec). Seated/leaning poses never match.
  */
 function standingOverlayKind(poseName: string): StandingOverlayKind | null {
   if (/^(sit_|lean_)/.test(poseName)) return null;
+  // Before the glance suffix test: a head-only overlay would leave placed arms on the mocap idle.
+  if (placedArms(poseName)) return 'arms';
   // A character's own arms-out scan pose (Ruiz's `ruiz_arms_out`) keeps their legs and trunk on their idle: restless, not frozen.
   if (STANDING_ARMS_OVERLAY.has(poseName) || poseName.endsWith('_offer_mug') || poseName.endsWith('_arms_out') || poseName.endsWith('_idle_pistol')) return 'arms';
   if (STANDING_HEAD_OVERLAY.has(poseName) || poseName.endsWith('_glance') || poseName.endsWith('_glance_other')) return 'head';
@@ -704,7 +714,7 @@ export class Animator {
    * elbow drawn out wide, keeping the hand's orientation; the body's hand-contact solve then settles it on the surface.
    */
   private anchorHandsOnHips(dt: number): void {
-    const want = !this.twitchy && /(^|_)idle_hips$/.test(this.to.name) ? 1 : 0;
+    const want = !this.twitchy && placedArms(this.to.name) === 'hips' ? 1 : 0;
     this.hipW += (want - this.hipW) * (1 - Math.exp(-6 * dt));
     if (this.hipW < 0.003 || !this.bones[0]) {
       if (!want) this.hipW = 0;
@@ -771,7 +781,7 @@ export class Animator {
    * the arm it rests on instead of sticking out past it.
    */
   private anchorCrossedArms(dt: number): void {
-    const want = !this.twitchy && /(^|_)idle_crossed$/.test(this.to.name) ? 1 : 0;
+    const want = !this.twitchy && placedArms(this.to.name) === 'crossed' ? 1 : 0;
     this.crossW += (want - this.crossW) * (1 - Math.exp(-6 * dt));
     if (this.crossW < 0.003 || !this.bones[0]) {
       if (!want) this.crossW = 0;
