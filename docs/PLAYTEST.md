@@ -2,6 +2,7 @@
 
 Nothing here has been seen in a browser. Automated checks only prove the sequence logic (tsc clean, `src/script/action.test.ts`,
 `world/slice01.test.ts`). Start with `npm run dev`, then use the dev URL (usually `http://localhost:5173/`).
+Agents don't use that server: run `npm run playtest:serve` and use the URL it prints (`AGENTS.md`, Shared Machine).
 
 ## URLs
 | URL | What it does |
