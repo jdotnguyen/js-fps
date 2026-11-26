@@ -146,6 +146,8 @@ export class Animator {
   gaitRate = 1;
   /** Turn speed in rad/s (+ = left) and heading error to the target (rad). Used by crawlers AND upright turning/banking. */
   turnRate = 0;
+  /** The body is walking backward: the walk cycle runs in reverse so the feet step back (Humanoid.backward). */
+  reverse = false;
   turnError = 0;
   /** Character-local linear acceleration (m/s²): +fwd = accelerating forward (-Z), +lat = accelerating right (+X). */
   accelFwd = 0;
@@ -791,7 +793,8 @@ export class Animator {
     } else if (mode === 'loco') {
       const stride = Math.max(0.6, this.locoInfo.stride);
       if (this.speed > 0.02) {
-        this.locoPhase = (this.locoPhase + (this.speed / stride) * dt * this.gaitRate) % 1;
+        const step = (this.speed / stride) * dt * this.gaitRate * (this.reverse ? -1 : 1);
+        this.locoPhase = (((this.locoPhase + step) % 1) + 1) % 1;
       }
       sampleLocomotion(
         this.mocap,

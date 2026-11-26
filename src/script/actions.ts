@@ -514,7 +514,7 @@ export const ACTIONS: Record<string, ActionDef> = {
   /** `via`: an authored level walk (ADR-0028) to follow on the way, as a smooth curve. */
   /** `whenUnseen`: move off-stage the moment Jay cannot see the NPC, even mid-walk (skipped: at once). */
   /** `settle`: a seated or leaning pose (`sit_chair`, `lean_counter`) to take on arrival, at the target's feet and facing; with `whenUnseen` it is taken the moment the NPC is placed. */
-  npcMoveTo: npcAct('npcMoveTo', { npc: str, to: target, via: optional(str), speed: optional(numRange(0.1, 10)), pose: optional(str), whenUnseen: optional(bool), settle: optional(str) }),
+  npcMoveTo: npcAct('npcMoveTo', { npc: str, to: target, via: optional(str), speed: optional(numRange(0.1, 10)), pose: optional(str), whenUnseen: optional(bool), settle: optional(str), face: optional(target) }),
   /** `by` drags the body along on a rope (lying pose, no gait); `stop` lets go. Skipped: let go. */
   npcDrag: npcAct('npcDrag', { npc: str, by: optional(str), pose: optional(str), distance: optional(numRange(0.3, 4)), stop: optional(bool) }),
   npcAnim: npcAct('npcAnim', { npc: str, anim: str }),

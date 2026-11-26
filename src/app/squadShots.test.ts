@@ -9,7 +9,7 @@ import type { VoiceOptions } from '../audio/engine.ts';
 import type { SoundName } from '../audio/sounds.ts';
 import { CollisionWorld } from '../world/collision.ts';
 import { shotPoints, type SquadEvents } from '../ai/squad.ts';
-import { RATE_JITTER, wireSquadShots } from './squadShots.ts';
+import { RATE_JITTER, SQUAD_SHOT, wireSquadShots } from './squadShots.ts';
 import { MUZZLE_FLASH_TIME, SLIDE_CYCLE, SLIDE_TRAVEL } from '../actors/squadPistol.ts';
 import { EventBus } from '../core/events.ts';
 
@@ -60,7 +60,8 @@ function range() {
     events.emit('squad:fired', payload);
     return payload;
   };
-  return { played, timers, body, fire, noises: () => noises, dir };
+  const emit = (payload: SquadEvents['squad:fired']) => events.emit('squad:fired', payload);
+  return { played, timers, body, fire, emit, noises: () => noises, dir };
 }
 
 test('one squad shot: one squad gunshot at the muzzle, one brass landing, no enemy noise', () => {
@@ -85,6 +86,18 @@ test('one squad shot: one squad gunshot at the muzzle, one brass landing, no ene
   // The noise spy works: Jay's own shot is heard.
   r.dir.playerShot('pistol', new THREE.Vector3(0, 1.6, 0), new THREE.Vector3(0, 0, -1), 1);
   assert.equal(r.noises(), 1);
+});
+
+test('a scripted volley with a gain plays its shots that much quieter, in the head (the R16 finale under the roar)', () => {
+  const r = range();
+  const m = { position: r.body.group.position, body: r.body };
+  r.emit({ id: 'engineer', enemy: 'scripted', hit: false, killed: false, ...shotPoints(m) });
+  r.emit({ id: 'engineer', enemy: 'scripted', hit: false, killed: false, gain: 0.6, ...shotPoints(m) });
+  const shots = r.played.filter((p) => p.name === 'squadPistolShot');
+  assert.equal(shots.length, 2);
+  assert.equal(shots[0]!.opts!.gain, SQUAD_SHOT.gain);
+  assert.ok(Math.abs(shots[1]!.opts!.gain! - SQUAD_SHOT.gain * 0.6) < 1e-9, 'quieter by its gain');
+  assert.equal(shots[1]!.opts!.position, undefined, 'heard through the feed, not placed');
 });
 
 test('consecutive squad shots vary in pitch within ±4%', () => {

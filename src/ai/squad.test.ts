@@ -746,6 +746,22 @@ test('squad weapon-mounted flashlights toggle via setFlashlight and scriptedFire
   assert.equal(fired.length, 4, 'two bursts per mate emitted while scripted');
   assert.ok(fired.every((f) => f.boost === 3.5), 'boosted muzzle flash flag forwarded on scripted shots');
 
+  // A volley stopped part way fires no more (bursts: 0, the R16 finale's hold fire).
+  squad.scriptedFire({ ids: ['giles', 'okafor'], target: { x: -10, y: 1.4, z: 0 }, bursts: 10, interval: 0.2, boost: 3.5 });
+  for (let i = 0; i < 8; i++) squad.update(1 / 30, null);
+  const partway = firedOf(events).length;
+  assert.ok(partway > 4 && partway < 24, 'the second volley has started');
+  squad.scriptedFire({ ids: ['giles', 'okafor'], bursts: 0 });
+  for (let i = 0; i < 60; i++) squad.update(1 / 30, null);
+  assert.equal(firedOf(events).length, partway, 'a stop ends the volley');
+  for (const m of squad.mates) assert.equal(m.flashlightOn, true, 'the lights stay on');
+  // A quieter volley carries its gain on each shot.
+  squad.scriptedFire({ ids: ['giles', 'okafor'], target: { x: -10, y: 1.4, z: 0 }, bursts: 2, interval: 0.2, gain: 0.6 });
+  for (let i = 0; i < 40; i++) squad.update(1 / 30, null);
+  const quiet = firedOf(events).slice(partway);
+  assert.equal(quiet.length, 4, 'two bursts each');
+  assert.ok(quiet.every((f) => (f as { gain?: number }).gain === 0.6), 'each shot carries the gain');
+
   squad.setFlashlight(undefined, false);
   for (const m of squad.mates) {
     assert.equal(m.flashlightOn, false, 'weapon flashlight turns off');

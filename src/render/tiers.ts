@@ -81,7 +81,11 @@ export function anisotropyFor(tier: Readonly<RenderTier>, gpuMax: number): numbe
   return tier.anisotropy === 'max' ? gpuMax : Math.min(tier.anisotropy, gpuMax);
 }
 
-const TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'bumpMap', 'displacementMap', 'lightMap', 'envMap'] as const;
+const TEXTURE_SLOTS = [
+  'map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'bumpMap', 'displacementMap', 'lightMap', 'envMap',
+  // MeshPhysicalMaterial's clearcoat (the Juggernaut's eyes and teeth, openspec rig-juggernaut D11).
+  'clearcoatMap', 'clearcoatNormalMap', 'clearcoatRoughnessMap',
+] as const;
 
 /**
  * Samplers a material binds for its own maps (the shadow budget's "material units"). Since r187 every

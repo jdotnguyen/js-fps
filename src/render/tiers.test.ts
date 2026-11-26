@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import assert from 'node:assert/strict';
 import { RENDER_TIERS, anisotropyFor, clampTier, materialTextureUnits } from './tiers.ts';
@@ -72,6 +73,31 @@ test('material units count the maps a material binds, plus the scene environment
   assert.equal(materialTextureUnits({ map: tex, normalMap: tex, roughnessMap: tex, metalnessMap: tex, envMapIntensity: 1 }, true), 5);
   assert.equal(materialTextureUnits({ map: tex, envMapIntensity: 1 }, false), 1);
   assert.equal(materialTextureUnits({ map: tex }, true), 1, 'an unlit material samples no environment');
+});
+
+test('clearcoat maps count: the Juggernaut\'s face material needs 8 units, like the heaviest materials, so High is unchanged', () => {
+  // The face material as GLTFLoader builds it from the shipped GLB (headless tests cannot decode its images).
+  const buf = readFileSync(new URL('../../public/assets/models/infected/monster_juggernaut.glb', import.meta.url));
+  const json = JSON.parse(buf.subarray(20, 20 + buf.readUInt32LE(12)).toString('utf8')) as {
+    materials: Array<{ name: string; pbrMetallicRoughness?: Record<string, unknown>; normalTexture?: unknown; occlusionTexture?: unknown; emissiveTexture?: unknown; extensions?: Record<string, Record<string, unknown>> }>;
+  };
+  const details = json.materials.find((m) => m.name === 'details')!;
+  const tex = new THREE.Texture();
+  const m = new THREE.MeshPhysicalMaterial({ clearcoat: 1 });
+  if (details.pbrMetallicRoughness?.baseColorTexture) m.map = tex;
+  if (details.pbrMetallicRoughness?.metallicRoughnessTexture) m.roughnessMap = m.metalnessMap = tex;
+  if (details.normalTexture) m.normalMap = tex;
+  if (details.occlusionTexture) m.aoMap = tex;
+  if (details.emissiveTexture) m.emissiveMap = tex;
+  const cc = details.extensions?.['KHR_materials_clearcoat'] ?? {};
+  if (cc.clearcoatTexture) m.clearcoatMap = tex;
+  if (cc.clearcoatNormalTexture) m.clearcoatNormalMap = tex;
+  if (cc.clearcoatRoughnessTexture) m.clearcoatRoughnessMap = tex;
+  assert.ok(m.clearcoatNormalMap, 'the face material binds a clearcoat normal map');
+  // map, normal, roughness, metalness, ao, clearcoat normal, the scene environment and dfgLUT.
+  assert.equal(materialTextureUnits(m, true), 8);
+  const high = clampTier(RENDER_TIERS.high, { maxTextures: 16, maxFragmentUniforms: 1024, materialUnits: 8 }).tier;
+  assert.equal(high.shadowLights, 6, 'High keeps its 6 shadow lights');
 });
 
 test('a standard material also binds the DFG lookup table (r187), as the linked program shows', () => {

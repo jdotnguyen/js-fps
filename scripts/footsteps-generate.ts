@@ -152,6 +152,35 @@ export const FOOTSTEP_AUDIO_MANIFEST: readonly FootstepAudioSpec[] = [
     maxTrimSeconds: 0.75,
     prompt: 'one leg pushing through deep flood water, thick gurgling slosh and a low surge, single step, dry close-mic foley recording, no reverb, no echo, no voice, no music',
   },
+  // The Juggernaut's walk (openspec juggernaut-walk-and-roar D8): a five-metre creature's bare feet and the knuckles of its fists
+  // landing on a concrete concourse floor. Played on each touchdown of its gait.
+  ...[
+    'a gigantic heavy creature foot slamming down onto a concrete floor, enormous weight, deep low thud with a wet fleshy slap of thick skin',
+    'one massive bare monster foot stomping down on concrete, deep sub-bass impact and a meaty wet squelch, the floor taking a huge weight',
+    'a colossal beast footfall on a hard concrete floor, slow crushing heavy thud with a moist skin slap and a little grit',
+    'an enormous fleshy creature foot planting heavily on concrete, deep booming weight with a wet sticky peel',
+  ].map((detail, i) => ({
+    id: `juggernaut-step-${i + 1}`,
+    file: `foot-juggernaut-step-${i + 1}.mp3`,
+    duration: 0.9,
+    promptInfluence: 0.72,
+    targetPeakDb: -3.0,
+    maxTrimSeconds: 0.85,
+    prompt: `${detail}, single isolated footstep only, one step not multiple, dry close-mic foley recording, no reverb, no echo, no voice, no music`,
+  })),
+  ...[
+    'the giant knuckles of a huge monster fist pounding down onto a concrete floor, heavy dull knock with a fleshy thump',
+    'a massive creature knuckle-walking, one huge fist landing on concrete, deep blunt knock and a wet skin slap',
+    'one enormous gorilla-like fist planting on a hard concrete floor, heavy padded thud with a gritty knuckle knock',
+  ].map((detail, i) => ({
+    id: `juggernaut-knuckle-${i + 1}`,
+    file: `foot-juggernaut-knuckle-${i + 1}.mp3`,
+    duration: 0.8,
+    promptInfluence: 0.72,
+    targetPeakDb: -4.5,
+    maxTrimSeconds: 0.7,
+    prompt: `${detail}, single isolated impact only, one hit not multiple, dry close-mic foley recording, no reverb, no echo, no voice, no music`,
+  })),
 ];
 
 function loadApiKey(): string {

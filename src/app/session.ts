@@ -1448,7 +1448,12 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       events.on('squad:flashlight' as never, ((p: { ids?: string | string[]; on?: boolean }) => {
         squad!.setFlashlight(parseSquadIds(p?.ids), p?.on === true);
       }) as never);
-      events.on('squad:scripted_fire' as never, ((p: { ids?: string | string[]; target?: string | [number, number, number]; bursts?: number; interval?: number; boost?: number }) => {
+      events.on('squad:scripted_fire' as never, ((p: { ids?: string | string[]; target?: string | [number, number, number]; bursts?: number; interval?: number; boost?: number; gain?: number }) => {
+        if (p?.bursts === 0) {
+          const ids = parseSquadIds(p.ids);
+          squad!.scriptedFire({ bursts: 0, ...(ids !== undefined ? { ids } : {}) });
+          return;
+        }
         if (!p?.target) return;
         let target: { x: number; y: number; z: number } | null = null;
         if (typeof p.target === 'string' && p.target.startsWith('anchor:')) {
@@ -1465,6 +1470,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
             ...(p.bursts !== undefined ? { bursts: p.bursts } : {}),
             ...(p.interval !== undefined ? { interval: p.interval } : {}),
             ...(p.boost !== undefined ? { boost: p.boost } : {}),
+            ...(p.gain !== undefined ? { gain: p.gain } : {}),
           });
         }
       }) as never);
@@ -1494,7 +1500,14 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
 
     // The finale creature's CAM 10 entrance: loaded and hidden since the loading screen.
     const loadedCreature = juggernaut as Juggernaut | null; // assigned in the load's callback, which TS cannot follow
-    if (loadedCreature) scene.add(loadedCreature.root);
+    if (loadedCreature) {
+      scene.add(loadedCreature.root);
+      // Its footfalls and knuckle thuds (openspec juggernaut-walk-and-roar D6, D8), heard through the CCTV feed like its roars.
+      loadedCreature.onFootfall = (kind) => {
+        const name = kind === 'foot' ? 'juggernautStep' : 'juggernautKnuckle';
+        if (audio.hasSound(name)) audio.play(name, { bus: 'sfx', gain: kind === 'foot' ? 1.4 : 1.0, rate: 0.92 + Math.random() * 0.12 });
+      };
+    }
     const juggernautAim = new THREE.Vector3();
     events.on('transit:juggernaut_reveal' as never, ((p: { show?: boolean }) => {
       if (!juggernaut || typeof p?.show !== 'boolean') return;
@@ -1502,8 +1515,15 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         juggernaut.hide();
         return;
       }
-      juggernaut.reveal(level?.anchor(JUGGERNAUT_HIDE_ANCHOR) ?? null, level?.anchor(JUGGERNAUT_REVEAL_ANCHOR) ?? null);
+      // It walks out looking at Giles and Okafor (their midpoint, at chest height).
+      const mates = squad?.mates ?? [];
+      const look = mates.length ? mates.reduce((s, m) => s.add(m.position), new THREE.Vector3()).divideScalar(mates.length).add(new THREE.Vector3(0, 1.4, 0)) : null;
+      juggernaut.reveal(level?.anchor(JUGGERNAUT_HIDE_ANCHOR) ?? null, level?.anchor(JUGGERNAUT_REVEAL_ANCHOR) ?? null, look);
       squad?.setAim(['giles', 'okafor'], () => juggernaut?.aimPoint(juggernautAim) ?? null);
+    }) as never);
+    // Its acted roars (`roar_walk`, `roar_full`), cued by the finale's sequence.
+    events.on('transit:juggernaut_act' as never, ((p: { sequence?: string }) => {
+      if (juggernaut && p?.sequence) juggernaut.act(p.sequence);
     }) as never);
     events.on('level:reset' as never, (() => juggernaut?.hide()) as never);
 

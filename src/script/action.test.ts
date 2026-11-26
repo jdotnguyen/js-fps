@@ -1657,7 +1657,7 @@ test('r15a-train-ride-narrative: R13d walk-and-talk, R15a boarding, 3-stage Hein
   noWarnings(r);
 });
 
-test('r16-arrival-finale: surveillance reveal, scream, blackout, and title card', async () => {
+test('r16-arrival-finale: surveillance reveal, the Juggernaut walks out and roars twice on camera, cut to black, title card', async () => {
   const g = makeGame(['r16_arrival_finale', 'title_card', 'action_restore']);
   setFlags(g, { station_power: 'backup', contact_done: true, tunnel_started: true, valve_done: true, r11_powered: true, transit_ride_done: true });
 
@@ -1678,7 +1678,13 @@ test('r16-arrival-finale: surveillance reveal, scream, blackout, and title card'
     const rec = p as { show?: boolean };
     if (typeof rec.show === 'boolean') juggernautShows.push(rec.show);
   });
-  g.host.events.on('squad:scripted_fire' as never, () => void (scriptedFired = true));
+  const fires: Array<{ bursts?: number; target?: string }> = [];
+  const acts: string[] = [];
+  g.host.events.on('squad:scripted_fire' as never, (p: unknown) => {
+    scriptedFired = true;
+    fires.push(p as { bursts?: number; target?: string });
+  });
+  g.host.events.on('transit:juggernaut_act' as never, (p: unknown) => void acts.push((p as { sequence: string }).sequence));
   g.host.events.on('story:cliffhanger' as never, () => void (cliffhanger = true));
 
   g.host.events.emit('transit:arrived_r16' as never, {} as never);
@@ -1686,21 +1692,46 @@ test('r16-arrival-finale: surveillance reveal, scream, blackout, and title card'
   await until(g, () => auxLights.includes(true));
   assert.equal(g.control.state.move, 'locked', 'cutscene locks player movement once auxiliary lights engage');
 
+  // openspec juggernaut-walk-and-roar D7: it walks out acting the CCTV roar while they fire and back away facing it, stops,
+  // they yell, it acts the long roar on camera over their quieter fire, and the cut to black lands on the roar's last beat.
   await until(g, () => juggernautShows.includes(true));
   await advance(g, 1.65);
   assert.ok(!g.log.includes('sfx r16MonsterRoar'), 'the scream waits for the Juggernaut to enter the frame');
   await until(g, () => g.log.includes('sfx r16MonsterRoar'), 0.2);
-  await advance(g, 2.8);
-  assert.deepEqual(juggernautShows, [true], 'CAM 10 stays live for the scream');
-  assert.ok(!g.log.includes('sfx r16MonsterRoarBlackout'), 'the second roar waits for the cut to black');
-  await until(g, () => juggernautShows.length === 2, 0.3);
-  await until(g, () => g.log.includes('sfx r16MonsterRoarBlackout'), 0.3);
-  await advance(g, 5.8);
-  assert.equal(cliffhanger, false, 'screen holds on black to register the second roar before THALASSA');
+  assert.deepEqual(acts, ['roar_walk'], 'it acts the first roar as it walks');
+  assert.equal(fires.at(-1)?.target, 'anchor:r16_monster_face_aim', 'they keep firing at it as it walks');
+  assert.ok(g.log.includes('npc npcMoveTo giles') && g.log.includes('npc npcMoveTo okafor'), 'they back away');
+  for (const f of fires) assert.ok((f as { interval?: number }).interval! >= 0.6 && (f as { gain?: number }).gain! <= 0.6, 'slow, quiet shots');
+  await advance(g, 3.4);
+  assert.deepEqual(acts, ['roar_walk'], 'still walking');
+  await until(g, () => acts.length === 2, 0.3);
+  assert.equal(acts[1], 'roar_full', 'it stops and rears up for the long roar');
+  assert.equal(fires.at(-1)?.target, 'anchor:r16_monster_face_aim', 'they keep firing as it rears up');
+  assert.equal((fires.at(-1) as { gain?: number }).gain, 0.4, 'quieter still, so the roar overpowers it');
+  assert.ok(g.log.includes('say r16_giles_05'), 'Giles yells');
+  assert.deepEqual(juggernautShows, [true], 'CAM 10 stays live');
+  await until(g, () => said(g, 'r16_okafor_04') === 1, 0.6); // over Giles: an overlapping line
+  assert.ok(!g.log.includes('sfx r16MonsterRoarBlackout'), 'both yell before the long roar drowns them');
+  await until(g, () => g.log.includes('sfx r16MonsterRoarBlackout'), 0.5);
+  assert.equal(g.feeds.at(-1)?.state, 'live', 'the long roar plays on camera');
+  await advance(g, 3.1);
+  assert.deepEqual(juggernautShows, [true], 'on camera through the roar');
+  await until(g, () => juggernautShows.length === 2, 0.4);
+  const cutAt = g.log.length;
+  await advance(g, 0.8);
+  assert.equal(cliffhanger, false, 'about a second of black and silence first');
+  await until(g, () => cliffhanger, 0.4);
+  assert.ok(!g.log.slice(cutAt).some((e) => e.startsWith('sfx r16Monster')), 'no creature sound after the cut');
+  // The music hush before the roars must still let Giles and Okafor be heard, or their screams are dropped.
+  for (const [line, speaker] of [['r16_giles_05', 'engineer'], ['r16_okafor_04', 'medic']] as const) {
+    const at = g.log.findIndex((e) => e.startsWith(`say ${line}`));
+    const lastHush = g.log.slice(0, at).filter((e) => e.startsWith('hush')).at(-1);
+    assert.ok(!lastHush || lastHush === 'hush off' || lastHush.slice(5).split(',').includes(speaker), `${line} is heard through "${lastHush}"`);
+  }
   await until(g, () => !g.m.isRunning('r16_arrival_finale'));
 
   // Dialogue lines across PA, cabin banter, and radio-filtered surveillance.
-  for (const id of ['r16_pa_02', 'r16_jay_01', 'r16_giles_01', 'r16_okafor_01', 'r16_jay_02', 'r16_giles_02', 'r16_okafor_02', 'r16_giles_03', 'r16_okafor_03', 'r16_giles_04']) {
+  for (const id of ['r16_pa_02', 'r16_jay_01', 'r16_giles_01', 'r16_okafor_01', 'r16_jay_02', 'r16_giles_02', 'r16_okafor_02', 'r16_giles_03', 'r16_okafor_03', 'r16_giles_04', 'r16_giles_05', 'r16_okafor_04']) {
     assert.ok(said(g, id) >= 1, `R16 finale line ${id} played`);
   }
   assert.equal(said(g, 'r16_jay_03'), 0, 'Jay stays quiet during the squad advance');
@@ -1710,7 +1741,7 @@ test('r16-arrival-finale: surveillance reveal, scream, blackout, and title card'
     'score labB load', 'say r16_pa_02', 'sfx breakerClunk',
     'sfx r16HorrorHit', 'say r16_jay_01', 'score labB r16Build', 'sfx r16HorrorHit',
     'score labB r16Stalk', 'score labB r16Cut', 'feed r16_cam live fullscreen',
-    'sfx r16MonsterRoar', 'feed r16_cam off fullscreen', 'sfx r16MonsterRoarBlackout',
+    'sfx r16MonsterRoar', 'say r16_giles_05', 'say r16_okafor_04 overlap', 'sfx r16MonsterRoarBlackout', 'feed r16_cam off fullscreen',
   ]);
   assert.equal(scores.labB.cues.r16Cut.cut, true);
 
@@ -1719,7 +1750,7 @@ test('r16-arrival-finale: surveillance reveal, scream, blackout, and title card'
   assert.deepEqual(squadFlashlights, [true, false], 'Giles and Okafor weapon flashlights turn on then off on blackout');
   assert.equal(scriptedFired, true, 'scripted squad gunfire fires before CAM 10');
   assert.ok(g.log.includes('sfx r16HorrorHit'), 'bass horror impact plays on massacre reveal');
-  assert.deepEqual(juggernautShows, [true, false], 'juggernaut model reveals briefly on CAM 10 then hides on blackout');
+  assert.deepEqual(juggernautShows, [true, false], 'the Juggernaut shows on CAM 10 through both roars and hides at the cut');
   assert.equal(g.feeds.at(-1)?.state, 'off');
   assert.equal(g.host.flags['r16_finale_done'], true);
   assert.equal(cliffhanger, true, 'story:cliffhanger emitted to chain into title_card -> stinger_priya -> endSlice');

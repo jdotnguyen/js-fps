@@ -166,6 +166,10 @@
     { "id": "r16_okafor_03", "speaker": "medic", "text": "Right side! Behind the pillar—OPEN FIRE!",
       "emote": "alarmed", "direction": "sharp panicked shout spotting a huge creature in the dark, immediately opening fire", "channel": "radio", "priority": "story", "audio": "assets/vo/r16_okafor_03.mp3", "minDuration": 2.4, "choices": [] },
     { "id": "r16_giles_04", "speaker": "engineer", "text": "Light it up! Fall back, fall back!",
-      "emote": "urgent", "direction": "panicked yelling over rapid gunfire, backing away in terror", "channel": "radio", "priority": "story", "audio": "assets/vo/r16_giles_04.mp3", "minDuration": 2.2, "choices": [] }
+      "emote": "urgent", "direction": "panicked yelling over rapid gunfire, backing away in terror", "channel": "radio", "priority": "story", "audio": "assets/vo/r16_giles_04.mp3", "minDuration": 2.2, "choices": [] },
+    { "id": "r16_giles_05", "speaker": "engineer", "text": "What the fuck is that?!",
+      "emote": "urgent", "direction": "YELLING at the top of his lungs, full chest voice, loud and raw over his own gunfire as a five-metre creature rears up in front of him; never quiet, never whispered", "channel": "radio", "priority": "story", "audio": "assets/vo/r16_giles_05.mp3", "minDuration": 1.2, "gain": 1.3, "choices": [] },
+    { "id": "r16_okafor_04", "speaker": "medic", "text": "What the fuck IS that?!",
+      "emote": "urgent", "direction": "the calm surgeon finally breaking, SHOUTING at full volume in disbelief over gunfire as the creature roars at him; loud, raw, never quiet or whispered", "channel": "radio", "priority": "story", "audio": "assets/vo/r16_okafor_04.mp3", "minDuration": 1.2, "gain": 1.3, "choices": [] }
   ]
 }

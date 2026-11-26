@@ -785,6 +785,9 @@ export const SAMPLE_URLS = {
   // Wading in standing water (in-world-audio spec; ElevenLabs, scripts/footsteps-generate.ts): ankle-to-knee and thigh deep.
   footWadeShallow: [1, 2, 3].map((i) => `assets/audio/footsteps/foot-wade-shallow-${i}.mp3`),
   footWadeDeep: [1, 2, 3].map((i) => `assets/audio/footsteps/foot-wade-deep-${i}.mp3`),
+  // The Juggernaut's gait touchdowns (openspec juggernaut-walk-and-roar D8; ElevenLabs, scripts/footsteps-generate.ts).
+  juggernautStep: [1, 2, 3, 4].map((i) => `assets/audio/footsteps/foot-juggernaut-step-${i}.mp3`),
+  juggernautKnuckle: [1, 2, 3].map((i) => `assets/audio/footsteps/foot-juggernaut-knuckle-${i}.mp3`),
   // Splashes (standing-water spec; CC0, rubberduck on OpenGameArt, see CREDITS.md).
   waterSplashStep: [1, 2, 3].map((i) => `assets/audio/water/splash-step-${i}.mp3`),
   waterSplashBullet: [1, 2, 3].map((i) => `assets/audio/water/splash-bullet-${i}.mp3`),

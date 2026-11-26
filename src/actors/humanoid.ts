@@ -181,6 +181,8 @@ export class Humanoid {
   heading = 0;
   /** Current ground speed (m/s). */
   speed = 0;
+  /** Moving away from where it faces (a backward walk with `steer({ face })`): the walk cycle plays in reverse. */
+  backward = false;
   /** Extra speed factor from the AI (lurch bursts, ADR-0007). */
   speedScale = 1;
   /** A downed body being moved by a script (dragged, carried): hold this pose, never a walking gait. */
@@ -637,7 +639,7 @@ export class Humanoid {
    * Turn and accelerate toward `desired` without moving; returns this frame's world velocity
    * for a caller that moves the body itself (the squad moves through the collision motor).
    */
-  steer(desired: THREE.Vector3 | null, dt: number, opts: { maxSpeed?: number; turnRate?: number; accel?: number } = {}): Readonly<THREE.Vector3> {
+  steer(desired: THREE.Vector3 | null, dt: number, opts: { maxSpeed?: number; turnRate?: number; accel?: number; face?: number } = {}): Readonly<THREE.Vector3> {
     const loc = this.locomotion;
     const slamming = this.slam?.busy === true;
     const canMove = this.state === 'alive' && !slamming;
@@ -657,8 +659,10 @@ export class Humanoid {
     const heavy = loc.mode !== 'walk';
     const turnParams = loc.mode === 'crawl' ? CRAWL_TURN : DRAG_TURN;
     this.turnError = 0;
+    // `face`: keep turning toward that heading while moving along `desired` (backing away from a target while facing it).
+    const facing = opts.face !== undefined && !heavy;
     if (desired && canMove && desired.x * desired.x + desired.z * desired.z > 1e-6) {
-      const want = Math.atan2(-desired.x, -desired.z);
+      const want = facing ? opts.face! : Math.atan2(-desired.x, -desired.z);
       let diff = want - this.heading;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       if (heavy) {
@@ -672,7 +676,7 @@ export class Humanoid {
         this.heading += stepUprightTurn(this.uprightTurn, diff, rate, dt);
         this.turn.vel = 0;
         this.turn.inPlace = false;
-        target = max * THREE.MathUtils.clamp(Math.cos(diff), 0, 1);
+        target = facing ? max : max * THREE.MathUtils.clamp(Math.cos(diff), 0, 1);
       }
     } else if (heavy) {
       this.heading += settleTurn(this.turn, dt, turnParams);
@@ -690,7 +694,13 @@ export class Humanoid {
     // A pivoting body stops at once instead of coasting forward.
     this.speed += (target - this.speed) * Math.min(1, dt * (this.turn.inPlace ? 9 : (opts.accel ?? 4)));
     if (this.speed < 1e-3) this.speed = 0;
-    this.velocity.set(-Math.sin(this.heading), 0, -Math.cos(this.heading)).multiplyScalar(this.speed);
+    if (facing && desired && desired.x * desired.x + desired.z * desired.z > 1e-6) {
+      this.velocity.set(desired.x, 0, desired.z).normalize().multiplyScalar(this.speed);
+      this.backward = this.velocity.x * -Math.sin(this.heading) + this.velocity.z * -Math.cos(this.heading) < -0.3 * this.speed;
+    } else {
+      this.velocity.set(-Math.sin(this.heading), 0, -Math.cos(this.heading)).multiplyScalar(this.speed);
+      this.backward = false;
+    }
     this.group.rotation.y = this.heading;
     return this.velocity;
   }
@@ -1862,6 +1872,7 @@ export class Humanoid {
     }
     this.animator.gait = gait;
     this.animator.speed = this.carried ? 0 : this.speed;
+    this.animator.reverse = this.backward;
     const crawling = gait === 'crawl' || gait === 'drag';
     this.animator.turnRate = crawling ? this.turn.vel : this.uprightTurn.vel;
     this.animator.turnError = crawling ? this.turnError : this.uprightTurn.error;

@@ -111,6 +111,8 @@ interface MoveCmd {
   warned: boolean;
   speed: number;
   yaw: number | undefined;
+  /** Keep facing this point while walking (backing away from it); null when it has none. */
+  face: (() => P3 | null) | null;
   repathT: number;
   stuckT: number;
   /** Seconds waiting on Jay in the way (capped; the move is only given up past BLOCKED_GIVE_UP). */
@@ -289,8 +291,8 @@ export class NpcActor {
     this.lastPos.copy(this.body.group.position);
   }
 
-  /** Walk to a point (pathing when a nav graph is present). `instant` teleports there. */
-  moveTo(at: P3, opts: { speed?: number; yaw?: number; instant?: boolean; track?: P3[]; curve?: P3[]; pose?: string } = {}): Promise<void> {
+  /** Walk to a point (pathing when a nav graph is present). `instant` teleports there. `face` keeps the body facing a point as it walks (backing away). */
+  moveTo(at: P3, opts: { speed?: number; yaw?: number; instant?: boolean; track?: P3[]; curve?: P3[]; pose?: string; face?: () => P3 | null } = {}): Promise<void> {
     this.stopMove();
     this.pendingPlaced = null;
     this.follow = null;
@@ -321,6 +323,7 @@ export class NpcActor {
         warned: false,
         speed: opts.speed ?? NPC_TUNING.walk,
         yaw: opts.yaw,
+        face: opts.face ?? null,
         repathT: 0,
         stuckT: 0,
         blockT: 0,
@@ -615,7 +618,10 @@ export class NpcActor {
     }
 
     if (speed > 0) {
-      const vel = this.body.steer(desired, dt, { maxSpeed: speed, ...steerOpts });
+      // Backing away: keep facing the move's face point while walking (openspec juggernaut-walk-and-roar, the R16 retreat).
+      const facePoint = this.move?.face?.() ?? null;
+      const faceHeading = facePoint ? Math.atan2(-(facePoint.x - me.x), -(facePoint.z - me.z)) : undefined;
+      const vel = this.body.steer(desired, dt, { maxSpeed: speed, ...steerOpts, ...(faceHeading !== undefined ? { face: faceHeading } : {}) });
       if (env.colliders) moveBody(this.motor, vel.x * dt, vel.z * dt, dt, MOTOR, env.colliders);
       else {
         this.motor.x += vel.x * dt;

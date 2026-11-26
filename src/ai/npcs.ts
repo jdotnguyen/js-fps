@@ -850,7 +850,11 @@ export class NpcDirector {
         if (via && !walk) this.warnOnce(`npcMoveTo: no walk "${via}"`);
         const speed = typeof step['speed'] === 'number' ? step['speed'] : walk?.speed;
         const pose = typeof step['pose'] === 'string' ? step['pose'] : undefined;
-        const moved = a.moveTo(at.pos, { ...(speed !== undefined ? { speed } : {}), ...(at.yaw !== undefined ? { yaw: at.yaw } : {}), ...(pose ? { pose } : {}), ...(walk ? { curve: walk.points } : {}), instant });
+        // `face`: keep facing a point while walking, backing away from it. "aim" is the body's live aim target (a squad
+        // mate's scripted aim, such as the Juggernaut's head in the R16 finale); anything else is a target reference.
+        const faceRef = step['face'];
+        const face = faceRef === 'aim' ? () => a.body.aimTarget : faceRef !== undefined ? this.getter(faceRef) : null;
+        const moved = a.moveTo(at.pos, { ...(speed !== undefined ? { speed } : {}), ...(at.yaw !== undefined ? { yaw: at.yaw } : {}), ...(pose ? { pose } : {}), ...(walk ? { curve: walk.points } : {}), ...(face ? { face } : {}), instant });
         if (!settle) return moved;
         // A walk cut short by a later command also resolves: only settle if the body actually got there.
         return moved.then(() => {

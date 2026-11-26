@@ -42,7 +42,8 @@ export function wireSquadShots(d: SquadShotDeps): () => void {
     d.audio.play('squadPistolShot', {
       bus: 'sfx',
       ...(scripted ? {} : { position: new THREE.Vector3(muzzle.x, muzzle.y, muzzle.z) }),
-      gain: SQUAD_SHOT.gain,
+      // A scripted volley can be quieter than a normal shot (the R16 finale fires under the long roar).
+      gain: SQUAD_SHOT.gain * (shot.gain ?? 1),
       reverb: SQUAD_SHOT.reverb,
       rate: 1 + (random() * 2 - 1) * RATE_JITTER,
     });

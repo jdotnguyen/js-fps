@@ -1608,9 +1608,10 @@
     "payload": {
      "ids": "giles,okafor",
      "target": "anchor:r16_fire_target",
-     "bursts": 13,
-     "interval": 0.32,
-     "boost": 5.5
+     "bursts": 7,
+     "interval": 0.65,
+     "boost": 5.5,
+     "gain": 0.6
     }
    },
    {
@@ -1668,6 +1669,7 @@
    },
    {
     "do": "hush",
+    "speakers": ["engineer", "medic"],
     "keep": ["sfx"],
     "s": 0.1
    },
@@ -1681,8 +1683,90 @@
     "gain": 3.2
    },
    {
+    "do": "emit",
+    "event": "transit:juggernaut_act",
+    "payload": {
+     "sequence": "roar_walk"
+    }
+   },
+   {
+    "do": "emit",
+    "event": "squad:scripted_fire",
+    "payload": {
+     "ids": "giles,okafor",
+     "target": "anchor:r16_monster_face_aim",
+     "bursts": 6,
+     "interval": 0.65,
+     "boost": 5.5,
+     "gain": 0.6
+    }
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "giles",
+    "to": [76.8, 0, 34.6],
+    "speed": 0.3,
+    "face": "aim",
+    "wait": false
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "okafor",
+    "to": [76.8, 0, 37.2],
+    "speed": 0.3,
+    "face": "aim",
+    "wait": false
+   },
+   {
     "do": "wait",
-    "s": 2.9
+    "s": 3.55
+   },
+   {
+    "do": "emit",
+    "event": "squad:scripted_fire",
+    "payload": {
+     "ids": "giles,okafor",
+     "target": "anchor:r16_monster_face_aim",
+     "bursts": 6,
+     "interval": 0.65,
+     "boost": 5.5,
+     "gain": 0.4
+    }
+   },
+   {
+    "do": "emit",
+    "event": "transit:juggernaut_act",
+    "payload": {
+     "sequence": "roar_full"
+    }
+   },
+   {
+    "do": "say",
+    "line": "r16_giles_05",
+    "wait": false
+   },
+   {
+    "do": "wait",
+    "s": 0.45
+   },
+   {
+    "do": "say",
+    "line": "r16_okafor_04",
+    "wait": false,
+    "overlap": true
+   },
+   {
+    "do": "wait",
+    "s": 0.3
+   },
+   {
+    "do": "sfx",
+    "id": "r16MonsterRoarBlackout",
+    "gain": 4.8
+   },
+   {
+    "do": "wait",
+    "s": 3.3
    },
    {
     "do": "fade",
@@ -1730,21 +1814,12 @@
     "do": "playerFrame"
    },
    {
-    "do": "wait",
-    "s": 0.15
-   },
-   {
-    "do": "sfx",
-    "id": "r16MonsterRoarBlackout",
-    "gain": 4.8
-   },
-   {
-    "do": "wait",
-    "s": 6
-   },
-   {
     "do": "hush",
     "s": 0
+   },
+   {
+    "do": "wait",
+    "s": 1
    },
    {
     "do": "setFlag",

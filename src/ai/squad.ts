@@ -68,7 +68,7 @@ export interface SquadEvents {
    * One squad shot (squad-sidearms D4): `muzzle` (the hit origin), `ejectPort`, the gun's `right` and the bore's `forward` (world), read from the mate's
    * held pistol; `fromPistol` false when the body had no pistol showing, and the points fall back to 1.4 m above the mate.
    */
-  'squad:fired': { id: SquadId; enemy: string; hit: boolean; killed: boolean; muzzle: Vec3; ejectPort: Vec3; right: Vec3; forward: Vec3; fromPistol: boolean; boost?: number };
+  'squad:fired': { id: SquadId; enemy: string; hit: boolean; killed: boolean; muzzle: Vec3; ejectPort: Vec3; right: Vec3; forward: Vec3; fromPistol: boolean; boost?: number; gain?: number };
   'squad:infectionStage': { stage: number };
   /** A tell played (cough, rub_forearm, flex_hand), for audio and barks. */
   'squad:tell': { id: SquadId; tell: string };
@@ -185,7 +185,7 @@ export class SquadMate {
    */
   readonly weaponLight: THREE.SpotLight;
   readonly weaponLightTarget: THREE.Object3D;
-  private scriptedBurst: { target: THREE.Vector3; remaining: number; interval: number; t: number; boost: number } | null = null;
+  private scriptedBurst: { target: THREE.Vector3; remaining: number; interval: number; t: number; boost: number; gain: number } | null = null;
   private scriptedAimGet: (() => P3 | null) | null = null;
   hp: number = REVIVE.maxHp;
   /** Seconds left lying down. */
@@ -315,15 +315,21 @@ export class SquadMate {
   }
 
   /** Queue timed scripted pistol bursts toward a world point (e.g. R16 surveillance finale). */
-  startScriptedFire(target: P3, bursts: number, interval: number, boost: number, delay: number): void {
+  startScriptedFire(target: P3, bursts: number, interval: number, boost: number, delay: number, gain = 1): void {
     const aim = this.aimPoint.set(target.x, target.y, target.z);
     this.body.lookTarget = aim;
     this.body.aimTarget = aim;
     this.body.setPose('aim_pistol', 0.15);
     const dx = target.x - this.position.x;
     const dz = target.z - this.position.z;
-    if (Math.hypot(dx, dz) > 0.05) this.body.setHeading(Math.atan2(-dx, -dz));
-    this.scriptedBurst = { target: aim.clone(), remaining: Math.max(0, Math.round(bursts)), interval: Math.max(0.08, interval), t: Math.max(0, delay), boost };
+    // Snap to the target only when standing: setHeading stops the body, and a mate backing away (npcMoveTo `face`) already faces it.
+    if (Math.hypot(dx, dz) > 0.05 && this.body.speed < 0.05) this.body.setHeading(Math.atan2(-dx, -dz));
+    this.scriptedBurst = { target: aim.clone(), remaining: Math.max(0, Math.round(bursts)), interval: Math.max(0.08, interval), t: Math.max(0, delay), boost, gain };
+  }
+
+  /** End any scripted bursts now, leaving the aim and the light where they are. */
+  stopScriptedFire(): void {
+    this.scriptedBurst = null;
   }
 
   /** Advance any active scripted pistol bursts (runs even while `scripted` is true). */
@@ -341,7 +347,7 @@ export class SquadMate {
       b.t += b.interval;
       b.remaining--;
       const gun = shotPoints(this);
-      squad.emit('squad:fired', { id: this.id, enemy: 'scripted', hit: false, killed: false, boost: b.boost, ...gun });
+      squad.emit('squad:fired', { id: this.id, enemy: 'scripted', hit: false, killed: false, boost: b.boost, ...(b.gain !== 1 ? { gain: b.gain } : {}), ...gun });
     }
   }
 
@@ -1504,9 +1510,20 @@ export class Squad {
     }
   }
 
-  /** Fire timed scripted pistol bursts toward a world point with boosted CCTV-readable muzzle flashes. */
-  scriptedFire(opts: { ids?: readonly string[]; target: P3; bursts?: number; interval?: number; boost?: number }): void {
+  /**
+   * Fire timed scripted pistol bursts toward a world point with boosted CCTV-readable muzzle flashes. `bursts: 0` stops any
+   * volley in progress and leaves the mates aiming where they are (openspec juggernaut-walk-and-roar D7).
+   */
+  scriptedFire(opts: { ids?: readonly string[]; target?: P3; bursts?: number; interval?: number; boost?: number; gain?: number }): void {
     const targets = opts.ids?.length ? opts.ids : ['engineer', 'medic'];
+    if (opts.bursts === 0 || !opts.target) {
+      for (const raw of targets) {
+        const sid: SquadId | null = raw === 'giles' || raw === 'engineer' ? 'engineer' : raw === 'okafor' || raw === 'medic' ? 'medic' : null;
+        if (sid) this.mate(sid).stopScriptedFire();
+      }
+      return;
+    }
+    const target = opts.target;
     const bursts = opts.bursts ?? 6;
     const interval = opts.interval ?? 0.24;
     const boost = opts.boost ?? 3.2;
@@ -1514,7 +1531,7 @@ export class Squad {
     for (const raw of targets) {
       const sid: SquadId | null = raw === 'giles' || raw === 'engineer' ? 'engineer' : raw === 'okafor' || raw === 'medic' ? 'medic' : null;
       if (!sid) continue;
-      this.mate(sid).startScriptedFire(opts.target, bursts, interval, boost, idx * (interval * 0.45));
+      this.mate(sid).startScriptedFire(target, bursts, interval, boost, idx * (interval * 0.45), opts.gain ?? 1);
       idx++;
     }
   }

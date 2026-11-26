@@ -2227,5 +2227,65 @@
     ],
     "at": "2026-11-26T03:40:51.971Z",
     "source": "generated"
+  },
+  {
+    "batch": "retake_engineer_01",
+    "speakers": [
+      "engineer"
+    ],
+    "voices": [
+      "Algenib"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "r16_giles_05"
+    ],
+    "at": "2026-11-26T05:05:41.450Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_medic_01",
+    "speakers": [
+      "medic"
+    ],
+    "voices": [
+      "Charon"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "r16_okafor_04"
+    ],
+    "at": "2026-11-26T05:06:01.576Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_engineer_01",
+    "speakers": [
+      "engineer"
+    ],
+    "voices": [
+      "Algenib"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "r16_giles_05"
+    ],
+    "at": "2026-11-26T05:25:08.758Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_medic_01",
+    "speakers": [
+      "medic"
+    ],
+    "voices": [
+      "Charon"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "r16_okafor_04"
+    ],
+    "at": "2026-11-26T05:25:29.737Z",
+    "source": "generated"
   }
 ]
