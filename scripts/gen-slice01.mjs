@@ -252,7 +252,7 @@ const QUIET_FOG = { fog: '#070b0d', fogDensity: 0.028 };
 const DOCK_FOG = { fog: '#0a1014', fogDensity: 0.018, ambient: 'dock' };
 const R01 = room('R01', 'Docking Ring', rect(0, 3, 0, 1), {
   area: 'dock',
-  atmosphere: { ...DOCK_FOG, reverb: 'metal_hall', ambience: 'hull_hum' },
+  atmosphere: { ...DOCK_FOG, reverb: 'metal_hall', ambience: 'dock_ring' },
   ceiling: 'ceiling_pipes',
   noDeadFixtures: true,
   lights: [
@@ -266,7 +266,7 @@ const R01 = room('R01', 'Docking Ring', rect(0, 3, 0, 1), {
 // The walk to the commons: its own room (culling, draw-call budget), open to the dock hall.
 const R01w = room('R01w', 'Docking Ring Walk', [[4, 0], [5, 0], [6, 0], [6, 1], [6, 2]], {
   area: 'dock',
-  atmosphere: { ...DOCK_FOG, reverb: 'metal_corridor', ambience: 'hull_hum' },
+  atmosphere: { ...DOCK_FOG, reverb: 'metal_corridor', ambience: 'dock_walk' },
   ceiling: 'ceiling_pipes',
   noDeadFixtures: true,
   lights: [
@@ -279,7 +279,7 @@ opening('R01', 'R01w', 3, 0, 'e');
 for (const x of [1, 2, 3]) wallKit(R01, x, 0, 'n', 'wall_window', { flicker: true }); // the big dock window (one floodlight flickers)
 for (const x of [5, 6]) wallKit(R01w, x, 0, 'n', 'wall_window'); // ocean window on the walk
 wallKit(R01w, 6, 1, 'e', 'wall_window'); // courtyard window onto the seabed between the wings
-const R01a = room('R01a', 'Dock Airlock', [[0, -1]], { area: 'dock', atmosphere: { ...QUIET_FOG, reverb: 'small_office' }, ceilingMaterial: 'boltPanel', walls: ['wall_plain'], lights: [L(0, 'steady', '#ffe9c8', 7)] });
+const R01a = room('R01a', 'Dock Airlock', [[0, -1]], { area: 'dock', atmosphere: { ...QUIET_FOG, reverb: 'small_office', ambience: 'dock_airlock' }, ceilingMaterial: 'boltPanel', walls: ['wall_plain'], lights: [L(0, 'steady', '#ffe9c8', 7)] });
 wallKit(R01a, 0, -1, 'w', 'wall_vent');
 // Its outer hull is visible through both runs of dock windows even with D_dock shut.
 R01a.visibleFrom = ['R01', 'R01w'];
@@ -512,7 +512,7 @@ trigger(R02, 'trig_commons_notice', around([19.05, 0, 10.6], 0.8, 2.2), 'commons
 const R03 = room('R03', 'Observation Gallery', rect(1, 3, 4, 5), {
   area: 'gallery',
   height: 3.6,
-  atmosphere: { fog: '#06090b', fogDensity: 0.03, reverb: 'metal_hall', ambience: 'hull_hum', ambient: 'gallery' },
+  atmosphere: { fog: '#06090b', fogDensity: 0.03, reverb: 'metal_hall', ambience: 'obs_gallery', ambient: 'gallery' },
   floor: 'floor_carpet',
   // 1 m of bare brushed metal along the Lab B glass (1.25 from the cell edge; the partition takes 0.25).
   floorParams: Object.fromEntries([1, 2, 3].map((x) => [`${x},5`, { bareEdge: 's', bareWidth: 1.25 }])),
@@ -752,7 +752,7 @@ prop(R06, 'bloom_decal', [-3.25, 0, 37.73], 0, { w: 0.8, h: 1.1, y: 0.95, seed: 
 // ---------------------------------------------------------------- R07 security + armory, R08 medical bay
 const R07 = room('R07', 'Security Office', rect(-1, 1, 10, 11), {
   area: 'security',
-  atmosphere: { fog: '#090d11', fogDensity: 0.022, reverb: 'small_office', ambience: 'office_hvac' },
+  atmosphere: { fog: '#090d11', fogDensity: 0.022, reverb: 'small_office', ambience: 'security_office' },
   // 3 pooled + 3 glow-only: keeps R07 slightly dimmer than R08 while staying inside the 8-light shared pool with R08 (3) and R07a (2).
   lights: [
     L(0, 'steady', '#e6f0ff', 8, 10),
@@ -766,7 +766,7 @@ const R07 = room('R07', 'Security Office', rect(-1, 1, 10, 11), {
 const R07a = room('R07a', 'Armory', [[2, 10]], {
   area: 'security',
   wallMaterial: 'cleanWall',
-  atmosphere: { fog: '#0c1014', fogDensity: 0.018, reverb: 'small_office' },
+  atmosphere: { fog: '#0c1014', fogDensity: 0.018, reverb: 'small_office', ambience: 'armory' },
   walls: ['wall_plain'],
   // 2 pooled lights: crisp overhead work light (slot 0) + dedicated pendant over the east shotgun rack (slot 1).
   lights: [
@@ -797,7 +797,7 @@ const R08b = room('R08b', 'Surgery', [[2, 13]], {
   hidden: true,
   floor: 'floor_tiles',
   walls: ['wall_tiles'],
-  atmosphere: { fog: '#081012', fogDensity: 0.022, reverb: 'small_office' },
+  atmosphere: { fog: '#081012', fogDensity: 0.022, reverb: 'small_office', ambience: 'surgery' },
   lights: [L(0, 'dying', '#eef8ff', 7.5, 9)],
 });
 // Two panes and the medical bay door (medbay-attack spec): the east edge is the sealed glass door Okafor tries.
@@ -1147,7 +1147,7 @@ const R11 = room('R11', 'Power Bay', rect(8, 10, 9, 11), {
   area: 'transit',
   height: 5.0,
   ceiling: 'ceiling_pipes',
-  atmosphere: TRANSIT_ATMOS,
+  atmosphere: { ...TRANSIT_ATMOS, ambience: 'power_bay' },
   lights: [
     // Bank 1 (west / terminal row)
     L(0, 'steady', '#dce8f4', 14, 18, { id: 'r11_bank_1a' }),
@@ -1214,7 +1214,7 @@ const R15a = room('R15a', 'Departure Boarding Bay', rect(11, 13, 8, 11), {
   area: 'transit',
   height: 5.0,
   ceiling: 'ceiling_pipes',
-  atmosphere: { ...TRANSIT_ATMOS, fogDensity: 0.014 },
+  atmosphere: { ...TRANSIT_ATMOS, fogDensity: 0.014, ambience: 'transit_boarding' },
   lights: [
     L(0, 'steady', '#dce8f4', 14, 18, { backupScale: 1, ownColor: true }),
     L(2, 'steady', '#dce8f4', 14, 18, { backupScale: 1, ownColor: true }),
@@ -1239,7 +1239,7 @@ const R16a = room('R16a', 'Arrival Track Dock', rect(21, 23, 8, 10), {
   height: 5.0,
   floorY: ARRIVAL_SINK,
   ceiling: 'ceiling_pipes',
-  atmosphere: { ...TRANSIT_ATMOS, fogDensity: 0.014 },
+  atmosphere: { ...TRANSIT_ATMOS, fogDensity: 0.014, ambience: 'transit_dock' },
   extraPieces: [
     { kit: 'stairs', cell: [21, 0, 10], rot: 180, params: ARRIVAL_STAIRS },
     { kit: 'stairs', cell: [22, 0, 10], rot: 180, params: ARRIVAL_STAIRS },
@@ -1255,7 +1255,7 @@ const R16b = room('R16b', 'Arrival Concourse', rect(20, 24, 11, 16), {
   area: 'transit',
   height: 8.0,
   ceiling: 'ceiling',
-  atmosphere: { ...TRANSIT_ATMOS, fogDensity: 0.012, reverb: 'metal_hall' },
+  atmosphere: { ...TRANSIT_ATMOS, fogDensity: 0.012, reverb: 'metal_hall', ambience: 'transit_concourse' },
   lights: [
     L(2, 'steady', '#dce6f2', 24, 26, { backupScale: 1, ownColor: true }),
     L(7, 'steady', '#dce6f2', 24, 26, { backupScale: 1, ownColor: true }),
@@ -1268,7 +1268,7 @@ const R16b = room('R16b', 'Arrival Concourse', rect(20, 24, 11, 16), {
 const R16c = room('R16c', 'Arrival Dispatch', rect(21, 23, 17, 17), {
   area: 'transit',
   height: 3.6,
-  atmosphere: { ...TRANSIT_ATMOS, fogDensity: 0.014, reverb: 'small_office' },
+  atmosphere: { ...TRANSIT_ATMOS, fogDensity: 0.014, reverb: 'small_office', ambience: 'transit_dispatch' },
   lights: [
     L(0, 'steady', '#dce6f2', 12, 14, { backupScale: 1, ownColor: true }),
     L(2, 'steady', '#dce6f2', 12, 14, { backupScale: 1, ownColor: true }),
@@ -1418,8 +1418,8 @@ anchor(R12b, 'botanist_1_spot', [43.8, 0, 17.8], 90);
 anchor(R12b, 'botanist_2_spot', [44.2, 0, 22.4], 270);
 anchor(R12d, 'hydro_alarm', [48.6, 1.2, 29.28]);
 anchor(R12e, 'hydro_store_moment', [39.9, 0, 27.5], 180);
-npc(R12b, 'botanist_1', 'botanist', 'botanist_1_spot', 'crouchWork', { roam: ['R12b', 'R12d'] });
-npc(R12b, 'botanist_2', 'botanist', 'botanist_2_spot', 'clipboard', { roam: ['R12b'] });
+npc(R12b, 'botanist_1', 'botanist', 'botanist_1_spot', 'crouchWork', { roam: ['R12b', 'R12d'], chat: 'hydro_grow' });
+npc(R12b, 'botanist_2', 'botanist', 'botanist_2_spot', 'clipboard', { roam: ['R12b'], chat: 'hydro_grow' });
 npc(R12c, 'botanist_3', 'botanist', [52.35, 0, 19.5], 'typing', { yaw: 270, roam: ['R12c'] });
 trigger(R12a, 'trig_hydro_enter', cellBox(9, 9, 5, 5), 'trigger:hydro_enter', { once: false });
 trigger(R12b, 'trig_hydro_log', around([44.0, 0, 15.7], 0.85, 2), 'round:hydro_log', { on: 'use', prompt: 'Sign irrigation log' });
@@ -1430,7 +1430,7 @@ trigger(R12e, 'trig_hydro_store', cellBox(10, 10, 7, 7), 'trigger:hydro_store_en
 // rebuild-dive-bay: neutral work light and thin fog; the only strong blue comes up out of the launch trunk.
 const DIVE = { fog: '#0b1316', fogDensity: 0.015, reverb: 'metal_hall', ambience: 'dive_drip' };
 const WORK = '#eef4f6';
-const R13a = room('R13a', 'Wet Vestibule', [[6, 7]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'metal_corridor' }, floor: 'floor_grate', ceiling: 'ceiling_pipes', lights: [L(0, 'steady', WORK, 8, undefined, { shaft: 0.01 })] });
+const R13a = room('R13a', 'Wet Vestibule', [[6, 7]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'metal_corridor', ambience: 'wet_vestibule' }, floor: 'floor_grate', ceiling: 'ceiling_pipes', lights: [L(0, 'steady', WORK, 8, undefined, { shaft: 0.01 })] });
 const R13b = room('R13b', 'Launch Hall', rect(5, 7, 8, 10), {
   area: 'dive_bay',
   height: 5,
@@ -1441,7 +1441,7 @@ const R13b = room('R13b', 'Launch Hall', rect(5, 7, 8, 10), {
   // Five neutral work lights, and the trunk's own shaft lamp (its only wall slot) throwing blue up out of the trunk.
   lights: [...[0, 2, 4, 6, 8].map((slot) => L(slot, 'steady', WORK, slot === 4 ? 14 : 13, undefined, { shaft: 0.01 })), L('wall', 'steady', '#58c8e0', 7, 9)],
 });
-const R13c = room('R13c', 'ROV Workshop', [[4, 8], [4, 9]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'small_office' }, floor: 'floor_tiles', lights: [L(0, 'steady', WORK, 7), L(1, 'steady', WORK, 6)] });
+const R13c = room('R13c', 'ROV Workshop', [[4, 8], [4, 9]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'small_office', ambience: 'rov_workshop' }, floor: 'floor_tiles', lights: [L(0, 'steady', WORK, 7), L(1, 'steady', WORK, 6)] });
 const R13d = room('R13d', 'Maintenance Corridor', rect(8, 10, 8, 8), {
   area: 'transit',
   // Detached from the Dive Bay (finale-transit-rooms-geometry); keeps rust overrides until Phase 2b.
@@ -1453,7 +1453,7 @@ const R13d = room('R13d', 'Maintenance Corridor', rect(8, 10, 8, 8), {
   walls: ['wall_plain', 'wall_vent'],
   lights: [L(0, 'steady', '#ffcf9a', 5, 10), L(2, 'dying', '#ffcf9a', 5, 10)],
 });
-const R13e = room('R13e', 'Sample Store', [[4, 10]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'small_office' }, floor: 'floor_tiles', lights: [L(0, 'steady', WORK, 7)] });
+const R13e = room('R13e', 'Sample Store', [[4, 10]], { area: 'dive_bay', atmosphere: { ...DIVE, reverb: 'small_office', ambience: 'sample_store' }, floor: 'floor_tiles', lights: [L(0, 'steady', WORK, 7)] });
 door('D_R02_R13a', 'R02', 'R13a', 6, 6, 's');
 door('D_R13a_R13b', 'R13a', 'R13b', 6, 7, 's');
 door('D_R13b_R13c', 'R13b', 'R13c', 5, 8, 'w');
@@ -1530,8 +1530,8 @@ anchor(R13b, 'dive_crew_lean', [26.24, 0, 30.75], 270);
 anchor(R13b, 'dive_case_pickup', [21.4, 0, 37.2], 270);
 anchor(R13e, 'dive_case_locker', [15, 1.0, 40]);
 anchor(R13d, 'dark_corridor', [32, 0, 32], 270);
-npc(R13b, 'diver_1', 'diver', [26.4, 0, 35.4], 'idle_hips');
-npc(R13b, 'maint_1', 'maintenance', [26.6, 0, 37.9], 'crouchWork', { yaw: 270 }); // at the ROV's core basket
+npc(R13b, 'diver_1', 'diver', [26.4, 0, 35.4], 'idle_hips', { chat: 'dive_launch' });
+npc(R13b, 'maint_1', 'maintenance', [26.6, 0, 37.9], 'crouchWork', { yaw: 270, chat: 'dive_launch' }); // at the ROV's core basket
 npc(R13e, 'diver_2', 'diver', [16.6, 0, 39.4], 'idle_weight');
 trigger(R13a, 'trig_dive_enter', cellBox(6, 6, 7, 7), 'trigger:dive_enter', { once: false });
 trigger(R13d, 'trig_dive_dark', cellBox(8, 8, 8, 8), 'area:dark');
@@ -1542,7 +1542,7 @@ trigger(R13e, 'trig_dive_lockers', cellBox(4, 4, 10, 10), 'trigger:dive_lockers_
 const ADMIN = { fog: '#14110e', fogDensity: 0.012, ambient: 'admin', reverb: 'small_office', ambience: 'office_hvac' };
 const R14a = room('R14a', 'TAG Reception', [[9, 2], [9, 3]], {
   area: 'admin',
-  atmosphere: ADMIN,
+  atmosphere: { ...ADMIN, ambience: 'admin_reception' },
   floor: 'floor_carpet',
   walls: ['wall_wood'],
   lights: [
@@ -1552,7 +1552,7 @@ const R14a = room('R14a', 'TAG Reception', [[9, 2], [9, 3]], {
 });
 const R14b = room('R14b', 'Open Office', rect(10, 12, 1, 2), {
   area: 'admin',
-  atmosphere: ADMIN,
+  atmosphere: { ...ADMIN, ambience: 'admin_open_office' },
   floor: 'floor_carpet',
   walls: ['wall_wood'],
   noDeadFixtures: true,
@@ -1564,7 +1564,7 @@ const R14b = room('R14b', 'Open Office', rect(10, 12, 1, 2), {
 });
 const R14c = room('R14c', "Director's Office", [[13, 1], [13, 2]], {
   area: 'admin',
-  atmosphere: { ...ADMIN, fog: '#14100c' },
+  atmosphere: { ...ADMIN, fog: '#14100c', ambience: 'directors_office' },
   floor: 'floor_carpet',
   walls: ['wall_wood'],
   lights: [
@@ -1575,7 +1575,7 @@ const R14c = room('R14c', "Director's Office", [[13, 1], [13, 2]], {
 // 3x2 executive boardroom (12 m x 8 m) with > 2.3 m walkway around the conference table and chairs.
 const R14d = room('R14d', 'Boardroom', rect(10, 12, -1, 0), {
   area: 'admin',
-  atmosphere: { ...ADMIN, fogDensity: 0.011 },
+  atmosphere: { ...ADMIN, fogDensity: 0.011, ambience: 'admin_boardroom' },
   floor: 'floor_carpet',
   walls: ['wall_wood'],
   noDeadFixtures: true,
@@ -1587,7 +1587,7 @@ const R14d = room('R14d', 'Boardroom', rect(10, 12, -1, 0), {
 });
 const R14e = room('R14e', 'Security Booth', [[9, 1]], {
   area: 'admin',
-  atmosphere: { fog: '#0b0e12', fogDensity: 0.02, ambient: 'normal', reverb: 'small_office', ambience: 'office_hvac' },
+  atmosphere: { fog: '#0b0e12', fogDensity: 0.02, ambient: 'normal', reverb: 'small_office', ambience: 'security_booth' },
   ceilingMaterial: 'boltPanel',
   floor: 'floor_carpet',
   walls: ['wall_wood'],
@@ -1609,11 +1609,11 @@ station(R14a, 'admin_map', 'admin', 9, 3, 's');
 workstation(R14a, [36.5, 0, 10.7], 270, {
   width: 2,
   papers: 4,
-  npc: { id: 'assistant', look: 'assistant', pose: 'sit_typing' },
+  npc: { id: 'assistant', look: 'assistant', pose: 'sit_typing', extra: { chat: 'admin_reception' } },
 });
 // Waiting sofa flush against the west wall of [9,2], facing east (rot 270) into reception, poster centred above it.
 prop(R14a, 'sofa', [34.72, 0, 8.4], 270, { width: 1.8, tone: 'warm' });
-npc(R14a, 'admin_visitor', 'lab', [34.72, 0, 8.4], undefined, { spot: 'sit_sofa', model: 'scientist1' });
+npc(R14a, 'admin_visitor', 'lab', [34.72, 0, 8.4], undefined, { spot: 'sit_sofa', model: 'scientist1', chat: 'admin_reception' });
 wallProp(R14a, 'tag_poster', 9, 2, 'w', 0.4, { slogan: 'THE FUTURE IS DEEP.' });
 for (const [x, z, kind] of [[34.65, 6.65, 'palm'], [37.35, 13.35, 'fern'], [37.35, 6.65, 'tall']]) prop(R14a, 'potted_plant', [x, 0, z], 0, { kind, pot: 'white', size: 1.0 });
 // Open office: four workstations facing north (rot 180 puts sitter/chair on south side facing the screen), leaving clear aisles to all 3 doors.
