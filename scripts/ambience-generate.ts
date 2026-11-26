@@ -387,6 +387,31 @@ export const AMBIENCE_MANIFEST: readonly AmbienceAssetSpec[] = [
       'thin irregular hissing steam leak from a pipe joint in a narrow dark metal corridor, two to three seconds, with a faint drip, close and dry, no music, no voice',
   },
   // Supply sub docking (intro-sequence spec, fix-supply-sub-docking): muffled underwater through the station hull.
+  // The raw takes are nearly all 60-150 Hz and vanish under the theme, so the shipped files are cut from them
+  // (raw: ../audio-src/ambience/*.raw.mp3). Regenerating overwrites the cut: save each filter graph below to a file
+  // and run its command from public/assets/audio, with the raw take as the first input.
+  //   subPass (adds harmonics of the propulsion hum, 150-900 Hz):
+  //   ffmpeg -i ../../../../audio-src/ambience/oneshot-sub-pass.raw.mp3 -/filter_complex pass.filter -c:a libmp3lame -b:a 128k ambience/oneshot-sub-pass.mp3
+  //     [0:a]aformat=channel_layouts=stereo,asplit=2[base][low];
+  //     [base]highpass=f=35,volume=-5dB[b];
+  //     [low]highpass=f=50,lowpass=f=160,volume=22dB,asoftclip=type=tanh,highpass=f=180,highpass=f=180,lowpass=f=900,volume=-11dB[harm];
+  //     [b][harm]amix=inputs=2:duration=first:normalize=0,lowpass=f=2500,acompressor=threshold=-22dB:ratio=2.5:attack=20:release=250,volume=10.5dB,alimiter=limit=-6.6dB:attack=5:release=120:level=false
+  //   subClamp (harmonics, plus clunks and hydraulic hiss from the door and knock clips; lock lands 2 s in):
+  //   ffmpeg -i ../../../../audio-src/ambience/oneshot-sub-clamp.raw.mp3 -i doors/door-bulkhead-close.mp3 -i ambience/oneshot-metal-knock-2.mp3 \
+  //     -i doors/door-pressure-open.mp3 -/filter_complex clamp.filter -c:a libmp3lame -b:a 128k ambience/oneshot-sub-clamp.mp3
+  //     [0:a]aformat=channel_layouts=stereo,asplit=2[base][low];
+  //     [base]highpass=f=35,volume=-14dB[b];
+  //     [low]highpass=f=50,lowpass=f=160,volume=26dB,asoftclip=type=tanh,highpass=f=180,highpass=f=180,lowpass=f=900,volume=-19dB[harm];
+  //     [1:a]aformat=channel_layouts=stereo,asetrate=35280,aresample=44100,lowpass=f=2400,asplit=2[s1][s2];
+  //     [s1]adelay=270:all=1,volume=-4dB[c1];
+  //     [s2]adelay=1920:all=1,volume=0dB[c3];
+  //     [2:a]aformat=channel_layouts=stereo,asetrate=35280,aresample=44100,lowpass=f=2000,asplit=2[k1][k2];
+  //     [k1]adelay=1150:all=1,volume=-2dB[c2];
+  //     [k2]adelay=2450:all=1,volume=-5dB[c4];
+  //     [3:a]aformat=channel_layouts=stereo,highpass=f=600,lowpass=f=3200,asplit=2[h1][h2];
+  //     [h1]atempo=0.65,afade=t=in:d=0.25,adelay=100:all=1,volume=-13dB[hiss1];
+  //     [h2]atempo=0.8,adelay=2350:all=1,volume=-16dB[hiss2];
+  //     [b][harm][c1][c2][c3][c4][hiss1][hiss2]amix=inputs=8:duration=first:normalize=0,lowpass=f=3500,acompressor=threshold=-22dB:ratio=3.5:attack=6:release=180,volume=13.5dB,alimiter=limit=-6.6dB:attack=4:release=90:level=false,afade=t=out:st=2.8:d=2.4:curve=qsin
   {
     id: 'subPass',
     file: 'oneshot-sub-pass.mp3',

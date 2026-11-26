@@ -412,7 +412,8 @@ test('a music step naming an unknown track fails validation, naming the step', (
     (e: Error) => /t\.json/.test(e.message) && /steps\[0\]/.test(e.message) && /nope/.test(e.message),
   );
   // Known tracks and stop steps validate.
-  validateSequences({ 'data/sequences/t.json': { id: 't', steps: [{ do: 'music', id: 'main_theme' }, { do: 'music', stop: true }] } });
+  validateSequences({ 'data/sequences/t.json': { id: 't', steps: [{ do: 'music', id: 'main_theme' }, { do: 'music', id: 'main_theme', level: 0.3 }, { do: 'music', stop: true }] } });
+  assert.throws(() => validateSequences({ 'data/sequences/t.json': { id: 't', steps: [{ do: 'music', id: 'main_theme', level: 2 }] } }), /level/);
 });
 
 test('the shipped test_drop sequence runs headless to its checkpoint', async () => {

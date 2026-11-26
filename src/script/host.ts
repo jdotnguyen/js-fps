@@ -144,7 +144,7 @@ export interface SequenceHost {
   sfx?(id: string, at: Vec3Like | null, opts?: { beat?: boolean; gain?: number; relay?: boolean }): void;
   /** Adaptive score: load it, set a cue, or play a stinger. */
   score?(id: string, opts: { cue?: string; stinger?: string; load?: boolean }): void;
-  music?(id: string | null): void;
+  music?(id: string | null, level?: number): void;
   /** In-world radio (TAG FM): play `track` at `at`, or stop it with null. */
   radio?(track: string | null, at: Vec3Like | null): void;
   ambience?(id: string): void;

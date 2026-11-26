@@ -22,7 +22,7 @@ Starting a new game on a level that has the intro SHALL play `intro_shift_change
 - **THEN** play starts directly with the player in control
 
 ### Requirement: Opening on the dock
-The intro SHALL fade in from black on the Docking Ring with the main theme playing and a caption naming the station, "Docking Ring" and the 06:40 shift change. The view SHALL be framed on the dock window while the supply sub Halcyon docks and clamps on at dock-fit proportions visible inside the window frame. While it docks, the dark ocean SHALL stay near-black, the hull SHALL catch a subtle hint of light from the dock floodlights alongside its running lights, and the sub's two bow spotlights SHALL project visible beams through the water that light moving pools on the seabed below it, the player's first look at the ocean. The sub's approach and docking clamp sounds SHALL play as muffled underwater recordings heard through the station hull. A PA chime and line SHALL announce the docking before the airlock opens. The main theme SHALL stop before the first arrival speaks.
+The intro SHALL fade in from black on the Docking Ring with the main theme playing and a caption naming the station, "Docking Ring" and the 06:40 shift change. The view SHALL be framed on the dock window while the supply sub Halcyon docks and clamps on at dock-fit proportions visible inside the window frame. While it docks, the dark ocean SHALL stay near-black, the hull SHALL catch a subtle hint of light from the dock floodlights alongside its running lights, and the sub's two bow spotlights SHALL project visible beams through the water that light moving pools on the seabed below it, the player's first look at the ocean. The sub's approach and docking clamp sounds SHALL play as muffled underwater recordings heard through the station hull. Both SHALL be loaded before play starts and SHALL be clearly audible, including on speakers that reproduce little sub-bass. The main theme SHALL dip shortly before the clamps close and stay dipped until it stops. The clamp sound SHALL start as the clamp arms begin to close, with its heaviest lock landing as they meet. A PA chime and line SHALL announce the docking after that lock and before the airlock opens. The main theme SHALL stop before the first arrival speaks.
 
 #### Scenario: Sub docks
 - **WHEN** the intro starts
@@ -39,6 +39,10 @@ The intro SHALL fade in from black on the Docking Ring with the main theme playi
 #### Scenario: Docking audio sounds underwater and muffled
 - **WHEN** the sub approaches and clamps onto the dock
 - **THEN** `subPass` and `subClamp` play as recorded underwater-muffled clips rather than local procedural synths
+
+#### Scenario: The arms are heard docking
+- **WHEN** the clamp arms close on the Halcyon in a new game
+- **THEN** the main theme has already dipped, hydraulic hiss and heavy clunks are plainly heard over it, the lock lands as the arms meet, and the PA announcement starts only after it
 
 #### Scenario: Theme gives way
 - **WHEN** the PA announcement plays

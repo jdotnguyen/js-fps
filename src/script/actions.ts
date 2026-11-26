@@ -834,9 +834,10 @@ export const ACTIONS: Record<string, ActionDef> = {
     ctx.host.score(s.id, { ...(s.cue !== undefined ? { cue: s.cue } : {}), ...(s.stinger !== undefined ? { stinger: s.stinger } : {}), ...(s.load ? { load: true } : {}) });
   }),
 
-  music: act({ id: optional(oneOf(MUSIC_TRACKS)), stop: optional(bool) }, (s, ctx) => {
+  /** `level`: how loud the track plays (default 1). A later step with the same `id` dips or restores it. */
+  music: act({ id: optional(oneOf(MUSIC_TRACKS)), stop: optional(bool), level: optional(numRange(0, 1)) }, (s, ctx) => {
     if (!ctx.host.music) return ctx.missing('music');
-    ctx.host.music(s.stop ? null : (s.id ?? null));
+    ctx.host.music(s.stop ? null : (s.id ?? null), s.level);
   }),
 
   ambience: act({ id: str }, (s, ctx) => {

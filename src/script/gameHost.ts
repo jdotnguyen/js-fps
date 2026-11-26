@@ -45,7 +45,7 @@ export interface GameHostDeps {
   /** Environmental soundscape director (room beds, spatial one-shots, scripted ambience overrides). */
   ambience?: AmbienceDirector | null | undefined;
   /** Music the sequence `music` step controls (the menu theme player). */
-  music?: { cue(track: MusicTrack | null): void } | null | undefined;
+  music?: { cue(track: MusicTrack | null, level?: number): void } | null | undefined;
   /** Adaptive scores (adaptive-music spec): the `score` step, and `sfx` steps that wait for the beat. */
   score?: { load(id: string): void; cue(id: string, cue: string): void; stinger(name: string, id?: string): void; untilBeat(): number } | null | undefined;
   hud: PlayerHud;
@@ -286,12 +286,12 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
       : {}),
     ...(d.music
       ? {
-          music: (id: string | null) => {
+          music: (id: string | null, level?: number) => {
             if (id !== null && !(MUSIC_TRACKS as readonly string[]).includes(id)) {
               console.warn(`[seq] music: no track "${id}"`);
               return;
             }
-            d.music!.cue(id as MusicTrack | null);
+            d.music!.cue(id as MusicTrack | null, level);
           },
         }
       : {}),

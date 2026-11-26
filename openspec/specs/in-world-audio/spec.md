@@ -172,7 +172,7 @@ Weapon handling sounds (magazine out and in, slide, pump) SHALL be triggered by 
 - **THEN** the rack and slam sounds land on the pump motion
 
 ### Requirement: Sequence sound steps
-Sequences SHALL be able to play a named sound (optionally at a world position), set the ambience, and start or stop the radio. A `music` step SHALL either control the music or be rejected when content is validated; it SHALL NOT be skipped silently at runtime. A sound step MAY ask to land on the score's next beat; it SHALL then play on that beat, or at once when no score is playing.
+Sequences SHALL be able to play a named sound (optionally at a world position), set the ambience, and start or stop the radio. A `music` step SHALL either control the music or be rejected when content is validated; it SHALL NOT be skipped silently at runtime. A `music` step MAY set the level its track plays at, from silent to full (the default); naming the playing track again SHALL ease it to the new level without restarting it, and the pause menu SHALL lower it further from that level. A sound step MAY ask to land on the score's next beat; it SHALL then play on that beat, or at once when no score is playing.
 
 #### Scenario: Positional sequence sfx
 - **WHEN** a sequence runs `{ "do": "sfx", "id": "klaxon", "at": "R03" }`
@@ -181,6 +181,10 @@ Sequences SHALL be able to play a named sound (optionally at a world position), 
 #### Scenario: Music step
 - **WHEN** a sequence contains a `music` step
 - **THEN** it either changes the music or the content check fails, naming the step
+
+#### Scenario: Music dips under a sound
+- **WHEN** the main theme is playing and a sequence runs a `music` step naming it with a lower level
+- **THEN** the theme eases down to that level and carries on, and the next `music` step that gives no level plays at full
 
 #### Scenario: Klaxon on the beat
 - **WHEN** the Lab B score plays and a sequence runs a klaxon step that asks for the beat

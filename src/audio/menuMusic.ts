@@ -26,6 +26,8 @@ export class MenuMusic {
   private held = false;
   /** Track a sequence started in play (`{ "do": "music" }`); overrides the mode level until stopped. */
   private cued: MusicTrack | null = null;
+  /** Level of the cued track (1 = full): a sequence dips it under a sound that has to carry. */
+  private cuedLevel = 1;
   private resolveReady!: () => void;
   /** Resolves once the menu theme has finished rendering (or failed to render). */
   readonly ready: Promise<void>;
@@ -62,9 +64,10 @@ export class MenuMusic {
     this.apply();
   }
 
-  /** Sequence `music` step: start a track at full level in play, or `null` to fade it out (~2 s). */
-  cue(track: MusicTrack | null): void {
+  /** Sequence `music` step: start a track in play at `level` (cueing the playing track again moves it there), or `null` to fade it out (~2 s). */
+  cue(track: MusicTrack | null, level = 1): void {
     this.cued = track;
+    this.cuedLevel = level;
     this.apply(track === null ? CUE_FADE_OUT : CUE_FADE_IN);
   }
 
@@ -80,8 +83,8 @@ export class MenuMusic {
 
   private apply(timeConstant?: number): void {
     const level = LEVELS[this.mode];
-    // A cued track plays at full level in play, and keeps the pause-menu dip.
-    const gain = this.held ? 0 : this.cued && this.mode !== 'title' ? (this.mode === 'paused' ? LEVELS.paused.gain : 1) : level.gain;
+    // A cued track plays at its cued level in play, and keeps the pause-menu dip.
+    const gain = this.held ? 0 : this.cued && this.mode !== 'title' ? this.cuedLevel * (this.mode === 'paused' ? LEVELS.paused.gain : 1) : level.gain;
     this.handle?.setGain(gain, timeConstant ?? level.timeConstant);
   }
 }

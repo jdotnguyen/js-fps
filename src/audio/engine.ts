@@ -89,7 +89,8 @@ export const UI_SOUND_NAMES: ReadonlyArray<keyof typeof SOUND_SPECS> = ['uiHover
 export const UI_SAMPLE_NAMES: ReadonlyArray<SampleName> = ['uiHover', 'uiSelect', 'uiMenuOpen'];
 
 function isPrioritySample(name: SampleName): boolean {
-  return name === 'r16MonsterRoar' || name === 'r16MonsterRoarBlackout' || /^(ui|pistol|shotgun|dryFire|foot|door|waterSplash)/.test(name);
+  // The intro's docking sounds play seconds into a new game.
+  return name === 'r16MonsterRoar' || name === 'r16MonsterRoarBlackout' || /^(ui|pistol|shotgun|dryFire|foot|door|waterSplash|sub(Pass|Clamp))/.test(name);
 }
 
 export class AudioEngine {
