@@ -1,11 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { NodeIO, type Document, type Mesh } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptDecoder } from 'meshoptimizer/meshopt_decoder.module.js';
 import * as THREE from 'three';
+// @ts-expect-error plain ES module without types
+import { REPAIRS, SIZE, repairPixels } from './lib/pistolTextures.mjs';
 
 /**
  * The first-person weapon models as `scripts/fix-just-weapons-glb.mjs` writes them (swap-viewmodels-to-just-models): the
@@ -58,7 +61,7 @@ const boneAt = (doc: Document, name: string): THREE.Vector3 => {
 const clipNames = (doc: Document): string[] => doc.getRoot().listAnimations().map((a) => a.getName().replace(/^.*\|/, ''));
 
 const GUNS = {
-  'pistol.glb': { clips: ['Take', 'Shoot', 'Reload', 'Hide'], bones: ['Base', 'Up', 'Mag'], maxMB: 2.5 },
+  'pistol.glb': { clips: ['Take', 'Shoot', 'Reload', 'Hide'], bones: ['Base', 'Up', 'Mag'], maxMB: 3.0 },
   'shotgun.glb': { clips: ['Take', 'Watch', 'Shoot', 'ReloadStart', 'Reload', 'ReloadEnd', 'Hide'], bones: ['Base', 'Pump', 'Shell'], maxMB: 2.5 },
 } as const;
 
@@ -96,6 +99,42 @@ test('pistol: every Colt part sits on its bones at rest, at the size of a pistol
   assert.ok(s.z > 9 && s.z < 10.2, `slide length ${s.z.toFixed(2)}`);
   assert.ok(f.z > 10 && f.z < 12, `frame length ${f.z.toFixed(2)}`);
   assert.ok(s.x < 1.6 && s.x < f.x * 1.5, `slide width ${s.x.toFixed(2)} (the Sketchfab file doubles it)`);
+});
+
+test('pistol: the gun textures are the 2048 px ones (remove-pistol-decals)', async () => {
+  const doc = await load('pistol.glb');
+  const gun = doc.getRoot().listMaterials().find((m) => m.getName() === 'Colt');
+  assert.ok(gun, 'material Colt');
+  const maps = { colour: gun.getBaseColorTexture(), roughnessMetalness: gun.getMetallicRoughnessTexture(), normal: gun.getNormalTexture() };
+  for (const [name, tex] of Object.entries(maps)) {
+    assert.ok(tex, `${name} texture`);
+    const [w, h] = tex.getSize() ?? [0, 0];
+    assert.ok(w! >= 2048 && h! >= 2048, `${name} is ${w} x ${h}`);
+  }
+});
+
+const noMagick = spawnSync('magick', ['-version']).status !== 0 && 'needs ImageMagick';
+
+test('pistol: no decal colour where decals were painted out (remove-pistol-decals)', { skip: noMagick }, async () => {
+  const doc = await load('pistol.glb');
+  const tex = doc.getRoot().listMaterials().find((m) => m.getName() === 'Colt')!.getBaseColorTexture()!;
+  const [w, h] = tex.getSize()!;
+  const r = spawnSync('magick', ['-', '-depth', '8', 'rgb:-'], { input: tex.getImage()!, maxBuffer: 64 * 1024 * 1024 });
+  assert.equal(r.status, 0, String(r.stderr));
+  const rgb = r.stdout;
+  // Only inside the repairs: the wooden grip is orange-brown.
+  const repairs = (REPAIRS as { name: string; maps: string[] }[]).filter((x) => x.maps.includes('base'));
+  assert.ok(repairs.length > 0);
+  for (const repair of repairs) {
+    let coloured = 0;
+    for (const [x, y] of repairPixels(repair) as [number, number][]) {
+      const i = (Math.floor((y * h!) / (SIZE as number)) * w! + Math.floor((x * w!) / (SIZE as number))) * 3;
+      const [red, blue] = [rgb[i]!, rgb[i + 2]!];
+      if (blue - red > 45 || red - blue > 60) coloured++;
+    }
+    // The metal is grey; a few pixels are allowed for WebP's colour noise.
+    assert.ok(coloured <= 4, `${repair.name}: ${coloured} blue, orange or yellow pixels`);
+  }
 });
 
 test('shotgun: the body lies along the barrel between the Base and Pump bones, about a metre long next to a hand', async () => {

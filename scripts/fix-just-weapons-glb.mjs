@@ -3,10 +3,19 @@
  * Builds the first-person weapon viewmodels (swap-viewmodels-to-just-models): "AnimatedPistol" and "Animated Shotgun" by
  * JUST (https://sketchfab.com/teenjust500), CC BY 4.0 (credited in CREDITS.md).
  *
- *   node scripts/fix-just-weapons-glb.mjs <pistol.glb> <pistol.fbx> <shotgun.glb> <shotgun.fbx> [outDir]
+ *   node scripts/fix-just-weapons-glb.mjs <pistol.glb> <pistol.fbx> <shotgun.glb> <shotgun.fbx> <pistol-2k.glb> [outDir]
+ *   node scripts/fix-just-weapons-glb.mjs textures <pistol-2k.glb> [pistol.glb] [out.glb]
  *
- * Writes outDir/pistol.glb and outDir/shotgun.glb (default public/assets/models/weapons). The sources live outside the
- * repo (Sketchfab downloads: the glTF and the author's FBX of each model); keep your own copy to rebuild.
+ * The first writes outDir/pistol.glb and outDir/shotgun.glb (default public/assets/models/weapons). The second only redoes
+ * the pistol's gun textures on a built model (default: the shipped one, in place); geometry, skin and clips come out unchanged.
+ * The sources live outside the repo (Sketchfab downloads: the glTF and the author's FBX of each model); keep your own copy
+ * to rebuild.
+ *
+ * <pistol-2k.glb> is the 2K glTF download of AnimatedPistol (`animatedpistol.glb`, about 18 MB), from
+ * https://sketchfab.com/3d-models/animatedpistol-e0bbe625b9504ed59db273c310e1cce7. Its gun meshes are the broken ones
+ * described below, so only its 2048 px gun textures are used (remove-pistol-decals): the author's decals (two skull
+ * emblems and "BANG" on the slide, one more skull on the magazine) are painted out and the result replaces the gun's
+ * textures. See scripts/lib/pistolTextures.mjs.
  *
  * What is wrong with the Sketchfab glTF: its skeleton, arms and clips are fine, but the gun meshes are not consistent with
  * the skin. The pistol's three Colt parts are the FBX bind-pose geometry divided by 5.85 (the slide also doubled along
@@ -21,13 +30,13 @@
  * scaled by the factor measured on the shotgun body (SIGHT_SCALE).
  *
  * Then it drops the rig's leftovers (camera, crosshair, sun, bone-shape widgets), renames the gun bones to Base / Up / Mag
- * (pistol) and Base / Pump / Shell (shotgun), re-encodes the 1024 px textures as WebP and meshopt-compresses the meshes.
+ * (pistol) and Base / Pump / Shell (shotgun), re-encodes the other textures (1024 px) as WebP and meshopt-compresses the meshes.
  * The model keeps its authored size (the Armature node is scaled 1142x; the eye is the `camera_01` bone); the game sets its
  * scale and eye through WEAPON_MODELS in src/render/viewmodel/glbWeapons.ts. Running it on its own output gives the same model
  * (the rebuilt vertices differ by float rounding, about 3e-7).
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +45,7 @@ import { ALL_EXTENSIONS, EXTMeshoptCompression, EXTTextureWebP } from '@gltf-tra
 import { MeshoptDecoder } from 'meshoptimizer/meshopt_decoder.module.js';
 import { MeshoptEncoder } from 'meshoptimizer/meshopt_encoder.module.js';
 import * as THREE from 'three';
+import { applyPistolTextures } from './lib/pistolTextures.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** FBX units (centimetre-ish, the camera bone at y = 3400) to glTF units (the camera bone at y = 34). */
@@ -214,11 +224,15 @@ function toWebp(doc) {
 
 // ------------------------------------------------------------------ build one weapon
 
-async function build(id, glbPath, fbxPath, outDir) {
-  const spec = WEAPONS[id];
+async function gltfIo() {
   await MeshoptEncoder.ready;
   await MeshoptDecoder.ready;
-  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder, 'meshopt.decoder': MeshoptDecoder });
+  return new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder, 'meshopt.decoder': MeshoptDecoder });
+}
+
+async function build(id, glbPath, fbxPath, outDir, texturesPath) {
+  const spec = WEAPONS[id];
+  const io = await gltfIo();
   const doc = await io.read(glbPath);
   const root = doc.getRoot();
   const report = [];
@@ -239,6 +253,7 @@ async function build(id, glbPath, fbxPath, outDir) {
 
   for (const node of root.listNodes()) if (JUNK_NODES.includes(node.getName())) dropNode(node);
   prune(doc);
+  if (texturesPath) await applyPistolTextures(doc, io, texturesPath);
   toWebp(doc);
   if (!root.listExtensionsUsed().some((e) => e.extensionName === 'EXT_texture_webp')) doc.createExtension(EXTTextureWebP).setRequired(true);
   const meshopt = root.listExtensionsUsed().find((e) => e.extensionName === 'EXT_meshopt_compression') ?? doc.createExtension(EXTMeshoptCompression);
@@ -251,10 +266,37 @@ async function build(id, glbPath, fbxPath, outDir) {
   console.log(`${id}: ${out}\n  ${report.join('\n  ')}`);
 }
 
-const [pistolGlb, pistolFbx, shotgunGlb, shotgunFbx, outDir = join(ROOT, 'public/assets/models/weapons')] = process.argv.slice(2);
-if (!pistolGlb || !pistolFbx || !shotgunGlb || !shotgunFbx) {
-  console.error('usage: node scripts/fix-just-weapons-glb.mjs <pistol.glb> <pistol.fbx> <shotgun.glb> <shotgun.fbx> [outDir]');
-  process.exit(1);
+/**
+ * Only the pistol's gun textures, on an already built model. Geometry, skin and clips are written back losslessly
+ * (meshopt without filters, which would re-quantize the rotations).
+ */
+async function retexture(texturesPath, modelPath, outPath) {
+  const io = await gltfIo();
+  const doc = await io.read(modelPath);
+  await applyPistolTextures(doc, io, texturesPath);
+  doc.getRoot().listExtensionsUsed().find((e) => e.extensionName === 'EXT_meshopt_compression')?.setEncoderOptions({ method: EXTMeshoptCompression.EncoderMethod.QUANTIZE });
+  await io.write(outPath, doc);
+  console.log(`pistol textures: ${outPath}`);
 }
-await build('pistol', pistolGlb, pistolFbx, outDir);
-await build('shotgun', shotgunGlb, shotgunFbx, outDir);
+
+const SHIPPED = join(ROOT, 'public/assets/models/weapons');
+const USAGE = `usage:
+  node scripts/fix-just-weapons-glb.mjs <pistol.glb> <pistol.fbx> <shotgun.glb> <shotgun.fbx> <pistol-2k.glb> [outDir]
+  node scripts/fix-just-weapons-glb.mjs textures <pistol-2k.glb> [pistol.glb] [out.glb]`;
+const args = process.argv.slice(2);
+if (args[0] === 'textures') {
+  const [, texturesPath, modelPath = join(SHIPPED, 'pistol.glb'), outPath = modelPath] = args;
+  if (!texturesPath) {
+    console.error(USAGE);
+    process.exit(1);
+  }
+  await retexture(texturesPath, modelPath, outPath);
+} else {
+  const [pistolGlb, pistolFbx, shotgunGlb, shotgunFbx, texturesPath, outDir = SHIPPED] = args;
+  if (!pistolGlb || !pistolFbx || !shotgunGlb || !shotgunFbx || !texturesPath || !existsSync(texturesPath)) {
+    console.error(USAGE);
+    process.exit(1);
+  }
+  await build('pistol', pistolGlb, pistolFbx, outDir, texturesPath);
+  await build('shotgun', shotgunGlb, shotgunFbx, outDir);
+}
