@@ -2,7 +2,7 @@
   "chapter": "slice01_action",
   "lines": [
     { "id": "cover_okafor_run_01", "speaker": "medic", "text": "Hey- hey! It's us! It's us!",
-      "emote": "urgent", "direction": "shouting after someone running away in the dark, trying to stop her bolting", "channel": "local", "priority": "story", "audio": "assets/vo/cover_okafor_run_01.mp3", "minDuration": 2.6, "choices": [] },
+      "emote": "urgent", "direction": "shouting after someone running away in the dark, trying to stop her bolting; two full, loud shouts of \"Hey\" first, one after the other, both clearly voiced, then \"It's us\" twice", "channel": "local", "priority": "story", "audio": "assets/vo/cover_okafor_run_01.mp3", "minDuration": 2.6, "choices": [] },
     { "id": "cover_priya_run_01", "speaker": "nurse", "text": "[a sob as she stumbles]",
       "emote": "pained", "channel": "local", "priority": "story", "audio": ["assets/vo/react_priya_sob_01.mp3","assets/vo/react_priya_sob_02.mp3"], "minDuration": 2.3, "choices": [] },
     { "id": "sec_priya_10", "speaker": "nurse", "text": "Tomas? ...Tomas.",

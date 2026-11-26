@@ -2119,6 +2119,36 @@
     "source": "generated"
   },
   {
+    "batch": "retake_medic_01",
+    "speakers": [
+      "medic"
+    ],
+    "voices": [
+      "Charon"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "cover_okafor_run_01"
+    ],
+    "at": "2026-11-26T03:37:55.051Z",
+    "source": "generated"
+  },
+  {
+    "batch": "retake_medic_01",
+    "speakers": [
+      "medic"
+    ],
+    "voices": [
+      "Charon"
+    ],
+    "model": "gemini-2.5-flash-preview-tts",
+    "lines": [
+      "cover_okafor_run_01"
+    ],
+    "at": "2026-11-26T03:38:19.463Z",
+    "source": "generated"
+  },
+  {
     "batch": "retake_crew_crew_2_01",
     "speakers": [
       "crew_crew_2"

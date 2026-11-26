@@ -21,6 +21,7 @@ import { castFor } from './lib/voCast.ts';
 import { REACTION_BATCHES, reactionVoice, type ReactionBatch } from './lib/voReactionBatches.ts';
 import { recordBatch } from './lib/voTakes.ts';
 import { printReport, requestTts, runBatches } from './lib/voTts.ts';
+import { writeRecording } from './lib/voArchive.ts';
 const ROOT = resolve(import.meta.dirname, '..');
 const DIALOGUE_DIR = join(ROOT, 'src/data/dialogue');
 const OUT_DIR = join(ROOT, 'public/assets/vo');
@@ -290,7 +291,7 @@ async function main(): Promise<void> {
         label: batch.name,
         maxAttempts: 2,
       });
-      writeFileSync(wavPath, pcmToWav(pcm, SAMPLE_RATE));
+      writeRecording(wavPath, pcmToWav(pcm, SAMPLE_RATE));
       console.log(`[react] saved ${(pcm.length / 2 / SAMPLE_RATE).toFixed(2)}s via ${batch.model}`);
     } else if (!existsSync(wavPath)) {
       throw new Error(`missing batch wav ${wavPath}`);

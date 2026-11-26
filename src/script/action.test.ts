@@ -1361,14 +1361,14 @@ test('medbay-attack "Restore before the attack": from cp_cover_done Priya is hid
 
 test('a counted loop inside a skipped sequence applies its body (a block, not an event loop)', () => {
   const d = validateSequences({
-    'x.json': { id: 'blk', skippable: true, steps: [{ do: 'wait', s: 99 }, { do: 'loop', count: 1, steps: [{ do: 'say', line: 'end_giles_06' }, { do: 'setFlag', flag: 'blockDone' }] }] },
+    'x.json': { id: 'blk', skippable: true, steps: [{ do: 'wait', s: 99 }, { do: 'loop', count: 1, steps: [{ do: 'say', line: 'climax_giles_02' }, { do: 'setFlag', flag: 'blockDone' }] }] },
   });
   const g = makeGame();
   const m = new SequenceManager(g.host, d);
   m.start('blk');
   assert.equal(m.skip(), true);
   assert.equal(g.host.flags['blockDone'], true);
-  assert.ok(g.log.includes('played end_giles_06'));
+  assert.ok(g.log.includes('played climax_giles_02'));
 });
 
 test('Priya\'s scene has no hand-placed gore (the kill clips its own at the pane), and a gore step\'s clip still reaches the host', () => {

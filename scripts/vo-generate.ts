@@ -6,6 +6,10 @@
  * encodes normalized mono MP3s to `public/assets/vo/<id>.mp3`, and optionally patches
  * `"audio": "assets/vo/<id>.mp3"` into the dialogue chapter JSONs.
  *
+ * Every new clip is first written to `previews/vo-staging/` and transcribed on this machine. It replaces the shipped
+ * clip only if it says its line (scripts/lib/voGate.ts); otherwise it is held there. After listening to a held clip,
+ * `--accept` ships it. Without the speech model (docs/voice-casting-standard.md §8) clips ship unchecked, and say so.
+ *
  * Each batch is sent only to its speakers' pinned model from `scripts/lib/voCast.ts`. There is no model
  * fallback and no `--models` flag: when a quota runs out, the run stops that model's batches and lists them.
  * Every generated batch is appended to `scripts/vo-takes.json`.
@@ -15,18 +19,22 @@
  *   node --experimental-strip-types scripts/vo-generate.ts --mode all --apply
  *   node --experimental-strip-types scripts/vo-generate.ts --ids <id1,id2> --resplit --apply   (0 API calls)
  *   node --experimental-strip-types scripts/vo-generate.ts --mode all --dry-run
+ *   node --experimental-strip-types scripts/vo-generate.ts --accept <id1,id2> --apply          (ship held clips)
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { DialogueChapter, DialogueLine, Emote } from '../src/data/types/dialogue.ts';
-import { allBatches, idsBatches, maxBatchSeconds, type BatchSpec } from './lib/voBatches.ts';
+import { allBatches, idsBatches, isNonVerbalOnly, maxBatchSeconds, type BatchSpec } from './lib/voBatches.ts';
 import { batchModel, castFor, promptProfile } from './lib/voCast.ts';
 import { recordBatch } from './lib/voTakes.ts';
 import { TIGHT_LINES } from './lib/voPauses.ts';
 import { tightenClip } from './lib/voTighten.ts';
 import { printReport, requestTts, runBatches, type SpeechConfig } from './lib/voTts.ts';
 import { manifestAudio } from './lib/voManifest.ts';
+import { writeRecording } from './lib/voArchive.ts';
+import { acceptClips, describeHeld, gateClip, recordAccepted, STAGING_DIR, stagedClip, type StagedTake } from './lib/voGate.ts';
+import { sttSetup } from './lib/voStt.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const DIALOGUE_DIR = join(ROOT, 'src/data/dialogue');
@@ -399,6 +407,8 @@ function applyAudioManifest(chapters: ChapterFile[]): number {
     const raw = readFileSync(ch.path, 'utf8');
     let next = raw;
     for (const line of ch.data.lines) {
+      // A held clip leaves its line as it is, even one already pointing at the file it is waiting to become.
+      if (existsSync(stagedClip(STAGING_DIR, line.id))) continue;
       const target = manifestAudio(line.id, line.audio, (p) => existsSync(join(ROOT, 'public', p)));
       if (target === undefined) continue;
       // Preserve existing compact JSON formatting by updating only this line's "audio" property.
@@ -439,6 +449,16 @@ async function main(): Promise<void> {
 
   mkdirSync(OUT_DIR, { recursive: true });
   mkdirSync(BATCH_DIR, { recursive: true });
+  mkdirSync(STAGING_DIR, { recursive: true });
+
+  if (args.includes('--accept')) {
+    const ids = (flagVal('--accept') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (ids.length === 0) throw new Error('--accept needs the ids of held clips: --accept <id1,id2>');
+    recordAccepted(acceptClips(ids, STAGING_DIR, OUT_DIR));
+    console.log(`[vo] accepted and shipped: ${ids.join(', ')}`);
+    if (apply) console.log(`[vo] manifest sync: +${applyAudioManifest(loadChapters())} entries`);
+    return;
+  }
 
   const chapters = loadChapters();
   const allLines = chapters.flatMap((c) => c.data.lines);
@@ -447,7 +467,8 @@ async function main(): Promise<void> {
   let specs = idsArg
     ? idsBatches(byId, idsArg.split(',').map((s) => s.trim()).filter(Boolean), batchSize)
     : mode === 'all'
-      ? allBatches(allLines, { force, batchSize, pairSmall, hasClip: (id) => existsSync(join(OUT_DIR, `${id}.mp3`)) })
+      // A held clip counts as a clip: it waits for --accept (or an --ids retake) instead of spending quota again.
+      ? allBatches(allLines, { force, batchSize, pairSmall, hasClip: (id) => existsSync(join(OUT_DIR, `${id}.mp3`)) || existsSync(stagedClip(STAGING_DIR, id)) })
       : auditionBatches(byId);
   if (Number.isFinite(limit)) specs = specs.slice(0, limit);
   const batches = specs.map((b) => ({ ...b, model: batchModel(b.speakers) }));
@@ -464,6 +485,11 @@ async function main(): Promise<void> {
   const apiKey = resplit ? '' : loadEnvKey();
   const lastCallAt = new Map<string, number>();
   const flagged: Array<{ id: string; dur: number; expected: number; text: string }> = [];
+  const held: string[] = [];
+  const heldIds: string[] = [];
+  const unchecked: string[] = [];
+  const stt = sttSetup();
+  if (!stt.transcribe) console.warn(`[vo] clips will ship UNCHECKED: ${stt.reason}`);
 
   const report = await runBatches(batches, async (batch, i) => {
     const wavPath = join(BATCH_DIR, `${batch.name}.wav`);
@@ -479,7 +505,7 @@ async function main(): Promise<void> {
         writeFileSync(`${wavPath}.rejected`, pcmToWav(pcm, SAMPLE_RATE));
         throw new Error(`runaway output: ${seconds.toFixed(0)}s for ${batch.lines.length} lines (max ${maxBatchSeconds(batch.lines.length)}s); no clips written, raw audio in ${batch.name}.wav.rejected`);
       }
-      writeFileSync(wavPath, pcmToWav(pcm, SAMPLE_RATE));
+      writeRecording(wavPath, pcmToWav(pcm, SAMPLE_RATE));
       console.log(`[vo] saved raw batch ${(pcm.length / 2 / SAMPLE_RATE).toFixed(2)}s -> previews/vo-batches/${batch.name}.wav`);
     } else if (!existsSync(wavPath)) {
       throw new Error(`missing batch wav ${wavPath}`);
@@ -487,24 +513,44 @@ async function main(): Promise<void> {
 
     const { samples, sampleRate } = readWavPcm(wavPath);
     const segments = findSplits(samples, sampleRate, batch.lines);
-    for (let k = 0; k < batch.lines.length; k++) {
-      const line = batch.lines[k]!;
+    const voices = batch.speakers.map((s) => castFor(s).voice);
+    const take: StagedTake = { name: batch.name, speakers: batch.speakers, voices, model: batch.model, at: new Date().toISOString(), resplit };
+    const shipped: string[] = [];
+    // Every clip is encoded before any is transcribed: vo-trace.ts matches a clip to its WAV by file time.
+    const clips = batch.lines.map((line, k) => {
       const seg = segments[k]!;
-      const out = join(OUT_DIR, `${line.id}.mp3`);
+      const out = stagedClip(STAGING_DIR, line.id);
       let dur = encodeClip(wavPath, seg.start, seg.end, out);
       // Scene lines with pause caps (lib/voPauses.ts) keep them on every new take.
       const cap = TIGHT_LINES[line.id];
       if (cap !== undefined) dur = tightenClip(out, cap).after;
+      return { line, out, dur };
+    });
+    for (const [k, { line, out, dur }] of clips.entries()) {
       const words = line.text.trim().split(/\s+/).length;
       const expected = Math.max(0.6, words * 0.34);
       const suspect = dur < expected * 0.45 || dur > expected * 3.0;
       if (suspect) flagged.push({ id: line.id, dur, expected, text: line.text });
-      console.log(`  ✓ ${line.id.padEnd(28)} ${dur.toFixed(2).padStart(5)}s  (${line.speaker}/${line.emote ?? 'none'})  "${line.text}"${suspect ? '  <-- CHECK' : ''}`);
+      const result = gateClip({
+        id: line.id,
+        text: line.text,
+        previous: batch.lines[k - 1]?.text,
+        next: batch.lines[k + 1]?.text,
+        verbal: !isNonVerbalOnly(line),
+        staged: out,
+        shipped: join(OUT_DIR, `${line.id}.mp3`),
+        take,
+        transcribe: stt.transcribe,
+      });
+      if (result.status === 'held') {
+        heldIds.push(line.id);
+        held.push(describeHeld(line.id, line.text, result.heard, result.reasons));
+      } else shipped.push(line.id);
+      if (result.status === 'unchecked') unchecked.push(line.id);
+      console.log(`  ${result.status === 'held' ? '✗' : '✓'} ${line.id.padEnd(28)} ${dur.toFixed(2).padStart(5)}s  (${line.speaker}/${line.emote ?? 'none'})  "${line.text}"${result.status === 'held' ? '  <-- HELD' : suspect ? '  <-- CHECK' : ''}`);
     }
-    recordBatch(
-      { name: batch.name, speakers: batch.speakers, voices: batch.speakers.map((s) => castFor(s).voice), model: batch.model, lines: batch.lines.map((l) => l.id) },
-      { resplit },
-    );
+    // Only shipped clips are traced to this batch; an accepted one is recorded when it ships.
+    if (shipped.length > 0) recordBatch({ name: batch.name, speakers: batch.speakers, voices, model: batch.model, lines: shipped }, { resplit });
     if (apply) {
       const updated = applyAudioManifest(loadChapters());
       if (updated > 0) console.log(`[vo] applied +${updated} manifest entries`);
@@ -518,6 +564,12 @@ async function main(): Promise<void> {
   if (flagged.length > 0) {
     console.log(`\n[vo] FLAGGED FOR CHECK (${flagged.length}):`);
     for (const f of flagged) console.log(`  - ${f.id} (${f.dur.toFixed(2)}s vs ~${f.expected.toFixed(2)}s): "${f.text}"`);
+  }
+  if (unchecked.length > 0) console.log(`\n[vo] UNCHECKED, shipped without a word check (${unchecked.length}): ${unchecked.join(' ')}`);
+  if (held.length > 0) {
+    console.log(`\n[vo] HELD in ${STAGING_DIR} (${held.length}); the shipped clips are unchanged:\n${held.join('\n')}`);
+    console.log(`[vo] after listening: node --experimental-strip-types scripts/vo-generate.ts --accept ${heldIds.join(',')} --apply`);
+    process.exitCode = 1;
   }
   if (!printReport('vo', report)) process.exitCode = 1;
 }

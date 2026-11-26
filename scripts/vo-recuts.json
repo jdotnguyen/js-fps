@@ -1,0 +1,39 @@
+{
+  "commit": "a97d09c",
+  "clips": {
+    "drop_heins_01": [{ "wav": "older/vo_chief_01.wav", "from": 30.43, "to": 35.54 }],
+    "drop_heins_02": [{ "wav": "older/vo_chief_01.wav", "from": 36.4, "to": 37.88 }],
+    "drop_heins_03": [{ "wav": "older/vo_chief_01.wav", "from": 38.73, "to": 41.79 }],
+
+    "brief_hale_03": [{ "wav": "older/vo_director_engineer.wav", "from": 6.32, "to": 10.91 }],
+    "brief_hale_04": [{ "wav": "older/vo_director_engineer.wav", "from": 11.37, "to": 14.3 }],
+    "admin_hale_02": [{ "wav": "older/vo_director_engineer.wav", "from": 20.57, "to": 25.57 }],
+    "admin_hale_03": [{ "wav": "older/vo_director_engineer.wav", "from": 26.11, "to": 29.86 }],
+    "admin_hale_04": [{ "wav": "older/vo_director_engineer.wav", "from": 30.37, "to": 31.86 }],
+
+    "dive_sung_02": [{ "wav": "older/vo_crew_sung_crew_botanist.wav", "from": 13.9, "to": 20.21 }],
+    "dive_sung_03": [{ "wav": "older/vo_crew_sung_crew_botanist.wav", "from": 21.75, "to": 23.53 }],
+    "hydro_botanist_01": [{ "wav": "older/vo_crew_sung_crew_botanist.wav", "from": 24.29, "to": 28.64 }],
+
+    "intro_jay_05": [{ "clip": "intro_jay_05", "from": 0, "to": 4.31 }],
+    "dive_jay_01": [{ "clip": "intro_jay_05", "from": 5.93, "to": 6.45, "gainDb": -3 }],
+    "admin_jay_01": [{ "clip": "dive_jay_01", "from": 0, "to": 99 }],
+
+    "r13d_giles_02": [{ "clip": "r13d_giles_02", "from": 0, "to": 7.07 }],
+    "r15a_giles_01": [
+      { "clip": "r13d_giles_02", "from": 7.28, "to": 10.78 },
+      { "clip": "r15a_giles_01", "from": 0, "to": 2.55, "gap": 0.3 }
+    ],
+    "r15a_giles_02": [{ "clip": "r15a_giles_01", "from": 2.79, "to": 99 }],
+    "r15a_giles_03": [
+      { "clip": "r15a_giles_02", "from": 0, "to": 99 },
+      { "clip": "r15a_giles_03", "from": 0, "to": 1.17, "gap": 0.25 }
+    ],
+    "r15a_giles_04": [
+      { "clip": "r15a_giles_03", "from": 1.4, "to": 99, "gainDb": 4 },
+      { "clip": "r15a_giles_04", "from": 0, "to": 99, "gap": 0.3 }
+    ],
+
+    "sec_giles_06": [{ "clip": "sec_giles_06", "from": 3.6, "to": 99 }]
+  }
+}

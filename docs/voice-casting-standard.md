@@ -87,12 +87,13 @@ Reaction batches live in `scripts/lib/voReactionBatches.ts`. Each names a speake
 
 ## 5. Audio encoding & file conventions
 
-- **Raw batch archive**: `previews/vo-batches/<batch>.wav` (24 kHz mono 16-bit PCM, gitignored). Keep raw WAVs during iteration so `--resplit` costs 0 API calls. They are also what `scripts/vo-trace.ts` reads, so don't delete them.
+- **Raw batch archive**: `previews/vo-batches/<batch>.wav` (24 kHz mono 16-bit PCM, gitignored). Keep raw WAVs during iteration so `--resplit` costs 0 API calls. They are also what `scripts/vo-trace.ts` reads, so don't delete them. Batch names repeat, so a new recording first moves the old one to `previews/vo-batches/older/<batch>.<file time>.wav`; the plain name is always the newest. A bad cut can only be redone from its recording, and these exist on one PC.
+- **Staging**: new clips are written to `previews/vo-staging/` and reach `public/assets/vo/` only after the word check in §8. A held clip waits there with a `.json` note of what was heard.
 - **Shipped VO clips**: `public/assets/vo/<line_id>.mp3`
   - Format: mono (`-ac 1`), `24000 Hz`, `64 kbps` MP3
   - Filter chain: `highpass=f=75`, `12 ms` fade-in, `35 ms` fade-out, `loudnorm=I=-16:TP=-1.5:LRA=11`
 - **Manifest**: Each line in `src/data/dialogue/*.json` points to `"audio": "assets/vo/<line_id>.mp3"` (or a string array for reaction pools).
-- **Generation record**: `scripts/vo-takes.json` (tracked in git). Every generated batch appends its batch name, speakers, voices, model, clip IDs and time. `--resplit` adds nothing, because it makes no new audio. Entries with `"source": "traced"` were reconstructed by `vo-trace.ts` for clips made before the record existed.
+- **Generation record**: `scripts/vo-takes.json` (tracked in git). Every generated batch appends its batch name, speakers, voices, model, clip IDs and time. `--resplit` adds nothing, because it makes no new audio. A held clip is left out until `--accept` ships it, and `vo-recut.ts` adds nothing. Entries with `"source": "traced"` were reconstructed by `vo-trace.ts` for clips made before the record existed.
 - **Silence / sigh hygiene**: `gemini-3.1-flash-tts-preview` occasionally inserts long 1–2 s sighs or pauses on `laugh` / `relieved` lines. Always listen to flagged clips (`<-- CHECK`) and trim dead air before shipping.
 
 ## 6. Commands
@@ -108,6 +109,15 @@ node --experimental-strip-types scripts/vo-generate.ts --mode all --apply
 
 # Re-split saved raw WAVs without making API calls
 node --experimental-strip-types scripts/vo-generate.ts --ids <id1,id2> --resplit --apply
+
+# Ship held clips after listening to them (--apply also wires their dialogue lines)
+node --experimental-strip-types scripts/vo-generate.ts --accept <id1,id2> --apply
+
+# Check shipped clips against their subtitles (all spoken lines, or only the ids given); changes nothing
+node --experimental-strip-types scripts/vo-check.ts <id1> <id2>
+
+# Re-cut clips from audio already on disk, as scripts/vo-recuts.json says (no API calls); --dry-run lists the spans
+node --experimental-strip-types scripts/vo-recut.ts --only <id1,id2>
 
 # Preview planned batches, with each batch's voices and model, without calling the API
 node --experimental-strip-types scripts/vo-generate.ts --mode all --dry-run
@@ -139,6 +149,23 @@ For a new model, measure its signature with a one-line request before relying on
 
 ## 8. Verify after recording
 
+### The word check
+
+A batch is cut apart at its pauses, and a cut can land inside a line, giving one clip two lines and another half of one. So `vo-generate.ts` and `vo-recut.ts` transcribe each new clip on this machine and compare it with its subtitle (`scripts/lib/voCompare.ts`). Nothing is sent anywhere.
+
+**Setup (once per machine):**
+
+1. An ffmpeg build with the `whisper` filter (`ffmpeg -filters` lists it; the gyan.dev "full" Windows build has it).
+2. The whisper.cpp model `ggml-base.en.bin` (about 150 MB) from `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin`, saved as `previews/models/ggml-base.en.bin` (gitignored). `VO_STT_MODEL` names a model file elsewhere.
+
+Without them clips ship as before, and the run lists each one as **UNCHECKED**.
+
+**Held clips.** A clip with a phrase missing or added stays in `previews/vo-staging/`; the shipped clip and the dialogue entry do not change. The run prints what was heard. Listen to the staged file, then either ship it with `--accept` (§6) or retake the line on its own (`--ids <id>`): a one-line take has no cut to get wrong. `--mode all` leaves held lines alone.
+
+**Limits.** The small model mishears names and numbers and can drop a short exclamation ("Hey- hey!", "Traitor."), so a held clip is often fine. A missing or added word of under six letters can pass unless it belongs to the neighbouring line. Screams, gasps and `react_*` takes are not checked. A pass is not a listen.
+
+### Also
+
 - Listen to every `<-- CHECK` flagged clip and spot-check each re-recorded speaker against an existing clip on the same model from the same scene.
 - Run `node --experimental-strip-types scripts/vo-trace.ts` and confirm the speaker no longer appears under "NOT ON THEIR SPEAKER'S PINNED MODEL"; then update the "Off-model clips" column in §2.
-- Run `npm run typecheck` and `npm test -- scripts/lib/voCast.test.ts scripts/lib/voTts.test.ts scripts/lib/voBatches.test.ts scripts/lib/voReactionBatches.test.ts scripts/lib/voTakes.test.ts scripts/lib/voTrace.test.ts`.
+- Run `npm run typecheck` and `npm test -- scripts/lib/voCast.test.ts scripts/lib/voTts.test.ts scripts/lib/voBatches.test.ts scripts/lib/voReactionBatches.test.ts scripts/lib/voTakes.test.ts scripts/lib/voTrace.test.ts scripts/lib/voArchive.test.ts scripts/lib/voCompare.test.ts scripts/lib/voGate.test.ts scripts/lib/voRecut.test.ts`.
