@@ -18,15 +18,22 @@ import { creatureLib, necromorphModel } from '../actors/blade/bladeTestKit.ts';
 import { readLevel } from '../data/levels/readLevel.ts';
 
 /** The Lab B kill on Voss (optional bodyModels for real blade creature): glass at z = 0, she starts 4.7 m behind it. */
-function setup(opts: { bodyModels?: BodyModelLibrary } = {}) {
+function setup(opts: { bodyModels?: BodyModelLibrary; fps?: number } = {}) {
+  const fps = opts.fps ?? 60;
+  /** Every sound and gore call, with when it came. */
+  const fired: Array<{ name: string; at: number }> = [];
   const goreCalls: Array<{ kind: string; at?: THREE.Vector3; size?: number; band?: { min: number; max: number } }> = [];
+  const goreCall = (c: (typeof goreCalls)[number]): void => {
+    goreCalls.push(c);
+    fired.push({ name: `gore ${c.kind}`, at: now });
+  };
   const gore = {
-    burst: (at: THREE.Vector3) => void goreCalls.push({ kind: 'burst', at: at.clone() }),
-    chunks: () => void goreCalls.push({ kind: 'chunks' }),
-    pool: () => void goreCalls.push({ kind: 'pool' }),
-    spurt: () => void goreCalls.push({ kind: 'spurt' }),
+    burst: (at: THREE.Vector3) => goreCall({ kind: 'burst', at: at.clone() }),
+    chunks: () => goreCall({ kind: 'chunks' }),
+    pool: () => goreCall({ kind: 'pool' }),
+    spurt: () => goreCall({ kind: 'spurt' }),
     glassMark: (at: THREE.Vector3, _n: THREE.Vector3, kind: string, size: number, opts: { band?: { min: number; max: number } }) =>
-      void goreCalls.push({ kind: `glass:${kind}`, at: at.clone(), size, ...(opts.band ? { band: opts.band } : {}) }),
+      goreCall({ kind: `glass:${kind}`, at: at.clone(), size, ...(opts.band ? { band: opts.band } : {}) }),
   } as unknown as GoreSystem;
   const handlers = new Map<string, Set<(p: unknown) => void>>();
   const emitted: Array<{ name: string; at: number }> = [];
@@ -49,6 +56,7 @@ function setup(opts: { bodyModels?: BodyModelLibrary } = {}) {
       return () => set.delete(fn);
     },
     sfx: (ids) => {
+      fired.push({ name: `sfx ${ids[0]}`, at: now });
       const id = ids.find((i) => ['fleshTear', 'glassThud', 'drip', 'zombieVoice'].includes(i));
       if (id) sounds.push(id);
       return id !== undefined;
@@ -60,9 +68,9 @@ function setup(opts: { bodyModels?: BodyModelLibrary } = {}) {
   npcs.spawnFromLevel([{ id: 'researcher_b', look: 'voss', pos: { x: 0, y: 0, z: 4.7 }, yaw: 0, pose: 'typing', transformable: true }]);
   const camera = new THREE.Vector3(0, 1.62, -3);
   const step = (seconds: number, each?: () => void): void => {
-    for (let i = 0; i < Math.round(seconds * 60); i++) {
-      now += 1 / 60;
-      npcs.update(1 / 60, camera);
+    for (let i = 0; i < Math.round(seconds * fps); i++) {
+      now += 1 / fps;
+      npcs.update(1 / fps, camera);
       each?.();
     }
   };
@@ -70,7 +78,7 @@ function setup(opts: { bodyModels?: BodyModelLibrary } = {}) {
     for (const fn of [...(handlers.get('speech:ended') ?? [])]) fn({ id, speaker: 'crew_lab' });
   };
   const beatAt = (b: string): number => emitted.find((e) => e.name === `kill:${b}`)?.at ?? -1;
-  return { npcs, goreCalls, emitted, sounds, warnings, step, say, beatAt, time: () => now };
+  return { npcs, goreCalls, emitted, fired, sounds, warnings, step, say, beatAt, time: () => now };
 }
 
 /** Play the kill to the end: her plea ends at 2.5 s, the scream 1.5 s after she starts pounding the glass. */
@@ -101,13 +109,12 @@ test('the Lab B kill: she staggers to the glass, pounds it, arches, bursts, dies
   };
   g.step(2.5, watchHands);
   g.say('drop_voss_01');
-  g.step(4, watchHands);
+  g.step(4.7, watchHands);
   assert.ok(g.beatAt('glass') > 0, 'she reached the glass');
   assert.ok(Math.abs(voss.position.z - 0.71) < 0.35, `she stands at the glass (z ${voss.position.z.toFixed(2)})`);
+  g.step(3.7, watchHands);
+  assert.ok(Math.abs(g.beatAt('arch') - g.beatAt('glass') - 3.6) < 0.05, 'the arch starts when the glass beat has run its length, with the scream still sounding');
   g.say('drop_voss_02');
-  const arch = g.time();
-  g.step(1 / 60, watchHands);
-  assert.ok(Math.abs(g.beatAt('arch') - arch) < 0.05, 'the arch starts as the scream ends');
   g.step(8, watchHands);
   await Promise.resolve();
   const order = g.emitted.filter((e) => e.name.startsWith('kill:')).map((e) => e.name.slice(5));
@@ -122,6 +129,68 @@ test('the Lab B kill: she staggers to the glass, pounds it, arches, bursts, dies
   assert.ok(g.goreCalls.some((c) => c.kind === 'burst') && g.goreCalls.some((c) => c.kind === 'chunks') && g.goreCalls.some((c) => c.kind === 'pool'));
   assert.ok(g.sounds.filter((s) => s === 'fleshTear').length >= 3, 'crunches and the tear are heard (stand-ins until the recordings exist)');
   assert.ok(g.warnings.every((w) => !w.includes('unknown pose')), g.warnings.join('; '));
+});
+
+// ------------------------------------------------------------------ the fixed clock (voss-death-scene, infection-kills)
+
+/**
+ * One Lab B kill whose question ends `asked` s in, played at `fps`; the scream ends 5 s after the glass beat starts, or
+ * never. Every beat start from panic to the end of still, and every sound, gore call and stinger in that time, in seconds
+ * on the kill's clock: from the frame the question's end reaches the kill, where panic begins.
+ */
+function onTheClock(opts: { asked: number; fps?: number; scream?: boolean }) {
+  const g = setup(opts.fps !== undefined ? { fps: opts.fps } : {});
+  void g.npcs.command('kill', KILL);
+  g.step(opts.asked);
+  const asked = g.time();
+  g.say('drop_voss_01');
+  let screamed = false;
+  g.step(16, () => {
+    if (opts.scream === false || screamed || g.beatAt('glass') < 0 || g.time() - g.beatAt('glass') < 5) return;
+    screamed = true;
+    g.say('drop_voss_02');
+  });
+  const start = g.beatAt('panic');
+  assert.ok(start > asked && start - asked <= 1 / (opts.fps ?? 60) + 1e-6, `panic begins on the frame after the question (${(start - asked).toFixed(3)} s)`);
+  const end = g.beatAt('creature');
+  assert.ok(end > 0, 'the still beat ended');
+  const beats = ['panic', 'glass', 'arch', 'burst', 'still', 'creature'].map((b) => ({ name: b, at: g.beatAt(b) - start }));
+  const events = [...g.fired, ...g.emitted.filter((e) => e.name === 'score:stinger')]
+    .filter((e) => e.at > start - 1e-6 && e.at < end - 1e-6)
+    .map((e) => ({ name: e.name, at: e.at - start }));
+  return { beats, events };
+}
+
+/** The same things, each within one frame of `fps` (the slower run). */
+function sameTimes(a: ReturnType<typeof onTheClock>, b: ReturnType<typeof onTheClock>, fps: number): void {
+  for (const key of ['beats', 'events'] as const) {
+    // By name, so two events a frame apart in one run and in the same frame in the other still pair up.
+    const byName = (list: typeof a.beats): typeof a.beats => [...list].sort((p, q) => p.name.localeCompare(q.name) || p.at - q.at);
+    const [x, y] = [byName(a[key]), byName(b[key])];
+    assert.deepEqual(x.map((e) => e.name), y.map((e) => e.name), key);
+    x.forEach((e, i) => assert.ok(Math.abs(e.at - y[i]!.at) <= 1 / fps + 1e-6, `${e.name} at ${e.at.toFixed(3)} s and ${y[i]!.at.toFixed(3)} s`));
+  }
+}
+
+test('Fixed clock: each beat from panic on starts its set time after the question, about 13 s to the end of still', () => {
+  const r = onTheClock({ asked: 3 });
+  const due: Record<string, number> = { panic: 0, glass: 4.6, arch: 8.2, burst: 10.6, still: 11.2, creature: 13 };
+  for (const b of r.beats) assert.ok(Math.abs(b.at - due[b.name]!) < 2 / 60, `${b.name} at ${b.at.toFixed(3)} s`);
+  for (const name of ['sfx palm_glass_hit', 'sfx kill_burst', 'gore glass:print', 'gore burst', 'score:stinger']) {
+    assert.ok(r.events.some((e) => e.name === name), `${name} is among the timed events`);
+  }
+});
+
+test('Different arrivals: the question ending at 3 s or at 12 s gives the same beats and events, to the frame', () => {
+  sameTimes(onTheClock({ asked: 3 }), onTheClock({ asked: 12 }), 60);
+});
+
+test('Different frame rates: 30 fps and 144 fps give the same beats and events, to a frame of the slower', () => {
+  sameTimes(onTheClock({ asked: 3, fps: 30 }), onTheClock({ asked: 3, fps: 144 }), 30);
+});
+
+test('Scream missing: the arch, burst and still beats start when they do with it', () => {
+  sameTimes(onTheClock({ asked: 3 }), onTheClock({ asked: 3, scream: false }), 60);
 });
 
 test('the creature shows within a second of the burst', () => {

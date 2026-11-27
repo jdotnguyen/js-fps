@@ -54,16 +54,76 @@ test('a grown-inside kill plays its beats in order: scratch, panic, glass, arch,
 });
 
 test('beats follow their audio: the scream ending starts the arch', () => {
-  const h = harness(grown);
-  h.step(0.05);
-  h.run.lineEnded('plea');
-  h.step(1.5); // panic -> glass (arrived after 1 s)
-  assert.equal(h.run.beatId, 'glass');
-  h.step(0.5);
-  assert.equal(h.run.beatId, 'glass', 'the glass beat holds while she screams');
+  const style = validate(validateKillTable, {
+    k: {
+      kind: 'grownInside',
+      beats: [
+        { id: 'glass', poses: ['idle'], convulse: 0, until: 'line', max: 4 },
+        { id: 'arch', poses: ['idle'], convulse: 0, until: 'time', s: 1, max: 1 },
+      ],
+    },
+  }, 'k')['k']!;
+  const h = harness(style);
+  h.step(2);
+  assert.equal(h.run.beatId, 'glass', 'the beat holds while she screams');
   h.run.lineEnded('scream');
   h.step(1 / 60);
   assert.equal(h.run.beatId, 'arch', 'the arch begins as the scream ends');
+});
+
+test('Fixed beat ignores its audio: the Lab B glass beat runs its length, whether the scream is shorter or longer', () => {
+  for (const screamAt of [0.5, 5]) {
+    const h = harness(grown);
+    h.step(0.05);
+    h.run.lineEnded('plea');
+    h.step(4.6 + 1 / 60);
+    assert.equal(h.run.beatId, 'glass');
+    for (let i = 0; i < 60 * 8 && h.run.beatId === 'glass'; i++) {
+      if (h.run.beatTime >= screamAt) h.run.lineEnded('scream');
+      h.step(1 / 60);
+    }
+    assert.equal(h.run.beatId, 'arch');
+    assert.ok(Math.abs(h.run.clockT - 8.2) < 2 / 60, `the arch began ${h.run.clockT.toFixed(3)} s on the clock (scream ends at ${screamAt} s)`);
+  }
+});
+
+test('the kill clock is 0 as panic begins, runs with the beats, and stands still while nothing updates the run', () => {
+  const h = harness(grown);
+  h.step(2);
+  assert.equal(h.run.beatId, 'scratch');
+  assert.equal(h.run.clockT, 0, 'not running while she waits for the question');
+  h.run.lineEnded('plea');
+  h.step(1 / 60);
+  assert.equal(h.run.beatId, 'panic');
+  assert.equal(h.run.clockT, 0, 'starts with panic');
+  h.step(1);
+  assert.ok(Math.abs(h.run.clockT - 1) < 1e-6, `${h.run.clockT} s`);
+  const held = h.run.clockT;
+  // A pause: time goes by outside, the run is not updated.
+  assert.equal(h.run.clockT, held);
+  h.step(4);
+  assert.equal(h.run.beatId, 'glass');
+  assert.ok(Math.abs(h.run.clockT - 4.6 - h.run.beatTime) < 1e-6, 'it carries across beats');
+});
+
+test('beat lengths never add up late: at an uneven frame time each beat starts within a frame of its place on the clock', () => {
+  for (const dt of [1 / 23, 1 / 30, 1 / 144, 0.037]) {
+    const starts = new Map<string, number>();
+    const h = harness(grown);
+    h.run.lineEnded('plea');
+    for (let i = 0; i < 20 / dt && !starts.has('creature'); i++) {
+      h.run.update(dt);
+      const id = h.run.beatId;
+      // Where the clock was on the frame the beat began.
+      if (id && !starts.has(id)) starts.set(id, h.run.clockT);
+    }
+    let at = 0;
+    for (const beat of grown.beats.slice(1)) {
+      const started = starts.get(beat.id)!;
+      assert.ok(started >= at - 1e-6 && started < at + dt, `${beat.id} began at ${started.toFixed(4)} s, due ${at.toFixed(1)} s (frame ${dt.toFixed(4)} s)`);
+      at += beat.s ?? 0;
+    }
+  }
 });
 
 test('a missing recording never stops the kill: each beat ends at its time limit', () => {

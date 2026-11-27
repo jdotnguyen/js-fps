@@ -36,22 +36,32 @@ None.
 - `infection-kills`: a beat can run a fixed length instead of following its audio, so Lab B's scream no longer starts the arch. A clip can carry the victim along a route instead of holding her in place. Voss's scream is seen as well as heard: her jaw follows the recording. New requirements cover her staged run, her planted feet and footsteps, and her collapse.
 - `gallery-drop`: "Voss is already distressed as the drop starts" gains her slow waiting motion, and her staged run replaces her run to the glass.
 - `physical-interaction`: "Lab B is furnished with loose lab objects" gains loose glassware on the bench by Voss. "Scripted kills knock loose objects over" becomes a sweep and a cart fall at authored moments, with the cart falling even when physics is off.
-- `in-world-audio`: "Glass muffles lightly" gains an exception for sealed observation glass, which Lab B's pane becomes.
+- `in-world-audio`: "Glass muffles lightly" gains an exception for sealed observation glass, which Lab B's pane becomes. "World sound occlusion" no longer lets a kill's sounds through sealed glass unmuffled.
+- `voice-playback`: "Voices carry through the station" muffles a voice hard through sealed glass, so Voss's voice reaches the gallery mainly through the intercom.
 
 ## Impact
 
-- **Code:** `src/ai/npcKills.ts` and `src/ai/killRun.ts` (route and fixed timing); `src/actors/humanoid.ts` and `src/actors/animator.ts` (a clip that travels, foot planting and footsteps during a human kill, the jaw following a scream's loudness); `src/actors/speechActing.ts`; `src/physics/interaction.ts` (the scripted cart); `src/audio/occlusion.ts` (per-pane sealed glass).
+- **Code:** `src/ai/npcKills.ts` and `src/ai/killRun.ts` (route and fixed timing); `src/actors/humanoid.ts` and `src/actors/animator.ts` (a clip that travels, foot planting and footsteps during a human kill, the jaw following a scream's loudness); `src/actors/speechActing.ts`; `src/physics/interaction.ts` (the scripted cart); `src/audio/occlusion.ts`, `src/audio/voicePath.ts`, the voice graph in `src/world/level.ts` and the kill sound hook in `src/app/session.ts` (per-pane sealed glass).
 - **Data:**
   - `src/data/kills.json` (`grownInside`).
   - `src/data/poses.json`: Voss's `kill_*` poses. The names `kill_glass_0` and `kill_glass_1` stay, because the blade creature's pose map borrows them.
   - Voss's clip pack, `src/data/mocap/voss.json`, through `scripts/mocap.sources.json`.
-  - `src/data/levels/slice01.json` and `scripts/gen-slice01.mjs` (route marks, loose bench items, the sealed pane).
+  - `src/data/levels/slice01/rooms/R04.json` (Lab B: route marks, loose bench items, the scripted cart) and
+    `rooms/R03.json` (the gallery: the sealed pane).
   - `src/data/sequences/drop.json`, and `quiet_restore.json` for the aftermath.
 - **Audio and credits:** new files under `public/assets/audio/` and entries in `src/audio/sounds.ts`, following `docs/audio-assets.md`. Her gasps and grunts follow `docs/voice-casting-standard.md`. New sounds and capture takes are credited in `CREDITS.md`, and the takes in `docs/mocap-sources.md`.
 - **Order with other work:**
   - rig-necromorph is committed and archived, so its blade creature is the one Voss's burst hands over to. Its pose map borrows Voss's `kill_glass_0` and `kill_glass_1`, its unfold is cued from her burst, and her final resting place must leave its stand point clear.
-  - `split-level-data` phase 1a (2026-11-26) replaced `slice01.json` with `src/data/levels/slice01/`. Route marks and loose
-    bench items go in `rooms/R04.json` (Lab B) or `rooms/R03.json` (the gallery), shell pieces such as the sealed pane in
-    that room's `pieces`, and doors in `doors.json`. `scripts/gen-slice01.mjs` is frozen: don't edit or run it.
-  - `src/ai/npcKills.ts` has another agent's uncommitted edits; the kill work there has to be committed around them.
+  - `split-level-data` phase 1a (4409f6b, 2026-11-26) replaced `slice01.json` with one file per room under
+    `src/data/levels/slice01/rooms/`. Lab B is `rooms/R04.json`: its route marks, the loose bench glassware and the cart go
+    there. The observation glass is the south wall of the gallery, so the sealed pane is marked in `rooms/R03.json`'s
+    `layout` (a `wallParams` entry on the three `wall_glass_partition` sides). Doors stay in `doors.json`. Edit the room
+    files by hand: `scripts/gen-slice01.mjs` is frozen (phase 1a) and phase 1b deletes it; don't edit or run it.
+  - Phase 1b (room shells built from `layout`) changes every room file and must be committed before this change edits
+    `R03.json` or `R04.json`.
+  - Phases 2-4 of `split-level-data` move files this change edits (`poses.json` and `src/data/mocap/` in phase 2,
+    `src/audio/sounds.ts` in phase 3, `src/world/level.ts` and `drop.json` in phase 4), so they must not run at the same time
+    as this change: this change runs entirely before phase 2 starts, or entirely after phase 4 is committed.
+  - Code work waits until `keep-crossed-arms` is committed. It was committed as a209f41 and archived on 2026-11-26, so
+    this gate is already met. `src/ai/npcKills.ts` has no uncommitted edits now.
   - The drop now starts as Jay walks into the gallery, after her breathing has played over the intercom since the end of the rounds (`gallery-drop`). The fixed clock starts at the end of Okafor's question, which this does not move.

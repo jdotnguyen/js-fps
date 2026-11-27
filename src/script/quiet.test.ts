@@ -677,6 +677,41 @@ test('the drop follows the kill: each line and light change waits for its beat, 
   noWarnings(g);
 });
 
+test("the drop's lines and lights follow her clock: however late Okafor's question ends, each starts on its own beat (gallery-drop spec)", async () => {
+  // Beat starts, in seconds after the question ends (voss-death-scene D1), and what the drop starts with each.
+  const clock = [
+    ['panic', 0, ['say drop_okafor_02', 'light R04 flicker', 'light R03 flicker']],
+    ['glass', 4.6, ['say drop_voss_02']],
+    ['arch', 8.2, ['light R04 alarm emergency', 'light R03 alarm emergency', 'sfx lockdownAlarm']],
+    ['burst', 10.6, ['event bloom:spread', 'shake']],
+    ['still', 11.2, ['say drop_okafor_04', 'say drop_giles_01']],
+  ] as const;
+  // The question ends soon, or 12 s in because the squad was far behind.
+  for (const asked of [4, 12]) {
+    const g = makeGame();
+    g.host.flags['briefingSeen'] = true;
+    for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
+    await advance(g, 30);
+    fire(g, 'trigger:gallery_enter');
+    await until(g, () => g.log.some((e) => e.startsWith('npc kill researcher_b')), 5);
+    g.host.events.emit('kill:scratch', { npc: 'researcher_b', beat: 'scratch' });
+    // Seconds since the question ended.
+    let now = -0.1;
+    await advance(g, asked + now);
+    for (const [id, at, starts] of clock) {
+      await advance(g, at - 0.1 - now);
+      for (const e of starts) assert.equal(g.log.includes(e), false, `${e} waits for ${id} (question ended at ${asked} s)`);
+      await advance(g, 0.1);
+      g.host.events.emit(`kill:${id}`, { npc: 'researcher_b', beat: id });
+      await advance(g, 0.1);
+      for (const e of starts) assert.ok(g.log.includes(e), `${e} starts with ${id} (question ended at ${asked} s)`);
+      now = at + 0.1;
+    }
+    await until(g, () => !g.m.isRunning('drop'), 60);
+    noWarnings(g);
+  }
+});
+
 test('the Lab B escape (trim-lab-wing-encounters): it hammers, the lab goes dark, the vent tears, it crawls off, the lights come back on an empty lab', async () => {
   const g = makeGame();
   g.host.flags['briefingSeen'] = true;

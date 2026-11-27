@@ -184,7 +184,7 @@
        {
         "do": "waitFor",
         "event": "kill:panic",
-        "timeout": 9
+        "timeout": 18
        },
        {
         "do": "say",
@@ -199,7 +199,7 @@
        {
         "do": "waitFor",
         "event": "kill:panic",
-        "timeout": 9
+        "timeout": 18
        },
        {
         "do": "lightState",
@@ -219,8 +219,13 @@
       "steps": [
        {
         "do": "waitFor",
+        "event": "kill:panic",
+        "timeout": 18
+       },
+       {
+        "do": "waitFor",
         "event": "kill:glass",
-        "timeout": 13
+        "timeout": 5.6
        },
        {
         "do": "say",
@@ -239,8 +244,13 @@
       "steps": [
        {
         "do": "waitFor",
-        "event": "kill:arch",
+        "event": "kill:panic",
         "timeout": 18
+       },
+       {
+        "do": "waitFor",
+        "event": "kill:arch",
+        "timeout": 9.2
        },
        {
         "do": "lightState",
@@ -278,8 +288,13 @@
       "steps": [
        {
         "do": "waitFor",
+        "event": "kill:panic",
+        "timeout": 18
+       },
+       {
+        "do": "waitFor",
         "event": "kill:burst",
-        "timeout": 20
+        "timeout": 11.6
        },
        {
         "do": "emit",
@@ -298,8 +313,13 @@
       "steps": [
        {
         "do": "waitFor",
+        "event": "kill:panic",
+        "timeout": 18
+       },
+       {
+        "do": "waitFor",
         "event": "kill:still",
-        "timeout": 21
+        "timeout": 12.2
        },
        {
         "do": "say",

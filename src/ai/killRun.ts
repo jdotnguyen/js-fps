@@ -54,6 +54,7 @@ export class KillRun {
   private readonly hooks: KillHooks;
   private index = -1;
   private t = 0;
+  private clock = 0;
   private fired = 0;
   private poseIndex = 0;
   private started = false;
@@ -96,6 +97,14 @@ export class KillRun {
   /** Seconds into the current beat. */
   get beatTime(): number {
     return this.t;
+  }
+
+  /**
+   * Seconds since the first beat ended (Lab B: since `scratch`, when Okafor's question ends; voss-death-scene D1). Summed
+   * from the same `dt` as beat time, so a pause freezes it.
+   */
+  get clockT(): number {
+    return this.clock;
   }
 
   /** The current beat (null before the first update and after the last). */
@@ -143,11 +152,22 @@ export class KillRun {
     const beat = this.style.beats[this.index];
     if (!beat) return;
     this.t += dt;
+    if (this.index > 0) this.clock += dt;
     this.fire(beat);
     if (this.clip) this.advanceClip(beat, dt);
     else this.loopPoses(beat);
     this.moveBulges(beat);
-    if (this.ended(beat) && this.reached(beat)) this.enter(this.index + 1);
+    if (this.ended(beat) && this.reached(beat)) this.enter(this.index + 1, this.overrun(beat, dt));
+  }
+
+  /**
+   * How far past its own length a fixed beat ran on the frame that ended it. The next beat starts that far in, so the
+   * frames' leftovers never add up and every beat stays on the clock. 0 for a beat that ended on a cue, or was held.
+   */
+  private overrun(beat: KillBeat, dt: number): number {
+    if (beat.until !== 'time') return 0;
+    const over = this.t - (beat.s ?? beat.max);
+    return over > 0 && over < dt ? over : 0;
   }
 
   /** The next beat may start: it does not wait for the attacker, or the attacker has reached her (design D17). */
@@ -190,7 +210,8 @@ export class KillRun {
     this.hooks.done();
   }
 
-  private enter(i: number): void {
+  /** Start beat `i`, `carry` seconds into it (the overrun of a fixed beat before it). */
+  private enter(i: number, carry = 0): void {
     // Glass beats only play when she is at the glass.
     while (i < this.style.beats.length && this.style.beats[i]!.needsGlass && !this.hooks.facesGlass()) i++;
     for (let k = 0; k < BULGE_SLOTS; k++) this.hooks.bulge(k, [], 0, 0, 0);
@@ -202,7 +223,7 @@ export class KillRun {
       return;
     }
     this.index = i;
-    this.t = 0;
+    this.t = carry;
     this.fired = 0;
     this.waiting = false;
     this.closing = false;
@@ -265,10 +286,11 @@ export class KillRun {
   }
 
   private ended(beat: KillBeat): boolean {
-    if (this.t >= beat.max) return true;
+    // The small margin keeps a summed `dt` that lands a hair short of the length from costing a whole frame.
+    if (this.t >= beat.max - 1e-9) return true;
     switch (beat.until) {
       case 'time':
-        return this.t >= (beat.s ?? beat.max);
+        return this.t >= (beat.s ?? beat.max) - 1e-9;
       case 'line': {
         const line = this.cues[beat.id];
         return line !== undefined && this.endedLines.has(line);
