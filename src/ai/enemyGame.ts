@@ -174,7 +174,7 @@ export function setupEnemies(d: EnemyGameDeps): EnemyGame {
         modelShambler: () => {
           const id = firstModel();
           if (id) spawnAhead('shambler', 6, id);
-          else console.warn('[enemies] no body model loaded (data/body-models.json)');
+          else console.warn('[enemies] no body model loaded (data/bodyModelFiles.ts)');
         },
         killAll: () => {
           for (const e of director.list) if (e.alive) e.body.hurt('torso', 1e6);

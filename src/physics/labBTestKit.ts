@@ -19,6 +19,7 @@ import { loadSlice01 } from '../world/headlessSlice.ts';
 import { PhysicsProps, type PropImpact } from './interaction.ts';
 import { createRapierEngine } from './rapierAdapter.ts';
 import { PhysicsWorld } from './world.ts';
+import { posesJson } from '../data/poseFiles.ts';
 
 export const STEP = 1 / 60;
 const json = (p: string): unknown => JSON.parse(readFileSync(new URL(`../data/${p}`, import.meta.url), 'utf8'));
@@ -31,7 +32,7 @@ export interface Pose {
 export async function labBProps(opts: { physics?: boolean; fps?: number } = {}) {
   const physics = opts.physics ?? true;
   // Her takes, as the game streams them (labBKillTestKit.ts does the same).
-  sharedMocapLibrary().addPack('voss', json('mocap/voss.json') as RawMocapFile);
+  sharedMocapLibrary().addPack('voss', json('cast/voss/mocap.json') as RawMocapFile);
   sharedMocapLibrary().retainPack('voss');
   const dt = 1 / (opts.fps ?? 60);
   const { level, events } = loadSlice01();
@@ -54,7 +55,7 @@ export async function labBProps(opts: { physics?: boolean; fps?: number } = {}) 
     for (const fn of [...(handlers.get(name) ?? [])]) fn(payload);
   };
   const npcs = new NpcDirector({
-    ctx: { poses: new PoseLibrary(loadPoseFile(json('poses.json'))), gore: new Proxy({}, { get: () => noop }) as unknown as GoreSystem },
+    ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore: new Proxy({}, { get: () => noop }) as unknown as GoreSystem },
     nav: level.navGraph(),
     colliders: level.collision,
     player: () => ({ feet: new THREE.Vector3(8, 0, 19.6), head: new THREE.Vector3(8, 1.62, 19.6) }),

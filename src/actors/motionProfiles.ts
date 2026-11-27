@@ -1,4 +1,4 @@
-import profilesJson from '../data/motion-profiles.json' with { type: 'json' };
+import { motionProfilesJson } from '../data/motionFiles.ts';
 import { ValidationError, numRange, obj, oneOf, optional, record, str, validate, type Validator } from '../core/validate.ts';
 import type { MocapLibrary, MotionSet } from './mocap.ts';
 
@@ -239,9 +239,9 @@ export const validateMotionProfiles: Validator<MotionProfileFile> = (v, p) => {
 
 let shared: MotionProfileFile | null = null;
 
-/** The game's profile table (src/data/motion-profiles.json), validated once. */
+/** The game's profile table (src/data/motionFiles.ts), validated once. */
 export function sharedMotionProfiles(): MotionProfileFile {
-  if (!shared) shared = validate(validateMotionProfiles, profilesJson, 'data/motion-profiles.json');
+  if (!shared) shared = validate(validateMotionProfiles, motionProfilesJson, 'data/motionFiles.ts');
   return shared;
 }
 

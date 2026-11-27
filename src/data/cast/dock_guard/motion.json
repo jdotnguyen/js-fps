@@ -1,0 +1,25 @@
+{
+  "dock_guard": {
+    "gender": "m",
+    "inherits": "crew_m",
+    "poses": {
+      "idle_wand": "dock_guard_idle_wand",
+      "wand_up": "dock_guard_wand_up",
+      "wand_down": "dock_guard_wand_down",
+      "sit_typing": "sit_typing_cctv"
+    },
+    "style": {
+      "tempo": 0.9,
+      "fidgetRate": 0.45,
+      "armCarry": 0.9,
+      "posture": 0.08,
+      "asymmetry": 0.35
+    },
+    "hands": {
+      "tension": 0.32,
+      "stiffness": 0.95,
+      "fidget": 0.16,
+      "restCurl": 0.46
+    }
+  }
+}

@@ -187,6 +187,18 @@ those are dropped. Commits follow the shared-checkout practice (private index, o
   light's position stay the same (`lightSlots` snapshot test). R15b has no `cells`. Its five ceilings are
   `extraPieces`, because the room has no floor or walls of its own.
 
+### Phase 2 migration notes (2026-11-27)
+
+- Each kind of file has a hand-kept index with static JSON imports, which works in both Vite and the Node test runner, as
+  the sound index does (D6): `src/data/poseFiles.ts`, `bodyModelFiles.ts` and `motionFiles.ts`. `mergeFiles.ts` fails
+  loading on a name two files define. A test checks each index against the files on disk.
+- The crew defaults (`defaults`, `crew_m`, `crew_f`) have no character folder, so they are in `src/data/motion-crew.json`.
+- `body-models.json` keeps the bodies no one character owns, the infected ones among them. It is merged first, so spawns
+  still pick from the same bodies in the same order. Voss wears the shared `office3`, and has no `body.json`.
+- Body and motion files keep their table's shape (`{ "<id>": {...} }`), because a body's id differs from its
+  character's name (Giles wears `mechanic`, Okafor `doctor`).
+- The pack table stays at `src/data/mocap/packs.ts`. Its source comes from `scripts/lib/mocapPackFiles.mjs`.
+
 ## Open Questions
 
 - Whether the after-groups and kill-aftermath prop logic (`layOut`, `propPose`) count as a set piece or as a generic

@@ -1,0 +1,16 @@
+{
+  "heins": {
+    "url": "assets/models/squad/heins.glb",
+    "handRig": true,
+    "variants": [],
+    "share": 0,
+    "gender": "f",
+    "sickTint": 0.3,
+    "credit": {
+      "title": "BS-V1 Cyborg",
+      "author": "Blue Spirit",
+      "source": "https://sketchfab.com/3d-models/bs-v1-cyborg-43f2e2e84fe94864bf13be2c69048597",
+      "license": "CC-BY-4.0"
+    }
+  }
+}

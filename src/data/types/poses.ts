@@ -2,7 +2,7 @@ import { arr, num, obj, optional, record, str, validate, ValidationError, vec3, 
 import { JOINT_NAMES, type JointName } from '../../actors/skeleton.ts';
 
 /**
- * data/poses.json (ADR-0006). Angles are XYZ Euler degrees relative to the rest pose;
+ * A pose file (ADR-0006): the files data/poseFiles.ts lists, merged into one. Angles are XYZ Euler degrees relative to the rest pose;
  * see actors/skeleton.ts for the sign conventions (body faces -Z).
  */
 export interface PoseData {
@@ -82,6 +82,6 @@ export function resolvePose(file: PoseFile, name: string): PoseData {
   return out;
 }
 
-export function loadPoseFile(raw: unknown, source = 'data/poses.json'): PoseFile {
+export function loadPoseFile(raw: unknown, source = 'data/poseFiles.ts'): PoseFile {
   return validate(validatePoseFile, raw, source);
 }

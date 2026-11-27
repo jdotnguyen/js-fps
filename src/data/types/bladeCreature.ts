@@ -2,7 +2,7 @@ import { arr, bool, num, numRange, obj, optional, record, str, validate, Validat
 import { JOINT_NAMES, type JointName } from '../../actors/skeleton.ts';
 
 /**
- * data/blade-creature.json (openspec rig-necromorph, design D1): the blade creature's profile. Its body stays a humanoid
+ * data/creatures/blade/creature.json (openspec rig-necromorph, design D1): the blade creature's profile. Its body stays a humanoid
  * body on the shared skeleton; the profile says what is different about it: its jaw, the extra neck and spine segments
  * that share their joint's bend, its belly arms, its ankle height, its blades, and which of its own poses stand in for
  * the poses the scenes and the AI ask for.
@@ -34,7 +34,7 @@ const blade = obj({
 });
 
 const performancePhaseShape = {
-  /** Pose to blend into for this phase (must exist in poses.json). */
+  /** Pose to blend into for this phase (must exist in the pose files). */
   pose: str,
   /** Seconds to blend into the pose. */
   blend: numRange(0, 5),
@@ -62,7 +62,7 @@ export type BladePerformancePhase = Infer<typeof performancePhaseShape>;
 export type BladePerformance = Infer<typeof performanceShape>;
 
 const shape = {
-  /** The body model (data/body-models.json) this profile belongs to. */
+  /** The body model (data/bodyModelFiles.ts) this profile belongs to. */
   model: str,
   /** The ankle's height above the sole at the 1.78 m reference height, in metres. */
   ankleHeight: numRange(0.02, 0.5),
@@ -98,7 +98,7 @@ export const validateBladeCreatureShape: Validator<BladeCreatureProfile> = obj(s
  * Validate the profile, then check that every bone it names is in the model and every pose it maps to exists.
  * `bones` are the model's bone names; `poses` the pose library's names.
  */
-export function loadBladeCreature(raw: unknown, refs: { bones?: readonly string[]; poses?: readonly string[] } = {}, source = 'data/blade-creature.json'): BladeCreatureProfile {
+export function loadBladeCreature(raw: unknown, refs: { bones?: readonly string[]; poses?: readonly string[] } = {}, source = 'data/creatures/blade/creature.json'): BladeCreatureProfile {
   const p = validate(validateBladeCreatureShape, raw, source);
   const bones = refs.bones ? new Set(refs.bones) : null;
   const bone = (name: string, path: string): void => {

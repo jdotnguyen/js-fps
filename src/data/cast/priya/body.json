@@ -1,0 +1,16 @@
+{
+  "priya": {
+    "url": "assets/models/squad/priya.glb",
+    "variants": [],
+    "share": 0,
+    "gender": "f",
+    "sickTint": 0.3,
+    "handRig": true,
+    "credit": {
+      "title": "elegant woman",
+      "author": "adri8restuz",
+      "source": "https://sketchfab.com/3d-models/elegant-woman-5f84869dd2fa4492b384bbb04ddf464e",
+      "license": "CC-BY-4.0"
+    }
+  }
+}

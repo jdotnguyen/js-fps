@@ -3,10 +3,10 @@ import { prepareBodyModel, type PreparedBodyModel } from '../bodyModel.ts';
 import { castSpec } from '../castLooks.ts';
 import { loadWithoutTextures } from '../castModelTestKit.ts';
 import { prepareOptionsFor, validateBodyModelTable, type BodyModelLibrary } from '../bodyModelLibrary.ts';
-import { readFileSync } from 'node:fs';
 import { validate } from '../../core/validate.ts';
 import { Humanoid, type FootstepEvent } from '../humanoid.ts';
 import { ctx as enemyCtx } from '../../ai/enemyTestKit.ts';
+import { bodyModelsJson } from '../../data/bodyModelFiles.ts';
 
 /**
  * Test helpers for the blade creature (openspec rig-necromorph): its model loaded headless once per process, its bodies as
@@ -16,8 +16,8 @@ import { ctx as enemyCtx } from '../../ai/enemyTestKit.ts';
 /** The shipped model, or a candidate named by NECROMORPH_MODEL (a path from the repository root). */
 export const NECROMORPH_URL = new URL(`../../../${process.env['NECROMORPH_MODEL'] ?? 'public/assets/models/infected/necromorph_slasher.glb'}`, import.meta.url);
 
-/** The creature's entry in data/body-models.json. */
-export const NECROMORPH_DEF = validate(validateBodyModelTable, JSON.parse(readFileSync(new URL('../../data/body-models.json', import.meta.url), 'utf8')), 'body-models.json')['necromorph']!;
+/** The creature's entry in the body model table (data/body-models.json). */
+export const NECROMORPH_DEF = validate(validateBodyModelTable, bodyModelsJson, 'data/bodyModelFiles.ts')['necromorph']!;
 
 let scene: Promise<THREE.Group> | null = null;
 let prepared: Promise<PreparedBodyModel> | null = null;

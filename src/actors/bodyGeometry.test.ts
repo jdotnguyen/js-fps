@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { BODY_ATTRIBUTES, buildBodyGeometry, OUTFITS, triangleCount } from './bodyGeometry.ts';
 import { loadPoseFile } from '../data/types/poses.ts';
 import { PoseLibrary } from './poses.ts';
 import { JOINT_NAMES, JOINTS, subtree } from './skeleton.ts';
+import { posesJson } from '../data/poseFiles.ts';
 
 test('every outfit stays inside the 8-15k triangle budget (ADR-0006, raised for gore detail)', () => {
   for (const outfit of OUTFITS) {
@@ -34,9 +34,8 @@ test('same seed, same body', () => {
   assert.deepEqual(pa, pb);
 });
 
-test('shipped poses.json is valid and compiles', () => {
-  const raw: unknown = JSON.parse(readFileSync(new URL('../data/poses.json', import.meta.url), 'utf8'));
-  const lib = new PoseLibrary(loadPoseFile(raw));
+test('shipped pose files are valid and compile', () => {
+  const lib = new PoseLibrary(loadPoseFile(posesJson));
   for (const name of ['idle', 'shamble', 'crawl', 'dragging', 'corpseProne', 'corpseSupine', 'corpseSide', 'blindFlail', 'typing', 'panel_work', 'biometric_scan', 'crouchWork', 'corpseSlumped']) {
     assert.ok(lib.has(name), `missing pose ${name}`);
   }

@@ -51,7 +51,7 @@ Every source used by a clip needs a row in `CREDITS.md` (Animations) and an entr
 
 ## Sizes
 
-The core library loads at start and must stay within 2 MB. Every other named character's clips are a pack of their own (`pack` in the bake list), written to `src/data/mocap/<character>.json` and loaded with that character's body (`src/actors/mocapPacks.ts`). The bake rewrites this table.
+The core library loads at start and must stay within 2 MB. Every other named character's clips are a pack of their own (`pack` in the bake list), written to `src/data/cast/<character>/mocap.json` (listed in the generated `src/data/mocap/packs.ts`) and loaded with that character's body (`src/actors/mocapPacks.ts`). The bake rewrites this table.
 
 <!-- sizes:begin -->
 | Pack | Clips | Size |

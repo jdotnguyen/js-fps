@@ -1,0 +1,732 @@
+{
+ "poses": {
+  "lean_wall": {
+   "joints": {
+    "spine": [
+     10,
+     0,
+     0
+    ],
+    "chest": [
+     4,
+     0,
+     0
+    ],
+    "neck": [
+     -7,
+     0,
+     0
+    ],
+    "head": [
+     -7,
+     0,
+     0
+    ],
+    "thigh_L": [
+     12,
+     0,
+     -3
+    ],
+    "shin_L": [
+     0,
+     0,
+     0
+    ],
+    "foot_L": [
+     -12,
+     0,
+     0
+    ],
+    "thigh_R": [
+     40,
+     0,
+     6
+    ],
+    "shin_R": [
+     -95,
+     0,
+     0
+    ],
+    "foot_R": [
+     8,
+     0,
+     0
+    ],
+    "upperArm_L": [
+     20,
+     -70,
+     10
+    ],
+    "foreArm_L": [
+     104,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     18,
+     70,
+     -10
+    ],
+    "foreArm_R": [
+     108,
+     0,
+     0
+    ]
+   },
+   "pelvis": [
+    0,
+    -0.04,
+    0.18
+   ]
+  },
+  "lean_back": {
+   "joints": {
+    "pelvis": [
+     6,
+     0,
+     0
+    ],
+    "spine": [
+     4,
+     0,
+     0
+    ],
+    "chest": [
+     2,
+     0,
+     0
+    ],
+    "neck": [
+     -5,
+     0,
+     0
+    ],
+    "head": [
+     -6,
+     0,
+     0
+    ],
+    "thigh_L": [
+     9,
+     0,
+     -4
+    ],
+    "shin_L": [
+     0,
+     0,
+     0
+    ],
+    "foot_L": [
+     -9,
+     0,
+     0
+    ],
+    "thigh_R": [
+     20,
+     0,
+     5
+    ],
+    "shin_R": [
+     -14,
+     0,
+     0
+    ],
+    "foot_R": [
+     -2,
+     0,
+     0
+    ],
+    "upperArm_L": [
+     -26,
+     0,
+     -12
+    ],
+    "foreArm_L": [
+     34,
+     0,
+     0
+    ],
+    "hand_L": [
+     -30,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     -26,
+     0,
+     12
+    ],
+    "foreArm_R": [
+     34,
+     0,
+     0
+    ],
+    "hand_R": [
+     -30,
+     0,
+     0
+    ]
+   },
+   "pelvis": [
+    0,
+    -0.04,
+    0.2
+   ]
+  },
+  "lean_counter": {
+   "joints": {
+    "pelvis": [
+     -12,
+     0,
+     0
+    ],
+    "spine": [
+     -12,
+     0,
+     0
+    ],
+    "chest": [
+     -8,
+     0,
+     0
+    ],
+    "neck": [
+     14,
+     0,
+     0
+    ],
+    "head": [
+     12,
+     0,
+     0
+    ],
+    "thigh_L": [
+     19,
+     0,
+     -3
+    ],
+    "foot_L": [
+     -7,
+     0,
+     0
+    ],
+    "thigh_R": [
+     24,
+     0,
+     4
+    ],
+    "shin_R": [
+     -12,
+     0,
+     0
+    ],
+    "foot_R": [
+     0,
+     0,
+     0
+    ],
+    "upperArm_L": [
+     28,
+     0,
+     16
+    ],
+    "foreArm_L": [
+     72,
+     -40,
+     0
+    ],
+    "hand_L": [
+     -6,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     28,
+     0,
+     -16
+    ],
+    "foreArm_R": [
+     72,
+     40,
+     0
+    ],
+    "hand_R": [
+     -6,
+     0,
+     0
+    ]
+   },
+   "pelvis": [
+    0,
+    -0.03,
+    0.1
+   ]
+  },
+  "lean_back_mug": {
+   "extends": "lean_back",
+   "joints": {
+    "upperArm_R": [
+     14,
+     0,
+     -8
+    ],
+    "foreArm_R": [
+     95,
+     0,
+     0
+    ],
+    "hand_R": [
+     -30,
+     7,
+     2
+    ]
+   }
+  },
+  "lean_wall_glance": {
+   "extends": "lean_wall",
+   "joints": {
+    "spine": [
+     10,
+     6,
+     0
+    ],
+    "chest": [
+     4,
+     8,
+     0
+    ],
+    "neck": [
+     -7,
+     14,
+     0
+    ],
+    "head": [
+     -7,
+     22,
+     0
+    ]
+   }
+  },
+  "lean_wall_glance_other": {
+   "extends": "lean_wall",
+   "joints": {
+    "spine": [
+     10,
+     -6,
+     0
+    ],
+    "chest": [
+     4,
+     -8,
+     0
+    ],
+    "neck": [
+     -7,
+     -14,
+     0
+    ],
+    "head": [
+     -7,
+     -22,
+     0
+    ]
+   }
+  },
+  "lean_wall_look_down": {
+   "extends": "lean_wall",
+   "joints": {
+    "spine": [
+     7,
+     0,
+     0
+    ],
+    "neck": [
+     -13,
+     0,
+     0
+    ],
+    "head": [
+     -21,
+     0,
+     0
+    ]
+   }
+  },
+  "lean_wall_talk": {
+   "extends": "lean_wall",
+   "joints": {
+    "upperArm_R": [
+     30,
+     0,
+     6
+    ],
+    "foreArm_R": [
+     62,
+     0,
+     0
+    ],
+    "hand_R": [
+     0,
+     0,
+     -20
+    ]
+   }
+  },
+  "lean_wall_hands": {
+   "extends": "lean_wall",
+   "joints": {
+    "upperArm_L": [
+     -6,
+     0,
+     -8
+    ],
+    "foreArm_L": [
+     22,
+     0,
+     0
+    ],
+    "hand_L": [
+     0,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     -6,
+     0,
+     8
+    ],
+    "foreArm_R": [
+     22,
+     0,
+     0
+    ],
+    "hand_R": [
+     0,
+     0,
+     0
+    ]
+   }
+  },
+  "lean_back_glance": {
+   "extends": "lean_back",
+   "joints": {
+    "spine": [
+     4,
+     6,
+     0
+    ],
+    "chest": [
+     2,
+     8,
+     0
+    ],
+    "neck": [
+     -5,
+     14,
+     0
+    ],
+    "head": [
+     -6,
+     22,
+     0
+    ]
+   }
+  },
+  "lean_back_glance_other": {
+   "extends": "lean_back",
+   "joints": {
+    "spine": [
+     4,
+     -6,
+     0
+    ],
+    "chest": [
+     2,
+     -8,
+     0
+    ],
+    "neck": [
+     -5,
+     -14,
+     0
+    ],
+    "head": [
+     -6,
+     -22,
+     0
+    ]
+   }
+  },
+  "lean_back_look_down": {
+   "extends": "lean_back",
+   "joints": {
+    "spine": [
+     1,
+     0,
+     0
+    ],
+    "neck": [
+     -11,
+     0,
+     0
+    ],
+    "head": [
+     -20,
+     0,
+     0
+    ]
+   }
+  },
+  "lean_back_talk": {
+   "extends": "lean_back",
+   "joints": {
+    "upperArm_R": [
+     30,
+     0,
+     6
+    ],
+    "foreArm_R": [
+     62,
+     0,
+     0
+    ],
+    "hand_R": [
+     0,
+     0,
+     -20
+    ]
+   }
+  },
+  "lean_back_mug_glance": {
+   "extends": "lean_back_mug",
+   "joints": {
+    "spine": [
+     4,
+     6,
+     0
+    ],
+    "chest": [
+     2,
+     8,
+     0
+    ],
+    "neck": [
+     -5,
+     14,
+     0
+    ],
+    "head": [
+     -6,
+     22,
+     0
+    ]
+   }
+  },
+  "lean_back_mug_glance_other": {
+   "extends": "lean_back_mug",
+   "joints": {
+    "spine": [
+     4,
+     -6,
+     0
+    ],
+    "chest": [
+     2,
+     -8,
+     0
+    ],
+    "neck": [
+     -5,
+     -14,
+     0
+    ],
+    "head": [
+     -6,
+     -22,
+     0
+    ]
+   }
+  },
+  "lean_back_mug_look_down": {
+   "extends": "lean_back_mug",
+   "joints": {
+    "spine": [
+     1,
+     0,
+     0
+    ],
+    "neck": [
+     -11,
+     0,
+     0
+    ],
+    "head": [
+     -20,
+     0,
+     0
+    ]
+   }
+  },
+  "lean_back_mug_drink": {
+   "extends": "lean_back_mug",
+   "joints": {
+    "upperArm_R": [
+     30,
+     0,
+     -14
+    ],
+    "foreArm_R": [
+     125,
+     0,
+     0
+    ],
+    "hand_R": [
+     -20,
+     0,
+     0
+    ],
+    "head": [
+     8,
+     0,
+     0
+    ]
+   }
+  },
+  "lean_back_mug_talk": {
+   "extends": "lean_back_mug",
+   "joints": {
+    "upperArm_L": [
+     32,
+     0,
+     -6
+    ],
+    "foreArm_L": [
+     64,
+     0,
+     0
+    ],
+    "hand_L": [
+     0,
+     0,
+     20
+    ]
+   }
+  },
+  "lean_counter_glance": {
+   "extends": "lean_counter",
+   "joints": {
+    "spine": [
+     -12,
+     6,
+     0
+    ],
+    "chest": [
+     -8,
+     8,
+     0
+    ],
+    "neck": [
+     14,
+     14,
+     0
+    ],
+    "head": [
+     12,
+     22,
+     0
+    ]
+   }
+  },
+  "lean_counter_glance_other": {
+   "extends": "lean_counter",
+   "joints": {
+    "spine": [
+     -12,
+     -6,
+     0
+    ],
+    "chest": [
+     -8,
+     -8,
+     0
+    ],
+    "neck": [
+     14,
+     -14,
+     0
+    ],
+    "head": [
+     12,
+     -22,
+     0
+    ]
+   }
+  },
+  "lean_counter_look_down": {
+   "extends": "lean_counter",
+   "joints": {
+    "spine": [
+     -15,
+     0,
+     0
+    ],
+    "neck": [
+     8,
+     0,
+     0
+    ],
+    "head": [
+     -2,
+     0,
+     0
+    ]
+   }
+  },
+  "lean_counter_talk": {
+   "extends": "lean_counter",
+   "joints": {
+    "upperArm_R": [
+     50,
+     0,
+     4
+    ],
+    "foreArm_R": [
+     70,
+     0,
+     0
+    ],
+    "hand_R": [
+     0,
+     0,
+     -20
+    ]
+   }
+  },
+  "lean_counter_drink": {
+   "extends": "lean_counter",
+   "joints": {
+    "upperArm_R": [
+     30,
+     0,
+     -14
+    ],
+    "foreArm_R": [
+     125,
+     0,
+     0
+    ],
+    "hand_R": [
+     -20,
+     0,
+     0
+    ],
+    "head": [
+     10,
+     0,
+     0
+    ]
+   }
+  }
+ },
+ "sequences": {}
+}

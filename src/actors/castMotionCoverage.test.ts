@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import posesJson from '../data/poses.json' with { type: 'json' };
+import { posesJson } from '../data/poseFiles.ts';
 import speakersJson from '../data/dialogue/speakers.json' with { type: 'json' };
 import { INFECTION_LADDER, REVIVE_TASK, TASKS } from '../ai/squadBrain.ts';
 import { CAST } from './castLooks.ts';
@@ -38,7 +38,7 @@ const poseExists = (p: string): boolean => p in poses;
 /** Captured clips a look's body can play: the shared core library plus its own character pack (mocap-library spec). */
 const coreClips = new Set<string>(Object.keys((JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '../data/mocap-core.json'), 'utf8')) as { clips: Record<string, unknown> }).clips));
 function packClips(look: string): Set<string> {
-  const p = path.resolve(import.meta.dirname, `../data/mocap/${look}.json`);
+  const p = path.resolve(import.meta.dirname, `../data/cast/${look}/mocap.json`);
   if (!fs.existsSync(p)) return new Set();
   const clips = (JSON.parse(fs.readFileSync(p, 'utf8')) as { clips: Record<string, unknown> | Array<{ id: string }> }).clips;
   return new Set(Array.isArray(clips) ? clips.map((c) => c.id) : Object.keys(clips));

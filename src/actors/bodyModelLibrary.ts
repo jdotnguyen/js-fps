@@ -2,11 +2,11 @@ import { arr, bool, numRange, obj, oneOf, optional, record, str, type Infer, typ
 import type { Rng } from '../core/rng.ts';
 import { disposeTexture } from '../render/materials.ts';
 import { prepareBodyModel, type PrepareOptions, type PreparedBodyModel } from './bodyModel.ts';
-import bladeCreatureJson from '../data/blade-creature.json' with { type: 'json' };
+import bladeCreatureJson from '../data/creatures/blade/creature.json' with { type: 'json' };
 import { loadBladeCreature, type BladeCreatureProfile } from '../data/types/bladeCreature.ts';
 
 /**
- * Imported body models (ADR-0026, `data/body-models.json`): loaded once at boot, then shared by every body
+ * Imported body models (ADR-0026, `data/bodyModelFiles.ts`): loaded once at boot, then shared by every body
  * that uses them. A model that fails to load is logged and skipped; those bodies stay procedural.
  */
 
@@ -23,7 +23,7 @@ const modelShape = {
   sickTint: optional(numRange(0, 1)),
   /** Preserve individual finger and forearm-twist bones for biomechanical hand physics (main cast). */
   handRig: optional(bool),
-  /** A creature profile the body is prepared and driven with (`blade`: data/blade-creature.json, openspec rig-necromorph). */
+  /** A creature profile the body is prepared and driven with (`blade`: data/creatures/blade/creature.json, openspec rig-necromorph). */
   rig: optional(oneOf(['blade'] as const)),
   /** Attribution for CREDITS.md and the credits screen (CC-BY and friends require it). */
   credit: obj({ title: str, author: str, source: str, license: str }),
@@ -34,7 +34,7 @@ export type BodyModelTable = Record<string, BodyModelDef>;
 export const validateBodyModelTable: Validator<BodyModelTable> = record(obj(modelShape));
 
 let blade: BladeCreatureProfile | null = null;
-/** The blade creature's profile (data/blade-creature.json), validated once. */
+/** The blade creature's profile (data/creatures/blade/creature.json), validated once. */
 export function bladeCreatureProfile(): BladeCreatureProfile {
   blade ??= loadBladeCreature(bladeCreatureJson);
   return blade;

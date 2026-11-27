@@ -16,14 +16,14 @@ const NAMED: Record<string, CastLook> = {
   giles: GILES,
   okafor: OKAFOR,
   /**
-   * Priya Anand, 29, Okafor's nurse. Imported body (data/body-models.json): the "elegant woman" Character Creator model (light blue
+   * Priya Anand, 29, Okafor's nurse. Imported body (data/cast/priya/body.json): the "elegant woman" Character Creator model (light blue
    * rolled-sleeve blouse, white knee-length skirt, shoulder-length light-brown hair). `outfit`/`look` below only apply if it fails to
    * load and she falls back to the procedural body; the skin and hair colours follow the model.
    */
   priya: {
     seed: 'priya-anand',
     model: 'priya',
-    // Her motion profile (data/motion-profiles.json): her own clips (CMU subject 22, Bandai feminine walk and run) in the `priya`
+    // Her motion profile (data/cast/priya/motion.json): her own clips (CMU subject 22, Bandai feminine walk and run) in the `priya`
     // clip pack, loaded with her body, plus an `intro` variant. Her R08 death-scene variants land with task 6.4.
     profile: 'priya',
     outfit: 'medic',
@@ -43,7 +43,7 @@ const NAMED: Record<string, CastLook> = {
     },
   },
   /**
-   * Katie Heins, security chief: Jay's uniform with a lighter jacket, short purple hair. Imported body (ADR-0026, data/body-models.json):
+   * Katie Heins, security chief: Jay's uniform with a lighter jacket, short purple hair. Imported body (ADR-0026, data/cast/heins/body.json):
    * the "BS-V1 Cyborg" model (cybernetic right arm, dark jacket). `outfit`/`look` below only apply if it fails to load.
    */
   heins: {
@@ -68,7 +68,7 @@ const NAMED: Record<string, CastLook> = {
     },
   },
   /**
-   * Director Hale: a charcoal suit jacket, nervous, tired. Imported body (ADR-0026, data/body-models.json): the "A Man in suit" model.
+   * Director Hale: a charcoal suit jacket, nervous, tired. Imported body (ADR-0026, data/cast/hale/body.json): the "A Man in suit" model.
    * `outfit`/`look` below only apply if it fails to load.
    */
   hale: {
@@ -92,7 +92,7 @@ const NAMED: Record<string, CastLook> = {
     },
   },
   /**
-   * Bram, the cook (`crew_cook`). Imported body (ADR-0026, data/body-models.json): the "Chef T pose" scan.
+   * Bram, the cook (`crew_cook`). Imported body (ADR-0026, data/cast/bram/body.json): the "Chef T pose" scan.
    * `outfit`/`look` below (white kitchen jacket over checked-grey trousers) only apply if it fails to load and he falls back to the procedural body.
    */
   cook: {
@@ -114,7 +114,7 @@ const NAMED: Record<string, CastLook> = {
     },
   },
   /**
-   * Ines Ruiz, comms technician. Imported body (ADR-0026, data/body-models.json): the "Blue Overalls Technician" scan (navy coveralls,
+   * Ines Ruiz, comms technician. Imported body (ADR-0026, data/cast/ruiz/body.json): the "Blue Overalls Technician" scan (navy coveralls,
    * tool belt, long curly dark hair). `outfit`/`look`/`props` below (navy crew suit) only apply if it fails to load and she falls back
    * to the procedural body.
    */
@@ -136,7 +136,7 @@ const NAMED: Record<string, CastLook> = {
     },
   },
   /**
-   * Sung, a diver coming off shift. Imported body (ADR-0026, data/body-models.json): the "Construction Worker In Safety Gear" scan.
+   * Sung, a diver coming off shift. Imported body (ADR-0026, data/cast/sung/body.json): the "Construction Worker In Safety Gear" scan.
    * `outfit`/`look` below (dark drysuit with a yellow harness) only apply if it fails to load and he falls back to the procedural body.
    */
   sung: {
@@ -223,7 +223,7 @@ const CREW: Readonly<Record<string, Pick<CastLook, 'outfit' | 'look'>>> = {
 export const CREW_LOOKS: readonly string[] = Object.keys(CREW);
 
 /**
- * Imported bodies (ADR-0026, `data/body-models.json`) for generic crew looks: each NPC of the look gets one of these, picked by its id so
+ * Imported bodies (ADR-0026, `data/bodyModelFiles.ts`) for generic crew looks: each NPC of the look gets one of these, picked by its id so
  * the same NPC keeps the same body. The procedural outfit above is the fallback if a model fails to load.
  */
 const CREW_MODELS: Readonly<Record<string, readonly string[]>> = {

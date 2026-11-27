@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import posesJson from '../data/poses.json' with { type: 'json' };
+import { posesJson } from '../data/poseFiles.ts';
 import type { GoreSystem } from '../actors/gore.ts';
 import type { Interactable } from '../actors/interaction.ts';
 import { PoseLibrary } from '../actors/poses.ts';

@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import '../ui/styles/base.css';
 import keymapJson from '../data/keymap.json';
-import posesJson from '../data/poses.json';
-import bodyModelsJson from '../data/body-models.json';
+import { posesJson } from '../data/poseFiles.ts';
+import { bodyModelsJson } from '../data/bodyModelFiles.ts';
 import { BodyModelLibrary, validateBodyModelTable } from '../actors/bodyModelLibrary.ts';
 import { validateKeymap } from '../data/types/keymap.ts';
 import { loadPoseFile } from '../data/types/poses.ts';
@@ -153,7 +153,7 @@ async function boot(): Promise<void> {
   };
 
   // ---- Bodies and their pistols.
-  const bodyModels = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/body-models.json'));
+  const bodyModels = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/bodyModelFiles.ts'));
   await Promise.all([
     bodyModels.load(import.meta.env.BASE_URL),
     loadSharedMocapLibrary().then((lib) => loadMocapPacks(lib, Object.keys(sharedMotionProfiles().profiles))),

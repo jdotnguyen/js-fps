@@ -1,0 +1,38 @@
+{
+  "defaults": {
+    "m": "crew_m",
+    "f": "crew_f"
+  },
+  "profiles": {
+    "crew_m": {
+      "gender": "m",
+      "pools": {
+        "walk": [
+          "crew_m_walk_a",
+          "crew_m_walk_b",
+          "crew_m_walk_c"
+        ],
+        "jog": [
+          "crew_m_jog_a",
+          "crew_m_jog_b",
+          "crew_m_jog_c"
+        ]
+      }
+    },
+    "crew_f": {
+      "gender": "f",
+      "pools": {
+        "walk": [
+          "crew_f_walk_a",
+          "crew_f_walk_b",
+          "crew_f_walk_c"
+        ],
+        "jog": [
+          "crew_f_jog_a",
+          "crew_f_jog_b",
+          "crew_f_jog_c"
+        ]
+      }
+    }
+  }
+}

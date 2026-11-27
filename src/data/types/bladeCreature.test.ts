@@ -4,10 +4,12 @@ import { readFileSync } from 'node:fs';
 import type * as THREE from 'three';
 import { loadBladeCreature } from './bladeCreature.ts';
 import { necromorphScene } from '../../actors/blade/bladeTestKit.ts';
+import { posesJson } from '../poseFiles.ts';
+import { bodyModelsJson } from '../bodyModelFiles.ts';
 
 const json = (rel: string): unknown => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
-const raw = json('../blade-creature.json') as Record<string, unknown>;
-const poses = Object.keys((json('../poses.json') as { poses: Record<string, unknown> }).poses);
+const raw = json('../creatures/blade/creature.json') as Record<string, unknown>;
+const poses = Object.keys(posesJson.poses);
 
 async function modelBones(): Promise<string[]> {
   const scene = await necromorphScene();
@@ -19,7 +21,7 @@ async function modelBones(): Promise<string[]> {
 test('the blade creature profile validates, and every bone and pose it names exists', async () => {
   const p = loadBladeCreature(raw, { bones: await modelBones(), poses });
   assert.equal(p.model, 'necromorph');
-  const models = json('../body-models.json') as Record<string, { rig?: string }>;
+  const models = bodyModelsJson as Record<string, { rig?: string }>;
   assert.equal(models[p.model]?.rig, 'blade', 'its body model names the profile');
 });
 

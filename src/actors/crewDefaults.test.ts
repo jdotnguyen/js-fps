@@ -75,9 +75,9 @@ test('named characters ignore the crew pools', () => {
 
 test('the R02 mess room: every generic crew member plays its body\'s default, on a spread of takes, out of step', async () => {
   const level = readLevel('slice01') as { rooms: { id: string; npcs?: { id: string; look: string; pose?: string }[] }[] };
-  const table = (await import('../data/body-models.json', { with: { type: 'json' } })).default as unknown as Record<string, { gender: 'm' | 'f' }>;
+  const table = (await import('../data/bodyModelFiles.ts')).bodyModelsJson as unknown as Record<string, { gender: 'm' | 'f' }>;
   const { castSpec } = await import('./castLooks.ts');
-  // The bodies' genders as the game reads them (body-models.json); the meshes themselves aren't needed to pick the motion.
+  // The bodies' genders as the game reads them (data/bodyModelFiles.ts); the meshes themselves aren't needed to pick the motion.
   const bodyModels = { table, get: () => undefined } as unknown as BodyModelLibrary;
   const room = level.rooms.find((r) => r.id === 'R02')!;
   const rows: { id: string; gender: string; profile: string; walk: string; phase: number; tempo: number }[] = [];

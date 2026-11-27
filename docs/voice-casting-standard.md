@@ -20,6 +20,7 @@
 5. **Recasting a speaker** means changing their `voice` or `model` in `voCast.ts` and re-recording every one of their lines. It shows up in review as a one-line diff.
 6. **Two-speaker batches only pair speakers on the same model**, since one request runs on one model.
 7. There is no single target model for the whole cast. Three models are in use, one per speaker (§2).
+8. **Check the body's gender before casting an NPC.** It is the `gender` of the body model the NPC wears: a named character's is in `src/data/cast/<name>/body.json`, every other body's in `src/data/body-models.json`. An unnamed NPC gets one from its look's pool (`src/actors/castLooks.ts`).
 
 ## 2. Reference voice cast — dialogue (Gemini TTS)
 

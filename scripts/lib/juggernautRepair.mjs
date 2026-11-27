@@ -32,7 +32,7 @@ export const SOURCE_COMMIT = '900e513';
 export const SOURCE_PATH = 'previews/sources/monster_juggernaut_src.glb';
 export const SOURCE_HINT = `git show ${SOURCE_COMMIT}:public/assets/models/infected/monster_juggernaut.glb > ${SOURCE_PATH}`;
 export const MODEL_PATH = 'public/assets/models/infected/monster_juggernaut.glb';
-export const POSES_PATH = 'src/data/creatures/juggernaut.poses.json';
+export const POSES_PATH = 'src/data/creatures/juggernaut/poses.json';
 export const FIXTURE_PATH = 'scripts/fixtures/juggernaut-source.json';
 
 /** The game shows the Juggernaut this tall (m), measured on the body in the exported pose. */

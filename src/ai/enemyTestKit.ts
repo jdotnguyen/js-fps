@@ -14,6 +14,7 @@ import type { AttackKind, EnemyTarget } from './enemy.ts';
 import { validateEnemyTable, type EnemyTable } from './enemyData.ts';
 import { EnemyDirector } from './enemyDirector.ts';
 import { gridNodes, NavGraph } from './nav.ts';
+import { posesJson } from '../data/poseFiles.ts';
 
 const json = (rel: string): unknown => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
 
@@ -24,7 +25,7 @@ export const STUB_GORE = { mode: 'full', burst() {}, chunks() {}, pool() {}, spu
 
 let poses: PoseLibrary | null = null;
 export function ctx(): { poses: PoseLibrary; gore: GoreSystem } {
-  poses ??= new PoseLibrary(loadPoseFile(json('../data/poses.json')));
+  poses ??= new PoseLibrary(loadPoseFile(posesJson));
   return { poses, gore: STUB_GORE };
 }
 

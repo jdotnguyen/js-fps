@@ -87,12 +87,12 @@ export interface HumanoidSpec {
   /** Hand-set appearance for named characters (squad). */
   look?: Look;
   /**
-   * Imported body model id (data/body-models.json, ADR-0026) in place of the procedural body. Ignored if the
+   * Imported body model id (data/bodyModelFiles.ts, ADR-0026) in place of the procedural body. Ignored if the
    * context has no library or the model failed to load; outfit, look and hero sculpting do not apply to it.
    */
   model?: string;
   /**
-   * The character's motion profile (src/data/motion-profiles.json, character-motion spec). Named characters have their own;
+   * The character's motion profile (src/data/motionFiles.ts, character-motion spec). Named characters have their own;
    * everyone else uses the default for their body's gender.
    */
   profile?: string;
@@ -121,7 +121,7 @@ export interface HumanoidContext {
   bodyModels?: BodyModelLibrary;
   /** Retargeted mocap clip library (Tier B); defaults to the shared compiled library. */
   mocap?: MocapLibrary;
-  /** Motion profiles (tests); defaults to src/data/motion-profiles.json. */
+  /** Motion profiles (tests); defaults to src/data/motionFiles.ts. */
   motionProfiles?: MotionProfileFile;
   /** Load a character's clip pack into the library (tests); defaults to the bundled packs (mocapPacks.ts). */
   loadMocapPack?: (lib: MocapLibrary, name: string) => Promise<void>;

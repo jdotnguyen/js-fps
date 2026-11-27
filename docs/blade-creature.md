@@ -44,7 +44,7 @@ Close the tab when you are done; each game tab holds a lot of memory on the shar
 
 ## Profile and performance formats
 
-`src/data/blade-creature.json` (validated by `src/data/types/bladeCreature.ts`) attaches to the `necromorph` entry of `src/data/body-models.json` via `"rig": "blade"`:
+`src/data/creatures/blade/creature.json` (validated by `src/data/types/bladeCreature.ts`) attaches to the `necromorph` entry of `src/data/body-models.json` via `"rig": "blade"`:
 
 - `model`: body-model id (`"necromorph"`).
 - `ankleHeight`: ankle height above the sole at the 1.78 m reference height (m), passed to `FootIkSolver`.
@@ -54,7 +54,7 @@ Close the tab when you are done; each game tab holds a lot of memory on the shar
 - `limbs`: `[{ name, root }]` — belly-arm root bones preserved as detail chains under the torso.
 - `blades`: `{ L: { hand }, R: { hand } }` — hand joints whose blade tips are recorded at preparation.
 - `hits`: `{ bladeRadius, maxRadius }` — fitted hit-capsule radii (m, reference height).
-- `poseMap`: generic pose name -> `blade_*` pose in `src/data/poses.json` (fallback: `blade_stance`, logged once).
+- `poseMap`: generic pose name -> `blade_*` pose in `src/data/creatures/blade/poses.json` (fallback: `blade_stance`, logged once).
 - `performances`: named multi-phase timelines (e.g. `scream`) played by `Humanoid.playPerformance(name, { hold })`, `npcAnim` or kill `attackerPerf`:
   - Each phase has `{ pose, blend, hold, jaw?, flare?, tremor?, stretch? }`.
   - Setting `stretch: true` on a phase lets a caller pass a custom hold duration (s) while keeping the coil and settle timings intact.

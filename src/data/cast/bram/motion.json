@@ -1,0 +1,60 @@
+{
+  "bram": {
+    "gender": "m",
+    "inherits": "crew_m",
+    "clips": {
+      "idle": "bram_idle",
+      "talk": "bram_talk",
+      "walk": "bram_walk",
+      "jog": "bram_jog",
+      "work": "bram_work",
+      "drink": "bram_drink",
+      "aimPistol": "pistol_idle"
+    },
+    "holds": {
+      "stand": "bram_hold",
+      "lean_back": "bram_hold",
+      "lean_wall": "bram_hold",
+      "lean_counter": "bram_hold",
+      "sit_chair": "bram_hold",
+      "sit_stool": "bram_hold",
+      "sit_sofa": "bram_hold",
+      "crouch": "bram_hold",
+      "kneel": "bram_hold"
+    },
+    "style": {
+      "tempo": 0.85,
+      "fidgetRate": 0.6,
+      "armCarry": 1.1
+    },
+    "variants": {
+      "intro": {
+        "when": {
+          "sequence": "intro_shift_change"
+        },
+        "clips": {
+          "work": "bram_coffee"
+        },
+        "style": {
+          "tempo": 1,
+          "talkArms": 0
+        }
+      },
+      "intro_served": {
+        "when": {
+          "sequence": "intro_shift_change",
+          "flag": "bram_coffee_served"
+        },
+        "style": {
+          "talkArms": 1
+        }
+      }
+    },
+    "hands": {
+      "tension": 0.3,
+      "stiffness": 0.82,
+      "fidget": 0.22,
+      "restCurl": 0.62
+    }
+  }
+}

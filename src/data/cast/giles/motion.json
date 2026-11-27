@@ -1,0 +1,120 @@
+{
+  "giles": {
+    "gender": "m",
+    "inherits": "crew_m",
+    "clips": {
+      "idle": "giles_idle",
+      "talk": "giles_talk",
+      "walk": "giles_walk",
+      "jog": "giles_jog",
+      "work": "giles_console",
+      "drink": "giles_coffee",
+      "aimPistol": "giles_pistol"
+    },
+    "poses": {
+      "idle_pistol": "giles_idle_pistol"
+    },
+    "variants": {
+      "intro": {
+        "when": {
+          "sequence": "intro_shift_change"
+        },
+        "holds": {
+          "lean_back": "giles_coffee"
+        },
+        "style": {
+          "tempo": 0.9
+        }
+      },
+      "panel": {
+        "when": {
+          "task": [
+            "bypass",
+            "bypass_short",
+            "bypass_long",
+            "unlock_locker"
+          ]
+        },
+        "clips": {
+          "work": "giles_panel"
+        },
+        "holds": {
+          "crouch": "giles_panel"
+        }
+      },
+      "console": {
+        "when": {
+          "task": [
+            "power_restore",
+            "reroute"
+          ]
+        },
+        "clips": {
+          "work": "giles_console"
+        },
+        "style": {
+          "headPitch": 10,
+          "fidgetRate": 0.7
+        }
+      },
+      "reveal": {
+        "when": {
+          "stage": [
+            4,
+            4
+          ]
+        },
+        "holds": {
+          "stand": "giles_reveal"
+        },
+        "style": {
+          "posture": -0.6,
+          "headPitch": 10,
+          "tempo": 0.9,
+          "fidgetRate": 2
+        }
+      },
+      "flood": {
+        "when": {
+          "sequence": [
+            "valve_turn",
+            "r10_ambush"
+          ]
+        },
+        "clips": {
+          "jog": "giles_panic_run"
+        },
+        "poses": {
+          "panic_brace": "giles_panic_brace"
+        },
+        "style": {
+          "tempo": 1.25,
+          "fidgetRate": 2.2
+        }
+      }
+    },
+    "holds": {
+      "stand": "giles_hold",
+      "lean_back": "giles_hold",
+      "lean_wall": "giles_hold",
+      "lean_counter": "giles_hold",
+      "sit_chair": "giles_hold",
+      "sit_stool": "giles_hold",
+      "crouch": "giles_hold",
+      "kneel": "giles_hold"
+    },
+    "style": {
+      "tempo": 0.95,
+      "fidgetRate": 1.35,
+      "posture": -0.25,
+      "headPitch": 4
+    },
+    "hands": {
+      "tension": 0.58,
+      "stiffness": 1.08,
+      "fidget": 0.48,
+      "restCurl": 0.56,
+      "twitch": 1
+    }
+  }
+}

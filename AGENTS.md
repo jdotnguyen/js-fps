@@ -16,11 +16,16 @@ Edit the file that owns what you are working on, so agents on different work sta
 | Doors and vents, which span two rooms | `src/data/levels/slice01/doors.json` |
 | The level: room list and order, player and squad starts, pickups, map stations, checkpoints | `src/data/levels/slice01/level.json` |
 | A scene sequence | `src/data/sequences/<scene>.json` |
-| A character's poses | `src/data/poses.json` |
-| Character body models | `src/data/body-models.json` |
+| A named character: body model, own poses, motion profile, motion-capture pack (written by `scripts/bake-mocap.mjs`) | `src/data/cast/<name>/`: `body.json`, `poses.json`, `motion.json`, `mocap.json`, each where the character has one |
+| A creature: profile and poses (`docs/blade-creature.md`, `docs/creature-rig.md`) | `src/data/creatures/<id>/`: `creature.json`, `poses.json` |
+| Poses more than one character uses | `src/data/poses/<family>.json` (sit, lean, corpse, kill and so on) |
+| Generic crew and infected body models, and which crew look wears which | `src/data/body-models.json`, `src/actors/castLooks.ts` |
+| The default motion of unnamed crew | `src/data/motion-crew.json` |
 | Sounds, one file per area (`docs/audio-assets.md`). A new area is also listed in `index.ts` there | `src/audio/sounds/<area>.ts` |
 
-Read a level in tests and tools with `readLevel` (`src/data/levels/readLevel.ts`), not by opening its files. No script writes the level files. A room's floors, walls and ceilings are built from its `layout` when the level loads (`docs/modular-grid-standard.md`). OpenSpec change `split-level-data` splits the pose and body files per owner in a later phase.
+Read a level in tests and tools with `readLevel` (`src/data/levels/readLevel.ts`), not by opening its files. No script writes the level files. A room's floors, walls and ceilings are built from its `layout` when the level loads (`docs/modular-grid-standard.md`).
+
+A new pose, body or motion file is also listed in `src/data/poseFiles.ts`, `src/data/bodyModelFiles.ts` or `src/data/motionFiles.ts`. A pose name or model id used in two files fails loading.
 
 ## Build, Test, and Development Commands
 

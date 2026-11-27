@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import posesJson from '../data/poses.json' with { type: 'json' };
+import { posesJson } from '../data/poseFiles.ts';
 import { loadPoseFile } from '../data/types/poses.ts';
 import { contactBodies } from '../render/contactShadows.ts';
 import { ShadowCasterSet } from '../render/shadowCasters.ts';

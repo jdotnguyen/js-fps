@@ -1,0 +1,36 @@
+{
+  "sung": {
+    "gender": "m",
+    "inherits": "crew_m",
+    "clips": {
+      "idle": "sung_idle",
+      "talk": "sung_idle",
+      "walk": "sung_walk",
+      "jog": "sung_jog",
+      "aimPistol": "pistol_idle"
+    },
+    "holds": {
+      "stand": "sung_hold",
+      "lean_back": "sung_hold",
+      "lean_wall": "sung_hold",
+      "lean_counter": "sung_hold",
+      "sit_chair": "sung_hold",
+      "sit_stool": "sung_hold",
+      "sit_sofa": "sung_hold",
+      "crouch": "sung_hold",
+      "kneel": "sung_hold"
+    },
+    "style": {
+      "tempo": 0.85,
+      "fidgetRate": 0.5,
+      "armCarry": 1.2,
+      "posture": 0.1
+    },
+    "hands": {
+      "tension": 0.2,
+      "stiffness": 0.78,
+      "fidget": 0.26,
+      "restCurl": 0.66
+    }
+  }
+}

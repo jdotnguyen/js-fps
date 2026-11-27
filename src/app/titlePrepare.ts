@@ -152,8 +152,8 @@ export function realSharedLoaders(options: { baseUrl: string; physicsSetting: ()
     },
     [ITEMS.weapons]: async () => (await import('../render/viewmodel/glbWeapons.ts')).loadWeaponModels(),
     [ITEMS.bodyModels]: async () => {
-      const [{ BodyModelLibrary, validateBodyModelTable }, { default: table }] = await Promise.all([import('../actors/bodyModelLibrary.ts'), import('../data/body-models.json')]);
-      const lib = new BodyModelLibrary(validate(validateBodyModelTable, table, 'data/body-models.json'));
+      const [{ BodyModelLibrary, validateBodyModelTable }, { bodyModelsJson: table }] = await Promise.all([import('../actors/bodyModelLibrary.ts'), import('../data/bodyModelFiles.ts')]);
+      const lib = new BodyModelLibrary(validate(validateBodyModelTable, table, 'data/bodyModelFiles.ts'));
       await lib.load(baseUrl, yieldTo);
       return lib;
     },

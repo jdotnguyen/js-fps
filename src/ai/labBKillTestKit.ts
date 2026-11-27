@@ -18,6 +18,7 @@ import { validateKillTable } from '../data/types/kills.ts';
 import { loadPoseFile } from '../data/types/poses.ts';
 import { loadSlice01 } from '../world/headlessSlice.ts';
 import { NpcDirector } from './npcs.ts';
+import { posesJson } from '../data/poseFiles.ts';
 
 const json = (p: string): unknown => JSON.parse(readFileSync(new URL(`../data/${p}`, import.meta.url), 'utf8'));
 
@@ -92,7 +93,7 @@ export function joints(body: Humanoid): Map<JointName, THREE.Vector3> {
 
 export async function labBKill(opts: { fps?: number; creature?: boolean } = {}) {
   const fps = opts.fps ?? 60;
-  sharedMocapLibrary().addPack('voss', json('mocap/voss.json') as RawMocapFile);
+  sharedMocapLibrary().addPack('voss', json('cast/voss/mocap.json') as RawMocapFile);
   sharedMocapLibrary().retainPack('voss');
   const models: Record<string, Awaited<ReturnType<typeof loadMainCast>>> = { office3: await loadMainCast('office_3') };
   if (opts.creature) models['necromorph'] = await necromorphModel();
@@ -110,7 +111,7 @@ export async function labBKill(opts: { fps?: number; creature?: boolean } = {}) 
   };
   const npcs = new NpcDirector({
     ctx: {
-      poses: new PoseLibrary(loadPoseFile(json('poses.json'))),
+      poses: new PoseLibrary(loadPoseFile(posesJson)),
       gore: new Proxy({}, { get: () => noop }) as unknown as GoreSystem,
       // Voss's imported body, and (with `creature`) the blade creature that comes out of her.
       bodyModels: { table: opts.creature ? { necromorph: NECROMORPH_DEF } : {}, get: (id: string) => models[id], pick: () => null } as unknown as BodyModelLibrary,

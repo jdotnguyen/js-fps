@@ -7,7 +7,7 @@ import type { HumanoidSpec } from './humanoid.ts';
 export const GILES: Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 'look' | 'model' | 'profile'> = {
   seed: 'august-giles',
   profile: 'giles',
-  // Imported body (ADR-0026, data/body-models.json): the "Mechanic 1" coverall model. `outfit`/`look` below only
+  // Imported body (ADR-0026, data/cast/giles/body.json): the "Mechanic 1" coverall model. `outfit`/`look` below only
   // apply if it fails to load and he falls back to the procedural body.
   model: 'mechanic',
   outfit: 'engineer',
@@ -34,7 +34,7 @@ export const GILES: Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 
 export const OKAFOR: Pick<HumanoidSpec, 'seed' | 'outfit' | 'height' | 'build' | 'look' | 'model' | 'profile'> = {
   seed: 'tomas-okafor',
   profile: 'okafor',
-  // Imported body (ADR-0026, data/body-models.json): BrushDip's rigged "Doctor" (lab coat over a blue shirt and tie, grey hair and
+  // Imported body (ADR-0026, data/cast/okafor/body.json): BrushDip's rigged "Doctor" (lab coat over a blue shirt and tie, grey hair and
   // beard, round glasses), in the "doctor" slot. `outfit`/`look` below only apply if it fails to load and he falls back to the
   // procedural body; they follow the model.
   model: 'doctor',

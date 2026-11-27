@@ -1,0 +1,51 @@
+{
+  "hale": {
+    "gender": "m",
+    "inherits": "crew_m",
+    "clips": {
+      "idle": "hale_idle",
+      "talk": "hale_talk",
+      "walk": "hale_walk",
+      "jog": "hale_jog",
+      "aimPistol": "pistol_idle"
+    },
+    "holds": {
+      "stand": "hale_hold",
+      "lean_back": "hale_hold",
+      "lean_wall": "hale_hold",
+      "lean_counter": "hale_hold",
+      "sit_chair": "hale_hold",
+      "sit_stool": "hale_hold",
+      "sit_sofa": "hale_hold",
+      "crouch": "hale_hold",
+      "kneel": "hale_hold"
+    },
+    "style": {
+      "tempo": 1.05,
+      "fidgetRate": 1.8,
+      "posture": 0,
+      "headPitch": 2,
+      "asymmetry": 0.25
+    },
+    "variants": {
+      "briefing": {
+        "when": {
+          "sequence": [
+            "rounds",
+            "briefing_gallery"
+          ]
+        },
+        "style": {
+          "tempo": 1.15,
+          "fidgetRate": 2.4
+        }
+      }
+    },
+    "hands": {
+      "tension": 0.72,
+      "stiffness": 1.18,
+      "fidget": 0.68,
+      "restCurl": 0.52
+    }
+  }
+}

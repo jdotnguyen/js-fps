@@ -1,7 +1,7 @@
 ﻿import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import posesJson from '../data/poses.json' with { type: 'json' };
+import { posesJson } from '../data/poseFiles.ts';
 import killsJson from '../data/kills.json' with { type: 'json' };
 import type { GoreSystem } from '../actors/gore.ts';
 import { clearOfBand } from '../actors/goreClip.ts';
@@ -18,7 +18,7 @@ import { creatureLib, necromorphModel } from '../actors/blade/bladeTestKit.ts';
 import { readLevel } from '../data/levels/readLevel.ts';
 import { SAMPLE_URLS } from '../audio/sounds.ts';
 import { existsSync } from 'node:fs';
-import vossPack from '../data/mocap/voss.json' with { type: 'json' };
+import vossPack from '../data/cast/voss/mocap.json' with { type: 'json' };
 import { sharedMocapLibrary, type RawMocapFile } from '../actors/mocap.ts';
 import { ANKLE_CLEARANCE, OVERSTRETCH_RELEASE_S } from '../actors/footIk.ts';
 import type { FootstepEvent } from '../actors/humanoid.ts';

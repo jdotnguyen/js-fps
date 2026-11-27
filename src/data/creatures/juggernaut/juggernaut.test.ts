@@ -1,21 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { validateCreatureDef, validateCreaturePoses } from '../types/creatures.ts';
+import { validateCreatureDef, validateCreaturePoses } from '../../types/creatures.ts';
 
 // openspec rig-juggernaut D5: the Juggernaut's rig data names only joints its model has, and covers every joint that moves skin.
 
 const read = (rel: string): unknown => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
-const def = validateCreatureDef(read('./juggernaut.json'), 'data/creatures/juggernaut.json');
-const poses = validateCreaturePoses(read('./juggernaut.poses.json'), 'data/creatures/juggernaut.poses.json');
+const def = validateCreatureDef(read('./creature.json'), 'data/creatures/juggernaut/creature.json');
+const poses = validateCreaturePoses(read('./poses.json'), 'data/creatures/juggernaut/poses.json');
 
 function modelNodes(): string[] {
-  const buf = readFileSync(new URL(`../../../public/${def.model}`, import.meta.url));
+  const buf = readFileSync(new URL(`../../../../public/${def.model}`, import.meta.url));
   const json = JSON.parse(buf.subarray(20, 20 + buf.readUInt32LE(12)).toString('utf8')) as { nodes: Array<{ name?: string }> };
   return json.nodes.map((n) => n.name ?? '');
 }
 
-const fixture = read('../../../scripts/fixtures/juggernaut-source.json') as { weighted: string[] };
+const fixture = read('../../../../scripts/fixtures/juggernaut-source.json') as { weighted: string[] };
 
 test('every joint the Juggernaut data names is in its model', () => {
   const nodes = new Set(modelNodes());

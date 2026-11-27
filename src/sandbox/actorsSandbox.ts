@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import '../ui/styles/base.css';
 import keymapJson from '../data/keymap.json';
-import posesJson from '../data/poses.json';
-import bodyModelsJson from '../data/body-models.json';
+import { posesJson } from '../data/poseFiles.ts';
+import { bodyModelsJson } from '../data/bodyModelFiles.ts';
 import { BodyModelLibrary, validateBodyModelTable } from '../actors/bodyModelLibrary.ts';
 import { validateKeymap } from '../data/types/keymap.ts';
 import { loadPoseFile } from '../data/types/poses.ts';
@@ -158,7 +158,7 @@ async function boot(): Promise<void> {
 
   // High-fidelity imported models are used by default everywhere; `?bodyModel=<id>` forces one model on crowd enemies.
   const modelParam = new URLSearchParams(location.search).get('bodyModel');
-  const bodyModels = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/body-models.json'));
+  const bodyModels = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/bodyModelFiles.ts'));
   const motionProfiles = sharedMotionProfiles();
   await Promise.all([
     bodyModels.load(import.meta.env.BASE_URL),

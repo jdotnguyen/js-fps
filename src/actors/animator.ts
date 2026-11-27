@@ -210,7 +210,7 @@ export class Animator {
   /** Latest combat jaw/flare amounts emitted by `BladeMotion` this frame (0..1). */
   bladeMotionJaw = 0;
   bladeMotionFlare = 0;
-  /** Named performances from a creature's profile (`data/blade-creature.json`, design D8), or null for humans. */
+  /** Named performances from a creature's profile (`data/creatures/blade/creature.json`, design D8), or null for humans. */
   performances: Readonly<Record<string, BladePerformance>> | null = null;
   /** Active performance amounts (0..1) read by `Humanoid` / `BladeMotion` each frame. */
   bladePerfJaw = 0;
@@ -572,12 +572,12 @@ export class Animator {
     const key = `${name}->${to}`;
     if (!Animator.warnedMaps.has(key)) {
       Animator.warnedMaps.add(key);
-      console.warn(`[blade] pose map: "${name}" maps to "${to}", which is not in poses.json; using ${map['idle'] ?? 'idle'}`);
+      console.warn(`[blade] pose map: "${name}" maps to "${to}", which no pose file defines; using ${map['idle'] ?? 'idle'}`);
     }
     return map['idle'] && this.poses.has(map['idle']) ? map['idle'] : name;
   }
 
-  /** The creature's pose map (data/blade-creature.json `poseMap`), or null for every human body. */
+  /** The creature's pose map (data/creatures/blade/creature.json `poseMap`), or null for every human body. */
   poseMap: Readonly<Record<string, string>> | null = null;
   private static readonly warnedMaps = new Set<string>();
 
@@ -610,7 +610,7 @@ export class Animator {
   }
 
   /**
-   * Play a named creature performance (`data/blade-creature.json` `performances`, design D8).
+   * Play a named creature performance (`data/creatures/blade/creature.json` `performances`, design D8).
    * `hold` overrides the hold duration of any phase marked `stretch: true`. Returns false and warns once if missing.
    */
   playPerformance(name: string, opts: { hold?: number; onDone?: () => void } = {}): boolean {
@@ -989,7 +989,7 @@ export class Animator {
   /**
    * Drives living upright humanoids (both human cast/NPCs and upright infected enemies) with retargeted
    * CC0 mocap clips (`idle`, `idle_talk`, `walk`, `walk_formal`, `jog`, `pistol_idle`, `kneel_fix`, `crouch_idle`),
-   * blending seamlessly with authored poses (`poses.json`) when scripts, horror postures, or slams request them.
+   * blending seamlessly with authored poses (`data/poseFiles.ts`) when scripts, horror postures, or slams request them.
    * Returns true when mocap owns the locomotion cycle (so legacy sine-wave walk/shamble legs stay off).
    */
   private updateMocapBase(dt: number): boolean {

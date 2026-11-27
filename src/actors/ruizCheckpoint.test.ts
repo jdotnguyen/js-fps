@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import coreJson from '../data/mocap-core.json' with { type: 'json' };
-import ruizPack from '../data/mocap/ruiz.json' with { type: 'json' };
+import ruizPack from '../data/cast/ruiz/mocap.json' with { type: 'json' };
 import { ctx as enemyCtx } from '../ai/enemyTestKit.ts';
 import { CAST } from './castLooks.ts';
 import { Humanoid } from './humanoid.ts';

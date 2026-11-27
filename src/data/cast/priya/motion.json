@@ -1,0 +1,58 @@
+{
+  "priya": {
+    "gender": "f",
+    "inherits": "crew_f",
+    "clips": {
+      "idle": "priya_idle",
+      "talk": "priya_talk",
+      "walk": "priya_walk",
+      "jog": "priya_jog",
+      "work": "priya_lean",
+      "drink": "priya_drink",
+      "aimPistol": "pistol_idle"
+    },
+    "holds": {
+      "stand": "priya_lean",
+      "lean_back": "priya_lean",
+      "lean_wall": "priya_lean",
+      "lean_counter": "priya_lean",
+      "sit_chair": "priya_lean",
+      "sit_stool": "priya_lean",
+      "crouch": "priya_lean",
+      "kneel": "priya_lean"
+    },
+    "style": {
+      "tempo": 1.12,
+      "fidgetRate": 1.25,
+      "armCarry": 1.15,
+      "posture": 0.2,
+      "headPitch": -2
+    },
+    "variants": {
+      "run": {
+        "when": {
+          "sequence": "sec_glass"
+        },
+        "clips": {
+          "jog": "priya_run"
+        }
+      },
+      "intro": {
+        "when": {
+          "sequence": "intro_shift_change"
+        },
+        "style": {
+          "tempo": 1.2,
+          "armCarry": 1.25,
+          "headPitch": -4
+        }
+      }
+    },
+    "hands": {
+      "tension": 0.32,
+      "stiffness": 1.12,
+      "fidget": 0.36,
+      "restCurl": 0.38
+    }
+  }
+}

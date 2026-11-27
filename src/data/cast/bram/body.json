@@ -1,0 +1,16 @@
+{
+  "bram": {
+    "url": "assets/models/squad/bram.glb",
+    "handRig": true,
+    "variants": [],
+    "share": 0,
+    "gender": "m",
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Chef T pose",
+      "author": "Imran Aziz (bayharborbutcher)",
+      "source": "https://sketchfab.com/3d-models/chef-t-pose-e63d4cf44225429a943e2d1021d6a130",
+      "license": "CC-BY-4.0"
+    }
+  }
+}

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as THREE from 'three';
 import coreJson from '../data/mocap-core.json' with { type: 'json' };
+import { MOCAP_PACKS } from '../data/mocap/packs.ts';
 import type { RawMocapClip, RawMocapFile } from './mocap.ts';
 import { NEUTRAL_CLIPS, sharedMotionProfiles } from './motionProfiles.ts';
 
@@ -20,13 +21,10 @@ const PELVIS_LIMIT = 10;
 const UPPER_BACK_LIMIT = 12;
 const SIDE_TILT_LIMIT = 10;
 
-const packDir = path.resolve(import.meta.dirname, '../data/mocap');
+const castDir = path.resolve(import.meta.dirname, '../data/cast');
 const files: RawMocapFile[] = [
   coreJson as unknown as RawMocapFile,
-  ...fs
-    .readdirSync(packDir)
-    .filter((f) => f.endsWith('.json'))
-    .map((f) => JSON.parse(fs.readFileSync(path.join(packDir, f), 'utf8')) as RawMocapFile),
+  ...Object.keys(MOCAP_PACKS).map((n) => JSON.parse(fs.readFileSync(path.join(castDir, n, 'mocap.json'), 'utf8')) as RawMocapFile),
 ];
 const clips = new Map<string, RawMocapClip>();
 for (const f of files) for (const [id, c] of Object.entries(f.clips)) clips.set(id, c);

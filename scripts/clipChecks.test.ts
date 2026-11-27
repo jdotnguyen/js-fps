@@ -8,6 +8,7 @@ import { BONE_MAPS, bakeBvh, loadBvh } from './lib/bvhBake.mjs';
 // @ts-expect-error plain ES module without types
 import { buildRig, clearanceProblems, fixClearance, poseRig, twoBone } from './lib/clipChecks.mjs';
 import mocapJson from '../src/data/mocap-core.json' with { type: 'json' };
+import { MOCAP_PACKS } from '../src/data/mocap/packs.ts';
 
 type Clip = { frames: number; loop: boolean; pelvis: number[]; joints: Record<string, number[]> };
 const fixture = (f: string): string => fs.readFileSync(path.join(import.meta.dirname, 'fixtures/mocap', f), 'utf8');
@@ -75,9 +76,8 @@ function clavicleElevation(clip: Clip | null, rig: Rig = buildRig()): number {
 }
 
 function libraryClips(): [string, Clip][] {
-  const dir = path.resolve(import.meta.dirname, '../src/data/mocap');
-  const packs = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.json')) : [];
-  const files = [mocapJson as unknown as { clips: Record<string, Clip & { additive?: boolean }> }, ...packs.map((f) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')))];
+  const cast = path.resolve(import.meta.dirname, '../src/data/cast');
+  const files = [mocapJson as unknown as { clips: Record<string, Clip & { additive?: boolean }> }, ...Object.keys(MOCAP_PACKS).map((n) => JSON.parse(fs.readFileSync(path.join(cast, n, 'mocap.json'), 'utf8')))];
   return files.flatMap((f) => Object.entries(f.clips as Record<string, Clip & { additive?: boolean }>).filter(([id, c]) => !c.additive && !id.startsWith('zombie')));
 }
 

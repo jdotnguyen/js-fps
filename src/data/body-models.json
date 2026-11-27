@@ -15,102 +15,6 @@
       "license": "CC-BY-4.0"
     }
   },
-  "mechanic": {
-    "url": "assets/models/squad/mechanic.glb",
-    "variants": [],
-    "share": 0,
-    "gender": "m",
-    "sickTint": 0.3,
-    "handRig": true,
-    "credit": {
-      "title": "Mechanic 1",
-      "author": "SidewalkNZ",
-      "source": "https://sketchfab.com/3d-models/mechanic-1-e98955d94822456e96a03e692d3d8429",
-      "license": "CC-BY-4.0"
-    }
-  },
-  "doctor": {
-    "url": "assets/models/squad/doctor.glb",
-    "variants": [],
-    "share": 0,
-    "gender": "m",
-    "sickTint": 0.3,
-    "handRig": true,
-    "credit": {
-      "title": "Doctor - Sketchfab Weekly - 13 Mar'23",
-      "author": "BrushDip",
-      "source": "https://sketchfab.com/3d-models/doctor-sketchfab-weekly-13-mar23-9c89a438a5e940e59a0f9a07c22d6ade",
-      "license": "CC-BY-4.0"
-    }
-  },
-  "priya": {
-    "url": "assets/models/squad/priya.glb",
-    "variants": [],
-    "share": 0,
-    "gender": "f",
-    "sickTint": 0.3,
-    "handRig": true,
-    "credit": {
-      "title": "elegant woman",
-      "author": "adri8restuz",
-      "source": "https://sketchfab.com/3d-models/elegant-woman-5f84869dd2fa4492b384bbb04ddf464e",
-      "license": "CC-BY-4.0"
-    }
-  },
-  "sung": {
-    "url": "assets/models/squad/sung.glb",
-    "variants": [],
-    "share": 0,
-    "gender": "m",
-    "sickTint": 0.3,
-    "credit": {
-      "title": "Construction Worker In Safety Gear",
-      "author": "restore50",
-      "source": "https://sketchfab.com/3d-models/construction-worker-in-safety-gear-f3d6999edb1e4cd99da2519c4d75bf2b",
-      "license": "CC-BY-4.0"
-    }
-  },
-  "ruiz": {
-    "url": "assets/models/squad/ruiz.glb",
-    "variants": [],
-    "share": 0,
-    "gender": "f",
-    "sickTint": 0.3,
-    "credit": {
-      "title": "Blue Overalls Technician",
-      "author": "restore50",
-      "source": "https://sketchfab.com/3d-models/blue-overalls-technician-5ff134cc3a8d4d99858964e1f2b4b0da",
-      "license": "CC-BY-4.0"
-    }
-  },
-  "heins": {
-    "url": "assets/models/squad/heins.glb",
-    "handRig": true,
-    "variants": [],
-    "share": 0,
-    "gender": "f",
-    "sickTint": 0.3,
-    "credit": {
-      "title": "BS-V1 Cyborg",
-      "author": "Blue Spirit",
-      "source": "https://sketchfab.com/3d-models/bs-v1-cyborg-43f2e2e84fe94864bf13be2c69048597",
-      "license": "CC-BY-4.0"
-    }
-  },
-  "hale": {
-    "url": "assets/models/squad/hale.glb",
-    "variants": [],
-    "share": 0,
-    "gender": "m",
-    "sickTint": 0.3,
-    "handRig": true,
-    "credit": {
-      "title": "A Man in suit",
-      "author": "anuragk1229",
-      "source": "https://sketchfab.com/3d-models/a-man-in-suit-5a2df7ef28bc408abf162d639e9583a8",
-      "license": "CC-BY-4.0"
-    }
-  },
   "necromorph": {
     "url": "assets/models/infected/necromorph_slasher.glb",
     "variants": [],
@@ -122,20 +26,6 @@
       "title": "Necromorph Slasher Varient 1 Rig",
       "author": "NO.DONT.EAT.ME.CASEOH",
       "source": "https://sketchfab.com/3d-models/necromorph-slasher-varient-1-rig-137342e28bf947c19d347d9643b66621",
-      "license": "CC-BY-4.0"
-    }
-  },
-  "bram": {
-    "url": "assets/models/squad/bram.glb",
-    "handRig": true,
-    "variants": [],
-    "share": 0,
-    "gender": "m",
-    "sickTint": 0.3,
-    "credit": {
-      "title": "Chef T pose",
-      "author": "Imran Aziz (bayharborbutcher)",
-      "source": "https://sketchfab.com/3d-models/chef-t-pose-e63d4cf44225429a943e2d1021d6a130",
       "license": "CC-BY-4.0"
     }
   },

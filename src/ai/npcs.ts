@@ -44,7 +44,7 @@ export interface NpcSpawn {
   transformable?: boolean | undefined;
   /** Conversation group (ADR-0029): NPCs sharing it talk to each other. */
   chat?: string | undefined;
-  /** Imported body id (`data/body-models.json`) instead of the look's pick by NPC id. */
+  /** Imported body id (`data/bodyModelFiles.ts`) instead of the look's pick by NPC id. */
   model?: string | undefined;
   /** Activity spot initially claimed (ADR-0029). */
   spot?: string | undefined;

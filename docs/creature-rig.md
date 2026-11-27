@@ -31,7 +31,7 @@ The fixture records what the tests need about the source: its joints, hashes of 
 
 ## Data
 
-`src/data/creatures/juggernaut.json` defines the rig. It is validated by `src/data/types/creatures.ts`, and the rig code in `src/actors/creature/` is generic.
+`src/data/creatures/juggernaut/creature.json` defines the rig. It is validated by `src/data/types/creatures.ts`, and the rig code in `src/actors/creature/` is generic.
 
 - **`chains`**: joints by role. The solvers need `spine`, `neck`, `head`, `jaw`, `tongue`, `eyes`, `arm.L/R` (shoulder, upper arm, forearm, hand) and `leg.L/R` (thigh, shin, third segment, foot). `lashes`, `crown`, `fat`, `stomach` and `fingers.L/R` gather the rest. Every joint that carries skin is in exactly one chain.
 - **`limits`**: one per chained joint, relative to neutral, in degrees.
@@ -44,7 +44,7 @@ The fixture records what the tests need about the source: its joints, hashes of 
 - **`face`**: the partial poses that open the jaw and move the tongue.
 - **`height`**, **`heightPose`**: the creature is scaled to `height` metres, measured on its body in `heightPose`.
 
-`src/data/creatures/juggernaut.poses.json` holds named poses. Each one gives `joints` (XYZ Euler degrees relative to neutral) and optionally `offsets` (model units, in the parent joint's frame) and `scales`.
+`src/data/creatures/juggernaut/poses.json` holds named poses. Each one gives `joints` (XYZ Euler degrees relative to neutral) and optionally `offsets` (model units, in the parent joint's frame) and `scales`.
 
 - `exported_rest` is written by the repair script; don't edit it by hand.
 - `jaw_open`, `tongue_extend` and `tongue_curl` are partial poses. The rig slerps their joints from the base pose by an amount from 0 to 1.
@@ -101,4 +101,4 @@ Amounts are reached over the step's blend. `SequencePlayer` (`src/actors/creatur
 
 The readout shows how far each solver is from its target, whether the creature is walking, how many footfalls it has made, and which sequence is playing. It also lists the joints resting at a limit. From the console, `window.creatureRig` has the rig, the creature, `motion`, `select(joint)` and `view('full' | 'face' | 'faceSide')`.
 
-Tune limits and hinge axes in the data while watching the sandbox, then run `npm test -- src/actors/creature/*.test.ts src/data/creatures/juggernaut.test.ts`. The tests check that the exported pose stays inside every limit. Close the tab when you are done.
+Tune limits and hinge axes in the data while watching the sandbox, then run `npm test -- src/actors/creature/*.test.ts src/data/creatures/juggernaut/juggernaut.test.ts`. The tests check that the exported pose stays inside every limit. Close the tab when you are done.

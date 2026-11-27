@@ -7,9 +7,9 @@ import type { UiText } from '../data/types/uiText.ts';
 import type { ScoreTable } from '../data/types/scores.ts';
 import killsJson from '../data/kills.json';
 import { validateKillTable } from '../data/types/kills.ts';
-import posesJson from '../data/poses.json';
+import { posesJson } from '../data/poseFiles.ts';
 import { loadPoseFile } from '../data/types/poses.ts';
-import bodyModelsJson from '../data/body-models.json';
+import { bodyModelsJson } from '../data/bodyModelFiles.ts';
 import { BodyModelLibrary, validateBodyModelTable } from '../actors/bodyModelLibrary.ts';
 import objectivesJson from '../data/objectives.json';
 import { objectivesValidator } from '../data/types/objectives.ts';
@@ -528,7 +528,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
 
     // Start independent cast, physics, and station GLB loads concurrently with textures+audio so cold loads avoid a waterfall.
     const bodyModelsReady = adopt(ITEMS.bodyModels, async () => {
-      const lib = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/body-models.json'));
+      const lib = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/bodyModelFiles.ts'));
       await lib.load(import.meta.env.BASE_URL);
       return lib;
     }).then((lib) => {

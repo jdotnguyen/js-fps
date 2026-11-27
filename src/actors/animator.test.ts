@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import priyaPack from '../data/mocap/priya.json' with { type: 'json' };
+import priyaPack from '../data/cast/priya/mocap.json' with { type: 'json' };
 import { Humanoid } from './humanoid.ts';
 import { Animator } from './animator.ts';
 import { sharedMocapLibrary, type RawMocapFile } from './mocap.ts';

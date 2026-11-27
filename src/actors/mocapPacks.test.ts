@@ -45,7 +45,7 @@ test('mocap packs: a character built again after its pack was released (a restar
   const { Humanoid } = await import('./humanoid.ts');
   const { CAST } = await import('./castLooks.ts');
   const { ctx } = await import('../ai/enemyTestKit.ts');
-  const priyaPack = (await import('../data/mocap/priya.json', { with: { type: 'json' } })).default as unknown as RawMocapFile;
+  const priyaPack = (await import('../data/cast/priya/mocap.json', { with: { type: 'json' } })).default as unknown as RawMocapFile;
   const lib = new MocapLibrary(core);
   lib.addPack('priya', priyaPack);
   let loads = 0;

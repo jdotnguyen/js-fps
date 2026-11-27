@@ -8,6 +8,7 @@ import { Humanoid } from './humanoid.ts';
 import type { BodyModelLibrary } from './bodyModelLibrary.ts';
 import type { FingerBoneDef } from './handPhysics.ts';
 import { ctx as enemyCtx } from '../ai/enemyTestKit.ts';
+import { bodyModelsJson } from '../data/bodyModelFiles.ts';
 
 /** Node has no image decoding: drop textures from the GLB's JSON chunk before parsing. */
 async function loadWithoutTextures(url: URL): Promise<THREE.Group> {
@@ -172,7 +173,7 @@ test('procedural bodies are untouched when no model is asked for', () => {
   h.dispose();
 });
 
-// August Giles' body (data/body-models.json "mechanic"): a model whose bones were renamed by scripts/fix-mechanic-glb.mjs.
+// August Giles' body (data/cast/giles/body.json): a model whose bones were renamed by scripts/fix-mechanic-glb.mjs.
 test('mechanic model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
   const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/mechanic.glb', import.meta.url)));
   const w = worldJoints(m);
@@ -199,7 +200,7 @@ test('mechanic model: rig maps, stands straight facing -Z, shoes point forward, 
   assert.ok(m.unmapped.every((u) => /^Helper_|^Root$|^GLTF_created/.test(u)), `only helpers unmapped: ${m.unmapped.join(',')}`);
 });
 
-// Dr. Okafor's body (data/body-models.json "doctor"): BrushDip's rigged doctor, its Biped bones renamed to Mixamo names with a jaw,
+// Dr. Okafor's body (data/cast/okafor/body.json): BrushDip's rigged doctor, its Biped bones renamed to Mixamo names with a jaw,
 // finger and forearm-twist bones added by scripts/fix-doctor-glb.mjs.
 test('doctor model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
   const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/doctor.glb', import.meta.url)));
@@ -227,7 +228,7 @@ test('doctor model: rig maps, stands straight facing -Z, shoes point forward, ke
   assert.ok(m.unmapped.every((u) => /^(_rootJoint|RL_BoneRoot|HipRoot|Waist|NeckUpper|FacialBone|MouthRoot|UpperJaw|Tongue|Teeth|(Left|Right)(Breast|Eye))/.test(u)), `only helpers and face bones unmapped: ${m.unmapped.join(',')}`);
 });
 
-// Priya Anand's body (data/body-models.json "priya"): the "elegant woman" Character Creator rig, bones renamed, bind pose
+// Priya Anand's body (data/cast/priya/body.json): the "elegant woman" Character Creator rig, bones renamed, bind pose
 // repaired and repacked (not decimated) by scripts/fix-priya-glb.mjs.
 test('priya model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
   const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/priya.glb', import.meta.url)));
@@ -254,7 +255,7 @@ test('priya model: rig maps, stands straight facing -Z, shoes point forward, kee
   assert.ok(m.unmapped.every((u) => /^(_rootJoint|BoneRoot|HipRoot|Waist|NeckUpper|FacialBone|UpperJaw|Tongue|Teeth|(Left|Right)(Breast|Eye))/.test(u)), `only helpers and face bones unmapped: ${m.unmapped.join(',')}`);
 });
 
-// Sung's body (data/body-models.json "sung"): an unrigged scan decimated, skinned to a Mixamo-named skeleton and
+// Sung's body (data/cast/sung/body.json): an unrigged scan decimated, skinned to a Mixamo-named skeleton and
 // slimmed by scripts/fix-sung-glb.mjs.
 test('sung model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
   const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/sung.glb', import.meta.url)));
@@ -281,7 +282,7 @@ test('sung model: rig maps, stands straight facing -Z, shoes point forward, keep
   assert.deepEqual(m.unmapped, []);
 });
 
-// Bram's body (data/body-models.json "bram"): the unrigged T-pose chef scan decimated, skinned to a Mixamo-named skeleton
+// Bram's body (data/cast/bram/body.json): the unrigged T-pose chef scan decimated, skinned to a Mixamo-named skeleton
 // and slimmed by scripts/fix-bram-glb.mjs.
 test('bram model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
   const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/bram.glb', import.meta.url)));
@@ -308,7 +309,7 @@ test('bram model: rig maps, stands straight facing -Z, shoes point forward, keep
   assert.deepEqual(m.unmapped, []);
 });
 
-// Ruiz's body (data/body-models.json "ruiz"): an unrigged mid-stride scan (toolbox cut away) decimated and skinned to a
+// Ruiz's body (data/cast/ruiz/body.json): an unrigged mid-stride scan (toolbox cut away) decimated and skinned to a
 // Mixamo-named skeleton by scripts/fix-ruiz-glb.mjs.
 test('ruiz model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
   const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/ruiz.glb', import.meta.url)));
@@ -335,7 +336,7 @@ test('ruiz model: rig maps, stands straight facing -Z, shoes point forward, keep
   assert.deepEqual(m.unmapped, []);
 });
 
-// Bram's body (data/body-models.json "bram"): the unrigged T-pose chef scan decimated, skinned to a Mixamo-named skeleton
+// Bram's body (data/cast/bram/body.json): the unrigged T-pose chef scan decimated, skinned to a Mixamo-named skeleton
 // and slimmed by scripts/fix-bram-glb.mjs.
 test('bram model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
   const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/bram.glb', import.meta.url)));
@@ -362,7 +363,7 @@ test('bram model: rig maps, stands straight facing -Z, shoes point forward, keep
   assert.deepEqual(m.unmapped, []);
 });
 
-// Katie Heins' body (data/body-models.json "heins"): an unrigged, unanimated A-pose mesh decimated per material, skinned to a
+// Katie Heins' body (data/cast/heins/body.json): an unrigged, unanimated A-pose mesh decimated per material, skinned to a
 // Mixamo-named skeleton and slimmed by scripts/fix-heins-glb.mjs.
 test('heins model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
   const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/heins.glb', import.meta.url)));
@@ -389,7 +390,7 @@ test('heins model: rig maps, stands straight facing -Z, shoes point forward, kee
   assert.deepEqual(m.unmapped, []);
 });
 
-// Director Hale's body (data/body-models.json "hale"): a rigged T-pose avatar, decimated and given a jaw bone by
+// Director Hale's body (data/cast/hale/body.json): a rigged T-pose avatar, decimated and given a jaw bone by
 // scripts/fix-hale-glb.mjs.
 test('hale model: rig maps, stands straight facing -Z, shoes point forward, keeps every limb piece', async () => {
   const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/squad/hale.glb', import.meta.url)));
@@ -773,8 +774,8 @@ function rigBones(url: URL): THREE.Bone[] {
 // belly arms get bones of their own, rooted on the joint they grow from (the spine), never on an arm.
 test('with its creature profile the necromorph\'s belly arms move on their own bones, rooted on the spine', async () => {
   const { prepareOptionsFor } = await import('./bodyModelLibrary.ts');
-  const defs = JSON.parse(readFileSync(new URL('../data/body-models.json', import.meta.url), 'utf8'));
-  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/infected/necromorph_slasher.glb', import.meta.url)), prepareOptionsFor(defs.necromorph));
+  const defs = bodyModelsJson;
+  const m = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/infected/necromorph_slasher.glb', import.meta.url)), prepareOptionsFor((defs as import('./bodyModelLibrary.ts').BodyModelTable)['necromorph']!));
   const limbs = m.creatureBones.filter((b) => b.kind === 'limb');
   assert.ok(limbs.length >= 28);
   for (const b of limbs) assert.ok(b.parent === 'spine' || b.parent.startsWith('limb_'), `${b.name} hangs from ${b.parent}`);
@@ -786,7 +787,7 @@ test('with its creature profile the necromorph\'s belly arms move on their own b
 });
 
 test('the secondary-limb rule changes no rig except the necromorph', () => {
-  const models = JSON.parse(readFileSync(new URL('../data/body-models.json', import.meta.url), 'utf8')) as Record<string, { url: string }>;
+  const models = bodyModelsJson as Record<string, { url: string }>;
   for (const [id, { url }] of Object.entries(models)) {
     const bones = rigBones(new URL(`../../public/${url}`, import.meta.url));
     const now = mapRig(bones);
@@ -831,7 +832,7 @@ test('necromorphCrowd model: rig maps, stands straight facing -Z, keeps every li
 test('the crowd picks a model every time: no procedural shamblers or play-dead bodies are left', async () => {
   const { BodyModelLibrary } = await import('./bodyModelLibrary.ts');
   const { Rng } = await import('../core/rng.ts');
-  const table = JSON.parse(readFileSync(new URL('../data/body-models.json', import.meta.url), 'utf8')) as ConstructorParameters<typeof BodyModelLibrary>[0];
+  const table = bodyModelsJson as ConstructorParameters<typeof BodyModelLibrary>[0];
   const lib = new BodyModelLibrary(table);
   const prepared = prepareBodyModel(await loadWithoutTextures(new URL('../../public/assets/models/infected/necromorph_crowd.glb', import.meta.url)));
   const loaded = (lib as unknown as { loaded: Map<string, unknown> }).loaded;
@@ -1051,9 +1052,9 @@ test('heins model: the cyber arm and hand move as rigid parts', async () => {
 // whose thumb side was guessed the wrong way round is labelled pinky to index, so it takes the wrong palm side and curls
 // backward. In the rest pose each hand's index-to-pinky direction must match the other hand's mirrored left to right, and
 // curling a finger must move its middle joint the mirrored way on both hands. Every body the game gives finger bones to
-// (data/body-models.json `handRig`).
+// (data/bodyModelFiles.ts `handRig`).
 test('hand-rigged bodies: left and right hands mirror each other and curl the same way', async () => {
-  const defs = JSON.parse(readFileSync(new URL('../data/body-models.json', import.meta.url), 'utf8')) as Record<string, { url: string; handRig?: boolean }>;
+  const defs = bodyModelsJson as Record<string, { url: string; handRig?: boolean }>;
   const rigged = Object.entries(defs).filter(([, d]) => d.handRig);
   assert.ok(rigged.length >= 6, `${rigged.length} hand-rigged bodies`);
   const mirror = (v: THREE.Vector3): THREE.Vector3 => new THREE.Vector3(-v.x, v.y, v.z);

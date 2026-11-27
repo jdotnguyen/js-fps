@@ -1,8 +1,8 @@
 import { arr, nullable, num, numRange, obj, optional, record, str, tuple3, ValidationError, vec3, type Validator } from '../../core/validate.ts';
 
 /**
- * Creature rigs (openspec rig-juggernaut, spec `creature-rig`): data/creatures/<id>.json defines the rig and
- * data/creatures/<id>.poses.json its named poses. Joints are named as in the model file (three.js strips the dots when it
+ * Creature rigs (openspec rig-juggernaut, spec `creature-rig`): data/creatures/<id>/creature.json defines the rig and
+ * data/creatures/<id>/poses.json its named poses. Joints are named as in the model file (three.js strips the dots when it
  * loads them; the rig matches either spelling). Angles are degrees.
  */
 
@@ -55,7 +55,7 @@ export interface CreatureDef {
   ik: { 'arm.L': LimbIk; 'arm.R': LimbIk; 'leg.L': LegIk; 'leg.R': LegIk };
   /** Share of a look-at turn taken by the neck (the head takes the rest). */
   lookNeckShare: number;
-  /** Partial poses (data/creatures/<id>.poses.json) that open the jaw and move the tongue (design D8). */
+  /** Partial poses (data/creatures/<id>/poses.json) that open the jaw and move the tongue (design D8). */
   face: { jawOpen: string; tongueExtend: string; tongueCurl: string };
 }
 

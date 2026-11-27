@@ -1,0 +1,94 @@
+{
+  "okafor": {
+    "gender": "m",
+    "inherits": "crew_m",
+    "clips": {
+      "idle": "okafor_idle",
+      "talk": "okafor_talk",
+      "walk": "okafor_walk",
+      "jog": "okafor_jog",
+      "work": "okafor_console",
+      "drink": "okafor_coffee",
+      "aimPistol": "okafor_pistol"
+    },
+    "holds": {
+      "stand": "okafor_hold",
+      "lean_back": "okafor_hold",
+      "lean_wall": "okafor_hold",
+      "lean_counter": "okafor_hold",
+      "sit_chair": "okafor_hold",
+      "sit_stool": "okafor_hold",
+      "crouch": "okafor_hold",
+      "kneel": "okafor_hold"
+    },
+    "poses": {
+      "glance": "okafor_glance",
+      "glance_other": "okafor_glance_other"
+    },
+    "style": {
+      "tempo": 0.85,
+      "fidgetRate": 0.4,
+      "posture": 0.3,
+      "headPitch": -2
+    },
+    "variants": {
+      "intro": {
+        "when": {
+          "sequence": "intro_shift_change"
+        },
+        "holds": {
+          "lean_back": "okafor_coffee"
+        }
+      },
+      "console": {
+        "when": {
+          "task": "biometric"
+        },
+        "clips": {
+          "work": "okafor_console"
+        },
+        "style": {
+          "headPitch": 6,
+          "fidgetRate": 0.25
+        }
+      },
+      "revive": {
+        "when": {
+          "task": "revive"
+        },
+        "holds": {
+          "kneel": "okafor_revive"
+        },
+        "style": {
+          "tempo": 1.1,
+          "fidgetRate": 0.2
+        }
+      },
+      "flood": {
+        "when": {
+          "sequence": [
+            "valve_turn",
+            "r10_ambush"
+          ]
+        },
+        "clips": {
+          "jog": "okafor_panic_run"
+        },
+        "poses": {
+          "alarm_watch": "okafor_alarm_watch",
+          "panic_brace": "okafor_panic_brace"
+        },
+        "style": {
+          "tempo": 1.25,
+          "fidgetRate": 1.8
+        }
+      }
+    },
+    "hands": {
+      "tension": 0.24,
+      "stiffness": 0.92,
+      "fidget": 0.18,
+      "restCurl": 0.42
+    }
+  }
+}

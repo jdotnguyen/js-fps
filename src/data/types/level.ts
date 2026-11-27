@@ -193,7 +193,7 @@ const npcShape = {
   at: anchorRef,
   /** Degrees; overrides the anchor's yaw. */
   yaw: optional(num),
-  /** Pose name from data/poses.json, e.g. "idle", "sit". */
+  /** Pose name from the pose files (data/poseFiles.ts), e.g. "idle", "sit". */
   pose: optional(str),
   /** Build the body so a `transform` action can infect it (the researcher behind the Lab B glass, ADR-0014). */
   transformable: optional(bool),
@@ -204,7 +204,7 @@ const npcShape = {
   spot: optional(oneOf(SPOT_KINDS)),
   /** ADR-0029: NPCs sharing a chat id talk to each other (turn-taking, looking at the speaker). */
   chat: optional(id),
-  /** Imported body (a `data/body-models.json` id) instead of the look's pick by NPC id, to spread faces across a room. */
+  /** Imported body (a `data/bodyModelFiles.ts` id) instead of the look's pick by NPC id, to spread faces across a room. */
   model: optional(id),
   /** Explicit list of room ids this NPC may roam between for ambient work spots (overrides single-room/pose locks). */
   roam: optional(arr(id)),
@@ -232,7 +232,7 @@ const spawnShape = {
   yaw: optional(num),
   outfit: optional(oneOf(SPAWN_OUTFITS)),
   infection: optional(numRange(0, 3)),
-  /** Imported body (a `data/body-models.json` id) for this point's enemies, e.g. the creature that came out of Voss. */
+  /** Imported body (a `data/bodyModelFiles.ts` id) for this point's enemies, e.g. the creature that came out of Voss. */
   model: optional(id),
   /** A cast look (castLooks) for this point's enemies: its body, height and build, e.g. `lab_creature` (infection-kills). */
   look: optional(id),

@@ -1,0 +1,16 @@
+{
+  "hale": {
+    "url": "assets/models/squad/hale.glb",
+    "variants": [],
+    "share": 0,
+    "gender": "m",
+    "sickTint": 0.3,
+    "handRig": true,
+    "credit": {
+      "title": "A Man in suit",
+      "author": "anuragk1229",
+      "source": "https://sketchfab.com/3d-models/a-man-in-suit-5a2df7ef28bc408abf162d639e9583a8",
+      "license": "CC-BY-4.0"
+    }
+  }
+}

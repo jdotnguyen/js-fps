@@ -1,0 +1,55 @@
+{
+  "voss": {
+    "gender": "f",
+    "inherits": "crew_f",
+    "clips": {
+      "idle": "voss_idle",
+      "talk": "voss_idle",
+      "walk": "voss_walk",
+      "jog": "voss_jog",
+      "work": "voss_work",
+      "drink": "voss_drink",
+      "aimPistol": "pistol_idle"
+    },
+    "holds": {
+      "stand": "voss_hold",
+      "lean_back": "voss_hold",
+      "lean_wall": "voss_hold",
+      "lean_counter": "voss_hold",
+      "sit_chair": "voss_seated",
+      "sit_stool": "voss_seated",
+      "sit_sofa": "voss_seated",
+      "crouch": "voss_hold",
+      "kneel": "voss_hold"
+    },
+    "style": {
+      "tempo": 0.95,
+      "fidgetRate": 1.6,
+      "armCarry": 0.8,
+      "posture": -0.35,
+      "headPitch": 8,
+      "asymmetry": 0.2
+    },
+    "variants": {
+      "labb": {
+        "when": {
+          "sequence": [
+            "briefing_gallery",
+            "drop"
+          ]
+        },
+        "style": {
+          "tempo": 1.25,
+          "fidgetRate": 2.4,
+          "headPitch": 10
+        }
+      }
+    },
+    "hands": {
+      "tension": 0.66,
+      "stiffness": 1.14,
+      "fidget": 0.58,
+      "restCurl": 0.6
+    }
+  }
+}

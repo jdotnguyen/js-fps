@@ -1,6 +1,6 @@
 /**
  * Prints the Necromorph Slasher's authored pose (the crouch with both blades raised that the model file holds in its node
- * transforms) as game joint angles, for authoring the blade creature's poses in src/data/poses.json (openspec rig-necromorph,
+ * transforms) as game joint angles, for authoring the blade creature's poses in src/data/creatures/blade/poses.json (openspec rig-necromorph,
  * design D4, task 5.1). The angles are swings only: each game joint is turned so its bone points where the model's does.
  *
  *   node --experimental-strip-types --no-warnings scripts/necromorph-pose.ts [public/assets/models/infected/necromorph_slasher.glb]

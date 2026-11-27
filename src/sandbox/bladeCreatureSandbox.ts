@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import posesJson from '../data/poses.json';
-import bodyModelsJson from '../data/body-models.json';
+import { posesJson } from '../data/poseFiles.ts';
+import { bodyModelsJson } from '../data/bodyModelFiles.ts';
 import { BodyModelLibrary, validateBodyModelTable } from '../actors/bodyModelLibrary.ts';
 import { castSpec } from '../actors/castLooks.ts';
 import { GoreSystem } from '../actors/gore.ts';
@@ -71,7 +71,7 @@ async function boot(): Promise<void> {
   orbit.update();
 
   // Only the creature's model: the crew figure is the procedural body.
-  const table = validate(validateBodyModelTable, bodyModelsJson, 'data/body-models.json');
+  const table = validate(validateBodyModelTable, bodyModelsJson, 'data/bodyModelFiles.ts');
   const bodyModels = new BodyModelLibrary({ necromorph: table['necromorph']! });
   await Promise.all([bodyModels.load(import.meta.env.BASE_URL), loadSharedMocapLibrary()]);
   const posesFile = loadPoseFile(posesJson);

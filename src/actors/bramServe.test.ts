@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import coreJson from '../data/mocap-core.json' with { type: 'json' };
-import bramPack from '../data/mocap/bram.json' with { type: 'json' };
+import bramPack from '../data/cast/bram/mocap.json' with { type: 'json' };
 import { ctx as enemyCtx } from '../ai/enemyTestKit.ts';
 import { CAST } from './castLooks.ts';
 import { loadMainCast, makeLib } from './castModelTestKit.ts';

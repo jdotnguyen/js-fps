@@ -1,0 +1,15 @@
+{
+  "sung": {
+    "url": "assets/models/squad/sung.glb",
+    "variants": [],
+    "share": 0,
+    "gender": "m",
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Construction Worker In Safety Gear",
+      "author": "restore50",
+      "source": "https://sketchfab.com/3d-models/construction-worker-in-safety-gear-f3d6999edb1e4cd99da2519c4d75bf2b",
+      "license": "CC-BY-4.0"
+    }
+  }
+}

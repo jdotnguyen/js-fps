@@ -30,7 +30,7 @@ function q(deg: readonly number[] | undefined, out: THREE.Quaternion): THREE.Qua
   return out.setFromEuler(euler);
 }
 
-/** Validated data/poses.json compiled once; poses are shared read-only. */
+/** The validated pose files (data/poseFiles.ts) compiled once; poses are shared read-only. */
 export class PoseLibrary {
   private readonly poses = new Map<string, CompiledPose>();
   private readonly sequences = new Map<string, PoseStep[]>();

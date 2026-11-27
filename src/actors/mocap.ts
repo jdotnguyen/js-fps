@@ -143,7 +143,7 @@ export class MocapLibrary {
     return [...this.clips.keys()];
   }
 
-  /** Add a character's clip pack (src/data/mocap/<name>.json). Adding a pack that is already loaded does nothing. */
+  /** Add a character's clip pack (src/data/cast/<name>/mocap.json). Adding a pack that is already loaded does nothing. */
   addPack(name: string, file: RawMocapFile): void {
     if (this.packs.has(name)) return;
     const ids: string[] = [];

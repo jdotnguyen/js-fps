@@ -10,13 +10,13 @@ import { Spring1D, settleUprightTurn, stepUprightTurn, type UprightTurnState } f
 import { GILES, OKAFOR } from './squadLooks.ts';
 import { JOINT_INDEX } from './skeleton.ts';
 import { ctx } from '../ai/enemyTestKit.ts';
-import priyaPack from '../data/mocap/priya.json' with { type: 'json' };
-import vossPack from '../data/mocap/voss.json' with { type: 'json' };
-import bramPack from '../data/mocap/bram.json' with { type: 'json' };
-import ruizPack from '../data/mocap/ruiz.json' with { type: 'json' };
-import heinsPack from '../data/mocap/heins.json' with { type: 'json' };
-import halePack from '../data/mocap/hale.json' with { type: 'json' };
-import sungPack from '../data/mocap/sung.json' with { type: 'json' };
+import priyaPack from '../data/cast/priya/mocap.json' with { type: 'json' };
+import vossPack from '../data/cast/voss/mocap.json' with { type: 'json' };
+import bramPack from '../data/cast/bram/mocap.json' with { type: 'json' };
+import ruizPack from '../data/cast/ruiz/mocap.json' with { type: 'json' };
+import heinsPack from '../data/cast/heins/mocap.json' with { type: 'json' };
+import halePack from '../data/cast/hale/mocap.json' with { type: 'json' };
+import sungPack from '../data/cast/sung/mocap.json' with { type: 'json' };
 
 // Named characters with clip packs (Priya) need them loaded, as the game does at start (loadMocapPacks). Node needs the JSON
 // import attribute, which the bundler's lazy pack import cannot carry, so tests add the pack directly.

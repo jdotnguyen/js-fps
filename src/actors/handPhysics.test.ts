@@ -1,6 +1,5 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { MAX_BONES } from './bodyMaterial.ts';
 import type { PreparedBodyModel } from './bodyModel.ts';
@@ -22,6 +21,7 @@ import { GILES, OKAFOR } from './squadLooks.ts';
 import { CAST } from './castLooks.ts';
 import { ctx as enemyCtx } from '../ai/enemyTestKit.ts';
 import { loadMainCast, makeLib } from './castModelTestKit.ts';
+import { bodyModelsJson } from '../data/bodyModelFiles.ts';
 
 test('pure biomechanical helpers: tenodesis, sympathetic coupling, and Y-twist extraction', () => {
   // Tenodesis: wrist extension (+) curls fingers (+), wrist flexion (-) opens fingers (-).
@@ -259,8 +259,8 @@ test('main cast Humanoids animate wrists, forearm twists, and individual fingers
   for (const b of [giles, okafor, priyaBody, haleBody, plain, severTarget]) b.dispose();
 });
 
-test('body-models.json enables handRig on Phase 1 main cast (mechanic, doctor, priya, hale) and keeps crowd rigs lean', () => {
-  const table = JSON.parse(readFileSync(new URL('../data/body-models.json', import.meta.url), 'utf8')) as Record<string, { handRig?: boolean }>;
+test('the body models enable handRig on Phase 1 main cast (mechanic, doctor, priya, hale) and keeps crowd rigs lean', () => {
+  const table = bodyModelsJson as Record<string, { handRig?: boolean }>;
   for (const id of ['mechanic', 'doctor', 'priya', 'hale', 'office3']) {
     assert.equal(table[id]?.handRig, true, `${id} has handRig: true`);
   }

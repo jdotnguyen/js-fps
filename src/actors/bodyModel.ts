@@ -56,7 +56,7 @@ export interface PrepareOptions {
   creature?: CreatureRigOptions;
 }
 
-/** Which of a creature model's bones to keep as detail bones (from its profile, e.g. data/blade-creature.json). */
+/** Which of a creature model's bones to keep as detail bones (from its profile, e.g. data/creatures/blade/creature.json). */
 export interface CreatureRigOptions {
   /** Bones in one game joint's chain, root first: each but the last gets a segment bone taking a share of the joint's bend. */
   segments: ReadonlyArray<{ joint: JointName; bones: readonly string[] }>;

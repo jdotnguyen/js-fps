@@ -5,6 +5,7 @@ import path from 'node:path';
 import coreJson from '../data/mocap-core.json' with { type: 'json' };
 import { ANIMATION_CREDITS, MODEL_CREDITS } from '../ui/credits.ts';
 import type { RawMocapFile } from './mocap.ts';
+import { MOCAP_PACKS } from '../data/mocap/packs.ts';
 
 const ACCEPTED = ['CC0-1.0', 'CC-BY-4.0', 'CC-BY-NC-4.0', 'unrestricted'];
 const creditsMd = fs.readFileSync(path.resolve(import.meta.dirname, '../../CREDITS.md'), 'utf8');
@@ -28,9 +29,8 @@ function creditProblems(file: RawMocapFile): string[] {
 }
 
 function libraryFiles(): [string, RawMocapFile][] {
-  const dir = path.resolve(import.meta.dirname, '../data/mocap');
-  const packs = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.json')) : [];
-  return [['mocap-core.json', coreJson as unknown as RawMocapFile], ...packs.map((f): [string, RawMocapFile] => [f, JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'))])];
+  const cast = path.resolve(import.meta.dirname, '../data/cast');
+  return [['mocap-core.json', coreJson as unknown as RawMocapFile], ...Object.keys(MOCAP_PACKS).map((n): [string, RawMocapFile] => [n, JSON.parse(fs.readFileSync(path.join(cast, n, 'mocap.json'), 'utf8'))])];
 }
 
 test('mocap credits: every clip names a free source with a CREDITS.md row and an in-game credit', () => {

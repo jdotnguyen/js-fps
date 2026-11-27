@@ -67,7 +67,7 @@ test('one player plays sequence after sequence, each from its own start', async 
 
 test('a sequence naming an unknown pose fails to load, naming the sequence and the pose', () => {
   assert.throws(
-    () => validateCreaturePoses({ poses: { a: { joints: {} } }, sequences: { roar_full: [{ pose: 'rear_up', blend: 0.2, hold: 1 }] } }, 'juggernaut.poses.json'),
+    () => validateCreaturePoses({ poses: { a: { joints: {} } }, sequences: { roar_full: [{ pose: 'rear_up', blend: 0.2, hold: 1 }] } }, 'juggernaut/poses.json'),
     /roar_full.*unknown pose "rear_up"/,
   );
 });

@@ -4,6 +4,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JUGGERNAUT_DEF } from './juggernaut.ts';
+import { bodyModelsJson } from '../../data/bodyModelFiles.ts';
 
 // openspec rig-juggernaut, spec creature-rig "Creatures are posed through their own rig": the Juggernaut is not a humanoid
 // body, and no humanoid motion capture plays on it.
@@ -19,13 +20,13 @@ function files(dir: string, ext: string): string[] {
 }
 
 test('the body model library does not list the Juggernaut', () => {
-  const lib = readFileSync(join(SRC, 'data/body-models.json'), 'utf8');
-  assert.ok(!lib.includes(MODEL_FILE), 'body-models.json has no entry for it');
+  const lib = JSON.stringify(bodyModelsJson);
+  assert.ok(!lib.includes(MODEL_FILE), 'the body model table has no entry for it');
   assert.ok(!/juggernaut/i.test(lib));
 });
 
 test('no motion capture names the Juggernaut', () => {
-  for (const f of [join(SRC, 'data/mocap-core.json'), ...files(join(SRC, 'data/mocap'), '.json')]) {
+  for (const f of [join(SRC, 'data/mocap-core.json'), ...files(join(SRC, 'data/cast'), '.json')]) {
     assert.ok(!/juggernaut/i.test(readFileSync(f, 'utf8')), f);
   }
 });

@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { prepareBodyModel, type PreparedBodyModel } from './bodyModel.ts';
 import { JOINT_NAMES, JOINTS, type JointName } from './skeleton.ts';
 import { readLevel } from '../data/levels/readLevel.ts';
+import { bodyModelsJson } from '../data/bodyModelFiles.ts';
 
 /**
  * Crowd variety bodies (ADR-0026, ADR-0029): three Renderpeople scans (office1-3, bones renamed by scripts/prep-crew-glb.py),
@@ -49,13 +50,13 @@ function worldJoints(m: PreparedBodyModel): Record<JointName, THREE.Vector3> {
   return out;
 }
 
-const TABLE = JSON.parse(readFileSync(new URL('../data/body-models.json', import.meta.url), 'utf8')) as Record<string, { url: string; credit?: { license?: string } }>;
+const TABLE = bodyModelsJson as Record<string, { url: string; credit?: { license?: string } }>;
 const NEW = ['office1', 'office2', 'office3', 'guard1'];
 
 for (const id of NEW) {
   test(`${id} model: rig maps, stands straight facing -Z, keeps every limb piece`, async () => {
     const entry = TABLE[id];
-    assert.ok(entry, `${id} is in body-models.json`);
+    assert.ok(entry, `${id} is in the body model table`);
     assert.equal(entry.credit?.license, 'CC-BY-4.0');
     const m = prepareBodyModel(await loadWithoutTextures(new URL(`../../public/${entry.url}`, import.meta.url)));
     const w = worldJoints(m);
@@ -83,7 +84,7 @@ test('every model a level NPC names exists, and named characters keep their own 
   for (const r of level.rooms) {
     for (const n of r.npcs ?? []) {
       if (!n.model) continue;
-      assert.ok(TABLE[n.model], `${n.id}: model "${n.model}" is in body-models.json`);
+      assert.ok(TABLE[n.model], `${n.id}: model "${n.model}" is in the body model table`);
       assert.ok(!NAMED.has(n.model), `${n.id} does not wear a named character's body (${n.model})`);
     }
   }

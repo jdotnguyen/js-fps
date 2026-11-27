@@ -71,7 +71,7 @@ export class CreatureRig {
   private readonly limitHits = new Set<RigJoint>();
 
   constructor(model: THREE.Object3D, def: CreatureDef, poses: CreaturePoseFile, source = 'creature') {
-    checkCreaturePoses(def, poses, `${source}.poses.json`);
+    checkCreaturePoses(def, poses, `${source}/poses.json`);
     this.model = model;
     this.def = def;
     const joints: RigJoint[] = [];

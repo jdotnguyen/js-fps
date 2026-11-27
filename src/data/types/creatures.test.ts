@@ -41,13 +41,13 @@ const poses = (extra: Record<string, unknown> = {}) => ({
 });
 
 test('a complete creature and its poses validate', () => {
-  const d = validateCreatureDef(def(), 'juggernaut.json');
+  const d = validateCreatureDef(def(), 'juggernaut/creature.json');
   assert.equal(d.limits['faL']!.kind, 'hinge');
-  checkCreaturePoses(d, validateCreaturePoses(poses(), 'juggernaut.poses.json'), 'juggernaut.poses.json');
+  checkCreaturePoses(d, validateCreaturePoses(poses(), 'juggernaut/poses.json'), 'juggernaut/poses.json');
 });
 
 test('a pose naming a joint the rig does not have is rejected, naming the pose and the joint', () => {
-  const d = validateCreatureDef(def(), 'juggernaut.json') as CreatureDef;
+  const d = validateCreatureDef(def(), 'juggernaut/creature.json') as CreatureDef;
   const file = validateCreaturePoses(poses({ roar: { joints: { tail_07: [1, 2, 3] } } }), 'p.json');
   assert.throws(() => checkCreaturePoses(d, file, 'p.json'), /roar.*tail_07/);
 });

@@ -102,8 +102,7 @@ for (const speed of [0, 1.35, 3.2, 7.2]) {
 
 // rig-necromorph task 5.1: every one of the creature's own poses keeps its skin whole, shoulders included.
 test('every blade_* pose keeps every edge within 2.5 times its length', async () => {
-  const { readFileSync } = await import('node:fs');
-  const file = JSON.parse(readFileSync(new URL('../../data/poses.json', import.meta.url), 'utf8')) as {
+  const file = (await import('../../data/poseFiles.ts')).posesJson as unknown as {
     poses: Record<string, { joints: Record<string, [number, number, number]>; pelvis?: [number, number, number] }>;
   };
   const names = Object.keys(file.poses).filter((n) => n.startsWith('blade_'));

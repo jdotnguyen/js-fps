@@ -75,23 +75,29 @@ tell the user which change or file is blocking.
 
 ## 3. Phase 2: cast, creature and pose folders (Sonnet 5.5, medium)
 
-- [ ] 3.1 Quiet-window check for `poses.json`, `body-models.json`, `motion-profiles.json`, `blade-creature.json`,
+- [x] 3.1 Quiet-window check for `poses.json`, `body-models.json`, `motion-profiles.json`, `blade-creature.json`,
   `src/data/mocap/`, `src/data/creatures/`. rebuild-heins-rig and keep-crossed-arms must have landed. Verify: as in 1.1.
-- [ ] 3.2 Add a combining loader for pose files that builds one pose table and fails on a duplicate name, naming both
+- [x] 3.2 Add a combining loader for pose files that builds one pose table and fails on a duplicate name, naming both
   files (design D5). Verify: unit test for the merge and for the duplicate error.
-- [ ] 3.3 Write a one-time split script: character-prefixed poses to `cast/<name>/poses.json`, `blade_*` to
+- [x] 3.3 Write a one-time split script: character-prefixed poses to `cast/<name>/poses.json`, `blade_*` to
   `creatures/blade/poses.json`, the rest to `poses/<family>.json`. Named bodies to `cast/<name>/body.json`, profiles to
   `cast/<name>/motion.json`, `blade-creature.json` to `creatures/blade/creature.json`, juggernaut files into
   `creatures/juggernaut/`. Verify: merged tables `deepStrictEqual` the old files.
-- [ ] 3.4 Point `scripts/bake-mocap.mjs` at `cast/<name>/mocap.json` and regenerate the pack import table. Verify: a bake
+- [x] 3.4 Point `scripts/bake-mocap.mjs` at `cast/<name>/mocap.json` and regenerate the pack import table. Verify: a bake
   dry run writes to the new paths, and `npm run build` still shows one chunk per pack.
-- [ ] 3.5 Switch every reader (`bodyModelLibrary.ts`, `animator.ts`, `bladeTestKit.ts`, pose and motion loaders, the cast
+- [x] 3.5 Switch every reader (`bodyModelLibrary.ts`, `animator.ts`, `bladeTestKit.ts`, pose and motion loaders, the cast
   motion sandbox) and delete the old files. Fix the comments that name old paths (`castLooks.ts`, `animator.ts`).
   Verify: `grep -rn "poses.json\|body-models.json\|motion-profiles.json\|blade-creature.json" src scripts docs` finds only
   updated references, `npm run typecheck` passes, and the touched test files pass.
-- [ ] 3.6 Update `docs/mocap-sources.md`, `docs/cast-motion-sandbox.md`, `docs/voice-casting-standard.md` (body
+- [x] 3.6 Update `docs/mocap-sources.md`, `docs/cast-motion-sandbox.md`, `docs/voice-casting-standard.md` (body
   gender lookup) and the AGENTS.md map. Verify: every documented path exists. Open the cast motion sandbox once and
   close it.
+  Result (2026-11-27): the merged pose, body and motion tables equal HEAD's (205 poses, 19 bodies, 12 profiles), and the
+  moved files are unchanged. A real bake into a scratch copy of the project wrote all seven packs and the pack table to
+  the new paths, byte-identical to the committed ones. Typecheck and build pass, with one chunk per pack. The 85 affected
+  test files: 756 of 763 pass; the same 7 fail on a clean export of HEAD (mocapSources only lists more missing local
+  source files there). The one-time split script was not kept. The cast motion sandbox and a production build of slice01
+  loaded with no pose, body or motion errors.
 
 ## 4. Phase 3: sound area files (Sonnet 5.5, medium)
 

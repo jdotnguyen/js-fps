@@ -1,0 +1,980 @@
+{
+ "poses": {
+  "sit_idle": {
+   "pelvis": [
+    0,
+    -0.41,
+    0.04
+   ],
+   "joints": {
+    "spine": [
+     -2,
+     0,
+     0
+    ],
+    "chest": [
+     -2,
+     0,
+     0
+    ],
+    "neck": [
+     -2,
+     0,
+     0
+    ],
+    "head": [
+     -3,
+     0,
+     0
+    ],
+    "thigh_L": [
+     84,
+     0,
+     -5
+    ],
+    "shin_L": [
+     -86,
+     0,
+     0
+    ],
+    "foot_L": [
+     4,
+     0,
+     0
+    ],
+    "thigh_R": [
+     84,
+     0,
+     5
+    ],
+    "shin_R": [
+     -86,
+     0,
+     0
+    ],
+    "foot_R": [
+     4,
+     0,
+     0
+    ],
+    "upperArm_L": [
+     18,
+     0,
+     -8
+    ],
+    "foreArm_L": [
+     52,
+     -14,
+     0
+    ],
+    "upperArm_R": [
+     18,
+     0,
+     8
+    ],
+    "foreArm_R": [
+     52,
+     14,
+     0
+    ]
+   }
+  },
+  "sit_typing": {
+   "pelvis": [
+    0,
+    -0.41,
+    0.04
+   ],
+   "joints": {
+    "spine": [
+     -6,
+     0,
+     0
+    ],
+    "chest": [
+     -4,
+     0,
+     0
+    ],
+    "neck": [
+     -4,
+     0,
+     0
+    ],
+    "head": [
+     -8,
+     0,
+     0
+    ],
+    "thigh_L": [
+     84,
+     0,
+     -5
+    ],
+    "shin_L": [
+     -86,
+     0,
+     0
+    ],
+    "foot_L": [
+     4,
+     0,
+     0
+    ],
+    "thigh_R": [
+     84,
+     0,
+     5
+    ],
+    "shin_R": [
+     -86,
+     0,
+     0
+    ],
+    "foot_R": [
+     4,
+     0,
+     0
+    ],
+    "upperArm_L": [
+     30,
+     0,
+     -8
+    ],
+    "foreArm_L": [
+     62,
+     -12,
+     0
+    ],
+    "upperArm_R": [
+     30,
+     0,
+     8
+    ],
+    "foreArm_R": [
+     62,
+     12,
+     0
+    ]
+   }
+  },
+  "sit_typing_cctv": {
+   "extends": "sit_typing",
+   "joints": {
+    "spine": [
+     -3,
+     0,
+     0
+    ],
+    "chest": [
+     -1,
+     0,
+     0
+    ],
+    "neck": [
+     4,
+     0,
+     0
+    ],
+    "head": [
+     6,
+     0,
+     0
+    ]
+   }
+  },
+  "sit_chair": {
+   "joints": {
+    "spine": [
+     -5,
+     0,
+     0
+    ],
+    "chest": [
+     -3,
+     0,
+     0
+    ],
+    "neck": [
+     2,
+     0,
+     0
+    ],
+    "head": [
+     -2,
+     0,
+     0
+    ],
+    "thigh_L": [
+     78,
+     0,
+     -5
+    ],
+    "thigh_R": [
+     76,
+     0,
+     5
+    ],
+    "shin_L": [
+     -82,
+     0,
+     0
+    ],
+    "shin_R": [
+     -70,
+     0,
+     0
+    ],
+    "foot_L": [
+     4,
+     0,
+     0
+    ],
+    "foot_R": [
+     -6,
+     0,
+     0
+    ],
+    "upperArm_L": [
+     14,
+     0,
+     6
+    ],
+    "foreArm_L": [
+     50,
+     -60,
+     0
+    ],
+    "hand_L": [
+     10,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     14,
+     0,
+     -6
+    ],
+    "foreArm_R": [
+     52,
+     60,
+     0
+    ],
+    "hand_R": [
+     10,
+     0,
+     0
+    ]
+   },
+   "pelvis": [
+    0,
+    -0.34,
+    0
+   ]
+  },
+  "sit_stool": {
+   "joints": {
+    "spine": [
+     -6,
+     0,
+     0
+    ],
+    "chest": [
+     -3,
+     0,
+     0
+    ],
+    "neck": [
+     3,
+     0,
+     0
+    ],
+    "head": [
+     -1,
+     0,
+     0
+    ],
+    "thigh_L": [
+     62,
+     0,
+     -5
+    ],
+    "thigh_R": [
+     58,
+     0,
+     5
+    ],
+    "shin_L": [
+     -92,
+     0,
+     0
+    ],
+    "shin_R": [
+     -80,
+     0,
+     0
+    ],
+    "foot_L": [
+     30,
+     0,
+     0
+    ],
+    "foot_R": [
+     22,
+     0,
+     0
+    ],
+    "upperArm_L": [
+     25,
+     0,
+     8
+    ],
+    "foreArm_L": [
+     54,
+     -60,
+     0
+    ],
+    "hand_L": [
+     6,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     25,
+     0,
+     -8
+    ],
+    "foreArm_R": [
+     50,
+     60,
+     0
+    ],
+    "hand_R": [
+     6,
+     0,
+     0
+    ]
+   },
+   "pelvis": [
+    0,
+    -0.04,
+    0
+   ]
+  },
+  "sit_sofa": {
+   "joints": {
+    "pelvis": [
+     8,
+     0,
+     0
+    ],
+    "spine": [
+     6,
+     0,
+     0
+    ],
+    "chest": [
+     3,
+     0,
+     0
+    ],
+    "neck": [
+     -7,
+     0,
+     0
+    ],
+    "head": [
+     -8,
+     0,
+     0
+    ],
+    "thigh_L": [
+     72,
+     0,
+     -8
+    ],
+    "thigh_R": [
+     70,
+     0,
+     6
+    ],
+    "shin_L": [
+     -84,
+     0,
+     0
+    ],
+    "shin_R": [
+     -76,
+     0,
+     0
+    ],
+    "foot_L": [
+     6,
+     0,
+     0
+    ],
+    "foot_R": [
+     0,
+     0,
+     0
+    ],
+    "upperArm_L": [
+     8,
+     0,
+     8
+    ],
+    "foreArm_L": [
+     24,
+     -70,
+     0
+    ],
+    "hand_L": [
+     14,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     10,
+     0,
+     -10
+    ],
+    "foreArm_R": [
+     20,
+     70,
+     0
+    ],
+    "hand_R": [
+     14,
+     0,
+     0
+    ]
+   },
+   "pelvis": [
+    0,
+    -0.37,
+    0
+   ]
+  },
+  "sit_chair_glance": {
+   "extends": "sit_chair",
+   "joints": {
+    "spine": [
+     -5,
+     6,
+     0
+    ],
+    "chest": [
+     -3,
+     8,
+     0
+    ],
+    "neck": [
+     2,
+     14,
+     0
+    ],
+    "head": [
+     -2,
+     22,
+     0
+    ]
+   }
+  },
+  "sit_chair_glance_other": {
+   "extends": "sit_chair",
+   "joints": {
+    "spine": [
+     -5,
+     -6,
+     0
+    ],
+    "chest": [
+     -3,
+     -8,
+     0
+    ],
+    "neck": [
+     2,
+     -14,
+     0
+    ],
+    "head": [
+     -2,
+     -22,
+     0
+    ]
+   }
+  },
+  "sit_chair_look_down": {
+   "extends": "sit_chair",
+   "joints": {
+    "spine": [
+     -8,
+     0,
+     0
+    ],
+    "neck": [
+     -4,
+     0,
+     0
+    ],
+    "head": [
+     -16,
+     0,
+     0
+    ]
+   }
+  },
+  "sit_chair_talk": {
+   "extends": "sit_chair",
+   "joints": {
+    "upperArm_R": [
+     32,
+     0,
+     6
+    ],
+    "foreArm_R": [
+     64,
+     0,
+     0
+    ],
+    "hand_R": [
+     0,
+     0,
+     -20
+    ]
+   }
+  },
+  "sit_chair_drink": {
+   "extends": "sit_chair",
+   "joints": {
+    "upperArm_R": [
+     30,
+     0,
+     -14
+    ],
+    "foreArm_R": [
+     125,
+     0,
+     0
+    ],
+    "hand_R": [
+     -20,
+     0,
+     0
+    ],
+    "head": [
+     6,
+     0,
+     0
+    ]
+   }
+  },
+  "sit_chair_lean": {
+   "extends": "sit_chair",
+   "joints": {
+    "spine": [
+     -16,
+     0,
+     0
+    ],
+    "chest": [
+     -10,
+     0,
+     0
+    ],
+    "neck": [
+     10,
+     0,
+     0
+    ],
+    "head": [
+     8,
+     0,
+     0
+    ],
+    "upperArm_L": [
+     34,
+     0,
+     16
+    ],
+    "foreArm_L": [
+     78,
+     0,
+     0
+    ],
+    "hand_L": [
+     0,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     34,
+     0,
+     -16
+    ],
+    "foreArm_R": [
+     78,
+     0,
+     0
+    ],
+    "hand_R": [
+     0,
+     0,
+     0
+    ]
+   }
+  },
+  "sit_chair_hands": {
+   "extends": "sit_chair",
+   "joints": {
+    "spine": [
+     -9,
+     0,
+     0
+    ],
+    "chest": [
+     -4,
+     0,
+     0
+    ],
+    "neck": [
+     5,
+     0,
+     0
+    ],
+    "upperArm_L": [
+     40,
+     0,
+     14
+    ],
+    "foreArm_L": [
+     72,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     40,
+     0,
+     -14
+    ],
+    "foreArm_R": [
+     72,
+     0,
+     0
+    ]
+   }
+  },
+  "sit_chair_crossed": {
+   "extends": "sit_chair",
+   "joints": {
+    "spine": [
+     -1,
+     0,
+     0
+    ],
+    "chest": [
+     -1,
+     0,
+     0
+    ],
+    "upperArm_L": [
+     20,
+     -70,
+     10
+    ],
+    "foreArm_L": [
+     104,
+     0,
+     0
+    ],
+    "hand_L": [
+     0,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     18,
+     70,
+     -10
+    ],
+    "foreArm_R": [
+     108,
+     0,
+     0
+    ],
+    "hand_R": [
+     0,
+     0,
+     0
+    ]
+   }
+  },
+  "sit_stool_glance": {
+   "extends": "sit_stool",
+   "joints": {
+    "spine": [
+     -6,
+     6,
+     0
+    ],
+    "chest": [
+     -3,
+     8,
+     0
+    ],
+    "neck": [
+     3,
+     14,
+     0
+    ],
+    "head": [
+     -1,
+     22,
+     0
+    ]
+   }
+  },
+  "sit_stool_glance_other": {
+   "extends": "sit_stool",
+   "joints": {
+    "spine": [
+     -6,
+     -6,
+     0
+    ],
+    "chest": [
+     -3,
+     -8,
+     0
+    ],
+    "neck": [
+     3,
+     -14,
+     0
+    ],
+    "head": [
+     -1,
+     -22,
+     0
+    ]
+   }
+  },
+  "sit_stool_look_down": {
+   "extends": "sit_stool",
+   "joints": {
+    "spine": [
+     -9,
+     0,
+     0
+    ],
+    "neck": [
+     -3,
+     0,
+     0
+    ],
+    "head": [
+     -15,
+     0,
+     0
+    ]
+   }
+  },
+  "sit_stool_talk": {
+   "extends": "sit_stool",
+   "joints": {
+    "upperArm_R": [
+     32,
+     0,
+     6
+    ],
+    "foreArm_R": [
+     64,
+     0,
+     0
+    ],
+    "hand_R": [
+     0,
+     0,
+     -20
+    ]
+   }
+  },
+  "sit_stool_drink": {
+   "extends": "sit_stool",
+   "joints": {
+    "upperArm_R": [
+     30,
+     0,
+     -14
+    ],
+    "foreArm_R": [
+     125,
+     0,
+     0
+    ],
+    "hand_R": [
+     -20,
+     0,
+     0
+    ],
+    "head": [
+     6,
+     0,
+     0
+    ]
+   }
+  },
+  "sit_sofa_glance": {
+   "extends": "sit_sofa",
+   "joints": {
+    "spine": [
+     6,
+     6,
+     0
+    ],
+    "chest": [
+     3,
+     8,
+     0
+    ],
+    "neck": [
+     -7,
+     14,
+     0
+    ],
+    "head": [
+     -8,
+     22,
+     0
+    ]
+   }
+  },
+  "sit_sofa_glance_other": {
+   "extends": "sit_sofa",
+   "joints": {
+    "spine": [
+     6,
+     -6,
+     0
+    ],
+    "chest": [
+     3,
+     -8,
+     0
+    ],
+    "neck": [
+     -7,
+     -14,
+     0
+    ],
+    "head": [
+     -8,
+     -22,
+     0
+    ]
+   }
+  },
+  "sit_sofa_look_down": {
+   "extends": "sit_sofa",
+   "joints": {
+    "spine": [
+     3,
+     0,
+     0
+    ],
+    "neck": [
+     -13,
+     0,
+     0
+    ],
+    "head": [
+     -22,
+     0,
+     0
+    ]
+   }
+  },
+  "sit_sofa_talk": {
+   "extends": "sit_sofa",
+   "joints": {
+    "upperArm_R": [
+     32,
+     0,
+     6
+    ],
+    "foreArm_R": [
+     64,
+     0,
+     0
+    ],
+    "hand_R": [
+     0,
+     0,
+     -20
+    ]
+   }
+  },
+  "sit_sofa_drink": {
+   "extends": "sit_sofa",
+   "joints": {
+    "upperArm_R": [
+     30,
+     0,
+     -14
+    ],
+    "foreArm_R": [
+     125,
+     0,
+     0
+    ],
+    "hand_R": [
+     -20,
+     0,
+     0
+    ],
+    "head": [
+     2,
+     0,
+     0
+    ]
+   }
+  },
+  "sit_sofa_crossed": {
+   "extends": "sit_sofa",
+   "joints": {
+    "upperArm_L": [
+     20,
+     -70,
+     10
+    ],
+    "foreArm_L": [
+     104,
+     0,
+     0
+    ],
+    "hand_L": [
+     0,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     18,
+     70,
+     -10
+    ],
+    "foreArm_R": [
+     108,
+     0,
+     0
+    ],
+    "hand_R": [
+     0,
+     0,
+     0
+    ]
+   }
+  }
+ },
+ "sequences": {}
+}

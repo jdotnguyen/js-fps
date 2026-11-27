@@ -1,0 +1,15 @@
+{
+  "ruiz": {
+    "url": "assets/models/squad/ruiz.glb",
+    "variants": [],
+    "share": 0,
+    "gender": "f",
+    "sickTint": 0.3,
+    "credit": {
+      "title": "Blue Overalls Technician",
+      "author": "restore50",
+      "source": "https://sketchfab.com/3d-models/blue-overalls-technician-5ff134cc3a8d4d99858964e1f2b4b0da",
+      "license": "CC-BY-4.0"
+    }
+  }
+}

@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import posesJson from '../data/poses.json' with { type: 'json' };
+import { posesJson } from '../data/poseFiles.ts';
 import killsJson from '../data/kills.json' with { type: 'json' };
-import vossPack from '../data/mocap/voss.json' with { type: 'json' };
+import vossPack from '../data/cast/voss/mocap.json' with { type: 'json' };
 import type { GoreSystem } from '../actors/gore.ts';
 import { PoseLibrary } from '../actors/poses.ts';
 import { validate } from '../core/validate.ts';

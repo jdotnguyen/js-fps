@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import '../ui/styles/base.css';
-import posesJson from '../data/poses.json';
-import bodyModelsJson from '../data/body-models.json';
+import { posesJson } from '../data/poseFiles.ts';
+import { bodyModelsJson } from '../data/bodyModelFiles.ts';
 import { BodyModelLibrary, validateBodyModelTable } from '../actors/bodyModelLibrary.ts';
 import { loadPoseFile } from '../data/types/poses.ts';
 import { Rng } from '../core/rng.ts';
@@ -47,7 +47,7 @@ async function boot(): Promise<void> {
   scene.add(rim);
 
   const poses = new PoseLibrary(loadPoseFile(posesJson));
-  const bodyModels = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/body-models.json'));
+  const bodyModels = new BodyModelLibrary(validate(validateBodyModelTable, bodyModelsJson, 'data/bodyModelFiles.ts'));
   const profiles = sharedMotionProfiles();
   await Promise.all([
     bodyModels.load(import.meta.env.BASE_URL),

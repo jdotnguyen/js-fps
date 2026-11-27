@@ -1,0 +1,51 @@
+{
+  "heins": {
+    "gender": "f",
+    "inherits": "crew_f",
+    "clips": {
+      "idle": "heins_idle",
+      "talk": "heins_idle",
+      "walk": "heins_walk",
+      "jog": "heins_jog",
+      "aimPistol": "pistol_idle"
+    },
+    "holds": {
+      "stand": "heins_hold",
+      "lean_back": "heins_hold",
+      "lean_wall": "heins_hold",
+      "lean_counter": "heins_hold",
+      "sit_chair": "heins_hold",
+      "sit_stool": "heins_hold",
+      "sit_sofa": "heins_hold",
+      "crouch": "heins_hold",
+      "kneel": "heins_hold"
+    },
+    "style": {
+      "tempo": 1,
+      "fidgetRate": 0.5,
+      "armCarry": 0.95,
+      "posture": 0.4,
+      "headPitch": -2
+    },
+    "variants": {
+      "post": {
+        "when": {
+          "sequence": [
+            "briefing_gallery",
+            "drop"
+          ]
+        },
+        "style": {
+          "fidgetRate": 0.3,
+          "posture": 0.5
+        }
+      }
+    },
+    "hands": {
+      "tension": 0.5,
+      "stiffness": 1,
+      "fidget": 0.12,
+      "restCurl": 0.5
+    }
+  }
+}

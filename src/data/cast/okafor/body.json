@@ -1,0 +1,16 @@
+{
+  "doctor": {
+    "url": "assets/models/squad/doctor.glb",
+    "variants": [],
+    "share": 0,
+    "gender": "m",
+    "sickTint": 0.3,
+    "handRig": true,
+    "credit": {
+      "title": "Doctor - Sketchfab Weekly - 13 Mar'23",
+      "author": "BrushDip",
+      "source": "https://sketchfab.com/3d-models/doctor-sketchfab-weekly-13-mar23-9c89a438a5e940e59a0f9a07c22d6ade",
+      "license": "CC-BY-4.0"
+    }
+  }
+}

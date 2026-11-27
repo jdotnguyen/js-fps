@@ -1,0 +1,16 @@
+{
+  "mechanic": {
+    "url": "assets/models/squad/mechanic.glb",
+    "variants": [],
+    "share": 0,
+    "gender": "m",
+    "sickTint": 0.3,
+    "handRig": true,
+    "credit": {
+      "title": "Mechanic 1",
+      "author": "SidewalkNZ",
+      "source": "https://sketchfab.com/3d-models/mechanic-1-e98955d94822456e96a03e692d3d8429",
+      "license": "CC-BY-4.0"
+    }
+  }
+}

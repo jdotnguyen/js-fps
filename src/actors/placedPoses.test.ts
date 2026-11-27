@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import posesJson from '../data/poses.json' with { type: 'json' };
+import { posesJson } from '../data/poseFiles.ts';
 import { loadPoseFile } from '../data/types/poses.ts';
 import { PoseLibrary } from './poses.ts';
 import { JOINTS } from './skeleton.ts';
