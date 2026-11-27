@@ -81,6 +81,8 @@ Free-tier quota note: `gemini-2.5-flash-preview-tts` and `gemini-3.1-flash-tts-p
 
 The light, heavy and breath takes were cut by hand (2026-11-26): the pause splitter joined or missed takes, so `--resplit` on those batches would undo the cuts. Their raw recordings are in `previews/vo-batches/player-hit-feedback/`, cut with the same filter chain at (seconds): light 0.13-0.91, 3.86-4.97, 7.84-8.44, 11.32-11.92 (take 05 is its own request); heavy 0.28-1.12, 3.57-4.35, 9.17-11.26, 16.78-17.37, 22.73-23.47; breath 0.30-3.30, 4.71-7.81, 13.26-16.19.
 
+Voss's run takes (`react_voss_gasp`, `_grunt`, `_cough`, 2026-11-27) were also cut by hand: each 3.8 request came back with silence, stray breaths and a loud blip in its last 0.15 s around the one reaction (and `cough_02` coughed five times), so a re-run of `vo-reactions.ts` on them re-encodes the whole take, blip included. Their raw takes are in `previews/vo-batches/voss-death-scene/`, cut with the same filter chain at (seconds): gasp 1.50-2.00, 0.82-1.35, 1.50-2.35; grunt 0.00-0.72, 1.62-2.55 (the second request; the first, 45 s long, is kept as `_rejected_45s`), 1.12-1.70; cough 0.00-0.25, 0.32-0.62, 0.33-0.55.
+
 Reaction batches live in `scripts/lib/voReactionBatches.ts`. Each names a speaker and takes that speaker's voice and pinned model from `voCast.ts`. Only TTS takes have a batch; credited recordings have none, so regenerating can never overwrite them.
 
 | Batch | Character | Voice / model | TTS clips (`public/assets/vo/`) | Credited recordings (not TTS) | Dialogue lines wired |
@@ -92,6 +94,7 @@ Reaction batches live in `scripts/lib/voReactionBatches.ts`. Each names a speake
 | `react_priya_choke` | Priya (`nurse`) | `Sulafat` / 3.1 | `react_priya_choke_01`–`03.mp3` | `react_priya_scream_01`–`03.mp3`, `react_priya_cutoff_01`–`03.mp3` | `sec_priya_02`, `stinger_priya_03`, `sec_priya_03`, `sec_priya_06`, `sec_priya_07`, `stinger_priya_06` |
 | `react_okafor_exhale` | Okafor's exhale and sniffle (`sec_okafor_22`), read by Jay's voice since it is not speech | `Orus` / 3.1 | `react_okafor_exhale_01.mp3` | — | `sec_okafor_22` |
 | `react_voss_panic` | Voss (`crew_lab`) | `Leda` / 3.8 | `react_voss_panic_01`–`03.mp3` | `react_voss_scream_01`–`03.mp3` | `crew_lab_scream_01`, `drop_voss_02` (screams); `voss_panic_breath` sound (panic) |
+| `react_voss_gasp`, `_grunt`, `_cough` (generate with `--per-take`) | Voss (`crew_lab`), her run to the glass: gasps, grunts at each blow, short wet coughs of blood | `Leda` / 3.8 | `react_voss_{gasp,grunt,cough}_01`–`03.mp3` | — | none (`voss_gasp`, `voss_grunt`, `voss_cough` sounds in the `panic` beat) |
 
 ## 4. Direction, emotes & pronunciation
 

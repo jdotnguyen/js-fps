@@ -823,17 +823,20 @@ export class GoreSystem {
     }
   }
 
-  /** Single burst at a world point (bullet impact on flesh, ADR-0005). */
-  burst(at: THREE.Vector3, dir: THREE.Vector3, count = 30, dark = this.mode === 'reduced', clip?: GoreClip): void {
+  /**
+   * Single burst at a world point (bullet impact on flesh, ADR-0005). `spread` scales the scatter around `dir` (1: a
+   * wide spray; under 1: a tight one, such as blood coughed from a mouth).
+   */
+  burst(at: THREE.Vector3, dir: THREE.Vector3, count = 30, dark = this.mode === 'reduced', clip?: GoreClip, spread = 1): void {
     const d = new THREE.Vector3();
     const ci = this.clipIndex(clip);
     // Reduced gore keeps the shape: dark blood and half the drops.
     if (this.mode === 'reduced') count = Math.ceil(count / 2);
     for (let i = 0; i < count; i++) {
       d.copy(dir).multiplyScalar(this.rng.range(0.6, 2.2));
-      d.x += this.rng.range(-0.9, 0.9);
-      d.y += this.rng.range(-0.3, 1.2);
-      d.z += this.rng.range(-0.9, 0.9);
+      d.x += this.rng.range(-0.9, 0.9) * spread;
+      d.y += this.rng.range(-0.3, 1.2) * spread;
+      d.z += this.rng.range(-0.9, 0.9) * spread;
       this.emit(at, d, dark, ci);
     }
   }

@@ -708,10 +708,10 @@ test("the drop's lines and lights follow her clock: however late Okafor's questi
   // Beat starts, in seconds after the question ends (voss-death-scene D1), and what the drop starts with each.
   const clock = [
     ['panic', 0, ['say drop_okafor_02', 'light R04 flicker', 'light R03 flicker']],
-    ['glass', 4.6, ['say drop_voss_02']],
-    ['arch', 8.2, ['light R04 alarm emergency', 'light R03 alarm emergency', 'sfx lockdownAlarm']],
-    ['burst', 10.6, ['event bloom:spread', 'shake']],
-    ['still', 11.2, ['say drop_okafor_04', 'say drop_giles_01']],
+    ['glass', 6.5, ['say drop_voss_02']],
+    ['arch', 10.1, ['light R04 alarm emergency', 'light R03 alarm emergency', 'sfx lockdownAlarm']],
+    ['burst', 12.5, ['event bloom:spread', 'shake']],
+    ['still', 13.1, ['say drop_okafor_04', 'say drop_giles_01']],
   ] as const;
   // The question ends soon, or 12 s in because the squad was far behind.
   for (const asked of [4, 12]) {

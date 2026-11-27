@@ -86,7 +86,10 @@ test('Lab B: the cart and its load are loose props that movement ignores, and th
   g.world.destroy();
 });
 
-test('the Voss kill crashes through the cart: it topples, its load scatters inside the room, and she reaches the glass', async () => {
+// voss-death-scene §4 took the walk-through knock out of her staged run; §5 brings the cart down on its scripted tip and
+// sweeps the bench, and replaces these two (physical-interaction "The cart on its frame", "Played kill").
+const UNTIL_TIP = { todo: 'voss-death-scene §5: the cart falls on its scripted tip, not by a knock' };
+test('the Voss kill crashes through the cart: it topples, its load scatters inside the room, and she reaches the glass', UNTIL_TIP, async () => {
   const g = await labB();
   g.run(1);
   const before = g.poses();
@@ -134,7 +137,7 @@ test('a restored kill moves nothing, and a restart stands the knocked objects up
   g.world.destroy();
 });
 
-test('the crash is heard: nothing while the room settles, the cart crashes and glass sounds as she goes through', async () => {
+test('the crash is heard: nothing while the room settles, the cart crashes and glass sounds as she goes through', UNTIL_TIP, async () => {
   const g = await labB();
   for (const p of g.loose) assert.ok(p.sound, `${p.id} has a sound`);
   g.run(5);
@@ -164,7 +167,7 @@ test('with physical interaction off the kill leaves every object standing', asyn
   g.kill(false);
   g.run(2.5);
   g.say('drop_voss_01');
-  g.run(6);
+  g.run(7.5);
   assert.ok(g.npcs.actor('researcher_b')!.position.z < 23, 'she walked to the glass');
   for (const [id, now] of g.poses()) assert.ok(now.pos.equals(before.get(id)!.pos), `${id} never moved`);
   g.world.destroy();

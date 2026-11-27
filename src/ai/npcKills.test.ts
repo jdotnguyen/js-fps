@@ -22,7 +22,17 @@ import { ANKLE_CLEARANCE, OVERSTRETCH_RELEASE_S } from '../actors/footIk.ts';
 import type { FootstepEvent } from '../actors/humanoid.ts';
 import { loadMainCast, makeLib, type MainCastModel } from '../actors/castModelTestKit.ts';
 
-/** The Lab B kill on Voss (optional bodyModels for real blade creature): glass at z = 0, she starts 4.7 m behind it. */
+/**
+ * Lab B's anchors from slice01 (her route and contact marks), moved so the gallery glass (`labb_glass`) is at the origin:
+ * the pane at z = 0, Lab B toward +z. She waits at `labb_victim`, 4.5 m behind the glass.
+ */
+const LAB_B: Record<string, Spot> = (() => {
+  const all = (readLevel('slice01') as { rooms: Array<{ anchors?: Array<{ id: string; pos: number[] }> }> }).rooms.flatMap((r) => r.anchors ?? []);
+  const glass = all.find((a) => a.id === 'labb_glass')!.pos;
+  return Object.fromEntries(all.map((a) => [a.id, { x: a.pos[0]! - glass[0]!, y: a.pos[1]!, z: a.pos[2]! - glass[2]! }]));
+})();
+
+/** The Lab B kill on Voss (optional bodyModels for real blade creature), on Lab B's anchors with the glass at z = 0. */
 function setup(opts: { bodyModels?: BodyModelLibrary; fps?: number; kills?: unknown; playerHead?: THREE.Vector3 } = {}) {
   const fps = opts.fps ?? 60;
   /** Every sound and gore call, with when it came. */
@@ -33,7 +43,9 @@ function setup(opts: { bodyModels?: BodyModelLibrary; fps?: number; kills?: unkn
     fired.push({ name: `gore ${c.kind}`, at: now });
   };
   const gore = {
-    burst: (at: THREE.Vector3) => goreCall({ kind: 'burst', at: at.clone() }),
+    // A tight burst (spread under 1) is blood she coughs up.
+    burst: (at: THREE.Vector3, _dir: unknown, _count?: number, _dark?: boolean, _clip?: unknown, spread = 1) =>
+      goreCall({ kind: spread < 1 ? 'cough' : 'burst', at: at.clone() }),
     chunks: () => goreCall({ kind: 'chunks' }),
     pool: () => goreCall({ kind: 'pool' }),
     spurt: () => goreCall({ kind: 'spurt' }),
@@ -41,7 +53,7 @@ function setup(opts: { bodyModels?: BodyModelLibrary; fps?: number; kills?: unkn
       goreCall({ kind: `glass:${kind}`, at: at.clone(), size, ...(opts.band ? { band: opts.band } : {}) }),
   } as unknown as GoreSystem;
   const handlers = new Map<string, Set<(p: unknown) => void>>();
-  const emitted: Array<{ name: string; at: number }> = [];
+  const emitted: Array<{ name: string; at: number; payload?: unknown }> = [];
   const sounds: string[] = [];
   const warnings: string[] = [];
   let now = 0;
@@ -54,7 +66,7 @@ function setup(opts: { bodyModels?: BodyModelLibrary; fps?: number; kills?: unkn
       return { feet: head.clone().setY(0), head: head.clone() };
     },
     emit: (name, payload) => {
-      emitted.push({ name, at: now });
+      emitted.push({ name, at: now, payload });
       for (const fn of [...(handlers.get(name) ?? [])]) fn(payload);
     },
     listen: (name, fn) => {
@@ -72,8 +84,11 @@ function setup(opts: { bodyModels?: BodyModelLibrary; fps?: number; kills?: unkn
     warn: (m) => warnings.push(m),
     kills: validate(validateKillTable, opts.kills ?? killsJson, 'kills'),
   });
-  npcs.setResolver(() => ({ pos: { x: 0, y: 1.5, z: 0 } }));
-  npcs.spawnFromLevel([{ id: 'researcher_b', look: 'voss', pos: { x: 0, y: 0, z: 4.7 }, yaw: 0, pose: 'typing', transformable: true }]);
+  npcs.setResolver((ref) => {
+    const a = LAB_B[String(ref).replace(/^anchor:/, '')];
+    return { pos: a ?? { x: 0, y: 1.5, z: 0 } };
+  });
+  npcs.spawnFromLevel([{ id: 'researcher_b', look: 'voss', pos: LAB_B['labb_victim']!, yaw: 0, pose: 'typing', transformable: true }]);
   const camera = new THREE.Vector3(0, 1.62, -3);
   const step = (seconds: number, each?: () => void): void => {
     for (let i = 0; i < Math.round(seconds * fps); i++) {
@@ -117,7 +132,7 @@ test('the Lab B kill: she staggers to the glass, pounds it, arches, bursts, dies
   };
   g.step(2.5, watchHands);
   g.say('drop_voss_01');
-  g.step(4.7, watchHands);
+  g.step(6.6, watchHands);
   assert.ok(g.beatAt('glass') > 0, 'she reached the glass');
   assert.ok(Math.abs(voss.position.z - 0.71) < 0.35, `she stands at the glass (z ${voss.position.z.toFixed(2)})`);
   g.step(3.7, watchHands);
@@ -182,7 +197,7 @@ function sameTimes(a: ReturnType<typeof onTheClock>, b: ReturnType<typeof onTheC
 
 test('Fixed clock: each beat from panic on starts its set time after the question, about 13 s to the end of still', () => {
   const r = onTheClock({ asked: 3 });
-  const due: Record<string, number> = { panic: 0, glass: 4.6, arch: 8.2, burst: 10.6, still: 11.2, creature: 13 };
+  const due: Record<string, number> = { panic: 0, glass: 6.5, arch: 10.1, burst: 12.5, still: 13.1, creature: 14.9 };
   for (const b of r.beats) assert.ok(Math.abs(b.at - due[b.name]!) < 2 / 60, `${b.name} at ${b.at.toFixed(3)} s`);
   for (const name of ['sfx palm_glass_hit', 'sfx kill_burst', 'gore glass:print', 'gore burst', 'score:stinger']) {
     assert.ok(r.events.some((e) => e.name === name), `${name} is among the timed events`);
@@ -497,12 +512,37 @@ test('a restored kill has the creature pounding at once', () => {
 test('the glass beat fires a score stinger on each of her palm hits (adaptive-music)', () => {
   const g = setup();
   playThrough(g);
-  const stingers = g.emitted.filter((e) => e.name === 'score:stinger');
+  const named = (id: string) => g.emitted.filter((e) => e.name === 'score:stinger' && (e.payload as { id: string }).id === id);
+  const stingers = named('stab');
   const prints = g.goreCalls.filter((c) => c.kind === 'glass:print').length;
   assert.ok(prints >= 3, `${prints} palm hits`);
   assert.equal(stingers.length, prints, 'one stab per palm hit');
   const glass = g.beatAt('glass');
   for (const s of stingers) assert.ok(s.at >= glass && s.at < glass + 2, `stinger at ${s.at.toFixed(2)} is in the glass beat`);
+  // voss-death-scene 4.7: a deep bass hit under each blow of her run (the bench, her knee, the cart), all before the glass.
+  const hits = named('hit');
+  assert.equal(hits.length, 3, 'a bass hit at the bench, her knee and the cart');
+  for (const s of hits) assert.ok(s.at >= g.beatAt('panic') && s.at < glass, `bass hit at ${s.at.toFixed(2)} is in the run`);
+  assert.equal(g.emitted.filter((e) => e.name === 'score:stinger').length, prints + hits.length, 'no other stingers');
+});
+
+test('she coughs up blood in the run: four tight sprays from her mouth, two over the bench and two on her knee (voss-death-scene 4.7)', () => {
+  const g = setup();
+  const voss = g.npcs.actor('researcher_b')!;
+  void g.npcs.command('kill', KILL);
+  g.step(2.5);
+  g.say('drop_voss_01');
+  const mouths: Array<{ at: THREE.Vector3; head: THREE.Vector3 }> = [];
+  let seen = 0;
+  g.step(6.6, () => {
+    const coughs = g.goreCalls.filter((c) => c.kind === 'cough');
+    for (; seen < coughs.length; seen++) mouths.push({ at: coughs[seen]!.at!, head: voss.body.jointWorld('head', new THREE.Vector3()) });
+  });
+  assert.equal(mouths.length, 4, 'four coughs');
+  for (const m of mouths) assert.ok(m.at.distanceTo(m.head) < 0.15, `from her mouth (${m.at.distanceTo(m.head).toFixed(2)} m from her head)`);
+  const coughAt = g.fired.filter((f) => f.name === 'gore cough').map((f) => f.at - g.beatAt('panic'));
+  assert.ok(coughAt.slice(0, 2).every((t) => t > 0.9 && t < 1.95), `two over the bench (${coughAt.map((t) => t.toFixed(2)).join(', ')} s)`);
+  assert.ok(coughAt.slice(2).every((t) => t > 3.3 && t < 4.35), 'two down on her knee');
 });
 
 test('each flurry on the glass reports one pound event, at its first blow', () => {
@@ -1708,3 +1748,36 @@ for (const [label, look, model, key] of [['Voss', 'voss', 'office_3', 'office3']
     assert.ok(warnings.every((w) => !w.includes('touch')), warnings.join('; '));
   });
 }
+
+test('a sliding touch (voss-death-scene §4): her hand keeps to the mark\'s height while her pose sweeps it across, then lets go', () => {
+  const g = motionSetup({
+    anchors: {},
+    beats: [
+      { id: 'wait', poses: ['idle'], convulse: 0, until: 'time', s: 0.5, max: 0.5 },
+      {
+        id: 'sweep', poses: ['idle'], convulse: 0, until: 'time', s: 2, max: 2,
+        track: [{ at: 0, pose: 'kill_bench_hit', blend: 0.1 }, { at: 0.6, pose: 'kill_sweep', blend: 0.5 }],
+        events: [{ t: 0.2, do: 'touch', part: 'hand_L', mark: 'top', slide: true, blend: 0.1, hold: 1.3 }],
+      },
+      END_BEAT,
+    ],
+  });
+  g.start();
+  g.step(0.6);
+  // The bench top at her left hand's height as the hit pose holds it, 5 cm up.
+  const y = g.actor.body.jointWorld('hand_L', new THREE.Vector3()).y + 0.05;
+  g.anchors['top'] = { x: 0, y, z: 0 };
+  let worst = 0;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  g.step(2, () => {
+    const r = g.run();
+    if (r?.beatId !== 'sweep' || r.beatTime < 0.32 || r.beatTime > 1.55) return;
+    const hand = g.actor.body.jointWorld('hand_L', new THREE.Vector3());
+    worst = Math.max(worst, Math.abs(hand.y - y));
+    minX = Math.min(minX, hand.x);
+    maxX = Math.max(maxX, hand.x);
+  });
+  assert.ok(maxX - minX > 0.1, `her hand sweeps ${(maxX - minX).toFixed(2)} m across`);
+  assert.ok(worst < 0.01, `and stays on the top (${(worst * 100).toFixed(1)} cm off it)`);
+});

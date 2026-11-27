@@ -230,7 +230,7 @@
        {
         "do": "waitFor",
         "event": "kill:glass",
-        "timeout": 5.6
+        "timeout": 7.5
        },
        {
         "do": "say",
@@ -255,7 +255,7 @@
        {
         "do": "waitFor",
         "event": "kill:arch",
-        "timeout": 9.2
+        "timeout": 11.1
        },
        {
         "do": "lightState",
@@ -299,7 +299,7 @@
        {
         "do": "waitFor",
         "event": "kill:burst",
-        "timeout": 11.6
+        "timeout": 13.5
        },
        {
         "do": "emit",
@@ -324,7 +324,7 @@
        {
         "do": "waitFor",
         "event": "kill:still",
-        "timeout": 12.2
+        "timeout": 14.1
        },
        {
         "do": "say",

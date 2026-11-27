@@ -76,14 +76,14 @@ test('Fixed beat ignores its audio: the Lab B glass beat runs its length, whethe
     const h = harness(grown);
     h.step(0.05);
     h.run.lineEnded('plea');
-    h.step(4.6 + 1 / 60);
+    h.step(6.5 + 1 / 60);
     assert.equal(h.run.beatId, 'glass');
     for (let i = 0; i < 60 * 8 && h.run.beatId === 'glass'; i++) {
       if (h.run.beatTime >= screamAt) h.run.lineEnded('scream');
       h.step(1 / 60);
     }
     assert.equal(h.run.beatId, 'arch');
-    assert.ok(Math.abs(h.run.clockT - 8.2) < 2 / 60, `the arch began ${h.run.clockT.toFixed(3)} s on the clock (scream ends at ${screamAt} s)`);
+    assert.ok(Math.abs(h.run.clockT - 10.1) < 2 / 60, `the arch began ${h.run.clockT.toFixed(3)} s on the clock (scream ends at ${screamAt} s)`);
   }
 });
 
@@ -101,9 +101,9 @@ test('the kill clock is 0 as panic begins, runs with the beats, and stands still
   const held = h.run.clockT;
   // A pause: time goes by outside, the run is not updated.
   assert.equal(h.run.clockT, held);
-  h.step(4);
+  h.step(6);
   assert.equal(h.run.beatId, 'glass');
-  assert.ok(Math.abs(h.run.clockT - 4.6 - h.run.beatTime) < 1e-6, 'it carries across beats');
+  assert.ok(Math.abs(h.run.clockT - 6.5 - h.run.beatTime) < 1e-6, 'it carries across beats');
 });
 
 test('beat lengths never add up late: at an uneven frame time each beat starts within a frame of its place on the clock', () => {
@@ -203,6 +203,24 @@ test('the kill table is checked: a beat with no time limit is refused', () => {
   const late = structuredClone(killsJson) as Record<string, { beats: Array<{ events?: Array<Record<string, unknown>> }> }>;
   late['grownInside']!.beats[3]!.events![0]!['t'] = 30;
   assert.throws(() => validate(validateKillTable, late, 'kills'), /time limit/);
+});
+
+test('the kill table checks the staged run\'s events: a sweep, a tip, a touch on the glass with its gap, and a sliding touch', () => {
+  const table = (e: Record<string, unknown>): unknown => ({ k: { kind: 'grownInside', beats: [{ id: 'b', poses: ['idle'], convulse: 0, until: 'time', s: 1, max: 1, events: [{ t: 0.5, ...e }] }] } });
+  const ok = (e: Record<string, unknown>): void => void validate(validateKillTable, table(e), 'kills');
+  const bad = (e: Record<string, unknown>, why: RegExp): void => assert.throws(() => validate(validateKillTable, table(e), 'kills'), why);
+  ok({ do: 'sweep', from: 'labb_bench_sweep', dir: [-1, 0.2], reach: 0.9, strength: 1 });
+  ok({ do: 'tip', prop: 'labb_cart', s: 0.7 });
+  ok({ do: 'touch', part: 'chest', mark: 'glass', gap: 0.13 });
+  ok({ do: 'touch', part: 'hand_L', mark: 'labb_bench_top', slide: true });
+  bad({ do: 'sweep', from: 'labb_bench_sweep', dir: 'back', reach: 0.9 }, /sweep needs/);
+  bad({ do: 'sweep', dir: [1, 0], reach: 0.9 }, /sweep needs/);
+  bad({ do: 'tip', prop: 'labb_cart' }, /tip needs/);
+  bad({ do: 'kick', joint: 'chest', dir: [1, 0] }, /direction \[x, z\] is for a sweep/);
+  bad({ do: 'kick', joint: 'chest', dir: [0, 0] }, /needs a length/);
+  bad({ do: 'touch', part: 'chest', mark: 'labb_bench_top', gap: 0.1 }, /"gap" is for a touch on "glass"/);
+  bad({ do: 'touch', part: 'chest', mark: 'glass', slide: true }, /"slide" is for a touch on a mark/);
+  bad({ do: 'sfx', id: ['x'], from: 'labb_bench_sweep' }, /"from" is for a sweep/);
 });
 
 // ---- mauled (medbay-attack / infection-kills specs): impacts end the slam beat, and each impact moves her voice on.

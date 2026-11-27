@@ -172,7 +172,7 @@ interface ActiveKill {
   routeBeat: KillBeat | null;
   route: KillRoute | null;
   /** Parts drawn onto marks (`touch`, D4): each eases in over `blend`, holds, and eases out. */
-  touches: Array<{ part: TouchPart; target: THREE.Vector3; t: number; blend: number; hold: number }>;
+  touches: Array<{ part: TouchPart; target: THREE.Vector3; t: number; blend: number; hold: number; plane: THREE.Plane | null }>;
   /** Route legs already warned about as off their clip's speed (once each per kill). */
   speedWarned: Set<string>;
   /** A `look` glance (D6): seconds left before her head goes back to the beat's gaze (or ahead). */
@@ -435,8 +435,10 @@ export class KillDirector {
       const g = k.glass;
       // (Not while a mauled attacker holds her, throws her or drags her: then the grip or the flight places her.)
       const free = k.grip === null && k.thrown === null && k.actor.body.carried === null;
-      // A route beat owns her position (D3): no lean.
-      if (g && free && !k.route && k.arrived && k.actor.body.alive && k.run.beatId !== 'scratch' && k.run.beatId !== 'panic') {
+      // A route beat owns her position (D3): no lean. And only while she pounds and arches (D13): from the burst on she
+      // falls where she is, and the collapse takes her off the stand point, clear of the creature.
+      const leaning = k.run.beatId === 'glass' || k.run.beatId === 'arch';
+      if (g && free && !k.route && k.arrived && k.actor.body.alive && leaning) {
         const p = k.actor.position;
         const f = Math.min(1, dt * 6);
         const x = p.x + (g.stand.x - p.x) * f;
@@ -724,7 +726,7 @@ export class KillDirector {
         return false;
       }
       const w = tc.blend <= 1e-6 ? 1 : ease(tc.t / tc.blend) * ease((end - tc.t) / tc.blend);
-      body.setKillTouch(tc.part, tc.target, w);
+      body.setKillTouch(tc.part, tc.target, w, tc.plane);
       return true;
     });
   }
@@ -1184,7 +1186,13 @@ export class KillDirector {
         if (e.kind === 'burst') gore.burst(at, fwd.clone().multiplyScalar(1.6).setY(0.35), e.count ?? 120, undefined, clip);
         else if (e.kind === 'chunks') gore.chunks(at, fwd.clone().setY(0.4), e.count ?? 12, clip);
         else if (e.kind === 'pool') gore.pool(at.setY(0), e.size ?? 1.4);
-        else if (e.kind === 'spurt') {
+        else if (e.kind === 'cough') {
+          // From her mouth (ahead of and below the head joint, along her heading), forward and falling: a tight spray.
+          const h = body.heading;
+          const face = new THREE.Vector3(-Math.sin(h), 0, -Math.cos(h));
+          const mouth = body.jointWorld('head', tmpA).clone().addScaledVector(face, 0.09).add(new THREE.Vector3(0, -0.05, 0));
+          gore.burst(mouth, face.multiplyScalar(0.7).setY(-0.35), e.count ?? 26, undefined, clip, 0.3);
+        } else if (e.kind === 'spurt') {
           const bone = body.bones[e.joint ?? 'chest'];
           bone.getWorldQuaternion(tmpQ).invert();
           gore.spurt(bone, new THREE.Vector3(), fwd.clone().setY(0.25).normalize().applyQuaternion(tmpQ), e.s ?? 3, undefined, clip);
@@ -1208,17 +1216,23 @@ export class KillDirector {
         return;
       case 'touch': {
         if (k.instant || !e.part || !e.mark) return;
-        // `glass`: the point on the pane's face nearest the part now.
+        // `glass`: the pane's face (or `gap` m off it), at the point nearest the part each frame, so the part slides along
+        // the pane as she moves (her chest down it as she sinks).
         let target: THREE.Vector3 | null;
+        let plane: THREE.Plane | null = null;
         if (e.mark === 'glass') {
           const g = k.glass;
           if (!g) return this.w.warn(`kill ${k.npc}: touch on "glass" but the kill has no glass`);
-          const p = body.jointWorld(KillDirector.touchJoint(e.part), new THREE.Vector3());
-          target = p.addScaledVector(g.n, -p.clone().sub(g.at).dot(g.n));
-        } else target = this.routeMark(k, e.mark);
+          plane = new THREE.Plane().setFromNormalAndCoplanarPoint(g.n, g.at.clone().addScaledVector(g.n, e.gap ?? 0));
+          target = plane.projectPoint(body.jointWorld(KillDirector.touchJoint(e.part), new THREE.Vector3()), new THREE.Vector3());
+        } else {
+          target = this.routeMark(k, e.mark);
+          // `slide`: at the mark's height, wherever the pose takes the part across (her hand sweeping a bench top).
+          if (target && e.slide) plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -target.y);
+        }
         if (!target) return;
         k.touches = k.touches.filter((tc) => tc.part !== e.part);
-        k.touches.push({ part: e.part, target, t: 0, blend: e.blend ?? TOUCH.blend, hold: e.hold ?? TOUCH.hold });
+        k.touches.push({ part: e.part, target, t: 0, blend: e.blend ?? TOUCH.blend, hold: e.hold ?? TOUCH.hold, plane });
         return;
       }
       case 'look': {
@@ -1232,6 +1246,10 @@ export class KillDirector {
       case 'layout':
         // Only a skipped or restored kill: a played one leaves things where they fell (livelier-cart-slam D11).
         if (k.instant && e.prop) this.w.layOut?.(e.prop);
+        return;
+      case 'sweep':
+      case 'tip':
+        // Their moments in the kill are authored (D8, D9); what they do to the props is still to come (§5).
         return;
       case 'knock':
         // A skipped or restored kill moves nothing (physical-interaction "Restored kill").

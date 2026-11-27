@@ -121,6 +121,37 @@ export const REACTION_BATCHES: readonly ReactionBatch[] = [
       { id: 'react_voss_panic_03', direction: 'ragged hyperventilating gasps turning into a whimper', vocalization: 'Hah— hah— hahh— nnnh—' },
     ],
   },
+  // Her staged run to the glass (voss-death-scene D1, 4.7): sounds `voss_gasp`, `voss_grunt` and `voss_cough`.
+  {
+    name: 'react_voss_gasp',
+    speaker: 'crew_lab',
+    character: 'Dr. Lena Voss, 34 female microbiologist (sharp female voice, something is tearing her apart from inside)',
+    takes: [
+      { id: 'react_voss_gasp_01', direction: 'one sharp ragged gasp of pain as something inside her lurches, close to the mic', vocalization: 'Hhah—!' },
+      { id: 'react_voss_gasp_02', direction: 'a strangled panicked gasp for air, her breath catching in her throat', vocalization: 'Hhhk— hah—' },
+      { id: 'react_voss_gasp_03', direction: 'a desperate wheezing breath in, fighting to breathe, close to tears', vocalization: 'Hhhhh— hh—' },
+    ],
+  },
+  {
+    name: 'react_voss_grunt',
+    speaker: 'crew_lab',
+    character: 'Dr. Lena Voss, 34 female microbiologist (sharp female voice, something is tearing her apart from inside)',
+    takes: [
+      { id: 'react_voss_grunt_01', direction: 'a short pained grunt as she slams hip-first into a steel lab bench', vocalization: 'Unhh!' },
+      { id: 'react_voss_grunt_02', direction: 'a strained effortful cry through clenched teeth, pushing herself up off the bench', vocalization: 'Nnngh— ahh!' },
+      { id: 'react_voss_grunt_03', direction: 'a winded cry of pain as her knee hits a hard floor', vocalization: 'Agh— hhh!' },
+    ],
+  },
+  {
+    name: 'react_voss_cough',
+    speaker: 'crew_lab',
+    character: 'Dr. Lena Voss, 34 female microbiologist (sharp female voice, choking on blood in her throat)',
+    takes: [
+      { id: 'react_voss_cough_01', direction: 'one short wet choking cough, blood in her throat, under half a second', vocalization: 'Khh!' },
+      { id: 'react_voss_cough_02', direction: 'one harsh wet cough that ends in a gurgle, short', vocalization: 'Hkkh—' },
+      { id: 'react_voss_cough_03', direction: 'one retching wet cough, gagging, short', vocalization: 'Uhkk!' },
+    ],
+  },
 ];
 
 /** Credited recordings that share the `react_` prefix but are not TTS (CREDITS.md). No batch may write these. */

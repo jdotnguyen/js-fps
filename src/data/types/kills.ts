@@ -70,8 +70,12 @@ export function clipSpeedAt(speed: ClipSpeed | undefined, t: number): number {
  * nothing held, faster than a haul (it leaving, D37), and `attackerLook` turns its head to a mark (none: straight ahead).
  * `layout` (livelier-cart-slam D11) only acts in a skipped or restored kill: it lays the props of the group its `prop`
  * names out at their authored `after` poses, the aftermath a played kill leaves.
+ *
+ * `sweep` (voss-death-scene D9) clears the loose objects within `reach` of the `from` mark along `dir`, and `tip` (D8)
+ * sends a prop over on a scripted track lasting `s`. Both mark their moment in the kill; what they do to the props is
+ * still to come (§5), so for now they move nothing.
  */
-export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'attackerPerf', 'haulTo', 'slam', 'throw', 'drag', 'infect', 'backTo', 'walkTo', 'attackerLook', 'knock', 'layout', 'touch', 'look'] as const;
+export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'attackerPerf', 'haulTo', 'slam', 'throw', 'drag', 'infect', 'backTo', 'walkTo', 'attackerLook', 'knock', 'layout', 'touch', 'look', 'sweep', 'tip'] as const;
 
 /**
  * The parts of the victim a `touch` event (voss-death-scene D4) puts on a mark: a hand (its wrist joint), a hip (the hip
@@ -84,6 +88,18 @@ export type TouchPart = (typeof TOUCH_PARTS)[number];
 /** The `mauled` events that need an attacker on the kill step. */
 export const ATTACKER_EVENTS: readonly KillEventKind[] = ['pin', 'grip', 'attackerPose', 'attackerPerf', 'haulTo', 'slam', 'throw', 'drag', 'walkTo', 'attackerLook'];
 export type KillEventKind = (typeof KILL_EVENTS)[number];
+
+/** Kick directions in the victim's own frame (she faces forward); `pull` is a glass streak's. */
+const NAMED_DIRS = ['back', 'fwd', 'left', 'right', 'up', 'pull'] as const;
+
+/** A named direction, or (`sweep`) a world direction [x, z] across the floor. */
+const eventDir: Validator<(typeof NAMED_DIRS)[number] | [number, number]> = (v, p) => {
+  if (typeof v === 'string') return oneOf(NAMED_DIRS)(v, p);
+  if (!Array.isArray(v) || v.length !== 2) throw new ValidationError(p, `expected one of ${NAMED_DIRS.join(', ')}, or [x, z]`);
+  const d = [num(v[0], `${p}[0]`), num(v[1], `${p}[1]`)] as [number, number];
+  if (Math.hypot(d[0], d[1]) < 1e-6) throw new ValidationError(p, 'a direction needs a length');
+  return d;
+};
 
 const joint: Validator<JointName> = (v, p) => {
   const s = str(v, p);
@@ -104,20 +120,28 @@ const eventShape = {
   gain: optional(numRange(0.1, 24)),
   /** `sfx`/`kick`/`gore`: the joint it comes from. */
   joint: optional(joint),
-  /** `kick`: push direction in the victim's own frame (she faces forward); `glass streak`: `pull` runs it along the pane the way she is dragged. */
-  dir: optional(oneOf(['back', 'fwd', 'left', 'right', 'up', 'pull'] as const)),
-  /** `kick`: how hard the joint jolts; `knock`: how hard loose props are thrown (1 = about 1.6 m/s). */
+  /**
+   * `kick`: push direction in the victim's own frame (she faces forward); `glass streak`: `pull` runs it along the pane the
+   * way she is dragged; `sweep`: [x, z], the way across the floor the objects go.
+   */
+  dir: optional(eventDir),
+  /** `kick`: how hard the joint jolts; `knock`/`sweep`: how hard loose props are thrown (1 = about 1.6 m/s). */
   strength: optional(numRange(0, 3)),
   /**
    * `knock` (adopt-physics-engine D15): for the rest of the beat, every loose prop that comes within this many metres of
    * the victim over the floor is knocked over, once. Does nothing without physics, or in a skipped or restored kill.
    */
   reach: optional(numRange(0.2, 2)),
-  /** `gore`: burst | chunks | spurt | pool; `glass`: print | splat | streak | crack. */
+  /** `sweep`: the mark (a room anchor, or a kill step mark) the sweep starts from: where her arm crosses the bench. */
+  from: optional(str),
+  /**
+   * `gore`: burst | chunks | spurt | pool | cough (a small tight spray from the mouth, ahead of her face and falling);
+   * `glass`: print | splat | streak | crack.
+   */
   kind: optional(str),
   count: optional(numRange(1, 400)),
   size: optional(numRange(0.02, 6)),
-  /** `gore spurt`: seconds; `glass streak`: seconds to run down. */
+  /** `gore spurt`: seconds; `glass streak`: seconds to run down; `tip`: seconds the prop takes to go over. */
   s: optional(numRange(0, 30)),
   /** `glass print`: which palm. */
   hand: optional(oneOf(['L', 'R'] as const)),
@@ -157,6 +181,16 @@ const eventShape = {
    * the part. The poses give her the shape; the touch makes the contact. Nothing in a skipped or restored kill.
    */
   part: optional(oneOf(TOUCH_PARTS)),
+  /**
+   * `touch` on `glass`: how far (m) the part's joint stays off the pane's face (default 0). The chest joint sits inside her,
+   * so her chest on the pane is the joint about her chest's depth off it.
+   */
+  gap: optional(numRange(0, 0.5)),
+  /**
+   * `touch` on a mark: hold the part at the mark's height (a level surface through it) wherever the pose takes it across,
+   * instead of at the point itself, so a hand sweeps over a bench top. (On `glass` the part always slides along the pane.)
+   */
+  slide: optional(bool),
   /** `infect`: the bloom's stage on the victim's body (0..3). */
   stage: optional(numRange(0, 3)),
   /**
@@ -177,7 +211,7 @@ const eventShape = {
    * away, once, at `strength` (1 = about 2.5 m/s), with `up` the upward share. Nothing in a skipped or restored kill.
    */
   burst: optional(obj({ reach: numRange(0.1, 2), strength: numRange(0, 4), up: optional(numRange(0, 1)) })),
-  /** `slam`: the prop it lands on; the mark moves with it, and `jolt` moves it. `layout`: the prop group laid out. */
+  /** `slam`: the prop it lands on; the mark moves with it, and `jolt` moves it. `layout`: the prop group laid out. `tip`: the prop that goes over. */
   prop: optional(str),
   /**
    * `slam` (D3): how the prop jumps when it lands, in its own frame: `slide` [x, z] m and `yaw` degrees that it keeps,
@@ -225,7 +259,9 @@ const faceRef: Validator<string | number> = (v, p) => (typeof v === 'number' ? n
 /**
  * One mark of a beat's `route` (voss-death-scene D3): she reaches `mark` (a kill step mark, a room anchor, or `glass`, the
  * stand point at the pane) `t` s into the beat. With `face` she turns to it as she arrives, and keeps it while she is
- * there; otherwise she faces the way she is going.
+ * there; otherwise she faces the way she is going. Between two marks that both give a facing (or from where the beat
+ * starts her to a first mark that gives one) she turns from one facing to the other as she goes, never to the way she
+ * goes: a sidestep, such as her lurch into the bench beside her or her slide along the pane.
  */
 const routeShape = {
   mark: str,
@@ -395,17 +431,22 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
         if (e.t > b.max) throw new ValidationError(ep, `fires after the beat's time limit (${b.max} s)`);
         if (e.do === 'sfx' && !e.id?.length) throw new ValidationError(ep, 'sfx needs "id"');
         if (e.do === 'kick' && (!e.joint || !e.dir)) throw new ValidationError(ep, 'kick needs "joint" and "dir"');
-        if (e.do === 'gore' && !['burst', 'chunks', 'spurt', 'pool'].includes(e.kind ?? '')) throw new ValidationError(ep, 'gore kind is burst | chunks | spurt | pool');
+        if (e.do === 'gore' && !['burst', 'chunks', 'spurt', 'pool', 'cough'].includes(e.kind ?? '')) throw new ValidationError(ep, 'gore kind is burst | chunks | spurt | pool | cough');
         if (e.do === 'glass' && !['print', 'splat', 'streak', 'crack'].includes(e.kind ?? '')) throw new ValidationError(ep, 'glass kind is print | splat | streak | crack');
         if (e.dir === 'pull' && !(e.do === 'glass' && e.kind === 'streak')) throw new ValidationError(ep, '"dir": "pull" is only for a glass streak');
         if (e.do === 'stinger' && e.id?.length !== 1) throw new ValidationError(ep, 'stinger needs one "id"');
         if (e.do === 'knock' && e.reach === undefined) throw new ValidationError(ep, 'knock needs "reach"');
+        if (e.do === 'sweep' && (e.from === undefined || !Array.isArray(e.dir) || e.reach === undefined)) throw new ValidationError(ep, 'sweep needs "from", "dir" as [x, z] and "reach"');
+        if (e.do === 'tip' && (!e.prop || e.s === undefined)) throw new ValidationError(ep, 'tip needs "prop" and "s"');
+        if (e.from !== undefined && e.do !== 'sweep') throw new ValidationError(`${ep} > from`, '"from" is for a sweep');
+        if (Array.isArray(e.dir) && e.do !== 'sweep') throw new ValidationError(`${ep} > dir`, 'a direction [x, z] is for a sweep');
+        if (e.do === 'kick' && Array.isArray(e.dir)) throw new ValidationError(`${ep} > dir`, 'a kick goes back | fwd | left | right | up');
         for (const k of ['windup', 'burst', 'jolt'] as const) if (e[k] !== undefined && e.do !== 'slam') throw new ValidationError(`${ep} > ${k}`, `"${k}" is for a slam`);
         if (e.jolt && !e.prop) throw new ValidationError(`${ep} > jolt`, 'a jolt needs the "prop" it moves');
         if (e.jolt?.slide && e.jolt.slide.length !== 2) throw new ValidationError(`${ep} > jolt > slide`, 'slide is [x, z]');
         if (e.do === 'layout' && !e.prop) throw new ValidationError(ep, 'layout needs the "prop" group it lays out');
-        if (e.prop !== undefined && e.do !== 'slam' && e.do !== 'layout') throw new ValidationError(`${ep} > prop`, '"prop" is for a slam or a layout');
-        if (e.do !== 'knock' && e.reach !== undefined) throw new ValidationError(`${ep} > reach`, '"reach" is for a knock');
+        if (e.prop !== undefined && e.do !== 'slam' && e.do !== 'layout' && e.do !== 'tip') throw new ValidationError(`${ep} > prop`, '"prop" is for a slam, a layout or a tip');
+        if (e.do !== 'knock' && e.do !== 'sweep' && e.reach !== undefined) throw new ValidationError(`${ep} > reach`, '"reach" is for a knock or a sweep');
         if ((e.do === 'pose' || e.do === 'die' || e.do === 'attackerPose') && !e.pose) throw new ValidationError(ep, `${e.do} needs "pose"`);
         if (e.do === 'attackerPerf' && !e.perf) throw new ValidationError(ep, 'attackerPerf needs "perf"');
         if (e.blade !== undefined && e.do !== 'grip') throw new ValidationError(`${ep} > blade`, '"blade" is for a grip');
@@ -413,6 +454,8 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
         if ((e.do === 'haulTo' || e.do === 'walkTo' || e.do === 'slam' || e.do === 'throw' || e.do === 'drag' || e.do === 'backTo' || e.do === 'touch') && !e.mark) throw new ValidationError(ep, `${e.do} needs "mark"`);
         if (e.do === 'touch' && !e.part) throw new ValidationError(ep, 'touch needs "part"');
         if (e.part !== undefined && e.do !== 'touch') throw new ValidationError(`${ep} > part`, '"part" is for a touch');
+        if (e.gap !== undefined && !(e.do === 'touch' && e.mark === 'glass')) throw new ValidationError(`${ep} > gap`, '"gap" is for a touch on "glass"');
+        if (e.slide !== undefined && !(e.do === 'touch' && e.mark !== 'glass')) throw new ValidationError(`${ep} > slide`, '"slide" is for a touch on a mark (a touch on "glass" always slides)');
         if (e.do === 'look' && !e.target) throw new ValidationError(ep, 'look needs "target"');
         if (e.target !== undefined && e.do !== 'look') throw new ValidationError(`${ep} > target`, '"target" is for a look');
         if (e.via !== undefined && e.do !== 'haulTo' && e.do !== 'walkTo' && e.do !== 'drag') throw new ValidationError(`${ep} > via`, '"via" is for a haulTo, walkTo or drag');

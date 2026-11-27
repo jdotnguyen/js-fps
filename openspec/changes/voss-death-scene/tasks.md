@@ -86,21 +86,21 @@ and tell the user which change or file is blocking if:
 
 ## 4. The staged run and the collapse (Opus 5.5, high)
 
-- [ ] 4.1 Check the gates, including that phase 1b is committed. Verify: as in 1.1.
-- [ ] 4.2 Pick and bake the stumble, recovery and hurt-walk takes as in 3.2, and credit them. Verify: as in 3.2.
-- [ ] 4.3 Add the contact and collapse poses to `poses.json` (bench hit, sweep, doubled over, push off, knee down, cart
+- [x] 4.1 Check the gates, including that phase 1b is committed. Verify: as in 1.1.
+- [x] 4.2 Pick and bake the stumble, recovery and hurt-walk takes as in 3.2, and credit them. Verify: as in 3.2.
+- [x] 4.3 Add the contact and collapse poses to `poses.json` (bench hit, sweep, doubled over, push off, knee down, cart
   grab, cart pull, pane slide, `corpseGlassSlump`). Keep the names `kill_glass_0` and `kill_glass_1`. Verify: the pose
   validation tests pass, and the blade creature's pose map still resolves.
-- [ ] 4.4 Add the route and contact anchors to `R04.json` (bench edge, push off, stumble, knee, cart handle,
+- [x] 4.4 Add the route and contact anchors to `R04.json` (bench edge, push off, stumble, knee, cart handle,
   `voss_rest`), keeping clear of the bench, the gurney and the cart. Verify: `npm test -- src/world/slice01.test.ts` and
   the slice walk tests pass.
-- [ ] 4.5 Write `panic` as design D1 describes: track, route, touches, kicks, and `sweep`/`tip` events with no prop
+- [x] 4.5 Write `panic` as design D1 describes: track, route, touches, kicks, and `sweep`/`tip` events with no prop
   effect yet (section 5 wires them). Drop `toGlass` and `knock` from it. Verify: tests for "The actions in order",
   "Contacts touch" (5 cm) and "Nothing walked through" (sampled against the headless slice's R04 colliders).
-- [ ] 4.6 Write the `still` collapse (design D13), and limit the lean onto `glass.stand` to `glass` and `arch`. Verify:
+- [x] 4.6 Write the `still` collapse (design D13), and limit the lean onto `glass.stand` to `glass` and `arch`. Verify:
   tests for "Down the pane", "Room for the creature" (0.3 m), and "Restored in place" (5 cm). The palm print, clear
   band and pounding tests still pass.
-- [ ] 4.7 Tune the D1 times with the user in a private `npm run playtest:serve` build (`?debug&slot=scratch`), and record
+- [x] 4.7 Tune the D1 times with the user in a private `npm run playtest:serve` build (`?debug&slot=scratch`), and record
   the final times in design.md's section notes. Verify: the user approves the run and collapse, the fixed-clock tests
   still pass with the final times, and every browser opened is closed.
 

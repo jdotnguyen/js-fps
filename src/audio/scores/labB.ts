@@ -433,6 +433,30 @@ function stab(sr: number, rng: Rng, notes: number[]): Stereo {
   return edges(oneShotRoom(out, sr, 0.5, 2.5), sr);
 }
 
+/**
+ * A deep bass hit under each blow in Voss's struggle (voss-death-scene 4.7): a sub that drops from `f0` to a low growl, a
+ * low tom, and a dark noise thump, saturated a little, in a short dark room. No pitch above 200 Hz but the thump's edge.
+ */
+function hit(sr: number, rng: Rng, f0: number): Stereo {
+  const len = Math.round(2.4 * sr);
+  const out = stereo(len);
+  const noise = white(rng.fork('thump'));
+  const lp = new Biquad('lowpass', 260, 0.9, sr);
+  let ph = 0;
+  for (let i = 0; i < Math.round(1.8 * sr); i++) {
+    const dt = i / sr;
+    const f = f0 * (0.55 + 0.45 * Math.exp(-dt / 0.09));
+    ph += (TAU * f) / sr;
+    const sub = (Math.sin(ph) + Math.sin(ph * 2 + 0.4) * 0.18) * Math.exp(-dt / 0.55);
+    const th = lp.process(noise()) * Math.exp(-dt / 0.05) * 1.4;
+    const y = Math.tanh((sub + th) * 1.8) * 0.7 * Math.min(1, dt / 0.003);
+    out.l[i]! += y;
+    out.r[i]! += y;
+  }
+  tom(out, sr, rng.fork('tom'), 0, f0 * 1.6, 0.45, 0, 0.3);
+  return edges(oneShotRoom(out, sr, 0.3, 1.6, 0.7), sr);
+}
+
 function swell(sr: number, rng: Rng): Stereo {
   const dur = 3.4;
   const len = Math.round((dur + 2.5) * sr);
@@ -581,6 +605,7 @@ export function renderLabB(sr: number, rng: Rng): RenderedScore {
   };
   const stingers: Record<string, StereoPair[]> = {
     stab: [pair(norm(stab(sr, rng.fork('stab1'), [50, 51, 56, 62]), 0.75)), pair(norm(stab(sr, rng.fork('stab2'), [51, 52, 57, 63]), 0.75))],
+    hit: [pair(norm(hit(sr, rng.fork('hit1'), 55), 0.85)), pair(norm(hit(sr, rng.fork('hit2'), 49), 0.85))],
     swell: [pair(norm(swell(sr, rng.fork('swell')), 0.8))],
     rise: [pair(norm(riser(sr, rng.fork('riser')), 0.7))],
     slam: [pair(norm(slam(sr, rng.fork('slam')), 0.95))],

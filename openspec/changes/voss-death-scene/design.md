@@ -56,7 +56,7 @@ began. It is summed from the same `dt` as beat time, so a pause freezes it. The 
 
 | Beat | Length | What happens (beat time) |
 | --- | --- | --- |
-| panic | 4.6 s | 0.0 jolt from inside; 0.4 hip hits the bench; 0.55 sweep; 0.9-1.5 doubled over; 1.5 push off; 1.6-2.4 stumble; 2.4 knee down; 2.8 recover; 3.3 grab the cart; 3.6 cart goes over; 4.0-4.6 to the glass |
+| panic | 6.5 s | 0.0 jolt from inside; 0.4 hip hits the bench; 0.55 sweep; 0.8-1.95 doubled over, coughing blood at 1.15 and 1.58; 1.95 push off; 2.15-3.1 stumble; 3.3 knee down, coughing blood at 3.65 and 3.98; 4.35 recover; 5.05 grab the cart; 5.5 cart goes over; 5.5-6.4 to the glass (times set in the §4.7 review) |
 | glass | 3.6 s | palms at 0.4, 0.8, 1.2, 1.6 (prints, stingers as today); face to the pane at 2.0; the scream starts at 0.0 and plays on 1.4 s into `arch` |
 | arch | 2.4 s | as today |
 | burst | 0.6 s | as today |
@@ -302,3 +302,69 @@ Each section adds what the next one needs here before its session ends: measured
 - Pre-existing failures seen on a clean HEAD export, not this change's: `castMotionCoverage.test.ts` (2, Giles's
   `rub_forearm` in the intro), `motionProfiles.test.ts` (dock_guard hand height), `slice01Gallery.test.ts` (R03 light
   slots), `mocapPhysics.test.ts` (flood_elite crew clips).
+
+### Section 4 (2026-11-27)
+
+- Her spot moved (user's choice): `labb_victim` is now (6.45, 0, 26.3), beside the bench, still facing the glass and
+  behind the middle pane. From (8, 26.5) the bench was 2.1 m away and the run would have needed about 2.3 m/s. The
+  "Voss stays visible" check in `labWing.test.ts` still passes.
+- Takes (all CMU, in the `voss` pack, one-shot): `voss_stumble` 104_13 0.4-4.55 s (pieces 0.25-0.95 lurch, 1.25-2.1
+  stumble, 3.55-4.15 lunge), `voss_recover` 142_16 42.5-46.5 s (0.85-1.75: up from a crouch while moving),
+  `voss_hurt_walk` 105_26 3.75-7.5 s was baked as an option for the last leg, then removed in §4.7 (the lunge stayed). The
+  pack is 10 clips, 338.1 KB. Every other clip bakes the same (`okafor_pistol`/`giles_pistol` differ only
+  because they are hand-made, not baked).
+- R04 anchors: route `labb_bench_edge`, `labb_stumble`, `labb_knee`, `labb_cart_side`, `labb_to_glass`, `labb_pane`,
+  `labb_slide`, `labb_slump`, `voss_rest`; contacts (joint positions, not skin) `labb_bench_hip`, `labb_bench_top`,
+  `labb_push_off`, `labb_knee_floor`, `labb_cart_handle`; `labb_bench_sweep` is the sweep's `from`. Her path goes round
+  the cart's east side; the cart did not move.
+- Poses (fitted on her imported body by a search that keeps every capsule out of the room): `kill_bench_hit`,
+  `kill_sweep`, `kill_doubled` (propped on her left forearm on the bench), `kill_push_off`, `kill_knee_down`,
+  `kill_cart_grab`, `kill_cart_pull`, `kill_pane_lean` (one more than listed: chest and cheek on the pane before the
+  slide), `kill_pane_slide` (kneeling against the pane, arms straight up it), `corpseGlassSlump` (on her left side along
+  the foot of the wall, head west). The creature beat holds `corpseGlassSlump` too.
+- Panic times (beat time): jolt 0.0, hip on the bench 0.36-0.42 (sfx 0.4), sweep 0.55, doubled 0.8, push off 1.18-1.56,
+  stumble 1.42, knee down 2.12-2.45 (sfx 2.25), rise 2.45, cart grab 3.15-3.45, tip 3.6, lunge 3.6, at the glass 4.5.
+  Still: onto the pane 0-0.4, slide down to her knees 0.4-1.2 (0.24 m west, stopped short of the mullion at x 7.35),
+  back off the glass 1.2-1.4, crumple west 1.28-1.8, `die` 1.8.
+- New mechanisms: a route leg between two facings (or from the start to a first mark with one) keeps that facing (a
+  sidestep), in `killRoute.ts`; `touch` on `glass` takes the nearest point of the pane each frame, `gap` m off it, and a
+  `touch` with `slide` holds the part at the mark's height (the body projects onto the plane before the IK,
+  `Humanoid.setKillTouch(..., plane)`). A chest touch on the pane was tried and dropped: the spine bends from the hips to
+  reach it and her head swings through the glass, so the poses and the route put her chest there instead.
+- The window frame: the partition's sill (0.35 m) and its mullions (x 7.35 and 8.65 for the middle pane) stand 0.1 m
+  proud of the glass. She cannot slide west past 7.35 against the pane, so she slides to 7.68 and crumples west low,
+  after stepping back. The creature stands at (8, 22.78), feet 0.65-0.9 m off the glass; she ends 0.4+ m from them.
+- Tests: `src/ai/labBRun.test.ts` (one played run on the headless slice with her and the creature's imported bodies:
+  the actions in order, contacts within 5 cm, nothing walked through, down the pane, room for the creature, restored in
+  place), on `src/ai/labBKillTestKit.ts`. Her body is measured by hit capsules; a bone more than 3 cm inside counts as
+  through. Fingers still graze the bench top in the lurch (under that), and hands clip the mullions and the sill for a
+  few frames as she crumples (not covered by the spec's tests; for the §4.7 look).
+- `npcKills.test.ts` now runs on Lab B's real anchors (moved so the glass is at z = 0).
+- For §5: `sweep` and `tip` are in the schema and fire on time but do nothing. The cart must tip away from her path
+  (to the west-north-west): she passes its east-south-east side and is still there at 3.6 s. Her hand holds the handle
+  3.15-3.45 s, so the first key can pull the cart toward her then. The two knock tests in `src/physics/labB.test.ts`
+  are `todo` until the tip replaces them; until then the cart stays upright while `propCartCrash` plays.
+- Pre-existing, also on a clean HEAD export: `slice01Walks.test.ts` (2, `guard_return_desk`) and
+  `slice01ScriptedWalks.test.ts` (7 of 56 walks). `music.test.ts` "labB: every cue ... same loudness" fails on
+  `r16Build` (-23.2 dB), a score cue this change does not touch.
+- §4.7 review, round 1 (user): she starts beside the middle of the bench, and the run is longer and harder, with
+  coughed blood, VO, light flicker and a bass hit at each blow. Changes:
+  - `labb_victim` (6.45, 0, 26.8); the bench contacts moved 0.45 m north with her (`labb_bench_edge` z 26.6,
+    `labb_bench_hip` 26.58, `labb_bench_top` 26.47, `labb_bench_sweep` 26.45), `labb_push_off` (5.82, 1.03, 26.2).
+  - Two poses: `kill_doubled_cough` (folded harder over the bench, mouth open, right hand up to her chest) and
+    `kill_knee_cough` (on her right knee, right arm across her chest, left hand on her left knee, head down).
+  - `panic` is 6.5 s (+1.9 s): jolt 0.0, hip on the bench 0.36-0.42 (sfx and bass hit 0.4), sweep 0.55, doubled 0.8,
+    coughs 1.15 and 1.58 (over the bench), push off 1.93-2.3, stumble 2.15, knee down 3.15-3.3 (sfx and bass hit 3.3),
+    coughs 3.65 and 3.98 (on her knee), pool 4.1, rise 4.35, cart grab 5.05-5.35, tip and bass hit 5.5, lunge 5.5, at
+    the glass 6.4. Beat starts on the clock: panic 0, glass 6.5, arch 10.1, burst 12.5, still 13.1, creature 14.9 s. The
+    `drop.json` waits are 7.5 (glass), 11.1 (arch), 13.5 (burst) and 14.1 (still).
+  - New: `gore` kind `cough` (a tight 26-drop spray from her mouth along her heading; `GoreSystem.burst` has a `spread`
+    argument), the Lab B score's `hit` stinger (two variants: a sub dropping from 55 or 49 Hz, a low tom and a dark
+    thump), and `light` `dip` twice, 0.1 s apart, at each blow (the room flicker from `drop.json` goes on under it).
+  - VO (§8.3 brought forward for these three): batches `react_voss_gasp`, `react_voss_grunt`, `react_voss_cough` in
+    `crew_lab`'s voice (`Leda`, 3.8), one request per take (`--per-take`), as sounds `voss_gasp`, `voss_grunt`,
+    `voss_cough`. Raw takes copied to `previews/vo-batches/voss-death-scene/`. §8.3 still owes nothing more for her run
+    unless the review asks for other takes.
+  - For §5: the grip is now 5.05-5.35 s and the tip 5.5 s; her sliding hand starts at z 26.47, across the flasks at
+    (5.42, 26.52) and (5.58, 26.78), so those two are the ones the sweep throws.
+- §4.7 approved by the user (2026-11-27) with the round 1 times above; no further changes.

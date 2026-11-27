@@ -86,4 +86,9 @@ export const samples = {
   palm_glass_hit: [1, 2, 3].map((i) => `assets/audio/gore/palm-glass-hit-${i}.mp3`),
   // Voss panting and whimpering as it crawls up her arm (Gemini TTS, scripts/vo-reactions.ts --only react_voss_panic).
   voss_panic_breath: ['assets/vo/react_voss_panic_01.mp3', 'assets/vo/react_voss_panic_02.mp3', 'assets/vo/react_voss_panic_03.mp3'],
+  // Her gasps, grunts and bloody coughs in the run to the glass (Gemini TTS, scripts/vo-reactions.ts --per-take --only
+  // react_voss_gasp,react_voss_grunt,react_voss_cough; voss-death-scene 4.7).
+  voss_gasp: [1, 2, 3].map((i) => `assets/vo/react_voss_gasp_0${i}.mp3`),
+  voss_grunt: [1, 2, 3].map((i) => `assets/vo/react_voss_grunt_0${i}.mp3`),
+  voss_cough: [1, 2, 3].map((i) => `assets/vo/react_voss_cough_0${i}.mp3`),
 } as const satisfies Record<string, string | readonly string[]>;

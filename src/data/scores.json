@@ -16,6 +16,7 @@
     ],
     "stingers": {
       "stab": 0.9,
+      "hit": 1,
       "swell": 0.85,
       "rise": 0.8,
       "slam": 1,

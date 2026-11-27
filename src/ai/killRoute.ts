@@ -111,7 +111,10 @@ export class KillRoute {
   /** `start` is where the beat finds her (beat time 0) and `startYaw` her heading then; `marks` in time order, each after 0. */
   constructor(start: RoutePoint, startYaw: number, marks: readonly RouteKnot[]) {
     this.startYaw = startYaw;
-    this.knots = [{ x: start.x, z: start.z, t: 0 }, ...marks.map((m) => ({ ...m }))];
+    // When the first mark gives a facing, she sets off facing the way she stands: a first leg between two facings is a
+    // sidestep (her lurch into the bench, her slide along the pane), not a turn to the way she goes.
+    const startFace = marks[0]?.face ? { yaw: startYaw } : undefined;
+    this.knots = [{ x: start.x, z: start.z, t: 0, face: startFace }, ...marks.map((m) => ({ ...m }))];
     const n = this.knots.length;
     const same = (i: number, j: number): boolean => Math.hypot(this.knots[i]!.x - this.knots[j]!.x, this.knots[i]!.z - this.knots[j]!.z) < SAME_SPOT;
     // A stop: the start, the last mark, and a mark she stays on (the next is the same spot) or arrives at having stood.
@@ -220,10 +223,12 @@ export class KillRoute {
       const k = !span ? (t <= 0 ? this.knots[0] : this.end) : this.knots[index];
       return faceOf(k) ?? (t <= 0 && !span ? this.startYaw : this.travelYaw(index, current));
     }
-    let yaw = this.tangentYaw(span, u) ?? current;
     const leave = faceOf(this.knots[index]);
-    if (leave !== null) yaw = lerpYaw(leave, yaw, smoothstep(0, FACE_OUT, u));
     const arrive = faceOf(this.knots[index + 1]);
+    // Between two facings she turns from one to the other as she goes (a sidestep), never to the way she goes.
+    if (leave !== null && arrive !== null) return lerpYaw(leave, arrive, smoothstep(0, 1, u));
+    let yaw = this.tangentYaw(span, u) ?? current;
+    if (leave !== null) yaw = lerpYaw(leave, yaw, smoothstep(0, FACE_OUT, u));
     if (arrive !== null) yaw = lerpYaw(yaw, arrive, smoothstep(1 - FACE_IN, 1, u));
     return yaw;
   }

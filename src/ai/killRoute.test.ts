@@ -78,3 +78,20 @@ test('passing through a mark she keeps going: no stop, and no jump in speed', ()
     assert.ok(before > 0.5 && Math.abs(before - after) < 0.05, `at ${m.t} s: ${before.toFixed(3)} then ${after.toFixed(3)} m/s`);
   }
 });
+
+test('a sidestep: between two facings she keeps facing that way as she goes, from the start to a first mark with a facing too', () => {
+  // She stands facing -Z (yaw 0) and is thrown 0.5 m to her left (-X), toward the bench, still facing ahead.
+  const r = new KillRoute({ x: 0, z: 0 }, 0, [{ x: -0.5, z: -0.1, t: 0.4, face: { yaw: 0 } }, { x: -0.5, z: -0.1, t: 1, face: { yaw: 0 } }]);
+  let most = 0;
+  for (let t = 0; t <= 1; t += 1 / 60) most = Math.max(most, Math.abs(r.yawAt(t, r.pointAt(t), 0)));
+  assert.ok(most < 1e-6, `she never turns (${most.toFixed(3)} rad)`);
+  // Between two different facings she turns from one to the other along the way, never to the way she goes (-X, 90 deg).
+  const turn = new KillRoute({ x: 0, z: 0 }, 0, [{ x: -1, z: 0, t: 1, face: { yaw: -0.5 } }]);
+  for (let t = 0; t <= 1; t += 0.05) {
+    const y = turn.yawAt(t, turn.pointAt(t), 0);
+    assert.ok(y <= 1e-6 && y >= -0.5 - 1e-6, `at ${t.toFixed(2)} s she faces between them (${y.toFixed(2)})`);
+  }
+  // A first mark with no facing still sets off the way she goes.
+  const plain = new KillRoute({ x: 0, z: 0 }, 0, [{ x: -1, z: 0, t: 1 }]);
+  assert.ok(Math.abs(plain.yawAt(0.5, plain.pointAt(0.5), 0) - yawAlong(-1, 0)) < 1e-6);
+});

@@ -231,7 +231,8 @@ export class Humanoid {
   /** A kill route carries the body: feet plant and step (setKillFeet). */
   private killFeet = false;
   /** Parts put on world points by a kill's `touch` events, with their weights. */
-  private readonly killTouches = new Map<TouchPart, { target: THREE.Vector3; weight: number }>();
+  /** Parts a kill puts on a mark (`touch`): a fixed point, or (`plane`) the nearest point of a plane to where the pose puts it. */
+  private readonly killTouches = new Map<TouchPart, { target: THREE.Vector3; weight: number; plane: THREE.Plane | null }>();
   /** This frame's kill foot contacts, and last frame's posed (FK) feet in world space, for the contacts a take lacks. */
   private readonly killContacts: [number, number] = [1, 1];
   private killFootPrev: [THREE.Vector3, THREE.Vector3] | null = null;
@@ -548,9 +549,10 @@ export class Humanoid {
 
   /**
    * Put one part of the body on a world point during a kill (`touch`, voss-death-scene D4), at `weight` 0..1 (the kill
-   * eases it in and out); `null` lets go of that part at once.
+   * eases it in and out); `null` lets go of that part at once. With `plane`, the part goes onto the plane instead, at the
+   * point of it nearest to where the pose puts the part this frame, so it slides along a pane as she moves.
    */
-  setKillTouch(part: TouchPart, target: THREE.Vector3 | null, weight = 1): void {
+  setKillTouch(part: TouchPart, target: THREE.Vector3 | null, weight = 1, plane: THREE.Plane | null = null): void {
     if (!target || weight <= 0) {
       this.killTouches.delete(part);
       return;
@@ -559,7 +561,8 @@ export class Humanoid {
     if (t) {
       t.target.copy(target);
       t.weight = Math.min(1, weight);
-    } else this.killTouches.set(part, { target: target.clone(), weight: Math.min(1, weight) });
+      t.plane = plane;
+    } else this.killTouches.set(part, { target: target.clone(), weight: Math.min(1, weight), plane });
   }
 
   /** This frame's kill foot contacts [left, right] (0..1) while a route carries the body (tests, debug). */
@@ -2340,6 +2343,8 @@ export class Humanoid {
     if (!feet && this.killTouches.size === 0) return;
     this.group.updateMatrixWorld(true);
     if (feet) this.measureKillContacts(dt);
+    // A touch on a plane takes the point of it nearest the part as the pose has it now.
+    for (const [part, t] of this.killTouches) if (t.plane) t.plane.projectPoint(this.bones[Humanoid.touchJoint(part)].getWorldPosition(this.killTmp.a), t.target);
     for (const [part, t] of this.killTouches) if (part === 'hip_L' || part === 'hip_R' || part === 'chest' || part === 'knee_L' || part === 'knee_R') this.touchBody(part, t.target, t.weight);
     if (feet) {
       this.footIk.solve({
@@ -2404,6 +2409,22 @@ export class Humanoid {
     const want = bone.parent.getWorldQuaternion(t.q3).invert().multiply(t.q2);
     bone.quaternion.slerp(want, weight);
     bone.updateMatrixWorld(true);
+  }
+
+  /** The joint a touch puts on its mark: the wrist, the hip joint, the knee (shin origin) or the chest. */
+  static touchJoint(part: TouchPart): JointName {
+    switch (part) {
+      case 'hip_L':
+        return 'thigh_L';
+      case 'hip_R':
+        return 'thigh_R';
+      case 'knee_L':
+        return 'shin_L';
+      case 'knee_R':
+        return 'shin_R';
+      default:
+        return part;
+    }
   }
 
   /** A hip, the chest, or a knee's reach: move the pelvis (and bend the spine, for the chest) toward the mark. */
