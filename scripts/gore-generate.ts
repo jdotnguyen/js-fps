@@ -35,6 +35,8 @@ export interface GoreAssetSpec {
   duration: number;
   promptInfluence: number;
   prompt: string;
+  /** A hit a kill fires on its frame: the silence the take opens with is cut, so it is heard as the event fires. */
+  trim?: boolean;
 }
 
 const DRY = 'close-miked, dry, no room reverb, no music, no voice, no screaming, no speech';
@@ -79,6 +81,30 @@ const palm = (n: number, detail: string): GoreAssetSpec => ({
   duration: 0.8,
   promptInfluence: 0.65,
   prompt: `a terrified person ${detail} on a thick laboratory observation window, flat dull slap and thump on heavy glass, the pane buzzing slightly in its metal frame, close-miked foley, ${GLASS}`,
+  trim: true,
+});
+
+// Dr. Voss's run through Lab B (voss-death-scene D10): one designed sound for each blow, at its time in data/kills.json.
+const blow = (id: string, duration: number, prompt: string): GoreAssetSpec => ({
+  id,
+  sound: id,
+  file: `${id.replaceAll('_', '-')}.mp3`,
+  loop: false,
+  duration,
+  promptInfluence: 0.65,
+  prompt: `${prompt}, starting immediately, horror game foley, ${DRY}`,
+  trim: true,
+});
+
+const scuff = (n: number, detail: string): GoreAssetSpec => ({
+  id: `voss_scuff_${n}`,
+  sound: 'voss_scuff',
+  file: `voss-scuff-${n}.mp3`,
+  loop: false,
+  duration: 0.7,
+  promptInfluence: 0.7,
+  prompt: `one shoe of a stumbling person ${detail} on a hard tiled laboratory floor, a single short sole scuff and nothing else, starting immediately, foley, ${DRY}`,
+  trim: true,
 });
 
 // A hit landing on the player (player-hit-feedback D7): heard at the listener, so close and bodily.
@@ -141,6 +167,13 @@ export const GORE_MANIFEST: readonly GoreAssetSpec[] = [
   palm(1, 'slamming both open palms flat'),
   palm(2, 'pounding a fist'),
   palm(3, 'slapping one palm hard'),
+  blow('body_bench_hit', 1, 'a human body hitting a heavy laboratory bench hip first, one deep dull thud of flesh and bone on a solid edge, the bench jolting and the glassware on it rattling once'),
+  blow('bench_sweep', 1.6, 'an arm swept violently across a laboratory bench top, glass flasks, bottles and a small steel tray scraped off together, a fast scrape then glassware clattering and bouncing on a hard floor'),
+  blow('knee_floor', 0.8, 'a person dropping hard onto one knee on a tiled floor, one heavy blunt bony thud with a rustle of clothing'),
+  blow('cart_crash', 2.2, 'a loaded stainless steel laboratory trolley landing on its side on a tiled floor, one huge heavy metal crash, the frame clanging, shelves banging, steel instruments skittering away and a short metallic ring, no shattering glass'),
+  scuff(1, 'skidding sharply sideways'),
+  scuff(2, 'dragging as the leg gives way'),
+  scuff(3, 'squeaking as it catches and pushes off'),
   crunch(1, 'ribs cracking one after another'),
   crunch(2, 'spine vertebra snapping under strain'),
   crunch(3, 'collarbone and sternum crunching'),
@@ -344,6 +377,16 @@ function normalize(filePath: string, loop: boolean): string | null {
   return `gain ${gainDb >= 0 ? '+' : ''}${gainDb.toFixed(1)}dB`;
 }
 
+/** Cut what comes before the take's first sound: everything under 30 dB below its peak, keeping 5 ms of it. */
+function trimLead(filePath: string): void {
+  const vol = detectVolume(filePath);
+  if (!vol) return;
+  const tmp = `${filePath}.trim.mp3`;
+  const filter = `silenceremove=start_periods=1:start_threshold=${(vol.max - 30).toFixed(1)}dB:start_silence=0.005,afade=t=in:d=0.002`;
+  execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-i', filePath, '-af', filter, '-c:a', 'libmp3lame', '-b:a', '128k', tmp], { stdio: ['ignore', 'pipe', 'pipe'] });
+  renameSync(tmp, filePath);
+}
+
 async function generateOne(spec: GoreAssetSpec, apiKey: string, force: boolean): Promise<boolean> {
   const outPath = join(OUT_DIR, spec.file);
   if (existsSync(outPath) && !force) {
@@ -358,6 +401,7 @@ async function generateOne(spec: GoreAssetSpec, apiKey: string, force: boolean):
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} generating "${spec.id}": ${await res.text()}`);
   writeFileSync(outPath, Buffer.from(await res.arrayBuffer()));
+  if (spec.trim) trimLead(outPath);
   const norm = normalize(outPath, spec.loop);
   console.log(`[ok]   ${spec.id} -> ${spec.file} (${sizeOf(outPath)}${norm ? `, ${norm}` : ''})`);
   return true;

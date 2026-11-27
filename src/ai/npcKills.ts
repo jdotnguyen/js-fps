@@ -1220,7 +1220,7 @@ export class KillDirector {
         return;
       case 'sfx': {
         if (k.instant || !e.id) return;
-        const at = body.jointWorld(e.joint ?? 'head', tmpA);
+        const at = (e.prop ? this.w.propPose?.(e.prop)?.pos : undefined) ?? body.jointWorld(e.joint ?? 'head', tmpA);
         if (this.w.sfx && !this.w.sfx(e.id, at, e.gain)) this.w.warn(`kill ${k.npc}: no sound "${e.id.join('" or "')}" yet`);
         return;
       }

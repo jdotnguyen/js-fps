@@ -401,3 +401,23 @@ Each section adds what the next one needs here before its session ends: measured
   The spec wants "one designed cart crash from the cart at the scripted moment": §8.4 may want it on the landing, and
   from the cart. The kinematic cart makes no impact sounds of its own any more, so the old `propCartCrash` from physics
   is gone; the stand-in `propCartCrash` id in the `sfx` event still plays.
+
+### Section 8 (2026-11-27)
+
+- New ElevenLabs sounds (`scripts/gore-generate.ts`, ids as the sound names): `body_bench_hit`, `bench_sweep`,
+  `knee_floor`, `cart_crash`, `voss_scuff` (three), and new takes of `palm_glass_hit` (three; the old ones are in git
+  before this section). A manifest entry with `trim` has its opening silence cut, so each is heard as its event fires
+  (all start within 5 ms). `bench_sweep` scrapes from the first frame; its loudest clatter is 0.5-1.0 s in, as the
+  glass lands. `docs/audio-assets.md` states no file size limit: the new files are 12-35 KB.
+- The run and glass sounds name the recording alone (no stand-in). Scuffs at 2.15 (right foot), 4.4 (left) and 5.55 s
+  (right), gain 0.6. The cart crash moved to 6.2 s, where the tip lands (its start 5.5 + `s` 0.7: move it with them),
+  heard from the cart (new: an `sfx` event's `prop`), gain 1.6. The `hit` stinger stays at 5.5. Gains are untuned:
+  §9.2 listens to them.
+- §8.3 needed no new takes: `voss_gasp`, `voss_grunt` and `voss_cough` are from §4.7. The VO tests pass and
+  `vo-trace` shows no clip off its speaker's model.
+- Still a stand-in, outside this section's list: `body_glass_hit` in `still` (her chest onto the pane) was never
+  generated, so `glassThud` plays (`npm run gore:generate -- --id body_glass_hit`).
+- Tests: `npcKills.test.ts` "Designed sounds and her voice", `labB.test.ts` "The cart goes over" (physics on and off),
+  the `prop` cases in `killRun.test.ts`.
+- §6 and §7 were being edited in the same checkout during this section (`kills.json`, `types/kills.ts`, `npcKills.ts`
+  and `killRun.test.ts` or `npcKills.test.ts` may hold both): commit by hunk.

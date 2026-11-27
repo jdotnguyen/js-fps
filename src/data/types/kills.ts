@@ -215,7 +215,10 @@ const eventShape = {
    * thrown the way it falls.
    */
   burst: optional(obj({ reach: numRange(0.1, 2), strength: numRange(0, 4), up: optional(numRange(0, 1)) })),
-  /** `slam`: the prop it lands on; the mark moves with it, and `jolt` moves it. `layout`: the prop group laid out. `tip`: the prop that goes over. */
+  /**
+   * `slam`: the prop it lands on; the mark moves with it, and `jolt` moves it. `layout`: the prop group laid out. `tip`:
+   * the prop that goes over. `sfx`: the prop it is heard from, where it is then (instead of `joint`).
+   */
   prop: optional(str),
   /**
    * `slam` (D3): how the prop jumps when it lands, in its own frame: `slide` [x, z] m and `yaw` degrees that it keeps,
@@ -477,7 +480,7 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
         if (e.jolt && !e.prop) throw new ValidationError(`${ep} > jolt`, 'a jolt needs the "prop" it moves');
         if (e.jolt?.slide && e.jolt.slide.length !== 2) throw new ValidationError(`${ep} > jolt > slide`, 'slide is [x, z]');
         if (e.do === 'layout' && !e.prop) throw new ValidationError(ep, 'layout needs the "prop" group it lays out');
-        if (e.prop !== undefined && e.do !== 'slam' && e.do !== 'layout' && e.do !== 'tip') throw new ValidationError(`${ep} > prop`, '"prop" is for a slam, a layout or a tip');
+        if (e.prop !== undefined && e.do !== 'slam' && e.do !== 'layout' && e.do !== 'tip' && e.do !== 'sfx') throw new ValidationError(`${ep} > prop`, '"prop" is for a slam, a layout, a tip or an sfx');
         if (e.do !== 'knock' && e.do !== 'sweep' && e.reach !== undefined) throw new ValidationError(`${ep} > reach`, '"reach" is for a knock or a sweep');
         if ((e.do === 'pose' || e.do === 'die' || e.do === 'attackerPose') && !e.pose) throw new ValidationError(ep, `${e.do} needs "pose"`);
         if (e.do === 'attackerPerf' && !e.perf) throw new ValidationError(ep, 'attackerPerf needs "perf"');

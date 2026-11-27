@@ -42,6 +42,8 @@ export async function labBProps(opts: { physics?: boolean; fps?: number } = {}) 
   const props = world ? new PhysicsProps(world, level, (i) => void (impactSound(i.material, i.speed) && heard.push({ ...i, at: now }))) : null;
   /** What a sweep or tip threw (its impacts are ducked in the game), with the time. */
   const ducked: Array<{ id: string; at: number }> = [];
+  /** Every kill sound, with where it is heard from and when. */
+  const sounds: Array<{ id: string; pos: THREE.Vector3; at: number }> = [];
   const all = level.physicsProps().filter((p) => p.id.startsWith('labb_'));
   const loose = all.filter((p) => p.loose);
   const noop = (): void => undefined;
@@ -63,7 +65,10 @@ export async function labBProps(opts: { physics?: boolean; fps?: number } = {}) 
       set.add(fn);
       return () => set.delete(fn);
     },
-    sfx: () => true,
+    sfx: (ids, pos) => {
+      sounds.push({ id: ids[0]!, pos: new THREE.Vector3(pos.x, pos.y, pos.z), at: now });
+      return true;
+    },
     warn: noop,
     kills: validate(validateKillTable, json('kills.json'), 'kills'),
     // As session.ts.
@@ -113,7 +118,7 @@ export async function labBProps(opts: { physics?: boolean; fps?: number } = {}) 
     events.emit('level:reset', {});
     await reset;
   };
-  return { level, world, props, heard, ducked, all, loose, npcs, run, poses, kill, ask, restart, emitted, time: () => now, dt };
+  return { level, world, props, heard, sounds, ducked, all, loose, npcs, run, poses, kill, ask, restart, emitted, time: () => now, dt };
 }
 
 /** The `after` groups the kill lays out. */

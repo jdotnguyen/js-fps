@@ -89,6 +89,25 @@ test('physical-interaction "The cart on its frame": it starts over at the same m
   on.g.world!.destroy();
 });
 
+for (const physics of [true, false]) {
+  test(`physical-interaction "The cart goes over" (physics ${physics ? 'on' : 'off'}): one designed crash plays from the cart as it lands`, async () => {
+    const g = await labBProps({ physics });
+    g.run(1);
+    g.kill();
+    g.run(2);
+    g.ask();
+    const asked = g.time();
+    g.run(PLAY_S);
+    const crashes = g.sounds.filter((s) => s.id === 'cart_crash');
+    assert.equal(crashes.length, 1, 'one crash');
+    // The tip starts at 5.5 s and lasts 0.7 s.
+    assert.ok(Math.abs(crashes[0]!.at - asked - 6.2) <= 2 / 60, `as it lands (${(crashes[0]!.at - asked).toFixed(3)} s)`);
+    const off = crashes[0]!.pos.distanceTo(afterGroup(GROUPS.cart).get('labb_cart')!.pos);
+    assert.ok(off < 0.1, `from the cart (${off.toFixed(2)} m off)`);
+    g.world?.destroy();
+  });
+}
+
 test('physical-interaction "Played kill": she sweeps two things off her bench and the cart\'s whole load spills; all of it lands on the floor or furniture inside Lab B, none in the bench, the floor, the cart or the glass', async () => {
   const g = await labBProps();
   g.run(1);

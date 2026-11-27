@@ -16,6 +16,8 @@ import { CollisionWorld } from '../world/collision.ts';
 import { measureBladePenetration } from '../actors/blade/clearance.ts';
 import { creatureLib, necromorphModel } from '../actors/blade/bladeTestKit.ts';
 import { readLevel } from '../data/levels/readLevel.ts';
+import { SAMPLE_URLS } from '../audio/sounds.ts';
+import { existsSync } from 'node:fs';
 import vossPack from '../data/mocap/voss.json' with { type: 'json' };
 import { sharedMocapLibrary, type RawMocapFile } from '../actors/mocap.ts';
 import { ANKLE_CLEARANCE, OVERSTRETCH_RELEASE_S } from '../actors/footIk.ts';
@@ -214,6 +216,39 @@ test('Different frame rates: 30 fps and 144 fps give the same beats and events, 
 
 test('Scream missing: the arch, burst and still beats start when they do with it', () => {
   sameTimes(onTheClock({ asked: 3 }), onTheClock({ asked: 3, scream: false }), 60);
+});
+
+/** Her run's designed sounds and her voice (voss-death-scene D10), each at its time on the kill's clock (s). */
+const RUN_SOUNDS: Record<string, number[]> = {
+  voss_gasp: [0, 4.25, 5.8],
+  body_bench_hit: [0.4],
+  bench_sweep: [0.55],
+  voss_grunt: [0.9, 2, 3.3],
+  voss_cough: [1.15, 1.58, 3.65, 3.98],
+  voss_scuff: [2.15, 4.4, 5.55],
+  knee_floor: [3.3],
+  cart_crash: [6.2],
+  palm_glass_hit: [6.9, 7.3, 7.7, 8.1],
+};
+
+test('Designed sounds and her voice: each fires at its time from the end of the question, by its own name with no stand-in, and has its recordings', () => {
+  const heard = onTheClock({ asked: 3 }).events;
+  for (const [id, times] of Object.entries(RUN_SOUNDS)) {
+    const at = heard.filter((e) => e.name === `sfx ${id}`).map((e) => e.at).sort((a, b) => a - b);
+    assert.equal(at.length, times.length, `${id} fires ${times.length} times (${at.map((t) => t.toFixed(2)).join(', ')})`);
+    times.forEach((t, i) => assert.ok(Math.abs(at[i]! - t) <= 2 / 60, `${id} at ${t} s (${at[i]!.toFixed(3)})`));
+    const files = [(SAMPLE_URLS as Record<string, string | readonly string[]>)[id] ?? []].flat();
+    assert.ok(files.length > 0, `${id} is registered`);
+    for (const f of files) assert.ok(existsSync(new URL(`../../public/${f}`, import.meta.url)), `${f} is there`);
+  }
+  // Nothing in the run or at the glass names a second sound to fall back on.
+  for (const beat of killsJson.grownInside.beats.filter((b) => b.id === 'panic' || b.id === 'glass')) {
+    for (const e of beat.events ?? []) {
+      if (e.do !== 'sfx') continue;
+      const ids = (e as { id: string[] }).id;
+      assert.ok(ids.length === 1 && ids[0]! in RUN_SOUNDS, `${beat.id} at ${e.t} s plays ${ids.join(' or ')}`);
+    }
+  }
 });
 
 // ------------------------------------------------------------------ waiting for the question (voss-death-scene D6, gallery-drop)

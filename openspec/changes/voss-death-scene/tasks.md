@@ -151,14 +151,14 @@ and tell the user which change or file is blocking if:
 
 ## 8. Designed sounds and her voice (Sonnet 5.5, medium)
 
-- [ ] 8.1 Check the gates. Verify: as in 1.1.
-- [ ] 8.2 Generate the bench sweep, cart crash, body into the bench, knee to the floor, palms on the glass and her scuffs
+- [x] 8.1 Check the gates. Verify: as in 1.1.
+- [x] 8.2 Generate the bench sweep, cart crash, body into the bench, knee to the floor, palms on the glass and her scuffs
   with ElevenLabs, following `docs/audio-assets.md`, and add them to `samples` in `src/audio/sounds/kills.ts`. Verify:
   the audio asset tests pass, and each file is within the doc's size limits.
-- [ ] 8.3 Record her gasps and grunts in her existing `crew_lab` voice, following `docs/voice-casting-standard.md`.
+- [x] 8.3 Record her gasps and grunts in her existing `crew_lab` voice, following `docs/voice-casting-standard.md`.
   Copy each raw batch take to `previews/vo-batches/voss-death-scene/` as soon as it is generated. Verify: the VO checks
   in that doc pass, and the takes are in the shipped sound list.
-- [ ] 8.4 Put the sounds on their D1 times in `kills.json`, replacing the stand-in ids. Verify: an `npcKills.test.ts`
+- [x] 8.4 Put the sounds on their D1 times in `kills.json`, replacing the stand-in ids. Verify: an `npcKills.test.ts`
   case shows each sound firing at its time and none missing. Credit every new sound in `CREDITS.md`.
 
 ## 9. The whole drop (Opus 5.5, medium)
