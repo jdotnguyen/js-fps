@@ -477,6 +477,15 @@
       "yaw": 0
     },
     {
+      "id": "heins_glass",
+      "pos": [
+        9.2,
+        0,
+        21.2
+      ],
+      "yaw": 180
+    },
+    {
       "id": "gallery_enter",
       "pos": [
         13,

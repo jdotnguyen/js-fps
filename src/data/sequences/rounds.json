@@ -721,18 +721,6 @@
     }
    },
    {
-    "do": "wait",
-    "s": 2.0
-   },
-   {
-    "do": "say",
-    "line": "pa_gallery_call_01"
-   },
-   {
-    "do": "say",
-    "line": "rounds_giles_radio_01"
-   },
-   {
     "do": "setFlag",
     "flag": "rounds_done",
     "value": true
@@ -744,6 +732,18 @@
    {
     "do": "emit",
     "event": "drop:approach"
+   },
+   {
+    "do": "wait",
+    "s": 2.0
+   },
+   {
+    "do": "say",
+    "line": "pa_gallery_call_01"
+   },
+   {
+    "do": "say",
+    "line": "rounds_giles_radio_01"
    }
   ]
  },

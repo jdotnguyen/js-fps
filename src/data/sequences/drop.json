@@ -61,6 +61,10 @@
    },
    {
     "do": "stopSequence",
+    "id": "rounds_return"
+   },
+   {
+    "do": "stopSequence",
     "id": "drop_approach",
     "speech": false
    },
@@ -552,6 +556,12 @@
     "room": "R03",
     "pattern": "steady",
     "tint": "emergency"
+   },
+   {
+    "do": "npcMoveTo",
+    "npc": "heins",
+    "to": "anchor:heins_glass",
+    "wait": true
    },
    {
     "do": "npcLookAt",

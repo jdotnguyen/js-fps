@@ -168,7 +168,7 @@ Each speaker with a local-channel line SHALL map to an NPC that stands in the le
 - **THEN** the voice comes from the tech standing in the dive bay
 
 ### Requirement: Voices carry through the station
-A local voice SHALL travel from its speaker to the player through rooms and doorways. In the same room, or through an open doorway, it SHALL fade with distance as before. Each room boundary on the way SHALL make it duller and quieter, and a closed door much more so. Three or more boundaries away, or more than about 30 m along the way, it SHALL be silent. Glass between adjacent rooms SHALL dull it only slightly.
+A local voice SHALL travel from its speaker to the player through rooms and doorways. In the same room, or through an open doorway, it SHALL fade with distance as before. Each room boundary on the way SHALL make it duller and quieter, and a closed door much more so. Three or more boundaries away, or more than about 30 m along the way, it SHALL be silent. Glass between adjacent rooms SHALL dull it only slightly, except sealed observation glass, which SHALL muffle it at least as much as a closed door.
 
 #### Scenario: Next room, door open
 - **WHEN** Giles talks in the next room with the door between them open
@@ -185,6 +185,10 @@ A local voice SHALL travel from its speaker to the player through rooms and door
 #### Scenario: Walking away mid-line
 - **WHEN** the player walks out of a room while a line is playing in it
 - **THEN** the voice dulls and fades as boundaries are crossed, during the line, not only at its next line
+
+#### Scenario: Voss behind the sealed glass
+- **WHEN** Voss speaks or screams in Lab B while the player stands in the gallery with the Lab B intercom live
+- **THEN** her voice comes mainly from the intercom speaker, her direct voice through the glass is faint and dull, and her subtitle shows
 
 ### Requirement: Subtitles follow the player's earshot
 A local line's subtitle SHALL show only while its speaker is within 20 m of the player and its voice is audible. For a local `background` line the distance SHALL be 6 m instead of 20 m. For a `background` PA line, the subtitle SHALL show only while the player is within 12 m of the playing PA wall grille and the grille is audible through room propagation. All proximity checks SHALL be re-checked during the line: walking into range shows the subtitle for the rest of the line, and walking out hides it. Radio subtitles and non-background (`story`) PA subtitles SHALL show wherever the player is.
