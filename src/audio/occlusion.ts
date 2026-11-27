@@ -3,8 +3,9 @@ import type { VoiceOptions } from './engine.ts';
 import type { VoicePath } from './voicePath.ts';
 
 /**
- * Sound occlusion (spec in-world-audio: Footstep range and occlusion, World sound occlusion, Glass muffles lightly):
- * one definition of "behind a wall" and one set of muffle values for footsteps and the engine.
+ * Sound occlusion (spec in-world-audio: Footstep range and occlusion, World sound occlusion, Glass muffles lightly,
+ * Sealed observation glass muffles hard): one definition of "behind a wall" and one set of muffle values for footsteps
+ * and the engine.
  */
 
 /** Low-pass cutoff (Hz) for a sound heard through a wall or closed door. */
@@ -17,6 +18,12 @@ export const OCCLUDED_REVERB = 0.34;
 export const GLASS_CUTOFF_HZ = 2500;
 /** Gain multiplier for a sound heard through glass only. */
 export const GLASS_GAIN_SCALE = 0.75;
+/** Low-pass cutoff (Hz) for a sound heard through sealed glass: duller than through a closed door. */
+export const SEALED_CUTOFF_HZ = 400;
+/** Gain multiplier for a sound heard through sealed glass: quieter than through a closed door. */
+export const SEALED_GAIN_SCALE = 0.22;
+/** A sound this close (m) to a sealed pane is made on it, and is heard as through glass that is not sealed. */
+export const SEALED_PANE_REACH = 0.3;
 /** Sources this close to the listener are never occluded. */
 export const OCCLUSION_MIN_DISTANCE = 0.6;
 /** Cutoff the engine uses for `muffled: true` without an explicit `cutoff`. */
@@ -25,18 +32,23 @@ const MUFFLED_CUTOFF_HZ = 650;
 const BARRIER_TOP = 2.0;
 /** The ray stops this far short of the source, so the source's own door leaf never blocks it. */
 const SOURCE_CLEARANCE = 0.35;
+/** The most barriers the ray looks through before it gives up. */
+const MAX_BARRIERS = 8;
 
-/** What lies between the listener and a sound: nothing, only glass, or a wall or closed door. */
-export type Occlusion = 'none' | 'glass' | 'wall';
+/** What lies between the listener and a sound: nothing, only glass, sealed glass, or a wall or closed door. */
+export type Occlusion = 'none' | 'glass' | 'sealed' | 'wall';
 
-/** Classifies the line of sound from `from` to `to`. */
-export type Occluder = (from: THREE.Vector3, to: THREE.Vector3) => Occlusion;
+/**
+ * Classifies the line of sound from `from` to `to`. With `sealedOnly`, only sealed glass counts (`'sealed'` or
+ * `'none'`), whatever else is on the line.
+ */
+export type Occluder = (from: THREE.Vector3, to: THREE.Vector3, sealedOnly?: boolean) => Occlusion;
 
 /** The part of a collider the wall test reads. */
 export interface OcclusionCollider {
   readonly min: readonly [number, number, number];
   readonly max: readonly [number, number, number];
-  readonly acoustic?: 'glass';
+  readonly acoustic?: 'glass' | 'sealed';
 }
 
 /** The part of `CollisionWorld.raycast` the wall test needs; keeps this module free of world imports. */
@@ -62,14 +74,28 @@ function exitDistance(c: OcclusionCollider, o: readonly number[], d: readonly nu
   return tExit;
 }
 
+/** Distance from a point to a box (0 inside it). */
+function distanceToBox(p: THREE.Vector3, c: OcclusionCollider): number {
+  return Math.hypot(
+    Math.max(c.min[0] - p.x, 0, p.x - c.max[0]),
+    Math.max(c.min[1] - p.y, 0, p.y - c.max[1]),
+    Math.max(c.min[2] - p.z, 0, p.z - c.max[2]),
+  );
+}
+
 /**
  * The wall test: a ray from the listener toward the source, stopping 0.35 m short so the source's own
  * door leaf never blocks it. Only full-height barriers (top at least 2 m) count, so counters and crates
  * let sound diffract over them. Open doors are disabled colliders and never block. Glass partitions give
  * `'glass'` unless a wall or closed door also lies on the line (design D8).
+ *
+ * A sealed pane gives `'sealed'`, unless the source is on the pane (within `SEALED_PANE_REACH` of it): then it is
+ * ordinary glass. The ray alone can't tell, since the pane is thick enough that the 0.35 m it stops short by still
+ * crosses it (voss-death-scene D12). A low barrier does not hide a sealed pane behind it. A wall still wins, except
+ * with `sealedOnly`, which asks about sealed glass alone.
  */
 export function wallOccluder(raycast: OcclusionRaycast): Occluder {
-  return (from, to) => {
+  return (from, to, sealedOnly = false) => {
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const dz = to.z - from.z;
@@ -79,38 +105,51 @@ export function wallOccluder(raycast: OcclusionRaycast): Occluder {
     const end = dist - SOURCE_CLEARANCE;
     let travelled = 0;
     let result: Occlusion = 'none';
-    // A few panes in a row at most; each pass starts just past the glass it found.
-    for (let pass = 0; pass < 4 && travelled < end; pass++) {
+    let sealed = false;
+    // Past a low barrier, or asking about sealed glass only: nothing but a sealed pane still counts.
+    let sealedAlone = sealedOnly;
+    // A few barriers in a row at most; each pass starts just past the one it found.
+    for (let pass = 0; pass < MAX_BARRIERS && travelled < end; pass++) {
       const o = [from.x + dir[0] * travelled, from.y + dir[1] * travelled, from.z + dir[2] * travelled] as const;
       const hit = raycast(o[0], o[1], o[2], dir[0], dir[1], dir[2], end - travelled);
-      if (!hit || hit.collider.max[1] < BARRIER_TOP) return result;
-      if (hit.collider.acoustic !== 'glass') return 'wall';
-      result = 'glass';
-      travelled += Math.max(exitDistance(hit.collider, o, dir), hit.distance) + 1e-3;
+      if (!hit) break;
+      const c = hit.collider;
+      if (c.acoustic === 'sealed' && distanceToBox(to, c) > SEALED_PANE_REACH + 1e-6) sealed = true;
+      if (!sealedAlone) {
+        if (c.max[1] < BARRIER_TOP) sealedAlone = true;
+        else if (!c.acoustic) return 'wall';
+        else result = 'glass';
+      }
+      travelled += Math.max(exitDistance(c, o, dir), hit.distance) + 1e-3;
     }
-    return result;
+    return sealed ? 'sealed' : result;
   };
 }
 
 /**
  * Apply occlusion to a one-shot's options (design D1, D5, D8). Returns `opts` itself when the sound is not
  * eligible or nothing is in the way: it needs a position, the `sfx` bus, no `occlude: false`, an occluder,
- * and a source more than 0.6 m from the listener.
+ * and a source more than 0.6 m from the listener. `occlude: 'sealed'` lets only sealed glass muffle it. A muffled
+ * sound keeps its authored level as `relayGain`, so a room intercom carries it unoccluded.
  */
 export function occludeVoice(opts: VoiceOptions, listener: THREE.Vector3, occluder: Occluder | null): VoiceOptions {
   if (!occluder || !opts.position || opts.occlude === false || (opts.bus ?? 'sfx') !== 'sfx') return opts;
   if (opts.position.distanceTo(listener) <= OCCLUSION_MIN_DISTANCE) return opts;
-  const occlusion = occluder(listener, opts.position);
+  const occlusion = occluder(listener, opts.position, opts.occlude === 'sealed');
   if (occlusion === 'none') return opts;
   const base = opts.cutoff ?? (opts.muffled ? MUFFLED_CUTOFF_HZ : Infinity);
+  const gain = opts.gain ?? 1;
+  const relayGain = opts.relayGain ?? gain;
   if (occlusion === 'glass') {
-    return { ...opts, cutoff: Math.min(base, GLASS_CUTOFF_HZ), gain: (opts.gain ?? 1) * GLASS_GAIN_SCALE };
+    return { ...opts, cutoff: Math.min(base, GLASS_CUTOFF_HZ), gain: gain * GLASS_GAIN_SCALE, relayGain };
   }
+  const sealed = occlusion === 'sealed';
   return {
     ...opts,
-    cutoff: Math.min(base, OCCLUDED_CUTOFF_HZ),
-    gain: (opts.gain ?? 1) * OCCLUDED_GAIN_SCALE,
+    cutoff: Math.min(base, sealed ? SEALED_CUTOFF_HZ : OCCLUDED_CUTOFF_HZ),
+    gain: gain * (sealed ? SEALED_GAIN_SCALE : OCCLUDED_GAIN_SCALE),
     reverb: Math.max(opts.reverb ?? 0, OCCLUDED_REVERB),
+    relayGain,
   };
 }
 

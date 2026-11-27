@@ -1221,7 +1221,14 @@ export class KillDirector {
         return;
       case 'sfx': {
         if (k.instant || !e.id) return;
-        const at = (e.prop ? this.w.propPose?.(e.prop)?.pos : undefined) ?? body.jointWorld(e.joint ?? 'head', tmpA);
+        let at = (e.prop ? this.w.propPose?.(e.prop)?.pos : undefined) ?? body.jointWorld(e.joint ?? 'head', tmpA);
+        // On the pane, level with that spot and just on her side of it, so her room's mic still hears it: sealed glass
+        // leaves a sound made on the pane clear (in-world-audio: Sealed observation glass muffles hard).
+        if (e.mark === 'glass' && k.glass) {
+          const axis = k.glass.clip.axis;
+          at = tmpB.set(at.x, at.y, at.z);
+          at[axis] = k.glass.at[axis] + k.glass.n[axis] * 0.15;
+        }
         if (this.w.sfx && !this.w.sfx(e.id, at, e.gain)) this.w.warn(`kill ${k.npc}: no sound "${e.id.join('" or "')}" yet`);
         return;
       }

@@ -100,7 +100,7 @@ test('a positional sfx step opts out of occlusion', () => {
   host.sfx!('klaxon', { x: 1, y: 2, z: 3 });
   host.sfx!('klaxon', null);
   assert.equal(calls.length, 2);
-  assert.equal(calls[0]!.opts?.occlude, false, 'positional step opts out');
+  assert.equal(calls[0]!.opts?.occlude, 'sealed', 'a positional step: only sealed glass muffles it');
   assert.ok(calls[0]!.opts?.position, 'still positional');
   assert.equal(calls[1]!.opts?.position, undefined, 'non-positional step has no position to occlude');
 });

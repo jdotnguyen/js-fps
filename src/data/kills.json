@@ -400,7 +400,7 @@
           { "t": 0.05, "do": "glass", "kind": "splat", "size": 0.22 },
           { "t": 0.08, "do": "glass", "kind": "splat", "size": 0.28 },
           { "t": 0.1, "do": "glass", "kind": "streak", "size": 0.9, "s": 6 },
-          { "t": 0.12, "do": "sfx", "id": ["blood_splat_glass", "drip"], "joint": "chest" },
+          { "t": 0.12, "do": "sfx", "id": ["blood_splat_glass", "drip"], "joint": "chest", "mark": "glass" },
           { "t": 0.15, "do": "gore", "kind": "burst", "joint": "spine", "count": 90 }
         ]
       },

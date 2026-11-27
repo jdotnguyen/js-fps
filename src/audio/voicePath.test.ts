@@ -86,3 +86,16 @@ test('a point outside every room counts as the same room', () => {
   const p = station().path(at(8), null, at(12), 'B')!;
   assert.equal(p.boundaries, 0);
 });
+
+test('sealed glass costs at least as much as a closed door (voice-playback: Voices carry through the station)', () => {
+  const closed = voiceAudibility(station({ ab: 'closed', ae: 'closed', ec: 'closed' }).path(at(8), 'A', at(12), 'B'));
+  const p = station({ ab: 'sealed', ae: 'closed', ec: 'closed' }).path(at(8), 'A', at(12), 'B')!;
+  assert.deepEqual([p.boundaries, p.closedDoors, p.glass], [1, 1, 0]);
+  const sealed = voiceAudibility(p);
+  assert.ok(sealed.gain <= closed.gain && sealed.cutoffHz <= closed.cutoffHz, `gain ${sealed.gain}, cutoff ${sealed.cutoffHz}`);
+});
+
+test('an open way round is preferred over sealed glass', () => {
+  const p = station({ bc: 'sealed' }).path(at(9), 'A', at(21), 'C')!;
+  assert.equal(p.closedDoors, 0, 'goes A -> E -> C through open doors');
+});

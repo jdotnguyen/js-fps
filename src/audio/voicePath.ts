@@ -1,7 +1,7 @@
 /**
  * How a voice reaches the player through the station (voice-playback: Voices carry through the station).
  *
- * Sound goes room to room through portals: doorways (open or closed) and glass partitions. The search finds the
+ * Sound goes room to room through portals: doorways (open or closed) and glass partitions (sealed or not). The search finds the
  * loudest route from the speaker's room to the listener's room within `MAX_VOICE_BOUNDARIES - 1` portals and reports
  * what it crossed; `voiceAudibility` (occlusion.ts) turns that into gain and tone. Pure, so it is Node-testable.
  */
@@ -12,8 +12,8 @@ export interface P3 {
   z: number;
 }
 
-/** What a portal lets through right now. */
-export type PortalState = 'open' | 'closed' | 'glass';
+/** What a portal lets through right now. `'sealed'` is sealed observation glass: it costs what a closed door costs. */
+export type PortalState = 'open' | 'closed' | 'glass' | 'sealed';
 
 export interface VoicePortal {
   /** The two room ids it joins. */
@@ -27,7 +27,7 @@ export interface VoicePortal {
 export interface VoicePath {
   /** Room boundaries crossed (0 = same room). */
   boundaries: number;
-  /** Closed doors among them. */
+  /** Closed doors and sealed panes among them. */
   closedDoors: number;
   /** Glass partitions among them. */
   glass: number;
@@ -75,9 +75,10 @@ export class VoiceGraph {
         if (used.includes(portal)) continue;
         const next = portal.rooms[0] === room ? portal.rooms[1] : portal.rooms[0];
         const s = portal.state();
+        const shut = s === 'closed' || s === 'sealed';
         const leg = length + dist(pos, portal.at);
-        const legCost = cost + dist(pos, portal.at) + (s === 'closed' ? CLOSED_DOOR_COST : s === 'glass' ? GLASS_COST : 0);
-        const c = closed + (s === 'closed' ? 1 : 0);
+        const legCost = cost + dist(pos, portal.at) + (shut ? CLOSED_DOOR_COST : s === 'glass' ? GLASS_COST : 0);
+        const c = closed + (shut ? 1 : 0);
         const g = glass + (s === 'glass' ? 1 : 0);
         const chain = [...used, portal];
         if (next === toRoom) {

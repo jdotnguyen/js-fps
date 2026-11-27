@@ -1099,7 +1099,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       sfx: (ids, at, gain, variant) => {
         const id = ids.find((n) => audio.hasSound(n as SoundName));
         if (!id) return false;
-        audio.play(id as SoundName, { position: new THREE.Vector3(at.x, at.y, at.z), occlude: false, ...(gain !== undefined ? { gain } : {}), ...(variant !== undefined ? { variant } : {}) });
+        // Kill sounds play as authored, except behind sealed observation glass (in-world-audio: World sound occlusion).
+        audio.play(id as SoundName, { position: new THREE.Vector3(at.x, at.y, at.z), occlude: 'sealed', ...(gain !== undefined ? { gain } : {}), ...(variant !== undefined ? { variant } : {}) });
         return true;
       },
       growl: (at) => {
@@ -1108,7 +1109,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         audio.play('zombieVoice', {
           bus: 'sfx', gain: 1.2, rate: 0.7 + Math.random() * 0.2, variant: Math.random() < 0.5 ? 0 : 1,
           offset: Math.random() * 5, duration: 1.4 + Math.random() * 1.4,
-          position: new THREE.Vector3(at.x, at.y, at.z), reverb: 0.2, occlude: false,
+          position: new THREE.Vector3(at.x, at.y, at.z), reverb: 0.2, occlude: 'sealed',
         });
       },
     });

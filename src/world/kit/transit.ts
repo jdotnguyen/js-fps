@@ -136,7 +136,7 @@ function trainShell(p: PieceParams, _rng: Rng, m: Materials): PieceOutput {
     maxY: number,
     maxZ: number,
     surface?: Parameters<PieceBuilder['solid']>[6],
-    acoustic?: 'glass',
+    acoustic?: Parameters<PieceBuilder['solid']>[7],
     enabled = true,
   ) => pb.solid(minX, minY + lift, minZ, maxX, maxY + lift, maxZ, surface, acoustic, enabled);
 

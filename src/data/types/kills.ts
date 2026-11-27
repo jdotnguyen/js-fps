@@ -197,7 +197,8 @@ const eventShape = {
   stage: optional(numRange(0, 3)),
   /**
    * `haulTo`/`slam`/`throw`/`drag`, and `face` (turn to it, e.g. a camera): a named mark from the kill step's `marks`.
-   * `touch`: a kill step mark, a room anchor, or `glass`.
+   * `touch`: a kill step mark, a room anchor, or `glass`. `sfx`: `glass`, heard from the pane level with `joint` (or
+   * `prop`), for a sound made on it.
    */
   mark: optional(str),
   /** `haulTo`/`drag`: on arrival the attacker turns to face this mark. */
@@ -456,6 +457,7 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
         const ep = `${bp} > events[${k}]`;
         if (e.t > b.max) throw new ValidationError(ep, `fires after the beat's time limit (${b.max} s)`);
         if (e.do === 'sfx' && !e.id?.length) throw new ValidationError(ep, 'sfx needs "id"');
+        if (e.do === 'sfx' && e.mark !== undefined && e.mark !== 'glass') throw new ValidationError(`${ep} > mark`, 'an sfx "mark" is "glass"');
         if (e.do === 'kick' && (!e.joint || !e.dir)) throw new ValidationError(ep, 'kick needs "joint" and "dir"');
         if (e.do === 'gore' && !['burst', 'chunks', 'spurt', 'pool', 'cough'].includes(e.kind ?? '')) throw new ValidationError(ep, 'gore kind is burst | chunks | spurt | pool | cough');
         if (e.do === 'glass' && !['print', 'splat', 'streak', 'crack'].includes(e.kind ?? '')) throw new ValidationError(ep, 'glass kind is print | splat | streak | crack');

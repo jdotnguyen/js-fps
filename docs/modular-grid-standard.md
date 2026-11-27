@@ -59,6 +59,8 @@ The level builds each room's floors, walls and ceilings from its `layout` and th
 | `fixtures` | When given, only these cells' ceilings carry a light housing, and numeric light slots count only them. |
 | `extraPieces` | Pieces placed by hand after the built tiles (stairs, landings, blast gates), exactly as given. |
 
+A side's `wallParams` replaces the room's `wallMaterial` for that side. On a `wall_glass_partition` side, `acoustic` says how the pane sounds: `"glass"` (the default) muffles only slightly, `"sealed"` muffles sound from its far side harder than a closed door, including scripted sequence and kill sounds and voices, while a sound within 0.3 m of the pane stays as through ordinary glass (in-world-audio, "Sealed observation glass muffles hard"). Everything else about a sealed pane is ordinary glass. The pane's owner marks it, and its two rooms must list each other in `visibleFrom` for voices to be muffled. Only Lab B's observation glass (`rooms/R03.json`) is sealed.
+
 ---
 
 ## 3. Anti-Gap & Anti-Z-Fighting Rules

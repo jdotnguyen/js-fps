@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { installFakeWebAudio, reaches, type FakeAudioContext, type FakeNode } from './testing/fakeWebAudio.ts';
 import { AudioEngine } from './engine.ts';
 import { INTERCOM_FX, intercomOcclusion, OverloadFollower, overloadAmount } from './intercom.ts';
-import { GLASS_CUTOFF_HZ, GLASS_GAIN_SCALE, OCCLUDED_CUTOFF_HZ, OCCLUDED_GAIN_SCALE } from './occlusion.ts';
+import { GLASS_CUTOFF_HZ, GLASS_GAIN_SCALE, OCCLUDED_CUTOFF_HZ, OCCLUDED_GAIN_SCALE, SEALED_CUTOFF_HZ, SEALED_GAIN_SCALE } from './occlusion.ts';
 import type { SoundName } from './sounds.ts';
 
 // in-world-audio: "A live intercom relays a room", "The intercom clicks and hisses", "The intercom overloads on loud
@@ -113,6 +113,7 @@ test('Heard from the next room: the speaker is muffled and quieter through a wal
   const open = intercomOcclusion('none');
   assert.deepEqual(wall, { cutoff: OCCLUDED_CUTOFF_HZ, gain: OCCLUDED_GAIN_SCALE }, 'as any world sound behind a wall');
   assert.deepEqual(glass, { cutoff: GLASS_CUTOFF_HZ, gain: GLASS_GAIN_SCALE });
+  assert.deepEqual(intercomOcclusion('sealed'), { cutoff: SEALED_CUTOFF_HZ, gain: SEALED_GAIN_SCALE });
   assert.ok(open.gain === 1 && open.cutoff > 3400, 'in the open the speaker keeps its own band and level');
 });
 
@@ -155,4 +156,23 @@ test('With no occluder (or the listener at the grille) the speaker stays clear',
   engine.setIntercom('medbay', true);
   ic.update(0.2);
   assert.equal(ic.occlusion, 'none');
+});
+
+test('Lab B through the intercom: behind sealed glass a sound is faint and dull, and its intercom copy keeps its full level', () => {
+  const engine = engineWithIntercom();
+  engine.setOccluder((_from, to) => (to.z > 46 ? 'sealed' : 'none'));
+  engine.setIntercom('medbay', true);
+  const ctx = engine.ctx as unknown as FakeAudioContext;
+  const before = ctx.nodes.length;
+  engine.play(SOUND, { bus: 'sfx', position: new THREE.Vector3(2, 1, 51), gain: 0.8, occlude: 'sealed' });
+  const made = ctx.nodes.slice(before) as Array<FakeNode & { gain?: { value: number }; frequency?: { value: number } }>;
+  const source = made.find((n) => n.kind === 'source')!;
+  const input = node(engine.intercom('medbay')!.input);
+  const tap = made.find((n) => n.kind === 'gain' && n.outputs.has(input))!;
+  assert.ok(source.outputs.has(tap), 'tapped dry, before the low-pass');
+  assert.equal(tap.gain!.value, 0.8, 'the relay is not muffled');
+  const lowpass = made.find((n) => n.kind === 'biquad')!;
+  assert.equal(lowpass.frequency!.value, SEALED_CUTOFF_HZ);
+  const direct = [...lowpass.outputs][0] as unknown as { gain: { value: number } };
+  assert.ok(Math.abs(direct.gain.value - 0.8 * SEALED_GAIN_SCALE) < 1e-9, `direct ${direct.gain.value}`);
 });

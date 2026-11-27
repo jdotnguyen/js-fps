@@ -20,7 +20,7 @@ export interface MirrorSource {
     readonly enabled: boolean;
     /** Footstep surface (`ColliderSurface`); picks the friction pieces slide with. */
     readonly surface?: string | null;
-    /** 'glass' for panes. */
+    /** 'glass' or 'sealed' for panes. */
     readonly acoustic?: string;
   }>;
 }
@@ -52,7 +52,7 @@ export const GLASS_FRICTION = 0.25;
 const DEFAULT_FRICTION = 0.8;
 
 export function frictionOf(c: { surface?: string | null; acoustic?: string }): number {
-  if (c.acoustic === 'glass') return GLASS_FRICTION;
+  if (c.acoustic === 'glass' || c.acoustic === 'sealed') return GLASS_FRICTION;
   return (c.surface ? SURFACE_FRICTION[c.surface] : undefined) ?? DEFAULT_FRICTION;
 }
 const EPS = 1e-4;

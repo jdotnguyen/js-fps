@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Rng } from '../../core/rng.ts';
 import type { Materials } from '../../render/materials.ts';
+import type { ColliderAcoustic } from '../collision.ts';
 import { at, cylinderBetween, pipe, rounded } from './geom.ts';
 import { slab } from './shapes.ts';
 import { bolts, ceilingHousing, inFrame, panelWall, pipeRun, plainWall, wallFrame, windowWall } from './detail.ts';
@@ -349,9 +350,15 @@ function wallTile(p: PieceParams, rng: Rng, m: Materials, style: WallStyle): Pie
   if (style === 'plain' || style === 'panel' || style === 'vent') {
     pb.socket('wall_center', [0, 1.4, -HALF + WALL_T], [0, 0, 1], 'wall');
   }
-  // A glass partition muffles sound only lightly (in-world-audio: Glass muffles lightly).
-  pb.solid(-HALF, 0, -HALF, HALF, h, -HALF + WALL_T, undefined, style === 'glass' ? 'glass' : undefined);
+  pb.solid(-HALF, 0, -HALF, HALF, h, -HALF + WALL_T, undefined, style === 'glass' ? glassAcoustic(p) : undefined);
   return pb.build();
+}
+
+/** A glass partition muffles sound only lightly, or hard when its `acoustic` param says it is `sealed`. */
+function glassAcoustic(p: PieceParams): ColliderAcoustic {
+  const a = strParam(p, 'acoustic', 'glass');
+  if (a !== 'glass' && a !== 'sealed') throw new Error(`wall_glass_partition: acoustic is glass | sealed, not "${a}"`);
+  return a;
 }
 
 function glassPartition(pb: PieceBuilder, m: Materials, f: THREE.Matrix4, h: number, pal?: ResolvedPalette): void {

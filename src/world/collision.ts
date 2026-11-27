@@ -9,6 +9,12 @@ import type { Aabb, ColliderQuery } from '../actors/motor.ts';
 
 export type ColliderSurface = 'concrete' | 'metal' | 'grate' | 'rubber' | 'water';
 
+/**
+ * A see-through partition. `'glass'` muffles sound only lightly (in-world-audio: Glass muffles lightly); `'sealed'`
+ * muffles it hard (Sealed observation glass muffles hard). For everything but sound both are the same glass.
+ */
+export type ColliderAcoustic = 'glass' | 'sealed';
+
 export interface Collider extends Aabb {
   readonly id: number;
   minX: number;
@@ -22,14 +28,14 @@ export interface Collider extends Aabb {
   /** Free-form owner label, e.g. "static", "door:D_R01_R02". */
   tag: string;
   surface: ColliderSurface | null;
-  /** `'glass'`: a see-through partition that muffles sound only lightly (in-world-audio: Glass muffles lightly). */
-  acoustic?: 'glass';
+  /** Set on a glass partition. */
+  acoustic?: ColliderAcoustic;
 }
 
 export interface BoxLike {
   min: readonly [number, number, number];
   max: readonly [number, number, number];
-  acoustic?: 'glass';
+  acoustic?: ColliderAcoustic;
 }
 
 export interface RayHit {

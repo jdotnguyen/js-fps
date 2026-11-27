@@ -13,7 +13,7 @@ const mats = new Proxy({} as Record<string | symbol, THREE.Material>, {
   get: (t, k) => (t[k] ??= new THREE.MeshStandardMaterial()),
 }) as unknown as Materials;
 
-const piece = (id: string) => STRUCTURE_PIECES.find((p) => p.id === id)!.generate({}, new Rng('glass-acoustic'), mats);
+const piece = (id: string, params: Record<string, string> = {}) => STRUCTURE_PIECES.find((p) => p.id === id)!.generate(params, new Rng('glass-acoustic'), mats);
 
 test('every wall_glass_partition collider is marked glass, and a panel wall is not', () => {
   const glass = piece('wall_glass_partition');
@@ -29,4 +29,12 @@ test('the glass marker survives transformBox and CollisionWorld.add', () => {
   const world = new CollisionWorld();
   assert.equal(world.add(moved, 'room:test').acoustic, 'glass');
   assert.equal(world.add({ min: [0, 0, 0], max: [1, 3, 1] }, 'room:test').acoustic, undefined);
+});
+
+test('a glass partition marked sealed carries it to the collision world; any other value is refused', () => {
+  const [box] = piece('wall_glass_partition', { acoustic: 'sealed' }).colliders;
+  assert.equal(box!.acoustic, 'sealed');
+  const moved = transformBox(box!, new THREE.Matrix4().makeRotationY(Math.PI).setPosition(8, 0, 20));
+  assert.equal(new CollisionWorld().add(moved, 'room:test').acoustic, 'sealed');
+  assert.throws(() => piece('wall_glass_partition', { acoustic: 'Sealed' }), /acoustic is glass \| sealed/);
 });

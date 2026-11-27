@@ -421,6 +421,31 @@ Each section adds what the next one needs here before its session ends: measured
 - Tests: `src/audio/loudness.test.ts`, the D11 cases in `speechActing.test.ts`, and the passing-through cases in
   `speech.test.ts` and `speakerBodies.test.ts`.
 
+### Section 7 (2026-11-27)
+
+- D12's on-pane rule did not hold by itself: the pane collider is 0.25 m thick, so a ray stopping 0.35 m short still
+  crosses it. The occluder now measures the source's distance to the pane's box: within 0.3 m
+  (`SEALED_PANE_REACH`) is on the pane. Measured in a headless played kill: palms 0-0.18 m, her chest onto the pane
+  0.05 m, the creature's blows 0.01 m; everything else from the room is 0.4 m or more and muffled.
+- `blood_splat_glass` played from her chest, 0.64 m off the pane, so it is now heard from the glass (new: an `sfx`
+  event's `mark: "glass"`).
+- `occlude: 'sealed'` (kill, growl and sequence sounds) asks the occluder about sealed glass only: walls and props on
+  the line change nothing. For world sounds and footsteps a wall still wins. A low barrier no longer hides a sealed pane
+  behind it.
+- The engine tapped intercoms after occlusion, so a muffled sound was relayed muffled in level. `relayGain` now carries
+  the unmuffled level, for glass and walls too: R08's medical bay world sounds and footsteps come through its intercom
+  at full level, even where the direct sound is muffled.
+- Gore never reads `acoustic`: its clip plane comes from the kill's glass. `labBSealed.test.ts` pins that the sprays
+  still clip at the pane.
+- After the burst, `ventCoverRip` and both R04 duct sounds are muffled too (spec: sequence sounds). The last
+  `ductScrape` plays after the intercom is off, so it is faint. Gains are untouched.
+- Voices: `Level` marks the R03-R04 `visibleFrom` portal sealed from the partition's `params.acoustic`. A sealed portal
+  counts in `VoicePath.closedDoors`.
+- Tests: `src/ai/labBSealed.test.ts` (the real Lab B), and the sealed cases in `occlusion.test.ts`,
+  `voicePath.test.ts`, `footsteps.test.ts`, `intercom.test.ts` and `glassAcoustic.test.ts`.
+- The user approved the sound from the gallery (§7.5, 2026-11-27). `music.test.ts` "labB" loudness (`r16Build`) still
+  fails, as recorded in section 4.
+
 ### Section 8 (2026-11-27)
 
 - New ElevenLabs sounds (`scripts/gore-generate.ts`, ids as the sound names): `body_bench_hit`, `bench_sweep`,

@@ -135,17 +135,17 @@ and tell the user which change or file is blocking if:
 
 ## 7. Sealed observation glass (Sonnet 5.5, high)
 
-- [ ] 7.1 Check the gates, including that phase 1b is committed. Verify: as in 1.1.
-- [ ] 7.2 Grep every reader of `acoustic`, widen it to `'glass' | 'sealed'`, and let `wall_glass_partition` take
+- [x] 7.1 Check the gates, including that phase 1b is committed. Verify: as in 1.1.
+- [x] 7.2 Grep every reader of `acoustic`, widen it to `'glass' | 'sealed'`, and let `wall_glass_partition` take
   `wallParams.acoustic` (design D12). Verify: tests show a sealed pane still clips gore and still has glass friction.
-- [ ] 7.3 Add the `'sealed'` occlusion result and `occlude: 'sealed'` for kill and sequence sounds, and mark the three
+- [x] 7.3 Add the `'sealed'` occlusion result and `occlude: 'sealed'` for kill and sequence sounds, and mark the three
   `R03.json` sides. Verify: `src/audio/occlusion.test.ts` cases for "Intercom off", "Hands on the pane" (a source 0.3 m
   from the pane is not sealed-muffled) and "Other glass unchanged", and the in-world-audio "Scripted kill behind sealed
   glass" scenario.
-- [ ] 7.4 Add the `'sealed'` voice portal state and mark the gallery-to-Lab B portal in `level.ts`. Verify:
+- [x] 7.4 Add the `'sealed'` voice portal state and mark the gallery-to-Lab B portal in `level.ts`. Verify:
   `src/audio/voicePath.test.ts` cases show sealed costing at least as much as a closed door, and the voice-playback
   "Voss behind the sealed glass" scenario holds (her subtitle still shows through the intercom).
-- [ ] 7.5 Update `docs/modular-grid-standard.md` (the `wallParams.acoustic` field) and listen to the drop from the
+- [x] 7.5 Update `docs/modular-grid-standard.md` (the `wallParams.acoustic` field) and listen to the drop from the
   gallery with the user in a private `npm run playtest:serve` build. Verify: for "Lab B through the intercom", the user
   hears Lab B mainly through the intercom; every browser opened is closed; `npm test -- src/audio/` passes.
 

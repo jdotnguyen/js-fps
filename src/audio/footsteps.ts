@@ -11,10 +11,15 @@ import {
   OCCLUDED_GAIN_SCALE,
   OCCLUDED_REVERB,
   OCCLUSION_MIN_DISTANCE,
+  SEALED_CUTOFF_HZ,
+  SEALED_GAIN_SCALE,
   type Occluder,
   type Occlusion,
 } from './occlusion.ts';
 import type { SoundName } from './sounds.ts';
+
+/** How much of a step's level comes through what stands between it and the player. */
+const OCCLUSION_GAIN: Record<Occlusion, number> = { none: 1, glass: GLASS_GAIN_SCALE, sealed: SEALED_GAIN_SCALE, wall: OCCLUDED_GAIN_SCALE };
 
 /**
  * Minimal audio engine interface needed by FootstepAudio (matches `AudioEngine`
@@ -242,17 +247,17 @@ export class FootstepAudio {
     // counters, chairs, and crates in an open room never falsely muffle someone standing right in front of you.
     this.probeTo.set(ev.x, ev.y + 1.35, ev.z);
     const occlusion: Occlusion = dist > OCCLUSION_MIN_DISTANCE ? (this.deps.isOccluded?.(listener, this.probeTo) ?? 'none') : 'none';
-    const occluded = occlusion === 'wall';
+    // Sealed glass muffles as a wall does, only harder (in-world-audio: Sealed observation glass muffles hard).
+    const occluded = occlusion === 'wall' || occlusion === 'sealed';
 
-    let gain = baseGainForKind(ev.kind, ev.speed) * tailGain;
-    if (occluded) gain *= OCCLUDED_GAIN_SCALE;
-    else if (occlusion === 'glass') gain *= GLASS_GAIN_SCALE;
+    const authored = baseGainForKind(ev.kind, ev.speed) * tailGain;
+    const gain = authored * OCCLUSION_GAIN[occlusion];
     if (gain <= 0.004) return;
 
     // Distance air absorption (high frequencies soften with distance) + occlusion low-pass.
     let cutoff: number | undefined;
     if (occluded) {
-      cutoff = OCCLUDED_CUTOFF_HZ;
+      cutoff = occlusion === 'sealed' ? SEALED_CUTOFF_HZ : OCCLUDED_CUTOFF_HZ;
     } else if (dist > 4) {
       const k = THREE.MathUtils.clamp((dist - 4) / (maxDist - 4), 0, 1);
       // Exponentially sweep from 16 kHz at 4 m down to ~3.2 kHz near max distance.
@@ -274,6 +279,8 @@ export class FootstepAudio {
       variant,
       // Occlusion is applied above (torso-height probe); the engine must not apply it a second time.
       occlude: false,
+      // A room intercom hears the step as it was made, whatever stands between it and the player.
+      relayGain: authored,
       ...(cutoff !== undefined ? { cutoff } : {}),
     };
     this.deps.audio.play(sound, opts);
@@ -283,7 +290,7 @@ export class FootstepAudio {
   /**
    * The slosh of a body moving through standing water (in-world-audio spec: Wading slosh): a loop that follows its
    * speed and depth and fades out within about half a second of stopping. Jay's own (`actor` "player") is heard
-   * close; anyone else's is positional, cut past footstep range and quieter behind a wall, as their steps are.
+   * close; anyone else's is positional, cut past footstep range and quieter behind a wall or sealed glass, as their steps are.
    */
   slosh(actor: string, x: number, y: number, z: number, speed: number, dt: number): void {
     if (!this.deps.audio.loop || !this.deps.audio.hasSound('waterSlosh')) return;
@@ -298,7 +305,8 @@ export class FootstepAudio {
       else {
         pos = new THREE.Vector3(x, y + 0.4, z);
         if (dist > FADE_START_DISTANCE) target *= Math.max(0, 1 - (dist - FADE_START_DISTANCE) / (FOOTSTEP_MAX_DISTANCE - FADE_START_DISTANCE)) ** 2;
-        if (dist > OCCLUSION_MIN_DISTANCE && this.deps.isOccluded?.(l, this.probeTo.set(x, y + 1.35, z)) === 'wall') target *= OCCLUDED_GAIN_SCALE;
+        const through = dist > OCCLUSION_MIN_DISTANCE ? (this.deps.isOccluded?.(l, this.probeTo.set(x, y + 1.35, z)) ?? 'none') : 'none';
+        if (through === 'wall' || through === 'sealed') target *= OCCLUSION_GAIN[through];
       }
     }
     let s = this.sloshes.get(actor);

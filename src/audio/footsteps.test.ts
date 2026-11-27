@@ -8,7 +8,7 @@ import { CollisionWorld, type ColliderSurface } from '../world/collision.ts';
 import { floorSurfaceForKey } from '../world/kit/palettes.ts';
 import type { VoiceOptions } from './engine.ts';
 import { FOOTSTEP_MAX_DISTANCE, FootstepAudio, soundForSurface, type FootstepAudioEngine } from './footsteps.ts';
-import { GLASS_CUTOFF_HZ, wallOccluder } from './occlusion.ts';
+import { GLASS_CUTOFF_HZ, SEALED_CUTOFF_HZ, wallOccluder } from './occlusion.ts';
 import type { SoundName } from './sounds.ts';
 
 interface PlayedVoice {
@@ -133,6 +133,29 @@ test('steps behind a glass partition are only lightly muffled (in-world-audio: G
   assert.ok((glass.opts.gain ?? 0) < (open.opts.gain ?? 0), 'a little quieter than in the open');
   assert.ok((glass.opts.gain ?? 0) > (wall.opts.gain ?? 0) * 1.4, 'clearly louder than through a wall');
   assert.ok((wall.opts.cutoff ?? 20000) <= 600, 'glass then a wall is fully muffled');
+});
+
+test('steps behind sealed glass are muffled harder than through a wall, and an intercom still hears them clearly', () => {
+  const world = new CollisionWorld();
+  world.add({ min: [-20, -0.2, -20], max: [20, 0, 20] }, 'floor', 'concrete');
+  world.add({ min: [-0.1, 0, -4], max: [0.1, 3, 4], acoustic: 'sealed' }, 'room:sealed');
+  world.add({ min: [3.9, 0, -4], max: [4.1, 3, 4] }, 'room:wall');
+  const listener = new THREE.Vector3(1.5, 1.7, 0);
+  const { engine, played } = makeFakeAudio(7);
+  const steps = new FootstepAudio({
+    audio: engine,
+    rng: new Rng('sealed-steps'),
+    listener: () => listener,
+    surfaceAt: () => 'concrete',
+    isOccluded: wallOccluder((...ray) => world.raycast(...ray)),
+  });
+  const step = (x: number): void => steps.playCharacter({ x, y: 0.05, z: 0, side: 'L', speed: 1.3, kind: 'walk', actor: 'okafor' });
+  step(-1); // 2.5 m away, behind the sealed glass
+  step(5.5); // 4 m away, behind a wall
+  const [sealed, wall] = played as [PlayedVoice, PlayedVoice];
+  assert.equal(sealed.opts.cutoff, SEALED_CUTOFF_HZ);
+  assert.ok((sealed.opts.gain ?? 1) < (wall.opts.gain ?? 0), 'quieter than through a wall, though nearer');
+  assert.ok((sealed.opts.relayGain ?? 0) > (sealed.opts.gain ?? 0) * 4, 'the room mic hears the step as it was made');
 });
 
 test('Humanoid fires alternating left/right footstep events synced to walking mocap foot plants', () => {

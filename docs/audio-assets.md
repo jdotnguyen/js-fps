@@ -82,7 +82,9 @@ when a wall or closed door is between it and the player (in-world-audio spec, "W
 occlusion"); through a glass partition only, it is just slightly quieter and duller ("Glass muffles
 lightly"). Pass `occlude: false` for a sound that must play as authored or that already handles
 occlusion itself. Sequence and kill sounds, footsteps, loops and the other buses are never muffled
-this way.
+this way. Sealed observation glass (`docs/modular-grid-standard.md`) is the exception: it muffles
+one-shots, footsteps, and sequence and kill sounds (`occlude: 'sealed'`) harder than a closed door,
+except a sound made on the pane. A live room intercom carries a muffled sound at its unmuffled level.
 
 ## 3. Credit anything you did not generate
 

@@ -267,10 +267,10 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
       // audio clock, so a hold moves it along with the score (game-pause).
       const wait = opts?.beat && d.score ? d.score.untilBeat() : 0;
       const delay = wait > 0.005 ? { delay: wait } : {};
-      // Sequence sounds play as authored, never muffled by walls (in-world-audio: World sound occlusion).
+      // Sequence sounds play as authored, never muffled by walls, only by sealed glass (in-world-audio: World sound occlusion).
       const gain = opts?.gain !== undefined ? { gain: opts.gain } : {};
       const relay = opts?.relay === false ? { relay: false } : {};
-      d.audio.play(id as SoundName, at ? { position: v3(at), occlude: false, ...gain, ...relay, ...delay } : { ...gain, ...delay });
+      d.audio.play(id as SoundName, at ? { position: v3(at), occlude: 'sealed', ...gain, ...relay, ...delay } : { ...gain, ...delay });
     },
     ...(d.ambience ? { ambience: (id: string) => d.ambience!.setOverride(id) } : {}),
     ...(d.score

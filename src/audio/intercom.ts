@@ -12,7 +12,7 @@
  */
 import * as THREE from 'three';
 import { Rng } from '../core/rng.ts';
-import { GLASS_CUTOFF_HZ, GLASS_GAIN_SCALE, OCCLUDED_CUTOFF_HZ, OCCLUDED_GAIN_SCALE, type Occlusion } from './occlusion.ts';
+import { GLASS_CUTOFF_HZ, GLASS_GAIN_SCALE, OCCLUDED_CUTOFF_HZ, OCCLUDED_GAIN_SCALE, SEALED_CUTOFF_HZ, SEALED_GAIN_SCALE, type Occlusion } from './occlusion.ts';
 import { crackleBuffer, saturationCurve } from './radio.ts';
 
 export const INTERCOM_FX = {
@@ -47,6 +47,7 @@ const OPEN_CUTOFF_HZ = 20000;
 /** The speaker heard through what stands between it and the listener (in-world-audio "A live intercom relays a room"). */
 export function intercomOcclusion(o: Occlusion): { cutoff: number; gain: number } {
   if (o === 'wall') return { cutoff: OCCLUDED_CUTOFF_HZ, gain: OCCLUDED_GAIN_SCALE };
+  if (o === 'sealed') return { cutoff: SEALED_CUTOFF_HZ, gain: SEALED_GAIN_SCALE };
   if (o === 'glass') return { cutoff: GLASS_CUTOFF_HZ, gain: GLASS_GAIN_SCALE };
   return { cutoff: OPEN_CUTOFF_HZ, gain: 1 };
 }
@@ -238,7 +239,7 @@ export class Intercom {
     if (this.sinceOcclusion >= INTERCOM_FX.occlusionCheck) this.checkOcclusion(false);
   }
 
-  /** What stands between the listener and the speaker now: 'none', 'glass' or 'wall' (a wall or a closed door). */
+  /** What stands between the listener and the speaker now: 'none', 'glass', 'sealed' or 'wall' (a wall or a closed door). */
   get occlusion(): Occlusion {
     return this.occlusionNow;
   }

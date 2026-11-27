@@ -368,6 +368,9 @@ export async function loadLevel(data: LevelData, deps: LevelDeps, opts?: LevelLo
   });
 }
 
+/** One key for two rooms, whichever comes first. */
+const pairKey = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
+
 /**
  * A data-driven kit level (ADR-0003): rooms built from pieces, merged per room and
  * material with baked AO, doors and triggers that emit events, portal-by-adjacency
@@ -405,6 +408,8 @@ export class Level implements World, CaptureHost {
   private readonly paSpeakers: PaSpeaker[] = [];
   /** Glass panes (glass partition edges and see-through doors), for `glassAt`: armoured glass stops rounds (medbay-attack). */
   private readonly glassPanes: THREE.Box3[] = [];
+  /** Room pairs (`pairKey`) joined by sealed observation glass (in-world-audio: Sealed observation glass muffles hard). */
+  private readonly sealedRooms = new Set<string>();
   /** Room intercom grilles (`pa_speaker` props with an `intercom` id): in-world-audio "A live intercom relays a room". */
   private readonly intercomGrilles: Array<{ id: string; room: string; sources: string[]; position: THREE.Vector3; level: number }> = [];
   private readonly roomById = new Map<string, RoomRuntime>();
@@ -708,7 +713,6 @@ export class Level implements World, CaptureHost {
   /** Extract the world-space portal graph from doors, glass partitions, open `visibleFrom` edges and ocean windows. */
   private buildPortalCuller(): PortalCuller {
     const ALWAYS_OPEN = (): boolean => true;
-    const pairKey = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
     const portals: PortalQuad[] = [];
     const fallbacks: FallbackLink[] = [];
@@ -785,11 +789,12 @@ export class Level implements World, CaptureHost {
         const cells = p.cells ?? (p.cell ? [p.cell] : []);
         for (const cell of cells) {
           const edgeKey = sharedEdgeKey(cell, rot);
-          if (seenGlassEdges.has(edgeKey)) continue;
           const other =
             cellOwner.get(`${cell[0] + dx},${cell[1]},${cell[2] + dz}`) ??
             cellOwnerXZ.get(`${cell[0] + dx},${cell[2] + dz}`);
           if (!other || other === r) continue;
+          if (p.params?.['acoustic'] === 'sealed') this.sealedRooms.add(pairKey(r.data.id, other.data.id));
+          if (seenGlassEdges.has(edgeKey)) continue;
           seenGlassEdges.add(edgeKey);
           const baseY = cell[1] * DECK_H + floorY;
           const ex = cell[0] * CELL + dx * (CELL / 2);
@@ -1759,15 +1764,17 @@ export class Level implements World, CaptureHost {
       // Half open is open enough to talk through; a closed glass door lets a voice through as glass does.
       state: () => (d.open > 0.3 ? 'open' : d.visual.seeThrough ? 'glass' : 'closed'),
     }));
-    // Windows and glass partitions: rooms declared visible from each other share a glass portal at their boundary.
+    // Windows and glass partitions: rooms declared visible from each other share a glass portal at their boundary, sealed
+    // where their glass partition says so.
     const seen = new Set<string>();
     for (const r of this.rooms) {
       for (const other of r.data.visibleFrom ?? []) {
         const o = this.roomById.get(other);
-        const key = [r.data.id, other].sort().join('|');
+        const key = pairKey(r.data.id, other);
         if (!o || seen.has(key)) continue;
         seen.add(key);
-        portals.push({ rooms: [r.data.id, other] as const, at: roomBoundaryPoint(r.cells, o.cells), state: () => 'glass' });
+        const state = this.sealedRooms.has(key) ? 'sealed' : 'glass';
+        portals.push({ rooms: [r.data.id, other] as const, at: roomBoundaryPoint(r.cells, o.cells), state: () => state });
       }
     }
     this.voiceGraphCache = new VoiceGraph(portals);

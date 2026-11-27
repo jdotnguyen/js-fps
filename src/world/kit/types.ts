@@ -3,6 +3,7 @@ import type { SampleName } from '../../audio/sounds.ts';
 import type { Rng } from '../../core/rng.ts';
 import type { Materials } from '../../render/materials.ts';
 import type { SpotKind } from '../../data/types/level.ts';
+import type { ColliderAcoustic } from '../collision.ts';
 
 /**
  * Kit contract (ADR-0003). Every piece has one ID, one pivot convention (origin at the
@@ -34,8 +35,8 @@ export type Vec3 = [number, number, number];
 export interface BoxSpec {
   min: Vec3;
   max: Vec3;
-  /** `'glass'` marks a see-through partition, which muffles sound only lightly (in-world-audio: Glass muffles lightly). */
-  acoustic?: 'glass';
+  /** Marks a see-through partition and how hard it muffles sound (collision.ts `ColliderAcoustic`). */
+  acoustic?: ColliderAcoustic;
   /** Initial enabled state for the collider (default true). */
   enabled?: boolean;
 }
@@ -287,7 +288,7 @@ export class PieceBuilder {
   }
 
   /** Collider from min/max corners. */
-  solid(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, surface?: SurfaceMaterial, acoustic?: 'glass', enabled = true): SolidRef {
+  solid(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, surface?: SurfaceMaterial, acoustic?: ColliderAcoustic, enabled = true): SolidRef {
     const box: BoxSpec = { min: [minX, minY, minZ], max: [maxX, maxY, maxZ], ...(acoustic ? { acoustic } : {}), ...(enabled ? {} : { enabled: false }) };
     const index = this.colliders.length;
     this.colliders.push(box);

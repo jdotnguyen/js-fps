@@ -45,11 +45,14 @@ export interface VoiceOptions {
   cutoff?: number;
   /**
    * `false` opts a positional `sfx` one-shot out of wall occlusion (in-world-audio: World sound occlusion).
-   * Use it for sounds that already handle occlusion or must play as authored.
+   * Use it for sounds that already handle occlusion or must play as authored. `'sealed'` is for scripted sequences and
+   * kills: they play as authored unless sealed observation glass is in the way.
    */
-  occlude?: boolean;
+  occlude?: boolean | 'sealed';
   /** `false` keeps a positional one-shot off live intercoms (the medical bay monitor beep: heard through the glass only). */
   relay?: boolean;
+  /** The level a live intercom carries the sound at (default `gain`): a muffled sound passes its unmuffled level. */
+  relayGain?: number;
   rate?: number;
   variant?: number;
   /** Start this many seconds from now, on the audio clock, so a hold moves it along with everything else. */
@@ -823,7 +826,7 @@ export class AudioEngine {
     // A live intercom in the sound's room also carries it, dry and unoccluded (the room mic hears it as authored).
     const taps = opts.position && (opts.bus ?? 'sfx') === 'sfx' && opts.relay !== false ? this.intercomInputs(opts.position) : [];
     if (taps.length > 0) {
-      const tapGain = new GainNode(this.ctx, { gain: opts.gain ?? 1 });
+      const tapGain = new GainNode(this.ctx, { gain: opts.relayGain ?? opts.gain ?? 1 });
       source.connect(tapGain);
       for (const input of taps) tapGain.connect(input);
       source.addEventListener?.('ended', () => tapGain.disconnect());
