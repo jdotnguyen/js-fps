@@ -21,6 +21,7 @@ import { DEFAULT_MANIFEST, ROOT, loadManifest, missingSources, sourceFile } from
 import { BONE_MAPS, bakeBvh, guessBoneMap, loadBvh } from './lib/bvhBake.mjs';
 import { clearanceProblems, fixClearance } from './lib/clipChecks.mjs';
 import { makeAdditive } from './lib/additive.mjs';
+import { rotateJoints } from './lib/rotateJoints.mjs';
 import { PACK_TABLE_PATH, packPath, packTable } from './lib/mocapPackFiles.mjs';
 
 // Options: --manifest <file> (default scripts/mocap.sources.json), --out <file> (default src/data/mocap-core.json),
@@ -98,7 +99,7 @@ const SRC_MAP = {
 
 /** Clips to extract from the Quaternius glTF (from the bake list): target game clip id -> source animation name + metadata. */
 const CLIPS = MANIFEST.clips
-  .filter((c) => c.source === 'quaternius-ual')
+  .filter((c) => c.source === 'quaternius-ual' && !c.from)
   .map(({ take, source: _s, ...rest }) => ({ ...rest, src: take }));
 
 // ---------------------------------------------------------------- glTF binary reader
@@ -493,7 +494,7 @@ for (const spec of CLIPS) {
 
 // ---------------------------------------------------------------- zombie_walk.glb retargeting
 // Extracts the authentic 3.87s slow limping zombie walk mocap (`slowB_002_strafe_walkslow_0`)
-// from public/assets/models/infected/zombie_walk.glb using the exact inverse of bodyModel.ts's
+// from the bake list's `zombie-walk` source (zombie_walk.glb) using the exact inverse of bodyModel.ts's
 // rest-pose straightening (`Poser`), plus derives a slow swaying `zombie_idle` loop.
 
 function bakeZombieClips() {
@@ -878,6 +879,16 @@ for (const spec of MANIFEST.clips) {
       // hangArms (standing-posture-stability): each upper arm's average forward swing before -> after, left/right.
       (info.arms ? ` arms hung ${['L', 'R'].map((s) => `${info.arms.before[s].toFixed(0)}->${info.arms.after[s].toFixed(0)}`).join('/')} deg` : ''),
   );
+}
+
+// ---------------------------------------------------------------- derived clips: a baked clip with some joints turned
+for (const spec of MANIFEST.clips) {
+  if (!spec.from) continue;
+  const clip = rotateJoints(outClips[spec.from], spec.rotate);
+  const problems = clearanceProblems(clip);
+  if (problems.length) throw new Error(`${spec.id}: ${problems.length} clearance problems (${problems[0].what} at frame ${problems[0].frame})`);
+  outClips[spec.id] = clip;
+  console.log(`[${spec.id}] ${spec.from} with ${Object.keys(spec.rotate).join(', ')} turned`);
 }
 
 // ---------------------------------------------------------------- write: core library + one pack per character

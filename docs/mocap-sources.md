@@ -1,6 +1,6 @@
 # Motion-capture sources
 
-The clip library (`src/data/mocap-core.json`) is baked from free motion capture onto the shared 21-joint skeleton (spec `mocap-library`, change `per-character-motion`). The bake list `scripts/mocap.sources.json` names every source and every take, and sources live under `previews/sources/mocap/` (gitignored). The only exception is `zombie_walk.glb`, a model already committed under `public/assets/`.
+The clip library (`src/data/mocap-core.json`) is baked from free motion capture onto the shared 21-joint skeleton (spec `mocap-library`, change `per-character-motion`). The bake list `scripts/mocap.sources.json` names every source and every take, and sources live under `previews/sources/mocap/` (gitignored).
 
 ```
 node scripts/mocap-fetch.mjs      # download exactly the takes the bake list names
@@ -13,7 +13,7 @@ node scripts/bake-mocap.mjs --check
 | Id | Source | Licence | Format | Get it |
 |---|---|---|---|---|
 | `quaternius-ual` | Quaternius, Universal Animation Library (Standard) | CC0 1.0 | glTF, finger joints | [itch.io](https://quaternius.itch.io/universal-animation-library); `mocap-fetch` uses the [glTF mirror](https://github.com/J-Ponzo/gltf-universal-animation-library) |
-| `zombie-walk` | LostBoyz2078, Zombie Walk | CC BY-NC 4.0 | GLB (committed) | already in `public/assets/models/infected/` |
+| `zombie-walk` | LostBoyz2078, Zombie Walk | CC BY-NC 4.0 | GLB | `mocap-fetch` restores it from this repository's history (it shipped under `public/assets/` until 2026-11-24) |
 | `cmu` | CMU Graphics Lab Motion Capture Database, BVH conversion by Bruce Hahne | No restrictions on use | BVH, 120 fps, no fingers | [mocap.cs.cmu.edu](http://mocap.cs.cmu.edu/); `mocap-fetch` downloads single takes from the [GitHub copy](https://github.com/una-dinosauria/cmu-mocap). Index: `previews/sources/mocap/cmu/cmu-mocap-index-text.txt` |
 | `bandai-1`, `bandai-2` | Bandai Namco Research Motion Dataset 1 and 2 | CC BY-NC 4.0 | BVH, 30 fps, no fingers | [GitHub](https://github.com/BandaiNamcoResearchInc/Bandai-Namco-Research-Motiondataset); `mocap-fetch` downloads single takes |
 | `100style` | Mason, Starke, Komura, 100STYLE | CC BY 4.0 | BVH, 60 fps, no fingers | manual: the BVH-only archive linked from [the dataset page](https://ianxmason.github.io/100style/) (the full set is 15 GB; keep only the styles the bake list names) |
@@ -49,6 +49,13 @@ Okafor uses the standing portion of CMU `82_08` (0.5–8.5 s) for idle and the a
 
 Every source used by a clip needs a row in `CREDITS.md` (Animations) and an entry in the in-game credits.
 
+## Clips made from another
+
+A bake-list entry with `from` and `rotate` is a baked clip with a fixed rotation added to some joints (XYZ Euler degrees, in the
+joint's own frame), for a body model that needs a grip set differently: `giles_pistol` and `okafor_pistol` are `pistol_idle`
+with the arms and wrists turned. List it after its base. Change the numbers in the bake list and bake; don't edit the baked
+clip.
+
 ## Sizes
 
 The core library loads at start and must stay within 2 MB. Every other named character's clips are a pack of their own (`pack` in the bake list), written to `src/data/cast/<character>/mocap.json` (listed in the generated `src/data/mocap/packs.ts`) and loaded with that character's body (`src/actors/mocapPacks.ts`). The bake rewrites this table.
@@ -56,7 +63,7 @@ The core library loads at start and must stay within 2 MB. Every other named cha
 <!-- sizes:begin -->
 | Pack | Clips | Size |
 |---|---|---|
-| core | 41 | 1002.6 KB |
+| core | 43 | 1047.1 KB |
 | bram | 8 | 223.4 KB |
 | hale | 5 | 148.4 KB |
 | heins | 4 | 56.2 KB |

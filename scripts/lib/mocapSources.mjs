@@ -43,6 +43,9 @@ export function loadManifest(file = DEFAULT_MANIFEST) {
     ids.add(c.id);
     if (!m.sources?.[c.source]) problems.push(`clip "${c.id}": unknown source "${c.source}"`);
     if (!c.take) problems.push(`clip "${c.id}": missing take`);
+    // A clip made from another (`from`) needs the rotations to add, and its base baked before it.
+    if (c.from !== undefined && !(ids.has(c.from) && c.from !== c.id)) problems.push(`clip "${c.id}": "from" must name a clip listed before it`);
+    if ((c.from === undefined) !== (c.rotate === undefined)) problems.push(`clip "${c.id}": "from" and "rotate" go together`);
   }
   if (problems.length) throw new Error(`${path.relative(ROOT, file)}:\n  ${problems.join('\n  ')}`);
   return m;
@@ -60,6 +63,7 @@ export function whereToGet(m, clip) {
   const s = m.sources[clip.source];
   if (s.kind === 'bvh' && s.fetchPattern) return takeUrl(s, clip.take);
   if (s.fetch) return s.fetch.join(' and ');
+  if (s.gitObject) return `from this repository's history (git show ${s.gitObject})`;
   return s.manual ?? s.url;
 }
 

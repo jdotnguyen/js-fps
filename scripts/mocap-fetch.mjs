@@ -1,9 +1,11 @@
 /**
  * Download exactly the motion-capture takes the bake list (scripts/mocap.sources.json) names into previews/sources/mocap/.
- * Files already present are left alone. Sources marked `manual` (100STYLE) are listed with instructions instead.
+ * A source with a `gitObject` is taken from this repository's history. Files already present are left alone. Sources marked
+ * `manual` (100STYLE) are listed with instructions instead.
  *
  * Usage: node scripts/mocap-fetch.mjs [--manifest path]
  */
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_MANIFEST, ROOT, loadManifest, missingSources, sourceFile, takeUrl } from './lib/mocapSources.mjs';
@@ -25,7 +27,14 @@ for (const miss of missingSources(m)) {
   const s = m.sources[clip.source];
   if (s.kind === 'bvh' && s.fetchPattern) await download(takeUrl(s, clip.take), sourceFile(m, clip));
   else if (s.fetch) for (const url of s.fetch) await download(url, path.join(path.dirname(sourceFile(m, clip)), path.basename(new URL(url).pathname)));
-  else manual.push(miss);
+  else if (s.gitObject) {
+    const dest = sourceFile(m, clip);
+    // Read as bytes and written here: a shell redirect (Windows PowerShell's) would corrupt the file.
+    const data = execFileSync('git', ['show', s.gitObject], { cwd: ROOT, maxBuffer: 1 << 28 });
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, data);
+    console.log(`restored ${path.relative(ROOT, dest)} from git history`);
+  } else manual.push(miss);
 }
 for (const miss of manual) console.log(`manual: ${miss.file} (clip ${miss.clip}): ${miss.get}`);
 if (manual.length) process.exitCode = 1;
