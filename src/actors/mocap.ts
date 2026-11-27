@@ -286,6 +286,98 @@ export function sampleContacts(clip: CompiledMocapClip, u: number, out: [number,
   out[1] = (clip.contactR[i0] ?? 0) + ((clip.contactR[i1] ?? 0) - (clip.contactR[i0] ?? 0)) * alpha;
 }
 
+/**
+ * A clip's foot contacts [left, right] at phase `u` for a one-shot or a piece of one (voss-death-scene D5): like
+ * `sampleContacts`, but a clip that does not loop holds its ends instead of wrapping. False (and `out` untouched) when the
+ * clip has no contact curves.
+ */
+export function sampleClipContacts(clip: CompiledMocapClip, u: number, out: [number, number]): boolean {
+  if (!clip.contactL || !clip.contactR) return false;
+  if (clip.loop) {
+    sampleContacts(clip, u, out);
+    return true;
+  }
+  const n = clip.frames;
+  const fPos = THREE.MathUtils.clamp(u, 0, 1) * (n - 1);
+  const i0 = Math.floor(fPos);
+  const i1 = Math.min(n - 1, i0 + 1);
+  const a = fPos - i0;
+  out[0] = (clip.contactL[i0] ?? 0) + ((clip.contactL[i1] ?? 0) - (clip.contactL[i0] ?? 0)) * a;
+  out[1] = (clip.contactR[i0] ?? 0) + ((clip.contactR[i1] ?? 0) - (clip.contactR[i0] ?? 0)) * a;
+  return true;
+}
+
+/**
+ * How long a window (s) a clip's hips are averaged over to find its travel across the floor (voss-death-scene D3). What is
+ * left of their motion after taking the travel away is the sway: the step-by-step side to side and the surge of a walk.
+ */
+export const TRAVEL_WINDOW_S = 0.5;
+const travelCache = new WeakMap<CompiledMocapClip, Float32Array>();
+
+/**
+ * A clip's travel across the floor, per frame [x, z] (skeleton units): its hips averaged over `TRAVEL_WINDOW_S` round
+ * each frame, the window shrinking toward the ends so the first and last frames travel exactly where the hips are. A
+ * walk baked in place travels (almost) nowhere; a stumble or a step travels where its performer went.
+ */
+export function clipTravel(clip: CompiledMocapClip): Float32Array {
+  const cached = travelCache.get(clip);
+  if (cached) return cached;
+  const n = clip.frames;
+  const fps = clip.loop ? n / Math.max(1e-6, clip.duration) : (n - 1) / Math.max(1e-6, clip.duration);
+  const half = Math.max(0, Math.round((TRAVEL_WINDOW_S * fps) / 2));
+  const out = new Float32Array(n * 2);
+  const pv = clip.pelvis;
+  for (let f = 0; f < n; f++) {
+    const r = Math.min(half, f, n - 1 - f);
+    let x = 0;
+    let z = 0;
+    for (let k = f - r; k <= f + r; k++) {
+      x += pv[k * 3] ?? 0;
+      z += pv[k * 3 + 2] ?? 0;
+    }
+    out[f * 2] = x / (2 * r + 1);
+    out[f * 2 + 1] = z / (2 * r + 1);
+  }
+  travelCache.set(clip, out);
+  return out;
+}
+
+/** A clip's travel at phase `u` (0..1, held at the ends), [x, z] in skeleton units, into `out` (x and z set; y is 0). */
+export function clipTravelAt(clip: CompiledMocapClip, u: number, out: THREE.Vector3): THREE.Vector3 {
+  const tr = clipTravel(clip);
+  const n = clip.frames;
+  const fPos = THREE.MathUtils.clamp(u, 0, 1) * (n - 1);
+  const i0 = Math.floor(fPos);
+  const i1 = Math.min(n - 1, i0 + 1);
+  const a = fPos - i0;
+  return out.set((tr[i0 * 2] ?? 0) + ((tr[i1 * 2] ?? 0) - (tr[i0 * 2] ?? 0)) * a, 0, (tr[i0 * 2 + 1] ?? 0) + ((tr[i1 * 2 + 1] ?? 0) - (tr[i0 * 2 + 1] ?? 0)) * a);
+}
+
+/**
+ * A clip's own speed across the floor between `fromS` and `toS` seconds of the take, in skeleton units per second at
+ * playback speed 1 (voss-death-scene D3's speed check): a walk baked in place goes its stride each cycle; any other take
+ * goes as far as its travel does over that stretch.
+ */
+export function clipRootSpeed(clip: CompiledMocapClip, fromS = 0, toS = clip.duration): number {
+  if (clip.stride > 0) return clip.stride / Math.max(1e-6, clip.duration);
+  const a = THREE.MathUtils.clamp(Math.min(fromS, toS), 0, clip.duration);
+  const b = THREE.MathUtils.clamp(Math.max(fromS, toS), 0, clip.duration);
+  if (b - a < 1e-6) return 0;
+  const n = clip.frames;
+  const f0 = (a / clip.duration) * (n - 1);
+  const f1 = (b / clip.duration) * (n - 1);
+  const p = new THREE.Vector3();
+  const q = new THREE.Vector3();
+  clipTravelAt(clip, f0 / (n - 1), p);
+  let length = 0;
+  for (let f = Math.floor(f0) + 1; f <= Math.ceil(f1); f++) {
+    clipTravelAt(clip, Math.min(f, f1) / (n - 1), q);
+    length += Math.hypot(q.x - p.x, q.z - p.z);
+    p.copy(q);
+  }
+  return length / (b - a);
+}
+
 const smoothstep = (e0: number, e1: number, x: number): number => {
   const t = THREE.MathUtils.clamp((x - e0) / (e1 - e0), 0, 1);
   return t * t * (3 - 2 * t);

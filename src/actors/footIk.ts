@@ -26,6 +26,9 @@ const MAX_PELVIS_DROP = 0.045;
 interface FootState {
   pinned: boolean;
   lockWeight: number;
+  /** Letting go of an overstretched pin; then waiting for the foot to lift before it may plant again. */
+  releasing: boolean;
+  latched: boolean;
   readonly pinPos: THREE.Vector3;
   readonly fkPos: THREE.Vector3;
   readonly hipPos: THREE.Vector3;
@@ -38,6 +41,8 @@ function makeFoot(): FootState {
   return {
     pinned: false,
     lockWeight: 0,
+    releasing: false,
+    latched: false,
     pinPos: new THREE.Vector3(),
     fkPos: new THREE.Vector3(),
     hipPos: new THREE.Vector3(),
@@ -65,7 +70,18 @@ export interface FootIkParams {
   ankleHeight?: number;
   /** Hold a planted foot exactly where it landed (no settling toward the animated foot), up to this far from it (m); default MAX_PIN_DRIFT with settling. */
   holdPlanted?: number;
+  /**
+   * Let a planted foot go, over `OVERSTRETCH_RELEASE_S`, once its leg would have to stretch past full length to keep it
+   * (a kill route carrying the body faster than the take steps, voss-death-scene D5); it then plants again only after it
+   * has lifted. Without it, a far pin drags along behind the foot.
+   */
+  releaseOverstretch?: boolean;
 }
+
+/** How long a planted foot takes to let go when its leg would overstretch (s). */
+export const OVERSTRETCH_RELEASE_S = 0.1;
+/** The share of full leg length past which a planted leg counts as overstretched (with `releaseOverstretch`). */
+const OVERSTRETCH = 0.99;
 
 const qParentInv = new THREE.Quaternion();
 const qFlat = new THREE.Quaternion();
@@ -80,6 +96,8 @@ export class FootIkSolver {
     for (const s of ['L', 'R'] as const) {
       this.feet[s].pinned = false;
       this.feet[s].lockWeight = 0;
+      this.feet[s].releasing = false;
+      this.feet[s].latched = false;
     }
     this.pelvisDrop = 0;
     this.wasEnabled = false;
@@ -150,13 +168,35 @@ export class FootIkSolver {
         f.lockWeight = f.pinned ? Math.min(1, c) : 0;
       }
 
-      if (c >= 0.55) {
-        if (!f.pinned) {
+      // A kill route (releaseOverstretch) holds a foot fully from contact 0.5 until it falls below it (voss-death-scene D5).
+      const plantAt = p.releaseOverstretch ? 0.5 : 0.55;
+      const liftAt = p.releaseOverstretch ? 0.5 : 0.42;
+      if (f.latched && c < liftAt) f.latched = false;
+      if (c >= plantAt) {
+        if (!f.pinned && !f.latched) {
           f.pinPos.set(f.fkPos.x, ankleY, f.fkPos.z);
           f.pinned = true;
         }
-      } else if (c < 0.42) {
+      } else if (c < liftAt) {
         f.pinned = false;
+        f.releasing = false;
+      }
+
+      // Overstretched: let go over OVERSTRETCH_RELEASE_S instead of dragging the pin (never a pop), then wait for a lift.
+      if (p.releaseOverstretch && f.pinned) {
+        if (!f.releasing) {
+          const reach = (f.hipPos.distanceTo(f.kneePos) + f.kneePos.distanceTo(f.fkPos)) * OVERSTRETCH + MAX_PELVIS_DROP * p.scaleY;
+          if (f.hipPos.distanceTo(vTmp.set(f.pinPos.x, ankleY, f.pinPos.z)) > reach) f.releasing = true;
+        }
+        if (f.releasing) {
+          f.lockWeight = Math.max(0, f.lockWeight - h / OVERSTRETCH_RELEASE_S);
+          if (f.lockWeight <= 0) {
+            f.pinned = false;
+            f.releasing = false;
+            f.latched = true;
+          } else activeCount++;
+          continue;
+        }
       }
 
       if (f.pinned) {
@@ -179,7 +219,7 @@ export class FootIkSolver {
         }
       }
 
-      const targetW = f.pinned ? Math.min(1, c * 1.15) : 0;
+      const targetW = f.pinned ? (p.releaseOverstretch ? 1 : Math.min(1, c * 1.15)) : 0;
       const rate = targetW > f.lockWeight ? PLANT_RATE : RELEASE_RATE;
       f.lockWeight += (targetW - f.lockWeight) * (1 - Math.exp(-rate * h));
       if (f.lockWeight < 0.005) f.lockWeight = 0;

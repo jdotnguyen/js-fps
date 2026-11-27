@@ -13,14 +13,15 @@ import { rayCapsule } from './capsule.ts';
 import { BodyDamage, DEFAULT_PROFILE, HERO_BASE_HP, HERO_PROFILE, POISE_WINDOW, SHAMBLER_BASE_HP, type HitResult, type LocomotionState } from './damage.ts';
 import { BELLY_WOUND } from './heroSculpt.ts';
 import { CastTells, NO_TELLS, type Tells } from './castTells.ts';
-import { FootIkSolver } from './footIk.ts';
+import { ANKLE_CLEARANCE, FootIkSolver } from './footIk.ts';
 import { HandPhysicsSolver, type FingerName } from './handPhysics.ts';
 import { LimbContactSolver, type ContactKind } from './limbContact.ts';
 import type { ColliderQuery } from './motor.ts';
 import { SLAM, SlamState } from './slam.ts';
 import type { GoreSystem } from './gore.ts';
 import { solveTwoBone } from './ik.ts';
-import type { MocapLibrary } from './mocap.ts';
+import { clipRootSpeed, type MocapLibrary } from './mocap.ts';
+import type { TouchPart } from '../data/types/kills.ts';
 import { resolveProfile, sharedMotionProfiles, type Gender, type MotionProfileFile } from './motionProfiles.ts';
 import { motionScene } from './motionScene.ts';
 import { hasMocapPack, loadMocapPacks } from './mocapPacks.ts';
@@ -227,6 +228,13 @@ export class Humanoid {
   private transformAnim: { from: number; t: number; dur: number } | null = null;
   /** A scripted kill in progress (infection-kills spec): convulsion eases toward `target` at `rate` per second. */
   private kill: { target: number; rate: number } | null = null;
+  /** A kill route carries the body: feet plant and step (setKillFeet). */
+  private killFeet = false;
+  /** Parts put on world points by a kill's `touch` events, with their weights. */
+  private readonly killTouches = new Map<TouchPart, { target: THREE.Vector3; weight: number }>();
+  /** This frame's kill foot contacts, and last frame's posed (FK) feet in world space, for the contacts a take lacks. */
+  private readonly killContacts: [number, number] = [1, 1];
+  private killFootPrev: [THREE.Vector3, THREE.Vector3] | null = null;
   /** Joint positions in bind-pose body space (the space the body shader's `position` lives in), for lumps and wounds. */
   private readonly bindJoint = new Map<JointName, THREE.Vector3>();
   /** Bind-space z of the body's front surface (its most -Z skin or cloth) at each joint, found on first use. */
@@ -497,15 +505,66 @@ export class Humanoid {
    * carried pose is dropped so the clip owns the body. Returns the clip's length (s), or null if this body has no
    * such clip in its library or character pack.
    */
-  playKillClip(id: string, blend: number): number | null {
-    const duration = this.animator.playClip(id, blend);
+  playKillClip(id: string, blend: number, opts: { from?: number; inPlace?: boolean } = {}): number | null {
+    const duration = this.animator.playClip(id, blend, opts);
     if (duration === null) return null;
     this.carried = null;
-    // The clip starts where the body lies: move the origin under it (the animator already moved the pose back).
+    // The clip starts where the body lies: move the origin under it (the animator already moved the pose back). In place
+    // (a route beat), the route keeps the origin and the shift is zero.
     const shift = tmpClipShift.copy(this.animator.clipShift).multiplyScalar(this.geo.scale.y).applyQuaternion(this.group.quaternion);
     this.group.position.add(shift);
     this.prevWorldPos.add(shift);
     return duration;
+  }
+
+  /**
+   * How fast a kill clip of this body travels across the floor between `from` and `to` s of the take, played at speed
+   * 1, in m/s at this body's size (the route speed check, voss-death-scene D3); null when the body has no such clip.
+   */
+  killClipRootSpeed(id: string, from?: number, to?: number): number | null {
+    const lib = this.animator.mocapLibrary;
+    if (!lib.has(id)) return null;
+    const clip = lib.get(id);
+    return clipRootSpeed(clip, from ?? 0, to ?? clip.duration) * this.geo.scale.y;
+  }
+
+  /**
+   * A kill route carries the body (voss-death-scene D5): while on, its feet plant from the playing clip's foot contacts
+   * (or, for a pose or a take without them, wherever a foot is down on the floor), held where they landed until they
+   * lift or the leg would overstretch, and each landing plays a footstep through the NPC footstep path. Off, a kill
+   * keeps today's free feet and silence.
+   */
+  setKillFeet(on: boolean): void {
+    if (this.killFeet === on) return;
+    this.killFeet = on;
+    this.footIk.reset();
+    this.resetFootsteps();
+    this.killFootPrev = null;
+  }
+
+  get killFeetOn(): boolean {
+    return this.killFeet;
+  }
+
+  /**
+   * Put one part of the body on a world point during a kill (`touch`, voss-death-scene D4), at `weight` 0..1 (the kill
+   * eases it in and out); `null` lets go of that part at once.
+   */
+  setKillTouch(part: TouchPart, target: THREE.Vector3 | null, weight = 1): void {
+    if (!target || weight <= 0) {
+      this.killTouches.delete(part);
+      return;
+    }
+    const t = this.killTouches.get(part);
+    if (t) {
+      t.target.copy(target);
+      t.weight = Math.min(1, weight);
+    } else this.killTouches.set(part, { target: target.clone(), weight: Math.min(1, weight) });
+  }
+
+  /** This frame's kill foot contacts [left, right] (0..1) while a route carries the body (tests, debug). */
+  get killFootContacts(): readonly [number, number] {
+    return this.killContacts;
   }
 
   /** Progress through the kill clip (0..1). */
@@ -612,6 +671,8 @@ export class Humanoid {
   endKill(): void {
     this.kill = null;
     this.animator.convulse = 0;
+    this.killTouches.clear();
+    this.setKillFeet(false);
   }
 
   /** Back to a living body after a checkpoint reload rebuilt the scene before the kill. */
@@ -719,6 +780,17 @@ export class Humanoid {
     }
     this.group.rotation.y = this.heading;
     return this.velocity;
+  }
+
+  /**
+   * Turn to a heading as part of continuous motion (a kill route turning her a little each frame, voss-death-scene D3):
+   * unlike `setHeading`, planted feet, contacts and footsteps carry on.
+   */
+  turnHeading(h: number): void {
+    this.heading = h;
+    this.uprightTurn.vel = 0;
+    this.uprightTurn.error = 0;
+    this.group.rotation.y = h;
   }
 
   /** Face a heading instantly (spawns and teleports). */
@@ -1431,12 +1503,14 @@ export class Humanoid {
       return;
     }
     const lying = Humanoid.LYING_POSE.test(this.idlePose);
-    if (this.locomotion.mode !== 'walk' || lying || this.transformAnim || this.kill) {
+    // A kill steps only while a route carries the body, from the same contacts its feet plant on (voss-death-scene D5).
+    const killSteps = this.kill !== null && this.killFeet && !this.blade;
+    if (this.locomotion.mode !== 'walk' || lying || this.transformAnim || (this.kill && !killSteps)) {
       this.footReady = false;
       return;
     }
 
-    const contacts = this.animator.footContacts;
+    const contacts = killSteps ? this.killContacts : this.animator.footContacts;
     if (!this.footReady) {
       this.footPlanted[0] = contacts[0] >= 0.5;
       this.footPlanted[1] = contacts[1] >= 0.5;
@@ -1479,6 +1553,38 @@ export class Humanoid {
           if (this.footCooldown[idx]! <= 0) emitStep(side, 'heavy', splash);
         } else {
           emitStep(side, 'lift', splash, false);
+        }
+      }
+      return;
+    }
+
+    // A kill route: one step on each landing, at the frame its contact comes down, from where the foot is planted.
+    if (killSteps) {
+      const speed = this.curWorldVel.length();
+      for (let idx = 0; idx < 2; idx++) {
+        const side: Side = idx === 0 ? 'L' : 'R';
+        if (!this.limbAttached(side, false)) {
+          this.footPlanted[idx] = false;
+          continue;
+        }
+        const c = contacts[idx]!;
+        if (this.footPlanted[idx]) {
+          if (c < 0.42) this.footPlanted[idx] = false;
+        } else if (c >= 0.58) {
+          this.footPlanted[idx] = true;
+          if (this.footCooldown[idx]! <= 0) {
+            this.bones[`foot_${side}`].getWorldPosition(this.footPosTmp);
+            onFootstep({
+              x: this.footPosTmp.x,
+              y: this.group.position.y + 0.05,
+              z: this.footPosTmp.z,
+              side,
+              speed,
+              kind: speed > 2.4 ? 'jog' : speed > 0.2 ? 'walk' : 'pivot',
+              actor: this.spec.seed,
+            });
+            this.footCooldown[idx] = 0.22;
+          }
         }
       }
       return;
@@ -2196,9 +2302,149 @@ export class Humanoid {
     return !this.damage.isSevered(a) && !this.damage.isSevered(b);
   }
 
+  /** A foot counts as down (no take contacts) below this height of its ankle over standing height (m, at reference size). */
+  private static readonly KILL_FOOT_DOWN = [0.03, 0.06] as const;
+  /** ...and, while a clip plays, slower than this across the floor (m/s): a foot in stance stands still under a matched route. */
+  private static readonly KILL_FOOT_STILL = [0.35, 0.7] as const;
+  private readonly killTmp = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), e: new THREE.Vector3(), f: new THREE.Vector3(), q: new THREE.Quaternion(), q2: new THREE.Quaternion(), q3: new THREE.Quaternion() };
+
+  /**
+   * A human body in a scripted kill (voss-death-scene D4, D5): feet are free and nothing touches, as before, unless a
+   * route carries it (its feet plant from the clip's contacts, released over 0.1 s before a leg overstretches) or a
+   * `touch` puts a part on a mark. Order: the contacts from the pose as animated, then the hips and chest (moving the
+   * pelvis, bending the spine), then the feet, then the hands and knees.
+   */
+  private solveKillIk(dt: number): void {
+    const feet = this.killFeet && this.state === 'alive' && this.locomotion.mode === 'walk' && this.near;
+    if (!feet) this.footIk.reset();
+    if (!feet && this.killTouches.size === 0) return;
+    this.group.updateMatrixWorld(true);
+    if (feet) this.measureKillContacts(dt);
+    for (const [part, t] of this.killTouches) if (part === 'hip_L' || part === 'hip_R' || part === 'chest' || part === 'knee_L' || part === 'knee_R') this.touchBody(part, t.target, t.weight);
+    if (feet) {
+      this.footIk.solve({
+        group: this.group,
+        bones: this.bones,
+        scaleY: this.geo.scale.y,
+        scaleW: this.geo.scale.w,
+        contactL: this.killContacts[0],
+        contactR: this.killContacts[1],
+        // A knee put on a mark takes its leg off the floor lock.
+        attachedL: this.limbAttached('L', false) && !this.killTouches.has('knee_L'),
+        attachedR: this.limbAttached('R', false) && !this.killTouches.has('knee_R'),
+        enabled: true,
+        forcePlant: false,
+        dt,
+        holdPlanted: 1,
+        releaseOverstretch: true,
+      });
+    }
+    for (const [part, t] of this.killTouches) if (part === 'hand_L' || part === 'hand_R' || part === 'knee_L' || part === 'knee_R') this.touchLimb(part, t.target, t.weight);
+    this.group.updateMatrixWorld(true);
+  }
+
+  /**
+   * The kill's foot contacts this frame: the playing clip's own, or (a pose, or a take without contact curves) a foot
+   * is down when its ankle is near the floor and, under a clip, it is not sweeping across the floor.
+   */
+  private measureKillContacts(dt: number): void {
+    const c = this.killContacts;
+    const prev = (this.killFootPrev ??= [this.bones.foot_L.getWorldPosition(new THREE.Vector3()), this.bones.foot_R.getWorldPosition(new THREE.Vector3())]);
+    const own = this.animator.clipContacts(c);
+    const floor = this.group.position.y + ANKLE_CLEARANCE * this.geo.scale.y;
+    const [d0, d1] = Humanoid.KILL_FOOT_DOWN;
+    const [s0, s1] = Humanoid.KILL_FOOT_STILL;
+    (['L', 'R'] as const).forEach((s, i) => {
+      const at = this.bones[`foot_${s}`].getWorldPosition(this.killTmp.a);
+      if (!own) {
+        const down = 1 - THREE.MathUtils.smoothstep(at.y - floor, d0 * this.geo.scale.y, d1 * this.geo.scale.y);
+        const speed = dt > 1e-6 ? Math.hypot(at.x - prev[i]!.x, at.z - prev[i]!.z) / dt : 0;
+        c[i] = this.animator.clipPlaying ? down * (1 - THREE.MathUtils.smoothstep(speed, s0, s1)) : down;
+      }
+      prev[i]!.copy(at);
+    });
+  }
+
+  /** Move the pelvis bone by a world-space offset (everything above it, and the legs, come with it). */
+  private shiftPelvis(delta: THREE.Vector3): void {
+    const pelvis = this.bones.pelvis;
+    const parent = pelvis.parent;
+    if (!parent || delta.lengthSq() < 1e-12) return;
+    const at = pelvis.getWorldPosition(this.killTmp.d).add(delta);
+    pelvis.position.copy(parent.worldToLocal(at));
+    pelvis.updateMatrixWorld(true);
+  }
+
+  /** Turn `bone` about its own joint so the world direction `from` swings to `to`, by `weight`. */
+  private swingTo(bone: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3, weight: number): void {
+    if (from.lengthSq() < 1e-10 || to.lengthSq() < 1e-10 || !bone.parent) return;
+    const t = this.killTmp;
+    t.q.setFromUnitVectors(t.e.copy(from).normalize(), t.f.copy(to).normalize());
+    bone.getWorldQuaternion(t.q2).premultiply(t.q);
+    const want = bone.parent.getWorldQuaternion(t.q3).invert().multiply(t.q2);
+    bone.quaternion.slerp(want, weight);
+    bone.updateMatrixWorld(true);
+  }
+
+  /** A hip, the chest, or a knee's reach: move the pelvis (and bend the spine, for the chest) toward the mark. */
+  private touchBody(part: TouchPart, target: THREE.Vector3, w: number): void {
+    const t = this.killTmp;
+    if (part === 'hip_L' || part === 'hip_R') {
+      const hip = this.bones[part === 'hip_L' ? 'thigh_L' : 'thigh_R'].getWorldPosition(t.a);
+      this.shiftPelvis(t.b.subVectors(target, hip).multiplyScalar(w));
+      return;
+    }
+    if (part === 'chest') {
+      const spine = this.bones.spine.getWorldPosition(t.a);
+      const chest = this.bones.chest.getWorldPosition(t.b);
+      this.swingTo(this.bones.spine, t.c.subVectors(chest, spine), t.d.subVectors(target, spine), w);
+      // What the spine's bend cannot reach (the chest's distance from the spine is fixed), the hips make up.
+      const moved = this.bones.chest.getWorldPosition(t.b);
+      this.shiftPelvis(t.c.subVectors(target, moved).multiplyScalar(w));
+      return;
+    }
+    // A knee: the hip goes to thigh length from the mark (down into a kneel, or up out of one), along the line to it.
+    const s = part === 'knee_L' ? 'L' : 'R';
+    const hip = this.bones[`thigh_${s}`].getWorldPosition(t.a);
+    const knee = this.bones[`shin_${s}`].getWorldPosition(t.b);
+    const len = hip.distanceTo(knee);
+    const to = t.c.subVectors(target, hip);
+    const dist = to.length();
+    if (dist < 1e-6) return;
+    this.shiftPelvis(to.multiplyScalar(((dist - len) / dist) * w));
+  }
+
+  /** A hand (two-bone arm IK, keeping its elbow's side) or a knee (the thigh turned at the hip) onto the mark. */
+  private touchLimb(part: TouchPart, target: THREE.Vector3, w: number): void {
+    const t = this.killTmp;
+    if (part === 'knee_L' || part === 'knee_R') {
+      const s = part === 'knee_L' ? 'L' : 'R';
+      if (!this.limbAttached(s, false)) return;
+      const hip = this.bones[`thigh_${s}`].getWorldPosition(t.a);
+      const knee = this.bones[`shin_${s}`].getWorldPosition(t.b);
+      this.swingTo(this.bones[`thigh_${s}`], t.c.subVectors(knee, hip), t.d.subVectors(target, hip), w);
+      return;
+    }
+    const s = part === 'hand_L' ? 'L' : 'R';
+    if (!this.limbAttached(s, true)) return;
+    const shoulder = this.bones[`upperArm_${s}`].getWorldPosition(t.a);
+    const elbow = this.bones[`foreArm_${s}`].getWorldPosition(t.b);
+    const hand = this.bones[`hand_${s}`].getWorldPosition(t.c);
+    // The elbow keeps bending the way it bends now; a straight arm bends out and back.
+    const pole = t.d.copy(shoulder).add(hand).multiplyScalar(0.5);
+    pole.subVectors(elbow, pole);
+    if (pole.lengthSq() < 1e-6) this.group.localToWorld(pole.set((s === 'L' ? -1 : 1) * 0.7, 0.9, 0.8));
+    else pole.normalize().multiplyScalar(0.3).add(elbow);
+    solveTwoBone(this.bones[`upperArm_${s}`], this.bones[`foreArm_${s}`], this.bones[`hand_${s}`], target, pole, w);
+  }
+
   private solveIk(dt: number): void {
+    if (this.kill && !this.blade) {
+      this.solveKillIk(dt);
+      return;
+    }
     // The blade creature keeps its feet planted through a kill too (rig-necromorph design D6a): its scenes are kills.
-    if (this.state !== 'alive' || this.transformAnim || (this.kill && !this.blade)) {
+    if (this.state !== 'alive' || this.transformAnim) {
       this.footIk.reset();
       return;
     }

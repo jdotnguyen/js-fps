@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+﻿import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import posesJson from '../data/poses.json' with { type: 'json' };
@@ -16,6 +16,11 @@ import { CollisionWorld } from '../world/collision.ts';
 import { measureBladePenetration } from '../actors/blade/clearance.ts';
 import { creatureLib, necromorphModel } from '../actors/blade/bladeTestKit.ts';
 import { readLevel } from '../data/levels/readLevel.ts';
+import vossPack from '../data/mocap/voss.json' with { type: 'json' };
+import { sharedMocapLibrary, type RawMocapFile } from '../actors/mocap.ts';
+import { ANKLE_CLEARANCE, OVERSTRETCH_RELEASE_S } from '../actors/footIk.ts';
+import type { FootstepEvent } from '../actors/humanoid.ts';
+import { loadMainCast, makeLib, type MainCastModel } from '../actors/castModelTestKit.ts';
 
 /** The Lab B kill on Voss (optional bodyModels for real blade creature): glass at z = 0, she starts 4.7 m behind it. */
 function setup(opts: { bodyModels?: BodyModelLibrary; fps?: number } = {}) {
@@ -1221,3 +1226,287 @@ test('medbay-attack "The blade goes through her" & "It screams over her body" & 
   assert.equal(slamFacesOk.length, 3, 'all 3 cart slams landed');
   assert.ok(slamFacesOk.every(Boolean), 'creature faced toward the glass on each slam');
 });
+
+// ------------------------------------------------------------------ routes, planted feet, footsteps, touches (voss-death-scene §2)
+
+/**
+ * A kill made only of the given beats, played on one victim (Voss, or `look`) standing at the origin facing -Z, with room
+ * anchors at `anchors`. Her footsteps, the warnings and her joints are recorded; `fps` sets the frame rate.
+ */
+function motionSetup(opts: { beats: unknown[]; anchors?: Record<string, Spot>; look?: string; bodyModels?: BodyModelLibrary; fps?: number }) {
+  const fps = opts.fps ?? 60;
+  const anchors = opts.anchors ?? {};
+  const warnings: string[] = [];
+  const steps: Array<FootstepEvent & { at: number }> = [];
+  let now = 0;
+  const kills = validate(validateKillTable, { motion: { kind: 'grownInside', beats: opts.beats } }, 'kills');
+  const npcs = new NpcDirector({
+    ctx: {
+      poses: new PoseLibrary(loadPoseFile(posesJson)),
+      gore: { burst: () => undefined, chunks: () => undefined, pool: () => undefined, spurt: () => undefined, glassMark: () => undefined } as unknown as GoreSystem,
+      onFootstep: (s) => void steps.push({ ...s, at: now }),
+      ...(opts.bodyModels ? { bodyModels: opts.bodyModels } : {}),
+    },
+    nav: null,
+    colliders: null,
+    player: () => ({ feet: new THREE.Vector3(3, 0, 3), head: new THREE.Vector3(3, 1.62, 3) }),
+    emit: () => undefined,
+    listen: () => () => undefined,
+    sfx: () => true,
+    warn: (m) => warnings.push(m),
+    kills,
+  });
+  npcs.setResolver((ref) => {
+    const p = anchors[String(ref).replace(/^anchor:/, '')];
+    return p ? { pos: p } : null;
+  });
+  npcs.spawnFromLevel([{ id: 'victim', look: opts.look ?? 'voss', pos: { x: 0, y: 0, z: 0 }, yaw: 0, pose: 'idle' }]);
+  const actor = npcs.actor('victim')!;
+  const camera = new THREE.Vector3(3, 1.62, 3);
+  const step = (seconds: number, each?: () => void): void => {
+    for (let i = 0; i < Math.round(seconds * fps); i++) {
+      now += 1 / fps;
+      npcs.update(1 / fps, camera);
+      each?.();
+    }
+  };
+  const start = (instant = false): void => void npcs.command('kill', { npc: 'victim', kind: 'motion', ...(instant ? { instant: true } : {}) });
+  const run = (): ReturnType<typeof npcs.kills.running> => npcs.kills.running('victim');
+  const hips = (): THREE.Vector3 => actor.body.jointWorld('pelvis', new THREE.Vector3());
+  return { npcs, actor, warnings, steps, step, start, run, hips, anchors, time: () => now };
+}
+
+// Voss's own clips (her pack is loaded with her body in the game; Node adds it here and holds it for the file).
+sharedMocapLibrary().addPack('voss', vossPack as unknown as RawMocapFile);
+sharedMocapLibrary().retainPack('voss');
+
+/** Her walk take, laid end to end over `seconds` (a looping base clip is §3's; here each cycle is its own piece). */
+function walkPieces(seconds: number, from = 0): Array<{ at: number; clip: string; blend: number }> {
+  const cycle = sharedMocapLibrary().get('voss_walk').duration;
+  const out: Array<{ at: number; clip: string; blend: number }> = [];
+  for (let at = from; at < seconds - 1e-6; at += cycle) out.push({ at: Math.round(at * 1000) / 1000, clip: 'voss_walk', blend: 0.05 });
+  return out;
+}
+
+const ROUTE_ANCHORS: Record<string, Spot> = { m1: { x: 0, y: 0, z: -2.4 }, m2: { x: -1.2, y: 0, z: -4.2 }, m3: { x: -1.5, y: 0, z: -5 }, look: { x: -4, y: 1.5, z: -5 } };
+const ROUTE_MARKS = [{ mark: 'm1', t: 2 }, { mark: 'm2', t: 3.5 }, { mark: 'm3', t: 4.5, face: 'look' }];
+const WAIT_BEAT = { id: 'wait', poses: ['idle'], convulse: 0, until: 'time', s: 0.5, max: 0.5 };
+const END_BEAT = { id: 'end', poses: ['idle'], convulse: 0, until: 'time', s: 1, max: 1 };
+const routeBeat = (extra: Record<string, unknown> = {}) => ({ id: 'run', poses: ['idle'], convulse: 0, until: 'time', s: 5, max: 5, track: walkPieces(5), route: ROUTE_MARKS, ...extra });
+
+/** Play the routed kill, sampling her hips every frame of the route beat (with the beat time). */
+function playRoute(beat: Record<string, unknown>, opts: { fps?: number } = {}) {
+  const g = motionSetup({ beats: [WAIT_BEAT, beat, END_BEAT], anchors: ROUTE_ANCHORS, ...opts });
+  const samples: Array<{ t: number; hips: THREE.Vector3; origin: THREE.Vector3 }> = [];
+  g.start();
+  g.step(7, () => {
+    const r = g.run();
+    if (r?.beatId === 'run') samples.push({ t: r.beatTime, hips: g.hips(), origin: g.actor.position.clone() });
+  });
+  return { g, samples };
+}
+
+const across = (a: THREE.Vector3, b: Spot): number => Math.hypot(a.x - b.x, a.z - b.z);
+
+test('infection-kills "On her marks": a route beat has her hips within 0.1 m of each mark, across the floor, at its time', () => {
+  const { samples, g } = playRoute(routeBeat());
+  for (const m of ROUTE_MARKS) {
+    const s = samples.reduce((best, x) => (Math.abs(x.t - m.t) < Math.abs(best.t - m.t) ? x : best));
+    const off = across(s.hips, ROUTE_ANCHORS[m.mark]!);
+    assert.ok(off < 0.1, `${m.mark} at ${m.t} s: hips ${off.toFixed(3)} m off`);
+  }
+  assert.ok(g.warnings.every((w) => !w.includes('route leg')), g.warnings.join('; '));
+});
+
+test('infection-kills "A route beat moves her": playing a clip, she travels the route instead of staying where the beat began', () => {
+  const routed = playRoute(routeBeat());
+  const still = playRoute(routeBeat({ route: undefined }));
+  assert.ok(across(routed.g.actor.position, ROUTE_ANCHORS['m3']!) < 0.05, 'she ends on the last mark');
+  assert.ok(across(still.g.actor.position, { x: 0, y: 0, z: 0 }) < 0.05, 'without a route the clip plays where she stands');
+});
+
+test('infection-kills "No snap": every frame of a route beat she moves at most 0.15 m at 60 fps, hips and feet', () => {
+  const { samples } = playRoute(routeBeat());
+  let most = 0;
+  for (let i = 1; i < samples.length; i++) most = Math.max(most, samples[i]!.hips.distanceTo(samples[i - 1]!.hips), samples[i]!.origin.distanceTo(samples[i - 1]!.origin));
+  assert.ok(samples.length > 250, `${samples.length} frames sampled`);
+  assert.ok(most <= 0.15, `largest step ${most.toFixed(3)} m`);
+});
+
+test('infection-kills "Clip missing": she still travels the route on time with the beat\'s poses, and one warning is logged', () => {
+  const { samples, g } = playRoute(routeBeat({ track: [{ at: 0, clip: 'voss_no_such_take' }, { at: 2.5, clip: 'voss_no_such_take' }] }));
+  for (const m of ROUTE_MARKS) {
+    const s = samples.reduce((best, x) => (Math.abs(x.t - m.t) < Math.abs(best.t - m.t) ? x : best));
+    assert.ok(across(s.hips, ROUTE_ANCHORS[m.mark]!) < 0.1, `${m.mark} at ${m.t} s`);
+  }
+  assert.equal(g.warnings.filter((w) => w.includes('no clip')).length, 1, g.warnings.join('; '));
+});
+
+test('a route turns her the way she goes, and to a mark\'s facing as she arrives', () => {
+  const { g } = playRoute(routeBeat());
+  const look = ROUTE_ANCHORS['look']!;
+  const p = g.actor.position;
+  const want = Math.atan2(-(look.x - p.x), -(look.z - p.z));
+  const h = g.actor.body.heading;
+  assert.ok(Math.abs(Math.atan2(Math.sin(want - h), Math.cos(want - h))) < 0.1, `faces the "look" mark (${h.toFixed(2)} vs ${want.toFixed(2)})`);
+});
+
+test('a skipped or restored kill puts her at the last mark of its last route beat', () => {
+  const g = motionSetup({ beats: [WAIT_BEAT, routeBeat(), END_BEAT], anchors: ROUTE_ANCHORS });
+  g.start(true);
+  g.step(0.1);
+  assert.ok(across(g.actor.position, ROUTE_ANCHORS['m3']!) < 1e-6, `at ${g.actor.position.x.toFixed(2)}, ${g.actor.position.z.toFixed(2)}`);
+  assert.equal(g.steps.length, 0, 'and no footsteps');
+});
+
+test('Route speed check: a leg more than 35% off its clip\'s own speed warns once; within range it is silent', () => {
+  // Her walk goes about 1.16 m/s. 2.4 m in 2.5 s (a 1.14 m/s cruise) is within range; 2.4 m in 0.8 s is not.
+  const ok = playRoute(routeBeat({ route: [{ mark: 'm1', t: 2.5 }] }));
+  assert.equal(ok.g.warnings.filter((w) => w.includes('route leg')).length, 0, ok.g.warnings.join('; '));
+  const fast = playRoute(routeBeat({ route: [{ mark: 'm1', t: 0.8 }] }));
+  const warned = fast.g.warnings.filter((w) => w.includes('route leg'));
+  assert.equal(warned.length, 1, warned.join('; '));
+  assert.match(warned[0]!, /"run" route leg to "m1" goes \d+\.\d\d m\/s, \d+% off its clip "voss_walk" \(1\.\d\d m\/s\)/);
+});
+
+test('infection-kills "Planted foot": while a foot is down on the run it moves under 3 cm until it lifts, its sole within 2 cm of the floor', () => {
+  const g = motionSetup({ beats: [WAIT_BEAT, routeBeat({ route: [{ mark: 'm1', t: 2.5 }] }), END_BEAT], anchors: ROUTE_ANCHORS });
+  const body = g.actor.body;
+  const ankle = ANKLE_CLEARANCE * (body as unknown as { geo: { scale: { y: number } } }).geo.scale.y;
+  const plant: Array<THREE.Vector3 | null> = [null, null];
+  const down = [false, false];
+  const lastW = [0, 0];
+  let drift = 0;
+  let sole = 0;
+  let stances = 0;
+  let fastest = 0;
+  g.start();
+  g.step(3, () => {
+    const r = g.run();
+    if (r?.beatId !== 'run' || r.beatTime < 0.3 || r.beatTime > 1.9) return;
+    (['L', 'R'] as const).forEach((s, i) => {
+      const c = body.killFootContacts[i]!;
+      const w = body.footLockWeight(s);
+      const at = body.jointWorld(`foot_${s}`, new THREE.Vector3());
+      // A stance: from the frame its lock is full until it lifts (its contact falls under 0.5), or its leg, reaching
+      // full stretch as the heel comes up, starts letting it go.
+      if (!down[i] && c >= 0.5 && w > 0.999) {
+        down[i] = true;
+        plant[i] = at.clone();
+        stances++;
+      } else if (down[i] && (c < 0.5 || w < 0.999)) down[i] = false;
+      if (down[i] && plant[i]) {
+        drift = Math.max(drift, across(at, plant[i]!));
+        sole = Math.max(sole, Math.abs(at.y - ankle));
+      }
+      // Letting go while still in contact takes at least OVERSTRETCH_RELEASE_S: never a pop.
+      if (c >= 0.5) fastest = Math.max(fastest, lastW[i]! - w);
+      lastW[i] = w;
+    });
+  });
+  assert.ok(stances >= 2, `${stances} stances measured`);
+  assert.ok(drift < 0.03, `a planted foot moved ${drift.toFixed(3)} m`);
+  assert.ok(sole < 0.02, `a planted sole was ${sole.toFixed(3)} m off the floor`);
+  assert.ok(fastest <= 1 / 60 / OVERSTRETCH_RELEASE_S + 1e-6, `a lock let go by ${fastest.toFixed(3)} in one frame`);
+});
+test('infection-kills "Footsteps heard": one footstep per landing on the run, at the landing frame, from the landing foot', () => {
+  const g = motionSetup({ beats: [WAIT_BEAT, routeBeat({ route: [{ mark: 'm1', t: 2.5 }] }), END_BEAT], anchors: ROUTE_ANCHORS });
+  const body = g.actor.body;
+  const landings: Array<{ side: 'L' | 'R'; at: number; foot: THREE.Vector3 }> = [];
+  const was = [true, true];
+  g.start();
+  g.step(3, () => {
+    if (!body.killFeetOn) return;
+    (['L', 'R'] as const).forEach((s, i) => {
+      const c = body.killFootContacts[i]!;
+      if (!was[i] && c >= 0.58) landings.push({ side: s, at: g.time(), foot: body.jointWorld(`foot_${s}`, new THREE.Vector3()) });
+      if (c >= 0.58) was[i] = true;
+      else if (c < 0.42) was[i] = false;
+    });
+  });
+  assert.ok(landings.length >= 3, `${landings.length} landings`);
+  assert.equal(g.steps.length, landings.length, 'a footstep for each landing, no more');
+  g.steps.forEach((s, i) => {
+    const l = landings[i]!;
+    assert.equal(s.side, l.side);
+    assert.ok(Math.abs(s.at - l.at) < 1e-9, `step ${i} on its landing frame`);
+    assert.ok(Math.hypot(s.x - l.foot.x, s.z - l.foot.z) < 0.03 && Math.abs(s.y - 0.05) < 1e-6, `step ${i} from that foot, on the floor`);
+    assert.equal(s.actor, body.spec.seed, 'through the NPC footstep path, as hers');
+  });
+});
+
+test('beats with no route are unchanged: no foot lock and no footsteps through a clip played where she stands', () => {
+  const g = motionSetup({ beats: [WAIT_BEAT, routeBeat({ route: undefined }), END_BEAT], anchors: ROUTE_ANCHORS });
+  let on = false;
+  g.start();
+  g.step(6.5, () => void (on ||= g.actor.body.killFeetOn));
+  assert.equal(on, false);
+  assert.equal(g.steps.length, 0);
+});
+
+// voss-death-scene D4: `touch` puts a hand, a hip, a knee or the chest on a mark, on Voss's body and on a second woman's.
+const TOUCHES: Array<{ part: 'hand_R' | 'hand_L' | 'hip_L' | 'knee_R' | 'chest'; joint: JointName; off: [number, number, number] }> = [
+  { part: 'hand_R', joint: 'hand_R', off: [0.05, 0.25, -0.25] },
+  { part: 'hand_L', joint: 'hand_L', off: [-0.05, 0.2, -0.22] },
+  { part: 'hip_L', joint: 'thigh_L', off: [-0.06, 0, -0.05] },
+  { part: 'knee_R', joint: 'shin_R', off: [0, -0.12, -0.15] },
+  { part: 'chest', joint: 'chest', off: [0, -0.05, -0.12] },
+];
+const TOUCH_AT = 0.2;
+const TOUCH_EVERY = 1.4;
+const TOUCH_BLEND = 0.4;
+const TOUCH_HOLD = 0.4;
+
+async function touchRun(look: string, model: MainCastModel, key: string) {
+  const g = motionSetup({
+    look,
+    bodyModels: makeLib({ [key]: await loadMainCast(model) }),
+    beats: [
+      { id: 'wait', poses: ['idle'], convulse: 0, until: 'time', s: 1, max: 1 },
+      {
+        id: 'touch', poses: ['idle'], convulse: 0, until: 'time', s: 7.4, max: 7.4,
+        events: TOUCHES.map((tc, i) => ({ t: TOUCH_AT + i * TOUCH_EVERY, do: 'touch', part: tc.part, mark: `touch_${tc.part}`, blend: TOUCH_BLEND, hold: TOUCH_HOLD })),
+      },
+      END_BEAT,
+    ],
+  });
+  g.start();
+  // The pose as it stands before any touch: each mark is a reach away from its part.
+  g.step(0.9);
+  const rest = new Map<string, THREE.Vector3>();
+  for (const tc of TOUCHES) {
+    const p = g.actor.body.jointWorld(tc.joint, new THREE.Vector3());
+    rest.set(tc.part, p.clone());
+    g.anchors[`touch_${tc.part}`] = { x: p.x + tc.off[0], y: p.y + tc.off[1], z: p.z + tc.off[2] };
+  }
+  const result = TOUCHES.map(() => ({ worstHold: 0, worstStep: 0, back: 0 }));
+  const last = TOUCHES.map((tc) => g.actor.body.jointWorld(tc.joint, new THREE.Vector3()));
+  g.step(8, () => {
+    const r = g.run();
+    if (r?.beatId !== 'touch') return;
+    TOUCHES.forEach((tc, i) => {
+      const at = g.actor.body.jointWorld(tc.joint, new THREE.Vector3());
+      const t = r.beatTime - (TOUCH_AT + i * TOUCH_EVERY);
+      const res = result[i]!;
+      const mark = g.anchors[`touch_${tc.part}`]!;
+      if (t > TOUCH_BLEND + 2 / 60 && t < TOUCH_BLEND + TOUCH_HOLD) res.worstHold = Math.max(res.worstHold, at.distanceTo(new THREE.Vector3(mark.x, mark.y, mark.z)));
+      if (t > -0.05 && t < 2 * TOUCH_BLEND + TOUCH_HOLD + 0.05) res.worstStep = Math.max(res.worstStep, at.distanceTo(last[i]!));
+      if (t > 2 * TOUCH_BLEND + TOUCH_HOLD + 0.1 && t < TOUCH_EVERY - 0.05) res.back = Math.max(res.back, at.distanceTo(rest.get(tc.part)!));
+      last[i]!.copy(at);
+    });
+  });
+  return { result, warnings: g.warnings };
+}
+
+for (const [label, look, model, key] of [['Voss', 'voss', 'office_3', 'office3'], ['Priya', 'priya', 'priya', 'priya']] as const) {
+  test(`Touch on ${label}'s body: each hand, hip, knee and the chest is within 5 cm of its mark while held, and lets go with no pop`, async () => {
+    const { result, warnings } = await touchRun(look, model, key);
+    TOUCHES.forEach((tc, i) => {
+      const r = result[i]!;
+      assert.ok(r.worstHold < 0.05, `${tc.part}: ${r.worstHold.toFixed(3)} m from its mark while held`);
+      assert.ok(r.worstStep < 0.03, `${tc.part}: moved ${r.worstStep.toFixed(3)} m in one frame going on or off`);
+      assert.ok(r.back < 0.01, `${tc.part}: back in her pose after (${r.back.toFixed(3)} m)`);
+    });
+    assert.ok(warnings.every((w) => !w.includes('touch')), warnings.join('; '));
+  });
+}

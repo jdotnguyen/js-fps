@@ -412,6 +412,149 @@ test('skipping during a clip beat ends on the last beat\'s pose', () => {
   assert.equal(h.run.over, true);
 });
 
+// ------------------------------------------------------------------ beat tracks (voss-death-scene D2)
+
+/** One fixed 6 s beat with a track; `clips` gives each clip's length (absent = the body lacks it). */
+function trackHarness(track: unknown[], clips: Record<string, number>, beat: Record<string, unknown> = {}) {
+  const style = validate(validateKillTable, {
+    k: {
+      kind: 'grownInside',
+      beats: [
+        { id: 'run', poses: ['stagger_0', 'stagger_1'], period: 0.5, convulse: 0, until: 'time', s: 6, max: 6, track, ...beat },
+        { id: 'after', poses: ['idle'], convulse: 0, until: 'time', s: 0.5, max: 0.5 },
+      ],
+    },
+  }, 'kills')['k']!;
+  const log: Array<{ at: number; what: string }> = [];
+  const phases: Array<{ at: number; u: number }> = [];
+  const warnings: string[] = [];
+  let now = 0;
+  const hooks: KillHooks = {
+    beat: () => undefined,
+    pose: (name, blend) => void log.push({ at: now, what: `pose ${name} ${blend}` }),
+    clip: (id, blend, opts) => {
+      log.push({ at: now, what: `clip ${id} ${blend} from ${opts.from}${opts.inPlace ? ' in place' : ''}` });
+      return clips[id] ?? null;
+    },
+    clipPhase: (u) => void phases.push({ at: now, u }),
+    convulse: () => undefined,
+    bulge: () => undefined,
+    event: () => undefined,
+    facesGlass: () => true,
+    arrived: () => true,
+    creatureReady: () => true,
+    done: () => undefined,
+  };
+  const run = new KillRun(style, {}, hooks);
+  run.warn = (m) => void warnings.push(m);
+  const step = (seconds: number, fps = 60): void => {
+    for (let i = 0; i < Math.round(seconds * fps); i++) {
+      now += 1 / fps;
+      run.update(1 / fps);
+    }
+  };
+  /** The phase reported closest to `t` s into the kill (the first frame starts the beat at 1/fps). */
+  const phaseAt = (t: number): number => phases.reduce((best, p) => (Math.abs(p.at - t) < Math.abs(best.at - t) ? p : best)).u;
+  return { run, log, phases, warnings, step, phaseAt, what: () => log.map((l) => l.what) };
+}
+
+test('kill schema: track pieces need a clip or a pose, in time order; "from"/"to" only on clips; not with "clip"', () => {
+  const ok = (track: unknown[], beat: Record<string, unknown> = {}): void => void trackHarness(track, {}, beat);
+  ok([{ at: 0, clip: 'a', from: 0.5, to: 1.5, speed: 1.2, blend: 0.2 }, { at: 1, pose: 'idle', blend: 0.1 }]);
+  assert.throws(() => ok([{ at: 0 }]), /a "clip" or a "pose"/);
+  assert.throws(() => ok([{ at: 0, clip: 'a', pose: 'idle' }]), /a "clip" or a "pose"/);
+  assert.throws(() => ok([{ at: 0, pose: 'idle', from: 1 }]), /for a clip piece/);
+  assert.throws(() => ok([{ at: 0, clip: 'a', from: 2, to: 1 }]), /"to" must come after "from"/);
+  assert.throws(() => ok([{ at: 1, clip: 'a' }, { at: 1, pose: 'idle' }]), /time order/);
+  assert.throws(() => ok([{ at: 0, clip: 'a' }], { clip: 'b' }), /not both/);
+  assert.throws(() => ok([{ at: 0, clip: 'a' }, { at: 1, pose: 'idle' }], { until: 'clip' }), /"until": "clip" needs/);
+});
+
+test('Track order: each piece starts at its beat time, in order, blending from the one before over its own blend', () => {
+  const h = trackHarness(
+    [
+      { at: 0, clip: 'stumble', blend: 0.2 },
+      { at: 1.2, pose: 'bench_hit', blend: 0.1 },
+      { at: 2, clip: 'walk', from: 0.4, to: 1, blend: 0.35 },
+      { at: 3.5, pose: 'doubled', blend: 0.25 },
+    ],
+    { stumble: 1.5, walk: 2 },
+  );
+  h.step(4);
+  // The beat's first pose is set on entry as the fallback; then the pieces, in order.
+  assert.deepEqual(h.what(), ['pose stagger_0 0.25', 'clip stumble 0.2 from 0', 'pose bench_hit 0.1', 'clip walk 0.35 from 0.4', 'pose doubled 0.25']);
+  const at = (what: string): number => h.log.find((l) => l.what.startsWith(what))!.at;
+  for (const [what, t] of [['pose bench_hit', 1.2], ['clip walk', 2], ['pose doubled', 3.5]] as const) {
+    assert.ok(Math.abs(at(what) - (t + 1 / 60)) <= 1 / 60 + 1e-9, `${what} at ${at(what).toFixed(3)} s (due ${t} s into the beat)`);
+  }
+  // A pose piece plays no clip, and the beat's own poses do not loop over the pieces.
+  assert.equal(h.log.filter((l) => l.what.startsWith('pose stagger')).length, 1);
+});
+
+test('Track pieces keep to the clock: at 30 and 144 fps a piece starts on the same frame time and its clip is as far in', () => {
+  const run = (fps: number) => {
+    const h = trackHarness([{ at: 0, pose: 'a' }, { at: 1.01, clip: 'walk', from: 0.5 }], { walk: 2 });
+    h.step(3, fps);
+    return h;
+  };
+  const slow = run(30);
+  const fast = run(144);
+  // 1 s after the piece starts the clip is 0.5 + 1 = 1.5 s into its 2 s take, at either frame rate.
+  assert.ok(Math.abs(slow.phaseAt(2.01 + 1 / 30) - 0.75) < 1 / 30 / 2 + 1e-6, `30 fps ${slow.phaseAt(2.01 + 1 / 30)}`);
+  assert.ok(Math.abs(fast.phaseAt(2.01 + 1 / 144) - 0.75) < 1 / 144 / 2 + 1e-6, `144 fps ${fast.phaseAt(2.01 + 1 / 144)}`);
+});
+
+test('Holding the last frame: a clip piece plays from "from" to "to" at its speed, then holds "to" until the next piece', () => {
+  // A 4 s take, 1 s to 2 s of it at speed 0.5: two beat seconds, then held at u = 0.5 until the pose at 3.5 s.
+  const h = trackHarness([{ at: 0.5, clip: 'take', from: 1, to: 2, speed: 0.5 }, { at: 3.5, pose: 'idle' }], { take: 4 });
+  h.step(5);
+  const p = (t: number): number => h.phaseAt(t + 1 / 60);
+  assert.ok(Math.abs(p(0.5) - 0.25) < 0.005, `starts at "from" (${p(0.5)})`);
+  assert.ok(Math.abs(p(1.5) - 0.375) < 0.005, `halfway at half speed (${p(1.5)})`);
+  assert.ok(Math.abs(p(2.5) - 0.5) < 1e-9, `reaches "to" (${p(2.5)})`);
+  assert.ok(h.phases.filter((q) => q.at > 2.6 && q.at < 3.5).every((q) => q.u === 0.5), 'holds "to" until the next piece');
+  assert.ok(h.phases.every((q) => q.at < 3.5 + 2 / 60), 'and the pose piece ends the clip');
+  for (let i = 1; i < h.phases.length; i++) assert.ok(h.phases[i]!.u >= h.phases[i - 1]!.u, 'never runs back');
+});
+
+test('Track speed keys count from the piece\'s own start', () => {
+  // Speed 0.5 for the first second of the piece, then 1.5: at 2 s into the beat (1 s into the piece) it has run 0.5 s.
+  const h = trackHarness([{ at: 1, clip: 'take', speed: [[0, 0.5], [1, 0.5], [1.001, 1.5]] }], { take: 4 });
+  h.step(3);
+  assert.ok(Math.abs(h.phaseAt(2 + 1 / 60) - 0.125) < 0.005, `${h.phaseAt(2 + 1 / 60)}`);
+});
+
+test('Track clip missing: the beat\'s poses play while it is due, with one warning, and the next piece goes on', () => {
+  const h = trackHarness([{ at: 0, clip: 'gone' }, { at: 2, pose: 'idle' }, { at: 3, clip: 'gone' }, { at: 4.5, clip: 'walk' }], { walk: 1 });
+  h.step(5.5);
+  assert.equal(h.warnings.length, 1, h.warnings.join('; '));
+  assert.match(h.warnings[0]!, /no clip "gone"; playing its poses instead/);
+  const before = h.log.filter((l) => l.at < 2);
+  assert.ok(before.some((l) => l.what.startsWith('pose stagger_1')), 'the beat\'s poses loop while the missing clip is due');
+  const during = h.log.filter((l) => l.at > 3 && l.at < 4.5).map((l) => l.what);
+  assert.ok(during.some((w) => w.startsWith('pose stagger')), 'and again for its second piece');
+  assert.ok(h.what().includes('clip walk 0.3 from 0'), 'the clip after it plays');
+  assert.ok(h.log.filter((l) => l.at > 4.5 + 2 / 60 && l.at < 6).every((l) => !l.what.startsWith('pose stagger')), 'and the poses stop looping under it');
+});
+
+test('a route beat\'s clips play in place; a beat with no route plays them as before', () => {
+  const routed = trackHarness([{ at: 0, clip: 'walk' }], { walk: 1 }, { route: [{ mark: 'glass', t: 2 }] });
+  routed.step(0.1);
+  assert.ok(routed.what().includes('clip walk 0.3 from 0 in place'));
+  const plain = trackHarness([{ at: 0, clip: 'walk' }], { walk: 1 });
+  plain.step(0.1);
+  assert.ok(plain.what().includes('clip walk 0.3 from 0'));
+});
+
+test('kill schema: route marks are reached after the beat starts, in time order, within its limit', () => {
+  const ok = (route: unknown[]): void => void trackHarness([{ at: 0, pose: 'idle' }], {}, { route });
+  ok([{ mark: 'bench_edge', t: 0.4 }, { mark: 'glass', t: 4, face: 'glass_point' }, { mark: 'x', t: 5, face: 90 }]);
+  assert.throws(() => ok([{ mark: 'a', t: 0 }]), /after the beat starts/);
+  assert.throws(() => ok([{ mark: 'a', t: 2 }, { mark: 'b', t: 1 }]), /time order/);
+  assert.throws(() => ok([{ mark: 'a', t: 7 }]), /time limit/);
+  assert.throws(() => ok([]), /at least one mark/);
+});
+
 // overhaul-priya-r08-death D17 (medbay-attack "It reaches her by walking"): a `startWhen: inReach` beat waits for the
 // attacker; the beat before holds, and past its time limit the attacker is walked in, never placed.
 function reachHarness(reachAt: number) {

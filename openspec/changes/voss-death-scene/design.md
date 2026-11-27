@@ -242,3 +242,27 @@ Each section adds what the next one needs here before its session ends: measured
 - Heins's "Door's locked" is heard only once her scream ends, about 5 s after the glass beat starts, so during the arch.
   His step follows the scream's `wait: false` step as before.
 - `still` still dies at 0 s; the D1 collapse and the `die` at 1.8 s are §4.6.
+
+### Section 2 (2026-11-26)
+
+- `kills.json` is unchanged: `grownInside` still walks with `toGlass`. §4.5 writes the first `track`, `route` and `touch`.
+- Track pieces (`at`, `clip`/`pose`, `from`, `to`, `speed`, `blend`) start on the beat clock. A piece started part way
+  through a frame is already that far into its take, so 30 and 144 fps agree. Speed keys count from the piece's own
+  start. A clip piece holds its `to` frame. There is no `loop` yet (§3.3), so the tests lay `voss_walk` end to end.
+- Route timing (`src/ai/killRoute.ts`): she cruises along each leg with `EASE_S` = 0.4 s smooth ramps at stops. A
+  whole-leg ease would peak at 1.5× the average and outrun the take. For a leg from rest to rest, the cruise is
+  length / (time − 0.4). Choose mark times so the cruise is close to the clip's speed. The speed check compares the
+  cruise against the clip's own speed: `voss_walk` goes 1.16 m/s on Voss (`Humanoid.killClipRootSpeed`).
+- A mark is a kill step mark, `glass` (the stand point), or a room anchor id (resolved as `anchor:<id>`). `face` is a
+  mark or a yaw in degrees.
+- `touch` puts the part's joint on the mark: the wrist for a hand, the hip joint, the knee (shin origin), or the chest
+  joint. §4.4 should author anchors where those joints go, not where the skin meets the surface. A hand mark must be
+  within arm's reach (Priya's shoulder to wrist is 0.41 m), because a hand touch does not lean her body.
+  `mark: "glass"` puts the joint on the plane 6 cm off the pane (`Glass.at`). The chest joint sits well inside her
+  front, so the §4.6 slide down the pane needs an offset or a mark set back from the glass.
+- Foot locks (D5) are full from contact 0.5 until the contact falls below it. At toe-off the planted leg reaches full
+  stretch and the lock lets go over 0.1 s. That is normal, and the "Planted foot" test counts a stance as ending there.
+- The lean onto `glass.stand` is skipped during route beats (a route owns her position). The rest of §4.6's limit
+  (only during `glass` and `arch`) is still to do.
+- A route turns her with `Humanoid.turnHeading`, at 6 rad/s at most. `setHeading` would reset her planted feet every
+  frame.

@@ -1,4 +1,4 @@
-# Tasks
+﻿# Tasks
 
 ## How to run this change
 
@@ -43,24 +43,24 @@ and tell the user which change or file is blocking if:
 
 ## 2. Clips that travel, planted feet, footsteps (Opus 5.5, high)
 
-- [ ] 2.1 Check the gates. Verify: as in 1.1.
-- [ ] 2.2 Add beat `track` segments (clip with `from`/`to`/`speed`/`blend`, or a pose) to `src/data/types/kills.ts`,
+- [x] 2.1 Check the gates. Verify: as in 1.1.
+- [x] 2.2 Add beat `track` segments (clip with `from`/`to`/`speed`/`blend`, or a pose) to `src/data/types/kills.ts`,
   `KillRun` and the humanoid kill-clip path, with `clip` kept as shorthand (design D2). Verify: unit tests cover segment
   order, blends, holding the last frame, and a missing clip falling back to the beat's poses with one warning.
-- [ ] 2.3 Add beat `route` (design D3): marks with times, facing, clips playing in place, and instant placement at the
+- [x] 2.3 Add beat `route` (design D3): marks with times, facing, clips playing in place, and instant placement at the
   last mark. Verify: tests for the infection-kills "On her marks", "No snap" (at most 0.15 m per frame at 60 fps) and
   "Clip missing" scenarios, and for "A route beat moves her".
-- [ ] 2.4 Add the route speed check that warns when a segment is more than 35% off its clip's own root speed. Verify:
+- [x] 2.4 Add the route speed check that warns when a segment is more than 35% off its clip's own root speed. Verify:
   a test triggers the warning once and stays silent within range.
-- [ ] 2.5 Add the `touch` event (design D4) for hands, hips, knees and chest. Verify: tests on Voss's body and on a
+- [x] 2.5 Add the `touch` event (design D4) for hands, hips, knees and chest. Verify: tests on Voss's body and on a
   second female body model show the part within 5 cm of its mark during `hold`, and a release with no pop (under 3 cm
   per frame).
-- [ ] 2.6 Lock her feet from clip contacts during route beats, with the overstretch release (design D5). Verify: tests
+- [x] 2.6 Lock her feet from clip contacts during route beats, with the overstretch release (design D5). Verify: tests
   for the "Planted foot" scenario: under 3 cm of drift while in contact, sole within 2 cm of the floor, and no change to
   beats without a route.
-- [ ] 2.7 Fire footsteps from kill-clip contacts through the NPC footstep path. Verify: a test for "Footsteps heard"
+- [x] 2.7 Fire footsteps from kill-clip contacts through the NPC footstep path. Verify: a test for "Footsteps heard"
   counts one footstep per landing, at the landing frame, with the floor's surface.
-- [ ] 2.8 Document `track`, `route` and `touch` in `src/data/types/kills.ts`'s doc comments and in the one-shot clips
+- [x] 2.8 Document `track`, `route` and `touch` in `src/data/types/kills.ts`'s doc comments and in the one-shot clips
   paragraph of `docs/mocap-sources.md`. Verify: `npm run typecheck` passes, and `npm test -- src/ai/killRun.test.ts
   src/ai/npcKills.test.ts src/actors/animator.test.ts` passes.
 

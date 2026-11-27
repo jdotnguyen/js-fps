@@ -99,6 +99,68 @@ test('during a clip the convulsion clock runs at a third of its speed', () => {
   h.dispose();
 });
 
+// voss-death-scene D3: on a route the clip plays in place (its travel across the floor removed; the route moves the body).
+function stumbleHips(inPlace: boolean): { hips: THREE.Vector3[]; origin: THREE.Vector3[] } {
+  const h = new Humanoid({ seed: 'stumble-test', outfit: 'crew', role: 'npc' }, ctx());
+  h.beginKill();
+  h.setPose('idle', 0.01);
+  for (let i = 0; i < 10; i++) h.update(1 / 30);
+  h.playKillClip('priya_stumble', 0.01, { inPlace });
+  const hips: THREE.Vector3[] = [];
+  const origin: THREE.Vector3[] = [];
+  for (let f = 0; f <= 30; f++) {
+    h.killClipPhase(f / 30);
+    h.update(1 / 30);
+    h.group.updateMatrixWorld(true);
+    hips.push(h.bones.pelvis.getWorldPosition(new THREE.Vector3()).sub(h.group.position).setY(0));
+    origin.push(h.group.position.clone());
+  }
+  h.dispose();
+  return { hips, origin };
+}
+
+test('In place: a travelling take played on a route keeps its hips over the origin (sway only), and the origin stays put', () => {
+  const free = stumbleHips(false);
+  const placed = stumbleHips(true);
+  const travel = free.hips.at(-1)!.distanceTo(free.hips[2]!);
+  const most = Math.max(...placed.hips.slice(2).map((p) => p.length()));
+  assert.ok(travel > 0.35, `the take travels ${travel.toFixed(2)} m when played as it is`);
+  assert.ok(most < 0.08, `in place its hips stay within ${most.toFixed(3)} m of the origin`);
+  assert.ok(placed.origin.every((p) => p.distanceTo(placed.origin[0]!) < 1e-9), 'and the body is not moved under it');
+});
+
+test('playKillClip "from" starts the take partway: its first frame is the one asked for', () => {
+  const h = new Humanoid({ seed: 'rise-test', outfit: 'crew', role: 'npc' }, ctx());
+  const g = new Humanoid({ seed: 'rise-test', outfit: 'crew', role: 'npc' }, ctx());
+  for (const b of [h, g]) {
+    b.beginKill();
+    b.setPose('idle', 0.01);
+    b.update(1 / 30);
+  }
+  h.playKillClip('priya_rise', 0.01, { from: 3.3, inPlace: true });
+  g.playKillClip('priya_rise', 0.01, { inPlace: true });
+  h.killClipPhase(0.75);
+  g.killClipPhase(0.75);
+  for (let i = 0; i < 10; i++) {
+    h.update(1 / 30);
+    g.update(1 / 30);
+  }
+  assert.ok(maxAngle(rotations(h), rotations(g), TRUNK) < 0.002, 'the same frame of the take');
+  h.dispose();
+  g.dispose();
+});
+
+test('clipRootSpeed: a walk baked in place goes its stride each cycle; a travelling take goes as far as its hips', async () => {
+  const { clipRootSpeed } = await import('./mocap.ts');
+  const lib = sharedMocapLibrary();
+  const walk = lib.get('walk');
+  assert.ok(Math.abs(clipRootSpeed(walk) - walk.stride / walk.duration) < 1e-9);
+  const stumble = lib.get('priya_stumble');
+  const speed = clipRootSpeed(stumble);
+  assert.ok(speed > 0.35 && speed < 1.2, `the stumble covers ${speed.toFixed(2)} m/s`);
+  assert.equal(clipRootSpeed(stumble, 0.4, 0.4), 0);
+});
+
 test('the get-up starts where the body lies: no jump or dip through the floor in the blend, and the origin moves under it', () => {
   const h = new Humanoid({ seed: 'rise-test', outfit: 'crew', role: 'npc' }, ctx());
   h.group.position.set(4, 0, 7);

@@ -3,8 +3,9 @@ import { bladeCreatureProfile } from '../actors/bodyModelLibrary.ts';
 import type { HumanoidContext } from '../actors/humanoid.ts';
 import type { ClearBand, GoreClip } from '../actors/goreClip.ts';
 import { JOINT_NAMES, type JointName } from '../actors/skeleton.ts';
-import type { KillEvent, KillStyle, KillTable } from '../data/types/kills.ts';
+import { beatTrack, clipSpeedAt, type KillBeat, type KillEvent, type KillStyle, type KillTable, type TouchPart } from '../data/types/kills.ts';
 import type { TargetRef, Vec3Like } from '../script/types.ts';
+import { KillRoute, yawAlong, type RouteKnot } from './killRoute.ts';
 import { KillRun } from './killRun.ts';
 import type { NpcActor } from './npcActor.ts';
 
@@ -167,6 +168,13 @@ interface ActiveKill {
   knock: { beat: string | null; reach: number; strength: number; done: Set<string>; from: THREE.Vector3 } | null;
   /** Props the slams land on, by id. */
   props: Map<string, PropJolt>;
+  /** The beat the route was last set up for, and the route carrying her through it (voss-death-scene D3). */
+  routeBeat: KillBeat | null;
+  route: KillRoute | null;
+  /** Parts drawn onto marks (`touch`, D4): each eases in over `blend`, holds, and eases out. */
+  touches: Array<{ part: TouchPart; target: THREE.Vector3; t: number; blend: number; hold: number }>;
+  /** Route legs already warned about as off their clip's speed (once each per kill). */
+  speedWarned: Set<string>;
   glass: Glass | null;
   arrived: boolean;
   creature: NpcActor | null;
@@ -195,6 +203,13 @@ const CRUNCHES = ['head_crunch_1', 'head_crunch_2', 'head_crunch_3'];
  */
 export const JOLT = { rockS: 0.32, slideS: 0.12 } as const;
 const SLAM_VARIANTS = 3;
+/**
+ * Kill routes (voss-death-scene D3): how fast she turns toward the way she goes (rad/s), and the speed check: a leg more
+ * than `speedTolerance` off its clip's own speed warns, unless both are slower than `speedFloor` (m/s; standing).
+ */
+export const ROUTE = { turn: 6, speedTolerance: 0.35, speedFloor: 0.05 } as const;
+/** `touch` defaults (D4): seconds to ease onto the mark and off it again, and to hold it. */
+export const TOUCH = { blend: 0.15, hold: 0.3 } as const;
 const tmpA = new THREE.Vector3();
 /** A landed body's joints stay at least this far in front of `Glass.at` (itself 6 cm off the pane), clearing limb thickness. */
 const SIDE_MARGIN = 0;
@@ -317,6 +332,10 @@ export class KillDirector {
       pinning: false,
       gripDrawn: false,
       backing: null,
+      routeBeat: null,
+      route: null,
+      touches: [],
+      speedWarned: new Set(),
     };
     k.run = new KillRun(style, cues, {
       beat: (id, index) => this.w.emit(`kill:${id}`, { npc, beat: id, index }),
@@ -331,9 +350,9 @@ export class KillDirector {
       },
       // A captured clip (a raised corpse getting up): only on a living body, and never in a skipped scene.
       // The clip may move the body's origin under where it lies: the actor follows (the body is not teleported).
-      clip: (id, blend) => {
+      clip: (id, blend, opts) => {
         if (!body.alive || k.instant) return null;
-        const duration = body.playKillClip(id, blend);
+        const duration = body.playKillClip(id, blend, opts);
         if (duration !== null) actor.place(actor.position.clone());
         return duration;
       },
@@ -363,6 +382,8 @@ export class KillDirector {
     this.active.set(npc, k);
     if (instant) {
       if (glass) actor.place(glass.stand, glass.yaw);
+      // Where a played kill's last route leaves her (voss-death-scene D3).
+      this.restAtRouteEnd(k);
       // A mauled kill ends with her lying where she was thrown (medbay-attack "She lies where she was thrown").
       const rest = style.kind === 'mauled' && marks['rest'] !== undefined ? this.mark(k, 'rest') : null;
       if (rest) actor.place({ x: rest.x, y: actor.position.y, z: rest.z });
@@ -375,6 +396,10 @@ export class KillDirector {
   update(dt: number): void {
     for (const k of [...this.active.values()]) {
       k.run.update(dt);
+      if (!k.run.over) {
+        this.updateRoute(k, dt);
+        if (k.touches.length > 0) this.updateTouches(k, dt);
+      }
       if (k.slam) this.updateSlam(k, dt);
       this.updateStare(k, dt);
       if (k.backing) this.updateBacking(k, dt);
@@ -387,7 +412,8 @@ export class KillDirector {
       const g = k.glass;
       // (Not while a mauled attacker holds her, throws her or drags her: then the grip or the flight places her.)
       const free = k.grip === null && k.thrown === null && k.actor.body.carried === null;
-      if (g && free && k.arrived && k.actor.body.alive && k.run.beatId !== 'scratch' && k.run.beatId !== 'panic') {
+      // A route beat owns her position (D3): no lean.
+      if (g && free && !k.route && k.arrived && k.actor.body.alive && k.run.beatId !== 'scratch' && k.run.beatId !== 'panic') {
         const p = k.actor.position;
         const f = Math.min(1, dt * 6);
         const x = p.x + (g.stand.x - p.x) * f;
@@ -503,6 +529,159 @@ export class KillDirector {
     // Facing her: looking back along d.
     const yaw = Math.atan2(d.x, d.z);
     void a.moveTo({ x: v.x + d.x, y: a.position.y, z: v.z + d.z }, { speed: MAUL.haulMax, yaw });
+  }
+
+  /** A route or touch mark's world point: a kill step mark, `glass` (her stand point at the pane), or a room anchor. */
+  private routeMark(k: ActiveKill, name: string): THREE.Vector3 | null {
+    if (name === 'glass') {
+      if (k.glass) return k.glass.stand.clone();
+      this.w.warn(`kill ${k.npc}: mark "glass" but the kill has no glass`);
+      return null;
+    }
+    if (k.marks[name] !== undefined) return this.mark(k, name);
+    const r = this.w.resolve(`anchor:${name}`);
+    if (!r) {
+      this.w.warn(`kill ${k.npc}: no mark or anchor "${name}"`);
+      return null;
+    }
+    return new THREE.Vector3(r.pos.x, r.pos.y, r.pos.z);
+  }
+
+  /** A route mark's facing as the route takes it: a yaw (degrees in the data), or the point of a mark. */
+  private routeFace(k: ActiveKill, face: string | number | undefined): RouteKnot['face'] {
+    if (face === undefined) return undefined;
+    if (typeof face === 'number') return { yaw: THREE.MathUtils.degToRad(face) };
+    const at = this.routeMark(k, face);
+    return at ? { at: { x: at.x, z: at.z } } : undefined;
+  }
+
+  /**
+   * Follow the current beat's route (voss-death-scene D3): a new beat sets one up from where she stands (and turns her
+   * feet on), and every frame places her on it at the beat's time, turning toward its facing at `ROUTE.turn`.
+   */
+  private updateRoute(k: ActiveKill, dt: number): void {
+    const beat = k.run.beat;
+    if (beat !== k.routeBeat) {
+      k.routeBeat = beat;
+      this.startRoute(k, beat);
+    }
+    const r = k.route;
+    const a = k.actor;
+    if (!r || k.instant || !a.body.alive) return;
+    const t = k.run.beatTime;
+    const p = r.pointAt(t);
+    a.place({ x: p.x, y: a.position.y, z: p.z });
+    const want = r.yawAt(t, p, a.body.heading);
+    const h = a.body.heading;
+    const d = Math.atan2(Math.sin(want - h), Math.cos(want - h));
+    const turn = ROUTE.turn * dt;
+    a.body.turnHeading(h + THREE.MathUtils.clamp(d, -turn, turn));
+  }
+
+  private startRoute(k: ActiveKill, beat: KillBeat | null): void {
+    const body = k.actor.body;
+    k.route = null;
+    if (!beat?.route || k.instant || !body.alive) {
+      body.setKillFeet(false);
+      return;
+    }
+    const knots: RouteKnot[] = [];
+    const names: string[] = [];
+    for (const m of beat.route) {
+      const at = this.routeMark(k, m.mark);
+      if (!at) continue;
+      knots.push({ x: at.x, z: at.z, t: m.t, face: this.routeFace(k, m.face) });
+      names.push(m.mark);
+    }
+    if (knots.length === 0) {
+      body.setKillFeet(false);
+      return;
+    }
+    k.actor.stopMove();
+    const p = k.actor.position;
+    k.route = new KillRoute({ x: p.x, z: p.z }, body.heading, knots);
+    body.setKillFeet(true);
+    this.checkRouteSpeed(k, beat, k.route, names);
+  }
+
+  /**
+   * Warn once for each leg of a route whose speed is more than `ROUTE.speedTolerance` off the speed of the clip playing
+   * over it (its own travel, at the piece's playback speed): her feet would slide (D3).
+   */
+  private checkRouteSpeed(k: ActiveKill, beat: KillBeat, route: KillRoute, names: readonly string[]): void {
+    const track = beatTrack(beat);
+    if (!track) return;
+    route.legs.forEach((leg, i) => {
+      const mid = (leg.t0 + leg.t1) / 2;
+      let piece: (typeof track)[number] | null = null;
+      for (const s of track) if (s.at <= mid + 1e-9) piece = s;
+      if (!piece?.clip) return;
+      const own = k.actor.body.killClipRootSpeed(piece.clip, piece.from, piece.to);
+      if (own === null) return;
+      const clipSpeed = own * clipSpeedAt(piece.speed, mid - piece.at);
+      if (Math.max(clipSpeed, leg.speed) < ROUTE.speedFloor) return;
+      if (Math.abs(leg.speed - clipSpeed) <= ROUTE.speedTolerance * clipSpeed) return;
+      const key = `${beat.id}:${i}`;
+      if (k.speedWarned.has(key)) return;
+      k.speedWarned.add(key);
+      const off = clipSpeed > 1e-6 ? `${Math.round((Math.abs(leg.speed - clipSpeed) / clipSpeed) * 100)}%` : 'far';
+      this.w.warn(`kill ${k.npc}: beat "${beat.id}" route leg to "${names[i]}" goes ${leg.speed.toFixed(2)} m/s, ${off} off its clip "${piece.clip}" (${clipSpeed.toFixed(2)} m/s); her feet will slide`);
+    });
+  }
+
+  /** A skipped or restored kill: she ends at the last mark of the last route beat, facing as she would arrive (D3). */
+  private restAtRouteEnd(k: ActiveKill): void {
+    const beats = k.run.style.beats;
+    for (let i = beats.length - 1; i >= 0; i--) {
+      const route = beats[i]!.route;
+      if (!route?.length) continue;
+      const last = route[route.length - 1]!;
+      const at = this.routeMark(k, last.mark);
+      if (!at) return;
+      const face = this.routeFace(k, last.face);
+      let yaw: number | undefined;
+      if (face && 'yaw' in face) yaw = face.yaw;
+      else if (face) yaw = yawAlong(face.at.x - at.x, face.at.z - at.z);
+      else {
+        const prev = route.length > 1 ? this.routeMark(k, route[route.length - 2]!.mark) : null;
+        if (prev && Math.hypot(at.x - prev.x, at.z - prev.z) > 0.01) yaw = yawAlong(at.x - prev.x, at.z - prev.z);
+      }
+      k.actor.place({ x: at.x, y: k.actor.position.y, z: at.z }, yaw);
+      return;
+    }
+  }
+
+  /** Ease each touch in, hold it, and ease it out (D4); the body puts the part there. */
+  private updateTouches(k: ActiveKill, dt: number): void {
+    const body = k.actor.body;
+    const ease = (u: number): number => THREE.MathUtils.smoothstep(u, 0, 1);
+    k.touches = k.touches.filter((tc) => {
+      tc.t += dt;
+      const end = 2 * tc.blend + tc.hold;
+      if (tc.t >= end || !body.alive) {
+        body.setKillTouch(tc.part, null);
+        return false;
+      }
+      const w = tc.blend <= 1e-6 ? 1 : ease(tc.t / tc.blend) * ease((end - tc.t) / tc.blend);
+      body.setKillTouch(tc.part, tc.target, w);
+      return true;
+    });
+  }
+
+  /** The joint a touch puts on its mark. */
+  private static touchJoint(part: TouchPart): JointName {
+    switch (part) {
+      case 'hip_L':
+        return 'thigh_L';
+      case 'hip_R':
+        return 'thigh_R';
+      case 'knee_L':
+        return 'shin_L';
+      case 'knee_R':
+        return 'shin_R';
+      default:
+        return part;
+    }
   }
 
   /** `backTo`: she backs away toward the mark, facing the attacker; her beat's poses step (not a walk cycle). */
@@ -966,6 +1145,21 @@ export class KillDirector {
       case 'light':
         this.setLight(k, e.state ?? 'on');
         return;
+      case 'touch': {
+        if (k.instant || !e.part || !e.mark) return;
+        // `glass`: the point on the pane's face nearest the part now.
+        let target: THREE.Vector3 | null;
+        if (e.mark === 'glass') {
+          const g = k.glass;
+          if (!g) return this.w.warn(`kill ${k.npc}: touch on "glass" but the kill has no glass`);
+          const p = body.jointWorld(KillDirector.touchJoint(e.part), new THREE.Vector3());
+          target = p.addScaledVector(g.n, -p.clone().sub(g.at).dot(g.n));
+        } else target = this.routeMark(k, e.mark);
+        if (!target) return;
+        k.touches = k.touches.filter((tc) => tc.part !== e.part);
+        k.touches.push({ part: e.part, target, t: 0, blend: e.blend ?? TOUCH.blend, hold: e.hold ?? TOUCH.hold });
+        return;
+      }
       case 'layout':
         // Only a skipped or restored kill: a played one leaves things where they fell (livelier-cart-slam D11).
         if (k.instant && e.prop) this.w.layOut?.(e.prop);

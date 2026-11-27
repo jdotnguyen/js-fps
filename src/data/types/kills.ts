@@ -5,6 +5,11 @@ import { JOINT_NAMES, type JointName } from '../../actors/skeleton.ts';
  * Scripted infected kills (infection-kills spec, `data/kills.json`): a kill style is an ordered list of beats. Each beat
  * holds or loops authored poses, eases the victim's convulsion toward a target, may move lumps under the skin, fires timed
  * events (sounds, jolts, gore, glass marks, the tear, the death, the creature), and ends on its cue or its time limit.
+ *
+ * Staged motion (voss-death-scene D2-D5): a beat's `track` plays captured clips and poses one after another, each from
+ * its own beat time; a `route` carries her across the floor through marks she reaches on time, with the clips played in
+ * place and her feet planted (and heard) from their contacts; and `touch` events put a hand, hip, knee or her chest on a
+ * mark by IK. The poses and clips give her body its shape and motion; the route and the touches put it where the room is.
  */
 
 export const KILL_KINDS = ['grownInside', 'converted', 'mauled'] as const;
@@ -37,7 +42,7 @@ const clipSpeed: Validator<ClipSpeed> = (v, p) => {
   });
 };
 
-/** Playback speed at `t` seconds into the beat. */
+/** Playback speed at `t` seconds into the beat (into the segment, for a track segment). */
 export function clipSpeedAt(speed: ClipSpeed | undefined, t: number): number {
   if (speed === undefined) return 1;
   if (typeof speed === 'number') return speed;
@@ -63,7 +68,15 @@ export function clipSpeedAt(speed: ClipSpeed | undefined, t: number): number {
  * `layout` (livelier-cart-slam D11) only acts in a skipped or restored kill: it lays the props of the group its `prop`
  * names out at their authored `after` poses, the aftermath a played kill leaves.
  */
-export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'attackerPerf', 'haulTo', 'slam', 'throw', 'drag', 'infect', 'backTo', 'walkTo', 'attackerLook', 'knock', 'layout'] as const;
+export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'attackerPerf', 'haulTo', 'slam', 'throw', 'drag', 'infect', 'backTo', 'walkTo', 'attackerLook', 'knock', 'layout', 'touch'] as const;
+
+/**
+ * The parts of the victim a `touch` event (voss-death-scene D4) puts on a mark: a hand (its wrist joint), a hip (the hip
+ * joint, by moving her pelvis), a knee (by turning the thigh, and lowering the pelvis when the knee cannot reach), or the
+ * chest (the chest joint, by bending the spine, and moving the pelvis for what the spine cannot reach).
+ */
+export const TOUCH_PARTS = ['hand_L', 'hand_R', 'hip_L', 'hip_R', 'knee_L', 'knee_R', 'chest'] as const;
+export type TouchPart = (typeof TOUCH_PARTS)[number];
 
 /** The `mauled` events that need an attacker on the kill step. */
 export const ATTACKER_EVENTS: readonly KillEventKind[] = ['pin', 'grip', 'attackerPose', 'attackerPerf', 'haulTo', 'slam', 'throw', 'drag', 'walkTo', 'attackerLook'];
@@ -122,12 +135,25 @@ const eventShape = {
   /** `grip`: the attacker's hand closes on this victim joint (`joint`), or lets go. `hand` is the attacker's hand; `blade` (0..1) places the grip along the creature's blade (0 = root, 1 = tip; rig-necromorph design D9). */
   release: optional(bool),
   blade: optional(numRange(0, 1)),
-  /** `attackerPerf`: named creature performance (such as `scream`, design D8) and optional stretched hold (s). */
+  /**
+   * `attackerPerf`: named creature performance (such as `scream`, design D8) and optional stretched hold (s). `touch`: how
+   * long the part stays on its mark once it is there (default 0.3 s).
+   */
   perf: optional(str),
   hold: optional(numRange(0, 30)),
+  /**
+   * `touch` (voss-death-scene D4): the part of her that goes to `mark`. Over `blend` s (default 0.15) her limb or body is
+   * drawn onto the mark by IK, held there for `hold` s, then let go over `blend` s, so the contact lands within 5 cm
+   * whatever her body's proportions. `mark` is a kill step mark, a room anchor, or `glass`: the point on the pane nearest
+   * the part. The poses give her the shape; the touch makes the contact. Nothing in a skipped or restored kill.
+   */
+  part: optional(oneOf(TOUCH_PARTS)),
   /** `infect`: the bloom's stage on the victim's body (0..3). */
   stage: optional(numRange(0, 3)),
-  /** `haulTo`/`slam`/`throw`/`drag`, and `face` (turn to it, e.g. a camera): a named mark from the kill step's `marks`. */
+  /**
+   * `haulTo`/`slam`/`throw`/`drag`, and `face` (turn to it, e.g. a camera): a named mark from the kill step's `marks`.
+   * `touch`: a kill step mark, a room anchor, or `glass`.
+   */
   mark: optional(str),
   /** `haulTo`/`drag`: on arrival the attacker turns to face this mark. */
   faceMark: optional(str),
@@ -151,6 +177,36 @@ const eventShape = {
   jolt: optional(obj({ slide: optional(arr(num)), yaw: optional(numRange(-30, 30)), rock: optional(numRange(0, 20)), edge: optional(numRange(0, 2)) })),
 };
 
+/**
+ * One piece of a beat's `track` (voss-death-scene D2): from beat time `at` the victim plays a captured `clip` (the take
+ * from `from` to `to`, in seconds of the take, at `speed`; then its `to` frame holds until the next piece), or holds a
+ * `pose`. Each piece blends in from whatever came before it over `blend` s.
+ */
+const trackShape = {
+  at: numRange(0, 60),
+  clip: optional(str),
+  pose: optional(str),
+  from: optional(numRange(0, 600)),
+  to: optional(numRange(0, 600)),
+  /** Playback speed (default 1): one rate, or `[t, speed]` keys over the piece (t from the piece's start). */
+  speed: optional(clipSpeed),
+  blend: optional(numRange(0, 3)),
+};
+
+/** A route mark's facing: a mark (string) she turns to, or a yaw in degrees (0 faces -Z, 90 faces -X). */
+const faceRef: Validator<string | number> = (v, p) => (typeof v === 'number' ? numRange(-360, 360)(v, p) : str(v, p));
+
+/**
+ * One mark of a beat's `route` (voss-death-scene D3): she reaches `mark` (a kill step mark, a room anchor, or `glass`, the
+ * stand point at the pane) `t` s into the beat. With `face` she turns to it as she arrives, and keeps it while she is
+ * there; otherwise she faces the way she is going.
+ */
+const routeShape = {
+  mark: str,
+  t: numRange(0, 60),
+  face: optional(faceRef),
+};
+
 const bulgeShape = {
   /** Joint chain the lump travels along, from start to end. */
   path: arr(joint),
@@ -162,17 +218,30 @@ const bulgeShape = {
 const beatShape = {
   id: str,
   /**
-   * Poses held (one) or looped back and forth (two or more, every `period` s). With a `clip`, they are only the
-   * fallback played if the body has no such clip.
+   * Poses held (one) or looped back and forth (two or more, every `period` s). With a `clip` or a `track`, they are
+   * only the fallback played while a clip the body does not have is due (and before the track's first piece).
    */
   poses: arr(str),
   /**
    * A captured clip (an id in the victim's motion library or pack) played once from its first frame to its last, then
-   * held; it blends in over `blend` s. Convulsion and kicks layer on top of it.
+   * held; it blends in over `blend` s. Convulsion and kicks layer on top of it. Shorthand for a one-piece `track`.
    */
   clip: optional(str),
   /** `clip` playback speed (default 1). */
   speed: optional(clipSpeed),
+  /**
+   * Clips and poses played one after another (voss-death-scene D2), each from its own beat time; see `trackShape`. A
+   * missing clip falls back to the beat's `poses` while it is due, with one warning.
+   */
+  track: optional(arr(obj(trackShape))),
+  /**
+   * Where she goes over the beat (voss-death-scene D3): her floor position follows a curve from where the beat starts
+   * her through the marks, reaching each at its `t`, easing out of the start and into the last mark. Clips play in place
+   * (their own travel across the floor removed; the hips keep their height and sway), and her feet plant from the clips'
+   * foot contacts, with a footstep on each landing (D5). A skipped or restored kill puts her at the last mark of its
+   * last route beat. A route warns once per leg whose speed is more than 35% off its clip's own.
+   */
+  route: optional(arr(obj(routeShape))),
   period: optional(numRange(0.05, 5)),
   blend: optional(numRange(0, 3)),
   /** Convulsion target (0..1) and how fast it eases there (per second). */
@@ -232,10 +301,19 @@ const styleShape = {
   beats: arr(obj(beatShape)),
 };
 
+export type KillTrackSegment = Infer<typeof trackShape>;
+export type KillRouteMark = Infer<typeof routeShape>;
 export type KillEvent = Infer<typeof eventShape>;
 export type KillBeat = Infer<typeof beatShape>;
 export type KillStyle = Infer<typeof styleShape>;
 export type KillTable = Record<string, KillStyle>;
+
+/** A beat's track: its own, or its `clip` as a one-piece track (D2), or null when it plays only poses. */
+export function beatTrack(beat: KillBeat): readonly KillTrackSegment[] | null {
+  if (beat.track) return beat.track;
+  if (beat.clip === undefined) return null;
+  return [{ at: 0, clip: beat.clip, ...(beat.speed !== undefined ? { speed: beat.speed } : {}), blend: beat.blend ?? 0.3 }];
+}
 
 export const validateKillTable: Validator<KillTable> = (v, p) => {
   const table = record(obj(styleShape))(v, p);
@@ -250,8 +328,25 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
       if (b.poses.length === 0) throw new ValidationError(`${bp} > poses`, 'at least one pose');
       if (b.until === 'time' && b.s === undefined) throw new ValidationError(bp, '"until": "time" needs "s"');
       if (b.until === 'impacts' && b.impacts === undefined) throw new ValidationError(bp, '"until": "impacts" needs "impacts"');
-      if (b.until === 'clip' && b.clip === undefined) throw new ValidationError(bp, '"until": "clip" needs "clip"');
-      if (b.speed !== undefined && b.clip === undefined) throw new ValidationError(`${bp} > speed`, '"speed" is for a "clip" beat');
+      if (b.clip !== undefined && b.track !== undefined) throw new ValidationError(bp, 'give "clip" or "track", not both');
+      const lastPiece = b.track?.[b.track.length - 1];
+      if (b.until === 'clip' && b.clip === undefined && lastPiece?.clip === undefined) throw new ValidationError(bp, '"until": "clip" needs "clip" (or a "track" ending in a clip)');
+      if (b.speed !== undefined && b.clip === undefined) throw new ValidationError(`${bp} > speed`, '"speed" is for a "clip" beat (a track piece has its own)');
+      for (const [k, s] of (b.track ?? []).entries()) {
+        const sp2 = `${bp} > track[${k}]`;
+        if ((s.clip === undefined) === (s.pose === undefined)) throw new ValidationError(sp2, 'a track piece has a "clip" or a "pose"');
+        if (s.pose !== undefined && (s.from !== undefined || s.to !== undefined || s.speed !== undefined)) throw new ValidationError(sp2, '"from", "to" and "speed" are for a clip piece');
+        if (s.from !== undefined && s.to !== undefined && s.to <= s.from) throw new ValidationError(sp2, '"to" must come after "from"');
+        if (s.at > b.max) throw new ValidationError(sp2, `starts after the beat's time limit (${b.max} s)`);
+        if (k > 0 && s.at <= b.track![k - 1]!.at) throw new ValidationError(sp2, 'pieces must be in time order');
+      }
+      for (const [k, m] of (b.route ?? []).entries()) {
+        const mp = `${bp} > route[${k}]`;
+        if (m.t <= 0) throw new ValidationError(mp, 'a mark is reached after the beat starts (she starts where the beat finds her)');
+        if (m.t > b.max) throw new ValidationError(mp, `reached after the beat's time limit (${b.max} s)`);
+        if (k > 0 && m.t <= b.route![k - 1]!.t) throw new ValidationError(mp, 'marks must be in time order');
+      }
+      if (b.route?.length === 0) throw new ValidationError(`${bp} > route`, 'a route needs at least one mark');
       if (b.s !== undefined && b.s > b.max) throw new ValidationError(bp, '"s" is longer than the time limit "max"');
       if (b.startWhen !== undefined && style.kind !== 'mauled') throw new ValidationError(`${bp} > startWhen`, 'only "mauled" kills have an attacker to reach her');
       if (b.startWhen !== undefined && i === 0) throw new ValidationError(`${bp} > startWhen`, 'the first beat has no beat before it to hold');
@@ -276,7 +371,9 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
         if (e.do === 'attackerPerf' && !e.perf) throw new ValidationError(ep, 'attackerPerf needs "perf"');
         if (e.blade !== undefined && e.do !== 'grip') throw new ValidationError(`${ep} > blade`, '"blade" is for a grip');
         if (e.do === 'grip' && !e.release && !e.joint) throw new ValidationError(ep, 'grip needs "joint" (or "release": true)');
-        if ((e.do === 'haulTo' || e.do === 'walkTo' || e.do === 'slam' || e.do === 'throw' || e.do === 'drag' || e.do === 'backTo') && !e.mark) throw new ValidationError(ep, `${e.do} needs "mark"`);
+        if ((e.do === 'haulTo' || e.do === 'walkTo' || e.do === 'slam' || e.do === 'throw' || e.do === 'drag' || e.do === 'backTo' || e.do === 'touch') && !e.mark) throw new ValidationError(ep, `${e.do} needs "mark"`);
+        if (e.do === 'touch' && !e.part) throw new ValidationError(ep, 'touch needs "part"');
+        if (e.part !== undefined && e.do !== 'touch') throw new ValidationError(`${ep} > part`, '"part" is for a touch');
         if (e.via !== undefined && e.do !== 'haulTo' && e.do !== 'walkTo' && e.do !== 'drag') throw new ValidationError(`${ep} > via`, '"via" is for a haulTo, walkTo or drag');
         if (e.do === 'backTo' && style.kind !== 'mauled') throw new ValidationError(ep, 'backTo is only for "mauled" kills');
         if (ATTACKER_EVENTS.includes(e.do) && style.kind !== 'mauled') throw new ValidationError(ep, `${e.do} is only for "mauled" kills`);

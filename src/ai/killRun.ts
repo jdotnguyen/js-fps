@@ -1,4 +1,4 @@
-import { clipSpeedAt, type KillBeat, type KillEvent, type KillStyle } from '../data/types/kills.ts';
+import { beatTrack, clipSpeedAt, type ClipSpeed, type KillBeat, type KillEvent, type KillStyle, type KillTrackSegment } from '../data/types/kills.ts';
 
 /**
  * One scripted kill playing on one victim (infection-kills spec). Pure timing: which beat is on, when it ends (its cue
@@ -10,11 +10,13 @@ export interface KillHooks {
   beat(id: string, index: number): void;
   pose(name: string, blend: number): void;
   /**
-   * A beat's captured clip starts on the victim, blending in over `blend` s. Returns the clip's length in seconds, or
-   * null when the body has no such clip (the beat then plays its poses). A later `pose` stops the clip.
+   * A captured clip (a beat's `clip`, or a clip piece of its `track`) starts on the victim, blending in over `blend` s,
+   * from `from` s into the take; `inPlace` (a route beat) plays it with its own travel across the floor removed.
+   * Returns the clip's length in seconds, or null when the body has no such clip (the beat then plays its poses until
+   * the next piece). A later `pose` stops the clip.
    */
-  clip?(id: string, blend: number): number | null;
-  /** How far through the playing clip the victim is (0..1); the clip holds its last frame at 1. */
+  clip?(id: string, blend: number, opts: { from: number; inPlace: boolean }): number | null;
+  /** How far through the playing clip the victim is (0..1 of the whole take); a piece holds its `to` frame. */
   clipPhase?(u: number): void;
   convulse(target: number, rate: number): void;
   /** Lump `i` at `t` (0..1) along `path`; radius 0 clears it. */
@@ -63,8 +65,16 @@ export class KillRun {
   private readonly endedLines = new Set<string>();
   /** Slam impacts landed in the current beat (`until: impacts`). */
   private impacts = 0;
-  /** The current beat's clip: its length (s) and progress (0..1); null when the beat has none or the body lacks it. */
-  private clip: { duration: number; u: number } | null = null;
+  /**
+   * The clip playing now: its length (s), progress and the frame it stops at (0..1 of the take), and the beat time it
+   * started at with its speed. Null when no clip plays (a pose piece, no track, or a missing clip).
+   */
+  private clip: { duration: number; u: number; end: number; start: number; speed: ClipSpeed | undefined } | null = null;
+  /** The current beat's track (D2; its `clip` as one piece), and the piece playing (-1 before the first). */
+  private track: readonly KillTrackSegment[] | null = null;
+  private piece = -1;
+  /** A clip piece is due that the body does not have: the beat's poses play until the next piece. */
+  private fallback = false;
   /** Warned once per missing clip id. */
   private readonly missingClips = new Set<string>();
   /** Where a missing clip is reported (default `console.warn`). */
@@ -122,9 +132,14 @@ export class KillRun {
     return this.impacts;
   }
 
-  /** Progress through the current beat's clip (0..1), or null when no clip plays. */
+  /** Progress through the playing clip (0..1 of the take), or null when no clip plays. */
   get clipProgress(): number | null {
     return this.clip?.u ?? null;
+  }
+
+  /** The track piece playing in the current beat (-1 before the first, or with no track). */
+  get trackPiece(): number {
+    return this.piece;
   }
 
   /**
@@ -154,8 +169,9 @@ export class KillRun {
     this.t += dt;
     if (this.index > 0) this.clock += dt;
     this.fire(beat);
-    if (this.clip) this.advanceClip(beat, dt);
-    else this.loopPoses(beat);
+    if (this.clip) this.advanceClip(dt);
+    this.advanceTrack(beat);
+    if (!this.clip && (this.track === null || this.piece < 0 || this.fallback)) this.loopPoses(beat);
     this.moveBulges(beat);
     if (this.ended(beat) && this.reached(beat)) this.enter(this.index + 1, this.overrun(beat, dt));
   }
@@ -230,10 +246,15 @@ export class KillRun {
     this.poseIndex = 0;
     this.impacts = 0;
     this.clip = null;
+    this.track = beatTrack(beat);
+    this.piece = -1;
+    this.fallback = false;
     this.played.push(beat.id);
     this.hooks.beat(beat.id, i);
-    this.hooks.pose(beat.poses[0]!, beat.blend ?? 0.25);
-    if (beat.clip !== undefined) this.startClip(beat, beat.clip);
+    // A track that opens on a pose has its own first pose (the beat's poses are its fallback).
+    const first = this.track?.[0];
+    if (!(first && first.at <= this.t + 1e-9 && first.pose !== undefined)) this.hooks.pose(beat.poses[0]!, beat.blend ?? 0.25);
+    this.advanceTrack(beat);
     this.hooks.convulse(beat.convulse, beat.rate ?? 1.5);
     const line = beat.lines?.[0];
     if (line) this.hooks.say?.(line);
@@ -249,24 +270,52 @@ export class KillRun {
     }
   }
 
-  /** Start the beat's clip; without one on the body, warn once and leave the beat to its poses. */
-  private startClip(beat: KillBeat, id: string): void {
-    const duration = this.hooks.clip?.(id, beat.blend ?? 0.3) ?? null;
+  /** Start every track piece now due, in order (the last one started is the one playing). */
+  private advanceTrack(beat: KillBeat): void {
+    const track = this.track;
+    if (!track) return;
+    while (this.piece + 1 < track.length && track[this.piece + 1]!.at <= this.t + 1e-9) {
+      this.piece++;
+      this.startPiece(beat, track[this.piece]!);
+    }
+  }
+
+  /**
+   * Start one piece: hold its pose, or play its clip from `from`, already moved on by however far this frame ran past
+   * its start (so pieces keep to the beat's clock). A clip the body lacks warns once and plays the beat's poses instead.
+   */
+  private startPiece(beat: KillBeat, s: KillTrackSegment): void {
+    this.clip = null;
+    this.fallback = false;
+    if (s.pose !== undefined) {
+      this.hooks.pose(s.pose, s.blend ?? 0.25);
+      return;
+    }
+    const id = s.clip!;
+    const from = s.from ?? 0;
+    const duration = this.hooks.clip?.(id, s.blend ?? 0.3, { from, inPlace: beat.route !== undefined }) ?? null;
     if (duration === null || !(duration > 0)) {
       if (!this.missingClips.has(id)) {
         this.missingClips.add(id);
         this.warn(`beat "${beat.id}": the victim has no clip "${id}"; playing its poses instead`);
       }
+      this.fallback = true;
+      const period = beat.period ?? 0.4;
+      this.poseIndex = Math.floor(this.t / period);
+      this.hooks.pose(beat.poses[this.poseIndex % beat.poses.length]!, s.blend ?? beat.blend ?? 0.25);
       return;
     }
-    this.clip = { duration, u: 0 };
-    this.hooks.clipPhase?.(0);
+    const end = Math.min(1, (s.to ?? duration) / duration);
+    const over = Math.max(0, this.t - s.at);
+    const u = Math.min(end, from / duration + (over * clipSpeedAt(s.speed, over)) / duration);
+    this.clip = { duration, u, end, start: s.at, speed: s.speed };
+    this.hooks.clipPhase?.(u);
   }
 
-  /** Move the clip on at the beat's speed for this moment of the beat. */
-  private advanceClip(beat: KillBeat, dt: number): void {
+  /** Move the clip on at its piece's speed for this moment of the piece; it holds at its `to` frame. */
+  private advanceClip(dt: number): void {
     const c = this.clip!;
-    c.u = Math.min(1, c.u + (dt * clipSpeedAt(beat.speed, this.t)) / c.duration);
+    c.u = Math.min(c.end, c.u + (dt * clipSpeedAt(c.speed, this.t - c.start)) / c.duration);
     this.hooks.clipPhase?.(c.u);
   }
 
@@ -301,9 +350,13 @@ export class KillRun {
         return this.hooks.creatureReady();
       case 'impacts':
         return this.impacts >= (beat.impacts ?? 1);
-      case 'clip':
-        // A missing clip falls back to the poses, which then run for the beat's `s` (else its time limit).
-        return this.clip ? this.clip.u >= 1 : this.t >= (beat.s ?? beat.max);
+      case 'clip': {
+        // On the track's last piece (a clip): when it reaches its last frame. A missing clip falls back to the poses,
+        // which then run for the beat's `s` (else its time limit).
+        const track = this.track;
+        if (!track || this.piece < track.length - 1) return false;
+        return this.clip ? this.clip.u >= this.clip.end : this.t >= (beat.s ?? beat.max);
+      }
     }
   }
 }

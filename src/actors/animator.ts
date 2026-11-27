@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import type { Rng } from '../core/rng.ts';
 import {
+  clipTravelAt,
   sampleClip,
+  sampleClipContacts,
   sampleLocomotion,
   sampleZombieLocomotion,
   sharedMocapLibrary,
@@ -247,7 +249,7 @@ export class Animator {
   private readonly mocapPose = emptyPose('mocap');
   private readonly finalPose = emptyPose('final');
   /** A captured clip played once as the base pose (`playClip`), its progress, and the pose it is sampled into. */
-  private oneShot: { clip: CompiledMocapClip; u: number; pose: CompiledPose } | null = null;
+  private oneShot: { clip: CompiledMocapClip; u: number; pose: CompiledPose; inPlace: boolean } | null = null;
   /**
    * Where the last `playClip` wants the body's origin moved, on the floor, in the root bone's parent space (unscaled
    * skeleton units, the body's own facing). The caller moves the body by it; the pose already allows for it.
@@ -395,26 +397,53 @@ export class Animator {
    * (convulsion, kicks, reactions, look) stay on top. `setPose` or `playSequence` stops it. Returns the clip's length
    * in seconds, or null when this body's library has no such clip.
    */
-  playClip(id: string, blend = 0.3): number | null {
+  playClip(id: string, blend = 0.3, opts: { from?: number; inPlace?: boolean } = {}): number | null {
     if (!this.mocap.has(id)) return null;
     const clip = this.mocap.get(id);
     this.seq = null;
     const pose = this.oneShot?.pose ?? emptyPose(`clip:${id}`);
     pose.name = `clip:${id}`;
-    sampleClip(clip, 0, pose);
+    const u0 = THREE.MathUtils.clamp((opts.from ?? 0) / Math.max(1e-6, clip.duration), 0, 1);
+    const inPlace = opts.inPlace === true;
+    sampleClip(clip, u0, pose);
+    if (inPlace) this.removeTravel(clip, u0, pose);
     // A lying pose lies by tipping the root; a captured clip lies by turning the hips. Blending one into the other
     // sags through the floor halfway, so first rebuild the pose being left on the clip's root (same body, same place).
     this.rebaseRoot(this.current, pose);
-    // The bake centres a clip's hips on their average over the take, so a get-up's lying first frame sits off where
-    // the body actually lies (a prone pose lies by tipping the root, the clip by bending the joints). The body's
-    // origin moves (`clipShift`) so the first frame's hips land where the hips are now, and the pose being left
-    // moves back by as much so nothing jumps: it gets up from where it lay, and stands where the clip ends.
-    const shift = this.hipsOnRoot(this.current, this.clipShift).sub(this.hipsOnRoot(pose, this.hipsB));
-    shift.y = 0;
-    this.current.rootPos.sub(shift);
-    this.oneShot = { clip, u: 0, pose };
+    if (inPlace) {
+      // A route moves the body (voss-death-scene D3): the origin stays where the route has it, and the hips blend from
+      // where they are to the clip's own place over them.
+      this.clipShift.set(0, 0, 0);
+    } else {
+      // The bake centres a clip's hips on their average over the take, so a get-up's lying first frame sits off where
+      // the body actually lies (a prone pose lies by tipping the root, the clip by bending the joints). The body's
+      // origin moves (`clipShift`) so the first frame's hips land where the hips are now, and the pose being left
+      // moves back by as much so nothing jumps: it gets up from where it lay, and stands where the clip ends.
+      const shift = this.hipsOnRoot(this.current, this.clipShift).sub(this.hipsOnRoot(pose, this.hipsB));
+      shift.y = 0;
+      this.current.rootPos.sub(shift);
+    }
+    this.oneShot = { clip, u: u0, pose, inPlace };
     this.startBlend(pose, blend);
     return clip.duration;
+  }
+
+  private readonly travelTmp = new THREE.Vector3();
+
+  /** Take the clip's own travel across the floor out of a sampled pose: the hips keep their height and their sway. */
+  private removeTravel(clip: CompiledMocapClip, u: number, pose: CompiledPose): void {
+    const tr = clipTravelAt(clip, u, this.travelTmp);
+    pose.pelvis.x -= tr.x;
+    pose.pelvis.z -= tr.z;
+  }
+
+  /**
+   * The playing clip's own foot contacts [left, right] (voss-death-scene D5), into `out`. False when no clip plays or the
+   * take has no contact curves (the body then works them out from the feet).
+   */
+  clipContacts(out: [number, number]): boolean {
+    const shot = this.oneShot;
+    return shot ? sampleClipContacts(shot.clip, shot.u, out) : false;
   }
 
   private readonly hipsB = new THREE.Vector3();
@@ -579,7 +608,10 @@ export class Animator {
     // rather than flicker (equal to `time` for a body that never plays one).
     this.convulsePhase += dt * (this.oneShot ? Animator.CLIP_CONVULSE_RATE : 1);
     const shot = this.oneShot;
-    if (shot) sampleClip(shot.clip, shot.u, shot.pose);
+    if (shot) {
+      sampleClip(shot.clip, shot.u, shot.pose);
+      if (shot.inPlace) this.removeTravel(shot.clip, shot.u, shot.pose);
+    }
     this.updateBlend(dt);
     // Once blended in, the clip is the base pose every frame (the blend above only moves `current` while it runs).
     if (shot && this.to === shot.pose && this.blendT >= 1) copyPose(shot.pose, this.current);
