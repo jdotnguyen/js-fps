@@ -18,6 +18,11 @@ export interface KillHooks {
   clip?(id: string, blend: number, opts: { from: number; inPlace: boolean }): number | null;
   /** How far through the playing clip the victim is (0..1 of the whole take); a piece holds its `to` frame. */
   clipPhase?(u: number): void;
+  /**
+   * A beat's pose layer (D6): `pose` now plays on `joints` only, blending over `blend` s, over whatever the body plays.
+   * `joints` null ends the layer (it eases off).
+   */
+  layer?(joints: readonly string[] | null, pose: string | null, blend: number): void;
   convulse(target: number, rate: number): void;
   /** Lump `i` at `t` (0..1) along `path`; radius 0 clears it. */
   bulge(i: number, path: readonly string[], t: number, radius: number, amp: number): void;
@@ -69,7 +74,11 @@ export class KillRun {
    * The clip playing now: its length (s), progress and the frame it stops at (0..1 of the take), and the beat time it
    * started at with its speed. Null when no clip plays (a pose piece, no track, or a missing clip).
    */
-  private clip: { duration: number; u: number; end: number; start: number; speed: ClipSpeed | undefined } | null = null;
+  private clip: { duration: number; u: number; end: number; start: number; speed: ClipSpeed | undefined; loopFrom: number | null } | null = null;
+  /** The pose the current beat's layer shows (its index in `layer.poses`), or -1 with no layer. */
+  private layerIndex = -1;
+  /** A layer is on (set by a beat, cleared by the next beat without one). */
+  private layerOn = false;
   /** The current beat's track (D2; its `clip` as one piece), and the piece playing (-1 before the first). */
   private track: readonly KillTrackSegment[] | null = null;
   private piece = -1;
@@ -172,6 +181,7 @@ export class KillRun {
     if (this.clip) this.advanceClip(dt);
     this.advanceTrack(beat);
     if (!this.clip && (this.track === null || this.piece < 0 || this.fallback)) this.loopPoses(beat);
+    this.loopLayer(beat);
     this.moveBulges(beat);
     if (this.ended(beat) && this.reached(beat)) this.enter(this.index + 1, this.overrun(beat, dt));
   }
@@ -218,6 +228,7 @@ export class KillRun {
       const from = i === this.index ? this.fired : 0;
       for (const e of events.slice(from)) if (e.do === 'tear' || e.do === 'die' || e.do === 'creature' || e.do === 'light' || e.do === 'infect' || e.do === 'face' || e.do === 'layout') this.hooks.event(e, beat);
     }
+    this.endLayer(0.01);
     const last = this.style.beats[this.style.beats.length - 1];
     if (last) this.hooks.pose(last.poses[0]!, 0.01);
     this.hooks.convulse(0, 100);
@@ -232,6 +243,7 @@ export class KillRun {
     while (i < this.style.beats.length && this.style.beats[i]!.needsGlass && !this.hooks.facesGlass()) i++;
     for (let k = 0; k < BULGE_SLOTS; k++) this.hooks.bulge(k, [], 0, 0, 0);
     const beat = this.style.beats[i];
+    if (!beat?.layer) this.endLayer(beat?.blend ?? 0.25);
     if (!beat) {
       this.index = this.style.beats.length;
       this.finished = true;
@@ -255,6 +267,8 @@ export class KillRun {
     const first = this.track?.[0];
     if (!(first && first.at <= this.t + 1e-9 && first.pose !== undefined)) this.hooks.pose(beat.poses[0]!, beat.blend ?? 0.25);
     this.advanceTrack(beat);
+    this.layerIndex = -1;
+    this.loopLayer(beat);
     this.hooks.convulse(beat.convulse, beat.rate ?? 1.5);
     const line = beat.lines?.[0];
     if (line) this.hooks.say?.(line);
@@ -307,16 +321,43 @@ export class KillRun {
     }
     const end = Math.min(1, (s.to ?? duration) / duration);
     const over = Math.max(0, this.t - s.at);
-    const u = Math.min(end, from / duration + (over * clipSpeedAt(s.speed, over)) / duration);
-    this.clip = { duration, u, end, start: s.at, speed: s.speed };
-    this.hooks.clipPhase?.(u);
+    const loopFrom = s.loop && end > from / duration ? from / duration : null;
+    this.clip = { duration, u: from / duration, end, start: s.at, speed: s.speed, loopFrom };
+    this.moveClip(this.clip, (over * clipSpeedAt(s.speed, over)) / duration);
   }
 
-  /** Move the clip on at its piece's speed for this moment of the piece; it holds at its `to` frame. */
+  /** Move the clip on at its piece's speed for this moment of the piece; it holds at its `to` frame, or loops. */
   private advanceClip(dt: number): void {
     const c = this.clip!;
-    c.u = Math.min(c.end, c.u + (dt * clipSpeedAt(c.speed, this.t - c.start)) / c.duration);
+    this.moveClip(c, (dt * clipSpeedAt(c.speed, this.t - c.start)) / c.duration);
+  }
+
+  /** Move a clip on by `du` (of the whole take): held at its end, or (a looping piece) wrapped back to its start. */
+  private moveClip(c: NonNullable<KillRun['clip']>, du: number): void {
+    c.u += du;
+    if (c.loopFrom !== null) {
+      const span = c.end - c.loopFrom;
+      if (c.u >= c.end) c.u = c.loopFrom + ((c.u - c.loopFrom) % span);
+    } else c.u = Math.min(c.end, c.u);
     this.hooks.clipPhase?.(c.u);
+  }
+
+  /** The beat's pose layer: its poses in turn every `period` s, on its joints only (D6). */
+  private loopLayer(beat: KillBeat): void {
+    const layer = beat.layer;
+    if (!layer) return;
+    const k = Math.floor(this.t / layer.period);
+    if (k === this.layerIndex) return;
+    this.layerIndex = k;
+    this.layerOn = true;
+    this.hooks.layer?.(layer.joints, layer.poses[k % layer.poses.length]!, layer.blend ?? Math.min(0.25, layer.period * 0.6));
+  }
+
+  private endLayer(blend: number): void {
+    if (!this.layerOn) return;
+    this.layerOn = false;
+    this.layerIndex = -1;
+    this.hooks.layer?.(null, null, blend);
   }
 
   private loopPoses(beat: KillBeat): void {

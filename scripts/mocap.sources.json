@@ -105,6 +105,7 @@
     { "id": "voss_work", "source": "cmu", "take": "13_20", "loop": true, "loco": false, "start": 12.76, "end": 15.26, "seamBlend": 12, "additive": true, "additiveScale": 0.5, "pack": "voss" },
     { "id": "voss_drink", "source": "cmu", "take": "13_09", "loop": true, "loco": false, "start": 3.01, "end": 8.17, "seamBlend": 12, "additive": true, "additiveScale": 0.5, "pack": "voss" },
     { "id": "voss_seated", "source": "cmu", "take": "13_05", "loop": true, "loco": false, "start": 5.76, "end": 8.59, "seamBlend": 12, "additive": true, "pack": "voss" },
+    { "id": "voss_wait", "source": "cmu", "take": "79_68", "loop": true, "loco": false, "start": 1.58, "end": 8.62, "seamBlend": 12, "pack": "voss" },
     { "id": "bram_idle", "source": "cmu", "take": "137_41", "loop": true, "loco": false, "start": 3.2, "end": 6.7, "seamBlend": 12, "levelTrunk": true, "pack": "bram" },
     { "id": "bram_talk", "source": "cmu", "take": "80_14", "loop": true, "loco": false, "start": 8.51, "end": 12.26, "seamBlend": 12, "levelTrunk": true, "pack": "bram" },
     { "id": "bram_walk", "source": "bandai-2", "take": "dataset-2_walk_masculine_009", "loop": true, "loco": true, "pack": "bram" },

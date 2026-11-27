@@ -175,6 +175,10 @@ interface ActiveKill {
   touches: Array<{ part: TouchPart; target: THREE.Vector3; t: number; blend: number; hold: number }>;
   /** Route legs already warned about as off their clip's speed (once each per kill). */
   speedWarned: Set<string>;
+  /** A `look` glance (D6): seconds left before her head goes back to the beat's gaze (or ahead). */
+  glance: { left: number } | null;
+  /** The current beat's resting gaze (D6), or null to look ahead. */
+  gaze: (() => THREE.Vector3 | null) | null;
   glass: Glass | null;
   arrived: boolean;
   creature: NpcActor | null;
@@ -210,6 +214,8 @@ const SLAM_VARIANTS = 3;
 export const ROUTE = { turn: 6, speedTolerance: 0.35, speedFloor: 0.05 } as const;
 /** `touch` defaults (D4): seconds to ease onto the mark and off it again, and to hold it. */
 export const TOUCH = { blend: 0.15, hold: 0.3 } as const;
+/** How long a `look` glance lasts by default (s, D6). */
+export const LOOK_HOLD = 1.2;
 const tmpA = new THREE.Vector3();
 /** A landed body's joints stay at least this far in front of `Glass.at` (itself 6 cm off the pane), clearing limb thickness. */
 const SIDE_MARGIN = 0;
@@ -336,9 +342,15 @@ export class KillDirector {
       route: null,
       touches: [],
       speedWarned: new Set(),
+      glance: null,
+      gaze: null,
     };
     k.run = new KillRun(style, cues, {
-      beat: (id, index) => this.w.emit(`kill:${id}`, { npc, beat: id, index }),
+      beat: (id, index) => {
+        this.setGaze(k, style.beats[index]?.gaze);
+        body.setKillHeadPace(style.beats[index]?.headPace ?? 1);
+        this.w.emit(`kill:${id}`, { npc, beat: id, index });
+      },
       pose: (name, blend) => {
         if (!this.w.ctx.poses.has(name)) return this.w.warn(`kill ${npc}: unknown pose "${name}"`);
         // A raised corpse (multi-beat converted): it is alive again, so lying poses are held as a carried body's are.
@@ -357,6 +369,10 @@ export class KillDirector {
         return duration;
       },
       clipPhase: (u) => body.killClipPhase(u),
+      layer: (joints, pose, blend) => {
+        if (pose && !this.w.ctx.poses.has(pose)) return this.w.warn(`kill ${npc}: unknown pose "${pose}"`);
+        body.setKillLayer(joints as JointName[] | null, pose, k.instant ? 0.01 : blend);
+      },
       convulse: (target, rate) => body.killConvulse(target, rate),
       bulge: (i, path, t, radius, amp) => body.setBulge(i, path as JointName[], t, radius, amp),
       event: (e) => this.event(k, e),
@@ -399,6 +415,13 @@ export class KillDirector {
       if (!k.run.over) {
         this.updateRoute(k, dt);
         if (k.touches.length > 0) this.updateTouches(k, dt);
+      }
+      if (k.glance) {
+        k.glance.left -= dt;
+        if (k.glance.left <= 0 || k.run.over) {
+          k.glance = null;
+          k.actor.lookAt(k.run.over ? null : k.gaze);
+        }
       }
       if (k.slam) this.updateSlam(k, dt);
       this.updateStare(k, dt);
@@ -529,6 +552,44 @@ export class KillDirector {
     // Facing her: looking back along d.
     const yaw = Math.atan2(d.x, d.z);
     void a.moveTo({ x: v.x + d.x, y: a.position.y, z: v.z + d.z }, { speed: MAUL.haulMax, yaw });
+  }
+
+  /**
+   * A beat begins: her head rests on its `gaze` (D6) from now on, or looks ahead when it has none. A glance playing
+   * keeps her head until it ends, then goes back to this. A beat's own `face` event (it fires after this) still wins.
+   */
+  private setGaze(k: ActiveKill, gaze: string | undefined): void {
+    const had = k.gaze !== null;
+    k.gaze = gaze && !k.instant ? this.lookGetter(k, gaze) : null;
+    if (gaze && !k.instant && !k.gaze) this.w.warn(`kill ${k.npc}: nothing to gaze at as "${gaze}"`);
+    if (!k.glance && (had || k.gaze)) k.actor.lookAt(k.gaze);
+  }
+
+  /**
+   * Where a `look` turns her head, read each frame so it follows: `player` (Jay's eye), `npc:<id>` (that body's head),
+   * or a fixed mark or anchor. Null when there is no such target now.
+   */
+  private lookGetter(k: ActiveKill, target: string): (() => THREE.Vector3 | null) | null {
+    const out = new THREE.Vector3();
+    if (target.startsWith('self:')) {
+      const joint = target.slice(5) as JointName;
+      return () => k.actor.body.jointWorld(joint, out);
+    }
+    if (target === 'player') {
+      if (!this.w.playerEye()) return null;
+      return () => {
+        const e = this.w.playerEye();
+        return e ? out.set(e.x, e.y, e.z) : null;
+      };
+    }
+    if (target.startsWith('npc:')) {
+      const id = target.slice(4);
+      const who = this.w.find(id);
+      if (!who) return null;
+      return () => (this.w.exists(id, who) ? who.body.jointWorld('head', out) : null);
+    }
+    const at = this.routeMark(k, target);
+    return at ? () => at : null;
   }
 
   /** A route or touch mark's world point: a kill step mark, `glass` (her stand point at the pane), or a room anchor. */
@@ -1158,6 +1219,14 @@ export class KillDirector {
         if (!target) return;
         k.touches = k.touches.filter((tc) => tc.part !== e.part);
         k.touches.push({ part: e.part, target, t: 0, blend: e.blend ?? TOUCH.blend, hold: e.hold ?? TOUCH.hold });
+        return;
+      }
+      case 'look': {
+        if (k.instant || !e.target) return;
+        const get = this.lookGetter(k, e.target);
+        if (!get) return this.w.warn(`kill ${k.npc}: nobody to look at as "${e.target}"`);
+        k.actor.lookAt(get);
+        k.glance = { left: e.hold ?? LOOK_HOLD };
         return;
       }
       case 'layout':

@@ -111,6 +111,17 @@ test('standing idle and talk clips keep the trunk upright and the head level acr
   assert.deepEqual(bad, [], `standing posture outside limits:\n  ${bad.join('\n  ')}`);
 });
 
+test("Voss's wait behind the Lab B glass stands hunched forward, never leaning back or to one side (voss-death-scene D6)", () => {
+  // Not a standing idle: she is doubled over by what is under her skin, so the trunk leans forward on purpose. It must
+  // still lean forward all the way up (the chest never comes back past upright) and stay level side to side.
+  const c = clips.get('voss_wait');
+  assert.ok(c, 'voss_wait is in the library');
+  assert.ok(c.loop && !c.additive, 'a full-pose loop');
+  const p = measureTrunk(c);
+  assert.ok(p.pelvis < -10 && p.spine < -10 && p.chest < -5, `hunched forward: pelvis ${p.pelvis.toFixed(1)}, spine ${p.spine.toFixed(1)}, chest ${p.chest.toFixed(1)} deg`);
+  assert.ok(Math.abs(p.chestRoll) <= SIDE_TILT_LIMIT && Math.abs(p.headRoll) <= SIDE_TILT_LIMIT, `level: chest ${p.chestRoll.toFixed(1)}, head ${p.headRoll.toFixed(1)} deg`);
+});
+
 test('Okafor keeps a quiet gaze through the whole idle and posture hold, including the loop seam', () => {
   for (const id of ['okafor_idle', 'okafor_hold']) {
     const clip = clips.get(id)!;

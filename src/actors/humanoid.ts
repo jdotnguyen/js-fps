@@ -572,6 +572,24 @@ export class Humanoid {
     this.animator.clipPhase(u);
   }
 
+  /**
+   * A kill beat's pose layer (voss-death-scene D6): `pose` on `joints` only, over the clip or pose the rest of the body
+   * plays; `null` eases it off.
+   */
+  setKillLayer(joints: readonly JointName[] | null, pose: string | null, blend = 0.15): void {
+    this.animator.setLayer(joints, pose ?? undefined, blend);
+  }
+
+  /** How fast her head turns to what she looks at in this kill beat (1 = normal; the wait's laboured glances are slower). */
+  setKillHeadPace(pace: number): void {
+    this.animator.lookPace = pace;
+  }
+
+  /** How far the kill's pose layer is on (0..1; tests). */
+  get killLayerWeight(): number {
+    return this.animator.layerWeight;
+  }
+
   /** The convulsion the body eases toward (0..1), at `rate` per second. */
   killConvulse(target: number, rate = 1.5): void {
     if (this.kill) {
@@ -671,6 +689,8 @@ export class Humanoid {
   endKill(): void {
     this.kill = null;
     this.animator.convulse = 0;
+    this.animator.setLayer(null);
+    this.animator.lookPace = 1;
     this.killTouches.clear();
     this.setKillFeet(false);
   }

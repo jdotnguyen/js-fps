@@ -66,21 +66,21 @@ and tell the user which change or file is blocking if:
 
 ## 3. Holding it together (Opus 5.5, high)
 
-- [ ] 3.1 Check the gates. Verify: as in 1.1.
-- [ ] 3.2 Pick the laboured-wait take from the design's candidates, following `docs/mocap-sources.md`. Fetch it with
+- [x] 3.1 Check the gates. Verify: as in 1.1.
+- [x] 3.2 Pick the laboured-wait take from the design's candidates, following `docs/mocap-sources.md`. Fetch it with
   `mocap-fetch`, add it to `scripts/mocap.sources.json` in the `voss` pack, and bake it (if `zombie_walk.glb` is still
   missing, bake through a temporary manifest). Credit it in `CREDITS.md`. Verify: the per-clip diff shows only Voss's new
   clip changed, and `npm test -- src/actors/mocapPosture.test.ts` passes for it.
-- [ ] 3.3 Add the looping clip segment and the arm-only `layer` (design D6), and the `look` kill event for glances.
+- [x] 3.3 Add the looping clip segment and the arm-only `layer` (design D6), and the `look` kill event for glances.
   Verify: unit tests show joints outside the layer following the base clip exactly, and the head turning to the target
   within its hold.
-- [ ] 3.4 Rewrite `scratch`: the base clip, the arm-only scratch poses (rework the arms of `kill_scratch_0`/`_1` in
+- [x] 3.4 Rewrite `scratch`: the base clip, the arm-only scratch poses (rework the arms of `kill_scratch_0`/`_1` in
   `poses.json`), glances at the player and squad, and no head kicks. Verify: tests for the gallery-drop "Only her hands
   are fast" (hand at 3 Hz or more, head and hips at 0.3 m/s or less) and "She looks at them" scenarios.
-- [ ] 3.5 Add her hunched, arm-holding pose to `poses.json` and set it from `drop_approach`. Verify: a
+- [x] 3.5 Add her hunched, arm-holding pose to `poses.json` and set it from `drop_approach`. Verify: a
   `src/script/quiet.test.ts` case for "Hunched before Jay arrives" covers both arriving after the rounds and loading a
   save from between the rounds and the drop.
-- [ ] 3.6 Review the wait in the cast motion sandbox (`docs/cast-motion-sandbox.md`) and in a private
+- [x] 3.6 Review the wait in the cast motion sandbox (`docs/cast-motion-sandbox.md`) and in a private
   `npm run playtest:serve` build with the user. Verify: the user approves, and every server and browser opened is
   closed.
 

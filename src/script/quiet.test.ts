@@ -566,6 +566,33 @@ test('a load between the rounds and the drop brings the breathing back; a load a
   assert.equal(after.log.includes('sfx voss_panic_breath'), false);
 });
 
+test('Hunched before Jay arrives (gallery-drop): from the end of the rounds, and after a load between them and the drop, Voss stands hunched holding her arm, not typing', async () => {
+  const HUNCH = 'npc npcAnim researcher_b voss_hunch_hold';
+  const typing = (g: ReturnType<typeof makeGame>, after: number): boolean => g.log.slice(after).some((e) => e.startsWith('npc npcAnim researcher_b typing'));
+  // Arriving after the rounds: she has stopped typing before Jay walks back into the gallery.
+  const g = makeGame();
+  g.host.flags['briefingSeen'] = true;
+  for (const r of ['hydro', 'dive', 'admin'] as const) complete[r](g);
+  await advance(g, 30);
+  assert.equal(g.m.isRunning('drop'), false, 'Jay is not back yet');
+  const at = g.log.indexOf(HUNCH);
+  assert.ok(at >= 0, 'she is hunched, holding her arm, as soon as the rounds are done');
+  await advance(g, 12);
+  assert.equal(typing(g, at), false, 'and stays so: no typing again');
+  // Loading a save taken between the rounds and the drop: the same.
+  const loaded = makeGame(['quiet_restore', 'drop_approach']);
+  Object.assign(loaded.host.flags, { introSeen: true, briefingSeen: true, rounds_done: true });
+  loaded.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
+  const after = loaded.log.indexOf(HUNCH);
+  assert.ok(after >= 0, 'after the load she is hunched again');
+  assert.equal(typing(loaded, after), false);
+  // After the drop, a load lays out the aftermath instead (her kill, restored): no waiting pose.
+  const done = makeGame(['quiet_restore', 'drop_approach']);
+  Object.assign(done.host.flags, { introSeen: true, briefingSeen: true, rounds_done: true, drop_started: true, drop_done: true });
+  done.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
+  assert.equal(done.log.includes(HUNCH), false);
+});
+
 test('the gallery entered before the rounds are done does not start the drop from afar when they finish (sequence-triggers spec)', async () => {
   const g = makeGame();
   const caughtUp: string[] = [];

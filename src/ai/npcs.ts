@@ -309,7 +309,8 @@ export class NpcDirector {
           if (a) a.ambient = false;
         },
         exists: (id, actor) => this.actors.get(id) === actor,
-        find: (id) => this.actors.get(id) ?? null,
+        // A squadmate is wrapped on first use, as the script's `npc:` targets are (a kill's glance at Okafor).
+        find: (id) => this.actor(id, false),
         playerEye: () => this.deps.player().head,
       },
       this.fx,

@@ -7,6 +7,11 @@
   },
   "steps": [
    {
+    "do": "npcAnim",
+    "npc": "researcher_b",
+    "anim": "voss_hunch_hold"
+   },
+   {
     "do": "intercom",
     "id": "labb",
     "state": "on"

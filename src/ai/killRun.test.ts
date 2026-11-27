@@ -437,6 +437,7 @@ function trackHarness(track: unknown[], clips: Record<string, number>, beat: Rec
       return clips[id] ?? null;
     },
     clipPhase: (u) => void phases.push({ at: now, u }),
+    layer: (joints, pose, blend) => void log.push({ at: now, what: joints ? `layer ${pose} ${blend} on ${joints.join(',')}` : `layer off ${blend}` }),
     convulse: () => undefined,
     bulge: () => undefined,
     event: () => undefined,
@@ -544,6 +545,57 @@ test('a route beat\'s clips play in place; a beat with no route plays them as be
   const plain = trackHarness([{ at: 0, clip: 'walk' }], { walk: 1 });
   plain.step(0.1);
   assert.ok(plain.what().includes('clip walk 0.3 from 0'));
+});
+
+// ------------------------------------------------------------------ waiting motion (voss-death-scene D6)
+
+test('A looping clip piece plays round from "from" to "to" for as long as the beat lasts, keeping to the clock', () => {
+  // A 4 s take looped from 1 s to 3 s at speed 0.5: one loop every 4 beat seconds.
+  const h = trackHarness([{ at: 0, clip: 'wait', from: 1, to: 3, speed: 0.5, loop: true }], { wait: 4 });
+  h.step(6);
+  const p = (t: number): number => h.phaseAt(t + 1 / 60);
+  assert.ok(Math.abs(p(0) - 0.25) < 0.005, `starts at "from" (${p(0)})`);
+  assert.ok(Math.abs(p(2) - 0.5) < 0.005, `halfway round (${p(2)})`);
+  assert.ok(Math.abs(p(5) - 0.375) < 0.005, `round again past the seam (${p(5)})`);
+  assert.ok(h.phases.every((q) => q.u >= 0.25 - 1e-9 && q.u < 0.75 + 1e-9), 'never outside its stretch of the take');
+  const wraps = h.phases.filter((q, i) => i > 0 && q.u < h.phases[i - 1]!.u).length;
+  assert.equal(wraps, 1, 'wraps once in 6 s');
+  // Whole take: no from/to.
+  const whole = trackHarness([{ at: 0, clip: 'wait', loop: true }], { wait: 2 });
+  whole.step(5);
+  assert.ok(Math.abs(whole.phaseAt(4.5 + 1 / 60) - 0.25) < 0.01, `${whole.phaseAt(4.5 + 1 / 60)}`);
+});
+
+test('kill schema: "loop" is for clip pieces, a beat never waits for a looping clip to end, and a layer needs poses and joints', () => {
+  const ok = (track: unknown[], beat: Record<string, unknown> = {}): void => void trackHarness(track, {}, beat);
+  ok([{ at: 0, clip: 'a', loop: true }], { layer: { poses: ['idle'], period: 0.2, joints: ['hand_R'] } });
+  assert.throws(() => ok([{ at: 0, pose: 'idle', loop: true }]), /for a clip piece/);
+  assert.throws(() => ok([{ at: 0, clip: 'a', loop: true }], { until: 'clip' }), /never ends on a looping clip/);
+  assert.throws(() => ok([], { layer: { poses: [], period: 0.2, joints: ['hand_R'] } }), /at least one pose/);
+  assert.throws(() => ok([], { layer: { poses: ['idle'], period: 0.2, joints: [] } }), /at least one joint/);
+  assert.throws(() => ok([], { layer: { poses: ['idle'], period: 0.2, joints: ['tail'] } }), /unknown joint/);
+});
+
+test('A layer loops its poses every period on its joints only, from the beat start, and goes off with the beat', () => {
+  const h = trackHarness([{ at: 0, clip: 'wait', loop: true }], { wait: 4 }, { layer: { poses: ['scratch_0', 'scratch_1'], period: 0.15, blend: 0.1, joints: ['foreArm_R', 'hand_R'] } });
+  h.step(6.4);
+  const layer = h.log.filter((l) => l.what.startsWith('layer'));
+  assert.equal(layer[0]!.what, 'layer scratch_0 0.1 on foreArm_R,hand_R');
+  const on = layer.filter((l) => !l.what.startsWith('layer off'));
+  // 6 s at 0.15 s a pose: 40 swaps, alternating.
+  assert.ok(Math.abs(on.length - 40) <= 1, `${on.length} swaps`);
+  for (let i = 1; i < on.length; i++) assert.notEqual(on[i]!.what, on[i - 1]!.what, 'alternates');
+  const gaps = on.slice(1).map((l, i) => l.at - on[i]!.at);
+  assert.ok(gaps.every((g) => Math.abs(g - 0.15) <= 1 / 60 + 1e-9), 'one swap every period');
+  assert.equal(layer[layer.length - 1]!.what, 'layer off 0.25', 'the next beat has no layer: it goes off with that beat\'s blend');
+  assert.ok(h.what().includes('clip wait 0.3 from 0'), 'and the clip plays under it');
+});
+
+test('a skipped kill turns the layer off', () => {
+  const h = trackHarness([{ at: 0, pose: 'a' }], {}, { layer: { poses: ['s0', 's1'], period: 0.2, joints: ['hand_R'] } });
+  h.step(0.5);
+  h.run.finishNow();
+  assert.equal(h.what().filter((w) => w.startsWith('layer')).pop(), 'layer off 0.01');
 });
 
 test('kill schema: route marks are reached after the beat starts, in time order, within its limit', () => {

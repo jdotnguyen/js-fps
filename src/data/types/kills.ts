@@ -10,6 +10,9 @@ import { JOINT_NAMES, type JointName } from '../../actors/skeleton.ts';
  * its own beat time; a `route` carries her across the floor through marks she reaches on time, with the clips played in
  * place and her feet planted (and heard) from their contacts; and `touch` events put a hand, hip, knee or her chest on a
  * mark by IK. The poses and clips give her body its shape and motion; the route and the touches put it where the room is.
+ *
+ * Waiting motion (D6): a track piece may `loop` a captured wait for a beat with no fixed end, a beat's `layer` loops
+ * poses on a few joints only (fast scratching hands over a slow body), and `look` events turn her head to someone.
  */
 
 export const KILL_KINDS = ['grownInside', 'converted', 'mauled'] as const;
@@ -68,7 +71,7 @@ export function clipSpeedAt(speed: ClipSpeed | undefined, t: number): number {
  * `layout` (livelier-cart-slam D11) only acts in a skipped or restored kill: it lays the props of the group its `prop`
  * names out at their authored `after` poses, the aftermath a played kill leaves.
  */
-export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'attackerPerf', 'haulTo', 'slam', 'throw', 'drag', 'infect', 'backTo', 'walkTo', 'attackerLook', 'knock', 'layout', 'touch'] as const;
+export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'attackerPerf', 'haulTo', 'slam', 'throw', 'drag', 'infect', 'backTo', 'walkTo', 'attackerLook', 'knock', 'layout', 'touch', 'look'] as const;
 
 /**
  * The parts of the victim a `touch` event (voss-death-scene D4) puts on a mark: a hand (its wrist joint), a hip (the hip
@@ -140,7 +143,13 @@ const eventShape = {
    * long the part stays on its mark once it is there (default 0.3 s).
    */
   perf: optional(str),
+  /** `look`: how long she keeps looking (default 1.2 s). */
   hold: optional(numRange(0, 30)),
+  /**
+   * `look` (voss-death-scene D6, a glance): who her head turns to, followed while they move: `player` (Jay's eye) or
+   * `npc:<id>` (that character's head), or a kill step mark or room anchor. After `hold` s she looks ahead again.
+   */
+  target: optional(str),
   /**
    * `touch` (voss-death-scene D4): the part of her that goes to `mark`. Over `blend` s (default 0.15) her limb or body is
    * drawn onto the mark by IK, held there for `hold` s, then let go over `blend` s, so the contact lands within 5 cm
@@ -191,6 +200,23 @@ const trackShape = {
   /** Playback speed (default 1): one rate, or `[t, speed]` keys over the piece (t from the piece's start). */
   speed: optional(clipSpeed),
   blend: optional(numRange(0, 3)),
+  /**
+   * A clip piece that plays round and round from `from` to `to` (D6) instead of holding its last frame: a wait in a beat
+   * with no fixed end. Use a take baked as a loop (its seam blended) and leave `from`/`to` out to loop the whole take.
+   */
+  loop: optional(bool),
+};
+
+/**
+ * A beat's pose layer (voss-death-scene D6): its `poses` loop every `period` s, blending over `blend` s, on the listed
+ * `joints` only (the arms that scratch), while the rest of the body keeps whatever the beat's poses or track give it (a
+ * captured wait). Kicks and convulsion still layer on top.
+ */
+const layerShape = {
+  poses: arr(str),
+  period: numRange(0.05, 5),
+  blend: optional(numRange(0, 3)),
+  joints: arr(joint),
 };
 
 /** A route mark's facing: a mark (string) she turns to, or a yaw in degrees (0 faces -Z, 90 faces -X). */
@@ -234,6 +260,15 @@ const beatShape = {
    * missing clip falls back to the beat's `poses` while it is due, with one warning.
    */
   track: optional(arr(obj(trackShape))),
+  /** Poses looped on some joints only, over the track or poses (D6; see `layerShape`). */
+  layer: optional(obj(layerShape)),
+  /**
+   * Where her head rests through the beat, between `look` glances (D6): a look target, or `self:<joint>`, a joint of her
+   * own body (her left wrist, to watch the arm she scratches). Absent: ahead.
+   */
+  gaze: optional(str),
+  /** How fast her head turns to her gaze and glances this beat (1 = normal, default; 0.6 is a laboured, unhurried turn). */
+  headPace: optional(numRange(0.2, 2)),
   /**
    * Where she goes over the beat (voss-death-scene D3): her floor position follows a curve from where the beat starts
    * her through the marks, reaching each at its `t`, easing out of the start and into the last mark. Clips play in place
@@ -331,11 +366,15 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
       if (b.clip !== undefined && b.track !== undefined) throw new ValidationError(bp, 'give "clip" or "track", not both');
       const lastPiece = b.track?.[b.track.length - 1];
       if (b.until === 'clip' && b.clip === undefined && lastPiece?.clip === undefined) throw new ValidationError(bp, '"until": "clip" needs "clip" (or a "track" ending in a clip)');
+      if (b.until === 'clip' && lastPiece?.loop) throw new ValidationError(bp, '"until": "clip" never ends on a looping clip');
+      if (b.layer && b.layer.poses.length === 0) throw new ValidationError(`${bp} > layer > poses`, 'at least one pose');
+      if (b.layer && b.layer.joints.length === 0) throw new ValidationError(`${bp} > layer > joints`, 'at least one joint');
+      if (b.gaze?.startsWith('self:') && !(JOINT_NAMES as readonly string[]).includes(b.gaze.slice(5))) throw new ValidationError(`${bp} > gaze`, `unknown joint "${b.gaze.slice(5)}"`);
       if (b.speed !== undefined && b.clip === undefined) throw new ValidationError(`${bp} > speed`, '"speed" is for a "clip" beat (a track piece has its own)');
       for (const [k, s] of (b.track ?? []).entries()) {
         const sp2 = `${bp} > track[${k}]`;
         if ((s.clip === undefined) === (s.pose === undefined)) throw new ValidationError(sp2, 'a track piece has a "clip" or a "pose"');
-        if (s.pose !== undefined && (s.from !== undefined || s.to !== undefined || s.speed !== undefined)) throw new ValidationError(sp2, '"from", "to" and "speed" are for a clip piece');
+        if (s.pose !== undefined && (s.from !== undefined || s.to !== undefined || s.speed !== undefined || s.loop !== undefined)) throw new ValidationError(sp2, '"from", "to", "speed" and "loop" are for a clip piece');
         if (s.from !== undefined && s.to !== undefined && s.to <= s.from) throw new ValidationError(sp2, '"to" must come after "from"');
         if (s.at > b.max) throw new ValidationError(sp2, `starts after the beat's time limit (${b.max} s)`);
         if (k > 0 && s.at <= b.track![k - 1]!.at) throw new ValidationError(sp2, 'pieces must be in time order');
@@ -374,6 +413,8 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
         if ((e.do === 'haulTo' || e.do === 'walkTo' || e.do === 'slam' || e.do === 'throw' || e.do === 'drag' || e.do === 'backTo' || e.do === 'touch') && !e.mark) throw new ValidationError(ep, `${e.do} needs "mark"`);
         if (e.do === 'touch' && !e.part) throw new ValidationError(ep, 'touch needs "part"');
         if (e.part !== undefined && e.do !== 'touch') throw new ValidationError(`${ep} > part`, '"part" is for a touch');
+        if (e.do === 'look' && !e.target) throw new ValidationError(ep, 'look needs "target"');
+        if (e.target !== undefined && e.do !== 'look') throw new ValidationError(`${ep} > target`, '"target" is for a look');
         if (e.via !== undefined && e.do !== 'haulTo' && e.do !== 'walkTo' && e.do !== 'drag') throw new ValidationError(`${ep} > via`, '"via" is for a haulTo, walkTo or drag');
         if (e.do === 'backTo' && style.kind !== 'mauled') throw new ValidationError(ep, 'backTo is only for "mauled" kills');
         if (ATTACKER_EVENTS.includes(e.do) && style.kind !== 'mauled') throw new ValidationError(ep, `${e.do} is only for "mauled" kills`);

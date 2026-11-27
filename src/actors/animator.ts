@@ -172,6 +172,8 @@ export class Animator {
   convulse = 0;
   /** Group-local look target (head/neck/chest turn toward it), or null. */
   lookLocal: THREE.Vector3 | null = null;
+  /** How fast the head and trunk turn to the look target (1 = normal; under 1 is slower). */
+  lookPace = 1;
   /**
    * 0..1: how much ambient idle life (breathing, weight shift, arm fidgets, gaze wandering) to layer on a standing body.
    * The body sets it for living non-enemies; it fades out while walking, in a sequence, or at 0.
@@ -483,6 +485,73 @@ export class Animator {
     if (this.oneShot) this.oneShot.u = THREE.MathUtils.clamp(u, 0, 1);
   }
 
+  /** A pose on some joints only (`setLayer`): which joints, the pose being blended to, and how the blend has come. */
+  private layerJoints: number[] = [];
+  private readonly layerFrom = emptyPose('layerFrom');
+  private readonly layerCur = emptyPose('layerCur');
+  private layerTo: CompiledPose | null = null;
+  private layerT = 1;
+  private layerDur = 0;
+  /** The layer's weight over the base (eases in and out over `LAYER_FADE` s) and the weight it is easing to. */
+  private layerW = 0;
+  private layerWant = 0;
+  /** Seconds the layer takes to come on or go off as a whole. */
+  static readonly LAYER_FADE = 0.25;
+
+  /**
+   * Play `pose` on `joints` only (a kill beat's layer, voss-death-scene D6), blending from what the layer showed over
+   * `blend` s, over whatever drives the rest of the body (a captured clip, a pose). Kicks, convulsion and look still
+   * layer on top. `joints` null eases the layer off.
+   */
+  setLayer(joints: readonly JointName[] | null, pose?: string, blend = 0.15): void {
+    if (!joints || !pose || joints.length === 0) {
+      this.layerWant = 0;
+      return;
+    }
+    const target = this.poses.get(this.ownPose(pose));
+    const ids = joints.map((j) => J[j]);
+    const fresh = this.layerW <= 1e-4 || !this.layerTo;
+    if (fresh) {
+      copyPose(target, this.layerCur);
+      copyPose(target, this.layerFrom);
+      this.layerT = 1;
+    } else {
+      copyPose(this.layerCur, this.layerFrom);
+      this.layerT = 0;
+    }
+    this.layerDur = Math.max(1e-3, blend);
+    this.layerTo = target;
+    this.layerJoints = ids;
+    this.layerWant = 1;
+  }
+
+  /** The layer's weight now (0..1; tests). */
+  get layerWeight(): number {
+    return this.layerW;
+  }
+
+  /** Blend the layer's joints of the pose being written toward the layer's pose (`setLayer`). */
+  private applyLayer(dt: number): void {
+    const step = dt / Animator.LAYER_FADE;
+    this.layerW = THREE.MathUtils.clamp(this.layerW + Math.sign(this.layerWant - this.layerW) * step, Math.min(this.layerW, this.layerWant), Math.max(this.layerW, this.layerWant));
+    if (this.layerW <= 1e-4 || !this.layerTo) {
+      if (this.layerWant === 0) this.layerTo = null;
+      return;
+    }
+    this.layerT = Math.min(1, this.layerT + dt / this.layerDur);
+    const s = this.layerT * this.layerT * (3 - 2 * this.layerT);
+    const w = this.layerW * this.layerW * (3 - 2 * this.layerW);
+    for (const i of this.layerJoints) {
+      const cur = this.layerCur.joints[i];
+      const a = this.layerFrom.joints[i];
+      const b = this.layerTo.joints[i];
+      const out = this.finalPose.joints[i];
+      if (!cur || !a || !b || !out) continue;
+      cur.slerpQuaternions(a, b, s);
+      out.slerp(cur, w);
+    }
+  }
+
   /** Blend to a pose from wherever the body is now. `blend <= 0` snaps immediately. */
   /**
    * A creature's own pose for the one asked for (rig-necromorph design D4): its pose map's entry, or the pose itself when it
@@ -627,6 +696,7 @@ export class Animator {
       const k = 1 - this.fadeT / this.fadeLen;
       blendPose(this.fadeFrom, this.finalPose, k * k * (3 - 2 * k), this.finalPose);
     }
+    if (this.layerTo) this.applyLayer(dt);
     if (!this.creature) {
       this.distributeSpine();
       this.updateHold(dt);
@@ -1986,12 +2056,14 @@ export class Animator {
       pitch += free * g.pitch * w + 0.015 * this.n(this.time, 2) * w;
     }
 
-    const headYaw = this.lookHeadYaw.step(yaw, dt);
-    const headPitch = this.lookHeadPitch.step(pitch, dt);
+    // A slower pace stretches the springs' time: the same turn, unhurried (a laboured wait, voss-death-scene D6).
+    const ldt = dt * this.lookPace;
+    const headYaw = this.lookHeadYaw.step(yaw, ldt);
+    const headPitch = this.lookHeadPitch.step(pitch, ldt);
     // Chest/spine recruit gently when looking at a real target (less when arms are aiming a weapon).
     const torsoShare = this.lookLocal && !Animator.ARMS_BUSY.has(this.to.name) ? 1 : 0.25;
-    const torsoYaw = this.lookTorsoYaw.step(yaw * torsoShare, dt);
-    const torsoPitch = this.lookTorsoPitch.step(pitch * torsoShare * 0.6, dt);
+    const torsoYaw = this.lookTorsoYaw.step(yaw * torsoShare, ldt);
+    const torsoPitch = this.lookTorsoPitch.step(pitch * torsoShare * 0.6, ldt);
 
     this.add('spine', torsoPitch * 0.1 * R2D, torsoYaw * 0.1 * R2D, 0);
     this.add('chest', torsoPitch * 0.18 * R2D, torsoYaw * 0.18 * R2D, 0);

@@ -266,3 +266,38 @@ Each section adds what the next one needs here before its session ends: measured
   (only during `glass` and `arch`) is still to do.
 - A route turns her with `Humanoid.turnHeading`, at 6 rad/s at most. `setHeading` would reset her planted feet every
   frame.
+
+### Section 3 (2026-11-26)
+
+- The wait take is CMU `79_68` "cold" (`voss_wait`, 1.58-8.62 s, baked as a loop; seam picked by matching the trunk and
+  legs). Her feet stay within 3 cm, she stands hunched (pelvis 25° and chest 18° forward on average) and rocks side to
+  side about 15 cm at 1.2 Hz, played at speed 0.4. Its upper back bends 20° back against the lower back (bent at the
+  hips, chest lifted to look ahead), the shape the standing-idle swayback check flags; `mocapPosture.test.ts` has its
+  own check for it (leaning forward all the way up, level side to side). Runners-up if the user dislikes it: `79_73`
+  scared (mild hunch, shuffles up to 9 cm, looks around a lot), `40_10` slowed (her idle, upright), `80_45` crying
+  (calm, upright, chest back). Swapping is data only: the bake list entry and a splice into `src/data/mocap/voss.json`.
+- The bake still needs the temporary manifest (`zombie_walk.glb` is missing). With `--out` the packs are not written,
+  so this section baked with Voss's clips moved into the scratch core, diffed every clip, and spliced `voss_wait` in.
+  The docs size table was updated by hand (voss 8 clips, 257.5 KB).
+- `loop: true` on a clip piece wraps between `from` and `to` (default the whole take). A beat's `layer` sets its poses
+  on its `joints` only, after the base pose and before kicks, convulsion and look, and fades on and off over 0.25 s
+  (`Animator.LAYER_FADE`). Outside the layer the body is the base clip exactly (tested to 1e-6 rad).
+- `look` events use `target` (`player`, `npc:<id>`, or a mark/anchor) and `hold` (default 1.2 s). The head, neck and
+  chest turn about 78% of the way to a target 60° off; there are no eyes to do the rest. `KillWorld.find` now wraps a
+  squadmate on first use (as the script resolver does), so `npc:okafor` and `npc:giles` resolve in the game. The Lab B
+  test harness has no squad, so those two glances warn there.
+- `scratch` now: fallback pose `voss_hunch_hold`, track `voss_wait` speed 0.4 looping, layer `kill_scratch_0`/`_1`
+  every 0.15 s (3.3 Hz) on both arms, convulsion 0, forearm kicks kept, head kicks gone, `gaze: self:hand_L` (her head
+  rests on her left wrist between glances) with `headPace` 0.6 (look springs at 0.6 time, so coming up off the arm to
+  a glance stays under 0.3 m/s), glances at 1.8 (Jay), 4.6 (Okafor), 7.6 (Jay), 10.6 (Giles), 13.4 s (Jay).
+- Review 1 (user): the first arm poses squeezed both elbows to her midline, her head looked ahead, and her hand missed
+  her arm. Reworked on her imported model (`office3`) by a search measuring skin to skin: left `upperArm_L [35,-60,10]`,
+  `foreArm_L 70` (elbow at her side, forearm across her waist, 3 cm clear of her body), the same in both poses; right
+  `upperArm_R [0,40|20,-15]`, `foreArm_R 105`, `hand_R [35,0,-10]`: elbow fixed at her side, the upper arm turning
+  20° sweeps her fingers from 51% to 90% along the forearm, 0.3 cm off the skin, wrist 3.5 cm above its line. The hold
+  pose uses `[0,30,-15]`, `foreArm_R 88` (0.2-0.3 cm). A test pins the contact on her model. Her run to the glass is
+  still the old flailing `panic` (section 4).
+- `voss_hunch_hold` (set by `drop_approach`): hunched, left forearm across her waist, right hand resting on it.
+- Pre-existing failures seen on a clean HEAD export, not this change's: `castMotionCoverage.test.ts` (2, Giles's
+  `rub_forearm` in the intro), `motionProfiles.test.ts` (dock_guard hand height), `slice01Gallery.test.ts` (R03 light
+  slots), `mocapPhysics.test.ts` (flood_elite crew clips).

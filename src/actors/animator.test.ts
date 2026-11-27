@@ -191,3 +191,84 @@ test('the get-up starts where the body lies: no jump or dip through the floor in
   assert.equal(h.group.position.y, lying.origin.y, 'on the floor plane');
   h.dispose();
 });
+
+// ------------------------------------------------------------------ waiting motion (voss-death-scene D6)
+
+const ARMS: readonly JointName[] = ['shoulder_L', 'upperArm_L', 'foreArm_L', 'hand_L', 'shoulder_R', 'upperArm_R', 'foreArm_R', 'hand_R'];
+
+/** A standing body in a kill playing the get-up's standing end, optionally with a pose layer on `layer` joints. */
+function layered(layer: readonly JointName[] | null, pose = 'kill_scratch_0', frames = 30): Humanoid {
+  const h = new Humanoid({ seed: 'layer-test', outfit: 'crew', role: 'npc' }, ctx());
+  h.beginKill();
+  h.killConvulse(0, 100);
+  assert.ok(h.playKillClip('priya_rise', 0.01) !== null);
+  h.killClipPhase(0.95);
+  if (layer) h.setKillLayer(layer, pose, 0.01);
+  for (let i = 0; i < frames; i++) h.update(1 / 30);
+  return h;
+}
+
+test('Layer: joints outside the layer follow the base clip exactly; the layer joints take the layer pose', () => {
+  const plain = layered(null);
+  const arms = layered(ARMS);
+  const rest = JOINT_NAMES.filter((j) => !ARMS.includes(j));
+  assert.ok(maxAngle(rotations(plain), rotations(arms), rest) < 1e-6, `outside the layer: ${maxAngle(rotations(plain), rotations(arms), rest)} rad`);
+  // The arms are the pose's, not the clip's.
+  const posed = new Humanoid({ seed: 'layer-test', outfit: 'crew', role: 'npc' }, ctx());
+  posed.beginKill();
+  posed.setPose('kill_scratch_0', 0.01);
+  for (let i = 0; i < 30; i++) posed.update(1 / 30);
+  assert.ok(maxAngle(rotations(posed), rotations(arms), ARMS) < 0.01, `arms on the layer pose: ${maxAngle(rotations(posed), rotations(arms), ARMS).toFixed(4)} rad`);
+  assert.ok(maxAngle(rotations(plain), rotations(arms), ARMS) > 0.3, 'and away from the clip\'s arms');
+  for (const h of [plain, arms, posed]) h.dispose();
+});
+
+test('Layer: a new layer pose blends in over its blend; the layer eases off when ended, back to the clip', () => {
+  const h = layered(ARMS, 'kill_scratch_0');
+  const a = rotations(h);
+  h.setKillLayer(ARMS, 'kill_scratch_1', 0.1);
+  h.update(1 / 30);
+  const mid = rotations(h);
+  for (let i = 0; i < 6; i++) h.update(1 / 30);
+  const b = rotations(h);
+  const whole = maxAngle(a, b, ARMS);
+  assert.ok(whole > 0.1, `the two scratch poses differ (${whole.toFixed(2)} rad)`);
+  assert.ok(maxAngle(a, mid, ARMS) < whole * 0.8, 'one frame in it is still on its way');
+  h.setKillLayer(null, null);
+  for (let i = 0; i < 15; i++) h.update(1 / 30);
+  assert.equal(h.killLayerWeight, 0);
+  const plain = layered(null, undefined, 52);
+  // Off again, the body is the clip: within a fifth of a degree, and the hands, whose own springs are still settling, close.
+  const hands: readonly JointName[] = ['hand_L', 'hand_R'];
+  const off = maxAngle(rotations(plain), rotations(h), JOINT_NAMES.filter((j) => !hands.includes(j)));
+  assert.ok(off < 0.003, `off again: the body is the clip (${off.toFixed(4)} rad)`);
+  assert.ok(maxAngle(rotations(plain), rotations(h), hands) < 0.05, 'and the hands nearly so');
+  h.dispose();
+  plain.dispose();
+});
+
+test('Look in a kill: the head turns to the target within the glance and back when it ends', () => {
+  const h = layered(ARMS);
+  /** Where the head faces, on the floor plane. */
+  const fwd = (): THREE.Vector3 => {
+    h.group.updateMatrixWorld(true);
+    const ahead = new THREE.Vector3(0, 0, -1).applyQuaternion(h.bones.head.getWorldQuaternion(new THREE.Quaternion()));
+    return ahead.setY(0).normalize();
+  };
+  const before = fwd();
+  const turn = (): number => THREE.MathUtils.radToDeg(before.angleTo(fwd()));
+  // 60 degrees to her left, at eye height, 2 m away.
+  const yaw = THREE.MathUtils.degToRad(60);
+  h.lookTarget = new THREE.Vector3(-Math.sin(yaw) * 2, 1.55, -Math.cos(yaw) * 2);
+  for (let i = 0; i < 15; i++) h.update(1 / 30);
+  const half = turn();
+  for (let i = 0; i < 21; i++) h.update(1 / 30); // 1.2 s, the default glance
+  const turned = turn();
+  // The head (with the neck and chest under it) turns most of the way; there are no eyes to make up the rest.
+  assert.ok(turned > 60 * 0.7 && turned < 65, `head turned ${turned.toFixed(1)} deg toward a target 60 deg off`);
+  assert.ok(half > turned * 0.9, `most of it within half a second (${half.toFixed(1)} deg)`);
+  h.lookTarget = null;
+  for (let i = 0; i < 45; i++) h.update(1 / 30);
+  assert.ok(turn() < 5, `and looks ahead again (${turn().toFixed(1)} deg)`);
+  h.dispose();
+});

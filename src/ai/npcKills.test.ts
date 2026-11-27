@@ -23,7 +23,7 @@ import type { FootstepEvent } from '../actors/humanoid.ts';
 import { loadMainCast, makeLib, type MainCastModel } from '../actors/castModelTestKit.ts';
 
 /** The Lab B kill on Voss (optional bodyModels for real blade creature): glass at z = 0, she starts 4.7 m behind it. */
-function setup(opts: { bodyModels?: BodyModelLibrary; fps?: number } = {}) {
+function setup(opts: { bodyModels?: BodyModelLibrary; fps?: number; kills?: unknown; playerHead?: THREE.Vector3 } = {}) {
   const fps = opts.fps ?? 60;
   /** Every sound and gore call, with when it came. */
   const fired: Array<{ name: string; at: number }> = [];
@@ -49,7 +49,10 @@ function setup(opts: { bodyModels?: BodyModelLibrary; fps?: number } = {}) {
     ctx: { poses: new PoseLibrary(loadPoseFile(posesJson)), gore, ...(opts.bodyModels ? { bodyModels: opts.bodyModels } : {}) },
     nav: null,
     colliders: null,
-    player: () => ({ feet: new THREE.Vector3(0, 0, -3), head: new THREE.Vector3(0, 1.62, -3) }),
+    player: () => {
+      const head = opts.playerHead ?? new THREE.Vector3(0, 1.62, -3);
+      return { feet: head.clone().setY(0), head: head.clone() };
+    },
     emit: (name, payload) => {
       emitted.push({ name, at: now });
       for (const fn of [...(handlers.get(name) ?? [])]) fn(payload);
@@ -67,7 +70,7 @@ function setup(opts: { bodyModels?: BodyModelLibrary; fps?: number } = {}) {
       return id !== undefined;
     },
     warn: (m) => warnings.push(m),
-    kills: validate(validateKillTable, killsJson, 'kills'),
+    kills: validate(validateKillTable, opts.kills ?? killsJson, 'kills'),
   });
   npcs.setResolver(() => ({ pos: { x: 0, y: 1.5, z: 0 } }));
   npcs.spawnFromLevel([{ id: 'researcher_b', look: 'voss', pos: { x: 0, y: 0, z: 4.7 }, yaw: 0, pose: 'typing', transformable: true }]);
@@ -196,6 +199,201 @@ test('Different frame rates: 30 fps and 144 fps give the same beats and events, 
 
 test('Scream missing: the arch, burst and still beats start when they do with it', () => {
   sameTimes(onTheClock({ asked: 3 }), onTheClock({ asked: 3, scream: false }), 60);
+});
+
+// ------------------------------------------------------------------ waiting for the question (voss-death-scene D6, gallery-drop)
+
+/** Lab B with the scratch beat's layer holding still on its first pose (the same arms, without the scratching). */
+function withoutScratching(): unknown {
+  const k = structuredClone(killsJson) as unknown as { grownInside: { beats: Array<Record<string, unknown>> } };
+  const layer = k.grownInside.beats.find((b) => b.id === 'scratch')!['layer'] as { poses: string[] };
+  layer.poses = [layer.poses[0]!];
+  return k;
+}
+
+/** Her joints every frame of `seconds` of the wait, from `from` s into it (60 fps). */
+function waitTrack(opts: { kills?: unknown; playerHead?: THREE.Vector3; from?: number; seconds: number; bodyModels?: BodyModelLibrary; each?: (voss: ReturnType<ReturnType<typeof setup>['npcs']['actor']> & object) => void }) {
+  const g = setup({ ...(opts.kills ? { kills: opts.kills } : {}), ...(opts.playerHead ? { playerHead: opts.playerHead } : {}), ...(opts.bodyModels ? { bodyModels: opts.bodyModels } : {}) });
+  const voss = g.npcs.actor('researcher_b')!;
+  void g.npcs.command('kill', KILL);
+  g.step(opts.from ?? 0);
+  const frames: Array<Record<'head' | 'pelvis' | 'hand_R' | 'hand_L' | 'chest', THREE.Vector3> & { ahead: THREE.Vector3; pitch: number }> = [];
+  g.step(opts.seconds, () => {
+    voss.body.group.updateMatrixWorld(true);
+    const j = (n: JointName): THREE.Vector3 => voss.body.jointWorld(n, new THREE.Vector3());
+    const look = new THREE.Vector3(0, 0, -1).applyQuaternion(voss.body.bones.head.getWorldQuaternion(new THREE.Quaternion()));
+    const pitch = THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(look.y, -1, 1)));
+    frames.push({ head: j('head'), pelvis: j('pelvis'), hand_R: j('hand_R'), hand_L: j('hand_L'), chest: j('chest'), ahead: look.setY(0).normalize(), pitch });
+    opts.each?.(voss);
+  });
+  assert.equal(g.npcs.kills.running('researcher_b')?.beatId, 'scratch', 'still waiting for the question');
+  return { g, voss, frames };
+}
+
+test('Only her hands are fast: her scratching hand goes back and forth 3+ times a second; head and hips under 0.3 m/s, untouched by it', () => {
+  const { frames, g } = waitTrack({ from: 1, seconds: 6 });
+  // The scratching hand, against her own chest: its main line of motion, and how often it turns back along it.
+  const rel = frames.map((f) => f.hand_R.clone().sub(f.chest));
+  const mean = rel.reduce((s, v) => s.add(v), new THREE.Vector3()).divideScalar(rel.length);
+  let axis = new THREE.Vector3(1, 1, 1).normalize();
+  for (let k = 0; k < 20; k++) {
+    const next = new THREE.Vector3();
+    for (const v of rel) {
+      const d = v.clone().sub(mean);
+      next.addScaledVector(d, d.dot(axis));
+    }
+    axis = next.normalize();
+  }
+  const x = rel.map((v) => v.clone().sub(mean).dot(axis));
+  // Turns back: coming 1.5 cm back from the furthest point since the last turn.
+  let turns = 0;
+  let dir = 0;
+  let hi = x[0]!;
+  let lo = x[0]!;
+  for (const v of x) {
+    hi = Math.max(hi, v);
+    lo = Math.min(lo, v);
+    if (dir !== -1 && hi - v > 0.015) {
+      if (dir === 1) turns++;
+      dir = -1;
+      lo = v;
+    } else if (dir !== 1 && v - lo > 0.015) {
+      if (dir === -1) turns++;
+      dir = 1;
+      hi = v;
+    }
+  }
+  const hz = turns / 2 / 6;
+  const swing = Math.max(...x) - Math.min(...x);
+  assert.ok(hz >= 3, `her hand scratches at ${hz.toFixed(2)} Hz`);
+  assert.ok(swing > 0.05, `over ${(swing * 100).toFixed(1)} cm`);
+  const fastest = (j: 'head' | 'pelvis'): number => Math.max(...frames.slice(1).map((f, i) => f[j].distanceTo(frames[i]![j]) * 60));
+  assert.ok(fastest('head') <= 0.3, `head at most ${fastest('head').toFixed(2)} m/s`);
+  assert.ok(fastest('pelvis') <= 0.3, `hips at most ${fastest('pelvis').toFixed(2)} m/s`);
+  // Not jittering with the scratching: with her arms held still in the first pose, her head and hips go exactly the same way.
+  const plain = waitTrack({ kills: withoutScratching(), from: 1, seconds: 6 }).frames;
+  const off = Math.max(...frames.map((f, i) => Math.max(f.head.distanceTo(plain[i]!.head), f.pelvis.distanceTo(plain[i]!.pelvis))));
+  assert.ok(off < 1e-6, `the scratching moves her head or hips by ${off} m`);
+  // (No squad in this harness: her glances at Okafor and Giles find nobody and say so.)
+  assert.deepEqual(g.warnings.filter((w) => !w.includes('no sound') && !w.includes('nobody to look at as "npc:')), [], 'no pose, clip or look problems');
+});
+
+test('She looks at them: in her first 4 s of waiting her head comes up off her arm to Jay behind the glass, then goes back down to it', () => {
+  // Jay stands off to her left in the gallery, 25 degrees from where she faces.
+  const jay = new THREE.Vector3(-3.2, 1.62, -2.2);
+  const { frames, voss } = waitTrack({ playerHead: jay, seconds: 5 });
+  // Resting on her arm just before the first glance (1.8 s).
+  const rest = 100;
+  const start = frames[rest]!.ahead;
+  const toJay = (i: number): number => {
+    const head = frames[i]!.head;
+    const d = jay.clone().sub(head).setY(0).normalize();
+    return THREE.MathUtils.radToDeg(frames[i]!.ahead.angleTo(d));
+  };
+  const first4 = frames.slice(0, 240).map((_, i) => i);
+  const best = first4.reduce((b, i) => (toJay(i) < toJay(b) ? i : b), 0);
+  const turned = THREE.MathUtils.radToDeg(start.angleTo(frames[best]!.ahead));
+  assert.ok(toJay(best) < 8, `at best her head is ${toJay(best).toFixed(1)} deg off Jay (at ${(best / 60).toFixed(2)} s)`);
+  assert.ok(turned > 12, `it turned ${turned.toFixed(1)} deg to him`);
+  assert.ok(frames[best]!.pitch > frames[rest]!.pitch + 15, `her head came up to him (${frames[rest]!.pitch.toFixed(0)} to ${frames[best]!.pitch.toFixed(0)} deg)`);
+  const last = frames[frames.length - 1]!;
+  assert.ok(last.pitch < -25, `and goes back down to her arm after the glance (${last.pitch.toFixed(0)} deg)`);
+  assert.ok(voss.body.lookTarget && voss.body.lookTarget.distanceTo(last.hand_L) < 0.05, 'watching her left wrist');
+});
+
+test('Watching her arm: between glances she looks down at the forearm she scratches', () => {
+  const { frames, voss } = waitTrack({ seconds: 1.7 });
+  // From 1.2 s (settled) to just before the first glance at 1.8 s. Her wrist is nearly under her face, so: head well
+  // down, and her look on the wrist.
+  for (const f of frames.slice(72)) assert.ok(f.pitch < -25, `her head points ${f.pitch.toFixed(0)} deg below level`);
+  const last = frames[frames.length - 1]!;
+  assert.ok(voss.body.lookTarget && voss.body.lookTarget.distanceTo(last.hand_L) < 0.05, 'her look is on her left wrist');
+});
+
+test('Scratching on her own body: her fingers stay on her forearm\'s skin from above, with both elbows at her sides (Voss\'s model)', async () => {
+  const lib = makeLib({ office3: await loadMainCast('office_3') });
+  let skin: { meshes: THREE.SkinnedMesh[]; fore: Array<[THREE.SkinnedMesh, number]>; hand: Array<[THREE.SkinnedMesh, number]> } | null = null;
+  const gaps: number[] = [];
+  const above: number[] = [];
+  const elbows: number[] = [];
+  let frame = 0;
+  waitTrack({
+    bodyModels: lib,
+    from: 1,
+    seconds: 3,
+    each: (voss) => {
+      if (frame++ % 6 !== 0) return;
+      const b = voss.body;
+      const under = (bone: THREE.Object3D, root: THREE.Object3D): boolean => {
+        for (let o: THREE.Object3D | null = bone; o; o = o.parent) if (o === root) return true;
+        return false;
+      };
+      if (!skin) {
+        const meshes: THREE.SkinnedMesh[] = [];
+        b.group.traverse((o) => void ((o as THREE.SkinnedMesh).isSkinnedMesh && meshes.push(o as THREE.SkinnedMesh)));
+        // Skin vertices by the bone carrying most of their weight: her left forearm, and her right hand and fingers.
+        const owned = (pred: (bone: THREE.Bone) => boolean): Array<[THREE.SkinnedMesh, number]> => {
+          const out: Array<[THREE.SkinnedMesh, number]> = [];
+          for (const m of meshes) {
+            const si = m.geometry.getAttribute('skinIndex');
+            const sw = m.geometry.getAttribute('skinWeight');
+            for (let i = 0; si && sw && i < si.count; i += 2) {
+              let best = 0;
+              let bi = -1;
+              for (let c = 0; c < 4; c++) if (sw.getComponent(i, c) > best) [best, bi] = [sw.getComponent(i, c), si.getComponent(i, c)];
+              const bone = m.skeleton.bones[bi];
+              if (bone && pred(bone)) out.push([m, i]);
+            }
+          }
+          return out;
+        };
+        skin = {
+          meshes,
+          fore: owned((bone) => under(bone, b.bones.foreArm_L) && !under(bone, b.bones.hand_L)),
+          hand: owned((bone) => under(bone, b.bones.hand_R)),
+        };
+      }
+      for (const m of skin.meshes) m.skeleton.update();
+      const at = ([m, i]: [THREE.SkinnedMesh, number]): THREE.Vector3 => m.localToWorld(m.getVertexPosition(i, new THREE.Vector3()));
+      const fore = skin.fore.map(at);
+      let gap = Infinity;
+      for (const h of skin.hand.map(at)) for (const f of fore) gap = Math.min(gap, h.distanceTo(f));
+      gaps.push(gap);
+      // Her right wrist over her left forearm's line, and each elbow out from her middle (she faces -Z: her right is +X).
+      const e = b.jointWorld('foreArm_L', new THREE.Vector3());
+      const seg = b.jointWorld('hand_L', new THREE.Vector3()).sub(e);
+      const w = b.jointWorld('hand_R', new THREE.Vector3()).sub(e);
+      above.push(w.sub(seg.multiplyScalar(THREE.MathUtils.clamp(w.dot(seg) / seg.lengthSq(), 0, 1))).y);
+      const mid = b.jointWorld('chest', new THREE.Vector3()).x;
+      elbows.push(Math.min(mid - b.jointWorld('foreArm_L', new THREE.Vector3()).x, b.jointWorld('foreArm_R', new THREE.Vector3()).x - mid));
+    },
+  });
+  // (Set inside the callback, which the compiler cannot see run.)
+  const found = skin as { fore: unknown[]; hand: unknown[] } | null;
+  assert.ok(found && found.fore.length > 50 && found.hand.length > 50, 'found her forearm and hand skin');
+  assert.ok(Math.max(...gaps) < 0.015, `fingers within ${(Math.max(...gaps) * 100).toFixed(1)} cm of her forearm's skin at worst`);
+  assert.ok(Math.min(...above) > 0.02, `her hand rests on top of the arm (wrist ${(Math.min(...above) * 100).toFixed(1)} cm over its line at least)`);
+  assert.ok(Math.min(...elbows) > 0.08, `her elbows stay at her sides, at least ${(Math.min(...elbows) * 100).toFixed(1)} cm out from her middle`);
+});
+
+test('look: a glance at an NPC follows their head while it lasts; an unknown target warns and does nothing', () => {
+  const beat = { id: 'wait', poses: ['idle'], convulse: 0, until: 'time', s: 3, max: 3, events: [{ t: 0.2, do: 'look', target: 'npc:watcher', hold: 1.5 }, { t: 2, do: 'look', target: 'npc:nobody' }] };
+  const g = motionSetup({ beats: [beat] });
+  g.npcs.spawnFromLevel([{ id: 'watcher', look: 'giles', pos: { x: -2.5, y: 0, z: -3 }, yaw: 0, pose: 'idle' }]);
+  const watcher = g.npcs.actor('watcher')!;
+  g.start();
+  g.step(1.2);
+  const target = g.actor.body.lookTarget;
+  // (Read as her frame began; his body has moved on a little since.)
+  assert.ok(target && target.distanceTo(watcher.body.jointWorld('head', new THREE.Vector3())) < 0.05, 'she looks at his head');
+  watcher.place({ x: 2.5, y: 0, z: -3 }, 0);
+  g.step(0.1);
+  assert.ok(g.actor.body.lookTarget!.x > 2, 'and follows him when he moves');
+  g.step(0.6);
+  assert.equal(g.actor.body.lookTarget, null, 'the glance ends after its hold');
+  g.step(0.5);
+  assert.ok(g.warnings.some((w) => w.includes('nobody to look at as "npc:nobody"')), g.warnings.join('; '));
+  assert.equal(g.actor.body.lookTarget, null);
 });
 
 test('the creature shows within a second of the burst', () => {
