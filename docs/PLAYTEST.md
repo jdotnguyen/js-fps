@@ -186,6 +186,15 @@ click, and on resume both carry on from that moment, with nothing playing late o
 - Start a new game, switch tabs during the intro before clicking into the game, come back: the pause menu is open and the
   intro resumes from where you left it.
 
+## Being hit (openspec `player-hit-feedback`)
+
+Wear headphones; `?level=slice01&debug&slot=scratch&jump=r05`. Take swipes from a creature on each side, a bite (cut a leg off) and a slam (R11's hero), at full health and below 30, with Reduced motion off and on.
+
+- A swipe jolts the view away from the arm you see swinging, and the crosshair comes back to the target by itself. A bite pitches down and forward, a slam dips and shakes, a grab trembles. The weapon is knocked towards the blow and still fires; try it aiming down sights. Reduced motion: about a third of each.
+- Claw streaks draw on along the swing on the struck side, a bite smears low, a slam crushes along the bottom; the crosshair area stays clear; no more than three show; all gone in about 1.5 s. In a dark room they dim with the frame. Check High and Low, Film grain off, pause (they hold), restart and quit to title (they clear).
+- At full health a hit flashes red towards its side and the frame keeps its colour. Below 30 it desaturates and pulses, with a heartbeat and Jay's breathing under dialogue; a medkit or going down ends both.
+- The impact is heard first, then Jay: a breath for a nick, a grunt, a cry for a big hit or the one that downs him; one reaction for a flurry, none while held, never a subtitle. The hit dulls the world for a moment; Jay and anyone else speaking stay clear.
+
 ## [Assumed] choices to confirm or change
 Giles opens the armory himself during the rescue; Jay walks slowly with no weapons during Priya's scene; the door to R06 stays locked until the creature has passed overhead; the title text; the whole time budget (about 0.5 min R05, 1.5 min R06, 2.5 min R07, 2 min tunnel, 2.5 min climax, 2 min reveal and stinger); `endSlice` returns to the title.
 

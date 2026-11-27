@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import barksJson from '../data/dialogue/barks01.json' with { type: 'json' };
 import { DialogueLibrary } from './library.ts';
-import { BarkSystem, GLOBAL_COOLDOWN, whoOf, type BarkLine, type LooseBus } from './barks.ts';
+import { EventBus } from '../core/events.ts';
+import { audioUrls, validateChapter } from '../data/types/dialogue.ts';
+import { BarkSystem, GLOBAL_COOLDOWN, HURT_LINES, hurtTier, whoOf, type BarkLine, type LooseBus } from './barks.ts';
+import { SpeechManager } from './speech.ts';
 
 function bus(): LooseBus {
   const h = new Map<string, Set<(p: unknown) => void>>();
@@ -181,4 +184,98 @@ test('phase-gated idle barks never play morning jokes post-drop and contextual r
   room = 'R14b';
   for (let i = 0; i < 8; i++) sys.update(0.5);
   assert.equal(said[2]![0], 'room_comm_r14_01');
+});
+
+// ------------------------------------------------------------------ Jay's hit reactions (player-hit-feedback D6)
+
+function hurtSetup(opts: { grabbed?: () => boolean } = {}) {
+  const b = bus();
+  const said: Array<{ id: string; overlap: boolean }> = [];
+  const stopped: string[] = [];
+  const sys = new BarkSystem({
+    lines,
+    bus: b,
+    speech: { speaking: () => ({ priority: 'story' }), say: (id, _speaker, o) => said.push({ id, overlap: o?.overlap === true }), stop: (id) => stopped.push(id) },
+    random: () => 0,
+    idleAfter: null,
+    rules: [],
+    ...opts,
+  });
+  const hit = (severity: number, kind = 'swipe'): void => b.emit('player:damaged', { kind, severity, hp: 50 });
+  return { b, sys, said, stopped, hit, ids: () => said.map((s) => s.id) };
+}
+
+test('the size of a hit picks the reaction', () => {
+  assert.deepEqual([0, 0.29, 0.3, 0.69, 0.7, 1].map(hurtTier), [0, 0, 1, 1, 2, 2]);
+});
+
+test('four small hits in a second give one reaction, over whatever is being said', () => {
+  const s = hurtSetup();
+  s.hit(0.2);
+  assert.deepEqual(s.said, [], 'the blow is heard first');
+  for (let i = 0; i < 3; i++) {
+    s.sys.update(0.25);
+    s.hit(0.2);
+  }
+  s.sys.update(0.2);
+  assert.deepEqual(s.said, [{ id: 'hurt_jay_light', overlap: true }]);
+  s.sys.update(0.1);
+  s.hit(0.2);
+  s.sys.update(0.1);
+  assert.equal(s.said.length, 2, 'a second later he reacts again');
+});
+
+test('a big hit cuts off a small one\'s breath; a smaller one does not cut a bigger', () => {
+  const s = hurtSetup();
+  s.hit(0.2);
+  s.sys.update(0.1);
+  s.hit(1);
+  s.sys.update(0.1);
+  assert.deepEqual(s.ids(), ['hurt_jay_light', 'hurt_jay_heavy']);
+  assert.deepEqual(s.stopped, ['hurt_jay_light']);
+  s.hit(0.5);
+  s.sys.update(0.1);
+  assert.equal(s.said.length, 2);
+});
+
+test('the hit that downs him draws the heavy cry', () => {
+  const s = hurtSetup();
+  s.hit(0.2);
+  s.b.emit('player:downed', { bleedOut: 20 });
+  s.sys.update(0.1);
+  assert.deepEqual(s.ids(), ['hurt_jay_heavy']);
+});
+
+test('no hit reaction during a grab', () => {
+  let held = false;
+  const s = hurtSetup({ grabbed: () => held });
+  s.hit(0.1, 'grab');
+  held = true;
+  s.hit(0.6); // another one claws him while he is held
+  s.sys.update(0.1);
+  assert.deepEqual(s.said, []);
+  held = false;
+  s.hit(0.6);
+  s.sys.update(0.1);
+  assert.deepEqual(s.ids(), ['hurt_jay_mid']);
+});
+
+test('Jay\'s hit reactions show no subtitle, and each size has several takes', () => {
+  const chapter = validateChapter(barksJson, 'barks01.json');
+  const speakers = JSON.parse(readFileSync(new URL('../data/dialogue/speakers.json', import.meta.url), 'utf8'));
+  const events = new EventBus();
+  const shown: string[] = [];
+  events.on('subtitle:show', (s) => shown.push(s.id));
+  const speech = new SpeechManager(events, new DialogueLibrary(speakers, { 'barks01.json': barksJson }), { play: () => ({ stop: () => undefined }) });
+  for (const id of HURT_LINES) {
+    const line = chapter.lines.find((l) => l.id === id)!;
+    assert.equal(line.speaker, 'player');
+    assert.ok(audioUrls(line.audio).length >= 4, id);
+    for (const url of audioUrls(line.audio)) assert.ok(readFileSync(new URL(`../../public/${url}`, import.meta.url)).length > 1000, url);
+    speech.say(id, { overlap: true });
+    speech.update(0.1);
+  }
+  assert.deepEqual(shown, []);
+  speech.say('bark_jay_up_01');
+  assert.deepEqual(shown, ['bark_jay_up_01'], 'other lines still show');
 });

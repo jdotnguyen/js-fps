@@ -79,11 +79,15 @@ Free-tier quota note: `gemini-2.5-flash-preview-tts` and `gemini-3.1-flash-tts-p
 
 ## 3. Reference voice cast — non-verbal reactions (`scripts/vo-reactions.ts`)
 
+The light, heavy and breath takes were cut by hand (2026-11-26): the pause splitter joined or missed takes, so `--resplit` on those batches would undo the cuts. Their raw recordings are in `previews/vo-batches/player-hit-feedback/`, cut with the same filter chain at (seconds): light 0.13-0.91, 3.86-4.97, 7.84-8.44, 11.32-11.92 (take 05 is its own request); heavy 0.28-1.12, 3.57-4.35, 9.17-11.26, 16.78-17.37, 22.73-23.47; breath 0.30-3.30, 4.71-7.81, 13.26-16.19.
+
 Reaction batches live in `scripts/lib/voReactionBatches.ts`. Each names a speaker and takes that speaker's voice and pinned model from `voCast.ts`. Only TTS takes have a batch; credited recordings have none, so regenerating can never overwrite them.
 
 | Batch | Character | Voice / model | TTS clips (`public/assets/vo/`) | Credited recordings (not TTS) | Dialogue lines wired |
 | --- | --- | --- | --- | --- | --- |
 | `react_jay_pain` | Jay (`player`) | `Orus` / 3.1 | `react_jay_pain_01`–`03.mp3` | `react_jay_scare_01`–`03.mp3` | `bark_grab_jay_01`, `bark_grab_jay_02`, `bark_scare_jay_01`, `bark_scare_jay_02` |
+| `react_jay_hurt_light`, `_mid`, `_heavy` | Jay (`player`), his reaction to a hit by its size | `Orus` / 3.1 | `react_jay_hurt_{light,mid,heavy}_01`–`05.mp3` (the three `react_jay_pain` takes join mid) | — | `hurt_jay_light`, `hurt_jay_mid`, `hurt_jay_heavy` (no subtitle; `barks.ts` picks) |
+| `react_jay_breath` | Jay (`player`), heavy breathing at low health | `Orus` / 3.1 | `react_jay_breath_01`–`03.mp3` | — | none (the low-health bed plays them as sounds) |
 | — (no TTS batch) | Giles (`engineer`) | — | — | `react_giles_cry_01`–`03.mp3` (megaboots `3yell2`, `3yell6`, `3yell1`; a different performer from Jay's shouts) | none (`sec_giles_05` was cut by `overhaul-priya-r08-death`) |
 | `react_priya_choke` | Priya (`nurse`) | `Sulafat` / 3.1 | `react_priya_choke_01`–`03.mp3` | `react_priya_scream_01`–`03.mp3`, `react_priya_cutoff_01`–`03.mp3` | `sec_priya_02`, `stinger_priya_03`, `sec_priya_03`, `sec_priya_06`, `sec_priya_07`, `stinger_priya_06` |
 | `react_okafor_exhale` | Okafor's exhale and sniffle (`sec_okafor_22`), read by Jay's voice since it is not speech | `Orus` / 3.1 | `react_okafor_exhale_01.mp3` | — | `sec_okafor_22` |

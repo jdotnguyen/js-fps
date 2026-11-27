@@ -29,6 +29,54 @@ export const REACTION_BATCHES: readonly ReactionBatch[] = [
       { id: 'react_jay_pain_03', direction: 'low winded grunt taking a sudden hit', vocalization: 'Ughh!' },
     ],
   },
+  // player-hit-feedback D6: Jay's reaction to a hit, picked by its size (the three react_jay_pain takes join the mid
+  // tier), and his heavy breathing at low health (D7).
+  {
+    name: 'react_jay_hurt_light',
+    speaker: 'player',
+    character: 'Jay, 30s male security officer (grounded, steady lower-mid male voice)',
+    takes: [
+      { id: 'react_jay_hurt_light_01', direction: 'a minor blow in a fight: a quick hiss of pain through clenched teeth, very short', vocalization: 'Tsss!' },
+      { id: 'react_jay_hurt_light_02', direction: 'a small cut in a fight: a sharp irritated wince through the teeth, very short', vocalization: 'Sss— agh.' },
+      { id: 'react_jay_hurt_light_03', direction: 'a glancing hit: a short clipped grunt of surprise, very short', vocalization: 'Tch!' },
+      { id: 'react_jay_hurt_light_04', direction: 'a light knock to the arm in a brawl: one small tight grunt, very short', vocalization: 'Ngh.' },
+      { id: 'react_jay_hurt_light_05', direction: 'a scrape: a short punchy exhale of annoyance and pain, very short', vocalization: 'Hmph!' },
+    ],
+  },
+  {
+    name: 'react_jay_hurt_mid',
+    speaker: 'player',
+    character: 'Jay, 30s male security officer (grounded, steady lower-mid male voice)',
+    takes: [
+      { id: 'react_jay_hurt_mid_01', direction: 'a solid pained grunt taking a clawing blow', vocalization: 'Agh!' },
+      { id: 'react_jay_hurt_mid_02', direction: 'a short hard grunt as a hit lands in the ribs', vocalization: 'Oof—!' },
+      { id: 'react_jay_hurt_mid_03', direction: 'a gritted-teeth grunt of pain', vocalization: 'Gnh!' },
+      { id: 'react_jay_hurt_mid_04', direction: 'a sharp pained grunt, knocked off balance', vocalization: 'Hah-ngh!' },
+      { id: 'react_jay_hurt_mid_05', direction: 'a low pained grunt that catches, breath knocked loose', vocalization: 'Uhn!' },
+    ],
+  },
+  {
+    name: 'react_jay_hurt_heavy',
+    speaker: 'player',
+    character: 'Jay, 30s male security officer (grounded, steady lower-mid male voice)',
+    takes: [
+      { id: 'react_jay_hurt_heavy_01', direction: 'a loud raw cry of pain from a deep wound, one burst, not a long scream', vocalization: 'AAGH!' },
+      { id: 'react_jay_hurt_heavy_02', direction: 'a heavy anguished cry as a huge blow throws him back', vocalization: 'Gaaah—!' },
+      { id: 'react_jay_hurt_heavy_03', direction: 'a loud pained yell torn out of him, ending in a gasp', vocalization: 'Aarrgh— hh!' },
+      { id: 'react_jay_hurt_heavy_04', direction: 'a hard winded cry, all the air slammed out of him', vocalization: 'Ough— AH!' },
+      { id: 'react_jay_hurt_heavy_05', direction: 'a strained loud groan of serious pain', vocalization: 'Nnaaagh!' },
+    ],
+  },
+  {
+    name: 'react_jay_breath',
+    speaker: 'player',
+    character: 'Jay, 30s male security officer (grounded, steady lower-mid male voice)',
+    takes: [
+      { id: 'react_jay_breath_01', direction: 'a wounded soldier catching his breath after a hard fight: heavy tired panting, four even breaths, steady rhythm, no voice', vocalization: 'Huff... huff... huff... huff...' },
+      { id: 'react_jay_breath_02', direction: 'an injured man out of breath from running, wincing now and then: four heavy even breaths, steady rhythm', vocalization: 'Huff... hff, ugh... huff... hff, ugh...' },
+      { id: 'react_jay_breath_03', direction: 'a hurt security officer panting through gritted teeth to push through the pain: four short even breaths, steady rhythm', vocalization: 'Hff... hff... hff... hff...' },
+    ],
+  },
   {
     name: 'react_priya_choke',
     speaker: 'nurse',

@@ -20,7 +20,7 @@ export function playerTarget(player: Player, flashlightOn: () => boolean): Enemy
     // Downed is still a target (damage while downed eats bleed-out, ADR-0004), at lower priority.
     alive: () => player.alive || player.downed,
     weight: () => (player.downed ? 0.5 : 1),
-    hurt: (amount, from) => player.damage(amount, from),
+    hurt: (amount, from, kind, side) => player.damage(amount, from, { kind, ...(side ? { side } : {}) }),
     knock: (dx, dz, speed) => {
       player.velocity.set(dx * speed, dz * speed);
     },

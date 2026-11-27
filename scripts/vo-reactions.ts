@@ -34,6 +34,10 @@ const LINE_POOLS: Record<string, string[]> = {
   bark_grab_jay_02: ['assets/vo/react_jay_pain_01.mp3', 'assets/vo/react_jay_pain_02.mp3', 'assets/vo/react_jay_pain_03.mp3'],
   bark_scare_jay_01: ['assets/vo/react_jay_scare_01.mp3', 'assets/vo/react_jay_scare_02.mp3', 'assets/vo/react_jay_scare_03.mp3'],
   bark_scare_jay_02: ['assets/vo/react_jay_scare_03.mp3', 'assets/vo/react_jay_scare_02.mp3', 'assets/vo/react_jay_scare_01.mp3'],
+  // player-hit-feedback: no subtitle lines; barks.ts picks the tier from the hit's size.
+  hurt_jay_light: [1, 2, 3, 4, 5].map((n) => `assets/vo/react_jay_hurt_light_0${n}.mp3`),
+  hurt_jay_mid: [...[1, 2, 3, 4, 5].map((n) => `assets/vo/react_jay_hurt_mid_0${n}.mp3`), ...[1, 2, 3].map((n) => `assets/vo/react_jay_pain_0${n}.mp3`)],
+  hurt_jay_heavy: [1, 2, 3, 4, 5].map((n) => `assets/vo/react_jay_hurt_heavy_0${n}.mp3`),
   cover_priya_run_01: ['assets/vo/react_priya_sob_01.mp3', 'assets/vo/react_priya_sob_02.mp3'],
   sec_okafor_22: ['assets/vo/react_okafor_exhale_01.mp3'],
   sec_priya_17: ['assets/vo/react_priya_breath_01.mp3', 'assets/vo/react_priya_breath_02.mp3'],

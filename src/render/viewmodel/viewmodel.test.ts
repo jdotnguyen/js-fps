@@ -295,3 +295,45 @@ test('with reduced motion the weapon does not breathe', () => {
   assert.deepEqual(root.position.toArray(), first);
   assert.deepEqual(root.rotation.toArray(), rot);
 });
+
+/** The held weapon's pose beside an untouched one stepped alongside it: how far a knock has moved it. */
+function offRest(a: Rig, b: Rig): { x: number; move: number; turn: number } {
+  const p = a.models.pistol.root;
+  const q = b.models.pistol.root;
+  const turn = Math.hypot(p.rotation.x - q.rotation.x, p.rotation.y - q.rotation.y, p.rotation.z - q.rotation.z);
+  return { x: p.position.x - q.position.x, move: p.position.distanceTo(q.position), turn };
+}
+
+test('a hit knocks the weapon towards the blow and it is back within 0.4 s (player-hit-feedback)', () => {
+  for (const side of ['L', 'R'] as const) {
+    const hit = rig();
+    const calm = rig();
+    hit.vm.knock({ side, dir: { x: 0, y: 0 } }, 1);
+    hit.step(0.06);
+    calm.step(0.06);
+    const peak = offRest(hit, calm);
+    assert.ok(Math.sign(peak.x) === (side === 'L' ? -1 : 1) && Math.abs(peak.x) > 0.015, `${side}: ${peak.x} m`);
+    assert.ok(peak.turn > 0.05, `turned ${peak.turn} rad`);
+    hit.step(0.34);
+    calm.step(0.34);
+    const settled = offRest(hit, calm);
+    assert.ok(settled.move < 0.002 && settled.turn < 0.008, `still ${settled.move} m, ${settled.turn} rad`);
+  }
+});
+
+test('a shot fired during a knock still fires, and reduced motion knocks at most a third as far', () => {
+  const r = rig();
+  r.vm.knock({ side: null, dir: { x: 0, y: 0 } }, 1);
+  r.press('fire');
+  assert.equal(times(r, 'fired pistol').length, 1);
+
+  const peak = (reduced: boolean): number => {
+    const hit = rig(reduced);
+    const calm = rig(reduced);
+    hit.vm.knock({ side: 'L', dir: { x: 0, y: 0 } }, 1);
+    hit.step(0.06);
+    calm.step(0.06);
+    return offRest(hit, calm).move;
+  };
+  assert.ok(peak(true) <= peak(false) / 3 + 1e-6);
+});

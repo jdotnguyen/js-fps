@@ -43,7 +43,8 @@ declare module '../core/events.ts' {
 /** What the speech manager offers (dialogue/speech.ts); null before it exists. */
 export interface GuidanceSpeech {
   speaking(): { priority: string } | null;
-  say(id: string, opts?: { at?: () => { x: number; y: number; z: number }; channel?: string }): unknown;
+  say(id: string, opts?: { at?: () => { x: number; y: number; z: number }; channel?: string; overlap?: boolean }): unknown;
+  stop(id: string): void;
 }
 
 export interface GuidanceDeps {
@@ -81,6 +82,7 @@ export interface GuidanceDeps {
     yaw(): number;
     hp(): number;
     alive(): boolean;
+    grabbed(): boolean;
     heal(n: number): boolean;
   };
   ammo: () => Partial<Record<AmmoWeapon, { loaded: number; reserve: number; mag: number }>>;
@@ -130,17 +132,19 @@ export class Guidance {
 
     const speech = d.speech;
     const speaking = (): { priority: string } | null => speech?.speaking() ?? null;
-    const say = (id: string, speaker?: string): void => {
+    const say = (id: string, speaker?: string, overlap = false): void => {
       if (!speech) return;
       const at = speaker && speaker !== 'player' && d.speakerAt ? (): { x: number; y: number; z: number } => d.speakerAt!(speaker) ?? d.player.feet() : undefined;
-      // Barks and hints share one channel of their own, so they never wait on a scene the player cannot hear (dialogue-channels).
-      speech.say(id, at ? { at, channel: 'ambient' } : { channel: 'ambient' });
+      // Barks and hints share one channel of their own, so they never wait on a scene the player cannot hear
+      // (dialogue-channels). Jay's cry at a hit waits for nothing at all.
+      speech.say(id, { ...(at ? { at } : {}), ...(overlap ? { overlap } : { channel: 'ambient' }) });
     };
     this.barks = new BarkSystem({
       lines: d.barkLines,
       bus,
-      speech: { speaking, say: (id, sp) => say(id, sp) },
+      speech: { speaking, say: (id, sp, opts) => say(id, sp, opts?.overlap), stop: (id) => speech?.stop(id) },
       blocked: () => d.mode() !== 'playing' || d.busy(),
+      grabbed: () => d.player.grabbed(),
       idleAfter: 75,
       phase: () => (d.flags()['drop_started'] ? 'post_drop' : 'morning'),
       playerRoom: () => {

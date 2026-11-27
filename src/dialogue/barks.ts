@@ -9,6 +9,9 @@
  * other one (`other`), or anyone. Jay (`player`) only makes short reaction sounds outside
  * the on-rails scenes; his reactions skip the global cooldown.
  *
+ * His reaction to a hit (player-hit-feedback D6) is picked by the hit's size rather than by a rule: the lines
+ * `hurt_jay_light/mid/heavy`, at least `HURT_GAP` apart unless a heavier one cuts a lighter one off.
+ *
  * Event names come from the enemy and squad systems; payload fields are read loosely
  * (`who` / `npc` / `speaker` / `role` for which squadmate) so either side can evolve.
  */
@@ -22,7 +25,9 @@ export interface BarkLine {
 export interface BarkSpeech {
   /** What is speaking now (barks never queue behind story/hint lines). */
   speaking(): { priority: string } | null;
-  say(lineId: string, speaker: string): void;
+  /** `overlap`: start at once, beside whatever else is speaking. */
+  say(lineId: string, speaker: string, opts?: { overlap?: boolean }): void;
+  stop?(lineId: string): void;
 }
 
 export interface LooseBus {
@@ -92,6 +97,17 @@ export const BARK_RULES: readonly BarkRule[] = [
 ];
 
 export const GLOBAL_COOLDOWN = 3;
+/** Jay's hit reactions, lightest first: a sharp breath, a grunt, a heavy cry. */
+export const HURT_LINES = ['hurt_jay_light', 'hurt_jay_mid', 'hurt_jay_heavy'] as const;
+/** Seconds between hit reactions of the same size or smaller. */
+export const HURT_GAP = 1;
+/** The voice follows the blow by this much, so the impact is heard first. */
+export const HURT_DELAY = 0.09;
+
+/** Which of `HURT_LINES` a hit of this severity (0..1) draws. */
+export function hurtTier(severity: number): number {
+  return severity < 0.3 ? 0 : severity < 0.7 ? 1 : 2;
+}
 /** Seconds after the last combat event that still count as "in combat". */
 export const COMBAT_HOLD = 8;
 /** Events that mean a fight is on. */
@@ -128,6 +144,8 @@ export interface BarkDeps {
   random?: () => number;
   /** Barks stay quiet (on rails, cutscene, paused). */
   blocked?: () => boolean;
+  /** Jay is held: the grab has its own sound, so hits make none. */
+  grabbed?: () => boolean;
   rules?: readonly BarkRule[];
   /** Seconds of quiet before an idle bark may play; null disables idle barks. */
   idleAfter?: number | null;
@@ -159,6 +177,10 @@ export class BarkSystem {
   private quiet = 0;
   private dwellRoom: string | null = null;
   private dwellTime = 0;
+  /** The last hit reaction: its tier and when it started. */
+  private hurtLast: { tier: number; at: number } | null = null;
+  /** The reaction waiting out `HURT_DELAY`. */
+  private hurtDue: { id: string; at: number } | null = null;
   private readonly random: () => number;
 
   constructor(deps: BarkDeps) {
@@ -178,6 +200,25 @@ export class BarkSystem {
       this.offs.push(deps.bus.on(r.event, (p) => this.fire(r, p)));
     }
     for (const name of COMBAT_EVENTS) this.offs.push(deps.bus.on(name, () => (this.lastCombat = this.now)));
+    this.offs.push(
+      deps.bus.on('player:damaged', (p) => {
+        const hit = p as { kind?: string; severity?: number } | undefined;
+        if (hit?.kind !== 'grab' && typeof hit?.severity === 'number') this.hurt(hurtTier(hit.severity));
+      }),
+      // The hit that downs him draws the heavy cry, whatever its size.
+      deps.bus.on('player:downed', () => this.hurt(HURT_LINES.length - 1)),
+    );
+  }
+
+  /** Jay reacts aloud to a hit of `tier`, a moment after it; a bigger one takes the place of a smaller. */
+  private hurt(tier: number): void {
+    const id = HURT_LINES[tier]!;
+    if (!this.lineIds.has(id) || this.d.blocked?.() || this.d.grabbed?.()) return;
+    const last = this.hurtLast;
+    if (last && tier <= last.tier && this.now - last.at < HURT_GAP) return;
+    if (last) this.d.speech.stop?.(HURT_LINES[last.tier]!);
+    this.hurtLast = { tier, at: this.now };
+    this.hurtDue = { id, at: this.now + HURT_DELAY };
   }
 
   /** A fight is on (or ended less than COMBAT_HOLD s ago). Hints stay quiet meanwhile. */
@@ -191,6 +232,10 @@ export class BarkSystem {
 
   update(dt: number): void {
     this.now += dt;
+    if (this.hurtDue && this.now >= this.hurtDue.at - 1e-9) {
+      this.d.speech.say(this.hurtDue.id, 'player', { overlap: true });
+      this.hurtDue = null;
+    }
     const busy = this.d.speech.speaking() !== null || this.inCombat || (this.d.blocked?.() ?? false);
     this.updateRoomCommentary(dt, busy);
     const idleAfter = this.d.idleAfter === undefined ? 60 : this.d.idleAfter;
@@ -211,6 +256,8 @@ export class BarkSystem {
     this.quiet = 0;
     this.dwellRoom = null;
     this.dwellTime = 0;
+    this.hurtLast = null;
+    this.hurtDue = null;
   }
 
   dispose(): void {

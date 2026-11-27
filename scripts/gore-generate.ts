@@ -1,6 +1,7 @@
 /**
  * ElevenLabs Sound Effects generator for the infected-kill body sounds (infection-kills spec): bone crunches, flesh
- * tearing, the chest burst, blood hitting glass, drips and the creature. Same pipeline as `ambience-generate.ts`.
+ * tearing, the chest burst, blood hitting glass, drips and the creature; and the blows and heartbeat the player hears
+ * on himself (player-hit-feedback). Same pipeline as `ambience-generate.ts`.
  *
  * Reads `ELEVENLABS_API_KEY` from `.env` or the process environment (never logged or written to code), writes
  * `public/assets/audio/gore/`, normalises one-shots to -6 dB peak and loops to -24 dB mean when ffmpeg is available.
@@ -80,7 +81,59 @@ const palm = (n: number, detail: string): GoreAssetSpec => ({
   prompt: `a terrified person ${detail} on a thick laboratory observation window, flat dull slap and thump on heavy glass, the pane buzzing slightly in its metal frame, close-miked foley, ${GLASS}`,
 });
 
+// A hit landing on the player (player-hit-feedback D7): heard at the listener, so close and bodily.
+const clawHit = (n: number, detail: string): GoreAssetSpec => ({
+  id: `hit_claw_${n}`,
+  sound: 'hitClaw',
+  file: `hit-claw-${n}.mp3`,
+  loop: false,
+  duration: 0.8,
+  promptInfluence: 0.65,
+  prompt: `one fast claw slash ripping across a man's thick uniform jacket and into the skin, ${detail}, sharp fabric tear and a wet cut, a single immediate close body impact, horror game foley, ${DRY}`,
+});
+
+const biteHit = (n: number, detail: string): GoreAssetSpec => ({
+  id: `hit_bite_${n}`,
+  sound: 'hitBite',
+  file: `hit-bite-${n}.mp3`,
+  loop: false,
+  duration: 0.9,
+  promptInfluence: 0.65,
+  prompt: `a monster's jaws biting hard into a man's shoulder through clothing, ${detail}, one wet crunch of teeth into flesh, a single immediate close impact, horror game foley, ${DRY}`,
+});
+
+const bodySlam = (n: number, detail: string): GoreAssetSpec => ({
+  id: `hit_slam_${n}`,
+  sound: 'hitSlam',
+  file: `hit-slam-${n}.mp3`,
+  loop: false,
+  duration: 1,
+  promptInfluence: 0.65,
+  prompt: `one massive blunt blow hitting a man's chest and body, ${detail}, deep heavy muffled thud with cloth and breath-knocking weight, no metal, a single immediate close impact, horror game foley, ${DRY}`,
+});
+
 export const GORE_MANIFEST: readonly GoreAssetSpec[] = [
+  clawHit(1, 'a quick high swipe'),
+  clawHit(2, 'a deeper raking swipe'),
+  clawHit(3, 'two claws catching and tearing'),
+  clawHit(4, 'a short vicious slash'),
+  biteHit(1, 'a quick snapping bite'),
+  biteHit(2, 'a clamping bite that grinds'),
+  biteHit(3, 'a deep bite that tears away'),
+  bodySlam(1, 'a huge fist'),
+  bodySlam(2, 'a whole body rammed into him'),
+  bodySlam(3, 'a crushing two-armed pound'),
+  // The kept file is a 6 s loop built from the take's one clean lub-dub (5.12-5.74 s), repeated every 0.75 s and
+  // levelled to -24 dB mean: the generated take beat unevenly. Regenerating replaces it with a raw take.
+  {
+    id: 'low_heartbeat',
+    sound: 'lowHeartbeat',
+    file: 'low-heartbeat.mp3',
+    loop: true,
+    duration: 8,
+    promptInfluence: 0.7,
+    prompt: `a labouring human heartbeat heard from inside the body, deep muffled lub-dub, steady at about eighty beats a minute, seamless loop, nothing else, ${DRY}`,
+  },
   slam(1, 'its whole body'),
   slam(2, 'its bony bladed forearms'),
   slam(3, 'its shoulder and skull'),

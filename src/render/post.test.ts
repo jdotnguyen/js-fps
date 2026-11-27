@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { AoSplit, createGradeEffect, skipsAo } from './post.ts';
+import { HitMarks } from './hitMarks.ts';
+import { AoSplit, createGradeEffect, setHitMarks, skipsAo } from './post.ts';
 
 const mesh = (mat: THREE.MeshStandardMaterialParameters, userData: Record<string, unknown> = {}): THREE.Mesh => {
   const m = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial(mat));
@@ -66,13 +67,27 @@ test('AoSplit draws solid meshes in the AO render and transparent, non-depth-wri
 
 test('the grade effect uses the uniform objects post.grade hands out', () => {
   const { effect, grade } = createGradeEffect();
-  for (const name of ['uGrain', 'uVignette', 'uAberration', 'uLift', 'uGain', 'uDamage', 'uTime', 'uResolution'] as const) {
+  for (const name of ['uGrain', 'uVignette', 'uAberration', 'uLift', 'uGain', 'uDamage', 'uHitFlash', 'uHitDir', 'uMarks', 'uMarkRect', 'uMarkPlace', 'uMarkState', 'uTime', 'uResolution'] as const) {
     assert.equal(effect.uniforms.get(name), grade[name], name);
   }
   grade.uGrain.value = 0;
   grade.uDamage.value = 0.8;
   assert.equal(effect.uniforms.get('uGrain')!.value, 0);
   assert.equal(effect.uniforms.get('uDamage')!.value, 0.8);
+});
+
+test('the grade is handed the live claw marks and nothing for an empty slot', () => {
+  const { grade } = createGradeEffect();
+  const marks = new HitMarks(() => 0.5);
+  marks.add({ kind: 'swipe', side: 'R', dir: { x: 1, y: 0 }, severity: 1 }, 16 / 9);
+  marks.update(0.2);
+  setHitMarks(grade, marks);
+  assert.deepEqual(grade.uMarkState.value[0]!.toArray(), [1, 1]);
+  assert.ok(grade.uMarkRect.value[0]!.z < 0, 'mirrored for the right');
+  assert.ok(grade.uMarkPlace.value[0]!.x > 2 / 3);
+  assert.equal(grade.uMarkState.value[1]!.y, 0);
+  setHitMarks(grade, null);
+  assert.equal(grade.uMarkState.value[0]!.y, 0, 'cleared');
 });
 
 test('eye adaptation: the grade reads the adaptation uniforms, and the setting switches only the uniform', () => {

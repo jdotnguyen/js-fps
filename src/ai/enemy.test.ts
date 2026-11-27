@@ -29,6 +29,17 @@ test('dormant -> alerted -> chase -> windup -> swipe -> recover, damaging the ta
   assert.equal(kinds(log, 'enemy:attack').length, 1);
 });
 
+test('a swipe reports the arm that struck (player-hit-feedback)', () => {
+  const { dir } = director();
+  const p = stubTarget('player', [0, 0, 0], { grabbable: false });
+  dir.addTarget(p);
+  dir.rng.chance = () => false; // with both arms: the right one
+  dir.spawn('shambler', { x: 0, y: 0, z: -1.2 }, Math.PI);
+  run(dir, 6, () => p.hits.length > 0);
+  assert.equal(p.hits[0]?.kind, 'swipe');
+  assert.equal(p.hits[0]?.side, 'R');
+});
+
 test('a staggered body does not start an attack; stagger then resumes the chase', () => {
   const { dir } = director();
   const p = stubTarget('player', [0, 0, 0], { grabbable: false });

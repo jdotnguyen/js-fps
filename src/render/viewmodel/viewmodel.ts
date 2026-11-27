@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { struckFrom, type HitInfo } from '../../actors/hit.ts';
+import { CriticalSpring, hitStrength } from '../../actors/hitFlinch.ts';
 import { PLAYER_TUNING, type Player } from '../../actors/player.ts';
 import type { EventBus } from '../../core/events.ts';
 import type { Input } from '../../core/input.ts';
@@ -166,6 +168,10 @@ export interface ViewmodelDeps {
   owns?: (id: WeaponId) => boolean;
 }
 
+/** A full-strength hit throws the weapon this far towards the blow, down and back (metres), and rolls and turns it (radians). */
+const KNOCK = { x: 0.03, y: -0.018, z: 0.022, roll: 0.14, yaw: 0.06 };
+const KNOCK_RATE = 18;
+
 /** Breathing: one slow cycle every 4.2 s (the new weapon models have no idle clip). */
 const BREATH_RATE = (Math.PI * 2) / 4.2;
 
@@ -248,6 +254,9 @@ export class Viewmodel {
   private readonly wX = new Spring(34, 6);
   private readonly wY = new Spring(34, 6);
   private readonly recRz = new Spring(300, 20);
+  /** A hit's knock: towards the blow (x), and its share of down, back and twist. */
+  private readonly knockSide = new CriticalSpring(KNOCK_RATE);
+  private readonly knockHard = new CriticalSpring(KNOCK_RATE);
   private lean = 0;
   private stepSide = 1;
   private aimSm = 0;
@@ -382,6 +391,13 @@ export class Viewmodel {
   /** Magazine size of a weapon. */
   magSize(id: WeaponId): number {
     return SPECS[id].mag;
+  }
+
+  /** A hit lands on the player: knock the weapon off its pose towards the blow; it settles within about 0.4 s. */
+  knock(hit: Pick<HitInfo, 'side' | 'dir'>, severity: number): void {
+    const k = hitStrength(severity, this.d.reducedMotion());
+    this.knockSide.kick(struckFrom(hit).x * k);
+    this.knockHard.kick(k);
   }
 
   // ---- per frame -----------------------------------------------------------------------
@@ -797,8 +813,13 @@ export class Viewmodel {
       rot = [rot[0] + Math.sin(b + 0.8) * 0.0025 * k, rot[1] + Math.sin(b * 0.6) * 0.0012 * k, rot[2] + Math.sin(b * 0.8 + 1.7) * 0.0016 * k];
     }
 
-    rig.root.position.set(pos[0], pos[1], pos[2]);
-    rig.root.rotation.set(rot[0], rot[1], rot[2]);
+    this.knockSide.step(dt);
+    this.knockHard.step(dt);
+    const side = this.knockSide.x;
+    const hard = this.knockHard.x;
+    rig.root.position.set(pos[0] + side * KNOCK.x, pos[1] + hard * KNOCK.y, pos[2] + hard * KNOCK.z);
+    // Roll and turn follow the side: a blow from the left tips the gun's top and muzzle left.
+    rig.root.rotation.set(rot[0], rot[1] - side * KNOCK.yaw, rot[2] - side * KNOCK.roll);
   }
 
   private updateFlash(dt: number): void {

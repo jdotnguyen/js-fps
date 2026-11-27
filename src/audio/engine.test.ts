@@ -31,6 +31,16 @@ test('bus base levels match the tuned mix at 100% volume', () => {
   }
 });
 
+test('the damage muffle dulls the world and leaves speech clear (audio-mix: Damage muffle)', () => {
+  const engine = new AudioEngine();
+  const muffle = (engine as unknown as { muffleFilter: FakeNode }).muffleFilter;
+  // With the filter cut out of the graph, only what goes round it still reaches the output.
+  muffle.disconnect();
+  const out = node(engine.ctx.destination);
+  for (const b of BUSES) assert.equal(reaches(node(engine.buses[b]), out), b === 'voice', b);
+  assert.equal(reaches(node(engine.reverbIn), out), false, 'the room reverb is muffled');
+});
+
 // --- World sound occlusion (in-world-audio: World sound occlusion) ---
 
 const SOUND: SoundName = 'metalKnock';

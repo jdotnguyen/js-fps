@@ -2908,5 +2908,93 @@
     ],
     "at": "2026-11-26T17:48:43.036Z",
     "source": "generated"
+  },
+  {
+    "batch": "react_jay_hurt_heavy",
+    "speakers": [
+      "player"
+    ],
+    "voices": [
+      "Orus"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "react_jay_hurt_heavy_01",
+      "react_jay_hurt_heavy_02",
+      "react_jay_hurt_heavy_03",
+      "react_jay_hurt_heavy_04",
+      "react_jay_hurt_heavy_05"
+    ],
+    "at": "2026-11-27T03:24:25.091Z",
+    "source": "generated"
+  },
+  {
+    "batch": "react_jay_hurt_mid",
+    "speakers": [
+      "player"
+    ],
+    "voices": [
+      "Orus"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "react_jay_hurt_mid_01",
+      "react_jay_hurt_mid_02",
+      "react_jay_hurt_mid_03",
+      "react_jay_hurt_mid_04",
+      "react_jay_hurt_mid_05"
+    ],
+    "at": "2026-11-27T03:25:17.635Z",
+    "source": "generated"
+  },
+  {
+    "batch": "react_jay_breath",
+    "speakers": [
+      "player"
+    ],
+    "voices": [
+      "Orus"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "react_jay_breath_01",
+      "react_jay_breath_02",
+      "react_jay_breath_03"
+    ],
+    "at": "2026-11-27T03:26:11.880Z",
+    "source": "generated"
+  },
+  {
+    "batch": "react_jay_hurt_light_05",
+    "speakers": [
+      "player"
+    ],
+    "voices": [
+      "Orus"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "react_jay_hurt_light_05"
+    ],
+    "at": "2026-11-27T03:26:31.701Z",
+    "source": "generated"
+  },
+  {
+    "batch": "react_jay_hurt_light",
+    "speakers": [
+      "player"
+    ],
+    "voices": [
+      "Orus"
+    ],
+    "model": "gemini-3.1-flash-tts-preview",
+    "lines": [
+      "react_jay_hurt_light_01",
+      "react_jay_hurt_light_02",
+      "react_jay_hurt_light_03",
+      "react_jay_hurt_light_04"
+    ],
+    "at": "2026-11-27T03:26:04.412Z",
+    "source": "generated"
   }
 ]

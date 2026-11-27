@@ -437,7 +437,7 @@ export class SpeechManager {
     const active: Active = {
       ...e, duration, playback, startedAt: this.now, endsAt: this.now + duration,
       audible: audibleIn(hearing, e.line.priority, e.line.channel),
-      shown: subtitleIn(hearing, e.line.priority, e.line.channel),
+      shown: e.line.subtitle !== false && subtitleIn(hearing, e.line.priority, e.line.channel),
     };
     const info = this.info(active);
     this.bus.emit('speech:started', active.audible ? info : { ...info, audible: false });
@@ -454,7 +454,7 @@ export class SpeechManager {
       a.audible = audible;
       this.bus.emit('speech:audible', { id: a.line.id, priority: a.line.priority, audible });
     }
-    const shown = subtitleIn(hearing, a.line.priority, a.line.channel);
+    const shown = a.line.subtitle !== false && subtitleIn(hearing, a.line.priority, a.line.channel);
     if (shown === a.shown) return;
     a.shown = shown;
     if (shown) this.bus.emit('subtitle:show', { ...this.info(a), duration: Math.max(0, a.endsAt - this.now) });

@@ -14,10 +14,11 @@ import {
 } from 'postprocessing';
 import { N8AOPostPass } from 'n8ao';
 import type { Settings } from '../core/settings.ts';
+import { CLEAR_RADIUS, MARK_SLOTS, markRect, markState, type HitMarks } from './hitMarks.ts';
 import { RENDER_TIERS } from './tiers.ts';
 import { createAdaptUniforms, EyeAdaptationPass, type AdaptUniforms } from './eyeAdaptation.ts';
 
-/** Final grade (ADR-0002): eye adaptation, chromatic aberration, lift/gain, vignette, film grain, damage tint. */
+/** Final grade (ADR-0002): eye adaptation, chromatic aberration, lift/gain, vignette, film grain, damage tint, claw marks. */
 export interface GradeUniforms extends AdaptUniforms {
   uTime: THREE.Uniform<number>;
   uResolution: THREE.Uniform<THREE.Vector2>;
@@ -27,6 +28,14 @@ export interface GradeUniforms extends AdaptUniforms {
   uLift: THREE.Uniform<THREE.Vector3>;
   uGain: THREE.Uniform<THREE.Vector3>;
   uDamage: THREE.Uniform<number>;
+  uHitFlash: THREE.Uniform<number>;
+  uHitDir: THREE.Uniform<THREE.Vector2>;
+  /** The claw mark atlas (scripts/hit-marks): R the cut, G wet, B height for the warp, A draw-on order. */
+  uMarks: THREE.Uniform<THREE.Texture>;
+  /** Per slot: the atlas rectangle; centre UV, size (screen heights) and turn; drawn and opacity. */
+  uMarkRect: THREE.Uniform<THREE.Vector4[]>;
+  uMarkPlace: THREE.Uniform<THREE.Vector4[]>;
+  uMarkState: THREE.Uniform<THREE.Vector2[]>;
 }
 
 /**
@@ -43,17 +52,60 @@ uniform float uAberration;
 uniform vec3 uLift;
 uniform vec3 uGain;
 uniform float uDamage;
+uniform float uHitFlash;
+uniform vec2 uHitDir;
+uniform sampler2D uMarks;
+uniform vec4 uMarkRect[${MARK_SLOTS}];
+uniform vec4 uMarkPlace[${MARK_SLOTS}];
+uniform vec2 uMarkState[${MARK_SLOTS}];
 uniform sampler2D uAdaptState;
 uniform float uAdaptKey;
 uniform float uAdaptOn;
 
 float gradeHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
+// The claw marks over this pixel: the cut (cover.x) and wet (cover.y) coverage, and how far to bend the frame.
+void gradeMarks(const in vec2 uv, out vec2 cover, out vec2 warp) {
+  cover = vec2(0.0);
+  warp = vec2(0.0);
+  vec2 shape = vec2(uResolution.x / uResolution.y, 1.0);
+  float open = smoothstep(${(CLEAR_RADIUS - 0.04).toFixed(3)}, ${CLEAR_RADIUS.toFixed(3)}, length((uv - 0.5) * shape));
+  if (open <= 0.0) return;
+  for (int i = 0; i < ${MARK_SLOTS}; i++) {
+    vec2 state = uMarkState[i];
+    if (state.y <= 0.0) continue;
+    vec4 place = uMarkPlace[i];
+    float cs = cos(place.w);
+    float sn = sin(place.w);
+    mat2 turn = mat2(cs, sn, -sn, cs);
+    vec2 q = (((uv - place.xy) * shape) * turn) / place.z + 0.5; // vector * matrix turns it back
+    if (any(lessThan(q, vec2(0.0))) || any(greaterThan(q, vec2(1.0)))) continue;
+    vec4 rect = uMarkRect[i];
+    vec4 mark = texture2D(uMarks, rect.xy + q * rect.zw);
+    // Drawn along the swing: a texel shows once the stroke has reached it.
+    float reached = clamp((state.x * 1.12 - mark.a) / 0.12, 0.0, 1.0);
+    float k = reached * state.y * open;
+    if (k <= 0.0) continue;
+    cover = max(cover, mark.rg * k);
+    const float STEP = 0.012;
+    vec2 slope = vec2(
+      texture2D(uMarks, rect.xy + (q + vec2(STEP, 0.0)) * rect.zw).b - mark.b,
+      texture2D(uMarks, rect.xy + (q + vec2(0.0, STEP)) * rect.zw).b - mark.b
+    );
+    warp += ((turn * slope) / shape) * k * 0.05;
+  }
+}
+
 void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
   vec2 c = uv - 0.5;
   vec2 off = c * uAberration * length(c) * 2.0;
+  vec2 cover;
+  vec2 warp;
+  gradeMarks(uv, cover, warp);
+  vec2 at = uv + warp; // a mark bends what is seen through it
   vec3 base = texture2D(inputBuffer, uv).rgb;
-  vec3 col = vec3(texture2D(inputBuffer, uv + off).r, base.g, texture2D(inputBuffer, uv - off).b);
+  vec3 seen = texture2D(inputBuffer, at).rgb;
+  vec3 col = vec3(texture2D(inputBuffer, at + off).r, seen.g, texture2D(inputBuffer, at - off).b);
   col += inputColor.rgb - base;
 
   // Eye adaptation (post-processing spec, room-light-response D6): exposure follows the adapted luminance, capped.
@@ -68,12 +120,56 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   col = mix(col, vec3(luma), uDamage * 0.6);
   col = mix(col, vec3(luma * 1.2, luma * 0.1, luma * 0.08) + vec3(0.02, 0.0, 0.0), uDamage * edge);
 
+  // A hit: a short red flash at the edges, leaning towards the side it came from; no loss of colour in the middle.
+  float lean = min(length(uHitDir), 1.0);
+  float facing = dot(c, uHitDir / max(length(uHitDir), 1e-3)) * 2.0;
+  float flash = uHitFlash * smoothstep(0.15, 0.7, length(c) * 1.5) * mix(1.0, smoothstep(-0.4, 0.9, facing) * 1.5, lean);
+  col = mix(col, vec3(luma * 1.2, luma * 0.1, luma * 0.08) + vec3(0.09, 0.002, 0.0), clamp(flash, 0.0, 1.0));
+
+  // Claw marks: dark red over the exposed frame, so they dim with it; a faint red of their own keeps them readable
+  // against black.
+  float shown = dot(col, vec3(0.2126, 0.7152, 0.0722));
+  col = mix(col, vec3(shown * 0.75 + 0.085, shown * 0.03, shown * 0.025), cover.y * 0.7);
+  col = mix(col, vec3(shown * 0.22 + 0.032, shown * 0.012, shown * 0.01), cover.x);
+
   col *= 1.0 - uVignette * smoothstep(0.2, 0.85, length(c) * 1.45);
 
   float n = gradeHash(uv * uResolution + fract(uTime) * 100.0) - 0.5;
   col += n * uGrain * (0.25 + luma);
   outputColor = vec4(max(col, 0.0), inputColor.a);
 }`;
+
+/** What the grade samples until the atlas is in: nothing. */
+function noMarks(): THREE.Texture {
+  const t = new THREE.DataTexture(new Uint8Array(4), 1, 1);
+  t.needsUpdate = true;
+  return t;
+}
+
+/** The claw mark atlas: data, not colour, so it is read as stored, with no mipmaps. */
+export async function loadHitMarkAtlas(base: string): Promise<THREE.Texture> {
+  const t = await new THREE.TextureLoader().loadAsync(`${base}assets/textures/fx/hit-marks.webp`);
+  t.colorSpace = THREE.NoColorSpace;
+  t.generateMipmaps = false;
+  t.minFilter = THREE.LinearFilter;
+  return t;
+}
+
+/** Hand the live marks to the grade; an empty slot has no opacity. */
+export function setHitMarks(grade: GradeUniforms, marks: HitMarks | null): void {
+  for (let i = 0; i < MARK_SLOTS; i++) {
+    const mark = marks?.slots[i];
+    const state = grade.uMarkState.value[i]!;
+    if (!mark) {
+      state.set(0, 0);
+      continue;
+    }
+    const { drawn, opacity } = markState(mark);
+    state.set(drawn, opacity);
+    grade.uMarkRect.value[i]!.set(...markRect(mark));
+    grade.uMarkPlace.value[i]!.set(mark.x, mark.y, mark.size, mark.turn);
+  }
+}
 
 /**
  * Build the grade effect. The uniforms `post.grade` hands out are the effect's own objects, so setting
@@ -91,6 +187,12 @@ export function createGradeEffect(adapt: AdaptUniforms = createAdaptUniforms()):
     uLift: new THREE.Uniform(new THREE.Vector3(0.002, 0.004, 0.006)),
     uGain: new THREE.Uniform(new THREE.Vector3(0.98, 1.0, 1.04)),
     uDamage: new THREE.Uniform(0),
+    uHitFlash: new THREE.Uniform(0),
+    uHitDir: new THREE.Uniform(new THREE.Vector2()),
+    uMarks: new THREE.Uniform<THREE.Texture>(noMarks()),
+    uMarkRect: new THREE.Uniform(Array.from({ length: MARK_SLOTS }, () => new THREE.Vector4())),
+    uMarkPlace: new THREE.Uniform(Array.from({ length: MARK_SLOTS }, () => new THREE.Vector4(0.5, 0.5, 1, 0))),
+    uMarkState: new THREE.Uniform(Array.from({ length: MARK_SLOTS }, () => new THREE.Vector2())),
   };
   const effect = new Effect('GradeEffect', GRADE_FRAG, {
     blendFunction: BlendFunction.SRC,
@@ -345,6 +447,7 @@ export function createPost(
     dispose() {
       split.end();
       composer.dispose(); // every pass, and each EffectPass's current effects
+      grade.uMarks.value.dispose();
       bloom.dispose(); // not in the merged pass's list on Low
     },
   };

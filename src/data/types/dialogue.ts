@@ -57,6 +57,8 @@ const lineShape = {
   minDuration: numRange(0, 30),
   /** Loudness multiplier for this line (a shout across a room over an alarm); default 1. */
   gain: optional(numRange(0.05, 4)),
+  /** `false`: never subtitled (Jay's wordless reaction to a hit). `text` is still required, for tools. */
+  subtitle: optional(bool),
   /** Reserved for the dialogue-choice system; must be empty in the slice. */
   choices: arr(str),
 };

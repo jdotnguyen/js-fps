@@ -48,7 +48,8 @@ export interface EnemyTarget {
   /** Threat weight (ADR-0007/0011): player 1.0, teammate 0.6, working teammate 0.9. */
   weight(): number;
   /** Raw enemy damage (difficulty scaling is the target's business, e.g. Vitals). */
-  hurt(amount: number, from: THREE.Vector3, kind: AttackKind): void;
+  /** `side` is the attacker's arm that struck: set for swipes and grab ticks. */
+  hurt(amount: number, from: THREE.Vector3, kind: AttackKind, side?: 'L' | 'R'): void;
   /** Push away along the normalised flat direction (dx, dz) at `speed` m/s (hero slam). */
   knock?(dx: number, dz: number, speed: number): void;
   /** Flashlight on, or otherwise easy to see. */
@@ -472,7 +473,7 @@ export class Enemy {
           this.grabTick -= GRAB_TICK;
           const amount = this.tuning.attack.grabDps * GRAB_TICK * loc.grabMul;
           if (amount > 0) {
-            tgt.hurt(amount, this.headPos(tmpB), 'grab');
+            tgt.hurt(amount, this.headPos(tmpB), 'grab', this.strikeSide);
             host.onAttack(this, tgt, 'grab', amount);
           }
         }
@@ -661,7 +662,7 @@ export class Enemy {
     if (!bite) body.strike(this.strikeSide);
     if (connects) {
       const amount = bite ? this.tuning.attack.biteDamage : this.tuning.attack.damage;
-      t!.hurt(amount, this.headPos(tmpB), bite ? 'bite' : 'swipe');
+      t!.hurt(amount, this.headPos(tmpB), bite ? 'bite' : 'swipe', bite ? undefined : this.strikeSide);
       host.onAttack(this, t!, bite ? 'bite' : 'swipe', amount);
     }
     this.setState('recover', this.tuning.attack.recover);

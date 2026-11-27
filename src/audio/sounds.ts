@@ -890,6 +890,13 @@ export const SAMPLE_URLS = {
   // The creature hammering on the Lab B glass, and Voss's palms on it (ElevenLabs, scripts/gore-generate.ts).
   creature_glass_hit: [1, 2, 3, 4].map((i) => `assets/audio/gore/creature-glass-hit-${i}.mp3`),
   palm_glass_hit: [1, 2, 3].map((i) => `assets/audio/gore/palm-glass-hit-${i}.mp3`),
+  // A hit landing on the player, and his labouring heart at low health (ElevenLabs, scripts/gore-generate.ts).
+  hitClaw: [1, 2, 3, 4].map((i) => `assets/audio/gore/hit-claw-${i}.mp3`),
+  hitBite: [1, 2, 3].map((i) => `assets/audio/gore/hit-bite-${i}.mp3`),
+  hitSlam: [1, 2, 3].map((i) => `assets/audio/gore/hit-slam-${i}.mp3`),
+  lowHeartbeat: 'assets/audio/gore/low-heartbeat.mp3',
+  // Jay's heavy breathing at low health (Gemini TTS, scripts/vo-reactions.ts --only react_jay_breath).
+  jayBreath: ['assets/vo/react_jay_breath_01.mp3', 'assets/vo/react_jay_breath_02.mp3', 'assets/vo/react_jay_breath_03.mp3'],
   // Voss panting and whimpering as it crawls up her arm (Gemini TTS, scripts/vo-reactions.ts --only react_voss_panic).
   voss_panic_breath: ['assets/vo/react_voss_panic_01.mp3', 'assets/vo/react_voss_panic_02.mp3', 'assets/vo/react_voss_panic_03.mp3'],
 

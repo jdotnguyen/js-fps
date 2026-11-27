@@ -8,6 +8,8 @@ import type { Navigator, P3 } from '../ai/nav.ts';
 import { PathFollower, planWalk } from '../ai/walkPath.ts';
 import { clipMove, JAY_RADIUS, pushOut, removeInward, type Circle, type V2 } from './bodyPush.ts';
 import { ControlStack, isOnRails } from './control.ts';
+import { describeHit, struckFrom, type HitInfo, type PlayerHit } from './hit.ts';
+import { HitFlinch } from './hitFlinch.ts';
 import type { Interactions } from './interaction.ts';
 import { DEFAULT_MOTOR, moveBody, type ColliderQuery, type MotorState } from './motor.ts';
 import { WADING, canSprintAt, downedEye, wadeScale } from './wading.ts';
@@ -30,7 +32,8 @@ declare module '../core/events.ts' {
     /** A jump that started in standing water (the takeoff splash). */
     'player:waterJump': { x: number; y: number; z: number };
     'player:flashlight': { on: boolean };
-    'player:damaged': { amount: number; hp: number };
+    /** `amount` is the health lost; the rest describes the blow (player-hit-feedback D1). */
+    'player:damaged': { amount: number; hp: number } & HitInfo;
     'player:downed': { bleedOut: number };
     'player:revived': { hp: number };
     'player:died': Record<string, never>;
@@ -84,6 +87,9 @@ export const PLAYER_TUNING = {
 };
 
 const PITCH_LIMIT = THREE.MathUtils.degToRad(85);
+/** The smallest hit's flash, and how fast a flash fades (1/s): gone within about 0.4 s. */
+const HIT_FLASH_FLOOR = 0.55;
+const HIT_FLASH_FADE = 10;
 /** Radians per pixel at sensitivity 1 (same as the free camera). */
 const LOOK_SCALE = 0.0022;
 const ARRIVE = 0.12;
@@ -182,8 +188,12 @@ export class Player {
   aimBlend = 0;
   stamina = PLAYER_TUNING.sprintMax;
   sprinting = false;
-  /** 0..1 strength for the grade pass damage uniform (red edge + desaturation). */
+  /** 0..1, the steady damage state for the grade (red edge + desaturation): low health, downed, dead. */
   damageFx = 0;
+  /** 0..1, the short red flash of the last hit, on top of `damageFx`; it leans towards `hitDir`. */
+  hitFlash = 0;
+  /** Towards the last hit on screen, x right and y up; zero when it came from straight ahead or from nowhere. */
+  readonly hitDir = new THREE.Vector2();
   private readonly d: PlayerDeps;
   private world: PlayerWorld;
   private exhausted = false;
@@ -203,9 +213,10 @@ export class Player {
   private waterJumpRecovery = 0;
   /** Depth of water at the feet this step (player-movement spec: wading slows with depth). */
   private depth = 0;
-  private hitPulse = 0;
   private kick = 0;
   private kickVel = 0;
+  /** The jolt of a hit, apart from the recoil `kick`. */
+  private readonly flinch = new HitFlinch();
   private shoveWindup = -1;
   private shoveCooldown = 0;
   private shoveLunge = 0;
@@ -323,6 +334,7 @@ export class Player {
     this.pitch = pitch;
     this.velocity.set(0, 0);
     this.stepOffset = 0;
+    this.flinch.reset(); // the new aim owes nothing to a hit taken elsewhere
     this.applyCamera(0);
   }
 
@@ -345,7 +357,8 @@ export class Player {
     this.zoom = 1;
     this.stamina = PLAYER_TUNING.sprintMax;
     this.exhausted = false;
-    this.hitSlow = this.hitPulse = this.kick = this.kickVel = 0;
+    this.hitSlow = this.kick = this.kickVel = this.hitFlash = 0;
+    this.flinch.reset();
     this.shoveWindup = -1;
     this.shoveCooldown = 0;
     this.stompWindup = -1;
@@ -449,21 +462,22 @@ export class Player {
 
   // ------------------------------------------------------------------ combat hooks
 
-  /** Raw damage from an enemy or hazard (difficulty scaling happens in Vitals). */
-  damage(amount: number, from?: THREE.Vector3): void {
+  /**
+   * Raw damage from an enemy or hazard (difficulty scaling happens in Vitals). `from` is where it came from and
+   * `hit` what struck; scripts and hazards name neither and get the generic response.
+   */
+  damage(amount: number, from?: THREE.Vector3, hit: PlayerHit = { kind: 'generic' }): void {
     const before = this.vitals.hp;
     const change = this.vitals.damage(amount);
     if (!change) return;
-    this.hitPulse = 1;
+    const taken = amount * this.d.difficulty().playerDamageTaken;
+    const info = describeHit(hit, taken, from, this.eyePosition(this.eye), this.yaw, this.pitch);
+    this.hitFlash = HIT_FLASH_FLOOR + (1 - HIT_FLASH_FLOOR) * info.severity;
+    const struck = struckFrom(info);
+    this.hitDir.set(struck.x, struck.y);
     this.hitSlow = PLAYER_TUNING.hitSlowTime;
-    // Camera kick up, plus a nudge away from the hit side.
-    this.kickVel += 2.2;
-    if (from) {
-      this.tmp.subVectors(from, this.eyePosition(this.eye));
-      const side = Math.sign(this.tmp.x * Math.cos(this.yaw) - this.tmp.z * Math.sin(this.yaw));
-      this.yaw += side * 0.015;
-    }
-    this.d.events.emit('player:damaged', { amount: before - this.vitals.hp, hp: this.vitals.hp });
+    this.flinch.hit(info, this.d.settings().reducedMotion);
+    this.d.events.emit('player:damaged', { amount: before - this.vitals.hp, hp: this.vitals.hp, ...info });
     this.onVitals(change);
   }
 
@@ -827,6 +841,7 @@ export class Player {
       this.stateLayer = null;
       ev.emit('player:revived', { hp: this.vitals.hp });
     } else if (change === 'died') {
+      this.hitFlash = 0;
       this.releaseGrab();
       this.stateLayer?.();
       this.stateLayer = this.control.push(
@@ -948,12 +963,23 @@ export class Player {
     this.kickVel += (-60 * this.kick - 9 * this.kickVel) * dt;
     this.kick += this.kickVel * dt;
 
+    // A hit's flinch, and its punch on the aim. A scripted shot, an assist or a grab owns the aim instead.
+    this.flinch.update(dt);
+    if (this.control.state.look === 'free' && !this.framing && !this.assist && !this.grabbed) {
+      const punch = this.flinch.aimStep();
+      const pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch + punch.pitch));
+      this.flinch.aimMoved(punch.yaw, pitch - this.pitch);
+      this.yaw = wrapAngle(this.yaw + punch.yaw);
+      this.pitch = pitch;
+    } else this.flinch.dropAim();
+    const jolt = this.flinch.view;
+
     const bobY = Math.sin(this.bobPhase * 2) * this.bobAmp;
     const bobX = Math.cos(this.bobPhase) * this.bobAmp * 0.6;
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
-    const lunge = this.shoveLunge * (reduced ? 0.05 : 0.12);
-    const dip = this.stompDip * (reduced ? 0.03 : 0.09);
+    const lunge = this.shoveLunge * (reduced ? 0.05 : 0.12) + jolt.push;
+    const dip = this.stompDip * (reduced ? 0.03 : 0.09) + jolt.dip;
     cam.position.set(
       this.body.x + cos * bobX - sin * lunge,
       this.body.y + this.eyeHeight + this.stepOffset + bobY - dip,
@@ -965,7 +991,7 @@ export class Player {
     // Scripted walks get a faint roll sway so they read as walking, not a dolly (intro-sequence spec).
     const sway = this.walkTarget && !reduced ? Math.sin(this.bobPhase) * WALK_SWAY * Math.min(1, this.bobAmp / T.bobWalk) : 0;
     const roll = (this.vitals.state === 'alive' ? 0 : 0.22 * (1 - this.eyeHeight / T.eyeHeight) * (reduced ? 0.3 : 1)) + sway;
-    cam.rotation.set(this.pitch + this.kick * 0.06 * kickScale, this.yaw, roll);
+    cam.rotation.set(this.pitch + this.kick * 0.06 * kickScale + jolt.pitch, this.yaw + jolt.yaw, roll + jolt.roll);
 
     const wide = this.d.settings().fov * (1 - (1 - T.aimFovScale) * smooth(this.aimBlend));
     const zoomTo = this.framing?.zoom ?? 1;
@@ -979,10 +1005,11 @@ export class Player {
       this.lastFov = fov;
     }
 
-    // Damage grade: hit flash, low-health pulse, downed/dead darkening.
-    this.hitPulse *= Math.exp(-3.5 * dt);
-    let fx = this.hitPulse * 0.9;
-    if (this.vitals.low) fx = Math.max(fx, 0.28 + 0.08 * Math.max(0, Math.sin(this.time * 7.5)));
+    // The grade: the hit flash fades on its own; the steady state is the low-health pulse and the downed/dead darkening.
+    this.hitFlash *= Math.exp(-HIT_FLASH_FADE * dt);
+    if (this.hitFlash < 0.02) this.hitFlash = 0;
+    let fx = 0;
+    if (this.vitals.low) fx = 0.28 + 0.08 * Math.max(0, Math.sin(this.time * 7.5));
     if (this.downed) fx = Math.max(fx, 0.75);
     if (this.vitals.state === 'dead') fx = 1;
     this.damageFx = fx;

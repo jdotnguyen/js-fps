@@ -46,7 +46,7 @@ export function room(extra: Aabb[] = []): { colliders: BoxColliders; nav: NavGra
 export interface StubTarget extends EnemyTarget {
   pos: THREE.Vector3;
   hp: number;
-  hits: Array<{ amount: number; kind: AttackKind }>;
+  hits: Array<{ amount: number; kind: AttackKind; side?: 'L' | 'R' }>;
   knocked: Array<{ dx: number; dz: number; speed: number }>;
   grabbed: boolean;
   facing: THREE.Vector3;
@@ -69,9 +69,9 @@ export function stubTarget(id = 'player', at: [number, number, number] = [0, 0, 
     feet: (out) => out.copy(t.pos),
     alive: () => !t.dead,
     weight: () => (t.kind === 'player' ? 1 : 0.6),
-    hurt: (amount, _from, kind) => {
+    hurt: (amount, _from, kind, side) => {
       t.hp -= amount;
-      t.hits.push({ amount, kind });
+      t.hits.push({ amount, kind, ...(side ? { side } : {}) });
     },
     knock: (dx, dz, speed) => {
       t.knocked.push({ dx, dz, speed });

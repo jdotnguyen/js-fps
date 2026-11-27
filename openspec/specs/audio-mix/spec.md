@@ -29,11 +29,15 @@ Every master stage SHALL end in a limiter so that the mix never clips at the out
 - **THEN** the output does not clip
 
 ### Requirement: Damage muffle
-Taking damage SHALL briefly dull the whole mix with a low-pass filter, then open back up. A new hit while muffled SHALL restart the muffle, not stack it.
+Taking damage SHALL briefly dull the mix with a low-pass filter, then open back up. Speech on the `voice` bus SHALL stay unfiltered, so Jay's reaction and any line being spoken are heard clearly through a hit; the room reverb, speech's share of it included, SHALL be filtered. A new hit while muffled SHALL restart the muffle, not stack it.
 
 #### Scenario: Player is hit
 - **WHEN** the player takes a hit
-- **THEN** the whole mix is low-passed (around 650 Hz) for about 0.4 s and recovers to full brightness over about 0.25 s
+- **THEN** every bus but `voice` is low-passed (around 650 Hz) for about 0.4 s and recovers to full brightness over about 0.25 s
+
+#### Scenario: Speech through a hit
+- **WHEN** Jay's pain reaction or another line plays while the muffle is on
+- **THEN** it is heard at full brightness
 
 ### Requirement: Pause ducking
 While the pause menu, the map or a save station screen is open, the menu theme and interface sounds SHALL play at about 45% of the master setting. Scene sound is held rather than reduced (see `game-pause`) and SHALL return at full level on resume.

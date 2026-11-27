@@ -32,7 +32,8 @@ import { WarmBodies } from '../actors/warmBodies.ts';
 import { ProgramWatch, programWarning } from '../render/programWatch.ts';
 import { createMaterialsAsync, disposeMaterials, textureSizeFor, type Materials } from '../render/materials.ts';
 import { collectTextures } from '../render/textures.ts';
-import { createPost, type Post } from '../render/post.ts';
+import { HitMarks } from '../render/hitMarks.ts';
+import { createPost, loadHitMarkAtlas, setHitMarks, type Post } from '../render/post.ts';
 import type { RoomCaptures } from '../render/roomCaptures.ts';
 import { anisotropyFor, clampTier, materialTextureUnits, RENDER_TIERS, type GpuLimits, type RenderTier } from '../render/tiers.ts';
 import { applyAnisotropy, clearTrackedAnisotropy, currentAnisotropy, setAnisotropy } from '../render/anisotropy.ts';
@@ -130,6 +131,7 @@ import { projectionGain } from '../dialogue/projection.ts';
 import type { DialogueLine } from '../data/types/dialogue.ts';
 import type { ScriptSpeechOptions } from '../script/host.ts';
 import { WebAudioVoicePlayer } from '../dialogue/voicePlayer.ts';
+import { PlayerHurtAudio } from '../audio/playerHurt.ts';
 import { StoryDucker } from '../audio/storyDuck.ts';
 import { OverheardDirector } from '../ai/overheard.ts';
 import { AmbientPaDirector } from '../ai/ambientPa.ts';
@@ -753,6 +755,18 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     });
     post = createPost(renderer, scene, camera, settings.get().quality);
     if (launch.debug.enabled) (globalThis as { __post?: unknown }).__post = post;
+    // The claw marks a hit leaves on the view (player-hit-feedback); until the atlas is in, a hit leaves none.
+    const hitMarks = new HitMarks();
+    const marked = post;
+    void loadHitMarkAtlas(import.meta.env.BASE_URL).then(
+      (atlas) => {
+        if (post !== marked) return atlas.dispose();
+        marked.grade.uMarks.value.dispose();
+        marked.grade.uMarks.value = atlas;
+        renderer?.initTexture(atlas);
+      },
+      (error) => console.warn('[hit marks] atlas not loaded', error),
+    );
     waterSystem = level ? new WaterSystem(level) : null;
     const splashSize = new THREE.Vector2();
 
@@ -1409,9 +1423,9 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       model: mapModel,
       mapState,
       objectives: validate(objectivesValidator(new Set(dialogue.allLines().map((l) => l.id))), objectivesJson, 'data/objectives.json'),
-      barkLines: dialogue.allLines().filter((l) => l.id.startsWith('bark_') || l.id.startsWith('hint_') || l.id.startsWith('room_comm_')),
+      barkLines: dialogue.allLines().filter((l) => l.id.startsWith('bark_') || l.id.startsWith('hint_') || l.id.startsWith('room_comm_') || l.id.startsWith('hurt_')),
       sceneRunning: (room) => sequences?.runningIn(room) ?? false,
-      speech: { speaking: () => speech!.speaking(), say },
+      speech: { speaking: () => speech!.speaking(), say, stop: (id) => speech!.stop(id) },
       speakerAt: (sp) => {
         if (sp === 'engineer' || sp === 'medic') {
           const p = squad!.mate(sp).position;
@@ -1433,6 +1447,7 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         yaw: () => player.yaw,
         hp: () => player.vitals.hp,
         alive: () => player.alive,
+        grabbed: () => player.isGrabbed,
         heal: (n) => {
           const before = player.vitals.hp;
           player.heal(n);
@@ -1499,7 +1514,21 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       waterFx?.footstep(f.x, f.y, f.z, f.landing ? 'land' : f.sprint ? 'sprint' : 'walk', 'player');
       if (game.mode === 'playing' && !game.flying) footsteps!.playPlayer(f);
     });
-    events.on('player:damaged', () => audio.muffle(0.4));
+    // The blow and, at low health, the heartbeat and breathing (player-hit-feedback D7).
+    const hurtAudio = new PlayerHurtAudio(audio);
+    cleanups.push(() => hurtAudio.dispose());
+    events.on('player:damaged', (hit) => {
+      audio.muffle(0.4);
+      hurtAudio.hit(hit.kind, hit.severity);
+      viewmodel?.knock(hit, hit.severity);
+      hitMarks.add(hit, camera.aspect);
+    });
+    // Death, a restart or load, and leaving to the title clear the marks at once; a pause only stops their clock.
+    events.on('player:died', () => hitMarks.clear());
+    events.on('game:restarted', () => hitMarks.clear());
+    events.on('game:mode', ({ mode }) => {
+      if (mode === 'title') hitMarks.clear();
+    });
 
     const crosshair = el<HTMLElement>('#crosshair');
     const crosshairHud = new CrosshairHud(crosshair);
@@ -2236,7 +2265,13 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
         roomAudio?.update(simTime);
         ambience?.update(simTime, camera.position);
         propAudio?.update(camera.position);
-        post!.grade.uDamage.value = game.mode === 'title' || game.flying ? 0 : player.damageFx;
+        const showHurt = game.mode !== 'title' && !game.flying;
+        post!.grade.uDamage.value = showHurt ? player.damageFx : 0;
+        post!.grade.uHitFlash.value = showHurt ? player.hitFlash : 0;
+        post!.grade.uHitDir.value.copy(player.hitDir);
+        hurtAudio.update(showHurt && player.vitals.low);
+        hitMarks.update(sceneDt);
+        setHitMarks(post!.grade, showHurt ? hitMarks : null);
         renderer!.shadowMap.needsUpdate = true;
         const coverFeed = game.mode === 'playing' && !feedGl!.failed ? cameraFeeds!.fullscreen : null;
         if (waterFx && game.mode === 'playing' && !sceneFreeze.frozen) {

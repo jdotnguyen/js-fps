@@ -7,8 +7,9 @@ import { DEFAULT_REVERB, REVERB_CROSSFADE, REVERB_SPECS, renderReverbIr, resolve
 import { SAMPLE_URLS, SOUND_SPECS, type SampleName, type SoundName } from './sounds.ts';
 
 /**
- * Web Audio engine (spec: openspec/specs/audio-mix): five buses -> master -> muffle -> limiter,
- * a shared convolution reverb send, HRTF-positioned voices, and recorded or procedural buffers.
+ * Web Audio engine (spec: openspec/specs/audio-mix): five buses -> master -> limiter, with the damage
+ * muffle ahead of master for every bus but `voice`, a shared convolution reverb send, HRTF-positioned
+ * voices, and recorded or procedural buffers.
  *
  * Each bus is `input (base level) -> volume (player setting) -> duck -> master`. The input node
  * is what sounds connect to; its gain is the mix's base level (tunable in the debug GUI).
@@ -110,7 +111,7 @@ function isPrioritySample(name: SampleName): boolean {
 export class AudioEngine {
   readonly ctx: AudioContext;
   readonly master: GainNode;
-  /** Low-pass on the whole mix, for the damage "muffle" (ADR-0004). */
+  /** Low-pass on everything but speech, for the damage "muffle" (ADR-0004). */
   private readonly muffleFilter: BiquadFilterNode;
   readonly buses: Record<BusName, GainNode>;
   /** Player volume setting per bus (0..1), after the base level. */
@@ -154,7 +155,7 @@ export class AudioEngine {
     limiter.connect(this.gate).connect(this.ctx.destination);
     this.master = new GainNode(this.ctx, { gain: 0.8 });
     this.muffleFilter = new BiquadFilterNode(this.ctx, { type: 'lowpass', frequency: OPEN_CUTOFF, Q: 0.5 });
-    this.master.connect(this.muffleFilter).connect(limiter);
+    this.muffleFilter.connect(this.master).connect(limiter);
     const names = Object.keys(BUS_BASE_LEVELS) as BusName[];
     const make = (gain: (n: BusName) => number) =>
       Object.fromEntries(names.map((n) => [n, new GainNode(this.ctx, { gain: gain(n) })])) as Record<BusName, GainNode>;
@@ -162,7 +163,10 @@ export class AudioEngine {
     this.volumes = make(() => 1);
     this.ducks = make(() => 1);
     this.hushes = make(() => 1);
-    for (const n of names) this.buses[n].connect(this.volumes[n]).connect(this.ducks[n]).connect(this.hushes[n]).connect(this.master);
+    for (const n of names) {
+      // Speech goes round the damage muffle, so a grunt or a line is still heard clearly through a hit.
+      this.buses[n].connect(this.volumes[n]).connect(this.ducks[n]).connect(this.hushes[n]).connect(n === 'voice' ? this.master : this.muffleFilter);
+    }
 
     this.reverbIn = new GainNode(this.ctx, { gain: 1 });
     this.voiceReverbIn = new GainNode(this.ctx, { gain: 1 });
@@ -191,7 +195,7 @@ export class AudioEngine {
   private convolver(ir: AudioBuffer): ReverbNode {
     const conv = new ConvolverNode(this.ctx, { buffer: ir });
     const out = new GainNode(this.ctx, { gain: 0 });
-    conv.connect(out).connect(this.master);
+    conv.connect(out).connect(this.muffleFilter);
     return { conv, out, connected: false };
   }
 
@@ -523,7 +527,7 @@ export class AudioEngine {
     }
   }
 
-  /** Dull the whole mix for `seconds` (taking a hit), then open back up. */
+  /** Dull everything but speech for `seconds` (taking a hit), then open back up. */
   muffle(seconds = 0.4, cutoff = 650): void {
     const f = this.muffleFilter.frequency;
     const now = this.ctx.currentTime;
