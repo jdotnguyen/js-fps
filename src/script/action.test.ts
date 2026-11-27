@@ -1741,6 +1741,29 @@ test('r16-arrival-finale: surveillance reveal, the Juggernaut walks out and roar
   });
   g.host.events.on('transit:juggernaut_act' as never, (p: unknown) => void acts.push((p as { sequence: string }).sequence));
   g.host.events.on('story:cliffhanger' as never, () => void (cliffhanger = true));
+  // The north-pillar scare is timed: note when R16b switches, when the body is pulled and Jay speaks, and any magnification.
+  let clock = 0;
+  const update = g.m.update.bind(g.m);
+  g.m.update = (dt: number) => {
+    clock += dt;
+    update(dt);
+  };
+  const beats: Array<{ what: string; at: number; speed?: number }> = [];
+  const zooms: number[] = [];
+  const { setLight, npc, say } = g.host;
+  g.host.setLight = (room, pattern, tint) => {
+    if (room === 'R16b') beats.push({ what: pattern === 'off' ? 'dark' : 'lit', at: clock });
+    return setLight!(room, pattern, tint);
+  };
+  g.host.npc = (action, step) => {
+    if (step['npc'] === 'r16b_corpse_booth_north') beats.push({ what: 'yank', at: clock, speed: step['speed'] as number });
+    return npc!(action, step);
+  };
+  g.host.say = (line, opts) => {
+    if (line === 'r16_jay_02') beats.push({ what: 'warning', at: clock });
+    return say!(line, opts);
+  };
+  g.host.frame = (_at, _duration, _give, _follow, opts) => void (opts?.zoom !== undefined && zooms.push(opts.zoom));
 
   g.host.events.emit('transit:arrived_r16' as never, {} as never);
   assert.equal(g.m.isRunning('r16_arrival_finale'), true);
@@ -1785,13 +1808,27 @@ test('r16-arrival-finale: surveillance reveal, the Juggernaut walks out and roar
   }
   await until(g, () => !g.m.isRunning('r16_arrival_finale'));
 
-  // transit-wing "A body is dragged away before Jay's warning" (fix-r13d-r16-finale): between Okafor's order and Jay's
-  // warning, R16b flashes once while a body is pulled behind the far north-west pillar. The creature is not shown.
+  // transit-wing "A body is yanked away before Jay's warning": between Okafor's order and Jay's warning, R16b flickers
+  // twice and a body is yanked behind the far north-west pillar during the second. The creature is not shown.
   const scare = g.log.slice(g.log.indexOf('say r16_okafor_01'), g.log.indexOf('say r16_jay_02') + 1);
   assert.deepEqual(
     scare.filter((e) => /^(say|light R16|npc npcMoveTo|event transit:juggernaut|event squad:aim)/.test(e)),
-    ['say r16_okafor_01', 'light R16b steady none', 'npc npcMoveTo r16b_corpse_booth_north', 'light R16b off black', 'say r16_jay_02'],
+    ['say r16_okafor_01', 'light R16b steady none', 'light R16b off black', 'light R16b steady none', 'npc npcMoveTo r16b_corpse_booth_north', 'light R16b off black', 'say r16_jay_02'],
   );
+  const first = beats.findIndex((b) => b.what === 'yank') - 3;
+  const [on1, off1, on2, yank, off2, warning] = beats.slice(first, first + 6);
+  assert.deepEqual([on1, off1, on2, yank, off2, warning].map((b) => b?.what), ['lit', 'dark', 'lit', 'yank', 'dark', 'warning']);
+  const near = (seconds: number, want: number, what: string): void => assert.ok(Math.abs(seconds - want) <= 0.05, `${what}: ${seconds.toFixed(2)} s`);
+  near(off1!.at - on1!.at, 0.3, 'first flicker');
+  near(on2!.at - off1!.at, 0.15, 'dark between');
+  near(off2!.at - on2!.at, 0.3, 'second flicker');
+  const r16b = level.rooms.find((r: any) => r.id === 'R16b');
+  const from = r16b.npcs.find((n: any) => n.id === 'r16b_corpse_booth_north').at;
+  const to = r16b.anchors.find((a: any) => a.id === 'r16_body_drag_to').pos;
+  const gone = yank!.at + Math.hypot(to[0] - from[0], to[2] - from[2]) / yank!.speed!;
+  assert.ok(yank!.at > on2!.at && gone <= off2!.at, 'the body is seen still, then yanked out of sight before the dark');
+  assert.ok(warning!.at - yank!.at <= 0.35, 'Jay calls it out at once');
+  assert.deepEqual(zooms, [2], 'the pillar is the only magnified shot');
 
   // Dialogue lines across PA, cabin banter, and radio-filtered surveillance.
   for (const id of ['r16_pa_02', 'r16_jay_01', 'r16_giles_01', 'r16_okafor_01', 'r16_jay_02', 'r16_giles_02', 'r16_okafor_02', 'r16_giles_03', 'r16_okafor_03', 'r16_giles_04', 'r16_giles_05', 'r16_okafor_04']) {

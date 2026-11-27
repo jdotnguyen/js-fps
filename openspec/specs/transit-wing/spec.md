@@ -318,7 +318,11 @@ The debug launcher SHALL support jumping directly to the departure train and tri
 - **THEN** its six overhead main lights run `flicker` and `failing` patterns (with hero shadow casters casting pillar shadows across the blood-soaked floor), and no `transit_rotating_beacon` props or red beacon lights are present in `R16b`
 
 ### Requirement: Arrival Track Dock clean industrial finish, signage, and platform dressing
-`R16a` ("Arrival Track Dock") SHALL preserve the clean `transit` area palette on its base walls, floor, and ceiling while adding overhead gantry framing and hung service pipe runs, an illuminated arrival status board, `R16A` room signage, directional concourse wayfinding (`ARRIVAL CONCOURSE`), track-side conduit/rail signals, and purposeful platform prop clusters (seating, luggage/cargo, utility cabinets) tucked along the north and south platform margins. Placed architecture and props SHALL preserve the full `12 m` open west stair seam and keep an unobstructed central exit path (`>= 1.2 m` clear width) from the train boarding gap (`z = 35`) across the platform and up the west stairs into `R16b`.
+`R16a` ("Arrival Track Dock") SHALL preserve the clean `transit` area palette on its base walls, floor, and ceiling while adding overhead gantry framing and hung service pipe runs, an illuminated arrival status board, `R16A` room signage, directional concourse wayfinding (`ARRIVAL CONCOURSE`), track-side conduit/rail signals, and purposeful platform prop clusters (seating, luggage/cargo, utility cabinets) tucked along the north and south platform margins. Placed architecture and props SHALL preserve the full `12 m` open west stair seam and keep an unobstructed central exit path (`>= 1.2 m` clear width) from the train boarding gap (`z = 35`) across the platform and up the west stairs into `R16b`. The arrival status board SHALL hang low enough that no overhead pipe run crosses its face as seen from Train Car B.
+
+#### Scenario: Reading the arrival board from the train
+- **WHEN** Jay looks west at the arrival status board from inside Train Car B
+- **THEN** the board's whole face reads, with no service pipe passing through or across it
 
 #### Scenario: Viewing the dressed Arrival Track Dock from the train doorway
 - **WHEN** Jay steps west out of Train Car B onto the `R16a` platform under full lighting
@@ -540,14 +544,14 @@ When Heins's transmission cuts off, Giles SHALL say `r15a_giles_04` over `r16_pa
 - **WHEN** `r16_pa_01` reaches the pause after "traction power has been lost"
 - **THEN** Giles says they have lost her while the announcement carries on, and the line is not repeated at the arrival
 
-### Requirement: A body is dragged away before Jay's warning
-After `r16_okafor_01` and before `r16_jay_02`, Jay's view SHALL turn to the far north-west pillar of `R16b` with a magnified look, and one flicker SHALL show the fallen body lying beside that pillar, its legs already behind it, dragged slowly the rest of the way out of sight. The concourse SHALL stay lit long enough to follow the drag. The Juggernaut MUST NOT appear before `CAM 10`. No flicker setting may add a second flash.
+### Requirement: A body is yanked away before Jay's warning
+After `r16_okafor_01` and before `r16_jay_02`, Jay's view SHALL turn to the far north-west pillar of `R16b` at `2x` magnification, and two `0.3 s` flickers of `R16b`, `0.15 s` apart, SHALL show the fallen body lying beside that pillar, its legs already behind it. During the second flicker the body SHALL be yanked quickly the rest of the way out of sight, and Jay SHALL give the warning as soon as it goes dark. The Juggernaut MUST NOT appear before `CAM 10`. No flicker setting may add a flash beyond these two.
 
 #### Scenario: Seeing the body pulled away
 - **WHEN** Okafor finishes `r16_okafor_01` inside the cabin
-- **THEN** one flicker shows a body with its legs behind the north-west pillar and the rest in the open, large enough to follow
-- **AND** it slides slowly until none of it is in sight
-- **AND** the concourse is dark again when Jay says something just moved by the north pillar
+- **THEN** the first flicker shows a body lying still with its legs behind the north-west pillar and the rest in the open
+- **AND** the second flicker shows it still for an instant, then yanked until none of it is in sight
+- **AND** Jay says something just moved by the north pillar as the concourse goes dark, within `0.35 s` of the yank starting
 
 #### Scenario: The view returns
 - **WHEN** the shot turns back to the speakers in the cabin

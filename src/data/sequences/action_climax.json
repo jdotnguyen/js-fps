@@ -1452,7 +1452,7 @@
     "do": "playerFrame",
     "target": "anchor:r16_north_pillar_look",
     "duration": 0.5,
-    "zoom": 3
+    "zoom": 2
    },
    {
     "do": "wait",
@@ -1466,18 +1466,38 @@
    },
    {
     "do": "wait",
-    "s": 0.6
+    "s": 0.3
+   },
+   {
+    "do": "lightState",
+    "room": "R16b",
+    "pattern": "off",
+    "tint": "black"
+   },
+   {
+    "do": "wait",
+    "s": 0.15
+   },
+   {
+    "do": "lightState",
+    "room": "R16b",
+    "pattern": "steady",
+    "tint": "none"
+   },
+   {
+    "do": "wait",
+    "s": 0.05
    },
    {
     "do": "npcMoveTo",
     "npc": "r16b_corpse_booth_north",
     "to": "anchor:r16_body_drag_to",
-    "speed": 0.3,
+    "speed": 8,
     "wait": false
    },
    {
     "do": "wait",
-    "s": 3.4
+    "s": 0.25
    },
    {
     "do": "lightState",

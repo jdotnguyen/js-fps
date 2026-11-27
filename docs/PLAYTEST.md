@@ -135,7 +135,7 @@ In the demo corridor (`?level=demo&slot=scratch&physics=off`), walking from z = 
 - Departure Boarding Bay: Giles works the console with Okafor beside him, and you hear both. You can follow or not; the script boards you.
 - Ride: R16 is never lit from here on, except the flickers. The power-loss announcement is heard in full, ending before the train appears at the R16 dock. About 5 s into it, just after it says traction power is lost, Giles says they have lost her, over the announcement.
 - Arrival: the gate sounds and Okafor speaks during the glide ("Lost her" is not repeated), and the finale starts as the train stops, with no long silence.
-- After Okafor orders Jay to stay: the view turns to the far north-west pillar (on the right) and magnifies. One flicker of about 4 s shows the white-coated body beside it, legs already behind the pillar, dragged slowly out of sight. Then dark and Jay's warning, and the magnification releases as the view returns to the cabin. The creature is not seen before CAM 10, and Giles and Okafor do not aim at the concourse.
+- After Okafor orders Jay to stay: the view turns to the far north-west pillar (on the right) and magnifies 2x. Two short flickers: the first shows the white-coated body beside it, legs already behind the pillar; in the second it is yanked out of sight. Jay's warning starts as it goes dark, and the magnification releases as the view returns to the cabin. The creature is not seen before CAM 10, and Giles and Okafor do not aim at the concourse.
 - Title card "THALASSA", then the CAM 04 medbay stinger, "End of slice" and back to the title.
 
 **Transit ride and the R16a arrival** (`jump=transit_ride`, `jump=r16`; openspec `r16a-perpendicular-train-arrival`)

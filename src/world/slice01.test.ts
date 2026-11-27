@@ -1288,8 +1288,8 @@ test('Okafor’s console spot is beside Giles, facing him, standable and clear o
   }
 });
 
-// transit-wing "A body is dragged away before Jay's warning" (fix-r13d-r16-finale): it lies beside the far north-west
-// pillar with its legs already behind it as seen from Car B, and is dragged the rest of the way out of sight.
+// transit-wing "A body is yanked away before Jay's warning": it lies beside the far north-west pillar with its legs
+// already behind it as seen from Car B, and is pulled the rest of the way out of sight.
 test('the dragged body starts partly behind the far north-west pillar and ends wholly out of sight', () => {
   const { level } = build();
   const r16b = data.rooms.find((room) => room.id === 'R16b')!;
@@ -1310,7 +1310,6 @@ test('the dragged body starts partly behind the far north-west pillar and ends w
   assert.ok(part(body.pos, 0).includes(northWest), 'its legs start behind the pillar');
   assert.deepEqual(part(body.pos, 1.6), [], 'its head and shoulders start in sight');
   for (const m of [0, 1, 1.85]) assert.ok(part(end, m).length > 0, `nothing is left in sight ${m} m up the body`);
-  assert.ok(length / 0.3 > 3.4, 'the drag is slow enough to follow for as long as the light lasts');
   assert.ok(end.x < northWest.x, 'it ends beyond the pillar');
   const look = level.anchor('r16_north_pillar_look')!.pos;
   assert.ok(Math.hypot(look.x - northWest.x, look.z - northWest.z) < 1.5, 'Jay turns to that pillar');
