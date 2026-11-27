@@ -1,6 +1,7 @@
 node_modules
 dist
 dist-play
+.playwright-mcp/
 .DS_Store
 .env
 .env.*
