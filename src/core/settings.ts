@@ -40,6 +40,12 @@ export interface Settings {
   skipAssist: boolean;
   /** Tutorial pop-ups: first time only (per profile), always, or off (ADR-0025). */
   tutorialPrompts: TutorialMode;
+  /** The visor HUD's strength, 0.4..1 (visor-hud spec "HUD settings"). */
+  hudOpacity: number;
+  /** The visor HUD's size, 0.75..1.5. */
+  hudScale: number;
+  /** The panels dim when nothing is happening. */
+  calmHud: boolean;
   /** Physics feature switches; a `?physics=` URL flag overrides them for one session (`physics/switches.ts`). */
   physics: PhysicsSwitches;
 }
@@ -61,10 +67,20 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   skipHoldSeconds: 3,
   skipAssist: false,
   tutorialPrompts: 'first',
+  hudOpacity: 0.85,
+  hudScale: 1,
+  calmHud: true,
   physics: PHYSICS_DEFAULT,
 });
 
 const STORAGE_KEY = 'js-fps:settings:v1';
+
+/** Numbers that only count inside their range; a stored value outside it falls back to the default. */
+export const SETTING_RANGES = {
+  skipHoldSeconds: [1.5, 6],
+  hudOpacity: [0.4, 1],
+  hudScale: [0.75, 1.5],
+} as const;
 
 /**
  * Keep stored values only when they have the same type as the default
@@ -83,7 +99,8 @@ export function mergeSettings(stored: unknown): Settings {
     if (key === 'tutorialPrompts' && !(TUTORIAL_MODES as readonly unknown[]).includes(v)) continue;
     if (typeof v === 'number' && !Number.isFinite(v)) continue;
     if (key.endsWith('Volume') && ((v as number) < 0 || (v as number) > 1)) continue;
-    if (key === 'skipHoldSeconds' && ((v as number) < 1.5 || (v as number) > 6)) continue;
+    const range = (SETTING_RANGES as Partial<Record<keyof Settings, readonly [number, number]>>)[key];
+    if (range && ((v as number) < range[0] || (v as number) > range[1])) continue;
     (out as unknown as Record<string, unknown>)[key] = v;
   }
   out.physics = mergePhysicsSwitches(src['physicsRevision'] === PHYSICS_REVISION ? src['physics'] : undefined);

@@ -3,6 +3,7 @@ import './ui/styles/menu.css';
 import './ui/styles/hud.css';
 import './ui/styles/tutorial.css';
 import './ui/styles/map.css';
+import './ui/styles/visor.css';
 import { bootApp } from './app/shell.ts';
 
 void bootApp();

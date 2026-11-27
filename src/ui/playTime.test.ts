@@ -22,10 +22,11 @@ function element(): FakeEl {
     dataset: {},
     style: { setProperty: () => {} },
     children: [],
-    classList: { toggle: () => {} },
+    classList: { toggle: () => {}, add: () => {}, remove: () => {} },
     append: (...c: FakeEl[]) => void e.children.push(...c),
     replaceChildren: (...c: FakeEl[]) => void (e.children = c),
     setAttribute: () => {},
+    before: () => {},
     remove: () => {},
   };
   return e;
@@ -74,7 +75,8 @@ test('an access hint keeps its remaining time through a pause, and hiding the HU
   const root = element();
   const hud = new PlayerHud(root as unknown as HTMLElement, element() as unknown as HTMLElement, 'KeyE', timers);
   const hint = root.children.find((c) => c['className'] === 'access-hint')!;
-  const player = { grabProgress: null, vitals: { hp: 100 }, stamina: 1, isExhausted: false, downed: false, alive: true } as unknown as Player;
+  const vitals = { hp: 100, state: 'alive', bleed: 0, revivesLeft: 1 };
+  const player = { grabProgress: null, vitals, stamina: 1, isExhausted: false, sprinting: false, downed: false, alive: true } as unknown as Player;
   const frame = (): void => hud.update(player, { focus: null } as unknown as Interactions);
   hud.showHint({ key: 'k', text: 'Locked', parts: [{ text: 'Locked' }] }, 4);
   play(3);

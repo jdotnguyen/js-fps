@@ -1,0 +1,255 @@
+/*
+ * The visor projection (visor-hud): health, stamina and ammo as light on curved glass. `.visor-root` sits beside #ui,
+ * not inside it: #ui is its own stacking context, so a blend from inside it never reaches the 3D scene.
+ * Sizes are in em of the root's font size, so HUD scale resizes the panels and the rim together.
+ */
+.visor-root {
+  --visor-warn: #ffc95c;
+  --visor-bad: #ff6a5c;
+  --visor-stamina: #8fd8ff;
+  font-family: var(--mono);
+  font-size: calc(16px * var(--hud-scale, 1));
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: var(--visor);
+  pointer-events: none;
+}
+.visor-root[hidden], .visor-root [hidden] { display: none !important; }
+body:has(.cine.on) .visor-root { display: none; }
+/* A load plays its first frames behind the loading screen; showing the visor afterwards starts its boot-up there and then. */
+body:has(#loading-screen:not([hidden])) .visor-root { display: none; }
+
+/* Normal blend: a screen blend cannot darken, and this has to. */
+.visor-shade {
+  position: fixed;
+  bottom: -5em;
+  width: 34em;
+  height: 20em;
+  background: radial-gradient(closest-side, rgb(1 4 6 / 0.62), rgb(1 4 6 / 0.4) 50%, transparent);
+  opacity: var(--hud-opacity, 0.85);
+}
+.visor-shade.bio { left: -6em; }
+.visor-shade.ammo { right: -6em; }
+
+.visor {
+  position: fixed;
+  inset: 0;
+  perspective: 1100px;
+  mix-blend-mode: screen;
+  opacity: var(--hud-opacity, 0.85);
+}
+
+/* Rim: faint, and the only thing framing the view. */
+.visor-rim { position: absolute; inset: 0; opacity: 0.34; }
+.visor-bracket {
+  position: absolute;
+  width: 2.125em;
+  height: 2.125em;
+  border: 0 solid var(--visor);
+}
+.visor-bracket.tl { top: 1.125em; left: 1.125em; border-width: 1.5px 0 0 1.5px; }
+.visor-bracket.tr { top: 1.125em; right: 1.125em; border-width: 1.5px 1.5px 0 0; }
+.visor-bracket.bl { bottom: 1.125em; left: 1.125em; border-width: 0 0 1.5px 1.5px; }
+.visor-bracket.br { bottom: 1.125em; right: 1.125em; border-width: 0 1.5px 1.5px 0; }
+.visor-arc {
+  position: absolute;
+  top: 18%;
+  width: 1.5em;
+  height: 64%;
+  overflow: visible;
+  fill: none;
+  stroke: var(--visor);
+  stroke-width: 1.2;
+  opacity: 0.7;
+}
+.visor-arc.left { left: 0.75em; }
+.visor-arc.right { right: 0.75em; }
+
+/* Panels: tilted toward the screen centre about their outer edge. */
+.visor-panel {
+  position: absolute;
+  bottom: 2.875em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  /* Light with a slight colour fringe and a soft glow, both inherited by the text. */
+  text-shadow:
+    -1px 0 rgb(0 225 255 / 0.4),
+    1px 0 rgb(255 60 60 / 0.32),
+    0 0 0.5em rgb(150 215 240 / 0.55);
+}
+.visor-panel::after {
+  content: '';
+  position: absolute;
+  inset: -1em -1.5em;
+  background: repeating-linear-gradient(0deg, rgb(207 232 240 / 0.06) 0 1px, transparent 1px 3px);
+  mask-image: radial-gradient(closest-side, #000 55%, transparent);
+}
+.visor-bio { left: 3.25em; width: 20em; transform: rotateY(14deg); transform-origin: 0 50%; }
+.visor-ammo { right: 3.25em; width: 17em; align-items: flex-end; transform: rotateY(-14deg); transform-origin: 100% 50%; }
+
+.visor-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 0.75em; }
+.visor-bio .visor-head { border-bottom: 1px solid rgb(207 232 240 / 0.35); padding-bottom: 0.375em; }
+.visor-title { font-size: 0.75em; letter-spacing: 0.24em; opacity: 0.8; }
+
+/* Biomonitor */
+.visor-rate { display: flex; align-items: baseline; gap: 0.375em; }
+.visor-heart { width: 0.875em; height: 0.75em; align-self: center; overflow: visible; fill: currentColor; filter: drop-shadow(0 0 3px currentColor); }
+.visor-bpm { font-size: 1.25em; min-width: 2em; text-align: right; }
+.visor-unit { font-size: 0.75em; opacity: 0.75; }
+/* The trace stops where the bar does, which leaves the number's column to the heal figure. */
+.visor-ecg { display: block; width: calc(100% - 4.25em); height: 2.5em; overflow: visible; filter: drop-shadow(0 0 3px rgb(150 215 240 / 0.8)); }
+.visor-ecg stop { stop-color: var(--visor); }
+.visor-ecg-line { fill: none; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+
+.visor-health { position: relative; display: grid; grid-template-columns: 1fr 3.5em; align-items: center; gap: 0.75em; }
+.visor-segs { display: flex; gap: 0.3125em; height: 1em; margin-left: 0.25em; transform: skewX(-20deg); }
+.visor-seg { position: relative; flex: 1; background: rgb(207 232 240 / 0.07); box-shadow: inset 0 0 0 1px rgb(207 232 240 / 0.5); }
+.visor-fill, .visor-chip { position: absolute; inset: 0; transform-origin: 0 50%; }
+.visor-fill { background: linear-gradient(180deg, #effcff, #9fd6e6); box-shadow: 0 0 0.5em rgb(150 215 240 / 0.55); }
+.visor-chip { background: rgb(255 228 214 / 0.58); }
+.visor-hp { font-size: 1.75em; text-align: right; }
+.visor-health .visor-delta { position: absolute; right: 0; bottom: 100%; }
+.visor-delta { font-size: 1.125em; color: #b9ffd9; }
+
+.visor-stamina { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0.625em; margin-right: 4.25em; color: var(--visor-stamina); transition: opacity 0.4s; }
+/* Faded rather than removed, so nothing above it moves when it comes and goes. */
+.visor-stamina.full { opacity: 0; }
+.visor-stamina-label { font-size: 0.75em; }
+.visor-stamina-track { height: 0.3125em; background: rgb(207 232 240 / 0.14); transform: skewX(-20deg); }
+.visor-stamina-fill { height: 100%; background: currentColor; transform-origin: 0 50%; }
+.visor-stamina.spent { color: var(--visor-warn); }
+
+/* At or below the low-health threshold the trace and the bar take the warning colour. */
+.visor-bio.low .visor-rate, .visor-bio.low .visor-hp, .visor-bio.low .visor-ecg { color: var(--visor-bad); }
+.visor-bio.low .visor-ecg stop { stop-color: var(--visor-bad); }
+.visor-bio.low .visor-ecg { filter: drop-shadow(0 0 3px var(--visor-bad)); }
+.visor-bio.low .visor-fill { background: linear-gradient(180deg, #ff9a8c, #ff4a3a); box-shadow: 0 0 0.5em rgb(255 74 58 / 0.7); }
+.visor-bio.low .visor-seg { box-shadow: inset 0 0 0 1px rgb(255 106 92 / 0.65); }
+
+/* Downed: the countdown takes the bar's place. */
+.visor-downed { display: grid; gap: 0.375em; color: var(--visor-bad); }
+.visor-bleed { display: flex; justify-content: space-between; align-items: baseline; }
+.visor-bleed-label { font-size: 1em; letter-spacing: 0.18em; }
+.visor-bleed-num { font-size: 2.5em; }
+.visor-downed-note { font-size: 0.875em; color: var(--visor); }
+.visor-revives { font-size: 0.75em; opacity: 0.85; }
+.visor-bio.downed .visor-health, .visor-bio.downed .visor-stamina { display: none; }
+
+/* Weapon panel */
+.visor-ammo .visor-head { align-self: stretch; justify-content: flex-end; border-bottom: 1px solid rgb(207 232 240 / 0.35); padding-bottom: 0.375em; }
+.visor-silhouette {
+  width: 4.5em;
+  height: 2.1875em;
+  overflow: visible;
+  fill: none;
+  stroke: var(--visor);
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 3px rgb(150 215 240 / 0.8));
+}
+.visor-ammo.shotgun .visor-silhouette { width: 9.5em; height: 2em; }
+.visor-pips { display: flex; justify-content: flex-end; align-items: flex-end; gap: 0.3125em; height: 1.875em; }
+.visor-pip { width: 0.5em; height: 1.375em; overflow: visible; fill: rgb(207 232 240 / 0.05); stroke: rgb(207 232 240 / 0.45); stroke-width: 1; }
+.visor-ammo.shotgun .visor-pips { gap: 0.625em; }
+.visor-ammo.shotgun .visor-pip { width: 0.875em; height: 1.875em; }
+.visor-pip.full { fill: #d9f4fb; stroke: #effcff; filter: drop-shadow(0 0 2px rgb(150 215 240 / 0.8)); }
+
+.visor-counts { align-self: stretch; display: flex; justify-content: flex-end; align-items: baseline; gap: 0.625em; }
+.visor-alert { margin-right: auto; align-self: center; font-size: 0.875em; white-space: nowrap; color: var(--visor-bad); }
+.visor-loaded { font-size: 3.5em; }
+.visor-spare { position: relative; }
+.visor-spare .visor-delta { position: absolute; right: 0; bottom: 100%; margin-bottom: 0.25em; }
+.visor-reserve { font-size: 1.375em; opacity: 0.85; }
+
+.visor-ammo.low .visor-loaded { color: var(--visor-warn); }
+.visor-ammo.low .visor-pip.full { fill: var(--visor-warn); stroke: var(--visor-warn); }
+.visor-ammo.empty .visor-loaded { color: var(--visor-bad); }
+.visor-ammo.empty .visor-pip { stroke: var(--visor-bad); fill: rgb(255 106 92 / 0.14); }
+
+/* Rounds going back in look like rounds, whatever the count says until the reload ends. */
+.visor-ammo.reloading .visor-pip.full { fill: #d9f4fb; stroke: #effcff; }
+.visor-ammo.reloading .visor-pip:not(.full) { fill: rgb(207 232 240 / 0.05); stroke: rgb(207 232 240 / 0.45); }
+
+/*
+ * Effects. Each class is put on again to replay it. Rows move with `translate`, which leaves their own transforms be.
+ * One-off effects are listed in rising priority: a tear overrides a swap, and the boot-up overrides both.
+ */
+
+/* A shot blinks its pip out; a seated shell drops into place. */
+.visor-pip .flash { fill: #fff; stroke: none; opacity: 0; }
+.visor-pip.blink .flash { animation: visor-pip-out 0.12s ease-out; }
+.visor-pip.seat .flash { animation: visor-pip-seat 0.22s ease-out; }
+@keyframes visor-pip-out { from { opacity: 1; translate: 0 -3px; } to { opacity: 0; translate: 0 -3px; } }
+@keyframes visor-pip-seat { from { opacity: 1; translate: 0 6px; } to { opacity: 0; translate: 0 0; } }
+
+/* Dry fire: the empty row flashes. */
+.visor-pips.dry { animation: visor-dry 0.5s steps(1); }
+.reduced-flashing .visor-pips.dry { animation: visor-dim 0.5s ease-in-out; }
+@keyframes visor-dry { 0%, 50% { opacity: 1; } 25%, 75% { opacity: 0.2; } }
+@keyframes visor-dim { 50% { opacity: 0.55; } }
+
+/* A heal or a pickup: the figure rises and fades. */
+.visor-delta.rise { animation: visor-rise 1.4s ease-out forwards; }
+.reduced-motion .visor-delta.rise { animation-name: visor-linger; }
+@keyframes visor-rise { 0% { opacity: 0; translate: 0 0; } 12%, 70% { opacity: 1; } 100% { opacity: 0; translate: 0 -1.1em; } }
+@keyframes visor-linger { 0% { opacity: 0; } 12%, 70% { opacity: 1; } 100% { opacity: 0; } }
+
+/* Weapon swap: the panel glitches over to the other weapon. */
+.visor-ammo.swap > * { animation: visor-glitch 0.24s steps(1); }
+.reduced-motion .visor-ammo.swap > * { animation-name: visor-blip; }
+.reduced-flashing .visor-ammo.swap > * { animation: visor-fade-in 0.24s ease-out; }
+@keyframes visor-glitch {
+  0% { opacity: 0.15; translate: 10px 0; }
+  25% { opacity: 1; translate: -6px 0; }
+  50% { opacity: 0.4; translate: 3px 0; }
+  75% { opacity: 1; translate: 0 0; }
+}
+@keyframes visor-blip { 0%, 50% { opacity: 0.2; } 25%, 75% { opacity: 1; } }
+@keyframes visor-fade-in { from { opacity: 0; } }
+
+/* A hit tears the signal: the upper and lower rows slide opposite ways, `--tear` far, with a wider colour fringe. */
+.visor-panel.tear { animation: visor-fringe 0.2s steps(1); }
+.visor-panel.tear > * { animation: visor-tear-low 0.2s steps(1); }
+.visor-panel.tear > :nth-child(-n + 2) { animation-name: visor-tear-high; }
+.reduced-flashing .visor-panel.tear > * { animation-name: visor-shift-low; }
+.reduced-flashing .visor-panel.tear > :nth-child(-n + 2) { animation-name: visor-shift-high; }
+@keyframes visor-fringe {
+  from, to { text-shadow: -3px 0 rgb(0 225 255 / 0.75), 3px 0 rgb(255 60 60 / 0.65), 0 0 0.5em rgb(150 215 240 / 0.55); }
+}
+@keyframes visor-tear-high { 0%, 55% { translate: var(--tear) 0; } 30% { translate: calc(var(--tear) * -0.4) 0; } 75% { translate: 0 0; } }
+@keyframes visor-tear-low { 0%, 55% { translate: calc(var(--tear) * -1) 0; } 30% { translate: calc(var(--tear) * 0.4) 0; } 75% { translate: 0 0; } }
+@keyframes visor-shift-high { from, to { translate: var(--tear) 0; } }
+@keyframes visor-shift-low { from, to { translate: calc(var(--tear) * -1) 0; } }
+
+/* Calm mode: quiet panels dim slowly and wake at once. The rim keeps its own faint level. */
+.visor-panel { transition: opacity 0.12s ease-out; }
+.visor-root.calm .visor-panel { opacity: 0.35; transition: opacity 1s ease-in-out; }
+
+/* Boot-up: the rim, then the panel frames, then their readouts. Each keyframe set ends on the element's own opacity. */
+.visor-root.booting:not(.reduced-flashing) .visor-rim { animation: visor-flicker 0.25s both; }
+.visor-root.booting:not(.reduced-flashing) :is(.visor-shade, .visor-head) { animation: visor-flicker 0.25s 0.25s both; }
+.visor-root.booting:not(.reduced-flashing) .visor-ecg { animation: visor-flicker 0.3s 0.5s both; }
+.visor-root.booting:not(.reduced-flashing) :is(.visor-health, .visor-downed, .visor-pips) { animation: visor-flicker 0.3s 0.65s both; }
+.visor-root.booting:not(.reduced-flashing) :is(.visor-stamina:not(.full), .visor-counts) { animation: visor-flicker 0.3s 0.85s both; }
+.visor-root.booting.reduced-flashing :is(.visor, .visor-shade) { animation: visor-fade-in 0.4s ease-out both; }
+@keyframes visor-flicker { 0% { opacity: 0; } 25% { opacity: 0.7; } 40% { opacity: 0.1; } 65% { opacity: 1; } 80% { opacity: 0.45; } }
+
+/*
+ * The subtitles keep to the gap between the panels. They are centred, so the wider panel, the biomonitor, sets the room
+ * on both sides: twice its inset and width (46.5rem, or 38.5rem when slimmed), and a little air.
+ */
+body:has(.visor-root:not([hidden])):not(:has(.cine.on)) .subtitles {
+  max-width: min(46rem, max(18rem, 100vw - 48rem * var(--hud-scale, 1)));
+}
+/* Narrow screens: slimmer panels at the same text size. */
+@media (max-width: 1500px) {
+  .visor-bio { width: 16em; }
+  .visor-ammo { width: 15.5em; }
+  body:has(.visor-root:not([hidden])):not(:has(.cine.on)) .subtitles {
+    max-width: min(46rem, max(18rem, 100vw - 40rem * var(--hud-scale, 1)));
+  }
+}

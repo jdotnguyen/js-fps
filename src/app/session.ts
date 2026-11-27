@@ -89,7 +89,7 @@ import { CollisionWorld } from '../world/collision.ts';
 import { Game } from '../game/game.ts';
 import { pauseWhenHidden, SceneFreeze } from '../game/sceneFreeze.ts';
 import { SceneTimers } from '../core/sceneTimers.ts';
-import { CutsceneController } from '../game/cutscene.ts';
+import { CutsceneController, INTRO_SEQUENCE } from '../game/cutscene.ts';
 import { CutsceneUi } from '../ui/hud/cutsceneUi.ts';
 import { TitleCard } from '../ui/titleCard.ts';
 import { Interactions } from '../actors/interaction.ts';
@@ -774,6 +774,13 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     // Delays counted in play time: stepped by the fixed loop, so a frozen scene holds them (game-pause).
     const sceneTimers = new SceneTimers();
     const hud = new PlayerHud(uiRoot, el<HTMLElement>('#interact'), keymap.interact[0] ?? 'KeyE', sceneTimers);
+    hud.connect({ events, camera, settings, reloadKey: keyLabel(keymap.reload[0] ?? 'KeyR') });
+    cleanups.push(() => hud.dispose());
+    // The visor boots up when play starts: after the opening, a load or a checkpoint restore (visor-hud D11).
+    events.on('sequence:ended', ({ id, cancelled }) => {
+      if (id === INTRO_SEQUENCE && !cancelled) hud.boot();
+    });
+    events.on('game:restarted', () => hud.boot());
     cutscene = new CutsceneController({
       sequences: () => sequences,
       input,
@@ -1136,8 +1143,9 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
     });
     if (waterSystem) waterSystem.hideFromReflection = () => viewmodel!.group.children.filter((c) => !(c instanceof THREE.Light));
     hud.setAmmoSource(() => {
+      if (!sidearmUp()) return null;
       const id = viewmodel!.weapon;
-      return { name: id, ...viewmodel!.ammoOf(id), mag: viewmodel!.magSize(id) };
+      return { name: id, ...viewmodel!.ammoOf(id), mag: viewmodel!.magSize(id), reloading: viewmodel!.reloading };
     });
 
     // Dialogue & voice player (throttled background VO decoding starts after pre-warm).

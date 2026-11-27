@@ -60,3 +60,12 @@ test('eye adaptation defaults on, and settings saved before it existed load with
   assert.equal(mergeSettings({ eyeAdaptation: false }).eyeAdaptation, false);
   assert.equal(mergeSettings({ eyeAdaptation: 'off' }).eyeAdaptation, true, 'a wrong type falls back to on');
 });
+
+test('HUD settings default for a save from before them, and stay inside their ranges (visor-hud D10)', () => {
+  const old = mergeSettings({ fov: 90, filmGrain: false });
+  assert.deepEqual([old.hudOpacity, old.hudScale, old.calmHud], [0.85, 1, true]);
+  const kept = mergeSettings({ hudOpacity: 0.4, hudScale: 1.25, calmHud: false });
+  assert.deepEqual([kept.hudOpacity, kept.hudScale, kept.calmHud], [0.4, 1.25, false]);
+  const bad = mergeSettings({ hudOpacity: 0, hudScale: 4, calmHud: 'no' });
+  assert.deepEqual([bad.hudOpacity, bad.hudScale, bad.calmHud], [0.85, 1, true]);
+});

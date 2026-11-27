@@ -269,6 +269,7 @@ export class Game {
     const { player, world } = this.d;
     this.d.cutscene.update(dt);
     player.update(dt);
+    this.d.hud.tick(dt);
     this.feet.set(player.body.x, player.body.y, player.body.z);
     for (const cp of world.checkpoints) {
       if (!this.flags[`cp:${cp.id}`] && player.alive && cp.reached(this.feet)) this.reachCheckpoint(cp.id, cp.label);
@@ -302,7 +303,7 @@ export class Game {
       }
       player.look(frameDt);
       player.applyCamera(frameDt);
-      hud.update(player, interactions);
+      hud.update(player, interactions, frameDt);
     } else {
       this.d.input.consumeLook();
       hud.hide();

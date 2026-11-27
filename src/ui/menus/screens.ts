@@ -1,5 +1,5 @@
 import type { EventBus } from '../../core/events.ts';
-import { TUTORIAL_MODES, type Settings, type SettingsStore } from '../../core/settings.ts';
+import { SETTING_RANGES, TUTORIAL_MODES, type Settings, type SettingsStore } from '../../core/settings.ts';
 import { DIFFICULTY_IDS, type DifficultyId, type DifficultyTable } from '../../data/types/difficulty.ts';
 import { formatPlayTime, type SaveData, type SaveEntry, type SaveStore, type SlotSummary } from '../../game/save.ts';
 import { button, h } from '../dom.ts';
@@ -212,6 +212,10 @@ export function createMenus(root: HTMLElement, deps: MenuDeps): Menu {
       quality(),
       toggle('Film grain', 'filmGrain'),
       toggle('Eye adaptation', 'eyeAdaptation', 'Exposure adjusts slowly when you move between dark and bright rooms.'),
+      h('h2', { text: 'HUD' }),
+      range('HUD opacity', 'hudOpacity', ...SETTING_RANGES.hudOpacity, 0.05, (v) => `${Math.round(v * 100)}%`),
+      range('HUD scale', 'hudScale', ...SETTING_RANGES.hudScale, 0.05, (v) => `${Math.round(v * 100)}%`),
+      toggle('Calm HUD', 'calmHud', 'The panels dim when nothing is happening.'),
       h('h2', { text: 'Audio' }),
       range('Master volume', 'masterVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)}%`),
       range('Music volume', 'musicVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)}%`),

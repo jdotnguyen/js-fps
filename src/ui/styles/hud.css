@@ -43,22 +43,6 @@
   stroke-linejoin: round;
 }
 
-.player-status {
-  position: absolute;
-  left: 50%;
-  bottom: 18%;
-  transform: translateX(-50%);
-  padding: 0.4rem 0.9rem;
-  font-family: var(--mono, ui-monospace, monospace);
-  font-size: 0.9rem;
-  letter-spacing: 0.1em;
-  color: #ff8a80;
-  background: rgb(20 4 4 / 0.55);
-  border: 1px solid rgb(255 59 47 / 0.5);
-  pointer-events: none;
-}
-.player-status[hidden] { display: none; }
-
 .screen-fade {
   position: fixed;
   inset: 0;
@@ -164,54 +148,6 @@
 #crosshair.suppressed .crosshair-dot {
   opacity: 0.45;
 }
-
-/* Vitals (bottom-left) and ammo (bottom-right): no panel, slanted, 65% opacity. Numbers always shown, so colour is never the only cue. */
-.hud-vitals, .hud-ammo {
-  position: absolute;
-  bottom: 2.2rem;
-  opacity: 0.65;
-  font-family: var(--mono, ui-monospace, monospace);
-  font-style: italic;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--visor);
-  text-shadow: 0 0 4px rgb(0 0 0 / 0.8);
-}
-.hud-vitals { left: 2.4rem; display: grid; gap: 0.55rem; width: 22rem; }
-.hud-vitals[hidden], .hud-ammo[hidden] { display: none; }
-.hud-row { display: grid; grid-template-columns: 2.8rem 1fr 3.4rem; align-items: center; gap: 0.7rem; font-size: 1rem; }
-.hud-label { opacity: 0.85; }
-.hud-num { text-align: right; font-size: 1.5rem; line-height: 1; }
-/* Both bars share one size and slant; the track and fill skew together. */
-.hud-bar {
-  height: 18px;
-  transform: skewX(-22deg);
-  border: 2px solid rgb(207 232 240 / 0.8);
-  background: rgb(0 0 0 / 0.35);
-  box-shadow: 0 0 6px rgb(0 0 0 / 0.6);
-}
-.hud-fill { height: 100%; width: 100%; }
-.hud-fill.hp { background: #39ff9e; transition: width 0.15s; }
-.hud-fill.sta { background: #7fd4ff; }
-.hud-vitals.low .hud-fill.hp { background: var(--danger); animation: hud-pulse 0.9s ease-in-out infinite; }
-.hud-vitals.low .hud-num { color: #ff8a80; }
-.hud-row.stamina { transition: opacity 0.4s; }
-.hud-row.stamina.full { opacity: 0.3; }
-.hud-row.stamina.spent .hud-fill.sta { background: #ffc95c; }
-.hud-row.stamina.spent .hud-label { color: #ffc95c; }
-
-.hud-ammo { right: 2.4rem; display: grid; gap: 0.1rem; justify-items: end; }
-.hud-ammo-name { font-size: 0.95rem; letter-spacing: 0.18em; opacity: 0.85; }
-.hud-ammo-counts { display: flex; align-items: baseline; gap: 0.7rem; }
-.hud-ammo-loaded { font-size: 4rem; line-height: 0.9; }
-.hud-ammo-reserve { font-size: 1.6rem; opacity: 0.85; }
-.hud-ammo.low .hud-ammo-loaded { color: #ffc95c; }
-.hud-ammo.empty .hud-ammo-loaded { color: #ff8a80; animation: hud-pulse 0.9s ease-in-out infinite; }
-@keyframes hud-pulse { 50% { opacity: 0.55; } }
-@media (prefers-reduced-motion: reduce) {
-  .hud-vitals.low .hud-fill.hp, .hud-ammo.empty .hud-ammo-loaded { animation: none; }
-}
-#ui:has(.cine.on) .hud-vitals, #ui:has(.cine.on) .hud-ammo { display: none; }
 
 /* Minimal N/E/S/W top compass with objective markers and distance (hud-wayfinding spec). */
 .compass-hud {

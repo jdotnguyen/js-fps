@@ -195,6 +195,18 @@ Wear headphones; `?level=slice01&debug&slot=scratch&jump=r05`. Take swipes from 
 - At full health a hit flashes red towards its side and the frame keeps its colour. Below 30 it desaturates and pulses, with a heartbeat and Jay's breathing under dialogue; a medkit or going down ends both.
 - The impact is heard first, then Jay: a breath for a nick, a grunt, a cry for a big hit or the one that downs him; one reaction for a flurry, none while held, never a subtitle. The hit dulls the world for a moment; Jay and anyone else speaking stay clear.
 
+## Visor HUD (openspec `visor-hud`)
+
+`?level=slice01&debug&slot=scratch&jump=r05`, plus one New game with `?slot=scratch` for the opening. Check at 1280x720 and full screen.
+
+- The opening: no panels on the title or under the letterbox bars. When the bars go, the rim, then the panel frames, then the readouts come on. No weapon panel until Jay draws the pistol.
+- Fire, reload and dry fire: each shot blinks a pip out; a pistol reload empties the row and refills it over the reload; the shotgun seats shell by shell; an empty trigger flashes the row with `EMPTY · [R]`. Swap weapons: the panel glitches over. Pick up ammo for the held weapon: `+N` rises beside the reserve.
+- Take a hit from each side: that panel jolts and tears, the other barely stirs, a pale chip holds and drains, the heart rate climbs and below 30 the trace turns red and uneven. A medkit fills the bar with `+N`. Sprint: the stamina bar appears, amber once spent. Go down: the countdown and revives sit in the biomonitor; the revive fills the bar.
+- Turn quickly and walk: the panels trail the view by a few pixels. Reduced motion: they stay put. Reduced flashing: the tear is one offset and the boot-up a fade.
+- Stand still at full health and a full magazine: after 6 s the panels dim; a hit, shot, reload, sprint, swap or pickup wakes them. Check the dim numbers still read in a bright room. Settings → HUD: opacity, scale and Calm HUD apply at once and survive a restart.
+- Pause mid-chip and mid-reload, wait, resume: both carry on from where they were. The map, pause menu and title show no visor; the game-over fade covers it. Continue from the title: the visor boots after the loading screen.
+- Nothing overlaps the objective list, toasts or subtitles, at HUD scale 100% and 150%.
+
 ## [Assumed] choices to confirm or change
 Giles opens the armory himself during the rescue; Jay walks slowly with no weapons during Priya's scene; the door to R06 stays locked until the creature has passed overhead; the title text; the whole time budget (about 0.5 min R05, 1.5 min R06, 2.5 min R07, 2 min tunnel, 2.5 min climax, 2 min reveal and stinger); `endSlice` returns to the title.
 
