@@ -124,13 +124,13 @@ and tell the user which change or file is blocking if:
 
 ## 6. The scream jaw (Sonnet 5.5, high)
 
-- [ ] 6.1 Check the gates. Verify: as in 1.1.
-- [ ] 6.2 Add the pure loudness envelope function in `src/audio/` (design D11). Verify: a unit test with a made-up
+- [x] 6.1 Check the gates. Verify: as in 1.1.
+- [x] 6.2 Add the pure loudness envelope function in `src/audio/` (design D11). Verify: a unit test with a made-up
   buffer (tone, gap, tone) gives the expected envelope, attack and release.
-- [ ] 6.3 Drive the jaw from the envelope for a kill victim's `scream` lines in `speechActing.ts`, with the tremble and
+- [x] 6.3 Drive the jaw from the envelope for a kill victim's `scream` lines in `speechActing.ts`, with the tremble and
   the no-recording fallback. Verify: tests for "Peak of the scream" (80% or more), "A breath in the scream" (under 30%
   within 0.1 s) and "No recording". Other speakers' screams are unchanged.
-- [ ] 6.4 Look at the scream in a private `npm run playtest:serve` build. Verify: the user approves, and every browser
+- [x] 6.4 Look at the scream in a private `npm run playtest:serve` build. Verify: the user approves, and every browser
   opened is closed.
 
 ## 7. Sealed observation glass (Sonnet 5.5, high)

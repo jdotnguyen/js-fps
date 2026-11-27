@@ -1,3 +1,4 @@
+import { loudnessAt, type LoudnessEnvelope } from '../audio/loudness.ts';
 import type { Emote } from '../data/types/dialogue.ts';
 import type { JointName } from './skeleton.ts';
 
@@ -92,6 +93,24 @@ export function mouthOpenAt(cues: readonly MouthCue[], t: number): number {
     open = Math.max(open, c.open * (0.5 - 0.5 * Math.cos(2 * Math.PI * p)));
   }
   return open;
+}
+
+// ---------------------------------------------------------------- a kill victim's scream
+
+/**
+ * A screamed jaw's tremble (voss-death-scene D11): nothing up to `above`, growing to `deg` either way at `full` and louder,
+ * at `hz`.
+ */
+export const SCREAM_TREMBLE = { above: 0.7, full: 0.85, hz: 20, deg: 2 } as const;
+
+/**
+ * A screaming kill victim's jaw, degrees open `t` s into the recorded line: the recording's loudness times the scream
+ * style's widest opening, so it all but shuts in the gaps and breaths, and trembles at the loudest.
+ */
+export function screamJawAt(loudness: LoudnessEnvelope, t: number): number {
+  const level = loudnessAt(loudness, t);
+  const shake = Math.min(1, Math.max(0, (level - SCREAM_TREMBLE.above) / (SCREAM_TREMBLE.full - SCREAM_TREMBLE.above)));
+  return ACTING.scream.jaw * level + shake * SCREAM_TREMBLE.deg * Math.sin(2 * Math.PI * SCREAM_TREMBLE.hz * t);
 }
 
 // ---------------------------------------------------------------- gestures

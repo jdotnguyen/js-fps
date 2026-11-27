@@ -4,6 +4,7 @@ import { Rng } from '../core/rng.ts';
 import { Animator, type GaitStyle } from './animator.ts';
 import { planSpeech } from './speechActing.ts';
 import type { Emote } from '../data/types/dialogue.ts';
+import type { LoudnessEnvelope } from '../audio/loudness.ts';
 import { bodyGeometryFromModel } from './bodyModel.ts';
 import { bladeCreatureProfile, type BodyModelLibrary } from './bodyModelLibrary.ts';
 import { buildBodyGeometry, triangleCount, woundCap, type BodyGeometry, type ExtraBone, type ExtraBoneDef, type Look, type Outfit, type PartGeometry } from './bodyGeometry.ts';
@@ -227,7 +228,7 @@ export class Humanoid {
   private infectionLevel: number;
   private transformAnim: { from: number; t: number; dur: number } | null = null;
   /** A scripted kill in progress (infection-kills spec): convulsion eases toward `target` at `rate` per second. */
-  private kill: { target: number; rate: number } | null = null;
+  private kill: { target: number; rate: number; screamJaw: boolean } | null = null;
   /** A kill route carries the body: feet plant and step (setKillFeet). */
   private killFeet = false;
   /** Parts put on world points by a kill's `touch` events, with their weights. */
@@ -443,14 +444,18 @@ export class Humanoid {
 
   /**
    * Act out a spoken line (ADR-0027): the jaw follows the text's syllables for `duration` seconds and the emote picks the
-   * hand and body gestures. Does nothing for the dead and the infected.
+   * hand and body gestures. Does nothing for the dead and the infected. A kill victim whose kill screams with her jaw
+   * (`setKillScreamJaw`) follows a recorded scream's `loudness` with it instead (voss-death-scene D11); without a
+   * recording the line acts as any other.
    */
-  speak(text: string, emote: Emote | null, duration: number, seed = text): void {
+  speak(text: string, emote: Emote | null, duration: number, seed = text, loudness?: LoudnessEnvelope): void {
     if (this.state !== 'alive' || this.infectionLevel >= 1) return;
     const plan = planSpeech(text, emote, duration, seed);
     // A mug in the right hand: gesture with the free left hand (upright-mug-grip D3b).
     if (heldItemFor(this.idlePose) === 'mug') plan.side = 1;
     this.animator.speak(plan);
+    if (this.kill?.screamJaw && emote === 'scream' && loudness) this.animator.screamLine(loudness);
+    else this.animator.endScream();
   }
 
   /** The line ended or was cut off. */
@@ -494,11 +499,16 @@ export class Humanoid {
   /** Hand the body to a scripted kill: no mocap, foot IK, hand contact or idle life fight the authored beats. */
   beginKill(): void {
     this.transformAnim = null;
-    this.kill = { target: 0, rate: 2 };
+    this.kill = { target: 0, rate: 2, screamJaw: false };
   }
 
   get killing(): boolean {
     return this.kill !== null;
+  }
+
+  /** This kill's victim screams with the recording: her jaw follows its loudness (kill style `screamJaw`, D11). */
+  setKillScreamJaw(on: boolean): void {
+    if (this.kill) this.kill.screamJaw = on;
   }
 
   /**
@@ -680,6 +690,7 @@ export class Humanoid {
     this.state = 'dead';
     this.speed = 0;
     this.transformAnim = null;
+    this.animator.endScream();
     this.animator.convulse = 0;
     this.animator.deathTwitch = 0;
     this.idlePose = pose;
@@ -691,6 +702,7 @@ export class Humanoid {
   /** The kill is over (or undone by a reload). */
   endKill(): void {
     this.kill = null;
+    this.animator.endScream();
     this.animator.convulse = 0;
     this.animator.setLayer(null);
     this.animator.lookPace = 1;

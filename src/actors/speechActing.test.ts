@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import { ACTING, FOREARM_UPPER_ARM_MAX, actingFor, gesture, hash01, mouthCues, mouthOpenAt, planSpeech } from './speechActing.ts';
+import { validate } from '../core/validate.ts';
+import { validateKillTable } from '../data/types/kills.ts';
+import { ACTING, FOREARM_UPPER_ARM_MAX, SCREAM_TREMBLE, actingFor, gesture, hash01, mouthCues, mouthOpenAt, planSpeech, screamJawAt } from './speechActing.ts';
+import { loudnessEnvelope } from '../audio/loudness.ts';
 import { EMOTES } from '../data/types/dialogue.ts';
 import { Humanoid } from './humanoid.ts';
 import { ctx } from '../ai/enemyTestKit.ts';
@@ -232,6 +236,113 @@ test('cutting a line off closes the mouth within half a second', () => {
   for (let i = 0; i < 15; i++) h.update(1 / 30);
   assert.ok(bodyRotation(h, 'jaw', jawRest) < 0.02, 'closed');
   h.dispose();
+});
+
+// ---------------------------------------------------------------- a kill victim's scream (voss-death-scene D11)
+
+const RATE = 8000;
+/** The scream style's widest jaw (degrees). */
+const WIDEST = ACTING.scream.jaw;
+
+/** A made-up recorded scream: `[seconds, amplitude]` stretches of a tone. */
+function recording(...parts: Array<[number, number]>) {
+  const out: number[] = [];
+  for (const [s, amp] of parts) for (let i = 0; i < Math.round(s * RATE); i++) out.push(amp * Math.sin((2 * Math.PI * 400 * out.length) / RATE));
+  return loudnessEnvelope(Float32Array.from(out), RATE);
+}
+
+/** Loud, a breath a tenth as loud, loud again, then half as loud. */
+const SCREAM = recording([1, 0.8], [0.4, 0.08], [1, 0.8], [0.8, 0.4]);
+
+const degrees = (from: number, to: number, f: (t: number) => number, step = 1 / 240): number[] =>
+  Array.from({ length: Math.floor((to - from) / step) }, (_, i) => f(from + i * step));
+
+test('infection-kills "Peak of the scream": at its loudest the jaw is at least 80% of its widest and trembles at 20 Hz', () => {
+  const jaw = degrees(0.3, 0.8, (t) => screamJawAt(SCREAM, t));
+  assert.ok(Math.min(...jaw) >= 0.8 * WIDEST, `least ${Math.min(...jaw)} deg of ${WIDEST}`);
+  const around = jaw.map((d) => d - WIDEST);
+  assert.ok(Math.max(...around) > 1.5 && Math.min(...around) < -1.5, 'it shakes both ways');
+  assert.ok(Math.max(...around.map(Math.abs)) <= SCREAM_TREMBLE.deg + 1e-6, 'by no more than 2 deg');
+  const crossings = around.filter((d, i) => i > 0 && d >= 0 !== around[i - 1]! >= 0).length;
+  assert.ok(Math.abs(crossings - 20) <= 1, `${crossings} crossings in 0.5 s is 20 Hz`);
+});
+
+test('infection-kills "A breath in the scream": the jaw is under 30% of its widest within 0.1 s and stays there', () => {
+  // Just under the spec's fifth of the peak, the shallowest breath that counts, and a near-silent one.
+  for (const breath of [0.19, 0.01]) {
+    const env = recording([1, 0.8], [0.4, 0.8 * breath], [1, 0.8]);
+    const jaw = degrees(1.1, 1.39, (t) => screamJawAt(env, t));
+    assert.ok(Math.max(...jaw) < 0.3 * WIDEST, `breath at ${breath}: ${Math.max(...jaw)} deg`);
+    assert.ok(screamJawAt(env, 1.7) > 0.8 * WIDEST, 'and opens again');
+  }
+});
+
+test('a quieter scream opens the jaw less, without a tremble', () => {
+  const jaw = degrees(2.8, 3.1, (t) => screamJawAt(SCREAM, t));
+  for (const d of jaw) assert.ok(Math.abs(d - 0.5 * WIDEST) < 1, `half as loud, half open: ${d}`);
+});
+
+/**
+ * Voss in her kill, convulsing in the pose that holds her mouth open at the glass, saying a line: her jaw's opening in
+ * degrees every 1/60 s. `screamJaw` is the kill style's flag; null for a body in no kill.
+ */
+function jawWhileSaying(opts: { screamJaw: boolean | null; loudness?: boolean; emote?: 'scream' | 'urgent'; silent?: boolean; stopAt?: number }) {
+  const h = new Humanoid({ seed: 'victim', outfit: 'crew', role: 'npc' }, ctx());
+  for (let i = 0; i < 30; i++) h.update(1 / 60);
+  const shut = h.bones.jaw.quaternion.clone();
+  if (opts.screamJaw !== null) {
+    h.beginKill();
+    h.setKillScreamJaw(opts.screamJaw);
+    h.setPose('kill_glass_0', 0.01);
+    h.killConvulse(0.5, 20);
+  }
+  for (let i = 0; i < 30; i++) h.update(1 / 60);
+  if (!opts.silent) h.speak('[screaming]', opts.emote ?? 'scream', 3.3, 'drop_voss_02', opts.loudness === false ? undefined : SCREAM);
+  const out: number[] = [];
+  for (let i = 1; i <= 240; i++) {
+    if (opts.stopAt !== undefined && i === Math.round(opts.stopAt * 60)) h.stopSpeaking();
+    h.update(1 / 60);
+    out.push(THREE.MathUtils.radToDeg(h.bones.jaw.quaternion.angleTo(shut)));
+  }
+  h.dispose();
+  return (from: number, to: number) => out.slice(Math.round(from * 60), Math.round(to * 60));
+}
+
+test('a screaming kill victim\'s jaw follows the recording over the pose and the convulsion, and hands back when it ends', () => {
+  const jaw = jawWhileSaying({ screamJaw: true });
+  assert.ok(Math.min(...jaw(0.3, 0.9)) >= 0.8 * WIDEST, `loud: ${Math.min(...jaw(0.3, 0.9))} deg`);
+  assert.ok(Math.max(...jaw(0.3, 0.9)) <= WIDEST + SCREAM_TREMBLE.deg + 0.5, 'no wider than the scream: the pose\'s open mouth is replaced');
+  assert.ok(Math.max(...jaw(1.1, 1.39)) < 0.3 * WIDEST, `breath: ${Math.max(...jaw(1.1, 1.39))} deg`);
+  assert.ok(Math.min(...jaw(1.55, 2.3)) >= 0.8 * WIDEST, 'open again');
+  // The recording is 3.2 s long: after it her mouth is the pose's again, as she convulses.
+  const posed = jawWhileSaying({ screamJaw: true, silent: true });
+  assert.deepEqual(jaw(3.8, 4), posed(3.8, 4));
+});
+
+test('a cut scream hands the jaw straight back to the pose', () => {
+  const jaw = jawWhileSaying({ screamJaw: true, stopAt: 1.2 });
+  const posed = jawWhileSaying({ screamJaw: true, silent: true });
+  jaw(1.7, 2.3).forEach((d, i) => assert.ok(Math.abs(d - posed(1.7, 2.3)[i]!) < 0.5, `frame ${i}: ${d}`));
+});
+
+test('infection-kills "No recording": the beat\'s poses hold her scream open as usual', () => {
+  const jaw = jawWhileSaying({ screamJaw: true, loudness: false });
+  assert.deepEqual(jaw(0, 4), jawWhileSaying({ screamJaw: true, silent: true })(0, 4));
+  // The pose opens 32 deg and the convulsion shakes it either way: never near shut.
+  assert.ok(Math.min(...jaw(0.3, 2.5)) > 20, `held open: ${Math.min(...jaw(0.3, 2.5))} deg`);
+});
+
+test('other screams are unchanged: another kill\'s victim, a body in no kill, and a kill victim\'s other lines', () => {
+  for (const screamJaw of [false, null]) {
+    assert.deepEqual(jawWhileSaying({ screamJaw })(0, 4), jawWhileSaying({ screamJaw, loudness: false })(0, 4), `screamJaw ${screamJaw}`);
+  }
+  const urgent = { screamJaw: true, emote: 'urgent' } as const;
+  assert.deepEqual(jawWhileSaying(urgent)(0, 4), jawWhileSaying({ ...urgent, loudness: false })(0, 4));
+});
+
+test('only the Lab B kill screams with the jaw: the R08 and stinger kills keep their screams', () => {
+  const table = validate(validateKillTable, JSON.parse(readFileSync(new URL('../data/kills.json', import.meta.url), 'utf8')), 'kills');
+  assert.deepEqual(Object.entries(table).filter(([, style]) => style.screamJaw).map(([id]) => id), ['grownInside']);
 });
 
 test('the dead and the infected do not talk', () => {

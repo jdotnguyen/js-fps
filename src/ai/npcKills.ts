@@ -306,6 +306,7 @@ export class KillDirector {
     // A multi-beat converted kill on a corpse (the stinger: the bloom raises Priya): the body moves again.
     if (style.kind === 'converted' && !body.alive) body.reviveAfterKill(style.beats[0]!.poses[0]!);
     body.beginKill();
+    if (style.screamJaw) body.setKillScreamJaw(true);
     if (attacker) {
       // The attacker is held for the whole kill: scripted, no ambient life, nothing else moves it.
       this.w.hold(attackerId);

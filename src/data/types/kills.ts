@@ -389,6 +389,12 @@ const styleShape = {
   clearBand: optional(obj({ min: num, max: num })),
   /** How far from the glass the victim stands (m). */
   glassStand: optional(numRange(0.2, 2)),
+  /**
+   * The victim screams with her jaw (voss-death-scene D11): while she says a recorded `scream` line it opens with the
+   * recording's loudness and trembles at the loudest, over the beat's poses and convulsion. Without a recording the beat's
+   * poses hold her mouth open as usual.
+   */
+  screamJaw: optional(bool),
   beats: arr(obj(beatShape)),
 };
 

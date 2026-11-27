@@ -11,6 +11,7 @@ import { Rng } from '../core/rng.ts';
 import { yieldIdle } from '../core/yieldFrame.ts';
 import { Biquad, fadeEdges, makeBuf, normalize, white, type Buf } from '../audio/dsp.ts';
 import type { AudioEngine } from '../audio/engine.ts';
+import { loudnessEnvelope } from '../audio/loudness.ts';
 import { audioUrls, type DialogueLine, type Emote } from '../data/types/dialogue.ts';
 import type { PlayRequest, VoicePlayback, VoicePlayer } from './speech.ts';
 import { renderUtterance } from './vocalSynth.ts';
@@ -335,10 +336,14 @@ export class WebAudioVoicePlayer implements VoicePlayer {
       for (const n of nodes) n.disconnect();
     });
 
+    // A screaming kill victim's jaw follows the take that is playing (voss-death-scene D11).
+    const loudness = recordedBuf && req.line.emote === 'scream' ? loudnessEnvelope(recordedBuf.getChannelData(0), recordedBuf.sampleRate) : null;
+
     let stopped = false;
     return {
       // Real VO clips extend the subtitle/queue timer so speech is never cut off mid-word.
       ...(recordedBuf ? { duration: recordedBuf.duration + leadIn + (req.line.channel === 'radio' ? 0.16 : 0.08) } : {}),
+      ...(loudness ? { loudness } : {}),
       update: () => {
         // A wall PA stays at its grille; a following one (aboard the train) travels with the listener.
         if ((isPa && !req.follow) || !panner || !req.at) return;

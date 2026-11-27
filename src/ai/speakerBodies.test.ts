@@ -38,6 +38,17 @@ test('a started line makes its speaker act it, and any ending stops it', () => {
   assert.equal(calls.length, 2, 'unsubscribed');
 });
 
+test('a recorded scream\'s loudness goes to the body that screams it (voss-death-scene D11)', () => {
+  const bus = new EventBus();
+  const got: unknown[] = [];
+  wireSpeechActing(bus, () => ({ speak: (...args: unknown[]) => got.push(args[4]), stopSpeaking: () => {} }) as unknown as Humanoid);
+  const loudness = { values: new Float32Array([0, 1]), step: 0.005 };
+  const line = { id: 's', speaker: 'crew_lab', name: 'Voss', text: '[screaming]', emote: 'scream' as const, channel: 'local' as const, priority: 'story' as const, duration: 5 };
+  bus.emit('speech:started', { ...line, loudness });
+  bus.emit('speech:started', line);
+  assert.deepEqual(got, [loudness, undefined]);
+});
+
 test('every local line in slice01 has a body to speak from, or a deliberately disembodied speaker (voice-playback)', async () => {
   const { readFileSync, readdirSync } = await import('node:fs');
   const { DISEMBODIED } = await import('./speakerBodies.ts');

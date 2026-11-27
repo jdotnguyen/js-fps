@@ -402,6 +402,25 @@ Each section adds what the next one needs here before its session ends: measured
   from the cart. The kinematic cart makes no impact sounds of its own any more, so the old `propCartCrash` from physics
   is gone; the stand-in `propCartCrash` id in the `sfx` event still plays.
 
+### Section 6 (2026-11-27)
+
+- D11 assumed speech acting runs during the scream. It does not: `Animator.updateSpeech` drops the line while a body
+  convulses (the glass beat 0.5, the arch 0.9), so before this section her open mouth was only the poses (-32 to -45°)
+  with the convulsion shaking it. The scream jaw is therefore its own channel (`Animator.screamLine`/`endScream`),
+  written over the jaw after the pose, and her head, neck and arms move exactly as before.
+- The switch is `screamJaw: true` on a kill style, set on `grownInside` only: R08's mauled kill has scream lines too, and
+  the non-goals leave it alone. The spec's "a kill's victim" reads as a victim of a kill that asks for it.
+- `src/audio/loudness.ts`: 20 ms RMS windows 5 ms apart, over the 95th percentile; attack and release are the time to
+  cover 90% of a step (as time constants, a 60 ms release misses the 0.1 s breath scenario). The jaw is
+  `screamJawAt` (`speechActing.ts`): envelope x 28° (`ACTING.scream.jaw`) with up to ±2° at 20 Hz above 0.7. The voice
+  player measures the take it plays; `speech:started` carries it to `Humanoid.speak`.
+- `react_voss_scream_04.mp3` has no breath inside it: from 0.4 to 4.6 s it stays at 0.57-1.0, so her jaw runs about
+  16-28°. Headless and in a browser build it follows within 2° of the envelope, and returns to the pose when the line
+  ends. The user approved this width (§6.4, 2026-11-27). If §9.2 finds it too narrow in the whole scene, widen it per
+  kill (the style's flag becomes degrees).
+- Tests: `src/audio/loudness.test.ts`, the D11 cases in `speechActing.test.ts`, and the passing-through cases in
+  `speech.test.ts` and `speakerBodies.test.ts`.
+
 ### Section 8 (2026-11-27)
 
 - New ElevenLabs sounds (`scripts/gore-generate.ts`, ids as the sound names): `body_bench_hit`, `bench_sweep`,

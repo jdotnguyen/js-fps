@@ -21,6 +21,7 @@
  *
  * Pure logic driven by `update(dt)`; sound goes through a `VoicePlayer`, so it is Node-testable with a fake player.
  */
+import type { LoudnessEnvelope } from '../audio/loudness.ts';
 import type { EventBus } from '../core/events.ts';
 import { priorityRank, type Channel, type DialogueLine, type Emote, type Priority, type VoiceProfile } from '../data/types/dialogue.ts';
 import { subtitleDuration, type DialogueLibrary } from './library.ts';
@@ -49,6 +50,8 @@ export interface SpeechInfo {
   duration: number;
   /** Whether the player can hear it now (dialogue-channels: Earshot). Absent means yes. */
   audible?: boolean;
+  /** On `speech:started`, a recorded scream's loudness, for the jaw of a kill victim saying it. */
+  loudness?: LoudnessEnvelope;
 }
 
 declare module '../core/events.ts' {
@@ -90,6 +93,8 @@ export interface PlayRequest {
 export interface VoicePlayback {
   /** Seconds of audio, if longer than the subtitle should be (real VO files). */
   readonly duration?: number;
+  /** A recorded `scream` line's loudness over time; absent for other lines and without a recording. */
+  readonly loudness?: LoudnessEnvelope;
   /** Per frame (moves positional voices). */
   update?(): void;
   /** Per frame for a local voice: gain (0..1) and low-pass cutoff from how it reaches the player. */
@@ -440,7 +445,11 @@ export class SpeechManager {
       shown: e.line.subtitle !== false && subtitleIn(hearing, e.line.priority, e.line.channel),
     };
     const info = this.info(active);
-    this.bus.emit('speech:started', active.audible ? info : { ...info, audible: false });
+    this.bus.emit('speech:started', {
+      ...info,
+      ...(active.audible ? {} : { audible: false }),
+      ...(playback.loudness ? { loudness: playback.loudness } : {}),
+    });
     if (active.shown) this.bus.emit('subtitle:show', info);
     return active;
   }

@@ -18,7 +18,8 @@ import { locomotionSet, postureFamily, poseTreatment, resolveProfile, sharedMoti
 import { blendPose, copyPose, emptyPose, type CompiledPose, type PoseLibrary } from './poses.ts';
 import type { Emote } from '../data/types/dialogue.ts';
 import { JOINT_INDEX, JOINTS, type JointName, type Side } from './skeleton.ts';
-import { gesture, hash01, mouthOpenAt, type SpeechPlan } from './speechActing.ts';
+import { gesture, hash01, mouthOpenAt, screamJawAt, type SpeechPlan } from './speechActing.ts';
+import type { LoudnessEnvelope } from '../audio/loudness.ts';
 import { solveTwoBone } from './ik.ts';
 import { detailPass } from './detailPass.ts';
 import { Spring1D } from './springs.ts';
@@ -325,6 +326,12 @@ export class Animator {
   /** Share of generated arm gestures displaced by Giles's captured standing dialogue this frame. */
   private capturedSpeechArms = 0;
   private speechEnding = false;
+  /**
+   * A kill victim's screamed jaw (voss-death-scene D11): the recording's loudness and the time into it, and `screamW`,
+   * how far it owns the jaw over the pose and the convulsion. Kept apart from `speech`, which a convulsing body drops.
+   */
+  private scream: { loudness: LoudnessEnvelope; t: number; ending: boolean } | null = null;
+  private screamW = 0;
   private readonly speechSink = (joint: JointName, x: number, y: number, z: number): void => {
     this.add(joint, x, y, z);
     // Couple clavicle motion to gesturing upper arms so shoulders don't look frozen in sockets.
@@ -776,6 +783,7 @@ export class Animator {
     this.addConvulsions();
     if (this.holdW >= 0.005 && this.holdClip) this.writeWithHold();
     else this.write();
+    this.writeScreamJaw(dt);
     this.anchorHandsOnHips(dt);
     this.anchorCrossedArms(dt);
   }
@@ -1211,6 +1219,33 @@ export class Animator {
   /** The line ended or was cut off: close the mouth and let the gestures fade. */
   stopSpeaking(): void {
     this.speechEnding = true;
+    this.endScream();
+  }
+
+  /** Scream a recorded line: the jaw follows its loudness from now (D11), whatever else the body is doing. */
+  screamLine(loudness: LoudnessEnvelope): void {
+    this.scream = { loudness, t: 0, ending: false };
+  }
+
+  /** Hand the jaw back to the pose, over a few frames. */
+  endScream(): void {
+    if (this.scream) this.scream.ending = true;
+  }
+
+  private writeScreamJaw(dt: number): void {
+    const s = this.scream;
+    if (!s) return;
+    s.t += dt;
+    if (s.t > s.loudness.values.length * s.loudness.step) s.ending = true;
+    this.screamW += ((s.ending ? 0 : 1) - this.screamW) * Math.min(1, dt * (s.ending ? 10 : 25));
+    if (s.ending && this.screamW < 0.01) {
+      this.scream = null;
+      this.screamW = 0;
+      return;
+    }
+    // -x opens the jaw, from shut at no rotation.
+    this.e.set(-screamJawAt(s.loudness, s.t) * D2R, 0, 0, 'XYZ');
+    this.bones[J.jaw]?.quaternion.slerp(this.q.setFromEuler(this.e), this.screamW);
   }
 
   get speaking(): boolean {

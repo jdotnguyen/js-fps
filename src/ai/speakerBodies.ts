@@ -77,7 +77,7 @@ export function wireListenLook(
  */
 export function wireSpeechActing(bus: EventBus, bodyOf: (speaker: string) => Humanoid | null): () => void {
   const started = (info: SpeechInfo): void => {
-    bodyOf(info.speaker)?.speak(info.text, info.emote, info.duration, info.id);
+    bodyOf(info.speaker)?.speak(info.text, info.emote, info.duration, info.id, info.loudness);
   };
   const ended = (e: { id: string; speaker: string }): void => {
     bodyOf(e.speaker)?.stopSpeaking();

@@ -133,6 +133,17 @@ test('rasp override and babble flag reach the player', () => {
   assert.equal(plays[1]!.rasp, null);
 });
 
+test('a playback\'s loudness goes out with speech:started, and not with its subtitle (voss-death-scene D11)', () => {
+  const bus = new EventBus();
+  const loudness = { values: new Float32Array([0, 1]), step: 0.005 };
+  const sm = new SpeechManager(bus, library, { play: () => ({ loudness, stop: () => {} }) });
+  const got: unknown[] = [];
+  bus.on('speech:started', (i) => got.push(i.loudness));
+  bus.on('subtitle:show', (i) => got.push(i.loudness));
+  sm.say('story_a');
+  assert.deepEqual(got, [loudness, undefined]);
+});
+
 test('a long real-audio file extends the line', () => {
   const bus = new EventBus();
   const sm = new SpeechManager(bus, library, { play: () => ({ duration: 4, stop: () => {} }) });
