@@ -106,20 +106,20 @@ and tell the user which change or file is blocking if:
 
 ## 5. Props on cue (Opus 5.5, high)
 
-- [ ] 5.1 Check the gates, then read `docs/physics.md`. Verify: as in 1.1.
-- [ ] 5.2 In `R04.json`, make the bench glassware loose with `after` poses (`labb_bench`), make the cart kinematic with
+- [x] 5.1 Check the gates, then read `docs/physics.md`. Verify: as in 1.1.
+- [x] 5.2 In `R04.json`, make the bench glassware loose with `after` poses (`labb_bench`), make the cart kinematic with
   an `after` pose (`labb_cart`), and give its load `after` poses (`labb_cart_load`). Verify: the physical-interaction
   tests "At rest before the kill", "Her bench" and "Seen from the gallery with physics off" pass, and so do the slice
   walk tests.
-- [ ] 5.3 Add the `tip` event (design D8), and burst or lay out the cart's load when it starts. Verify: a test for "The
+- [x] 5.3 Add the `tip` event (design D8), and burst or lay out the cart's load when it starts. Verify: a test for "The
   cart on its frame" shows the same start frame and rest pose with physics on and off.
-- [ ] 5.4 Add the `sweep` event (design D9). Verify: tests for "Played kill" (nothing ends inside the bench, the floor
+- [x] 5.4 Add the `sweep` event (design D9). Verify: tests for "Played kill" (nothing ends inside the bench, the floor
   or the glass) and "Physics off" (the objects appear at their `after` poses at the sweep).
-- [ ] 5.5 Lay out all three groups in a skipped or restored kill. Verify: tests for "Restored kill" and "Restart before
+- [x] 5.5 Lay out all three groups in a skipped or restored kill. Verify: tests for "Restored kill" and "Restart before
   the kill", plus a `quiet.test.ts` restore case.
-- [ ] 5.6 Duck the impact sounds of objects a scripted crash throws (design D10). Verify: an `src/audio/impacts.test.ts`
+- [x] 5.6 Duck the impact sounds of objects a scripted crash throws (design D10). Verify: an `src/audio/impacts.test.ts`
   case shows ×0.35 during the 1.5 s window and full gain after it.
-- [ ] 5.7 Check both physics modes in a private `npm run playtest:serve` build. Verify: the cart and bench behave as the
+- [x] 5.7 Check both physics modes in a private `npm run playtest:serve` build. Verify: the cart and bench behave as the
   spec says in both modes, and every browser opened is closed.
 
 ## 6. The scream jaw (Sonnet 5.5, high)

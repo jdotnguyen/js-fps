@@ -107,9 +107,10 @@ const GRAVITY = 9.81;
  * A slam's burst (livelier-cart-slam D4): the speed (m/s) it gives a prop at strength 1, how much of the outward throw
  * goes along the surface's long axis and across it, the share bent toward the glass, how far above the prop's centre
  * the push lands (a share of its height, so it tumbles), how much speed is lost at the edge of the reach, and the
- * upward share for things below the impact (the shelf: thrown out, not up into the top).
+ * upward share for things below the impact (the shelf: thrown out, not up into the top), and for a directed burst
+ * (`BurstOptions.dir`), how much of the throw spreads outward from the impact.
  */
-export const BURST = { speed: 2.5, along: 1, across: 0.45, toward: 0.8, above: 0.3, falloff: 0.5, below: 0.12 } as const;
+export const BURST = { speed: 2.5, along: 1, across: 0.45, toward: 0.8, above: 0.3, falloff: 0.5, below: 0.12, spread: 0.35 } as const;
 /** Steps after a `place` during which a prop reports no impacts (a restored kill is silent). */
 const PLACE_QUIET_STEPS = 30;
 
@@ -150,6 +151,13 @@ export interface BurstOptions {
   toward?: V3;
   /** Seeds the spin, so a run is repeatable. */
   seed?: string;
+  /**
+   * Throw this way across the floor instead of away from `at` (a sweep of her arm, a cart going over: voss-death-scene
+   * D8, D9), spread a little outward (`BURST.spread`). `along` and `toward` are ignored with it.
+   */
+  dir?: V3;
+  /** Gets the id of each prop thrown (so its impacts can play quieter under a designed crash, D10). */
+  out?: string[];
 }
 
 export class PhysicsProps {
@@ -229,6 +237,7 @@ export class PhysicsProps {
     const e = this.world.engine;
     const rng = new Rng(opts.seed ?? 'burst');
     const along = opts.along ? new THREE.Vector3(opts.along.x, 0, opts.along.z).normalize() : null;
+    const aim = opts.dir && Math.hypot(opts.dir.x, opts.dir.z) > 1e-6 ? new THREE.Vector3(opts.dir.x, 0, opts.dir.z).normalize() : null;
     let thrown = 0;
     for (const p of this.live) {
       if (!p.loose) continue;
@@ -238,16 +247,18 @@ export class PhysicsProps {
       const d = Math.hypot(c.x - at.x, c.y - at.y, c.z - at.z);
       if (d > reach) continue;
       thrown++;
+      opts.out?.push(p.id);
       const out = new THREE.Vector3(c.x - at.x, 0, c.z - at.z);
       if (out.lengthSq() < 4e-4) out.set(Math.cos(rng.range(0, Math.PI * 2)), 0, Math.sin(rng.range(0, Math.PI * 2)));
       out.normalize();
-      if (along) {
+      if (aim) out.multiplyScalar(BURST.spread).add(aim);
+      else if (along) {
         const a = out.dot(along);
         const across = out.clone().addScaledVector(along, -a);
         const side = Math.abs(a) > 0.05 ? Math.sign(a) : rng.next() < 0.5 ? -1 : 1;
         out.copy(along).multiplyScalar(side * Math.max(Math.abs(a), 0.5) * BURST.along).addScaledVector(across, BURST.across);
       }
-      if (opts.toward) out.add(new THREE.Vector3(opts.toward.x - at.x, 0, opts.toward.z - at.z).normalize().multiplyScalar(BURST.toward));
+      if (opts.toward && !aim) out.add(new THREE.Vector3(opts.toward.x - at.x, 0, opts.toward.z - at.z).normalize().multiplyScalar(BURST.toward));
       out.normalize();
       const up = c.y < at.y - 0.3 ? BURST.below : THREE.MathUtils.clamp(opts.up ?? 0.5, 0, 1);
       const dir = out.multiplyScalar(Math.sqrt(1 - up * up));

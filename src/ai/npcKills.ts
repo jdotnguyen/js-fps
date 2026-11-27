@@ -7,6 +7,7 @@ import { beatTrack, clipSpeedAt, type KillBeat, type KillEvent, type KillStyle, 
 import type { TargetRef, Vec3Like } from '../script/types.ts';
 import { KillRoute, yawAlong, type RouteKnot } from './killRoute.ts';
 import { KillRun } from './killRun.ts';
+import { planTip, tipPose, type TipPlan } from './killTip.ts';
 import type { NpcActor } from './npcActor.ts';
 
 declare module '../core/events.ts' {
@@ -52,8 +53,14 @@ export interface KillWorld {
   playerEye: () => Vec3Like | null;
   /** Knock over loose props near a point (physics on only); `done` holds the ones already hit. */
   knock?: ((from: Vec3Like, travel: Vec3Like, reach: number, strength: number, done: Set<string>) => void) | undefined;
-  /** Throw the loose props near a slam's impact up and away (physics on only; livelier-cart-slam D4). */
-  burst?: ((at: Vec3Like, reach: number, strength: number, opts: { up?: number; along?: Vec3Like; toward?: Vec3Like; seed?: string }) => void) | undefined;
+  /**
+   * Throw the loose props near a point up and away (a slam's impact, livelier-cart-slam D4), or along `dir` (a sweep or a
+   * tip's load, voss-death-scene D8, D9). `duck`: their impacts play quieter for a while under the designed crash (D10).
+   * True when physics took it; false or nothing when there is no physics, and a sweep or tip lays out its group instead.
+   */
+  burst?: ((at: Vec3Like, reach: number, strength: number, opts: { up?: number; along?: Vec3Like; toward?: Vec3Like; dir?: Vec3Like; seed?: string; duck?: boolean }) => boolean | void) | undefined;
+  /** A prop's authored `after` pose (where a `tip` takes it), without moving it. */
+  afterPose?: ((id: string) => { pos: THREE.Vector3; rotation: THREE.Quaternion } | null) | undefined;
   /** A movable prop's pose (the cart a slam lands on), and moving it: its meshes, collision and body (D3). */
   propPose?: ((id: string) => { pos: THREE.Vector3; rotation: THREE.Quaternion } | null) | undefined;
   moveProp?: ((id: string, pos: THREE.Vector3, rotation: THREE.Quaternion) => void) | undefined;
@@ -72,6 +79,9 @@ interface Pounder {
   rest: number;
   windup: boolean;
 }
+
+/** A bench `sweep`'s upward share (D9): things go off the bench across it, lifted a little so they tumble. */
+const SWEEP_UP = 0.3;
 
 /** Seconds per half-swing, the pause before the first flurry (just the windup), hits per flurry, and between flurries. */
 const POUND = { swing: 0.28, first: 0.2, flurry: [3, 6] as const, rest: [0.8, 2.2] as const };
@@ -168,6 +178,8 @@ interface ActiveKill {
   knock: { beat: string | null; reach: number; strength: number; done: Set<string>; from: THREE.Vector3 } | null;
   /** Props the slams land on, by id. */
   props: Map<string, PropJolt>;
+  /** Props going over on their scripted track (`tip`, voss-death-scene D8): `t` of its `s` seconds. */
+  tips: Array<{ id: string; plan: TipPlan; t: number; s: number }>;
   /** The beat the route was last set up for, and the route carrying her through it (voss-death-scene D3). */
   routeBeat: KillBeat | null;
   route: KillRoute | null;
@@ -335,6 +347,7 @@ export class KillDirector {
       dragTo: null,
       knock: null,
       props: new Map(),
+      tips: [],
       pinning: false,
       gripDrawn: false,
       backing: null,
@@ -428,6 +441,7 @@ export class KillDirector {
       if (k.backing) this.updateBacking(k, dt);
       if (k.knock) this.updateKnock(k);
       if (k.props.size > 0) this.updateJolts(k, dt);
+      if (k.tips.length > 0) this.updateTips(k, dt);
       if (k.pinning && k.attacker && !k.attacker.busy) k.pinning = false;
       const ap = k.approach;
       if (ap && ap.via.length > 0 && k.attacker && Math.hypot(ap.via[0]!.x - k.attacker.position.x, ap.via[0]!.z - k.attacker.position.z) < 0.6) ap.via.shift();
@@ -934,6 +948,42 @@ export class KillDirector {
     }
   }
 
+  /** Carry each tipping prop along its track; the same frames with physics on or off (D8). */
+  private updateTips(k: ActiveKill, dt: number): void {
+    for (const tp of k.tips) {
+      tp.t += dt;
+      const pose = tipPose(tp.plan, tp.s > 0 ? tp.t / tp.s : 1);
+      this.w.moveProp?.(tp.id, pose.pos, pose.rotation);
+    }
+    k.tips = k.tips.filter((tp) => tp.t < tp.s);
+  }
+
+  /** `tip` (D8): the prop starts over toward its `after` pose, and its load is thrown (physics) or laid out (none). */
+  private startTip(k: ActiveKill, e: KillEvent): void {
+    if (k.instant || !e.prop) return;
+    const from = this.w.propPose?.(e.prop);
+    const to = this.w.afterPose?.(e.prop);
+    if (!from || !to) return this.w.warn(`kill ${k.npc}: tip "${e.prop}" needs a movable prop with an "after" pose`);
+    const plan = planTip(from, to, e.edge ?? 0, e.keys);
+    k.tips = k.tips.filter((tp) => tp.id !== e.prop);
+    // Started part way through a frame, it is already that far over, so frame rates agree.
+    const tp = { id: e.prop, plan, t: 0, s: e.s ?? 0.7 };
+    k.tips.push(tp);
+    this.updateTips(k, Math.max(0, k.run.beatTime - e.t));
+    const thrown = e.burst ? this.w.burst?.(from.pos, e.burst.reach, e.burst.strength, { ...(e.burst.up !== undefined ? { up: e.burst.up } : {}), dir: plan.fall, seed: `${k.npc}:tip:${e.prop}`, duck: true }) : false;
+    if (thrown !== true && e.group) this.w.layOut?.(e.group);
+  }
+
+  /** `sweep` (D9): the loose objects at her arm are thrown along `dir` (physics), or laid out at their `after` poses (none). */
+  private sweep(k: ActiveKill, e: KillEvent): void {
+    if (k.instant || !e.from || !Array.isArray(e.dir)) return;
+    const from = this.routeMark(k, e.from);
+    if (!from) return;
+    const dir = { x: e.dir[0] ?? 0, y: 0, z: e.dir[1] ?? 0 };
+    const thrown = this.w.burst?.(from, e.reach ?? 0.5, e.strength ?? 1, { up: SWEEP_UP, dir, seed: `${k.npc}:sweep:${e.t}`, duck: true });
+    if (thrown !== true && e.group) this.w.layOut?.(e.group);
+  }
+
   private startThrow(k: ActiveKill, e: KillEvent): void {
     const point = this.mark(k, e.mark);
     if (!point) return;
@@ -1248,9 +1298,9 @@ export class KillDirector {
         if (k.instant && e.prop) this.w.layOut?.(e.prop);
         return;
       case 'sweep':
+        return this.sweep(k, e);
       case 'tip':
-        // Their moments in the kill are authored (D8, D9); what they do to the props is still to come (§5).
-        return;
+        return this.startTip(k, e);
       case 'knock':
         // A skipped or restored kill moves nothing (physical-interaction "Restored kill").
         if (!k.instant) k.knock = { beat: k.run.beatId, reach: e.reach ?? 1, strength: e.strength ?? 1, done: new Set(), from: k.actor.position.clone() };

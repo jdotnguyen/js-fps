@@ -137,8 +137,22 @@
       },
       "dynamic": {
         "mass": 14,
-        "loose": true,
+        "kinematic": true,
         "sound": "cart"
+      },
+      "after": {
+        "group": "labb_cart",
+        "pos": [
+          6.5111,
+          0.25,
+          23.2914
+        ],
+        "quat": [
+          -0.5862,
+          0.3954,
+          0.3954,
+          0.5862
+        ]
       }
     },
     {
@@ -157,6 +171,20 @@
         "mass": 0.8,
         "loose": true,
         "sound": "metal"
+      },
+      "after": {
+        "group": "labb_cart_load",
+        "pos": [
+          4.896,
+          0.0319,
+          23.038
+        ],
+        "quat": [
+          -0.8196,
+          0,
+          0.5729,
+          0
+        ]
       }
     },
     {
@@ -176,6 +204,20 @@
         "mass": 0.4,
         "loose": true,
         "sound": "glass"
+      },
+      "after": {
+        "group": "labb_cart_load",
+        "pos": [
+          5.4276,
+          0.0719,
+          22.7509
+        ],
+        "quat": [
+          -0.5722,
+          0.4154,
+          0.4154,
+          0.5722
+        ]
       }
     },
     {
@@ -195,6 +237,20 @@
         "mass": 0.4,
         "loose": true,
         "sound": "glass"
+      },
+      "after": {
+        "group": "labb_cart_load",
+        "pos": [
+          5.3396,
+          0.0719,
+          22.4059
+        ],
+        "quat": [
+          0.398,
+          -0.5845,
+          0.5845,
+          0.398
+        ]
       }
     },
     {
@@ -214,6 +270,20 @@
         "mass": 0.6,
         "loose": true,
         "sound": "glass"
+      },
+      "after": {
+        "group": "labb_cart_load",
+        "pos": [
+          5.4468,
+          0.0449,
+          22.1203
+        ],
+        "quat": [
+          -0.4381,
+          0.4381,
+          0.5551,
+          -0.5551
+        ]
       }
     },
     {
@@ -233,6 +303,20 @@
         "mass": 0.25,
         "loose": true,
         "sound": "glass"
+      },
+      "after": {
+        "group": "labb_cart_load",
+        "pos": [
+          6.0564,
+          0.083,
+          22.8837
+        ],
+        "quat": [
+          -0.4724,
+          0.2568,
+          -0.2304,
+          0.811
+        ]
       }
     },
     {
@@ -252,6 +336,20 @@
         "mass": 0.35,
         "loose": true,
         "sound": "metal"
+      },
+      "after": {
+        "group": "labb_cart_load",
+        "pos": [
+          4.9973,
+          0.1599,
+          22.7362
+        ],
+        "quat": [
+          -1,
+          0,
+          0.0068,
+          0
+        ]
       }
     },
     {
@@ -270,6 +368,20 @@
         "mass": 3,
         "loose": true,
         "sound": "thud"
+      },
+      "after": {
+        "group": "labb_cart_load",
+        "pos": [
+          5.7897,
+          0.0899,
+          23.1512
+        ],
+        "quat": [
+          0.623,
+          0.623,
+          -0.3344,
+          -0.3345
+        ]
       }
     },
     {
@@ -289,6 +401,20 @@
         "mass": 0.6,
         "loose": true,
         "sound": "glass"
+      },
+      "after": {
+        "group": "labb_cart_load",
+        "pos": [
+          6.1397,
+          0.0448,
+          22.7385
+        ],
+        "quat": [
+          0.7014,
+          0.0884,
+          -0.0886,
+          0.7017
+        ]
       }
     },
     {
@@ -308,103 +434,180 @@
         "mass": 0.6,
         "loose": true,
         "sound": "glass"
+      },
+      "after": {
+        "group": "labb_cart_load",
+        "pos": [
+          6.2977,
+          0.1521,
+          22.8251
+        ],
+        "quat": [
+          0.7057,
+          0.4218,
+          -0.4845,
+          -0.2989
+        ]
       }
     },
     {
       "kit": "lab_item",
       "pos": [
         5.38,
-        0.925,
+        0.93,
         28.05
       ],
       "rot": 90,
       "params": {
+        "id": "labb_bench_flask_a",
         "type": "flask",
-        "fixed": true,
         "liquid": "amber"
+      },
+      "dynamic": {
+        "mass": 0.4,
+        "loose": true,
+        "sound": "glass"
       }
     },
     {
       "kit": "lab_item",
       "pos": [
         5.58,
-        0.925,
+        0.93,
         27.88
       ],
       "rot": 90,
       "params": {
+        "id": "labb_bench_bottle_a",
         "type": "bottle",
-        "fixed": true,
         "liquid": "teal"
+      },
+      "dynamic": {
+        "mass": 0.6,
+        "loose": true,
+        "sound": "glass"
       }
     },
     {
       "kit": "lab_item",
       "pos": [
         5.4,
-        0.925,
+        0.93,
         27.15
       ],
       "rot": 82,
       "params": {
-        "type": "tray",
-        "fixed": true
+        "id": "labb_bench_tray",
+        "type": "tray"
+      },
+      "dynamic": {
+        "mass": 0.8,
+        "loose": true,
+        "sound": "metal"
       }
     },
     {
       "kit": "lab_item",
       "pos": [
         5.58,
-        0.925,
+        0.93,
         26.78
       ],
       "rot": 90,
       "params": {
+        "id": "labb_bench_beaker",
         "type": "beaker",
-        "fixed": true,
         "liquid": "red"
+      },
+      "dynamic": {
+        "mass": 0.25,
+        "loose": true,
+        "sound": "glass"
+      },
+      "after": {
+        "group": "labb_bench",
+        "pos": [
+          5.1974,
+          0.9848,
+          26.9728
+        ],
+        "quat": [
+          -0.3506,
+          -0.6042,
+          0.507,
+          -0.505
+        ]
       }
     },
     {
       "kit": "lab_item",
       "pos": [
         5.42,
-        0.925,
+        0.93,
         26.52
       ],
       "rot": 90,
       "params": {
+        "id": "labb_bench_flask_b",
         "type": "flask",
-        "fixed": true,
         "liquid": "teal"
+      },
+      "dynamic": {
+        "mass": 0.4,
+        "loose": true,
+        "sound": "glass"
+      },
+      "after": {
+        "group": "labb_bench",
+        "pos": [
+          4.4763,
+          0.0719,
+          26.5961
+        ],
+        "quat": [
+          0.4397,
+          -0.4397,
+          0.5538,
+          -0.5537
+        ]
       }
     },
     {
       "kit": "lab_item",
       "pos": [
         5.4,
-        0.925,
+        0.93,
         25.64
       ],
       "rot": 90,
       "params": {
+        "id": "labb_bench_bottle_b",
         "type": "bottle",
-        "fixed": true,
         "liquid": "amber"
+      },
+      "dynamic": {
+        "mass": 0.6,
+        "loose": true,
+        "sound": "glass"
       }
     },
     {
       "kit": "lab_item",
       "pos": [
         5.58,
-        0.925,
+        0.93,
         25.47
       ],
       "rot": 90,
       "params": {
+        "id": "labb_bench_flask_c",
         "type": "flask",
-        "fixed": true,
         "liquid": "red"
+      },
+      "dynamic": {
+        "mass": 0.4,
+        "loose": true,
+        "sound": "glass"
       }
     },
     {

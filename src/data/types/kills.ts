@@ -71,9 +71,11 @@ export function clipSpeedAt(speed: ClipSpeed | undefined, t: number): number {
  * `layout` (livelier-cart-slam D11) only acts in a skipped or restored kill: it lays the props of the group its `prop`
  * names out at their authored `after` poses, the aftermath a played kill leaves.
  *
- * `sweep` (voss-death-scene D9) clears the loose objects within `reach` of the `from` mark along `dir`, and `tip` (D8)
- * sends a prop over on a scripted track lasting `s`. Both mark their moment in the kill; what they do to the props is
- * still to come (§5), so for now they move nothing.
+ * `sweep` (voss-death-scene D9) throws the loose objects within `reach` of the `from` mark along `dir` (physics on), or
+ * lays out its `group` at their `after` poses (physics off). `tip` (D8) sends a prop over to its `after` pose on a
+ * scripted track lasting `s`, rolling about its bottom edge `edge` m out from its origin, identical with physics on and
+ * off. As it starts, its load is thrown with `burst` (physics on) or laid out from `group` (off). Neither moves anything
+ * in a skipped or restored kill: that kill's `layout` events lay the groups out instead.
  */
 export const KILL_EVENTS = ['pose', 'sfx', 'kick', 'gore', 'glass', 'tear', 'die', 'creature', 'light', 'toGlass', 'face', 'stinger', 'pin', 'grip', 'attackerPose', 'attackerPerf', 'haulTo', 'slam', 'throw', 'drag', 'infect', 'backTo', 'walkTo', 'attackerLook', 'knock', 'layout', 'touch', 'look', 'sweep', 'tip'] as const;
 
@@ -209,6 +211,8 @@ const eventShape = {
   /**
    * `slam` (livelier-cart-slam D4): when it lands, the loose props within `reach` m of the impact are thrown up and
    * away, once, at `strength` (1 = about 2.5 m/s), with `up` the upward share. Nothing in a skipped or restored kill.
+   * `tip` (voss-death-scene D8): as it starts, the loose props within `reach` m of the prop's origin (its load) are
+   * thrown the way it falls.
    */
   burst: optional(obj({ reach: numRange(0.1, 2), strength: numRange(0, 4), up: optional(numRange(0, 1)) })),
   /** `slam`: the prop it lands on; the mark moves with it, and `jolt` moves it. `layout`: the prop group laid out. `tip`: the prop that goes over. */
@@ -218,6 +222,19 @@ const eventShape = {
    * and `rock` degrees its far side lifts and drops back, about its bottom edge `edge` m toward the attacker.
    */
   jolt: optional(obj({ slide: optional(arr(num)), yaw: optional(numRange(-30, 30)), rock: optional(numRange(0, 20)), edge: optional(numRange(0, 2)) })),
+  /**
+   * `sweep`: the `after` group laid out at the sweep when physics is off (the objects it throws). `tip`: the group of its
+   * load, laid out as it starts going over when physics is off.
+   */
+  group: optional(str),
+  /** `tip`: how far (m) from the prop's origin, toward where it falls, the bottom edge it rolls over lies (default 0). */
+  edge: optional(numRange(0, 2)),
+  /**
+   * `tip`: its track as `[u, slide, yaw, roll]` keys, each a share 0..1 (u of its `s`; slide, yaw and roll of the way to
+   * its `after` pose), linear between keys, from [0, 0, 0, 0] to [1, 1, 1, 1]. Default: the roll speeds up like a fall
+   * (u²), the slide and yaw ease in and out.
+   */
+  keys: optional(arr(arr(num))),
 };
 
 /**
@@ -441,7 +458,22 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
         if (e.from !== undefined && e.do !== 'sweep') throw new ValidationError(`${ep} > from`, '"from" is for a sweep');
         if (Array.isArray(e.dir) && e.do !== 'sweep') throw new ValidationError(`${ep} > dir`, 'a direction [x, z] is for a sweep');
         if (e.do === 'kick' && Array.isArray(e.dir)) throw new ValidationError(`${ep} > dir`, 'a kick goes back | fwd | left | right | up');
-        for (const k of ['windup', 'burst', 'jolt'] as const) if (e[k] !== undefined && e.do !== 'slam') throw new ValidationError(`${ep} > ${k}`, `"${k}" is for a slam`);
+        for (const k of ['windup', 'jolt'] as const) if (e[k] !== undefined && e.do !== 'slam') throw new ValidationError(`${ep} > ${k}`, `"${k}" is for a slam`);
+        if (e.burst !== undefined && e.do !== 'slam' && e.do !== 'tip') throw new ValidationError(`${ep} > burst`, '"burst" is for a slam or a tip');
+        if (e.group !== undefined && e.do !== 'sweep' && e.do !== 'tip') throw new ValidationError(`${ep} > group`, '"group" is for a sweep or a tip');
+        for (const k of ['edge', 'keys'] as const) if (e[k] !== undefined && e.do !== 'tip') throw new ValidationError(`${ep} > ${k}`, `"${k}" is for a tip`);
+        if (e.keys) {
+          let last = -1;
+          for (const [ki, key] of e.keys.entries()) {
+            const kp = `${ep} > keys[${ki}]`;
+            if (key.length !== 4 || key.some((v) => !(v >= 0 && v <= 1))) throw new ValidationError(kp, 'a key is [u, slide, yaw, roll], each 0..1');
+            if (key[0]! <= last) throw new ValidationError(kp, 'keys must be in order of u');
+            last = key[0]!;
+          }
+          const first = e.keys[0];
+          const end = e.keys[e.keys.length - 1];
+          if (!first || first.some((v) => v !== 0) || !end || end.some((v) => v !== 1)) throw new ValidationError(`${ep} > keys`, 'keys run from [0, 0, 0, 0] to [1, 1, 1, 1]');
+        }
         if (e.jolt && !e.prop) throw new ValidationError(`${ep} > jolt`, 'a jolt needs the "prop" it moves');
         if (e.jolt?.slide && e.jolt.slide.length !== 2) throw new ValidationError(`${ep} > jolt > slide`, 'slide is [x, z]');
         if (e.do === 'layout' && !e.prop) throw new ValidationError(ep, 'layout needs the "prop" group it lays out');

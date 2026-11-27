@@ -368,3 +368,36 @@ Each section adds what the next one needs here before its session ends: measured
   - For §5: the grip is now 5.05-5.35 s and the tip 5.5 s; her sliding hand starts at z 26.47, across the flasks at
     (5.42, 26.52) and (5.58, 26.78), so those two are the ones the sweep throws.
 - §4.7 approved by the user (2026-11-27) with the round 1 times above; no further changes.
+
+### Section 5 (2026-11-27)
+
+- R04: the seven things on the top of her bench are loose (`labb_bench_flask_a/b/c`, `_bottle_a/b`, `_tray`, `_beaker`),
+  moved to y 0.93 (the bench's collision top) so they rest flush. The shelf above and the far bench stay fixed. The cart
+  is `kinematic` (an obstacle again) with an `after` pose on its west side: rolled -90° about its long axis over its
+  bottom edge 0.25 m from its origin, 8° more yaw, 4 cm further out. No walk or scripted walk enters Lab B, and the
+  creature's way out (the vent) is east of it.
+- The sweep throws only `labb_bench_beaker` (onto its side on the bench top) and `labb_bench_flask_b` (to the floor):
+  `reach` 0.45 from `labb_bench_sweep`, `dir` [-1, 0.2], `up` 0.3 (`SWEEP_UP` in `npcKills.ts`). The tip:
+  `s` 0.7, `edge` 0.25, `burst` reach 1.2, strength 0.7, up 0.35, thrown from the cart's origin along its fall. The
+  `after` poses of `labb_bench` and `labb_cart_load` were recorded from a headless played kill (the scratch script
+  reused `labBTestKit.ts`); `labB.test.ts` "Played kill" fails if a played kill throws anything else. Re-record them
+  when the sweep, the tip or the items change.
+- New: `src/ai/killTip.ts` (the track: yaw about the origin, roll about the edge, leftover slide; roll u², slide and
+  yaw smoothstep, or `keys`), `BurstOptions.dir`/`out`, `KillWorld.burst` returns true when physics took it,
+  `KillWorld.afterPose` / `Level.afterPose`, event fields `group`, `edge`, `keys`, and `burst` on a tip.
+  `ImpactAudio.duck(id)` (`SCRIPTED_DUCK` ×0.35 for 1.5 s) is applied to sweep and tip throws only, not to the R08
+  slams (non-goal). The tip's corners dip at most 1.2 cm below the floor mid-fall because of the added yaw.
+- `panic` lays out `labb_bench`, `labb_cart` and `labb_cart_load` at t 0 (acts only in a restored or skipped kill).
+- Browser check (private build, `jump=drop`, headless Chrome): the cart left its place 5.507-5.510 s into `panic` with
+  physics and 5.508 s without, and ended in the identical pose; with physics off the swept and spilled things appear at
+  0.556 s and 5.508 s. With physics on, the load creeps 0.6 mm as physics wakes and the swept beaker nudges the tray
+  1.7 mm; nothing visible. No user look yet: §9.2 plays the whole drop with physics on and off.
+- Tests: `src/physics/labB.test.ts` (rewritten on `src/physics/labBTestKit.ts`: at rest, her bench, seen with physics
+  off, the cart on its frame at 60 and 30 fps, played kill, physics off, restored with and without physics, restart),
+  `src/ai/killTip.test.ts`, the duck in `impacts.test.ts`, the schema cases in `killRun.test.ts`, and a
+  `quiet.test.ts` case that hands the restored drop's own kill step to the director in the real Lab B. The two `todo`
+  knock tests are gone. Walk failures are the pre-existing ones (`guard_return_desk`, 7 of 56 scripted walks).
+- For §8: the cart crash `sfx` still fires at 5.5 s from her left hand, as the cart starts over; it lands at 6.2 s.
+  The spec wants "one designed cart crash from the cart at the scripted moment": §8.4 may want it on the landing, and
+  from the cart. The kinematic cart makes no impact sounds of its own any more, so the old `propCartCrash` from physics
+  is gone; the stand-in `propCartCrash` id in the `sfx` event still plays.

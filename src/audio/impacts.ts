@@ -83,6 +83,11 @@ const STEAL_FADE = 0.05;
 export const IMPACT_RANGE = 16;
 const FADE_FROM = 10;
 const REVERB = 0.2;
+/**
+ * Things a scripted crash throws (a sweep, a tip and its load: voss-death-scene D10) play at this share of their gain for
+ * this many seconds, beneath the crash's own designed sound.
+ */
+export const SCRIPTED_DUCK = { gain: 0.35, s: 1.5 } as const;
 
 export interface ImpactAudioDeps {
   audio: CasingAudioEngine;
@@ -104,6 +109,8 @@ export class ImpactAudio {
   private readonly now: () => number;
   private readonly lastVariant = new Map<SoundName, number>();
   private readonly resting = new Map<string, { until: number; hard: boolean }>();
+  /** Things a scripted crash threw, and until when their impacts are ducked. */
+  private readonly ducked = new Map<string, number>();
   private voices: Voice[] = [];
 
   constructor(deps: ImpactAudioDeps) {
@@ -141,7 +148,7 @@ export class ImpactAudio {
       bus: 'sfx',
       // Just above the point of impact, so the occlusion probe is not blocked by what was struck.
       position: new THREE.Vector3(hit.x, hit.y + 0.06, hit.z),
-      gain: pick.gain * tail,
+      gain: pick.gain * tail * (now < (this.ducked.get(hit.id) ?? -Infinity) ? SCRIPTED_DUCK.gain : 1),
       reverb: REVERB,
       rate: this.rng.range(1 - jitter, 1 + jitter),
       variant: this.pickVariant(pick.sound),
@@ -151,11 +158,17 @@ export class ImpactAudio {
     return pick.sound;
   }
 
+  /** A scripted crash threw this thing: its impacts play quieter for `SCRIPTED_DUCK.s` (D10). */
+  duck(id: string): void {
+    this.ducked.set(id, this.now() + SCRIPTED_DUCK.s);
+  }
+
   /** Stop everything (a restart or leaving the level). */
   stopAll(): void {
     for (const v of this.voices) v.stop(STEAL_FADE);
     this.voices = [];
     this.resting.clear();
+    this.ducked.clear();
   }
 
   /** A variant other than the one this bank played last. */

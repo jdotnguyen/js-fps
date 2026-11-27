@@ -136,15 +136,15 @@ floor is hit once, out to its side of their path and a little ahead and up, high
 (`KNOCK` in `interaction.ts`; strength 1 is about 1.6 m/s). Skipped and restored kills knock nothing, and neither
 does a session without the switch. A restart stands everything up again; so does loading a save made after the kill.
 
-Lab B uses both: a loaded `prep_cart` stands beside Dr. Voss's walk to the glass, and she takes it over in the
-`panic` beat. Its two benches carry fixed `lab_item` dressing (`lab_bench` with `"clutter": 0`).
+Lab B no longer uses the knock (voss-death-scene §5): see "Sweeps and tips" below.
 
 **Impact sounds.** A dynamic prop with `"sound": "cart" | "glass" | "metal" | "thud"` is heard when it hits something;
 without one it is silent. `PhysicsProps` reports any step in which such a prop's velocity changes by more than
 `IMPACT_NOISE`, gravity apart, and `physicsDebris` reports each severed piece's first impact (a wet thud, with the
 `debris` switch). `ImpactAudio` (`src/audio/impacts.ts`) turns a report into a sound: nothing below 0.5 m/s, louder
 with speed, a separate recording for a cart crash (2.2 m/s and up) and a hard glass drop, a short rest per object, six
-voices at most, silent past 16 m. Clips are built by `npm run impacts:generate` from the CC0 downloads in
+voices at most, silent past 16 m. What a sweep or a tip throws plays at ×0.35 for 1.5 s (`SCRIPTED_DUCK`), under the
+kill's own designed crash; a kinematic prop makes no impact sounds of its own. Clips are built by `npm run impacts:generate` from the CC0 downloads in
 `../audio-src/physics/`. A `dish` (the R08 kidney dish) clinks like `metal` and, landing hard, spins down to rest.
 
 **Kinematic props.** `"dynamic": { "mass": 30, "kinematic": true }` makes a scripted body: physics never moves it, and
@@ -169,6 +169,22 @@ items change.
 
 R08 uses all three: nine loose instruments on the kinematic cart, thrown by the three head slams, the cart rocking
 and sliding about 8 cm, and laid out on the floor when the scene is skipped.
+
+**Sweeps and tips** (voss-death-scene D8-D10). A kill's `sweep` event (`{ "from": mark, "dir": [x, z], "reach",
+"strength", "group" }`) throws the loose props within `reach` of the mark along `dir` (`BurstOptions.dir`: a burst
+aimed one way, spread a little outward, `BURST.spread`). A `tip` (`{ "prop", "s", "edge", "keys", "burst", "group" }`)
+sends a kinematic prop over to its `after` pose in `s` seconds (`src/ai/killTip.ts`): a yaw about its origin, a roll
+about its bottom edge `edge` m toward the fall, and the slide left over; by default the roll speeds up like a fall.
+It moves through `moveProp`, so with physics off it falls on the same frames to the same pose. As it starts, its
+`burst` throws what stands on it the way it falls. With physics off (no `PhysicsProps`), a sweep or a tip lays out its
+`group` instead, at that moment. Skipped and restored kills do neither; their `layout` events lay the groups out.
+
+Lab B: the seven things on the top of the bench beside Dr. Voss are loose, and her sweep throws the two under her hand
+(group `labb_bench`). The `prep_cart` is kinematic (`labb_cart`, an obstacle like R08's) and goes over to the west as
+she lunges for the glass; its nine items are loose (`labb_cart_load`). The `after` poses of both groups are recorded
+from a headless played kill (`src/physics/labB.test.ts` checks a played kill throws exactly those). Re-record them when
+the sweep, the tip or the items change. The shelf above the bench and the far bench keep fixed `lab_item` dressing.
+Lab B has 16 loose props, over the guide of ten: the seven on her bench add about two draw calls each.
 
 ## Debug view
 

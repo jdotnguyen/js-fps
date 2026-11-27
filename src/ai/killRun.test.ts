@@ -221,6 +221,15 @@ test('the kill table checks the staged run\'s events: a sweep, a tip, a touch on
   bad({ do: 'touch', part: 'chest', mark: 'labb_bench_top', gap: 0.1 }, /"gap" is for a touch on "glass"/);
   bad({ do: 'touch', part: 'chest', mark: 'glass', slide: true }, /"slide" is for a touch on a mark/);
   bad({ do: 'sfx', id: ['x'], from: 'labb_bench_sweep' }, /"from" is for a sweep/);
+  // §5: what they throw or lay out, and the tip's edge and track.
+  ok({ do: 'sweep', from: 'labb_bench_sweep', dir: [-1, 0.2], reach: 0.45, group: 'labb_bench' });
+  ok({ do: 'tip', prop: 'labb_cart', s: 0.7, edge: 0.25, burst: { reach: 1.2, strength: 0.7 }, group: 'labb_cart_load', keys: [[0, 0, 0, 0], [0.4, 0.1, 0.5, 0.2], [1, 1, 1, 1]] });
+  bad({ do: 'layout', prop: 'labb_bench', group: 'labb_bench' }, /"group" is for a sweep or a tip/);
+  bad({ do: 'sweep', from: 'labb_bench_sweep', dir: [-1, 0], reach: 0.4, burst: { reach: 1, strength: 1 } }, /"burst" is for a slam or a tip/);
+  bad({ do: 'sfx', id: ['x'], edge: 0.2 }, /"edge" is for a tip/);
+  bad({ do: 'tip', prop: 'labb_cart', s: 0.7, keys: [[0, 0, 0, 0], [1, 1, 1]] }, /\[u, slide, yaw, roll\]/);
+  bad({ do: 'tip', prop: 'labb_cart', s: 0.7, keys: [[0, 0, 0, 0], [0.5, 0.5, 0.5, 0.5], [0.5, 1, 1, 1]] }, /order of u/);
+  bad({ do: 'tip', prop: 'labb_cart', s: 0.7, keys: [[0, 0, 0, 0], [0.9, 0.5, 0.5, 0.5]] }, /run from/);
 });
 
 // ---- mauled (medbay-attack / infection-kills specs): impacts end the slam beat, and each impact moves her voice on.

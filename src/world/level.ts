@@ -1522,6 +1522,15 @@ export class Level implements World, CaptureHost {
     return list.filter((a) => this.movableProps.has(a.id));
   }
 
+  /** A prop's authored `after` pose, without moving it (where a kill's `tip` takes it, voss-death-scene D8). */
+  afterPose(id: string): { pos: THREE.Vector3; rotation: THREE.Quaternion } | null {
+    for (const list of this.afterPoses.values()) {
+      const a = list.find((p) => p.id === id);
+      if (a) return { pos: a.pos.clone(), rotation: a.rotation.clone() };
+    }
+    return null;
+  }
+
   /** The current pose of a movable prop, in world space (a kill moving the cart it slams on). */
   propPose(id: string): { pos: THREE.Vector3; rotation: THREE.Quaternion } | null {
     const mp = this.movableProps.get(id);

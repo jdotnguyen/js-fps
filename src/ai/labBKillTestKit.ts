@@ -151,7 +151,7 @@ export async function labBKill(opts: { fps?: number; creature?: boolean } = {}) 
   const ask = (): void => emit('speech:ended', { id: LAB_B_KILL.lines.scratch });
   const beatAt = (b: string): number => emitted.find((e) => e.name === `kill:${b}`)?.at ?? -1;
 
-  // Lab B's furniture as solids: its static colliders by where they stand, and the cart (loose, so no collider) as its
+  // Lab B's furniture as solids: its static colliders by where they stand, and the cart (this kit never moves it) as its
   // turned box.
   const box = (id: string, near: [number, number]): Solid => {
     const c = level.collision.find(near[0] - 0.05, near[1] - 0.05, near[0] + 0.05, near[1] + 0.05).filter((k) => k.maxY > 0.5 && k.maxY < 1.5 && k.enabled !== false)[0];

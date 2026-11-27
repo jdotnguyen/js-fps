@@ -99,6 +99,8 @@ export interface NpcDirectorDeps {
   propPose?: KillWorld['propPose'];
   moveProp?: KillWorld['moveProp'];
   layOut?: KillWorld['layOut'];
+  /** A prop's `after` pose, where a kill's `tip` takes it (voss-death-scene D8). */
+  afterPose?: KillWorld['afterPose'];
   /** Controllable level props (dock_chair, dock_wand) driven by scripted NPC routines. */
   setPropTransform?: (id: string, pos: { x: number; y: number; z: number }, yaw: number) => boolean;
   setPropVisible?: (id: string, visible: boolean) => boolean;
@@ -294,6 +296,7 @@ export class NpcDirector {
         propPose: deps.propPose,
         moveProp: deps.moveProp,
         layOut: deps.layOut,
+        afterPose: deps.afterPose,
         warn: (m) => this.warnOnce(m),
         resolve: (ref) => this.resolver?.(ref) ?? (Array.isArray(ref) ? { pos: { x: ref[0] as number, y: ref[1] as number, z: ref[2] as number } } : null),
         spawn: (id, look, at, yaw, pose) => {

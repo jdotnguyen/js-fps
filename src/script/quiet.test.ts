@@ -117,6 +117,8 @@ function makeGame(only?: string[]) {
   const control = new ControlStack();
   const handlers = new Map<string, Set<(p: unknown) => void>>();
   const feeds: CameraFeedOptions[] = [];
+  /** Every NPC step as the director would get it. */
+  const npcSteps: Array<{ action: string; step: Readonly<Record<string, unknown>> }> = [];
   const host: SequenceHost = {
     events: {
       on(name, fn) {
@@ -164,6 +166,7 @@ function makeGame(only?: string[]) {
     squadPlaceIn: () => [],
     squadCatchUpIn: () => [],
     npc: (action, step) => {
+      npcSteps.push({ action, step });
       const extra =
         step['anim']
           ? ` ${String(step['anim'])}`
@@ -177,7 +180,7 @@ function makeGame(only?: string[]) {
     },
   };
   const m = new SequenceManager(host, only ? defs.filter((d) => only.includes(d.id)) : defs);
-  return { m, host, log, control, feeds };
+  return { m, host, log, control, feeds, npcSteps };
 }
 type Game = ReturnType<typeof makeGame>;
 
@@ -793,6 +796,25 @@ test('a load after the drop: the creature is gone and the Lab B grate hangs open
   assert.ok(g.log.includes('vent labb_vent open instant'));
   for (const e of ['sfx ventCoverRip', 'sfx ambushSting', 'say contact_giles_01']) assert.equal(g.log.includes(e), false, e);
   noWarnings(g);
+});
+
+test('physical-interaction "Restored kill" (voss-death-scene §5): the kill a load after the drop restores lays the swept glassware, the cart and its load out where a played kill leaves them', async () => {
+  const g = makeGame(['quiet_restore']);
+  Object.assign(g.host.flags, { introSeen: true, drop_started: true, drop_done: true });
+  g.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
+  const kill = g.npcSteps.find((s) => s.action === 'kill' && s.step['npc'] === 'researcher_b');
+  assert.ok(kill?.step['instant'], 'the load restores her kill');
+  // The same step, given to the real kill director in the real Lab B (no physics: the level alone draws them).
+  const { afterGroup, GROUPS, labBProps } = await import('../physics/labBTestKit.ts');
+  const lab = await labBProps({ physics: false });
+  void lab.npcs.command('kill', kill!.step);
+  lab.run(0.5);
+  const now = lab.poses();
+  for (const name of [GROUPS.bench, GROUPS.cart, GROUPS.load]) {
+    const group = afterGroup(name);
+    assert.ok(group.size > 0, `${name} has resting spots`);
+    for (const [id, at] of group) assert.ok(now.get(id)!.pos.distanceTo(at.pos) < 1e-4 && now.get(id)!.quat.angleTo(at.quat) < 1e-3, `${id} lies at its resting spot`);
+  }
 });
 
 // ------------------------------------------------------------------------------- restore, walk-by, ruined room

@@ -1076,9 +1076,18 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
       panelDevice: (panel, near) => level?.panelDevice(panel, near) ?? null,
       kills: validate(validateKillTable, killsJson, 'data/kills.json'),
       knock: (from, travel, reach, strength, done) => void physicsProps?.knock(from, travel, reach, strength, done),
-      // The R08 slam (livelier-cart-slam): what it throws, the cart it rocks, and the aftermath a skip lays out.
-      burst: (at, reach, strength, opts) => void physicsProps?.burst(at, reach, strength, opts),
+      // The R08 slam (livelier-cart-slam): what it throws, the cart it rocks, and the aftermath a skip lays out. The Lab B
+      // sweep and cart (voss-death-scene D8-D10) throw the same way; what they throw is heard quieter under their crash.
+      burst: (at, reach, strength, opts) => {
+        if (!physicsProps) return false;
+        const { duck, ...rest } = opts;
+        const out: string[] = [];
+        physicsProps.burst(at, reach, strength, { ...rest, out });
+        if (duck) for (const id of out) impacts?.duck(id);
+        return true;
+      },
       propPose: (id) => level?.propPose(id) ?? null,
+      afterPose: (id) => level?.afterPose(id) ?? null,
       moveProp: (id, pos, rotation) => {
         level?.setPropPose(id, pos, rotation);
         physicsProps?.drive(id, pos, rotation);

@@ -1,174 +1,204 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import type { GoreSystem } from '../actors/gore.ts';
-import { PoseLibrary } from '../actors/poses.ts';
-import { NpcDirector } from '../ai/npcs.ts';
-import { validate } from '../core/validate.ts';
-import { validateKillTable } from '../data/types/kills.ts';
-import { loadPoseFile } from '../data/types/poses.ts';
-import { loadSlice01 } from '../world/headlessSlice.ts';
-import { impactSound } from '../audio/impacts.ts';
-import { PhysicsProps, type PropImpact } from './interaction.ts';
-import { createRapierEngine } from './rapierAdapter.ts';
-import { PhysicsWorld } from './world.ts';
+import { afterGroup, GROUPS, labBProps, type Pose } from './labBTestKit.ts';
 
-// physical-interaction spec, tasks 6.5, 6.8 and 6.9: the real Lab B, with the real Voss kill walking through it.
-const STEP = 1 / 60;
-/** Lab B's side face of the gallery glass (z), and its floor. */
-const GLASS_Z = 22;
-const json = (p: string): unknown => JSON.parse(readFileSync(new URL(`../data/${p}`, import.meta.url), 'utf8'));
+// physical-interaction spec (voss-death-scene §5): the real Lab B, with the real Voss kill sweeping her bench and pulling
+// the cart over. Run this file alone while iterating (it loads the whole level several times).
 
-/** `interact` off is a session with no `PhysicsProps`, so the kill has nothing to knock with. */
-async function labB(interact = true) {
-  const { level, events } = loadSlice01();
-  const world = await PhysicsWorld.create(createRapierEngine, level.collision);
-  /** Every impact loud enough to be heard. */
-  const heard: PropImpact[] = [];
-  const props = interact ? new PhysicsProps(world, level, (i) => void (impactSound(i.material, i.speed) && heard.push(i))) : null;
-  // Lab B's own (R08's cart load is loose too: r08.test.ts).
-  const loose = level.physicsProps().filter((p) => p.loose && p.id.startsWith('labb_'));
-  const noop = (): void => undefined;
-  const handlers = new Map<string, Set<(p: unknown) => void>>();
-  const emit = (name: string, payload: unknown): void => void [...(handlers.get(name) ?? [])].forEach((fn) => fn(payload));
-  const npcs = new NpcDirector({
-    ctx: { poses: new PoseLibrary(loadPoseFile(json('poses.json'))), gore: new Proxy({}, { get: () => noop }) as unknown as GoreSystem },
-    nav: level.navGraph(),
-    colliders: level.collision,
-    player: () => ({ feet: new THREE.Vector3(8, 0, 18), head: new THREE.Vector3(8, 1.62, 18) }),
-    emit,
-    listen: (name, fn) => {
-      const set = handlers.get(name) ?? new Set();
-      handlers.set(name, set);
-      set.add(fn);
-      return () => set.delete(fn);
-    },
-    sfx: () => true,
-    warn: noop,
-    knock: (from, travel, reach, strength, done) => void props?.knock(from, travel, reach, strength, done),
-    kills: validate(validateKillTable, json('kills.json'), 'kills'),
-  });
-  npcs.setResolver((ref) => {
-    const a = level.anchor(String(ref).replace('anchor:', ''));
-    return a ? { pos: a.pos, yaw: a.yaw } : null;
-  });
-  npcs.spawnFromLevel(level.npcSpawns().filter((n) => n.id === 'researcher_b'));
-  const camera = new THREE.Vector3(8, 1.62, 18);
-  const run = (seconds: number, each?: (t: number) => void): void => {
-    for (let i = 0; i < Math.round(seconds / STEP); i++) {
-      each?.(i * STEP);
-      npcs.update(STEP, camera);
-      world.step(STEP);
-      props?.sync();
-    }
-  };
-  const poses = (): Map<string, { pos: THREE.Vector3; quat: THREE.Quaternion }> =>
-    new Map(loose.map((p) => [p.id, { pos: p.object.position.clone(), quat: p.object.quaternion.clone() }]));
-  const kill = (instant: boolean): void => {
-    void npcs.command('kill', { npc: 'researcher_b', kind: 'grownInside', glass: 'anchor:labb_glass', lines: { scratch: 'drop_voss_01', glass: 'drop_voss_02' }, instant });
-  };
-  return { level, events, world, props: props!, heard, loose, npcs, run, poses, kill, say: (id: string) => emit('speech:ended', { id }) };
-}
+/** Lab B's side of the gallery glass (z) and its walls. */
+const GLASS_Z = 22.06;
+const ROOM = { x0: 2.3, x1: 13.9, z1: 29.9 };
+/** The kill from Okafor's question to well after the creature is up, then a settle. */
+const PLAY_S = 17;
 
-test('Lab B: the cart and its load are loose props that movement ignores, and they rest where the level put them', async () => {
-  const g = await labB();
+const moved = (a: Pose, b: Pose): number => a.pos.distanceTo(b.pos);
+
+test('physical-interaction "At rest before the kill" and "Her bench": the glassware on her bench and the cart\'s load are loose, the cart is scripted, and nothing moves or sounds as the room settles', async () => {
+  const g = await labBProps();
   const ids = g.loose.map((p) => p.id);
-  assert.ok(ids.includes('labb_cart') && ids.length >= 8, `a cart and its load (${ids.length})`);
-  for (const p of g.loose) assert.equal(p.colliders.length, 0, `${p.id} is no obstacle to motors or the navmesh`);
+  const bench = ids.filter((id) => id.startsWith('labb_bench_'));
+  assert.equal(bench.length, 7, `the seven things on her bench top are loose (${bench.join(', ')})`);
+  assert.ok(ids.filter((id) => id.startsWith('labb_cart_')).length === 9, 'and the nine on the cart');
+  const cart = g.all.find((p) => p.id === 'labb_cart')!;
+  assert.ok(cart.kinematic && !cart.loose && cart.colliders.length > 0, 'the cart is a scripted body and still an obstacle');
+  for (const p of g.loose) {
+    assert.equal(p.colliders.length, 0, `${p.id} is no obstacle to motors or the navmesh`);
+    assert.ok(p.sound, `${p.id} has a sound`);
+  }
   const placed = g.poses();
   g.run(5);
   for (const [id, now] of g.poses()) {
     const was = placed.get(id)!;
-    assert.ok(now.pos.distanceTo(was.pos) < 0.02, `${id} stayed put (${(now.pos.distanceTo(was.pos) * 100).toFixed(1)} cm)`);
-    assert.ok(now.quat.angleTo(was.quat) < 0.05, `${id} stayed upright`);
+    assert.ok(moved(now, was) < 0.01, `${id} stayed put (${(moved(now, was) * 100).toFixed(1)} cm)`);
+    assert.ok(now.pos.y > was.pos.y - 0.005, `${id} did not sink`);
+    assert.ok(now.quat.angleTo(was.quat) < 0.03, `${id} stayed upright`);
   }
-  g.world.destroy();
+  assert.equal(g.heard.length, 0, 'a settling room is silent');
+  g.world!.destroy();
 });
 
-// voss-death-scene §4 took the walk-through knock out of her staged run; §5 brings the cart down on its scripted tip and
-// sweeps the bench, and replaces these two (physical-interaction "The cart on its frame", "Played kill").
-const UNTIL_TIP = { todo: 'voss-death-scene §5: the cart falls on its scripted tip, not by a knock' };
-test('the Voss kill crashes through the cart: it topples, its load scatters inside the room, and she reaches the glass', UNTIL_TIP, async () => {
-  const g = await labB();
-  g.run(1);
-  const before = g.poses();
-  g.kill(false);
-  g.run(2.5);
-  for (const [id, now] of g.poses()) assert.ok(now.pos.distanceTo(before.get(id)!.pos) < 0.02, `${id} is untouched while she scratches`);
-  g.say('drop_voss_01');
-  g.run(10);
-  const after = g.poses();
-  const moved = [...after].filter(([id, now]) => now.pos.distanceTo(before.get(id)!.pos) > 0.15).map(([id]) => id);
-  const cart = after.get('labb_cart')!;
-  assert.ok(moved.includes('labb_cart'), 'the cart is shoved');
-  assert.ok(cart.quat.angleTo(before.get('labb_cart')!.quat) > 0.8, `and goes over (${cart.quat.angleTo(before.get('labb_cart')!.quat).toFixed(2)} rad)`);
-  assert.ok(moved.length >= 6, `most of the load is thrown (${moved.join(', ')})`);
-  for (const [id, now] of after) {
-    assert.ok(now.pos.y > -0.05, `${id} is not through the floor (${now.pos.y.toFixed(2)})`);
-    assert.ok(now.pos.z > GLASS_Z && now.pos.x > 2 && now.pos.x < 14 && now.pos.z < 30, `${id} stays in Lab B (${now.pos.x.toFixed(2)}, ${now.pos.z.toFixed(2)})`);
+test('physical-interaction "Seen from the gallery with physics off": the loaded cart and the bench objects are there, standing still', async () => {
+  const g = await labBProps({ physics: false });
+  const placed = g.poses();
+  assert.ok(placed.size >= 17, `the cart, its load and the bench glassware (${placed.size})`);
+  for (const p of g.all) {
+    let shown = true;
+    for (let o: THREE.Object3D | null = p.object; o; o = o.parent) shown &&= o.visible;
+    assert.ok(shown, `${p.id} is drawn`);
   }
-  const voss = g.npcs.actor('researcher_b')!;
-  assert.ok(Math.hypot(voss.position.x - 8, voss.position.z - 22.5) < 0.3, `she is at the glass (${voss.position.x.toFixed(2)}, ${voss.position.z.toFixed(2)})`);
-  g.world.destroy();
-});
-
-test('a restored kill moves nothing, and a restart stands the knocked objects up again', async () => {
-  const g = await labB();
-  g.run(1);
-  const before = g.poses();
-  g.kill(true);
-  g.run(3);
-  assert.equal(g.heard.length, 0, 'a restored kill is silent');
-  for (const [id, now] of g.poses()) assert.ok(now.pos.distanceTo(before.get(id)!.pos) < 0.02, `${id} untouched by a restored kill`);
-
-  const done = new Set<string>();
-  assert.ok(g.props.knock({ x: 7.3, y: 0, z: 23.7 }, { x: 0.5, y: 0, z: -0.87 }, 0.9, 1, done) >= 8, 'the sweep reaches the cart and its load');
-  assert.equal(g.props.knock({ x: 7.3, y: 0, z: 23.7 }, { x: 0.5, y: 0, z: -0.87 }, 0.9, 1, done), 0, 'and hits each thing once');
+  // Up to the moment she sweeps the bench, nothing has moved.
+  g.kill();
   g.run(2);
-  const reset = g.world.reset();
-  g.events.emit('level:reset', {});
-  await reset;
+  g.ask();
+  g.run(0.5);
+  for (const [id, now] of g.poses()) assert.ok(now.pos.equals(placed.get(id)!.pos) && now.quat.equals(placed.get(id)!.quat), `${id} stood still`);
+});
+
+/** Where the cart first leaves its place (s after Okafor's question) and where it ends, with or without physics. */
+async function cartRun(physics: boolean, fps = 60) {
+  const g = await labBProps({ physics, fps });
+  g.run(1);
+  const placed = g.poses().get('labb_cart')!;
+  g.kill();
+  g.run(2);
+  g.ask();
+  const asked = g.time();
+  let left = -1;
+  g.run(PLAY_S, (t) => {
+    if (left < 0 && moved(g.poses().get('labb_cart')!, placed) > 1e-4) left = t - asked;
+  });
+  return { g, left, rest: g.poses().get('labb_cart')! };
+}
+
+test('physical-interaction "The cart on its frame": it starts over at the same moment after Okafor\'s question with physics on and off, and rests in the same pose', async () => {
+  const on = await cartRun(true);
+  const off = await cartRun(false);
+  const frame = 1 / 60;
+  // The tip is at 5.5 s into `panic`, which starts as the question ends.
+  assert.ok(Math.abs(on.left - 5.5) <= frame + 1e-6, `it starts going over 5.5 s in (${on.left.toFixed(3)} s)`);
+  assert.ok(Math.abs(on.left - off.left) <= frame + 1e-6, `on the same frame either way (${on.left.toFixed(3)} / ${off.left.toFixed(3)} s)`);
+  const after = afterGroup(GROUPS.cart).get('labb_cart')!;
+  for (const r of [on.rest, off.rest]) {
+    assert.ok(r.pos.distanceTo(after.pos) < 1e-3, `it lies at its resting spot (${(r.pos.distanceTo(after.pos) * 100).toFixed(2)} cm off)`);
+    assert.ok(r.quat.angleTo(after.quat) < 1e-3, 'turned as authored');
+  }
+  // The same at another frame rate.
+  const slow = await cartRun(false, 30);
+  assert.ok(Math.abs(slow.left - off.left) <= 1 / 30 + 1e-6, `at 30 fps too (${slow.left.toFixed(3)} s)`);
+  on.g.world!.destroy();
+});
+
+test('physical-interaction "Played kill": she sweeps two things off her bench and the cart\'s whole load spills; all of it lands on the floor or furniture inside Lab B, none in the bench, the floor, the cart or the glass', async () => {
+  const g = await labBProps();
+  g.run(1);
+  const before = g.poses();
+  g.kill();
+  g.run(2);
+  g.ask();
+  const asked = g.time();
+  g.run(PLAY_S);
+  const after = g.poses();
+  const thrown = [...after].filter(([id, now]) => id !== 'labb_cart' && moved(now, before.get(id)!) > 0.1).map(([id]) => id).sort();
+  const expected = [...afterGroup(GROUPS.bench).keys(), ...afterGroup(GROUPS.load).keys()].sort();
+  assert.deepEqual(thrown, expected, 'what the sweep and the cart throw is what a skipped kill lays out');
+  // What she swept went at the sweep, what the cart carried at the tip, and both are heard quieter under the crash.
+  for (const d of g.ducked) {
+    const t = d.at - asked;
+    if (d.id.startsWith('labb_bench_')) assert.ok(Math.abs(t - 0.55) < 0.02, `${d.id} swept at 0.55 s (${t.toFixed(2)})`);
+    else assert.ok(Math.abs(t - 5.5) < 0.02, `${d.id} thrown as the cart goes over at 5.5 s (${t.toFixed(2)})`);
+  }
+  assert.deepEqual(g.ducked.map((d) => d.id).sort(), expected, 'each thrown thing is ducked once');
+
+  const statics = (x: number, y: number, z: number) =>
+    g.level.collision.find(x, z, x, z).filter((k) => k.enabled !== false && y > k.minY + 1e-3 && y < k.maxY - 1e-3 && !g.all.some((p) => p.colliders.includes(k as never)));
+  const cart = g.all.find((p) => p.id === 'labb_cart')!;
+  cart.object.updateMatrixWorld(true);
+  const toCart = cart.object.matrixWorld.clone().invert();
+  for (const id of thrown) {
+    const p = g.all.find((q) => q.id === id)!;
+    p.object.updateMatrixWorld(true);
+    const b = p.localColliders[0]!;
+    const c = new THREE.Vector3((b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2).applyMatrix4(p.object.matrixWorld);
+    assert.ok(c.y > 0, `${id} is not through the floor (${c.y.toFixed(3)})`);
+    assert.equal(statics(c.x, c.y, c.z).length, 0, `${id} is not inside the bench or anything else fixed (${c.toArray().map((v) => v.toFixed(2)).join(', ')})`);
+    const inCart = c.clone().applyMatrix4(toCart);
+    for (const box of cart.localColliders) {
+      const inside = [0, 1, 2].every((i) => inCart.getComponent(i) > box.min[i]! + 1e-3 && inCart.getComponent(i) < box.max[i]! - 1e-3);
+      assert.ok(!inside, `${id} is not inside the cart's frame`);
+    }
+    assert.ok(c.z > GLASS_Z && c.z < ROOM.z1 && c.x > ROOM.x0 && c.x < ROOM.x1, `${id} stays in Lab B, on her side of the glass (${c.x.toFixed(2)}, ${c.z.toFixed(2)})`);
+  }
+  // It falls quiet.
+  const count = g.heard.length;
+  assert.ok(count > 0, 'the spill is heard');
+  g.run(3);
+  assert.equal(g.heard.length, count, 'and then is silent');
+  g.world!.destroy();
+});
+
+test('physical-interaction "Physics off": at the sweep and as the cart goes over, what they throw appears at its resting spot and stays there', async () => {
+  const g = await labBProps({ physics: false });
+  const bench = afterGroup(GROUPS.bench);
+  const load = afterGroup(GROUPS.load);
+  const placed = g.poses();
+  g.kill();
+  g.run(2);
+  g.ask();
+  const asked = g.time();
+  const appeared = new Map<string, number>();
+  g.run(PLAY_S, (t) => {
+    for (const [id, now] of g.poses()) {
+      const at = bench.get(id) ?? load.get(id);
+      if (at && !appeared.has(id) && now.pos.distanceTo(at.pos) < 1e-4) appeared.set(id, t - asked);
+    }
+  });
+  for (const id of bench.keys()) assert.ok(Math.abs(appeared.get(id)! - 0.55) <= 1 / 60 + 1e-6, `${id} lies where it lands at the sweep (${appeared.get(id)?.toFixed(3)} s)`);
+  for (const id of load.keys()) assert.ok(Math.abs(appeared.get(id)! - 5.5) <= 1 / 60 + 1e-6, `${id} lies where it lands as the cart goes over (${appeared.get(id)?.toFixed(3)} s)`);
+  for (const [id, now] of g.poses()) {
+    const at = bench.get(id) ?? load.get(id);
+    if (at) assert.ok(now.pos.distanceTo(at.pos) < 1e-4 && now.quat.angleTo(at.quat) < 1e-3, `${id} stayed there`);
+    else if (id !== 'labb_cart') assert.ok(now.pos.equals(placed.get(id)!.pos), `${id} never moved`);
+  }
+});
+
+for (const physics of [true, false]) {
+  test(`physical-interaction "Restored kill" (physics ${physics ? 'on' : 'off'}): the cart and what it and the sweep threw lie at their resting spots, nothing else moves, and it is silent`, async () => {
+    const g = await labBProps({ physics });
+    g.run(1);
+    const placed = g.poses();
+    g.kill(true);
+    g.run(3);
+    const laid = new Map([...afterGroup(GROUPS.bench), ...afterGroup(GROUPS.cart), ...afterGroup(GROUPS.load)]);
+    assert.equal(laid.size, 12, 'two swept things, the cart and its nine');
+    for (const [id, now] of g.poses()) {
+      const at = laid.get(id);
+      if (at) {
+        assert.ok(now.pos.distanceTo(at.pos) < 0.02, `${id} lies at its resting spot (${(now.pos.distanceTo(at.pos) * 100).toFixed(1)} cm off)`);
+        assert.ok(now.quat.angleTo(at.quat) < 0.05, `${id} turned as laid out`);
+      } else assert.ok(moved(now, placed.get(id)!) < 0.01, `${id} is not moved by the restored kill`);
+    }
+    assert.equal(g.heard.length, 0, 'a restored kill is silent');
+    assert.equal(g.ducked.length, 0, 'and throws nothing');
+    g.world?.destroy();
+  });
+}
+
+test('physical-interaction "Restart before the kill": after a played kill, a restart puts every object back where it was placed, silently', async () => {
+  const g = await labBProps();
+  g.run(1);
+  const placed = g.poses();
+  g.kill();
+  g.run(2);
+  g.ask();
+  g.run(PLAY_S);
+  const heard = g.heard.length;
+  await g.restart();
   g.run(2);
   for (const [id, now] of g.poses()) {
-    assert.ok(now.pos.distanceTo(before.get(id)!.pos) < 0.02, `${id} is back`);
-    assert.ok(now.quat.angleTo(before.get(id)!.quat) < 0.05, `${id} is upright again`);
+    assert.ok(moved(now, placed.get(id)!) < 0.02, `${id} is back (${(moved(now, placed.get(id)!) * 100).toFixed(1)} cm off)`);
+    assert.ok(now.quat.angleTo(placed.get(id)!.quat) < 0.05, `${id} is upright again`);
   }
-  g.world.destroy();
-});
-
-test('the crash is heard: nothing while the room settles, the cart crashes and glass sounds as she goes through', UNTIL_TIP, async () => {
-  const g = await labB();
-  for (const p of g.loose) assert.ok(p.sound, `${p.id} has a sound`);
-  g.run(5);
-  assert.equal(g.heard.length, 0, 'a settling room is silent');
-  g.kill(false);
-  g.run(2.5);
-  g.say('drop_voss_01');
-  g.run(10);
-  const sounds = g.heard.map((i) => impactSound(i.material, i.speed)!.sound);
-  assert.ok(sounds.includes('propCartCrash'), `the cart crashes (${sounds.join(', ')})`);
-  assert.ok(sounds.some((s) => s.startsWith('propGlass')), 'glassware is heard');
-  for (const i of g.heard) assert.ok(i.speed < 12, `${i.id} at a believable speed (${i.speed.toFixed(1)})`);
-  const count = g.heard.length;
-  g.run(5);
-  assert.equal(g.heard.length, count, 'and it falls quiet');
-  const reset = g.world.reset();
-  g.events.emit('level:reset', {});
-  await reset;
-  g.run(3);
-  assert.equal(g.heard.length, count, 'standing the objects up again is silent');
-  g.world.destroy();
-});
-
-test('with physical interaction off the kill leaves every object standing', async () => {
-  const g = await labB(false);
-  const before = g.poses();
-  g.kill(false);
-  g.run(2.5);
-  g.say('drop_voss_01');
-  g.run(7.5);
-  assert.ok(g.npcs.actor('researcher_b')!.position.z < 23, 'she walked to the glass');
-  for (const [id, now] of g.poses()) assert.ok(now.pos.equals(before.get(id)!.pos), `${id} never moved`);
-  g.world.destroy();
+  assert.equal(g.heard.length, heard, 'standing things up again is silent');
+  g.world!.destroy();
 });

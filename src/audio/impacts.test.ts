@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import * as THREE from 'three';
 import { IMPACT_MANIFEST, impactUrls, type ImpactBank } from '../../scripts/impacts-generate.ts';
-import { IMPACT_MIN_SPEED, IMPACT_RANGE, IMPACT_VOICES, ImpactAudio, impactSound, type Impact } from './impacts.ts';
+import { IMPACT_MIN_SPEED, IMPACT_RANGE, IMPACT_VOICES, ImpactAudio, impactSound, SCRIPTED_DUCK, type Impact } from './impacts.ts';
 import { SAMPLE_URLS } from './sounds.ts';
 
 // adopt-physics-engine D16: what a hit sounds like, and how a pile of them is kept in hand.
@@ -84,4 +84,23 @@ test('every impact bank is registered from the build manifest, with its clips on
     for (const u of urls) assert.ok(existsSync(new URL(`../../public/${u}`, import.meta.url)), u);
   }
   assert.equal(new Set(IMPACT_MANIFEST.map((s) => s.id)).size, IMPACT_MANIFEST.length);
+});
+
+test('voss-death-scene D10: what a scripted crash throws plays at x0.35 for 1.5 s, then at full gain', () => {
+  const r = rig();
+  r.hit({ id: 'plain' });
+  const full = r.played.at(-1)!.gain;
+  r.audio.duck('a');
+  r.hit();
+  assert.ok(Math.abs(r.played.at(-1)!.gain - full * SCRIPTED_DUCK.gain) < 1e-9, `ducked to ${SCRIPTED_DUCK.gain}`);
+  assert.equal(SCRIPTED_DUCK.gain, 0.35);
+  assert.equal(SCRIPTED_DUCK.s, 1.5);
+  r.wait(1.4);
+  r.hit();
+  assert.ok(Math.abs(r.played.at(-1)!.gain - full * 0.35) < 1e-9, 'still ducked inside the window');
+  r.hit({ id: 'other' });
+  assert.ok(Math.abs(r.played.at(-1)!.gain - full) < 1e-9, 'other things are not');
+  r.wait(0.2);
+  r.hit();
+  assert.ok(Math.abs(r.played.at(-1)!.gain - full) < 1e-9, 'full gain after 1.5 s');
 });
