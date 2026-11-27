@@ -19,8 +19,8 @@ and tell the user which change or file is blocking if:
   pass.
 - The section edits `R03.json` or `R04.json` (sections 4, 5 and 7) and `split-level-data` phase 1b is not committed.
   Phase 1b is the work that adds `layout` to the room files and deletes `scripts/gen-slice01.mjs`.
-- Any of `split-level-data` phases 2-4 is in progress: some of its tasks are ticked but not all of them, or its files are
-  dirty. If a phase is fully committed, use its new paths (design D14).
+- `split-level-data` phase 2 or 4 is in progress: some of its tasks are ticked but not all of them, or its files are
+  dirty. If a phase is fully committed, use its new paths (design D14). Phase 3 (sound area files) is committed.
 - A file the section edits has uncommitted hunks from another change.
 
 ## 1. Fixed clock and drop deadlines (Sonnet 5.5, high)
@@ -153,8 +153,8 @@ and tell the user which change or file is blocking if:
 
 - [ ] 8.1 Check the gates. Verify: as in 1.1.
 - [ ] 8.2 Generate the bench sweep, cart crash, body into the bench, knee to the floor, palms on the glass and her scuffs
-  with ElevenLabs, following `docs/audio-assets.md`, and add them to `src/audio/sounds.ts`. Verify: the audio asset
-  tests pass, and each file is within the doc's size limits.
+  with ElevenLabs, following `docs/audio-assets.md`, and add them to `samples` in `src/audio/sounds/kills.ts`. Verify:
+  the audio asset tests pass, and each file is within the doc's size limits.
 - [ ] 8.3 Record her gasps and grunts in her existing `crew_lab` voice, following `docs/voice-casting-standard.md`.
   Copy each raw batch take to `previews/vo-batches/voss-death-scene/` as soon as it is generated. Verify: the VO checks
   in that doc pass, and the takes are in the shipped sound list.

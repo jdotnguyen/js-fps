@@ -18,9 +18,9 @@ Edit the file that owns what you are working on, so agents on different work sta
 | A scene sequence | `src/data/sequences/<scene>.json` |
 | A character's poses | `src/data/poses.json` |
 | Character body models | `src/data/body-models.json` |
-| Sounds | `src/audio/sounds.ts` |
+| Sounds, one file per area (`docs/audio-assets.md`). A new area is also listed in `index.ts` there | `src/audio/sounds/<area>.ts` |
 
-Read a level in tests and tools with `readLevel` (`src/data/levels/readLevel.ts`), not by opening its files. No script writes the level files. A room's floors, walls and ceilings are built from its `layout` when the level loads (`docs/modular-grid-standard.md`). OpenSpec change `split-level-data` splits the pose, body and sound files per owner in later phases.
+Read a level in tests and tools with `readLevel` (`src/data/levels/readLevel.ts`), not by opening its files. No script writes the level files. A room's floors, walls and ceilings are built from its `layout` when the level loads (`docs/modular-grid-standard.md`). OpenSpec change `split-level-data` splits the pose and body files per owner in a later phase.
 
 ## Build, Test, and Development Commands
 

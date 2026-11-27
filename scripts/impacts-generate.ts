@@ -133,7 +133,7 @@ export const IMPACT_MANIFEST: readonly ImpactSpec[] = [
   ...bank('limbThud', 1.0, [{ ...GORE, start: 0, end: 1.15 }]),
 ];
 
-/** `assets/...` URLs per bank, in variant order (what src/audio/sounds.ts registers). */
+/** `assets/...` URLs per bank, in variant order (what src/audio/sounds/impacts.ts registers). */
 export function impactUrls(): Record<ImpactBank, string[]> {
   const out = {} as Record<ImpactBank, string[]>;
   for (const s of IMPACT_MANIFEST) (out[s.bank] ??= []).push(`${IMPACT_OUT_DIR.replace(/^public\//, '')}/${s.file}`);

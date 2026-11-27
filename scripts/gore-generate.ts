@@ -7,7 +7,7 @@
  * `public/assets/audio/gore/`, normalises one-shots to -6 dB peak and loops to -24 dB mean when ffmpeg is available.
  * Vocal reactions (Voss panting, whimpers, screams) are not made here: they come from Gemini TTS (audio-assets spec).
  *
- * After generating, register each sound in `SAMPLE_URLS` (`src/audio/sounds.ts`); `--register` prints the entries.
+ * After generating, register each sound in its area file's `samples` (`src/audio/sounds/`); `--register` prints the entries.
  * Until a sound exists, `data/kills.json` plays its stand-in (the second id in its `sfx` list).
  *
  * Usage:
@@ -363,7 +363,7 @@ async function generateOne(spec: GoreAssetSpec, apiKey: string, force: boolean):
   return true;
 }
 
-/** The `SAMPLE_URLS` entries for every sound whose files all exist. */
+/** The `samples` entries for every sound whose files all exist. */
 export function registrationLines(exists: (file: string) => boolean = (f) => existsSync(join(OUT_DIR, f))): string[] {
   const bySound = new Map<string, string[]>();
   for (const s of GORE_MANIFEST) bySound.set(s.sound, [...(bySound.get(s.sound) ?? []), s.file]);
@@ -385,7 +385,7 @@ async function main(): Promise<void> {
 
   if (args.includes('--register')) {
     const lines = registrationLines();
-    console.log(lines.length ? `Add to SAMPLE_URLS in src/audio/sounds.ts:\n  // Infected-kill body sounds (ElevenLabs, scripts/gore-generate.ts).\n${lines.join('\n')}` : 'No complete sound yet; generate first.');
+    console.log(lines.length ? `Add to samples in the area file under src/audio/sounds/ (kill sounds: kills.ts, hits on the player: player.ts):\n  // Infected-kill body sounds (ElevenLabs, scripts/gore-generate.ts).\n${lines.join('\n')}` : 'No complete sound yet; generate first.');
     return;
   }
   if (args.includes('--list') || (!all && ids.length === 0)) {

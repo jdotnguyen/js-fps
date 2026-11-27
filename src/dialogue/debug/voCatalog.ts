@@ -52,7 +52,7 @@ export const CHARACTER_META: Readonly<Record<string, CharacterMeta>> = {
 
 const CHARACTER_ORDER: readonly string[] = Object.keys(CHARACTER_META);
 
-/** Known non-dialogue VO files wired into src/audio/sounds.ts (so we can label where they are used). */
+/** Known non-dialogue VO files wired into src/audio/sounds/ (so we can label where they are used). */
 const SFX_VO_NOTES: Readonly<Record<string, { speaker: string; label: string; text: string }>> = {
   'assets/vo/react_voss_panic_01.mp3': {
     speaker: 'crew_lab',

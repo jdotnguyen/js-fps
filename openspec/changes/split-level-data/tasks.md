@@ -95,14 +95,28 @@ tell the user which change or file is blocking.
 
 ## 4. Phase 3: sound area files (Sonnet 5.5, medium)
 
-- [ ] 4.1 Quiet-window check for `src/audio/sounds.ts`. Verify: as in 1.1.
-- [ ] 4.2 Split `SOUND_SPECS` and `SAMPLE_URLS` into `src/audio/sounds/<area>.ts` files along the existing section
+- [x] 4.1 Quiet-window check for `src/audio/sounds.ts`. Verify: as in 1.1.
+  Result (2026-11-27): the file was clean, but `voss-death-scene` (task 8.2, not started) named it and its order rule
+  put it before phase 2 or after phase 4. The user approved running phase 3 as an exception, with `voss-death-scene`
+  updated to the new paths.
+- [x] 4.2 Split `SOUND_SPECS` and `SAMPLE_URLS` into `src/audio/sounds/<area>.ts` files along the existing section
   comments, with a hand-kept `index.ts`. `sounds.ts` re-exports it (design D6). Verify: `npm run typecheck` passes, and
   `SoundName` still rejects an unknown name (a `@ts-expect-error` line in a test).
-- [ ] 4.3 Add a test that no sound name appears in two area files. Verify: it passes, and fails when a name is copied
+  Result (2026-11-27): 15 area files, with shared generator helpers in `src/audio/synth.ts`. A one-time comparison with
+  HEAD's registry found all 220 samples equal and all 26 specs' 152 buffers (every variant, 22.05 and 48 kHz)
+  byte-identical. The generator functions are no longer exported from `sounds.ts`; nothing imported them. Names now sit
+  in area order in `SAMPLE_URLS`, so the background decode order differs slightly. The audio audit skips the area files,
+  as it skipped `sounds.ts`. Typecheck passes.
+- [x] 4.3 Add a test that no sound name appears in two area files. Verify: it passes, and fails when a name is copied
   into a second area.
-- [ ] 4.4 Update `docs/audio-assets.md` and the AGENTS.md map to say where a new sound goes. Verify: the audio test
+  Result (2026-11-27): `src/audio/soundAreas.test.ts`. Copying `waterLap` into `doors.ts` failed it with
+  `waterLap: doors.ts, flood.ts`. It also fails when the index leaves an area file's name out.
+- [x] 4.4 Update `docs/audio-assets.md` and the AGENTS.md map to say where a new sound goes. Verify: the audio test
   files pass (`npm test -- src/audio/`).
+  Result (2026-11-27): the runner doesn't take a folder, so the files were listed (all of `src/audio/*.test.ts` and the
+  tests elsewhere that read the registry): 397 of 398 pass. The failure is `music.test.ts` (labB loudness), already
+  failing in 1.8's list. `audio:audit` reports nothing and `vite build` passes. `voss-death-scene` now points at the
+  new sound paths.
 
 ## 5. Phase 4: set pieces out of level.ts (Opus 5.5, high)
 

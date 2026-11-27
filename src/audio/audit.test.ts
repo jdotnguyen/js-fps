@@ -9,6 +9,8 @@ test('no procedural spec, recorded sample or audio file is unused', async () => 
 
 test('the audit catches a dead entry', async () => {
   const real = await projectAuditInput();
+  // A registry file counted as a source would make every name look used.
+  assert.deepEqual([...real.sources.keys()].filter((p) => p === 'src/audio/sounds.ts' || p.startsWith('src/audio/sounds/')), []);
   const planted = auditAudio({
     ...real,
     specNames: [...real.specNames, 'zzUnusedSynth'],

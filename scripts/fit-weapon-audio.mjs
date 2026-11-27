@@ -1,6 +1,6 @@
 // Fits weapon samples to the animated GLB clips, by time-stretching (pitch preserved, ffmpeg atempo) or by cutting
 // out the quiet between two transients, so the transients land on the moments of the clips. Fitted files are written as <name>-fit.mp3 in public/assets/audio/weapons/ and
-// referenced from SAMPLE_URLS in src/audio/sounds.ts. Cue times are CUES in src/render/viewmodel/viewmodel.ts.
+// referenced from `samples` in src/audio/sounds/weapons.ts. Cue times are CUES in src/render/viewmodel/viewmodel.ts.
 //
 // The source masters do not ship with the game. Get them from git history into a folder, then run:
 //   mkdir -p masters && git show 822dddf^:public/assets/audio/weapons/shotgun-pump.wav > masters/shotgun-pump.wav

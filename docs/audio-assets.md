@@ -41,16 +41,40 @@ Do not add a new procedural synth for a new sound: procedural audio is fallback-
 
 Kill sounds (`data/kills.json`, infection-kills spec) name a list of sounds per event: the first that exists plays, so a
 recording still to be generated falls back to an existing stand-in (`kill_crunch` -> `fleshTear`). After
-`npm run gore:generate -- --all`, `npm run gore:generate -- --register` prints the `SAMPLE_URLS` entries to add. Voss's
+`npm run gore:generate -- --all`, `npm run gore:generate -- --register` prints the `samples` entries to add. Voss's
 panting and whimpers (`voss_panic_breath`) are vocal reactions, so they come from Gemini TTS:
 `node --experimental-strip-types scripts/vo-reactions.ts --only react_voss_panic`, then register
 `react_voss_panic_01..03.mp3` under `voss_panic_breath`. Her screams stay the credited OpenGameArt clips.
 
 ## 2. Register it by name
 
-Add the file to `SAMPLE_URLS` in `src/audio/sounds.ts`. Several files under one name become
-variants, picked per play. If the name matches an existing procedural sound in `SOUND_SPECS`,
-the file replaces it as soon as it decodes, and the procedural version stays as the fallback.
+Add the file to `samples` in the area file it belongs to, under `src/audio/sounds/`:
+
+| File | Sounds |
+| --- | --- |
+| `ambience.ts` | Station room beds, spatial emitters, hull, water, console, hydroponics and med bay one-shots |
+| `commons.ts` | The Commons chairs, tables, kitchen, coffee and murmur |
+| `creatures.ts` | Creature voices, gaits and movement, including the vent escape |
+| `docks.ts` | The dock checkpoint, the dive bay launch hall and the supply sub |
+| `doors.ts` | Door motion and access feedback |
+| `flood.ts` | Standing water, the flooded tunnel and pump room, the valve cutscene |
+| `footsteps.ts` | Boot steps and wading |
+| `impacts.ts` | Loose props and severed pieces hitting things |
+| `kills.ts` | Infected-kill body sounds and the R08 and Lab B scenes |
+| `player.ts` | The flashlight, hits on the player, the low-health heartbeat and breathing |
+| `power.ts` | The station blackout and the R11 power bay |
+| `roomLife.ts` | Living-station room beds, emitters and room-life foley |
+| `transit.ts` | The departure bay, the transit ride and the R16 arrival |
+| `ui.ts` | Menu sounds |
+| `weapons.ts` | Weapons and spent casings |
+
+A new area gets a new file, listed once in `src/audio/sounds/index.ts`. Only one area file may define a name
+(`src/audio/soundAreas.test.ts` checks this). `src/audio/sounds.ts` only re-exports the index, so code keeps importing
+from it.
+
+Several files under one name become variants, picked per play. If the name matches an existing procedural sound in an
+area file's `specs`, register the file in that same area: it replaces the procedural sound as soon as it decodes, and
+the procedural version stays as the fallback.
 Play it by name (`audio.play('<name>', ...)`, or a sequence `{ "do": "sfx", "id": "<name>" }`).
 
 **Occlusion.** A one-shot `audio.play` on the `sfx` bus with a `position` is muffled automatically

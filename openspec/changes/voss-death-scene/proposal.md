@@ -49,7 +49,7 @@ None.
   - `src/data/levels/slice01/rooms/R04.json` (Lab B: route marks, loose bench items, the scripted cart) and
     `rooms/R03.json` (the gallery: the sealed pane).
   - `src/data/sequences/drop.json`, and `quiet_restore.json` for the aftermath.
-- **Audio and credits:** new files under `public/assets/audio/` and entries in `src/audio/sounds.ts`, following `docs/audio-assets.md`. Her gasps and grunts follow `docs/voice-casting-standard.md`. New sounds and capture takes are credited in `CREDITS.md`, and the takes in `docs/mocap-sources.md`.
+- **Audio and credits:** new files under `public/assets/audio/` and entries in the area files under `src/audio/sounds/`, following `docs/audio-assets.md`. Her gasps and grunts follow `docs/voice-casting-standard.md`. New sounds and capture takes are credited in `CREDITS.md`, and the takes in `docs/mocap-sources.md`.
 - **Order with other work:**
   - rig-necromorph is committed and archived, so its blade creature is the one Voss's burst hands over to. Its pose map borrows Voss's `kill_glass_0` and `kill_glass_1`, its unfold is cued from her burst, and her final resting place must leave its stand point clear.
   - `split-level-data` phase 1a (4409f6b, 2026-11-26) replaced `slice01.json` with one file per room under
@@ -59,9 +59,11 @@ None.
     files by hand: `scripts/gen-slice01.mjs` is frozen (phase 1a) and phase 1b deletes it; don't edit or run it.
   - Phase 1b (room shells built from `layout`) changes every room file and must be committed before this change edits
     `R03.json` or `R04.json`.
-  - Phases 2-4 of `split-level-data` move files this change edits (`poses.json` and `src/data/mocap/` in phase 2,
-    `src/audio/sounds.ts` in phase 3, `src/world/level.ts` and `drop.json` in phase 4), so they must not run at the same time
-    as this change: this change runs entirely before phase 2 starts, or entirely after phase 4 is committed.
+  - Phases 2 and 4 of `split-level-data` move files this change edits (`poses.json` and `src/data/mocap/` in phase 2,
+    `src/world/level.ts` and `drop.json` in phase 4), so they must not run at the same time as this change: this change
+    runs entirely before phase 2 starts, or entirely after phase 4 is committed.
+  - Phase 3 (sound area files) ran during this change, an exception the user approved on 2026-11-27, before section 8
+    added any sound. New sounds go in `src/audio/sounds/<area>.ts`.
   - Code work waits until `keep-crossed-arms` is committed. It was committed as a209f41 and archived on 2026-11-26, so
     this gate is already met. `src/ai/npcKills.ts` has no uncommitted edits now.
   - The drop now starts as Jay walks into the gallery, after her breathing has played over the intercom since the end of the rounds (`gallery-drop`). The fixed clock starts at the end of Okafor's question, which this does not move.

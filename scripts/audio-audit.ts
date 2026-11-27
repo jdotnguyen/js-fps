@@ -72,8 +72,9 @@ function walk(dir: string, keep: (path: string) => boolean, out: string[] = []):
 export async function projectAuditInput(root = ROOT): Promise<AuditInput> {
   const { SOUND_SPECS, SAMPLE_URLS } = await import('../src/audio/sounds.ts');
   const posix = (p: string) => relative(root, p).split(sep).join('/');
+  // The registry files define the names, so they don't count as uses of them.
   const skip = (p: string) =>
-    p === 'src/audio/sounds.ts' || p.endsWith('.test.ts') || p.startsWith('src/audio/testing/');
+    p === 'src/audio/sounds.ts' || p.startsWith('src/audio/sounds/') || p.endsWith('.test.ts') || p.startsWith('src/audio/testing/');
   const sources = new Map<string, string>();
   for (const p of walk(join(root, 'src'), (f) => /\.(ts|json)$/.test(f))) {
     const rel = posix(p);

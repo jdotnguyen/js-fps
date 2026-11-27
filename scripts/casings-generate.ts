@@ -132,7 +132,7 @@ export const CASING_MANIFEST: readonly CasingSpec[] = [
   gen('casingWater', 5, 'a little brass casing landing in shallow flood water, one soft plip', 0.5, 0.45),
 ];
 
-/** `assets/...` URLs per bank, in variant order (what src/audio/sounds.ts registers). */
+/** `assets/...` URLs per bank, in variant order (what src/audio/sounds/weapons.ts registers). */
 export function casingUrls(): Record<CasingBank, string[]> {
   const out = {} as Record<CasingBank, string[]>;
   for (const s of CASING_MANIFEST) (out[s.bank] ??= []).push(`${CASING_OUT_DIR.replace(/^public\//, '')}/${s.file}`);

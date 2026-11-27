@@ -182,10 +182,11 @@ during `glass` and `arch`.
 
 ### D14. Paths, gates and sessions
 
-The tasks name today's paths. If `split-level-data` phases 2-3 are committed before this change starts, use their new
-homes instead (`cast/voss/poses.json`, `cast/voss/mocap.json` and `src/audio/sounds/<area>.ts`). Phases 2-4 must not
-be in progress at any point while this change runs. Phase 2's own quiet-window check blocks it while these tasks name
-its files. Each task section runs in its own session, under the gates at the top of `tasks.md`.
+The tasks name today's paths. `split-level-data` phase 3 was committed on 2026-11-27, during this change (an exception
+the user approved), so sounds live in `src/audio/sounds/<area>.ts`; the Lab B body sounds go in `kills.ts`. If phase 2
+is committed before this change starts, use its new homes too (`cast/voss/poses.json` and `cast/voss/mocap.json`).
+Phases 2 and 4 must not be in progress at any point while this change runs. Phase 2's own quiet-window check blocks it
+while these tasks name its files. Each task section runs in its own session, under the gates at the top of `tasks.md`.
 
 ## Risks / Trade-offs
 
