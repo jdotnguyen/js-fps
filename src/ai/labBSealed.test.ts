@@ -65,7 +65,8 @@ test('a sealed pane still clips gore: nothing sprayed in her kill crosses to Jay
 });
 
 test('in-world-audio "Scripted kill behind sealed glass": her kill\'s sounds are muffled as sealed glass muffles, except those made on the pane', () => {
-  const ON_PANE = ['palm_glass_hit', 'creature_glass_hit', 'blood_splat_glass', 'body_glass_hit'];
+  // (She falls back from the glass after the burst: her body never strikes it.)
+  const ON_PANE = ['palm_glass_hit', 'creature_glass_hit', 'blood_splat_glass'];
   for (const id of ON_PANE) assert.ok(run.sounds.some((s) => s.id === id), `${id} played`);
   for (const s of run.sounds.filter((s) => ON_PANE.includes(s.id))) {
     assert.deepEqual(s.heard, ['none', 'none', 'none'], `${s.id} at ${s.at.toArray().map((v) => v.toFixed(2))}: on the pane, heard as authored`);

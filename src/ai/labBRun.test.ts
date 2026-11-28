@@ -27,6 +27,8 @@ interface Frame {
   heading: number;
   at: Map<JointName, THREE.Vector3>;
   caps: WorldCapsule[];
+  /** The creature's head, once it is out. */
+  creatureHead: THREE.Vector3 | null;
 }
 
 async function played() {
@@ -49,7 +51,8 @@ async function played() {
   g.run(15.1, () => {
     const r = g.npcs.kills.running('researcher_b');
     if (!r || !['panic', 'glass', 'arch', 'burst', 'still'].includes(r.beatId ?? '')) return;
-    frames.push({ t: g.time() - asked, beat: r.beatId!, beatT: r.beatTime, hips: b.jointWorld('pelvis', new THREE.Vector3()), heading: b.heading, at: new Map(joints.map((j) => [j, b.jointWorld(j, new THREE.Vector3())])), caps: worldCapsules(b) });
+    const c = g.creature();
+    frames.push({ t: g.time() - asked, beat: r.beatId!, beatT: r.beatTime, hips: b.jointWorld('pelvis', new THREE.Vector3()), heading: b.heading, at: new Map(joints.map((j) => [j, b.jointWorld(j, new THREE.Vector3())])), caps: worldCapsules(b), creatureHead: c ? c.body.jointWorld('head', new THREE.Vector3()) : null });
   });
   const rest = b.jointWorld('pelvis', new THREE.Vector3());
   // The creature pounding on the glass, and every part of her against its feet.
@@ -155,18 +158,51 @@ test('infection-kills "Nothing walked through": at every frame of the run, no pa
   assert.ok(panic.length > 250, `${panic.length} frames sampled`);
 });
 
-test('infection-kills "Down the pane": her chest or shoulder stays within 5 cm of the pane as she slides down it, and no joint of hers crosses it', () => {
-  // Her chest's front is about 13 cm in front of its joint; her shoulder's outside about 5 cm.
-  const front = (f: Frame): number => Math.min(f.at.get('chest')!.z - run.g.glassZ - 0.128, f.at.get('shoulder_L')!.z - run.g.glassZ - 0.05, f.at.get('shoulder_R')!.z - run.g.glassZ - 0.05);
-  const sliding = still.filter((f) => f.beatT >= 0.4 && f.beatT <= 1.2);
-  assert.ok(sliding.length > 40, `${sliding.length} frames of the slide`);
-  const far = Math.max(...sliding.map(front));
-  assert.ok(far <= 0.05 + 1e-3, `at most ${(far * 100).toFixed(1)} cm off the pane`);
-  const down = sliding[0]!.hips.y - sliding[sliding.length - 1]!.hips.y;
-  assert.ok(down >= 0.25, `she slides down it (${down.toFixed(2)} m)`);
-  for (const f of still) for (const [j, p] of f.at) assert.ok(p.z >= run.g.glassZ, `${j} crosses the pane at ${f.beatT.toFixed(2)} s`);
-  // She ends on the floor beside the glass.
-  assert.ok(run.rest.y < 0.3 && run.rest.z - run.g.glassZ < 0.7, `hips at ${run.rest.y.toFixed(2)} m, ${(run.rest.z - run.g.glassZ).toFixed(2)} m from the pane`);
+const burst = run.frames.filter((f) => f.beat === 'burst');
+/** From the burst to the end of the still beat. */
+const fall = [...burst, ...still];
+
+test('infection-kills "Falls back from the glass": from the burst on her hips only move away from the pane, over a metre, through nothing, and she rests face up with her head away from it', () => {
+  assert.ok(burst.length > 30 && still.length > 100, `${burst.length} burst and ${still.length} still frames`);
+  const off = (f: Frame): number => f.hips.z - run.g.glassZ;
+  let far = off(fall[0]!);
+  for (const f of fall) {
+    assert.ok(off(f) >= far - 0.02, `her hips come back toward the pane in ${f.beat} at ${f.beatT.toFixed(2)} s (${off(f).toFixed(2)} m, ${far.toFixed(2)} m before)`);
+    far = Math.max(far, off(f));
+    for (const [j, p] of f.at) assert.ok(p.z >= run.g.glassZ, `${j} crosses the pane in ${f.beat} at ${f.beatT.toFixed(2)} s`);
+    for (const s of run.solids) {
+      if (s.id === 'chair' || s.id === 'sill' || s.id === 'mullion') continue;
+      for (const c of f.caps) assert.ok(-clearance(c, s) - c.r <= THROUGH, `${s.id}:${c.joint} inside in ${f.beat} at ${f.beatT.toFixed(2)} s`);
+    }
+  }
+  const back = run.rest.z - fall[0]!.hips.z;
+  assert.ok(back >= 1.0, `she falls back ${back.toFixed(2)} m from where the burst finds her`);
+  // At rest on the floor, her head beyond her hips from the pane, and face up: lying head away from the pane, her right
+  // arm is on her right as she faced the glass (+x), where face down would put it on the left.
+  const last = still[still.length - 1]!;
+  const head = last.at.get('head')!;
+  assert.ok(run.rest.y < 0.3 && last.at.get('chest')!.y < 0.3, `on the floor (hips ${run.rest.y.toFixed(2)} m, chest ${last.at.get('chest')!.y.toFixed(2)} m up)`);
+  assert.ok(head.z - run.rest.z >= 0.3, `her head is ${(head.z - run.rest.z).toFixed(2)} m beyond her hips from the pane`);
+  const across = last.at.get('upperArm_R')!.x - last.at.get('upperArm_L')!.x;
+  assert.ok(across >= 0.2, `face up (her right upper arm ${across.toFixed(2)} m to the right of her left)`);
+});
+
+test('infection-kills "Out of her front": the creature first shows at the front of her torso, and the gap opens as she falls back from it', () => {
+  const out = fall.filter((f) => f.creatureHead);
+  assert.ok(out.length > 0 && out[0]!.beat === 'burst', 'it comes out in the burst');
+  // How far the creature's head is ahead of her chest joint, toward the pane.
+  const ahead = (f: Frame): number => f.at.get('chest')!.z - f.creatureHead!.z;
+  const first = out[0]!;
+  const c = first.creatureHead!;
+  assert.ok(Math.abs(c.x - first.at.get('chest')!.x) <= 0.15, `in line with her chest, not beside it (${(c.x - first.at.get('chest')!.x).toFixed(2)} m)`);
+  // (The burst arches her back, her head below her chest: her chest is the torso's height.)
+  const chestY = first.at.get('chest')!.y;
+  assert.ok(Math.abs(c.y - chestY) <= 0.2 && c.y >= first.hips.y, `at her torso's height (${c.y.toFixed(2)} m, her chest ${chestY.toFixed(2)} m and hips ${first.hips.y.toFixed(2)} m)`);
+  assert.ok(ahead(first) >= 0, `at her front (${ahead(first).toFixed(2)} m ahead of her chest joint)`);
+  // She never comes back in front of it, as she did when she fell toward the pane.
+  for (const f of out) assert.ok(ahead(f) >= -0.02, `her chest passes its head toward the pane in ${f.beat} at ${f.beatT.toFixed(2)} s`);
+  const end = burst[burst.length - 1]!;
+  assert.ok(ahead(end) >= 0.4, `by the fall it stands ${ahead(end).toFixed(2)} m clear in front of her`);
 });
 
 test('infection-kills "Room for the creature": while the creature pounds on the glass, no part of her is within 0.3 m of its feet', () => {
