@@ -1288,33 +1288,6 @@ test('Okafor’s console spot is beside Giles, facing him, standable and clear o
   }
 });
 
-// transit-wing "A body is yanked away before Jay's warning": it lies beside the far north-west pillar with its legs
-// already behind it as seen from Car B, and is pulled the rest of the way out of sight.
-test('the dragged body starts partly behind the far north-west pillar and ends wholly out of sight', () => {
-  const { level } = build();
-  const r16b = data.rooms.find((room) => room.id === 'R16b')!;
-  const pillars = r16b.props!.filter((p) => p.kit === 'concourse_pillar').map((p) => ({ x: p.pos[0], z: p.pos[2], half: (p.params!['width'] as number) / 2 }));
-  const northWest = pillars.reduce((best, p) => (p.x + p.z < best.x + best.z ? p : best));
-  const jay = level.anchor('r16_train_back')!.pos;
-  /** The pillars crossing the plan-view line from Jay to a point. */
-  const between = (x: number, z: number) =>
-    pillars.filter((p) => Array.from({ length: 800 }, (_, i) => i / 800).some((t) => Math.abs(jay.x + (x - jay.x) * t - p.x) < p.half && Math.abs(jay.z + (z - jay.z) * t - p.z) < p.half));
-  const body = level.npcSpawns().find((n) => n.id === 'r16b_corpse_booth_north')!;
-  const end = level.anchor('r16_body_drag_to')!.pos;
-  assert.equal(body.dead, true);
-  // Lying prone, its position is at its feet; the pelvis is about 1 m and the head and hands up to 1.85 m the other way
-  // from where it is dragged.
-  const length = Math.hypot(end.x - body.pos.x, end.z - body.pos.z);
-  const [ax, az] = [(body.pos.x - end.x) / length, (body.pos.z - end.z) / length];
-  const part = (root: { x: number; z: number }, m: number) => between(root.x + ax * m, root.z + az * m);
-  assert.ok(part(body.pos, 0).includes(northWest), 'its legs start behind the pillar');
-  assert.deepEqual(part(body.pos, 1.6), [], 'its head and shoulders start in sight');
-  for (const m of [0, 1, 1.85]) assert.ok(part(end, m).length > 0, `nothing is left in sight ${m} m up the body`);
-  assert.ok(end.x < northWest.x, 'it ends beyond the pillar');
-  const look = level.anchor('r16_north_pillar_look')!.pos;
-  assert.ok(Math.hypot(look.x - northWest.x, look.z - northWest.z) < 1.5, 'Jay turns to that pillar');
-});
-
 // station-power spec "A squad reaction and the PA notice": the notice is heard where the blackout finds the player.
 test('the power-failure notice has a PA speaker in the Lab Junction and in Lab B', () => {
   const { level } = build();

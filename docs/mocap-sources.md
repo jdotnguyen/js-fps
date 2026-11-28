@@ -24,7 +24,7 @@ node scripts/bake-mocap.mjs --check
 |---|---|---|---|---|---|
 | Standing idle | `Idle_Loop` | `77_02` standing, `40_10`/`40_11` wait for bus, `82_08` stand still | - | - | - |
 | Talk | `Idle_Talking_Loop`, `Sitting_Talking_Loop` | `18_08`/`19_08` conversation with hand gestures, `18_10`/`19_10` quarrel | `respond`, `call` (normal only) | - | - |
-| Walk, turn, run | walk, formal walk, jog, sprint | `120_*` style walks, `132_*`/`136_*` odd walks, `77_19`-`77_24` limping (hurt right leg), `105_26` hurt stomach walk, `104_13` stumble walk (`priya_stumble`, `voss_stumble`: stumbles, a dip, a lunge), `142_16` scared (`voss_recover`: drops to a crouch, rises moving) | walk, run, dash, walk-back/left/right in 15 styles | walk, walk-turn-left/right, run in 7 styles | 100 locomotion styles |
+| Walk, turn, run | walk, formal walk, jog, sprint | `120_*` style walks, `132_*`/`136_*` odd walks, `77_19`-`77_24` limping (hurt right leg), `105_26` hurt stomach walk (`voss_hurt_walk`), `104_13` stumble walk (`priya_stumble`, `voss_stumble`: stumbles, a dip, a lunge), `142_16` scared (drops to a crouch, rises moving) | walk, run, dash, walk-back/left/right in 15 styles | walk, walk-turn-left/right, run in 7 styles | 100 locomotion styles |
 | Sit | `Sitting_Enter`/`Idle`/`Exit` | `13_01`-`13_06` and `14_27`-`14_36` high stool and stepstool, `75_17`-`75_19`, `86_09` | - | - | - |
 | Lean | - | `22_18`/`23_18` lean with hands on a high stool, `15_06` lean forward | - | - | - |
 | Kneel, crouch | `Fixing_Kneeling`, `Crouch_Idle_Loop` | `22_03`/`23_03` kneel and comfort, `69_70`+ squat and pick up | - | - | - |
@@ -56,6 +56,16 @@ joint's own frame), for a body model that needs a grip set differently: `giles_p
 with the arms and wrists turned. List it after its base. Change the numbers in the bake list and bake; don't edit the baked
 clip.
 
+`rotate` without `from` turns a clip's own take once it is baked, for a take that doesn't fit the body or the scene that plays
+it. When it turns the pelvis or a leg joint, the bake grounds the clip again frame by frame (the lower foot on the floor).
+`voss_hurt_walk` (CMU `105_26`, hurt stomach walk) holds the stomach with both hands, but the performer walks upright. On
+Voss it is turned into a crouch: the pelvis tips 35° forward with the thighs turned 60° (35° undoes the tip, 25° bends the
+hips) and slightly apart, the knees bend 50° and the ankles 25°, and the neck and head drop 15° each so she looks at the floor (her head about 50° down, past her chest's 36°). A pelvis turn
+swings the legs with it, so a pure bow at the hips is the pelvis and the thighs by the same amount. The performer's forearms
+went into her belly and coat, so the right upper arm swivels its elbow out 45° about its shoulder-to-wrist line (the hand
+stays where it was), the left upper arm lifts and swings out, and both elbows open a little. Measure such a change on the
+character's skinned mesh, not on the shared skeleton.
+
 ## Sizes
 
 The core library loads at start and must stay within 2 MB. Every other named character's clips are a pack of their own (`pack` in the bake list), written to `src/data/cast/<character>/mocap.json` (listed in the generated `src/data/mocap/packs.ts`) and loaded with that character's body (`src/actors/mocapPacks.ts`). The bake rewrites this table.
@@ -70,5 +80,5 @@ The core library loads at start and must stay within 2 MB. Every other named cha
 | priya | 9 | 203.6 KB |
 | ruiz | 4 | 95.3 KB |
 | sung | 4 | 67.8 KB |
-| voss | 10 | 338.1 KB |
+| voss | 10 | 350.8 KB |
 <!-- sizes:end -->

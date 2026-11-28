@@ -474,7 +474,8 @@ test('Lowering the mug: from lean_back_mug_drink to lean_back_mug the tilt moves
  * needs that much extra turn to hold the mug level, whatever the shared pose does (Okafor about 42°, Giles 15°, Hale 18°).
  */
 async function rigRoll(who: string): Promise<number> {
-  const model = RIGGED.find(([w]) => w === who)?.[1];
+  // Bram's finger rig is loaded apart from RIGGED but has a roll of its own like theirs (11°).
+  const model = RIGGED.find(([w]) => w === who)?.[1] ?? (who === 'bram' ? 'bram' : undefined);
   if (!model) return 0;
   const g = gripFrameFor((await loadMainCast(model)).handBones);
   return g ? THREE.MathUtils.radToDeg(g.up.angleTo(MUG_IN_HAND.up)) : 0;

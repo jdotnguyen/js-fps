@@ -46,7 +46,7 @@ test('barks01.json loads with the shipped speakers; ~50 barks and ~20 hints', ()
   const lib = new DialogueLibrary(speakers, { 'barks01.json': barksJson });
   const all = lib.allLines();
   assert.ok(all.filter((l) => l.id.startsWith('bark_')).length >= 40);
-  assert.ok(all.filter((l) => l.id.startsWith('hint_')).length >= 20);
+  assert.ok(all.filter((l) => l.id.startsWith('hint_')).length >= 18);
   // Jay only makes short reaction sounds outside on-rails scenes.
   for (const l of all.filter((x) => x.speaker === 'player')) assert.ok(l.text.length <= 6, l.text);
   // Giles hints are questions, Okafor's statements of fact (ADR-0022).

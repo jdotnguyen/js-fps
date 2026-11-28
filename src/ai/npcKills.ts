@@ -1250,6 +1250,9 @@ export class KillDirector {
           const face = new THREE.Vector3(-Math.sin(h), 0, -Math.cos(h));
           const mouth = body.jointWorld('head', tmpA).clone().addScaledVector(face, 0.09).add(new THREE.Vector3(0, -0.05, 0));
           gore.burst(mouth, face.multiplyScalar(0.7).setY(-0.35), e.count ?? 26, undefined, clip, 0.3);
+        } else if (e.kind === 'drip') {
+          // Blood running from her mouth for `s` seconds, falling from wherever her head goes.
+          gore.drip(body.bones.head, body.mouthInHead(new THREE.Vector3()), e.s ?? 3, e.count ?? 16, undefined, clip);
         } else if (e.kind === 'spurt') {
           const bone = body.bones[e.joint ?? 'chest'];
           bone.getWorldQuaternion(tmpQ).invert();

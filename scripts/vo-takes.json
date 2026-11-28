@@ -108,8 +108,7 @@
       "hint_admin_1a",
       "hint_admin_1b",
       "hint_admin_3a",
-      "hint_map_1a",
-      "hint_survive_2a"
+      "hint_map_1a"
     ],
     "at": "2026-11-20T03:17:55.409Z",
     "source": "traced",
@@ -323,7 +322,6 @@
     "model": "gemini-2.5-flash-preview-tts",
     "lines": [
       "hint_map_1b",
-      "hint_survive_1a",
       "okafor_revive_rule_01",
       "okafor_spotted_01",
       "okafor_clear_01",
@@ -2002,7 +2000,6 @@
     "model": "gemini-2.5-flash-preview-tts",
     "lines": [
       "r16_giles_01",
-      "r16_giles_02",
       "r16_giles_03",
       "r16_giles_04"
     ],
@@ -2036,8 +2033,7 @@
     ],
     "model": "gemini-3.1-flash-tts-preview",
     "lines": [
-      "r16_jay_01",
-      "r16_jay_02"
+      "r16_jay_01"
     ],
     "at": "2026-11-25T03:48:19.488Z",
     "source": "generated"
@@ -2070,21 +2066,6 @@
       "r16_giles_01"
     ],
     "at": "2026-11-25T05:29:51.051Z",
-    "source": "generated"
-  },
-  {
-    "batch": "retake_engineer_02",
-    "speakers": [
-      "engineer"
-    ],
-    "voices": [
-      "Algenib"
-    ],
-    "model": "gemini-2.5-flash-preview-tts",
-    "lines": [
-      "r16_giles_02"
-    ],
-    "at": "2026-11-25T05:30:11.731Z",
     "source": "generated"
   },
   {
@@ -3145,6 +3126,51 @@
       "react_voss_grunt_02"
     ],
     "at": "2026-11-27T15:31:03.780Z",
+    "source": "generated"
+  },
+  {
+    "batch": "react_voss_gag_01",
+    "speakers": [
+      "crew_lab"
+    ],
+    "voices": [
+      "Leda"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "react_voss_gag_01"
+    ],
+    "at": "2026-11-27T23:53:38.476Z",
+    "source": "generated"
+  },
+  {
+    "batch": "react_voss_gag_02",
+    "speakers": [
+      "crew_lab"
+    ],
+    "voices": [
+      "Leda"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "react_voss_gag_02"
+    ],
+    "at": "2026-11-27T23:54:06.645Z",
+    "source": "generated"
+  },
+  {
+    "batch": "react_voss_gag_03",
+    "speakers": [
+      "crew_lab"
+    ],
+    "voices": [
+      "Leda"
+    ],
+    "model": "gemini-3.8-flash-tts",
+    "lines": [
+      "react_voss_gag_03"
+    ],
+    "at": "2026-11-27T23:54:30.617Z",
     "source": "generated"
   }
 ]

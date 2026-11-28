@@ -1443,8 +1443,14 @@ export class Humanoid {
     if (reach > 0.01) this.reachMugToMouth(mug, tilt, reach);
   }
 
-  /** This body's mouth in its head bone's frame (measured from its jaw mesh once, on the first sip). */
+  /** This body's mouth in its head bone's frame (measured from its jaw mesh once, on first use). */
   private mouth: { y: number; z: number } | null = null;
+
+  /** This body's mouth (the front of its lower lip) in its head bone's frame: where a mug rim goes, or blood runs out. */
+  mouthInHead(out: THREE.Vector3): THREE.Vector3 {
+    this.mouth ??= mouthFromJaw(this.geo.parts, this.geo.jointOffsets.jaw) ?? MOUTH_IN_HEAD;
+    return out.set(0, this.mouth.y, this.mouth.z);
+  }
   private readonly reachTmp = { mouth: new THREE.Vector3(), rim: new THREE.Vector3(), up: new THREE.Vector3(), side: new THREE.Vector3(), target: new THREE.Vector3(), elbow: new THREE.Vector3(), handQ: new THREE.Quaternion(), parentQ: new THREE.Quaternion() };
 
   /**
@@ -1458,8 +1464,7 @@ export class Humanoid {
     const lower = this.bones.foreArm_R;
     this.group.updateMatrixWorld(true);
     // The mouth, a little in front of the lips.
-    this.mouth ??= mouthFromJaw(this.geo.parts, this.geo.jointOffsets.jaw) ?? MOUTH_IN_HEAD;
-    this.bones.head.localToWorld(t.mouth.set(0, this.mouth.y, this.mouth.z));
+    this.bones.head.localToWorld(this.mouthInHead(t.mouth));
     t.mouth.addScaledVector(this.towardFace, -0.015);
     // The rim point nearest the face, on the leveled mug.
     const e = mug.matrixWorld.elements;

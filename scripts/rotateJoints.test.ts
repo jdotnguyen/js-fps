@@ -6,7 +6,7 @@ import path from 'node:path';
 // @ts-expect-error plain ES module without types
 import { loadManifest } from './lib/mocapSources.mjs';
 // @ts-expect-error plain ES module without types
-import { rotateJoints } from './lib/rotateJoints.mjs';
+import { groundClip, rotateJoints } from './lib/rotateJoints.mjs';
 import mocapJson from '../src/data/mocap-core.json' with { type: 'json' };
 
 // A clip made from another is built by the bake, so the library must hold exactly what the bake list says: these checks need no
@@ -43,5 +43,21 @@ test('derived clips: the bake list rejects one whose base is not listed before i
   const pistol = (list: Entry[]): Entry => list.find((c) => c.id === 'giles_pistol')!;
   assert.throws(() => load((l) => void (pistol(l).from = 'nothing')), /"from" must name a clip listed before it/);
   assert.throws(() => load((l) => void l.unshift(...l.splice(l.indexOf(pistol(l)), 1))), /"from" must name a clip listed before it/);
-  assert.throws(() => load((l) => void delete pistol(l).rotate), /"from" and "rotate" go together/);
+  assert.throws(() => load((l) => void delete pistol(l).rotate), /"from" needs "rotate"/);
+});
+
+test('turned takes: bent legs are grounded again, frame by frame, with the lower foot on the floor', () => {
+  const still = [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1];
+  const clip: Clip = { frames: 3, loop: false, pelvis: [0, 0, 0, 0, 0, 0, 0, 0, 0], joints: { thigh_L: still, shin_L: still, thigh_R: still, shin_R: still } };
+  assert.deepEqual(groundClip(clip).pelvis, clip.pelvis, 'straight legs stay where they are');
+  // Both knees bent 60°: the shins (0.42) now reach 0.21 down, so the hips drop by 0.21.
+  const bent = groundClip(rotateJoints(clip, { shin_L: [-60, 0, 0], shin_R: [-60, 0, 0] })) as Clip & { pelvis: number[] };
+  for (let f = 0; f < 3; f++) assert.ok(Math.abs(bent.pelvis[f * 3 + 1]! + 0.21) < 0.002, `frame ${f} hips at ${bent.pelvis[f * 3 + 1]}`);
+});
+
+test('turned takes: a bake-list clip with "rotate" and no "from" is its own take with those joints turned', () => {
+  const walk = (loadManifest().clips as Entry[]).find((c) => c.id === 'voss_hurt_walk')!;
+  assert.ok(walk.rotate && !walk.from, 'Voss hurt walk turns its own arms');
+  const pack = JSON.parse(fs.readFileSync(new URL('../src/data/cast/voss/mocap.json', import.meta.url), 'utf8')) as { clips: Record<string, Clip> };
+  assert.ok(pack.clips['voss_hurt_walk'], 'the turned clip is in her pack under its own id');
 });

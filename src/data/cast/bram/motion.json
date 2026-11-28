@@ -22,6 +22,9 @@
       "crouch": "bram_hold",
       "kneel": "bram_hold"
     },
+    "poses": {
+      "idle_mug": "bram_idle_mug"
+    },
     "style": {
       "tempo": 0.85,
       "fidgetRate": 0.6,

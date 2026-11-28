@@ -169,7 +169,6 @@ export const GORE_MANIFEST: readonly GoreAssetSpec[] = [
   palm(3, 'slapping one palm hard'),
   blow('body_bench_hit', 1, 'a human body hitting a heavy laboratory bench hip first, one deep dull thud of flesh and bone on a solid edge, the bench jolting and the glassware on it rattling once'),
   blow('bench_sweep', 1.6, 'an arm swept violently across a laboratory bench top, glass flasks, bottles and a small steel tray scraped off together, a fast scrape then glassware clattering and bouncing on a hard floor'),
-  blow('knee_floor', 0.8, 'a person dropping hard onto one knee on a tiled floor, one heavy blunt bony thud with a rustle of clothing'),
   blow('cart_crash', 2.2, 'a loaded stainless steel laboratory trolley landing on its side on a tiled floor, one huge heavy metal crash, the frame clanging, shelves banging, steel instruments skittering away and a short metallic ring, no shattering glass'),
   scuff(1, 'skidding sharply sideways'),
   scuff(2, 'dragging as the leg gives way'),

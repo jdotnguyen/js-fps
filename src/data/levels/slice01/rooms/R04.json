@@ -1126,27 +1126,11 @@
       ]
     },
     {
-      "id": "labb_stumble",
+      "id": "labb_gurney_pass",
       "pos": [
-        6.35,
+        6.4,
         0,
-        25.7
-      ]
-    },
-    {
-      "id": "labb_knee",
-      "pos": [
-        6.22,
-        0,
-        24.8
-      ]
-    },
-    {
-      "id": "labb_knee_floor",
-      "pos": [
-        6.32,
-        0.07,
-        24.85
+        25.2
       ]
     },
     {
@@ -1158,19 +1142,19 @@
       ]
     },
     {
-      "id": "labb_cart_handle",
+      "id": "labb_cart_lurch",
       "pos": [
-        6.7,
-        0.96,
-        23.85
+        7.23,
+        0,
+        23.67
       ]
     },
     {
-      "id": "labb_to_glass",
+      "id": "labb_cart_hip",
       "pos": [
-        7.6,
-        0,
-        23.55
+        7.06,
+        0.68,
+        23.57
       ]
     },
     {

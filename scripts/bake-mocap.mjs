@@ -21,7 +21,7 @@ import { DEFAULT_MANIFEST, ROOT, loadManifest, missingSources, sourceFile } from
 import { BONE_MAPS, bakeBvh, guessBoneMap, loadBvh } from './lib/bvhBake.mjs';
 import { clearanceProblems, fixClearance } from './lib/clipChecks.mjs';
 import { makeAdditive } from './lib/additive.mjs';
-import { rotateJoints } from './lib/rotateJoints.mjs';
+import { LEG_JOINTS, groundClip, rotateJoints } from './lib/rotateJoints.mjs';
 import { PACK_TABLE_PATH, packPath, packTable } from './lib/mocapPackFiles.mjs';
 
 // Options: --manifest <file> (default scripts/mocap.sources.json), --out <file> (default src/data/mocap-core.json),
@@ -882,13 +882,17 @@ for (const spec of MANIFEST.clips) {
 }
 
 // ---------------------------------------------------------------- derived clips: a baked clip with some joints turned
+// With `from`, a new clip from another; without, the clip's own take, turned once it is baked (a body model that needs the
+// arms set differently from the performer's, such as Voss's hands on her stomach in `voss_hurt_walk`).
 for (const spec of MANIFEST.clips) {
-  if (!spec.from) continue;
-  const clip = rotateJoints(outClips[spec.from], spec.rotate);
+  if (!spec.rotate) continue;
+  const turned = rotateJoints(outClips[spec.from ?? spec.id], spec.rotate);
+  // Turned legs (a crouch) move the feet: put the lowest foot back on the floor.
+  const clip = Object.keys(spec.rotate).some((j) => LEG_JOINTS.includes(j)) ? groundClip(turned) : turned;
   const problems = clearanceProblems(clip);
   if (problems.length) throw new Error(`${spec.id}: ${problems.length} clearance problems (${problems[0].what} at frame ${problems[0].frame})`);
   outClips[spec.id] = clip;
-  console.log(`[${spec.id}] ${spec.from} with ${Object.keys(spec.rotate).join(', ')} turned`);
+  console.log(`[${spec.id}] ${spec.from ?? 'its take'} with ${Object.keys(spec.rotate).join(', ')} turned`);
 }
 
 // ---------------------------------------------------------------- write: core library + one pack per character

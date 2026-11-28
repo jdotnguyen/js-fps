@@ -152,6 +152,17 @@ export const REACTION_BATCHES: readonly ReactionBatch[] = [
       { id: 'react_voss_cough_03', direction: 'one retching wet cough, gagging, short', vocalization: 'Uhkk!' },
     ],
   },
+  {
+    // Her crouched walk to the glass, head down, blood running from her mouth: sound `voss_gag`.
+    name: 'react_voss_gag',
+    speaker: 'crew_lab',
+    character: 'Dr. Lena Voss, 34 female microbiologist (sharp female voice, bent double, blood rising in her throat)',
+    takes: [
+      { id: 'react_voss_gag_01', direction: 'one wet retching gag as blood wells up in her throat while she staggers, under a second', vocalization: 'Hhgk— uhk!' },
+      { id: 'react_voss_gag_02', direction: 'a choking gag that catches and gurgles, she can barely breathe through the blood, short', vocalization: 'Ghhk— hrrk—' },
+      { id: 'react_voss_gag_03', direction: 'a weak heaving gag, then one ragged breath, short', vocalization: 'Uhrk— hhh—' },
+    ],
+  },
 ];
 
 /** Credited recordings that share the `react_` prefix but are not TTS (CREDITS.md). No batch may write these. */

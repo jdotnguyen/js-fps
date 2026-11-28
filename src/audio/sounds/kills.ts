@@ -91,11 +91,13 @@ export const samples = {
   voss_gasp: [1, 2, 3].map((i) => `assets/vo/react_voss_gasp_0${i}.mp3`),
   voss_grunt: [1, 2, 3].map((i) => `assets/vo/react_voss_grunt_0${i}.mp3`),
   voss_cough: [1, 2, 3].map((i) => `assets/vo/react_voss_cough_0${i}.mp3`),
+  // Her wet gags as she crouch-walks to the glass with blood running from her mouth (Gemini TTS, --per-take --only
+  // react_voss_gag, cut by hand: docs/voice-casting-standard.md).
+  voss_gag: [1, 2, 3].map((i) => `assets/vo/react_voss_gag_0${i}.mp3`),
   // The blows of that run, each one designed sound at its time, over the quieter physics impacts of what it throws
   // (ElevenLabs, scripts/gore-generate.ts; voss-death-scene D10).
   body_bench_hit: 'assets/audio/gore/body-bench-hit.mp3',
   bench_sweep: 'assets/audio/gore/bench-sweep.mp3',
-  knee_floor: 'assets/audio/gore/knee-floor.mp3',
   cart_crash: 'assets/audio/gore/cart-crash.mp3',
   voss_scuff: [1, 2, 3].map((i) => `assets/audio/gore/voss-scuff-${i}.mp3`),
 } as const satisfies Record<string, string | readonly string[]>;

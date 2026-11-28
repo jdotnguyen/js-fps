@@ -88,11 +88,10 @@ const SCENE_VARIANTS: Record<string, readonly string[]> = {
 
 /** Design D11's table, row by row: what each scene, task or placement asks of each named character. */
 const D11_ROWS: readonly (readonly [look: string, source: string, poses: readonly string[]])[] = [
-  ['giles', 'sequence:intro_shift_change', ['walk', 'rub_forearm', 'lean_back', 'lean_back_mug', 'drink']],
+  ['giles', 'sequence:intro_shift_change', ['walk', 'lean_back', 'lean_back_mug', 'drink']],
   ['giles', 'task:bypass', ['panel_work']],
   ['giles', 'task:bypass_short', ['panel_work']],
   ['giles', 'task:power_restore', ['typing']],
-  ['giles', 'sequence:action_tunnel', ['cough']],
   ['okafor', 'sequence:intro_shift_change', ['lean_back', 'lean_back_mug', 'drink']],
   ['okafor', 'task:biometric', ['biometric_scan']],
   ['okafor', `task:${REVIVE_TASK}`, ['kneel_revive']],
@@ -162,7 +161,7 @@ test('cast motion coverage: every row of the D11 scene table is gathered, with s
 
 test('cast motion coverage: a landed character fails when one of its D11 scene variants is removed', () => {
   const base = sharedMotionProfiles();
-  const clips = { idle: 'idle', talk: 'idle_talk', walk: 'walk', work: 'kneel_fix', drink: 'idle' };
+  const clips = { idle: 'idle', talk: 'idle_talk', walk: 'walk', work: 'kneel_fix', drink: 'idle', aimPistol: 'pistol_idle' };
   const holds = { stand: 'idle', lean_back: 'idle', crouch: 'idle', kneel: 'idle' };
   const variants = Object.fromEntries(
     SCENE_VARIANTS['giles']!.map((id) => [id, { when: id === 'reveal' ? { stage: [4, 4] as [number, number] } : { flag: id } }]),

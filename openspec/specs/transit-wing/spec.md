@@ -477,7 +477,7 @@ On platform blood discovery, a smooth-onset low-bass horror hit (`r16HorrorHit`,
 
 #### Scenario: Speaker-tracked cabin banter and cut to black
 - **WHEN** the flicker drops back to pitch black and cabin dialogue begins
-- **THEN** Jay's view tracks each speaker (`r16_giles_01` trimmed to a ~`0.35 s` internal pause; Giles lines generated individually), and the view fades to black with `r16Cut` as `r16_giles_02` ends so weapon-draw transitions stay hidden
+- **THEN** Jay's view tracks each speaker (`r16_giles_01` trimmed to a ~`0.35 s` internal pause; Giles lines generated individually), and the view fades to black with `r16Cut` as `r16_okafor_01` ends so weapon-draw transitions stay hidden
 
 ### Requirement: CAM 09 armed squad advance and northwest-pillar gunfire
 After the blackout, fullscreen `CAM 09  ARRIVAL DOCK` SHALL show Giles and Okafor walking up the stairs into `R16b` at `1.15 m/s` holding `aim_pistol` with forward weapon spotlights (no rear cone) while all surveillance dialogue uses the `radio` filter. Both squadmates SHALL stay aimed west down the concourse until `0.25 s` into `r16_okafor_03` (*"to the right!"*), then snap right to aim and fire boosted muzzle-flash bursts at the northwest-most pillar (`[63.5, 1.8, 31.2]`).
@@ -544,26 +544,16 @@ When Heins's transmission cuts off, Giles SHALL say `r15a_giles_04` over `r16_pa
 - **WHEN** `r16_pa_01` reaches the pause after "traction power has been lost"
 - **THEN** Giles says they have lost her while the announcement carries on, and the line is not repeated at the arrival
 
-### Requirement: A body is yanked away before Jay's warning
-After `r16_okafor_01` and before `r16_jay_02`, Jay's view SHALL turn to the far north-west pillar of `R16b` at `2x` magnification, and two `0.3 s` flickers of `R16b`, `0.15 s` apart, SHALL show the fallen body lying beside that pillar, its legs already behind it. During the second flicker the body SHALL be yanked quickly the rest of the way out of sight, and Jay SHALL give the warning as soon as it goes dark. The Juggernaut MUST NOT appear before `CAM 10`. No flicker setting may add a flash beyond these two.
+### Requirement: Okafor's order cuts to the surveillance feed
+After `r16_okafor_01` the cabin SHALL fade to black with `r16Cut` and go straight to fullscreen `CAM 09`: no line, flicker of `R16b`, magnified shot or moving body comes between them. `R16b` SHALL stay dark from the reveal to the feed, and the Juggernaut MUST NOT appear before `CAM 10`.
 
-#### Scenario: Seeing the body pulled away
+#### Scenario: Straight to the feed
 - **WHEN** Okafor finishes `r16_okafor_01` inside the cabin
-- **THEN** the first flicker shows a body lying still with its legs behind the north-west pillar and the rest in the open
-- **AND** the second flicker shows it still for an instant, then yanked until none of it is in sight
-- **AND** Jay says something just moved by the north pillar as the concourse goes dark, within `0.35 s` of the yank starting
-
-#### Scenario: The view returns
-- **WHEN** the shot turns back to the speakers in the cabin
-- **THEN** the view is no longer magnified
+- **THEN** the view fades to black and `CAM 09` comes up, with no other line said and no magnified shot
 
 #### Scenario: Nothing is given away
 - **WHEN** the finale plays up to the `CAM 10` cut
-- **THEN** the creature has not been shown, and Giles and Okafor have not aimed at the concourse because of the drag
-
-#### Scenario: The squad advance afterwards
-- **WHEN** `CAM 09` and `CAM 10` play later in the same finale
-- **THEN** they are framed as before and the Juggernaut walks out from its usual hiding place
+- **THEN** the creature has not been shown
 
 ### Requirement: Restoring the Arrival Terminal checkpoint starts the finale
 Loading a save made at the `Arrival Terminal` checkpoint with the finale not yet finished SHALL put Jay, Giles and Okafor in Train Car B with its door closed, `R16a` and `R16b` dark and the cabin lights on, and SHALL play the arrival finale once from its start.

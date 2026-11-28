@@ -140,7 +140,7 @@ function standingOverlayKind(poseName: string): StandingOverlayKind | null {
   // Before the glance suffix test: a head-only overlay would leave placed arms on the mocap idle.
   if (placedArms(poseName)) return 'arms';
   // A character's own arms-out scan pose (Ruiz's `ruiz_arms_out`) keeps their legs and trunk on their idle: restless, not frozen.
-  if (STANDING_ARMS_OVERLAY.has(poseName) || poseName.endsWith('_offer_mug') || poseName.endsWith('_arms_out') || poseName.endsWith('_idle_pistol')) return 'arms';
+  if (STANDING_ARMS_OVERLAY.has(poseName) || poseName.endsWith('_offer_mug') || poseName.endsWith('_idle_mug') || poseName.endsWith('_arms_out') || poseName.endsWith('_idle_pistol')) return 'arms';
   if (STANDING_HEAD_OVERLAY.has(poseName) || poseName.endsWith('_glance') || poseName.endsWith('_glance_other')) return 'head';
   if (STANDING_IDLE_OVERLAY.has(poseName)) return 'idle';
   return null;

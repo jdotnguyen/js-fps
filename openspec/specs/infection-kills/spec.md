@@ -435,15 +435,26 @@ heard as any other footstep.
 
 ### Requirement: Voss's staged run to the glass
 In the Lab B kill's panic beat, Voss SHALL be thrown forward by a jolt from inside into the bench beside her, sweep it
-clear, double over, push off, stumble and nearly go down, recover, grab the prep cart, drag it over and reach the glass.
-Where she touches the bench, the cart or the floor, her hand, hip or knee SHALL meet that surface.
+clear, double over and cough blood, push off, then crouch-walk to the glass holding her stomach with both hands: hips low,
+bent well forward, head hung down, her forearms never sinking into her belly. Blood SHALL run from her mouth from the second
+cough until she reaches the glass, and she SHALL gag twice on the way, a small spray of blood with each. On the way she SHALL
+lurch hip-first into the prep cart and knock it over, her hands staying on her stomach. Where she touches the bench or the
+cart, her hand or hip SHALL meet that surface.
 
 #### Scenario: The actions in order
 - **WHEN** the panic beat plays
-- **THEN** she hits the bench, sweeps it, doubles over, pushes off, stumbles, recovers, grabs the cart, pulls it over and reaches the glass, in that order
+- **THEN** she hits the bench, sweeps it, doubles over, pushes off, crouch-walks, lurches into the cart, knocks it over and reaches the glass, in that order
+
+#### Scenario: Crouched to the glass
+- **WHEN** she walks from the bench to the glass
+- **THEN** her hips are at least 12 cm lower than when the run starts, she leans forward at least 28 degrees, and both hands stay at her stomach
+
+#### Scenario: Bleeding from the mouth on the way
+- **WHEN** she has coughed blood over the bench and walks to the glass
+- **THEN** blood drips from her mouth, falling from wherever her head goes, until she reaches the glass, and each of her two gags sprays a little more from her mouth
 
 #### Scenario: Contacts touch
-- **WHEN** her hand or hip strikes the bench, her hand takes hold of the cart, or her knee nearly touches down
+- **WHEN** her hand or hip strikes the bench, or her hip strikes the cart
 - **THEN** that part of her is within 5 cm of the surface at the moment of contact and does not pass through it
 
 #### Scenario: Nothing walked through

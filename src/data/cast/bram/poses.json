@@ -1,0 +1,44 @@
+{
+ "poses": {
+  "bram_idle_mug": {
+   "joints": {
+    "spine": [
+     -2,
+     0,
+     0
+    ],
+    "head": [
+     -4,
+     0,
+     0
+    ],
+    "upperArm_R": [
+     16,
+     0,
+     -8
+    ],
+    "foreArm_R": [
+     88,
+     0,
+     0
+    ],
+    "upperArm_L": [
+     2,
+     0,
+     -5
+    ],
+    "foreArm_L": [
+     10,
+     0,
+     0
+    ],
+    "hand_R": [
+     10,
+     -12,
+     20
+    ]
+   }
+  }
+ },
+ "sequences": {}
+}

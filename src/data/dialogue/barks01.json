@@ -75,8 +75,6 @@
     {"id": "hint_admin_3a", "speaker": "engineer", "text": "Want the short way? Hale's office is on your visor now. Go on.", "emote": "question", "channel": "local", "priority": "hint", "audio": "assets/vo/hint_admin_3a.mp3", "minDuration": 2.5, "choices": []},
     {"id": "hint_storeroom_1a", "speaker": "medic", "text": "That storeroom needs Level 2. Hale is issuing your card today.", "emote": "neutral", "channel": "local", "priority": "hint", "audio": "assets/vo/hint_storeroom_1a.mp3", "minDuration": 2.5, "choices": []},
     {"id": "hint_map_1a", "speaker": "engineer", "text": "Isn't there usually a wall map near the entrance of each section?", "emote": "question", "channel": "local", "priority": "hint", "audio": "assets/vo/hint_map_1a.mp3", "minDuration": 2.5, "choices": []},
-    {"id": "hint_map_1b", "speaker": "medic", "text": "Every section has a wall map. Download it and the whole area fills in.", "emote": "neutral", "channel": "local", "priority": "hint", "audio": "assets/vo/hint_map_1b.mp3", "minDuration": 2.5, "choices": []},
-    {"id": "hint_survive_1a", "speaker": "medic", "text": "The way out is behind us. Keep moving, Jay.", "emote": "neutral", "channel": "local", "priority": "hint", "audio": "assets/vo/hint_survive_1a.mp3", "minDuration": 2.5, "choices": []},
-    {"id": "hint_survive_2a", "speaker": "engineer", "text": "The door's that way, isn't it? Can we be through it? Now?", "emote": "question", "channel": "local", "priority": "hint", "audio": "assets/vo/hint_survive_2a.mp3", "minDuration": 2.5, "choices": []}
+    {"id": "hint_map_1b", "speaker": "medic", "text": "Every section has a wall map. Download it and the whole area fills in.", "emote": "neutral", "channel": "local", "priority": "hint", "audio": "assets/vo/hint_map_1b.mp3", "minDuration": 2.5, "choices": []}
   ]
 }

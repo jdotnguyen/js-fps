@@ -137,13 +137,14 @@ const eventShape = {
   /** `sweep`: the mark (a room anchor, or a kill step mark) the sweep starts from: where her arm crosses the bench. */
   from: optional(str),
   /**
-   * `gore`: burst | chunks | spurt | pool | cough (a small tight spray from the mouth, ahead of her face and falling);
+   * `gore`: burst | chunks | spurt | pool | cough (a small tight spray from the mouth, ahead of her face and falling) | drip
+   * (blood running from her mouth for `s` seconds, `count` drops a second, falling from wherever her head goes);
    * `glass`: print | splat | streak | crack.
    */
   kind: optional(str),
   count: optional(numRange(1, 400)),
   size: optional(numRange(0.02, 6)),
-  /** `gore spurt`: seconds; `glass streak`: seconds to run down; `tip`: seconds the prop takes to go over. */
+  /** `gore spurt`/`drip`: seconds; `glass streak`: seconds to run down; `tip`: seconds the prop takes to go over. */
   s: optional(numRange(0, 30)),
   /** `glass print`: which palm. */
   hand: optional(oneOf(['L', 'R'] as const)),
@@ -459,7 +460,7 @@ export const validateKillTable: Validator<KillTable> = (v, p) => {
         if (e.do === 'sfx' && !e.id?.length) throw new ValidationError(ep, 'sfx needs "id"');
         if (e.do === 'sfx' && e.mark !== undefined && e.mark !== 'glass') throw new ValidationError(`${ep} > mark`, 'an sfx "mark" is "glass"');
         if (e.do === 'kick' && (!e.joint || !e.dir)) throw new ValidationError(ep, 'kick needs "joint" and "dir"');
-        if (e.do === 'gore' && !['burst', 'chunks', 'spurt', 'pool', 'cough'].includes(e.kind ?? '')) throw new ValidationError(ep, 'gore kind is burst | chunks | spurt | pool | cough');
+        if (e.do === 'gore' && !['burst', 'chunks', 'spurt', 'pool', 'cough', 'drip'].includes(e.kind ?? '')) throw new ValidationError(ep, 'gore kind is burst | chunks | spurt | pool | cough | drip');
         if (e.do === 'glass' && !['print', 'splat', 'streak', 'crack'].includes(e.kind ?? '')) throw new ValidationError(ep, 'glass kind is print | splat | streak | crack');
         if (e.dir === 'pull' && !(e.do === 'glass' && e.kind === 'streak')) throw new ValidationError(ep, '"dir": "pull" is only for a glass streak');
         if (e.do === 'stinger' && e.id?.length !== 1) throw new ValidationError(ep, 'stinger needs one "id"');

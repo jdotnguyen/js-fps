@@ -3584,22 +3584,6 @@
       ]
     },
     {
-      "id": "r16_north_pillar_look",
-      "pos": [
-        62.8,
-        0.5,
-        32.4
-      ]
-    },
-    {
-      "id": "r16_body_drag_to",
-      "pos": [
-        60.2,
-        0,
-        29.4
-      ]
-    },
-    {
       "id": "r16_pillar_body_dragged",
       "pos": [
         71.8,
@@ -3856,20 +3840,6 @@
       ],
       "yaw": 15,
       "pose": "corpseReaching",
-      "dead": true,
-      "blood": true
-    },
-    {
-      "id": "r16b_corpse_booth_north",
-      "look": "botanist",
-      "model": "botanist2",
-      "at": [
-        60.4,
-        0,
-        31
-      ],
-      "yaw": 187,
-      "pose": "corpseProne",
       "dead": true,
       "blood": true
     },

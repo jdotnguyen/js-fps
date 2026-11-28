@@ -73,6 +73,8 @@ export interface Emitter {
   dark: boolean;
   /** Index into the clip registry (-1 none): its blood stays on one side of a plane (a glass pane). */
   clip: number;
+  /** A drip (`drip`): the same rate to the end, no pulse, and drops that barely scatter. */
+  steady?: boolean;
 }
 
 interface Pool {
@@ -787,6 +789,16 @@ export class GoreSystem {
     this.emitters.push({ anchor, point: point.clone(), dir: dir.clone().normalize(), duration: duration * 4, age: 0, rate: 14, speed: 0.15, dark, clip: ci });
   }
 
+  /**
+   * A steady drip from `point` (local to `anchor`) for `duration` seconds, `rate` drops a second that fall nearly straight
+   * down from wherever the anchor is: blood running from a mouth leaves a trail of drops behind someone walking.
+   */
+  drip(anchor: THREE.Object3D, point: THREE.Vector3, duration: number, rate = 16, dark = this.mode === 'reduced', clip?: GoreClip): void {
+    anchor.updateWorldMatrix(true, false);
+    const down = new THREE.Vector3(0, -1, 0).transformDirection(anchor.matrixWorld.clone().invert());
+    this.emitters.push({ anchor, point: point.clone(), dir: down, duration, age: 0, rate, speed: 0.05, dark, clip: this.clipIndex(clip), steady: true });
+  }
+
   /** Index of `clip` in the registry (added if new, the last slot is reused when full); -1 for none. */
   private clipIndex(clip: GoreClip | undefined): number {
     if (!clip) return -1;
@@ -1059,9 +1071,10 @@ export class GoreSystem {
         this.emitters.splice(i, 1);
         continue;
       }
-      // Pulsing, weakening spurt.
-      const life = 1 - e.age / e.duration;
-      const pulse = 0.45 + 0.55 * Math.max(0, Math.sin(e.age * 13));
+      // Pulsing, weakening spurt (a drip keeps its rate).
+      const life = e.steady ? 1 : 1 - e.age / e.duration;
+      const pulse = e.steady ? 1 : 0.45 + 0.55 * Math.max(0, Math.sin(e.age * 13));
+      const scatter = e.steady ? 0.15 : 1;
       const n = e.rate * dt * life * pulse * (this.mode === 'reduced' ? 0.5 : 1);
       const count = Math.floor(n) + (this.rng.chance(n % 1) ? 1 : 0);
       if (count === 0) continue;
@@ -1070,9 +1083,9 @@ export class GoreSystem {
       this.eDir.copy(e.dir).transformDirection(e.anchor.matrixWorld);
       for (let k = 0; k < count; k++) {
         this.eVel.copy(this.eDir).multiplyScalar(e.speed * life * this.rng.range(0.5, 1.1));
-        this.eVel.x += this.rng.range(-0.3, 0.3);
-        this.eVel.y += this.rng.range(-0.2, 0.4);
-        this.eVel.z += this.rng.range(-0.3, 0.3);
+        this.eVel.x += this.rng.range(-0.3, 0.3) * scatter;
+        this.eVel.y += this.rng.range(-0.2, 0.4) * scatter;
+        this.eVel.z += this.rng.range(-0.3, 0.3) * scatter;
         this.emit(this.ePos, this.eVel, e.dark, e.clip);
       }
     }

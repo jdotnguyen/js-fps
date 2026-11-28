@@ -70,7 +70,7 @@ test('in-world-audio "Scripted kill behind sealed glass": her kill\'s sounds are
   for (const s of run.sounds.filter((s) => ON_PANE.includes(s.id))) {
     assert.deepEqual(s.heard, ['none', 'none', 'none'], `${s.id} at ${s.at.toArray().map((v) => v.toFixed(2))}: on the pane, heard as authored`);
   }
-  for (const id of ['body_bench_hit', 'bench_sweep', 'knee_floor', 'cart_crash', 'kill_burst']) {
+  for (const id of ['body_bench_hit', 'bench_sweep', 'cart_crash', 'kill_burst']) {
     const s = run.sounds.find((q) => q.id === id);
     assert.ok(s, `${id} played`);
     assert.deepEqual(s.heard, ['sealed', 'sealed', 'sealed'], `${id}: from the room, through the pane`);

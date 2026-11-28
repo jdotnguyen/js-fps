@@ -76,15 +76,7 @@
   },
   "obj_survive_lab": {
     "title": "Get out of Lab B alive",
-    "required": true,
-    "hints": [
-      [
-        "hint_survive_1a"
-      ],
-      [
-        "hint_survive_2a"
-      ]
-    ]
+    "required": true
   },
   "obj_hold_door": {
     "title": "Cover Giles at the pressure door",

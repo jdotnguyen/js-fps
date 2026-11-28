@@ -83,30 +83,23 @@ const lean = (f: Frame): number => {
 };
 /** A touch of the panic beat and the solid its mark is on. */
 const touches = (beatOf('panic').events ?? []).filter((e) => e.do === 'touch');
-const ON: Record<string, string> = { labb_bench_top: 'bench', labb_bench_hip: 'bench', labb_push_off: 'bench', labb_knee_floor: 'floor', labb_cart_handle: 'cartHandle' };
+const ON: Record<string, string> = { labb_bench_top: 'bench', labb_bench_hip: 'bench', labb_push_off: 'bench', labb_cart_hip: 'cart' };
 const PART_CAPSULE: Record<string, JointName> = { hand_L: 'hand_L', hand_R: 'hand_R', hip_L: 'thigh_L', hip_R: 'thigh_R', knee_L: 'shin_L', knee_R: 'shin_R', chest: 'chest' };
 const toSurface = (f: Frame, part: string, on: string): number => {
   const c = cap(f, PART_CAPSULE[part]!);
-  if (on === 'floor') return Math.min(c.a.y, c.b.y) - c.r;
-  // A hand holding the handle: her wrist on the rail (her fingers close round it, so the hand itself goes past it).
-  if (on === 'cartHandle') return clearance({ ...c, b: c.a, r: 0 }, solid(on));
   return clearance(c, solid(on));
 };
 
-test('infection-kills "The actions in order": she hits the bench, sweeps it, doubles over, pushes off, stumbles, nearly goes down, recovers, grabs the cart, pulls it over and reaches the glass', () => {
-  const bench = anchor('labb_bench_edge');
+test('infection-kills "The actions in order": she hits the bench, sweeps it, doubles over, pushes off, crouch-walks holding her stomach, lurches hip-first into the cart, knocks it over and reaches the glass', () => {
   const hit = first(0, (f) => toSurface(f, 'hip_L', 'bench') <= 0.05);
   const sweep = run.done.find((e) => e.do === 'sweep');
   const doubled = first(sweep?.t ?? 0, (f) => lean(f) >= 35);
   const pushOff = first(doubled?.beatT ?? 0, (f) => f.at.get('hand_L')!.distanceTo(anchor('labb_push_off')) <= 0.05);
-  const stumble = first(pushOff?.beatT ?? 0, (f) => across(f.hips, bench) >= 0.4);
-  const knee = first(stumble?.beatT ?? 0, (f) => toSurface(f, 'knee_R', 'floor') <= 0.05);
-  const recover = first(knee?.beatT ?? 0, (f) => f.hips.y >= 0.8);
-  const grab = first(recover?.beatT ?? 0, (f) => f.at.get('hand_L')!.distanceTo(anchor('labb_cart_handle')) <= 0.05);
-  const tip = run.done.find((e) => e.do === 'tip' && e.t >= (grab?.t ?? Infinity));
+  const cart = first(pushOff?.beatT ?? 0, (f) => toSurface(f, 'hip_L', 'cart') <= 0.05);
+  const tip = run.done.find((e) => e.do === 'tip' && e.t >= (cart?.t ?? Infinity));
   const stand = new THREE.Vector3(8, 0, run.g.glassZ + 0.65);
   const glass = first(tip ? tip.t : Infinity, (f) => across(f.hips, stand) <= 0.1);
-  const order = { hit, sweep, doubled, pushOff, stumble, knee, recover, grab, tip, glass };
+  const order = { hit, sweep, doubled, pushOff, cart, tip, glass };
   let last = -Infinity;
   for (const [name, at] of Object.entries(order)) {
     assert.ok(at, `${name} happens (after ${last.toFixed(2)} s)`);
@@ -117,8 +110,23 @@ test('infection-kills "The actions in order": she hits the bench, sweeps it, dou
   assert.equal(sweep!.beat, 'panic');
 });
 
-test('infection-kills "Contacts touch": her hip and hands on the bench, her knee near the floor and her hand on the cart handle are within 5 cm of the surface, never through it', () => {
-  assert.ok(touches.length >= 5, `${touches.length} contacts`);
+test('infection-kills "Crouched to the glass": from the bench to the glass she walks bent low, hunched over, with both hands on her stomach', () => {
+  const walk = panic.filter((f) => f.beatT >= 2.6 && f.beatT <= 6.0);
+  assert.ok(walk.length > 100, `${walk.length} frames of the walk`);
+  const med = (xs: number[]): number => xs.slice().sort((a, b) => a - b)[xs.length >> 1]!;
+  const standing = run.frames.find((f) => f.beat === 'panic')!.hips.y;
+  const hips = med(walk.map((f) => f.hips.y));
+  assert.ok(hips <= standing - 0.12, `her hips are low (${hips.toFixed(2)} m, ${standing.toFixed(2)} m as she starts)`);
+  const bent = med(walk.map(lean));
+  assert.ok(bent >= 28, `she is hunched over (${bent.toFixed(0)} deg)`);
+  for (const side of ['L', 'R'] as const) {
+    const off = med(walk.map((f) => f.at.get(`hand_${side}` as JointName)!.distanceTo(f.at.get('spine')!)));
+    assert.ok(off <= 0.3, `her ${side} hand stays at her stomach (${(off * 100).toFixed(0)} cm from her spine)`);
+  }
+});
+
+test('infection-kills "Contacts touch": her hip and hands on the bench and her hip against the cart are within 5 cm of the surface, never through it', () => {
+  assert.ok(touches.length >= 4, `${touches.length} contacts`);
   for (const e of touches) {
     const on = ON[e.mark!];
     assert.ok(on, `${e.mark} is on a known surface`);
@@ -127,20 +135,15 @@ test('infection-kills "Contacts touch": her hip and hands on the bench, her knee
     const d = toSurface(at, e.part!, on!);
     assert.ok(d <= 0.05, `${e.part} at ${e.t} s is ${(d * 100).toFixed(1)} cm from the ${on}`);
     assert.ok(d >= -(cap(at, PART_CAPSULE[e.part!]!).r + THROUGH), `${e.part} at ${e.t} s does not go into the ${on} (${(d * 100).toFixed(1)} cm)`);
-    if (on === 'cartHandle') assert.ok(at.at.get('hand_L')!.y >= solid('cart').top - 0.03, 'her wrist is over the cart, not in it');
   }
 });
 
 test('infection-kills "Nothing walked through": at every frame of the run, no part of her passes through the bench, the gurney, the cart or the glass', () => {
-  const grip = touches.find((e) => e.mark === 'labb_cart_handle')!;
-  const gripEnds = grip.t + 2 * (grip.blend ?? 0.15) + (grip.hold ?? 0.3);
   const worst: Record<string, { d: number; at: string }> = {};
   for (const f of panic) {
     for (const s of run.solids) {
       if (s.id === 'chair' || s.id === 'sill' || s.id === 'mullion') continue;
       for (const c of f.caps) {
-        // Her hand holds the cart's handle while it is on it.
-        if (s.id === 'cart' && (c.joint === 'hand_L' || c.joint === 'foreArm_L') && f.beatT <= gripEnds) continue;
         const d = -clearance(c, s) - c.r;
         const key = `${s.id}:${c.joint}`;
         if (d > (worst[key]?.d ?? -Infinity)) worst[key] = { d, at: f.beatT.toFixed(2) };

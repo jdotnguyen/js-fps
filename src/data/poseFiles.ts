@@ -9,6 +9,7 @@ import pryFamily from './poses/pry.json' with { type: 'json' };
 import sitFamily from './poses/sit.json' with { type: 'json' };
 import squadFamily from './poses/squad.json' with { type: 'json' };
 import workFamily from './poses/work.json' with { type: 'json' };
+import bram from './cast/bram/poses.json' with { type: 'json' };
 import dockGuard from './cast/dock_guard/poses.json' with { type: 'json' };
 import giles from './cast/giles/poses.json' with { type: 'json' };
 import okafor from './cast/okafor/poses.json' with { type: 'json' };
@@ -34,6 +35,7 @@ export const POSE_FILES = [
   ['data/poses/sit.json', sitFamily],
   ['data/poses/squad.json', squadFamily],
   ['data/poses/work.json', workFamily],
+  ['data/cast/bram/poses.json', bram],
   ['data/cast/dock_guard/poses.json', dockGuard],
   ['data/cast/giles/poses.json', giles],
   ['data/cast/okafor/poses.json', okafor],

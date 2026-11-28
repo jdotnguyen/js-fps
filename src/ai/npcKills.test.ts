@@ -39,7 +39,7 @@ function setup(opts: { bodyModels?: BodyModelLibrary; fps?: number; kills?: unkn
   const fps = opts.fps ?? 60;
   /** Every sound and gore call, with when it came. */
   const fired: Array<{ name: string; at: number }> = [];
-  const goreCalls: Array<{ kind: string; at?: THREE.Vector3; size?: number; band?: { min: number; max: number } }> = [];
+  const goreCalls: Array<{ kind: string; at?: THREE.Vector3; size?: number; band?: { min: number; max: number }; anchor?: THREE.Object3D; s?: number }> = [];
   const goreCall = (c: (typeof goreCalls)[number]): void => {
     goreCalls.push(c);
     fired.push({ name: `gore ${c.kind}`, at: now });
@@ -51,6 +51,10 @@ function setup(opts: { bodyModels?: BodyModelLibrary; fps?: number; kills?: unkn
     chunks: () => goreCall({ kind: 'chunks' }),
     pool: () => goreCall({ kind: 'pool' }),
     spurt: () => goreCall({ kind: 'spurt' }),
+    drip: (anchor: THREE.Object3D, point: THREE.Vector3, s: number) => {
+      anchor.updateWorldMatrix(true, false);
+      goreCall({ kind: 'drip', anchor, at: anchor.localToWorld(point.clone()), s });
+    },
     glassMark: (at: THREE.Vector3, _n: THREE.Vector3, kind: string, size: number, opts: { band?: { min: number; max: number } }) =>
       goreCall({ kind: `glass:${kind}`, at: at.clone(), size, ...(opts.band ? { band: opts.band } : {}) }),
   } as unknown as GoreSystem;
@@ -220,14 +224,14 @@ test('Scream missing: the arch, burst and still beats start when they do with it
 
 /** Her run's designed sounds and her voice (voss-death-scene D10), each at its time on the kill's clock (s). */
 const RUN_SOUNDS: Record<string, number[]> = {
-  voss_gasp: [0, 4.25, 5.8],
-  body_bench_hit: [0.4],
+  voss_gasp: [0, 5.85],
+  body_bench_hit: [0.4, 4.65],
   bench_sweep: [0.55],
-  voss_grunt: [0.9, 2, 3.3],
-  voss_cough: [1.15, 1.58, 3.65, 3.98],
-  voss_scuff: [2.15, 4.4, 5.55],
-  knee_floor: [3.3],
-  cart_crash: [6.2],
+  voss_grunt: [0.9, 2, 4.65],
+  voss_cough: [1.15, 1.58],
+  voss_gag: [2.6, 3.7],
+  voss_scuff: [2.15],
+  cart_crash: [5.4],
   palm_glass_hit: [6.9, 7.3, 7.7, 8.1],
 };
 
@@ -554,14 +558,14 @@ test('the glass beat fires a score stinger on each of her palm hits (adaptive-mu
   assert.equal(stingers.length, prints, 'one stab per palm hit');
   const glass = g.beatAt('glass');
   for (const s of stingers) assert.ok(s.at >= glass && s.at < glass + 2, `stinger at ${s.at.toFixed(2)} is in the glass beat`);
-  // voss-death-scene 4.7: a deep bass hit under each blow of her run (the bench, her knee, the cart), all before the glass.
+  // voss-death-scene 4.7: a deep bass hit under each blow of her run (the bench and the cart she knocks over), all before the glass.
   const hits = named('hit');
-  assert.equal(hits.length, 3, 'a bass hit at the bench, her knee and the cart');
+  assert.equal(hits.length, 2, 'a bass hit at the bench and the cart');
   for (const s of hits) assert.ok(s.at >= g.beatAt('panic') && s.at < glass, `bass hit at ${s.at.toFixed(2)} is in the run`);
   assert.equal(g.emitted.filter((e) => e.name === 'score:stinger').length, prints + hits.length, 'no other stingers');
 });
 
-test('she coughs up blood in the run: four tight sprays from her mouth, two over the bench and two on her knee (voss-death-scene 4.7)', () => {
+test('she coughs up blood in the run: two tight sprays from her mouth over the bench, then blood runs from her mouth all the way to the glass, with a small spray at each gag (voss-death-scene 4.7)', () => {
   const g = setup();
   const voss = g.npcs.actor('researcher_b')!;
   void g.npcs.command('kill', KILL);
@@ -569,15 +573,25 @@ test('she coughs up blood in the run: four tight sprays from her mouth, two over
   g.say('drop_voss_01');
   const mouths: Array<{ at: THREE.Vector3; head: THREE.Vector3 }> = [];
   let seen = 0;
+  let headAtDrip: THREE.Vector3 | null = null;
   g.step(6.6, () => {
     const coughs = g.goreCalls.filter((c) => c.kind === 'cough');
     for (; seen < coughs.length; seen++) mouths.push({ at: coughs[seen]!.at!, head: voss.body.jointWorld('head', new THREE.Vector3()) });
+    if (!headAtDrip && g.goreCalls.some((c) => c.kind === 'drip')) headAtDrip = voss.body.jointWorld('head', new THREE.Vector3());
   });
   assert.equal(mouths.length, 4, 'four coughs');
   for (const m of mouths) assert.ok(m.at.distanceTo(m.head) < 0.15, `from her mouth (${m.at.distanceTo(m.head).toFixed(2)} m from her head)`);
   const coughAt = g.fired.filter((f) => f.name === 'gore cough').map((f) => f.at - g.beatAt('panic'));
-  assert.ok(coughAt.slice(0, 2).every((t) => t > 0.9 && t < 1.95), `two over the bench (${coughAt.map((t) => t.toFixed(2)).join(', ')} s)`);
-  assert.ok(coughAt.slice(2).every((t) => t > 3.3 && t < 4.35), 'two down on her knee');
+  assert.ok(coughAt.slice(0, 2).every((t) => t > 0.9 && t < 1.95), `the first two over the bench (${coughAt.map((t) => t.toFixed(2)).join(', ')} s)`);
+  RUN_SOUNDS['voss_gag']!.forEach((t, i) => assert.ok(Math.abs(coughAt[i + 2]! - t) < 0.3, `a spray with her gag at ${t} s (${coughAt[i + 2]?.toFixed(2)})`));
+  const drips = g.goreCalls.filter((c) => c.kind === 'drip');
+  assert.equal(drips.length, 1, 'one drip');
+  const drip = drips[0]!;
+  const dripAt = g.fired.find((f) => f.name === 'gore drip')!.at - g.beatAt('panic');
+  assert.equal(drip.anchor, voss.body.bones.head, 'it runs from her head, wherever it goes');
+  assert.ok(drip.at!.distanceTo(headAtDrip!) < 0.15, `from her mouth (${drip.at!.distanceTo(headAtDrip!).toFixed(2)} m from her head)`);
+  assert.ok(dripAt > coughAt[1]! && dripAt < 2.1, `it starts after the second cough, before she walks (${dripAt.toFixed(2)} s)`);
+  assert.ok(dripAt + drip.s! >= 6.2, `and runs until she reaches the glass (to ${(dripAt + drip.s!).toFixed(2)} s)`);
 });
 
 test('each flurry on the glass reports one pound event, at its first blow', () => {

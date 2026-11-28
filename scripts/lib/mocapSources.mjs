@@ -43,9 +43,10 @@ export function loadManifest(file = DEFAULT_MANIFEST) {
     ids.add(c.id);
     if (!m.sources?.[c.source]) problems.push(`clip "${c.id}": unknown source "${c.source}"`);
     if (!c.take) problems.push(`clip "${c.id}": missing take`);
-    // A clip made from another (`from`) needs the rotations to add, and its base baked before it.
+    // A clip made from another (`from`) needs the rotations to add, and its base baked before it. `rotate` without `from`
+    // turns the clip's own joints once it is baked.
     if (c.from !== undefined && !(ids.has(c.from) && c.from !== c.id)) problems.push(`clip "${c.id}": "from" must name a clip listed before it`);
-    if ((c.from === undefined) !== (c.rotate === undefined)) problems.push(`clip "${c.id}": "from" and "rotate" go together`);
+    if (c.from !== undefined && c.rotate === undefined) problems.push(`clip "${c.id}": "from" needs "rotate"`);
   }
   if (problems.length) throw new Error(`${path.relative(ROOT, file)}:\n  ${problems.join('\n  ')}`);
   return m;

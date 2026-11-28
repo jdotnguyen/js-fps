@@ -211,3 +211,36 @@ test('the warm samples hold every material a mark or pool is drawn with, before 
   assert.ok(drawn.length >= 10, `marks and pools were made (${drawn.length})`);
   for (const mesh of drawn) assert.ok(warmed.has(features(mesh.material as THREE.MeshStandardMaterial)), `${mesh.name} ${features(mesh.material as THREE.MeshStandardMaterial)}`);
 });
+
+test('a drip falls nearly straight down from its anchor wherever it goes, leaving a trail of drops behind someone walking', () => {
+  const gore = new GoreSystem(new Rng('drip'));
+  // A head bone 1.2 m up, pitched forward and scaled like an imported rig's, walking 1 m/s along x for 3 s.
+  const holder = new THREE.Group();
+  const head = new THREE.Object3D();
+  holder.add(head);
+  head.position.set(0, 1.2, 0);
+  head.rotation.set(-0.9, 0.4, 0);
+  head.scale.setScalar(0.01);
+  gore.drip(head, new THREE.Vector3(0, -5, 9), 3, 16);
+  for (let t = 0; t < 4; t += 1 / 60) {
+    head.position.x = Math.min(t, 3);
+    head.updateMatrixWorld(true);
+    gore.update(1 / 60);
+  }
+  const marks = gore.group.getObjectByName('gore-drop-marks') as THREE.InstancedMesh;
+  const m = new THREE.Matrix4();
+  const p = new THREE.Vector3();
+  const mouthZ = head.localToWorld(new THREE.Vector3(0, -5, 9)).z;
+  const xs: number[] = [];
+  for (let i = 0; i < gore.dropMarkTotal; i++) {
+    marks.getMatrixAt(i, m);
+    p.setFromMatrixPosition(m);
+    xs.push(p.x);
+    assert.ok(Math.abs(p.z - mouthZ) < 0.08, `a drop lands under her mouth's path (${(p.z - mouthZ).toFixed(3)} m off)`);
+  }
+  assert.ok(xs.length >= 10, `${xs.length} drops on the floor`);
+  assert.ok(Math.min(...xs) < 0.5 && Math.max(...xs) > 2.4, `along the whole walk (${Math.min(...xs).toFixed(2)} to ${Math.max(...xs).toFixed(2)} m)`);
+  const before = gore.dropMarkTotal;
+  gore.update(1);
+  assert.equal(gore.dropMarkTotal, before, 'and it stops when its time is up');
+});
