@@ -3,8 +3,8 @@
 Rigid-body physics for severed limbs and pushable things. The plan is the
 `adopt-physics-engine` OpenSpec change (specs [`physics-world`](../openspec/specs/physics-world/spec.md), [`severed-debris`](../openspec/specs/severed-debris/spec.md) and [`physical-interaction`](../openspec/specs/physical-interaction/spec.md)), delivered in blocks that each
 ship behind their own switch. The behaviour is specified in its `physics-world`, `severed-debris` and
-`physical-interaction` specs. Ragdolls are planned separately and parked, in
-[`add-physics-ragdolls`](../openspec/changes/add-physics-ragdolls/).
+`physical-interaction` specs. Ragdolls are not planned: the parked `add-physics-ragdolls` change was removed and
+is in git history.
 
 ## Engine
 
