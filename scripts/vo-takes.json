@@ -1592,7 +1592,8 @@
     "model": "gemini-2.5-flash-preview-tts",
     "lines": [
       "sec_okafor_12",
-      "sec_okafor_13",
+      "sec_okafor_13a",
+      "sec_okafor_13b",
       "sec_okafor_14"
     ],
     "at": "2026-11-23T14:23:32.292Z",
@@ -1626,8 +1627,7 @@
     "model": "gemini-2.5-flash-preview-tts",
     "lines": [
       "sec_okafor_18",
-      "sec_okafor_19",
-      "sec_okafor_20"
+      "sec_okafor_19"
     ],
     "at": "2026-11-23T14:24:18.314Z",
     "source": "generated"

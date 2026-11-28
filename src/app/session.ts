@@ -2044,6 +2044,8 @@ export async function createPlaySession(shell: SessionShellDeps, intent: Session
               }
               // The same scene a load at `cp_r16_arrived` plays: the squad in Car B, R16 dark, then the finale.
               if (jump === 'r16_finale') sequences?.start('r16_restore');
+              // The Power Bay scene starts from its door, which this jump lands beyond.
+              if (jump === 'r11' && new URLSearchParams(location.search).get('power') !== 'on') sequences?.start('r11_power_bay');
               if (jump === 'transit_ride') {
                 if (new URLSearchParams(location.search).get('raw') === '1' || !sequences) {
                   events.emit('transit:start_ride' as never, {} as never);

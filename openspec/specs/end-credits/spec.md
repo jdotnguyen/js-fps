@@ -23,3 +23,15 @@ After `stinger_priya` holds on green static for 2.8 s and cuts to black (`s: 0`)
 #### Scenario: Clean fade from blackout to credits
 - **WHEN** `stinger_priya` holds on static for 2.8 s, cuts to black, holds for 3.5 s, and calls `endSlice`
 - **THEN** the end credits fade in smoothly over the black frame with no frame of the game world or title menu visible in between and no menu open sting
+
+### Requirement: Escape on the closing credits goes to the main menu
+Pressing Escape on the credits that `endSlice` opened SHALL end the session and show the main menu, at any point after they
+open, including while they are still fading in. The game world SHALL NOT be shown again.
+
+#### Scenario: Skipping while they fade in
+- **WHEN** the player presses Escape before the end credits are fully opaque
+- **THEN** the session is gone and the main menu is shown, with no frame of the game world
+
+#### Scenario: Skipping during the roll
+- **WHEN** the player presses Escape during the credit roll after the slice
+- **THEN** the main menu is shown

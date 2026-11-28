@@ -107,3 +107,17 @@ test('quitting to title from a pause drops the scene copy at once and keeps the 
   assert.equal(heard(sources(scene)[0]!, scene), false);
   assert.deepEqual(levels(), [1, null]);
 });
+
+test('a restarting cue plays the theme from its first bar, wherever the theme loop is', (t) => {
+  const { menu, scene, music, buffer, fake, sources, levels } = setup(t);
+  music.use(buffer);
+  fake(menu).advance(23);
+  music.setMode('playing');
+  music.cue('main_theme', 1, true);
+  assert.deepEqual(sources(scene).at(-1)!.started, [0, 0]);
+  assert.deepEqual(levels(), [0, 1]);
+  music.cue(null);
+  assert.deepEqual(levels(), [0, null]);
+  music.cue('main_theme');
+  assert.deepEqual(sources(scene).at(-1)!.started, [0, 3], 'an ordinary cue still joins where the theme is');
+});

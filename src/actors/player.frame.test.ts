@@ -222,3 +222,20 @@ test('heading shot: with reduced motion the view follows the route turn more slo
   // Both are turning from 0 toward -90 deg; reduced motion lags behind.
   assert.ok(reduced > normal + 1 * DEG, `reduced ${(reduced / DEG).toFixed(1)} vs normal ${(normal / DEG).toFixed(1)} deg`);
 });
+
+test('a sweep pans steadily from the aim across to its second point over the shot', () => {
+  const { player } = makePlayer();
+  const eye = player.eyePosition(new THREE.Vector3());
+  const left = new THREE.Vector3(eye.x - 5, eye.y, eye.z - 5);
+  const right = new THREE.Vector3(eye.x + 5, eye.y, eye.z - 5);
+  player.frameView(left, { duration: 0 });
+  player.frameView(left, { duration: 3, sweep: right });
+  const yaws: number[] = [];
+  for (let i = 0; i < 240; i++) {
+    player.look(1 / 60);
+    if (i % 30 === 29) yaws.push(player.yaw / DEG);
+  }
+  assert.ok(yaws.every((y, k) => k === 0 || y <= yaws[k - 1]! + 1e-6), `one way: ${yaws.map((y) => y.toFixed(0)).join(' ')}`);
+  assert.ok(Math.abs(yaws[2]!) < 20, `about half way across at half time, ${yaws[2]!.toFixed(1)}`);
+  assert.ok(Math.abs(yaws.at(-1)! - -45) < 1, `ends on the second point, ${yaws.at(-1)!.toFixed(1)}`);
+});

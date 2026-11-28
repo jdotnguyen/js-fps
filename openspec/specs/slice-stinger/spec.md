@@ -22,11 +22,12 @@ After a held stillness of at least 3 s, Priya's body SHALL twitch, convulse and 
 - **AND** the last frame before the static has her face towards the camera
 
 ### Requirement: The stinger plays its theme into the credits
-When `stinger_priya` starts, it SHALL explicitly cue the `labB` score's `kill:still` cue (`drone` + `hold`) so the eerie surveillance theme plays over CAM 04 and carries into the credits even when an earlier climax sequence released the score.
+When `stinger_priya` starts, it SHALL explicitly cue the `labB` score's `kill:still` cue (`drone` + `hold`) so the eerie surveillance theme plays over CAM 04 and carries into the credits even when an earlier climax sequence released the score. At the same moment the menu theme, playing since the cliffhanger cut to black, SHALL fade out.
 
 #### Scenario: Theme plays after R16 blackout
 - **WHEN** `stinger_priya` begins after `r16_arrival_finale`'s `r16Cut` or via `?debug&jump=stinger_priya`
 - **THEN** `labB`'s `kill:still` cue plays under the surveillance footage and continues into the credits
+- **AND** any menu theme still playing fades out as it comes in
 
 ### Requirement: Debug jump for the stinger
 The debug launcher SHALL support `?debug&jump=stinger_priya` to restore R08 (Priya's slumped corpse, blood pools, and glass marks) and launch `stinger_priya` directly on `CAM 04 MEDBAY` from `R16a` for fast iteration.

@@ -91,7 +91,7 @@ After the crew, the airlock SHALL cycle and Okafor and Giles SHALL come through 
 - **THEN** the only talk left on the station side is Okafor's call to go to the kitchen
 
 ### Requirement: Speaker shots at the post and in the kitchen
-While Jay stands at his post, and from when he walks into the Commons, the view SHALL ease to each speaker who has a body as their line starts, taking about 0.6–1.0 s. When Jay speaks to someone named as the line's addressee, the view SHALL ease to that person instead. Jay's other lines and speakers without a body SHALL keep the current shot. Two exchanges are exceptions. While Sung talks with Jay at the counter, the view SHALL track Sung, and other speakers' lines SHALL NOT turn it. During the squad's walk in from the airlock to the counter, the view SHALL track Okafor in the same way. The speaker shot SHALL resume after each exception ends.
+While Jay stands at his post, and in the Commons once the entrance pan has landed on Bram, the view SHALL ease to each speaker who has a body as their line starts, taking about 0.6–1.0 s. When Jay speaks to someone named as the line's addressee, the view SHALL ease to that person instead. Jay's other lines and speakers without a body SHALL keep the current shot. Two exchanges are exceptions. While Sung talks with Jay at the counter, the view SHALL track Sung, and other speakers' lines SHALL NOT turn it. During the squad's walk in from the airlock to the counter, the view SHALL track Okafor in the same way. The speaker shot SHALL resume after each exception ends.
 
 #### Scenario: Okafor speaks
 - **WHEN** Okafor's line starts while Jay is at the post
@@ -163,15 +163,16 @@ As Jay leaves the booth, the speaker shot SHALL end. From there until Jay walks 
 - **THEN** the view does not turn to them
 
 ### Requirement: Kitchen scene
-In the kitchen, Bram greets the squad and serves them, then Priya comes in, sends Okafor to sit and teases Giles before she offers Jay a coffee. The squad wait at the counter until Jay walks into the Commons, and Bram's greeting starts then. From the moment Jay comes through the Commons door, the view SHALL turn to whoever speaks first, Bram, Okafor or Giles, then follow each speaker in turn, Priya included, as speaker shots. The TAG FM radio SHALL start when Jay reaches the kitchen.
+In the kitchen, Bram greets the squad and serves them, then Priya comes in, sends Okafor to sit and teases Giles before she offers Jay a coffee. The squad wait at the counter until Jay walks into the Commons, and Bram's greeting starts then. As Jay comes through the Commons door, the view SHALL stop facing along the route, ease to the left side of the room, pan steadily from left to right across the crew at their tables, then turn round to Bram, in about 5 s. Bram's greeting SHALL start once the view is on him. From then on the view SHALL follow each speaker in turn, Priya included, as speaker shots. The TAG FM radio SHALL start when Jay reaches the kitchen.
 
 #### Scenario: Walking in
 - **WHEN** Jay comes through the Commons door
-- **THEN** the view stops facing along the route, and turns to the next person who speaks
+- **THEN** the view pans from the left side of the room to the right across the crew, then turns round to Bram
+- **AND** a line that starts during the pan does not turn the view away from it
 
-#### Scenario: Bram greets as Jay walks in
+#### Scenario: Bram greets once he is in view
 - **WHEN** the squad reach the counter before Jay is in the Commons
-- **THEN** Bram's greeting waits until Jay walks in, so the first line lands as he enters
+- **THEN** Bram's greeting waits until Jay has walked in and the view has landed on Bram
 
 #### Scenario: From the coffee to Priya
 - **WHEN** Giles has his mug

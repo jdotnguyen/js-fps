@@ -407,9 +407,10 @@ export const ACTIONS: Record<string, ActionDef> = {
    * leeway that holds `hold` s (default 0.5) before settling back. `hold` and `returnTime` (the spring-back time
    * constant) also widen a normal shot into a soft nudge (`give: 35, hold: 0.5`). `zoom` magnifies a shot of something
    * far off (2 doubles its size on screen) until the shot ends or the next one begins.
+   * `sweep` (intro-sequence spec) pans steadily from `target` across to this second target over `duration`.
    */
   playerFrame: act(
-    { target: optional(target), initial: optional(target), duration: optional(numRange(0, 30)), give: optional(numRange(0, 60)), hold: optional(numRange(0, 5)), returnTime: optional(numRange(0.02, 3)), zoom: optional(numRange(1, 4)), clear: optional(bool), wait },
+    { target: optional(target), initial: optional(target), sweep: optional(target), duration: optional(numRange(0, 30)), give: optional(numRange(0, 60)), hold: optional(numRange(0, 5)), returnTime: optional(numRange(0.02, 3)), zoom: optional(numRange(1, 4)), clear: optional(bool), wait },
     (s, ctx) => {
       if (!ctx.host.frame) return ctx.missing('playerFrame');
       endConversation(ctx);
@@ -437,7 +438,8 @@ export const ACTIONS: Record<string, ActionDef> = {
       const at = resolve('playerFrame', s.target, ctx);
       if (!at) return;
       const duration = s.duration ?? 0.8;
-      aim(ctx, s.target, duration, s.give ?? 6, at, opts);
+      const sweep = s.sweep !== undefined ? resolve('playerFrame', s.sweep, ctx) : null;
+      aim(ctx, s.target, duration, s.give ?? 6, at, sweep ? { ...opts, sweep } : opts);
       if (s.wait) return timed(duration);
     },
   ),
@@ -835,10 +837,13 @@ export const ACTIONS: Record<string, ActionDef> = {
     ctx.host.score(s.id, { ...(s.cue !== undefined ? { cue: s.cue } : {}), ...(s.stinger !== undefined ? { stinger: s.stinger } : {}), ...(s.load ? { load: true } : {}) });
   }),
 
-  /** `level`: how loud the track plays (default 1). A later step with the same `id` dips or restores it. */
-  music: act({ id: optional(oneOf(MUSIC_TRACKS)), stop: optional(bool), level: optional(numRange(0, 1)) }, (s, ctx) => {
+  /**
+   * `level`: how loud the track plays (default 1). A later step with the same `id` dips or restores it.
+   * `restart`: start the track at its first bar, at full level at once.
+   */
+  music: act({ id: optional(oneOf(MUSIC_TRACKS)), stop: optional(bool), level: optional(numRange(0, 1)), restart: optional(bool) }, (s, ctx) => {
     if (!ctx.host.music) return ctx.missing('music');
-    ctx.host.music(s.stop ? null : (s.id ?? null), s.level);
+    ctx.host.music(s.stop ? null : (s.id ?? null), s.level, s.restart);
   }),
 
   ambience: act({ id: str }, (s, ctx) => {

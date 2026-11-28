@@ -45,7 +45,7 @@ export interface GameHostDeps {
   /** Environmental soundscape director (room beds, spatial one-shots, scripted ambience overrides). */
   ambience?: AmbienceDirector | null | undefined;
   /** Music the sequence `music` step controls (the menu theme player). */
-  music?: { cue(track: MusicTrack | null, level?: number): void } | null | undefined;
+  music?: { cue(track: MusicTrack | null, level?: number, restart?: boolean): void } | null | undefined;
   /** Adaptive scores (adaptive-music spec): the `score` step, and `sfx` steps that wait for the beat. */
   score?: { load(id: string): void; cue(id: string, cue: string): void; stinger(name: string, id?: string): void; untilBeat(): number } | null | undefined;
   hud: PlayerHud;
@@ -156,11 +156,12 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
     lookAt: (at, duration, weight) => d.player.lookAt(v3(at), { duration, weight }),
     clampLook: (at, degrees) => d.player.clampLook(at ? v3(at) : null, degrees),
     frameHeading: (duration, give, opts) => d.player.frameHeading({ duration, give, ...opts }),
-    frame: (at, duration, give, follow, opts) =>
+    frame: (at, duration, give, follow, { sweep, ...opts } = {}) =>
       d.player.frameView(at ? v3(at) : null, {
         duration,
         give,
         ...opts,
+        ...(sweep ? { sweep: v3(sweep) } : {}),
         ...(follow
           ? {
               follow: (out: THREE.Vector3) => {
@@ -284,12 +285,12 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
       : {}),
     ...(d.music
       ? {
-          music: (id: string | null, level?: number) => {
+          music: (id: string | null, level?: number, restart?: boolean) => {
             if (id !== null && !(MUSIC_TRACKS as readonly string[]).includes(id)) {
               console.warn(`[seq] music: no track "${id}"`);
               return;
             }
-            d.music!.cue(id as MusicTrack | null, level);
+            d.music!.cue(id as MusicTrack | null, level, restart);
           },
         }
       : {}),
@@ -308,7 +309,10 @@ export function createGameHost(d: GameHostDeps): SequenceHost {
         d.toasts.show('End of slice', 'Thanks for playing');
         return;
       }
-      const toTitle = (): void => d.game.quitToTitle();
+      // Closing the credits early has already ended the game (shell).
+      const toTitle = (): void => {
+        if (d.game.mode !== 'title') d.game.quitToTitle();
+      };
       void Promise.resolve(d.showCredits({ fromSlice: true })).then(toTitle, toTitle);
     },
     hush,

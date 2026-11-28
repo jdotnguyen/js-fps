@@ -848,6 +848,18 @@
               ]
             },
             {
+              "do": "if",
+              "flag": "intro_kitchen_panned",
+              "is": false,
+              "then": [
+                {
+                  "do": "waitFor",
+                  "event": "intro:kitchen_panned",
+                  "timeout": 12
+                }
+              ]
+            },
+            {
               "do": "npcAnim",
               "npc": "cook",
               "anim": "idle"
@@ -931,6 +943,34 @@
             },
             {
               "do": "playerFrame",
+              "target": "anchor:intro_pan_left",
+              "duration": 0.8,
+              "wait": true
+            },
+            {
+              "do": "playerFrame",
+              "target": "anchor:intro_pan_left",
+              "sweep": "anchor:intro_pan_right",
+              "duration": 3.4,
+              "wait": true
+            },
+            {
+              "do": "playerFrame",
+              "target": "npc:cook",
+              "duration": 1.1,
+              "wait": true
+            },
+            {
+              "do": "setFlag",
+              "flag": "intro_kitchen_panned",
+              "value": true
+            },
+            {
+              "do": "emit",
+              "event": "intro:kitchen_panned"
+            },
+            {
+              "do": "playerFrame",
               "target": "speaker",
               "duration": 0.8
             }
@@ -947,6 +987,11 @@
     {
       "do": "setFlag",
       "flag": "intro_jay_in_kitchen",
+      "value": false
+    },
+    {
+      "do": "setFlag",
+      "flag": "intro_kitchen_panned",
       "value": false
     },
     {

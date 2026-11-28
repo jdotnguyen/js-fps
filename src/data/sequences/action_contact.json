@@ -385,6 +385,10 @@
     "id": "obj_hold_door"
    },
    {
+    "do": "completeObjective",
+    "id": "obj_survive_lab"
+   },
+   {
     "do": "checkpoint",
     "id": "cp_cover_done",
     "label": "Pressure Door Hall"

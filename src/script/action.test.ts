@@ -182,6 +182,7 @@ function makeGame(only?: string[], opts: { holdMauled?: boolean } = {}) {
     setPower: (state) => void log.push(`power ${state}`),
     cameraFeed: (id, opts) => (feeds.push(opts), void log.push(`feed ${id} ${opts.state}${opts.fullscreen ? ' fullscreen' : ''}`)),
     radio: (track) => void log.push(track ? `radio ${track}` : 'radio stop'),
+    music: (id, _level, restart) => void log.push(id ? `music ${id}${restart ? ' restart' : ''}` : 'music stop'),
     gore: (kind) => void log.push(`gore ${kind}`),
     hush: (speakers) => void log.push(speakers ? `hush ${speakers.join(",")}` : "hush off"),
     titleCard: (title) => void cards.push(title),
@@ -647,7 +648,7 @@ test('medbay-attack rescue: denied on arrival, Giles reads the order and opens t
     'say sec_okafor_12 overlap',
     // Triage.
     'score medbay triage',
-    ...lines('sec_okafor_13', 'sec_okafor_14', 'sec_priya_14', 'sec_okafor_15'),
+    ...lines('sec_okafor_13a', 'sec_okafor_13b', 'sec_okafor_14', 'sec_priya_14', 'sec_okafor_15'),
     // The surgery and the tray (the music cuts to the monitor).
     ...lines('sec_priya_15', 'sec_priya_16'),
     'sfx surgery_tray_fall',
@@ -680,8 +681,9 @@ test('medbay-attack "She turns around" (D35): hands up, a slow turn to the surge
   const g = makeGame(undefined, { holdMauled: true });
   await toArmoryDone(g);
   inOrder(g, [
-    'say sec_okafor_13',
+    'say sec_okafor_13a',
     'npc npcAnim priya priya_hands_show',
+    'say sec_okafor_13b',
     'npc npcLookAt priya',
     'npc npcLookAt priya',
     'npc npcAnim priya priya_hands_back_freeze',
@@ -798,7 +800,7 @@ test('medbay-attack: the attack lines ride the kill beats; the prompt goes with 
   for (const sp of ['medic', 'engineer', 'player', 'nurse']) assert.ok(speakers.has(sp), sp);
 });
 
-test('medbay-attack aftermath: silence, the intercom off, the notebook, "I told her she was fine.", a pause, "Med lab\'s through there."', async () => {
+test('medbay-attack aftermath: the exhale at the glass, "Gotta keep moving.", the intercom off, then "Med lab\'s through there." with no walk back', async () => {
   const g = await toPlead();
   await advance(g, 2);
   for (const beat of ['impale', 'carry', 'slam', 'throw', 'still']) {
@@ -813,11 +815,12 @@ test('medbay-attack aftermath: silence, the intercom off, the notebook, "I told 
   await advance(g, 1);
   const after = (): string[] => g.log.slice(n);
   assert.ok(after().includes('door D_R08_R08b closed') && after().includes('npc despawn r08_thing'));
-  assert.ok(!after().some((e) => e.startsWith('say ') && !['say sec_okafor_23', 'say sec_okafor_20', 'say sec_okafor_21'].includes(e)), 'after his exhale: only Okafor, starting with "Gotta keep moving." as he sets off');
+  assert.ok(!after().some((e) => e.startsWith('say ') && !['say sec_okafor_23', 'say sec_okafor_21'].includes(e)), 'after his exhale: only Okafor, starting with "Gotta keep moving."');
   await until(g, () => !g.m.isRunning('sec_glass'), 60);
-  inOrder(g, ['say sec_okafor_22', 'score medbay aftermath_out', 'say sec_okafor_23', 'say sec_okafor_20', 'intercom medbay off', 'score medbay end', 'npc npcAnim okafor okafor_notebook', 'say sec_okafor_21', 'door D_R06_R07 open', 'checkpoint cp_security_done']);
+  inOrder(g, ['say sec_okafor_22', 'score medbay aftermath_out', 'say sec_okafor_23', 'intercom medbay off', 'score medbay end', 'say sec_okafor_21', 'door D_R06_R07 open', 'checkpoint cp_security_done']);
+  assert.equal(after().includes('npc npcAnim okafor okafor_notebook'), false, 'no notebook, and no walk to the console for it');
   const sayLines = after().filter((e) => e.startsWith('say '));
-  assert.deepEqual(sayLines, ['say sec_okafor_23', 'say sec_okafor_20', 'say sec_okafor_21'], 'Priya and Okafor only: no other line in the aftermath');
+  assert.deepEqual(sayLines, ['say sec_okafor_23', 'say sec_okafor_21'], 'Priya and Okafor only: no other line in the aftermath');
   assert.equal(g.host.flags['sec_done'], true);
   assert.equal(g.host.flags['obj:obj_medlab'], 'active');
   assert.equal(g.control.state.move, 'free');
@@ -1096,14 +1099,19 @@ test('the ambush cuts the valve aftermath short: speech silenced, the music out,
 // ------------------------------------------------------------------------------- beat 7: R11 Power Bay
 
 const VALVE_DONE = { ...COVER_DONE, sec_done: true, medlab_open: true, tunnel_started: true, valve_done: true };
+/** Jay opens the Power Bay's door (the scene's trigger). */
+const openR11 = (g: Game): void => g.host.events.emit('door:opened', { id: 'D_R10_R11' });
 const R11_LINES = ['r11_okafor_01', 'r11_jay_01', 'r11_giles_01', 'r11_giles_02', 'r11_giles_03', 'r11_giles_04', 'r11_giles_05', 'r11_giles_06', 'r11_okafor_02', 'r11_giles_07'];
 
 test('R11 Power Bay sequence: cautious whispered entry, Giles diagnoses terminal, 3-phase generator rumble + light cascade, opens D_R13d_R11, no infection arc', async () => {
   const g = makeGame(['r11_power_bay']);
-  fire(g, 'trigger:r11_enter');
+  openR11(g);
   assert.equal(g.m.isRunning('r11_power_bay'), false, 'the valve first');
   setFlags(g, VALVE_DONE);
+  g.host.events.emit('door:opened', { id: 'D_R10_R05' });
   fire(g, 'trigger:r11_enter');
+  assert.equal(g.m.isRunning('r11_power_bay'), false, 'only its own door starts it, not another door or walking in');
+  openR11(g);
   assert.equal(g.m.isRunning('r11_power_bay'), true);
   assert.equal(g.control.state.move, 'free', 'player keeps free movement in R11');
   await until(g, () => !g.m.isRunning('r11_power_bay'), 120);
@@ -1147,6 +1155,7 @@ test('story:cliffhanger plays the title card and Priya CAM 04 stinger through to
   assert.equal(g.m.isRunning('title_card'), true);
   assert.equal(g.m.skip(), false, 'the title card is not skippable');
   await until(g, () => g.ended() === 1, 120);
+  assert.ok(at(g, 'music stop') > at(g, 'event story:title_done') && at(g, 'music stop') < at(g, 'score labB kill:still'), 'the menu theme gives way as her version comes in');
   inOrder(g, ['event story:title_done', 'hush nurse', 'feed stinger live fullscreen', 'npc kill priya', 'feed stinger static fullscreen', 'fade 1', 'feed stinger off fullscreen']);
   assert.equal(g.log.filter((e) => e.startsWith('say stinger_')).length, 0, 'no words from her in the stinger');
   assert.equal(at(g, 'npc spawn r08_thing') > at(g, 'feed stinger live fullscreen'), false, 'nobody else in the room');
@@ -1213,7 +1222,7 @@ async function playThrough(g: Game, events: string[]): Promise<void> {
   fire(g, 'trigger:r10_ambush');
   await settle('ambush_done');
   for (let i = 0; i < 12 * 60 && g.m.isRunning('r10_ambush'); i++) g.m.update(1 / 60);
-  fire(g, 'trigger:r11_enter');
+  openR11(g);
   await settle('r11_powered');
   await until(g, () => !g.m.isRunning('r11_power_bay'));
   await until(g, () => !g.m.isRunning('r13d_transit_walk'));
@@ -1290,6 +1299,17 @@ test('a load or restart puts the doors the finished beats opened back, from the 
   assert.ok(at(g, 'door D_R13d_R11 open') >= 0 && at(g, 'door D_R13d_R15a closed') >= 0);
   assert.equal(at(g, 'door D_R13d_R11 sealed'), -1);
   noWarnings(g);
+});
+
+test('the Lab B objective is met once the pressure door is held, so its nudge cannot play later; an older save is put right on load', () => {
+  const steps: Array<Record<string, unknown>> = [];
+  walk(actionDefs.find((d) => d.id === 'cover_me')!.steps, (st) => void steps.push(st));
+  const done = steps.filter((s) => s['do'] === 'completeObjective').map((s) => s['id']);
+  assert.deepEqual(done, ['obj_hold_door', 'obj_survive_lab']);
+  const g = makeGame(['action_restore']);
+  setFlags(g, { ...COVER_DONE, 'obj:obj_survive_lab': 'active' });
+  g.host.events.emit('game:mode', { mode: 'playing', from: 'title' });
+  assert.equal(g.host.flags['obj:obj_survive_lab'], 'done');
 });
 
 test('checkpoint-restore "Resume after a pause": returning from pause mid-scene restores nothing; a death restart still does', () => {
@@ -1403,7 +1423,7 @@ test('loading a save after cp_r11_powered restores R11 online with D_R13d_R11 op
   assert.ok(at(r, 'door D_R13d_R11 open') >= 0, 'north transit door stays open');
   assert.ok(at(r, 'event r11:power_state') >= 0, 'terminal restored to online');
   assert.ok(at(r, 'event r11:hum_on') >= 0, 'generator hum restored');
-  fire(r, 'trigger:r11_enter');
+  openR11(r);
   assert.equal(r.m.isRunning('r11_power_bay'), false, 'power bay sequence does not replay');
   noWarnings(r);
 });
@@ -1819,6 +1839,9 @@ test('r16-arrival-finale: surveillance reveal, the Juggernaut walks out and roar
   assert.equal(scriptedFired, true, 'scripted squad gunfire fires before CAM 10');
   assert.ok(g.log.includes('sfx r16HorrorHit'), 'bass horror impact plays on massacre reveal');
   assert.deepEqual(juggernautShows, [true, false], 'the Juggernaut shows on CAM 10 through both roars and hides at the cut');
+  const roar = at(g, 'sfx r16MonsterRoarBlackout');
+  const theme = at(g, 'music main_theme restart');
+  assert.ok(theme > g.log.indexOf('fade 1', roar) && g.log.indexOf('fade 1', roar) > roar, 'the menu theme from the top as the second roar cuts to black');
   assert.equal(g.feeds.at(-1)?.state, 'off');
   assert.equal(g.host.flags['r16_finale_done'], true);
   assert.equal(cliffhanger, true, 'story:cliffhanger emitted to chain into title_card -> stinger_priya -> endSlice');

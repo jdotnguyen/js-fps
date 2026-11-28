@@ -32,6 +32,6 @@ test('short pauses and an already tight clip are left alone', () => {
 
 test('the rescue lines are capped, and the written beats get the longer cap', () => {
   assert.equal(TIGHT_LINES['sec_priya_12'], PAUSE_CAP);
-  for (const beat of ['sec_priya_10', 'sec_giles_10', 'sec_okafor_13', 'sec_okafor_15', 'sec_priya_16', 'sec_okafor_17']) assert.equal(TIGHT_LINES[beat], BEAT_CAP, beat);
+  for (const beat of ['sec_priya_10', 'sec_giles_10', 'sec_okafor_15', 'sec_priya_16', 'sec_okafor_17']) assert.equal(TIGHT_LINES[beat], BEAT_CAP, beat);
   assert.equal(TIGHT_LINES['sec_priya_17'], undefined, 'her panicked breathing is not a line to tighten');
 });

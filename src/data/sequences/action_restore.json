@@ -74,6 +74,17 @@
     "flag": "cover_done",
     "then": [
      {
+      "do": "if",
+      "flag": "obj:obj_survive_lab",
+      "is": "active",
+      "then": [
+       {
+        "do": "completeObjective",
+        "id": "obj_survive_lab"
+       }
+      ]
+     },
+     {
       "do": "doorState",
       "id": "D_R06_R07",
       "state": "open"

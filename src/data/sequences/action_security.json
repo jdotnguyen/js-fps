@@ -461,80 +461,70 @@
         "at": "anchor:r08_lurk"
        },
        {
-        "parallel": [
-         {
-          "do": "say",
-          "line": "sec_okafor_13"
-         },
-         {
-          "do": "loop",
-          "count": 1,
-          "steps": [
-           {
-            "do": "wait",
-            "s": 1.15
-           },
-           {
-            "do": "npcAnim",
-            "npc": "priya",
-            "anim": "priya_hands_show"
-           },
-           {
-            "do": "wait",
-            "s": 1.65
-           },
-           {
-            "do": "npcLookAt",
-            "npc": "priya",
-            "target": "npc:okafor"
-           },
-           {
-            "do": "wait",
-            "s": 0.3
-           },
-           {
-            "do": "npcLookAt",
-            "npc": "priya",
-            "target": "anchor:priya_turn_away",
-            "turn": true,
-            "turnRate": 1.3
-           },
-           {
-            "do": "wait",
-            "s": 2.4
-           },
-           {
-            "do": "npcAnim",
-            "npc": "priya",
-            "anim": "priya_hands_back_freeze"
-           },
-           {
-            "do": "wait",
-            "s": 0.6
-           },
-           {
-            "do": "npcAnim",
-            "npc": "priya",
-            "anim": "priya_hands_turn_back"
-           },
-           {
-            "do": "npcLookAt",
-            "npc": "priya",
-            "target": "npc:okafor",
-            "turn": true,
-            "turnRate": 2.4
-           },
-           {
-            "do": "wait",
-            "s": 0.5
-           },
-           {
-            "do": "say",
-            "line": "sec_okafor_14"
-           }
-          ]
-         }
-        ]
+        "do": "say",
+        "line": "sec_okafor_13a"
+       },
+       {
+        "do": "npcAnim",
+        "npc": "priya",
+        "anim": "priya_hands_show"
+       },
+       {
+        "do": "wait",
+        "s": 0.9
+       },
+       {
+        "do": "say",
+        "line": "sec_okafor_13b"
+       },
+       {
+        "do": "npcLookAt",
+        "npc": "priya",
+        "target": "npc:okafor"
+       },
+       {
+        "do": "wait",
+        "s": 0.5
+       },
+       {
+        "do": "npcLookAt",
+        "npc": "priya",
+        "target": "anchor:priya_turn_away",
+        "turn": true,
+        "turnRate": 1.3
+       },
+       {
+        "do": "wait",
+        "s": 2.4
+       },
+       {
+        "do": "npcAnim",
+        "npc": "priya",
+        "anim": "priya_hands_back_freeze"
+       },
+       {
+        "do": "wait",
+        "s": 0.6
+       },
+       {
+        "do": "npcAnim",
+        "npc": "priya",
+        "anim": "priya_hands_turn_back"
+       },
+       {
+        "do": "npcLookAt",
+        "npc": "priya",
+        "target": "npc:okafor",
+        "turn": true,
+        "turnRate": 2.4
+       },
+       {
+        "do": "wait",
+        "s": 0.5
+       },
+       {
+        "do": "say",
+        "line": "sec_okafor_14"
        },
        {
         "do": "npcAnim",
@@ -1278,26 +1268,8 @@
         "cue": "aftermath_out"
        },
        {
-        "do": "npcMoveTo",
-        "npc": "okafor",
-        "to": "anchor:r07_console",
-        "speed": 2.2,
-        "wait": false
-       },
-       {
         "do": "say",
         "line": "sec_okafor_23"
-       },
-       {
-        "do": "say",
-        "line": "sec_okafor_20"
-       },
-       {
-        "do": "npcMoveTo",
-        "npc": "okafor",
-        "to": "anchor:r07_console",
-        "speed": 2.2,
-        "wait": true
        },
        {
         "do": "intercom",
@@ -1312,16 +1284,11 @@
        {
         "do": "npcAnim",
         "npc": "okafor",
-        "anim": "okafor_notebook"
+        "anim": "idle"
        },
        {
         "do": "wait",
-        "s": 3.2
-       },
-       {
-        "do": "npcAnim",
-        "npc": "okafor",
-        "anim": "idle"
+        "s": 0.8
        },
        {
         "do": "say",

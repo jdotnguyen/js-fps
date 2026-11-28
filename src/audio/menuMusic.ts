@@ -13,6 +13,8 @@ const LEVELS: Record<GameMode, { gain: number; timeConstant: number }> = {
 /** setTargetAtTime time constants: ~95% of the change lands in 3x this. */
 const CUE_FADE_IN = 0.4;
 const CUE_FADE_OUT = 0.65;
+/** A cue that starts the track over lands as a hit, with no fade to speak of. */
+const CUE_HIT = 0.03;
 /** The swap between the theme and a scene's copy of it: quick, so the two are never heard as an echo. */
 const HANDOFF_TC = 0.05;
 /** The theme leaving a pause screen: gone before it can trail over the scene, or over a pop-up that returns with it. */
@@ -43,6 +45,8 @@ export class MenuMusic {
   private cued: MusicTrack | null = null;
   /** Level of the cued track (1 = full): a sequence dips it under a sound that has to carry. */
   private cuedLevel = 1;
+  /** The next scene copy starts at the top of the loop, not where the theme is. */
+  private fromTop = false;
   private resolveReady!: () => void;
   /** Resolves once the menu theme has finished rendering (or failed to render). */
   readonly ready: Promise<void>;
@@ -98,11 +102,19 @@ export class MenuMusic {
     if (resumed) this.theme?.setGain(0, this.cued === null ? RESUME_TC : HANDOFF_TC);
   }
 
-  /** Sequence `music` step: start a track in play at `level` (cueing the playing track again moves it there), or `null` to fade it out (~2 s). */
-  cue(track: MusicTrack | null, level = 1): void {
+  /**
+   * Sequence `music` step: start a track in play at `level` (cueing the playing track again moves it there), or `null`
+   * to fade it out (~2 s). `restart`: from the track's first bar, at once.
+   */
+  cue(track: MusicTrack | null, level = 1, restart = false): void {
+    this.fromTop = restart && track !== null;
+    if (this.fromTop) {
+      this.cueLoop?.stop();
+      this.cueLoop = null;
+    }
     this.cued = track;
     this.cuedLevel = level;
-    this.apply(track === null ? CUE_FADE_OUT : CUE_FADE_IN);
+    this.apply(track === null ? CUE_FADE_OUT : this.fromTop ? CUE_HIT : CUE_FADE_IN);
   }
 
   /** Keep the theme silent (true), or let it come back at the mode's level over about `fadeIn` seconds (false). */
@@ -130,7 +142,8 @@ export class MenuMusic {
     if (!this.buffer) return;
     const fresh = this.cueLoop === null;
     if (fresh) {
-      this.cueLoop = this.scene.loopStereo(this.buffer, (this.menu.ctx.currentTime - this.themeStart) % this.buffer.duration);
+      this.cueLoop = this.scene.loopStereo(this.buffer, this.fromTop ? 0 : (this.menu.ctx.currentTime - this.themeStart) % this.buffer.duration);
+      this.fromTop = false;
       this.fromTitleAt = null;
     }
     // Only a cue moves the scene's copy: pausing leaves it as it is, to carry on from there.

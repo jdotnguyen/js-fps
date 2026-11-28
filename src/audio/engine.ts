@@ -138,6 +138,7 @@ export class AudioEngine {
   private readonly up = new THREE.Vector3();
   /** Last listener position from `updateListener`, for occlusion checks. */
   private readonly listenerPos = new THREE.Vector3();
+  private readonly listenerWatchers = new Set<(at: THREE.Vector3) => void>();
   private occluder: Occluder | null = null;
   /** Room intercoms by id (in-world-audio: A live intercom relays a room). */
   private readonly intercoms = new Map<string, Intercom>();
@@ -632,6 +633,13 @@ export class AudioEngine {
   }
 
   /** Follow the camera every frame. */
+  /** Call `watch` with the listener's position now and after every listener update, until the returned function is called. */
+  watchListener(watch: (at: THREE.Vector3) => void): () => void {
+    this.listenerWatchers.add(watch);
+    watch(this.listenerPos);
+    return () => void this.listenerWatchers.delete(watch);
+  }
+
   updateListener(camera: THREE.Camera): void {
     this.retireReverbs();
     if (this.intercoms.size > 0) {
@@ -643,6 +651,7 @@ export class AudioEngine {
     const l = this.ctx.listener;
     const p = camera.position;
     this.listenerPos.copy(p);
+    for (const watch of this.listenerWatchers) watch(this.listenerPos);
     camera.getWorldDirection(this.forward);
     this.up.set(0, 1, 0).applyQuaternion(camera.quaternion);
     const f = this.forward;

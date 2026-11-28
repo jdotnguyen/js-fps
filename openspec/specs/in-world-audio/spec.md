@@ -70,11 +70,15 @@ A sequence SHALL be able to override the room ambience with a named preset, incl
 - **THEN** the room ambience fades to nothing until the override is cleared
 
 ### Requirement: TAG FM radio
-The in-world radio SHALL play a named track from a position in the world with a small, old speaker sound (wow and flutter, hiss and crackle, band-limited speaker tone, soft saturation). At most one radio track SHALL play at a time. Starting a track SHALL replace the current one; an unknown track SHALL log a warning and play nothing. The only radio on the station SHALL be the one in the Commons kitchen; no sequence SHALL start a radio track anywhere else.
+The in-world radio SHALL play a named track from a position in the world with a small, old speaker sound (wow and flutter, hiss and crackle, band-limited speaker tone, soft saturation). At most one radio track SHALL play at a time. Starting a track SHALL replace the current one; an unknown track SHALL log a warning and play nothing. The only radio on the station SHALL be the one in the Commons kitchen; no sequence SHALL start a radio track anywhere else. Beyond 20 m from it the radio SHALL fade out, and from 25 m it SHALL NOT be heard, with or without walls between.
 
 #### Scenario: Radio in the kitchen
 - **WHEN** the intro reaches the kitchen and starts `tag_fm_01` at the radio prop
 - **THEN** the tune comes from the radio's position with the old-speaker sound, and gets quieter as the player walks away
+
+#### Scenario: Not heard across the station
+- **WHEN** the radio is playing and the player stands at `D_R07_R09`
+- **THEN** none of it is heard
 
 #### Scenario: Radio moves rooms
 - **WHEN** a sequence starts `tag_fm_01` at a second position while it is already playing

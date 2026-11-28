@@ -8,6 +8,8 @@
       { "wav": "priya-door-rescue/nurse.wav", "from": 7.48, "to": 8.0, "gap": 0.45 }
     ],
     "sec_okafor_10": [{ "clip": "sec_okafor_10", "from": 0, "to": 0.62 }],
+    "sec_okafor_13a": [{ "clip": "sec_okafor_13", "from": 0, "to": 1.19 }],
+    "sec_okafor_13b": [{ "clip": "sec_okafor_13", "from": 1.97, "to": 99 }],
 
     "drop_heins_01": [{ "wav": "older/vo_chief_01.wav", "from": 30.43, "to": 35.54 }],
     "drop_heins_02": [{ "wav": "older/vo_chief_01.wav", "from": 36.4, "to": 37.88 }],

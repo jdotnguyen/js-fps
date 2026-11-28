@@ -1015,6 +1015,22 @@
       "yaw": 308.37
     },
     {
+      "id": "intro_pan_left",
+      "pos": [
+        30.6,
+        1.2,
+        18.2
+      ]
+    },
+    {
+      "id": "intro_pan_right",
+      "pos": [
+        15.6,
+        1.2,
+        21.8
+      ]
+    },
+    {
       "id": "priya_enter",
       "pos": [
         24,

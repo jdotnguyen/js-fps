@@ -362,12 +362,13 @@ While keeping base wall and floor textures clean, `R16a` (platform floor, west s
 - **THEN** the dock and concourse drop to pitch black on blackout, individual named lights flash cleanly on demand, and the red beacons on the flanking `R16a` dock walls spin their volumetric beams (or hold a steady red lens when `reducedFlashing` is active), resetting to off on level reset
 
 ### Requirement: R11 Power Bay cautious entry and Giles's casual diagnosis
-When the squad enters `R11` after completing the `R10` valve sequence, `R11` SHALL play a non-combat narrative beat instead of the legacy wave-defense climax or Giles infection cliffhanger. Jay and Okafor SHALL whisper cautiously on entry, unsure what the dark bay is; Giles SHALL calmly walk past them to the west-wall terminal (`r11_giles_task`), casually noting it is just the power bay, diagnose the tripped transit sub-grid, and voice his realization before starting the generators.
+When Jay opens `D_R10_R11` after completing the `R10` valve sequence, `R11` SHALL play a non-combat narrative beat instead of the legacy wave-defense climax or Giles infection cliffhanger. Jay and Okafor SHALL whisper cautiously on entry, unsure what the dark bay is; Giles SHALL calmly walk past them to the west-wall terminal (`r11_giles_task`), casually noting it is just the power bay, diagnose the tripped transit sub-grid, and voice his realization before starting the generators. Okafor's first line SHALL follow the door opening, and Okafor SHALL NOT walk to his own spot in the bay before Giles has reached the terminal.
 
 #### Scenario: Entering the dark Power Bay from R10
-- **WHEN** Jay walks north through `D_R10_R11` into `R11` with `valve_done` set
+- **WHEN** Jay opens `D_R10_R11` with `valve_done` set
 - **THEN** Okafor and Jay whisper cautiously about the unfamiliar dark room while no enemies spawn
 - **AND** Giles calmly walks past them to `r11_giles_task`, casually telling them it is just the power room, inspects the terminal, and calls out his diagnosis before beginning the power-up phases
+- **AND** Okafor sets off for `r11_okafor_end` only once Giles has reached the terminal
 
 #### Scenario: No Giles infection escalation or cliffhanger in R11
 - **WHEN** the `R11` Power Bay sequence runs or restores from checkpoint
@@ -385,11 +386,15 @@ During the `R11` power-up cascade, each of the three spatial startup phases SHAL
 - **THEN** `r11_powered` is set, `D_R13d_R11` is open (never sealed behind the squad), a checkpoint saves, and the objective directs Jay through `R13d` to `R15a` Departure Boarding Bay
 
 ### Requirement: R11-to-R15a walk-and-talk banter with free player roam
-Once `R11` finishes energizing and `D_R13d_R11` opens, Giles and Okafor SHALL walk ahead out of `R11`, east through `R13d` Maintenance Corridor, and through `D_R13d_R15a` into `R15a` while Jay retains full free-roam control. Along the walk they SHALL exchange banter with Jay about the plan after boarding (heading to `R16` for the deep-lift/evacuation shuttles, tunnel safety, and checking weapons before arrival).
+Once `R11` finishes energizing and `D_R13d_R11` opens, Giles and Okafor SHALL walk ahead out of `R11`, east through `R13d` Maintenance Corridor, and through `D_R13d_R15a` into `R15a` while Jay retains full free-roam control. `D_R13d_R15a` SHALL open as they set off, and they SHALL walk straight to it, with no detour toward the west end of `R13d` and no wait in the corridor. Along the walk they SHALL exchange banter with Jay about the plan after boarding (heading to `R16` for the deep-lift/evacuation shuttles, tunnel safety, and checking weapons before arrival).
 
 #### Scenario: Squad leads from R11 through R13d to R15a while Jay roams freely
 - **WHEN** `r11_power_bay` completes and opens `D_R13d_R11`
 - **THEN** Giles and Okafor walk north through `D_R13d_R11`, east through `R13d`, and through `D_R13d_R15a` into `R15a`, delivering their walk-and-talk plan banter while Jay can freely follow, explore, or run ahead without movement locks
+
+#### Scenario: Straight through the corridor
+- **WHEN** they come out of `D_R13d_R11`
+- **THEN** `D_R13d_R15a` is already opening and both turn east toward it without stopping
 
 ### Requirement: R15a Departure Boarding Bay narrative entry and squad boarding
 When Jay enters `R15a` after restoring power in `R11`, the boarding sequence SHALL trigger while keeping player movement free. Giles and Okafor SHALL comment on the powered departure car and walk across the `R15a` platform through the boarding gap into Train Car A, taking cabin positions while waiting for Jay to step aboard.
@@ -469,7 +474,7 @@ From the ride's departure through the end of the finale, `R16a` and `R16b` SHALL
 - **THEN** the room's overhead lights are already off and are never seen switching off
 
 ### Requirement: Massacre flicker reveal, horror audio pacing, and cabin banter
-On platform blood discovery, a smooth-onset low-bass horror hit (`r16HorrorHit`, 80 ms fade-in) SHALL play, followed by quiet `r16Build` rising under `r16_jay_01` and a `3.8 s` pan up. At eye level, full `r16HorrorHit` and 3x overhead flickers (`reducedFlashing` safe) SHALL reveal `R16b` as Jay backs up to `r16_train_back`, with no body drag (`r16_pillar_body` stays put). Speaker-tracked cabin banter SHALL fade to black with `r16Cut` as `r16_giles_02` ends, leaving surveillance score-free.
+On platform blood discovery, a smooth-onset low-bass horror hit (`r16HorrorHit`, 80 ms fade-in) SHALL play, followed by quiet `r16Build` rising under `r16_jay_01` and a `3.8 s` pan up. At eye level, full `r16HorrorHit` and 3x overhead flickers (`reducedFlashing` safe) SHALL reveal `R16b` as Jay backs up to `r16_train_back`, with no body drag (`r16_pillar_body` stays put). Speaker-tracked cabin banter (`r16_giles_01`, then `r16_okafor_01`) SHALL fade to black with `r16Cut` as `r16_okafor_01` ends, leaving surveillance score-free.
 
 #### Scenario: Blood discovery, slow pan up, and flicker reveal
 - **WHEN** the downward auxiliary lights expose blood on the `R16a` platform floor
@@ -491,14 +496,14 @@ After the blackout, fullscreen `CAM 09  ARRIVAL DOCK` SHALL show Giles and Okafo
 - **THEN** both squadmates stay aimed down the concourse until `0.25 s` into `r16_okafor_03`, then turn right onto the northwest-most pillar (`[63.5, 1.8, 31.2]`) and open fire with boosted CCTV-readable muzzle flashes
 
 ### Requirement: CAM 10 high-aimed Juggernaut face reveal and hard blackout to cliffhanger
-After gunfire begins, fullscreen `CAM 10  CONCOURSE` (`[71.2, 2.0, 28.8]` -> `[70.0, 1.5, 38.6]`) SHALL cut in with both squadmates immediately aiming high (`r16_monster_face_aim` at `Y = 5.4`, then `juggernautHead` `+ 0.8 m`, where `juggernautHead` is the creature's aim point riding its head) so only the creature's face is lit. The `5.1 m` skinned `monster_juggernaut.glb` SHALL walk on its creature gait from `[64.8, 0, 34.6]` to `[68.2, 0, 34.6]` (`yaw: 95`, clear of the foreground right pillar) over about `5.2 s`, with its eyes, teeth and tongue in place on its head, acting its walking roar as the initial CCTV roar (`r16MonsterRoar`) plays. Giles and Okafor SHALL keep firing as it walks. Once it stops, it SHALL act its long roar on camera as the sustained angry roar (`r16MonsterRoarBlackout`) plays. The squadmates SHALL keep firing, slowly (0.65 s between shots) and quietly (0.6 of the gunshot's level as it walks, 0.4 under the long roar), and SHALL back away about 1.6 m from it while it walks out, still facing it so their lights stay on its face. As it rears up, Giles (`r16_giles_05`) and then Okafor (`r16_okafor_04`) SHALL yell "What the fuck is that?!" on the radio channel, loud (line gain 1.3), before the long roar drowns them. On the roar's last beat the scene SHALL cut hard to black with dead silence (`CAM 10` off, Juggernaut and lights off, every bus hushed). About a second later, `story:cliffhanger` SHALL fade in the `THALASSA` credit.
+After gunfire begins, fullscreen `CAM 10  CONCOURSE` (`[71.2, 2.0, 28.8]` -> `[70.0, 1.5, 38.6]`) SHALL cut in with both squadmates immediately aiming high (`r16_monster_face_aim` at `Y = 5.4`, then `juggernautHead` `+ 0.8 m`, where `juggernautHead` is the creature's aim point riding its head) so only the creature's face is lit. The `5.1 m` skinned `monster_juggernaut.glb` SHALL walk on its creature gait from `[64.8, 0, 34.6]` to `[68.2, 0, 34.6]` (`yaw: 95`, clear of the foreground right pillar) over about `5.2 s`, with its eyes, teeth and tongue in place on its head, acting its walking roar as the initial CCTV roar (`r16MonsterRoar`) plays. Giles and Okafor SHALL keep firing as it walks. Once it stops, it SHALL act its long roar on camera as the sustained angry roar (`r16MonsterRoarBlackout`) plays. The squadmates SHALL keep firing, slowly (0.65 s between shots) and quietly (0.6 of the gunshot's level as it walks, 0.4 under the long roar), and SHALL back away about 1.6 m from it while it walks out, still facing it so their lights stay on its face. As it rears up, Giles (`r16_giles_05`) and then Okafor (`r16_okafor_04`) SHALL yell "What the fuck is that?!" on the radio channel, loud (line gain 1.3), before the long roar drowns them. On the roar's last beat the scene SHALL cut hard to black (`CAM 10` off, Juggernaut and lights off, ambience and sound effects hushed). At the cut the menu theme SHALL start from its first bar at once, and it SHALL be the only sound until the stinger. About a second later, `story:cliffhanger` SHALL fade in the `THALASSA` credit.
 
 #### Scenario: Juggernaut face reveal on CAM 10 and cliffhanger handoff
 - **WHEN** `CAM 10  CONCOURSE` cuts in during scripted gunfire
 - **THEN** both squadmates keep their weapon flashlights pitched high on the creature's face as the `5.1 m` Juggernaut walks out beside the foreground right pillar without clipping, acting its roar to `r16MonsterRoar`
 - **AND** the squadmates back away facing it, their lights on its face, firing slowly and quietly
 - **AND** Giles and then Okafor yell "What the fuck is that?!", and it acts its long roar to `r16MonsterRoarBlackout` on camera over their quieter fire
-- **AND** the scene cuts hard to black and silence, then `story:cliffhanger` -> `title_card` (`THALASSA`) -> `stinger_priya` -> `endSlice`
+- **AND** the scene cuts hard to black as the menu theme starts, then `story:cliffhanger` -> `title_card` (`THALASSA`) -> `stinger_priya` -> `endSlice`
 
 #### Scenario: Juggernaut face parts and framing on CAM 10
 - **WHEN** the Juggernaut walks out on `CAM 10`

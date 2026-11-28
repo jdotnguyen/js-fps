@@ -163,6 +163,9 @@ export async function bootApp(): Promise<void> {
       return loadCredits()
         .then((c) =>
           c.show(() => {
+            // The slice is over: closing its credits, even before they have covered the screen, ends the game at once, so
+            // it is never seen again (end-credits spec). Before the score fades, so the session leaves it playing.
+            if ((opts.instant || opts.fromSlice) && coordinator.active) coordinator.menuAdapter().quitToTitle();
             endCreditsScore();
             if (!menuRoot.hidden) {
               menuRoot.querySelector<HTMLElement>('[autofocus], button, input, select')?.focus();

@@ -7,7 +7,7 @@ import type { AudioEngine } from './engine.ts';
  * old speaker. The chain matches public/assets/audio/music/tag-fm/README.md so the game
  * sounds like tag-fm-01-radio-preview.wav:
  *   wow/flutter delay -> (+ hiss, crackle) -> HP 300 -> LP 3500 x2 -> peak 1.2 kHz
- *   -> tanh saturation -> LP 4500 -> level -> HRTF panner at the radio -> ambience bus.
+ *   -> tanh saturation -> LP 4500 -> level -> HRTF panner at the radio -> reach gain -> ambience bus.
  * It is diegetic, so it goes on the ambience bus, not the music bus.
  */
 
@@ -38,6 +38,18 @@ export const RADIO_FX = {
   /** -1.5 dB after band-limiting, as in the preview. */
   outGain: 0.84,
 };
+
+/**
+ * Metres from the radio where it starts to fade out and where it is silent. The panner's inverse falloff never reaches
+ * zero (its `maxDistance` only applies to the linear model), so without this the radio carries across the station.
+ */
+export const RADIO_REACH = { fadeFrom: 20, silentAt: 25 } as const;
+
+/** The share of the radio that carries `distance` metres: all of it in the room, none beyond its reach. */
+export function radioReach(distance: number): number {
+  const { fadeFrom, silentAt } = RADIO_REACH;
+  return Math.min(1, Math.max(0, (silentAt - distance) / (silentAt - fadeFrom)));
+}
 
 /** `tanh(drive * x) / tanh(drive)` sampled over -1..1, for a WaveShaperNode. */
 export function saturationCurve(drive = RADIO_FX.drive, n = 2048): Float32Array<ArrayBuffer> {
@@ -193,6 +205,7 @@ export class RadioPlayer {
       new GainNode(ctx, { gain: fx.outGain * gain }),
     ];
     for (const n of chain) node = node.connect(keep(n));
+    let unwatch = (): void => undefined;
     if (at) {
       node = node.connect(
         keep(
@@ -208,6 +221,17 @@ export class RadioPlayer {
           }),
         ),
       );
+      const from = at.clone();
+      const reach = keep(new GainNode(ctx, { gain: 0 }));
+      let heard: number | null = null;
+      unwatch = this.audio.watchListener((ear) => {
+        const next = Math.round(radioReach(from.distanceTo(ear)) * 100) / 100;
+        if (next === heard) return;
+        if (heard === null) reach.gain.value = next;
+        else reach.gain.setTargetAtTime(next, ctx.currentTime, 0.15);
+        heard = next;
+      });
+      node = node.connect(reach);
     }
     node.connect(this.audio.buses.ambience);
 
@@ -218,6 +242,7 @@ export class RadioPlayer {
       else s.start(t);
     }
     return () => {
+      unwatch();
       for (const s of sources) {
         try {
           s.stop();

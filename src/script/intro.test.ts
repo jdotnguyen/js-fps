@@ -313,7 +313,7 @@ test('speaker shots at the post, the heading shot on the walk, speaker shots aga
   const h = shots.indexOf('heading');
   assert.ok(shots.slice(0, h).includes('speaker'), 'speaker shots at the post');
   assert.equal(shots.filter((t) => t === 'heading').length, 1, 'one heading shot: the walk');
-  assert.equal(shots[h + 1], 'speaker', 'the next shot after the walk starts is the kitchen speaker shot');
+  assert.deepEqual(shots.slice(h + 1, h + 5), ['anchor:intro_pan_left', 'anchor:intro_pan_left', 'npc:cook', 'speaker'], 'in the kitchen: across the room, round to Bram, then the speaker shot');
 });
 
 test('the squad walks in to a tracking shot on Okafor, greeting Jay on the way; speaker shots resume at the counter', () => {
@@ -386,7 +386,7 @@ test('the kitchen follows whoever talks, Priya included; only the mug offer is a
   assert.ok(kitchen.length > 0);
   assert.ok(kitchen.every((f) => f['give'] === undefined || f['give'] === 6), 'no wide leeway shots in the kitchen');
   const fixed = kitchen.filter((f) => f['target'] !== 'speaker');
-  assert.deepEqual(fixed.map((f) => f['target']), ['npc:priya'], 'only the mug offer holds a fixed shot');
+  assert.deepEqual(fixed.map((f) => f['target']), ['anchor:intro_pan_left', 'anchor:intro_pan_left', 'npc:cook', 'npc:priya'], 'fixed shots: the pan across the room onto Bram, and the mug offer');
   assert.ok(kitchen.some((f) => f['target'] === 'speaker' && f['initial'] === 'npc:priya'), 'Priya walks in to a speaker shot that starts on her');
 });
 
@@ -747,7 +747,7 @@ test('walking into the Commons: the view turns to whoever speaks first, and Bram
   const greet = branches.findIndex((b) => b.includes('"intro_cook_01"'));
   const cam = branches.findIndex((b) => b.includes('"playerFrame"'));
   assert.ok(jay >= 0 && greet >= 0 && cam >= 0 && new Set([jay, greet, cam]).size === 3);
-  // The camera waits for Jay to come through the Commons door, then follows speakers (no initial aim: whoever talks first).
+  // The camera waits for Jay to come through the Commons door, pans onto Bram, then follows speakers (no initial aim).
   const c = branches[cam]!;
   assert.ok(c.indexOf('"trigger:commons_enter"') < c.indexOf('"playerFrame"'));
   assert.ok(c.includes('"speaker"') && !c.includes('"initial"'));
@@ -755,6 +755,14 @@ test('walking into the Commons: the view turns to whoever speaks first, and Bram
   const g = branches[greet]!;
   assert.ok(g.indexOf('"trigger:commons_enter"') < g.indexOf('"intro_cook_01"'));
   assert.ok(g.includes('"intro_jay_in_kitchen"') && c.includes('"intro_jay_in_kitchen"'));
+  // The pan: left to right, onto Bram, and he holds his greeting until the view has landed on him.
+  const order = ['"anchor:intro_pan_left"', '"sweep":"anchor:intro_pan_right"', '"npc:cook"', '"intro:kitchen_panned"', '"speaker"'].map((s) => c.indexOf(s));
+  assert.ok(order.every((at, k) => at >= 0 && (k === 0 || at > order[k - 1]!)), `pan order ${order.join(' ')}`);
+  assert.ok(g.indexOf('"intro:kitchen_panned"') > g.indexOf('"trigger:commons_enter"') && g.indexOf('"intro:kitchen_panned"') < g.indexOf('"intro_cook_01"'));
+  // "Left to right" as Jay sees the room from its south door (looking +z, his left is +x).
+  const commons = level.rooms.find((r) => r.id === 'R02')!;
+  const x = (id: string): number => commons.anchors!.find((a) => a.id === id)!.pos[0]!;
+  assert.ok(x('intro_pan_left') > x('kitchen_stand') && x('intro_pan_right') < x('kitchen_stand'));
   assert.ok(!g.includes('"playerFrame"'), "the greeting itself does not move the view");
   assert.ok(branches[jay]!.includes('"radio"'), 'the radio starts when Jay reaches the kitchen');
 });

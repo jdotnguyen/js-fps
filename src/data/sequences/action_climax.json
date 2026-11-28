@@ -2,7 +2,10 @@
  {
   "id": "r11_power_bay",
   "trigger": {
-   "event": "trigger:r11_enter",
+   "event": "door:opened",
+   "match": {
+    "id": "D_R10_R11"
+   },
    "requires": "valve_done",
    "unless": "r11_powered"
   },
@@ -36,14 +39,8 @@
     "state": "locked"
    },
    {
-    "do": "npcMoveTo",
-    "npc": "okafor",
-    "to": "anchor:r11_okafor_end",
-    "wait": false
-   },
-   {
     "do": "wait",
-    "s": 0.8
+    "s": 0.4
    },
    {
     "do": "say",
@@ -56,20 +53,33 @@
    {
     "parallel": [
      {
-      "do": "npcMoveTo",
-      "npc": "giles",
-      "to": "anchor:r11_giles_task"
+      "do": "loop",
+      "count": 1,
+      "steps": [
+       {
+        "do": "npcMoveTo",
+        "npc": "giles",
+        "to": "anchor:r11_giles_task",
+        "wait": true
+       },
+       {
+        "do": "npcMoveTo",
+        "npc": "okafor",
+        "to": "anchor:r11_okafor_end",
+        "wait": false
+       },
+       {
+        "do": "npcAnim",
+        "npc": "giles",
+        "anim": "typing"
+       }
+      ]
      },
      {
       "do": "say",
       "line": "r11_giles_01"
      }
     ]
-   },
-   {
-    "do": "npcAnim",
-    "npc": "giles",
-    "anim": "typing"
    },
    {
     "do": "say",
@@ -383,45 +393,46 @@
       "count": 1,
       "steps": [
        {
-        "do": "npcMoveTo",
-        "npc": "giles",
-        "to": "anchor:dark_corridor",
-        "wait": false
-       },
-       {
-        "do": "wait",
-        "s": 0.9
-       },
-       {
-        "do": "npcMoveTo",
-        "npc": "okafor",
-        "to": "anchor:dark_corridor",
-        "wait": false
-       },
-       {
-        "do": "wait",
-        "s": 5.5
-       },
-       {
         "do": "doorState",
         "id": "D_R13d_R15a",
         "state": "open"
        },
        {
-        "do": "npcMoveTo",
-        "npc": "okafor",
-        "to": "anchor:r15a_okafor_console",
-        "wait": false
-       },
-       {
-        "do": "npcMoveTo",
-        "npc": "giles",
-        "to": "anchor:r15a_giles_console"
-       },
-       {
-        "do": "npcAnim",
-        "npc": "giles",
-        "anim": "typing"
+        "parallel": [
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "npcMoveTo",
+            "npc": "giles",
+            "to": "anchor:r15a_giles_console",
+            "wait": true
+           },
+           {
+            "do": "npcAnim",
+            "npc": "giles",
+            "anim": "typing"
+           }
+          ]
+         },
+         {
+          "do": "loop",
+          "count": 1,
+          "steps": [
+           {
+            "do": "wait",
+            "s": 0.9
+           },
+           {
+            "do": "npcMoveTo",
+            "npc": "okafor",
+            "to": "anchor:r15a_okafor_console",
+            "wait": false
+           }
+          ]
+         }
+        ]
        }
       ]
      },
@@ -1774,6 +1785,11 @@
     "s": 0
    },
    {
+    "do": "music",
+    "id": "main_theme",
+    "restart": true
+   },
+   {
     "do": "cameraFeed",
     "id": "r16_cam",
     "state": "off",
@@ -1889,6 +1905,10 @@
      "nurse"
     ],
     "s": 0.6
+   },
+   {
+    "do": "music",
+    "stop": true
    },
    {
     "do": "score",
