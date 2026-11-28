@@ -498,8 +498,8 @@ test('Lab B floor swaps labTile -> tileBroken on the glass:set labb cracked even
   assert.deepEqual(floor(), { clean: false, broken: true });
   events.emit('level:reset', {});
   assert.deepEqual(floor(), { clean: true, broken: false });
-  level.breakLabBFloor();
-  assert.deepEqual(floor(), { clean: false, broken: true });
+  events.emit('glass:set' as never, { id: 'labb', state: 'shattered' } as never);
+  assert.deepEqual(floor(), { clean: false, broken: true }, 'shattered glass breaks it too');
 });
 
 test('sign_danger props sit on the wall beside the Lab B and pressure-door-hall doors', () => {

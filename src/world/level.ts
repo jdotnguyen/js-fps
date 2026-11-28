@@ -53,6 +53,7 @@ import { addMurkTo } from '../render/water/murk.ts';
 import { FloatingJunk } from '../render/water/junk.ts';
 import { applySteadyLights, CAPTURE_LAYER, steadyPatternValue, type CaptureHost } from '../render/roomCaptures.ts';
 import { BOUNCE_SHARE, lerpSh, normaliseProbe } from '../render/roomLightProbe.ts';
+import { SET_PIECES, type SetPieceInstance, type SetPieceLevel } from './setpieces/index.ts';
 
 const EYE_HEIGHT = PLAYER_TUNING.eyeHeight;
 /** Seconds an auto door stays open after reaching fully open while nobody is nearby. */
@@ -101,9 +102,6 @@ declare module '../core/events.ts' {
   }
 }
 
-/** The Lab B outbreak: room R04's floor breaks when the glass partition `labb` cracks (drop.json). */
-const LAB_B = { room: 'R04', glass: 'labb' } as const;
-
 export interface LevelDeps {
   materials: Materials;
   registry: KitRegistry;
@@ -130,7 +128,7 @@ export const AMBIENT: Record<AmbientPreset, { sky: number; ground: number; inten
   commons: { sky: 0xffe8cc, ground: 0x2a2018, intensity: 0.44, keyColor: 0xffdfba, keyIntensity: 0.34 },
   admin: { sky: 0xffebd6, ground: 0x241d17, intensity: 0.42, keyColor: 0xffe4c4, keyIntensity: 0.34 },
   hydro: { sky: 0xe6f2ea, ground: 0x1c2520, intensity: 0.42, keyColor: 0xf2faf4, keyIntensity: 0.34 },
-  // Observation gallery (R03): dim and neutral, so its lamps and two ceiling pools carry the room and Lab B glows through the glass.
+  // Observation gallery: dim and neutral, so its lamps and two ceiling pools carry the room and the lab beyond its glass glows through.
   gallery: { sky: 0x9ea6ab, ground: 0x0d0f11, intensity: 0.12, keyColor: 0xa4adb3, keyIntensity: 0.16 },
 };
 /** Ambient under backup power (station-power spec): darker than `emergency`, with no red. */
@@ -505,8 +503,8 @@ export class Level implements World, CaptureHost {
   };
   private readonly scratch2 = new THREE.Vector3();
   private feetY = 0;
-  /** Merged Lab B floor meshes (labTile) that swap to tileBroken after the outbreak. */
-  private readonly labbFloor: THREE.Mesh[] = [];
+  /** Scene-specific behaviour attached once the rooms are built (`setpieces/index.ts`). */
+  private readonly setPieces: SetPieceInstance[] = [];
   private readonly roomSockets: Array<Socket & { room: string }> = [];
   private readonly checkerTargets: Array<{ mesh: THREE.Mesh; origMat: THREE.Material; origUv: THREE.BufferAttribute | null }> = [];
   private checkerMat: THREE.Material | null = null;
@@ -636,15 +634,10 @@ export class Level implements World, CaptureHost {
   }
 
   private finalizeBuild(data: LevelData, deps: LevelDeps, ao: AoFn): void {
-    this.collectLabBFloor();
-    this.offs.push(
-      this.deps.events.on('glass:set' as EventName, ((e: { id?: string; state?: string } | undefined) => {
-        if (e?.id === LAB_B.glass && (e.state === 'cracked' || e.state === 'shattered')) this.breakLabBFloor(true);
-      }) as never),
-    );
+    this.attachSetPieces();
     this.offs.push(
       this.deps.events.on('level:reset', () => {
-        this.breakLabBFloor(false);
+        for (const piece of this.setPieces) piece.reset?.();
         for (const [id, mp] of this.movableProps) {
           this.setPropTransform(id, mp.initialPos, mp.initialYaw);
           this.setPropVisible(id, mp.initialVisible);
@@ -992,7 +985,7 @@ export class Level implements World, CaptureHost {
         const params: PieceParams = { height: height - floorY, ...(r.area !== undefined ? { area: r.area } : {}), ...(piece.params ?? {}) };
         const out = registry.create(piece.kit, params, rng.fork(`${r.id}:${piece.kit}:${cell.join(',')}`), m);
         const hullHeight = (piece.kit.startsWith('wall_') || piece.kit.startsWith('ceiling')) && typeof params.height === 'number' ? params.height : height - floorY;
-        if (r.id !== 'R15b') hull.addPiece(r.id, cell, piece.kit, rot, hullHeight, out.sockets, floorY);
+        if (r.hull !== false) hull.addPiece(r.id, cell, piece.kit, rot, hullHeight, out.sockets, floorY);
         for (const k of out.keepouts ?? []) {
           const box = new THREE.Box3(new THREE.Vector3(...k.min), new THREE.Vector3(...k.max)).applyMatrix4(matrix);
           this.debug.keepouts.push({ room: r.id, source: `${piece.kit}@${cell.join(',')}`, box });
@@ -1345,26 +1338,17 @@ export class Level implements World, CaptureHost {
     }
   }
 
-  /** Find the merged labTile meshes of Lab B once the rooms are built. */
-  private collectLabBFloor(): void {
-    const room = this.roomById.get(LAB_B.room);
-    const { labTile } = this.deps.materials;
-    if (!room) return;
-    room.group.traverse((o) => {
-      if (o instanceof THREE.Mesh && (o.material === labTile || o.material === withVertexColors(labTile))) this.labbFloor.push(o);
-    });
-  }
-
-  /**
-   * Lab B outbreak (the `glass labb cracked` beat of the drop sequence): the floor swaps from clean
-   * `labTile` to `tileBroken` (same tile grid, tiles missing). `false` restores it (new game).
-   */
-  breakLabBFloor(broken = true): void {
-    const { labTile, tileBroken } = this.deps.materials;
-    const to = broken ? tileBroken : labTile;
-    for (const mesh of this.labbFloor) {
-      const baked = mesh.material !== labTile && mesh.material !== tileBroken;
-      mesh.material = baked ? withVertexColors(to) : to;
+  /** Attach every set piece to the built rooms (content-layout spec: scene behaviour lives outside `Level`). */
+  private attachSetPieces(): void {
+    const handle: SetPieceLevel = {
+      id: this.id,
+      materials: this.deps.materials,
+      events: this.deps.events,
+      roomGroup: (id) => this.roomGroup(id),
+    };
+    for (const piece of SET_PIECES) {
+      const instance = piece.attach(handle);
+      if (instance) this.setPieces.push(instance);
     }
   }
 
@@ -2135,7 +2119,7 @@ export class Level implements World, CaptureHost {
 
   /**
    * Resolve the physical wall device surface (world-space center, outward unit normal, and active face
-   * dimensions) for a squad panel/door job: prefers a nearby `power_box` wall prop (e.g. R06 bypass),
+   * dimensions) for a squad panel/door job: prefers a nearby `power_box` wall prop (e.g. a bypass box),
    * otherwise uses the door's right-jamb status screen on the side closest to `near`.
    */
   panelDevice(panelId: string | null, near?: { x: number; y: number; z: number } | null): { pos: { x: number; y: number; z: number }; normal: { x: number; y: number; z: number }; width: number; height: number } | null {
@@ -2248,7 +2232,7 @@ export class Level implements World, CaptureHost {
       this.tinted.set(roomId, saved);
     }
     const emergency = tint === 'emergency';
-    // "black": a true blackout (the Lab B escape): fixtures, their glow and the room's ambient all go to nothing.
+    // "black": a true blackout (a scripted escape in the dark): fixtures, their glow and the room's ambient all go to nothing.
     const black = tint === 'black';
     const color = new THREE.Color(emergency ? '#ff2a1a' : black ? '#000000' : tint);
     for (const s of room.slots) s.color.copy(color);
@@ -2848,6 +2832,8 @@ export class Level implements World, CaptureHost {
   dispose(): void {
     for (const off of this.offs) off();
     this.offs.length = 0;
+    for (const piece of this.setPieces) piece.dispose();
+    this.setPieces.length = 0;
     this.pool.resize(0);
     this.shadowPool.resize(0);
     this.hemi.dispose();

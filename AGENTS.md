@@ -16,6 +16,7 @@ Edit the file that owns what you are working on, so agents on different work sta
 | Doors and vents, which span two rooms | `src/data/levels/slice01/doors.json` |
 | The level: room list and order, player and squad starts, pickups, map stations, checkpoints | `src/data/levels/slice01/level.json` |
 | A scene sequence | `src/data/sequences/<scene>.json` |
+| Code that belongs to one scene of a level (the Lab B floor breaking), not a mechanism any room can use | `src/world/setpieces/<name>.ts`, listed in `index.ts` there. `src/world/level.ts` names no room or scene (a test checks) |
 | A named character: body model, own poses, motion profile, motion-capture pack (written by `scripts/bake-mocap.mjs`) | `src/data/cast/<name>/`: `body.json`, `poses.json`, `motion.json`, `mocap.json`, each where the character has one |
 | A creature: profile and poses (`docs/blade-creature.md`, `docs/creature-rig.md`) | `src/data/creatures/<id>/`: `creature.json`, `poses.json` |
 | Poses more than one character uses | `src/data/poses/<family>.json` (sit, lean, corpse, kill and so on) |

@@ -1,11 +1,11 @@
-# Spec Delta
+# content-layout Specification
 
 ## Purpose
 
 Defines where authored game content lives and how its parts are combined, so agents working on different rooms,
 characters, creatures or sounds edit different files and never keep two sources of truth for the same data.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: One file per room
 Each room of a level SHALL be authored in a file of its own, holding everything about that room: its layout, props,
@@ -78,9 +78,9 @@ in two area files SHALL fail the checks.
 - **THEN** the type check fails
 
 ### Requirement: Scene-specific level behaviour in set pieces
-Behaviour that belongs to one scene of a level (such as the Lab B floor breaking, a cart's thrown load, the flood's
-swinging fixtures) SHALL live in a set-piece module of its own, plugged into the level through a shared interface.
-Adding or changing a set piece SHALL NOT require editing the level's core code.
+Behaviour that belongs to one scene of a level (such as the Lab B floor breaking), rather than a mechanism any room
+can use, SHALL live in a set-piece module of its own, plugged into the level through a shared interface. Adding or
+changing a set piece SHALL NOT require editing the level's core code.
 
 #### Scenario: A new set piece
 - **WHEN** an agent adds a set piece for a new room

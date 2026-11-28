@@ -3,6 +3,7 @@
   "name": "Abyssal Sea-Tunnel",
   "area": "transit",
   "height": 5,
+  "hull": false,
   "atmosphere": {
     "fog": "#02090d",
     "fogDensity": 0.026,

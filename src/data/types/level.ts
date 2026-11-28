@@ -254,6 +254,8 @@ const roomShape = {
    * to its deck) instead of the deck, while the ceiling stays at `height` and doors stay at deck level.
    */
   floorY: optional(numRange(-3, 0)),
+  /** `false`: the room adds nothing to the station's exterior hull (the open sea tunnel the train rides through). */
+  hull: optional(bool),
   /**
    * Standing water over the room's whole footprint (standing-water spec): `level` is the surface height (world y, m),
    * `floor` the bottom of the water (default the room's `floorY`).
