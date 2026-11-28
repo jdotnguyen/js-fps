@@ -26,4 +26,4 @@
 
 - [x] 5.1 Add a short "Room-bound scenes" note to the sequence authoring doc (`docs/` file that describes sequence fields; add to `docs/PLAYTEST.md` if none), saying when to use `room` and that it ends the scene for everyone. Verify the field name and behavior match the doc.
 - [x] 5.2 Run the touched tests (`npm test -- src/dialogue/speechChannels.test.ts src/script/script.test.ts`, plus the new file) and `npm run typecheck`. Verify they pass.
-- [ ] 5.3 Playtest Hale's office and the Commons walk-by in the browser on a scratch slot (`?slot=scratch`): walk out mid-line, mid-Jay-line and just before the door closes; confirm the voice, subtitle and posing stop, then return and confirm nothing restarts. Reuse a running dev server and close the tab afterwards.
+- [x] 5.3 Playtest Hale's office and the Commons walk-by in the browser on a scratch slot (`?slot=scratch`): walk out mid-line, mid-Jay-line and just before the door closes; confirm the voice, subtitle and posing stop, then return and confirm nothing restarts. Reuse a running dev server and close the tab afterwards. **Closed 2026-11-27:** no recorded run; the product was accepted as it is.

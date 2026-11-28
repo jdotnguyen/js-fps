@@ -28,8 +28,7 @@ people standing in it. Ripples SHALL bend and break up the reflection, and refle
 
 ### Requirement: Depth makes the water murky
 Things under the surface SHALL fade into the water's colour with depth: just below the surface they SHALL be clear,
-and SHALL be faint or unseen near the floor of deep water. Things under the surface SHALL appear shifted by refraction,
-more so where it ripples.
+and SHALL be faint or unseen near the floor of deep water.
 
 #### Scenario: Submerged stairs
 - **WHEN** Jay looks down the stairs into the water

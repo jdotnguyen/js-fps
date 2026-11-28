@@ -1,0 +1,40 @@
+# Tasks
+
+## 1. Per-Light Auxiliary Circuit Power (`render-lighting`)
+
+- [x] 1.1 Extend `Level.setLight` in `src/world/level.ts` to accept an optional `power` scale in `[0, 1]` that energizes or dims a single named light independently of station `backup` power (restoring authored color/emissive/range when energizing above 0 under backup, bumping room lighting capture on brightness change, and clearing overrides on `setPower('mains')` and `reset()`), and wire `power` through `src/script/host.ts`, `src/script/gameHost.ts`, and the `light` action in `src/script/actions.ts`. Verify with `npm run typecheck`.
+- [x] 1.2 Add unit tests in `src/world/stationPower.test.ts` and `src/script/action.test.ts` covering energizing a single named non-backup light under `backup` power without lighting other lights, preserving existing behavior when `power` is omitted, and clearing overrides on `mains` and reset. Verify with `npm test -- src/world/stationPower.test.ts src/script/action.test.ts`.
+
+## 2. Power Bay Audio (ElevenLabs)
+
+- [x] 2.1 Add `breaker_clunk` (`oneshot-breaker-clunk.mp3`), `turbine_spinup` (`oneshot-turbine-spinup.mp3`), and `generator_hum` (`emitter-generator-hum.mp3`, `loop: true`) to `AMBIENCE_MANIFEST` in `scripts/ambience-generate.ts`, generate them via `npm run ambience:generate -- --id breaker_clunk --id turbine_spinup --id generator_hum` (or per-id), and register `breakerClunk`, `turbineSpinUp`, and `generatorHum` in `SAMPLE_URLS` in `src/audio/sounds.ts`. Verify with `npm test -- src/audio/sounds.test.ts` (and `npm run audio:audit` once wired in Task 4/5).
+
+## 3. Hero Power Bay Kit Pieces (`src/world/kit/transit.ts`)
+
+- [x] 3.1 Implement `power_generator` in `src/world/kit/transit.ts` (vibration plinth with hazard trim, heavy ribbed turbine-generator drum, vertical busbar/coolant risers reaching toward the `5.0 m` ceiling, solid collider, dynamic spinning rotor/flywheel assembly, and dynamic status strip subscribing to `r11:power_state` and `level:reset`, using palette + `userData.flat` materials for draw-call efficiency). Verify via unit assertions in task 3.4.
+- [x] 3.2 Implement `switchgear_bank` in `src/world/kit/transit.ts` (multi-bay high-voltage breaker cabinet with overhead busbar risers, recessed compartments, throw handles, analog dial details, solid collider, and dynamic breaker indicator strip subscribing to `r11:power_state` and `level:reset`). Verify via unit assertions in task 3.4.
+- [x] 3.3 Implement `power_terminal` in `src/world/kit/transit.ts` (Giles's west-wall transit-grid control station matching `final_console` / `r11_giles_task` geometry, hooded `512 x 288` `CanvasScreen` showing `TRANSIT SUB-GRID // POWER BAY 11` telemetry across `standby -> starting -> online`, breaker lever bank, floor conduit stub, and `r11:power_state` / `level:reset` listeners). Verify via unit assertions in task 3.4.
+- [x] 3.4 Add unit tests in `src/world/kit/transit.test.ts` validating registration, named materials, colliders, `r11:power_state` (`standby`, `starting`, `online`, `instant`) state transitions (rotor angular velocity, status emissive shifts, terminal redraw), and `level:reset` restoration for `power_generator`, `switchgear_bank`, and `power_terminal`. Verify with `npm test -- src/world/kit/transit.test.ts`.
+
+## 4. `R11` Power Bay Layout, Lighting Banks & Surface Dressing
+
+- [x] 4.1 Update `R11` in `scripts/gen-slice01.mjs` and regenerate `src/data/levels/slice01.json`: place two parallel `power_generator` units along the east bay, `switchgear_bank` on the north-east wall, `power_terminal` on the west wall at `final_console` (replacing generic `console`), existing imported industrial props (`electrical_box_02`, `electrical_box`, `power_box`, `cable_drum`, `gas_cylinder`, `platform_trolley`), `5.0 m` overhead structural beams / `cable_tray` / hung `pipe_run` ducts, positioned `ambient_loop` (`generatorHum` gated on `r11:hum_on`), stencil signage (`POWER BAY 11`, `TRANSIT SUB-GRID`, `sign_danger`), and 4–6 rule-placed oil/grime decals; preserve all Phase 3 placeholder anchors, `fluid_trail`, and unobstructed `>= 1.2 m` paths between `D_R10_R11`, `r11_giles_task`, `r11_hold`, and `D_R13d_R11`. Verify regeneration succeeds cleanly with `node scripts/gen-slice01.mjs`.
+- [x] 4.2 Author `R11`'s lighting in `scripts/gen-slice01.mjs` (regenerated into `slice01.json`) as three named non-backup overhead high-bay banks (`r11_bank_1a`/`1b` west, `r11_bank_2a`/`2b` center with 1 shadow slot, `r11_bank_3a`/`3b` east with 1 shadow slot), named standby emergency beacons (`r11_beacon_ne`, `r11_beacon_sw`), and optional low-intensity terminal standby task light so `R11` arrives dim and readable under `station_power: 'backup'` with all overhead banks dark until energized.
+- [x] 4.3 Add/update assertions in `src/world/slice01.test.ts` (and run `src/world/slice01JumpTops.test.ts`) verifying `R11` hero machinery presence, backup-power dormant state (overhead banks dark, beacons lit), clear `>= 1.2 m` walkability across `D_R10_R11 -> r11_giles_task -> r11_hold -> D_R13d_R11`, valid wall/floor clearances, and acceptable room draw-call/triangle budget. Verify with `npm test -- src/world/slice01.test.ts src/world/slice01JumpTops.test.ts`.
+
+## 5. Cascading Lights-On Sequence, Checkpoint Restore & Debug Preview
+
+- [x] 5.1 Author the reusable `r11_power_cascade` sequence in `src/data/sequences/action_climax.json` (triggered by `r11:power_up`): sets `r11_powered`, emits `r11:power_state { state: 'starting' }` and `r11:hum_on`, plays `breakerClunk` and `turbineSpinUp`, staggers Banks 1 -> 2 -> 3 (`flicker` -> `steady` with `power: 1`, safe under `reducedFlashing`) with relay clunks and subtle camera thump, emits `r11:power_state { state: 'online' }`, and extinguishes `r11_beacon_ne` / `r11_beacon_sw`; wire `climax` / `cliffhanger` to emit `r11:power_up` without breaking existing Phase 1/2 tests.
+- [x] 5.2 Update `src/data/sequences/action_restore.json` to instantly restore `R11`'s 6 bank lights (`steady`, `power: 1`), extinguished beacons, `r11:power_state { state: 'online', instant: true }`, and `r11:hum_on` when `r11_powered` (or `climax_done`) is set.
+- [x] 5.3 Update `?debug&jump=r11` in `src/app/session.ts` so jumping to `r11` sets `station_power: 'backup'` (matching post-blackout arrival) and supports immediate cascade preview (via debug sequence trigger or `?debug&jump=r11&power=on`).
+- [x] 5.4 Add sequence tests in `src/script/action.test.ts` verifying `r11_power_cascade` energizes Banks 1 -> 2 -> 3 in order while station stays on `backup`, emits `r11:power_state` `starting -> online`, extinguishes standby beacons, and restores immediately on `action_restore` when `r11_powered` is set. Verify with `npm test -- src/script/action.test.ts src/script/gather.test.ts`.
+
+## 6. Integration & Browser Visual QA (`threejs-game-director`)
+
+- [x] 6.1 Run `npm run typecheck`, `npm run audio:audit`, and `npm test` across affected suites (`transit.test.ts`, `stationPower.test.ts`, `action.test.ts`, `gather.test.ts`, `slice01.test.ts`, `slice01JumpTops.test.ts`, `sounds.test.ts`, `audit.test.ts`) to confirm zero regressions.
+- [x] 6.2 Follow `threejs-game-director` (`threejs-aaa-graphics-builder` + `threejs-qa-release`) in a real browser against `http://localhost:5173/` (reusing an existing dev server if running): inspect `?debug&jump=r11` from both `D_R10_R11` and `D_R13d_R11` at eye height (`1.62 m`) in **dormant standby** and **post-cascade online** states (with and without `?nopost`), run the `?checker` 1 m checkerboard UV pass and `?debug` lighting overlay check, verify cascading bank timing + spinning rotors + live terminal screen + zero console/WebGL errors, and close the browser session when done. *(Verified in-browser by user on `http://localhost:5173/`.)*
+- [x] 6.3 Run `npm run build` and confirm a clean production bundle.
+
+## Workflow follow-up
+
+- Review and archive `detail-r11-power-bay` once implementation and browser visual QA are approved, then proceed to Phase 2b (`R13d` Maintenance Corridor & `R15a` Departure Boarding Bay).

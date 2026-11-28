@@ -1,0 +1,31 @@
+# Tasks
+
+## 1. Gallery Briefing Trigger, Anchors & Dialogue VO
+
+- [x] 1.1 Expand `trig_gallery_brief` in `src/data/levels/slice01.json` to full R03 width past the entry threshold (`[[2.3, 0, 14.3], [11.8, 2.6, 21.7]]`), add a briefing anchor for Sung (`brief_sung`) inside R03 clear of the walkways, and verify `npm test -- src/world/slice01.test.ts src/world/slice01Gallery.test.ts` passes.
+- [x] 1.2 Add Heins's new door-lock line (`brief_heins_door`, speaker `chief`, priority `story`, channel `local`) to `src/data/dialogue/slice01.json`, generate `public/assets/vo/brief_heins_door.mp3` on her pinned voice/model (`Kore` / `gemini-3.1-flash-tts-preview`) via `node --experimental-strip-types scripts/vo-generate.ts --ids brief_heins_door --apply`, and verify the clip exists and `scripts/vo-takes.json` logs the take.
+
+## 2. Out-of-View Squad Catch-Up & Free-Roam Briefing Sequence
+
+- [x] 2.1 Add an out-of-view room catch-up helper and guarded room-lock support in `src/script/actions.ts`, `src/script/gameHost.ts`, `src/ai/npcs.ts`, and `src/ai/squad.ts` so a sequence can bring stragglers outside a target room inside (behind Jay or out of his view, never popping visibly in front of him) and guard locking a door on Jay being inside the room; add unit tests covering out-of-view catch-up, visible-squad no-pop, and player-outside lock guard and verify `npm test -- src/script/gather.test.ts` passes.
+- [x] 2.2 Rework `src/data/sequences/briefing_gallery.json` to run free-roam (remove `playerControl` lock, `playerWalkTo`, and blocking `playerFrame` waits; keep `skippable: true`): complete `obj_briefing` immediately, start `brief_heins_01` while Giles and Okafor walk briskly (`speed: 2.2`, `wait: false`) to their marks, run out-of-view catch-up after `brief_heins_01`, play `brief_heins_door` and lock `D_R02_R03` (guarded on Jay being in R03), activate `round_hydro`/`round_dive`/`round_admin` live on `brief_heins_05`, trim dead `wait` pauses, and unlock `D_R02_R03` (`closed`) on completion and skip; update `docs/scripts/briefing_gallery.md` and verify `npm test -- src/script/briefing.test.ts` passes.
+- [x] 2.3 Update `src/data/sequences/commons.json` so `commons_free` immediately sets `obj_briefing`, sends Sung walking to `anchor:brief_sung` in R03, and replaces the forced rail-walk in `commons_dawdle` with a non-locking verbal reminder from Giles; update `src/script/briefing.test.ts` and `src/script/quiet.test.ts` for free-roam briefing, live objectives, guarded door lock/unlock, skip parity, and non-locking dawdle, and verify `npm test -- src/script/briefing.test.ts src/script/quiet.test.ts` passes.
+
+## 3. Concrete Targets & Right-Side Persistent Objective HUD
+
+- [x] 3.1 Add `obj_briefing` (`target: "anchor:brief_jay"`, `area: "gallery"`) and explicit target anchors for `round_hydro` (`anchor:hydro_log`), `round_admin` (`anchor:hale_desk`), and `round_dive` (dynamic target in `src/game/guidance.ts`: `anchor:dive_case_pickup` until `sample_case` is held, then `anchor:dive_case_locker`) in `src/data/objectives.json` and `src/game/guidance.ts`; verify objective target resolution tests pass.
+- [x] 3.2 Refactor `src/ui/objectives.ts`, `src/ui/hud/objectiveHud.ts`, and `src/ui/styles/map.css` so active objectives render persistently on the right side of the HUD (cleanly clear of `.toasts` at top-right, `.hud-ammo` at bottom-right, and `.subtitles`), showing brief highlight on addition, a brief green checkmark state on completion, `Tab` emphasis, and auto-hiding on title/map/cutscene bars; update `src/ui/objectives.test.ts` and verify `npm test -- src/ui/objectives.test.ts` passes.
+
+## 4. Minimal Cardinal Compass & Adjacency-Gated In-World Markers
+
+- [x] 4.1 Implement pure wayfinding logic in `src/ui/wayfinding.ts`: `N`/`E`/`S`/`W`-only compass bearings and objective distance clamping, `MapModel.doors` room-adjacency graph, and adjacent-room marker resolution (connecting door center when 1 door hop away, exact objective target when in the same room, `null` when 2+ rooms away); add `src/ui/wayfinding.test.ts` covering bearings, clamping, 0/1/2+ room hops, and connecting door selection, and verify `npm test -- src/ui/wayfinding.test.ts` passes.
+- [x] 4.2 Build `src/ui/hud/compassHud.ts` (top-center `N/E/S/W` strip with objective diamonds and metre readouts) and `src/ui/hud/worldMarkerHud.ts` (screen-projected 3D-to-2D marker shown only for adjacency-approved targets), add styles in `src/ui/styles/hud.css`, and wire both into `src/game/guidance.ts` and `src/main.ts` so they render during free-roam gameplay and hide on title, map, and letterbox bars; verify `npm run typecheck` passes.
+
+## 5. Post-Intro Wayfinding Spotlight Callout
+
+- [x] 5.1 Add the `wayfinding` spotlight prompt to `src/ui/tutorials.ts`, `src/ui/tutorialPrompts.ts`, and `src/ui/styles/tutorial.css` (chained after `intro:ended` / `look`): pauses simulation via `tutorials.blocking`, dims the background while elevating the live `.compass-hud` and `.objective-hud` above the dim backdrop with a highlight outline, renders a compact callout card explaining the compass, objective list, and adjacent-room markers, dismisses cleanly on Space/Enter/Tab/click, and records `'wayfinding'` in `tutorialsSeen`; update `src/ui/tutorials.test.ts` and verify `npm test -- src/ui/tutorials.test.ts` passes.
+
+## 6. Integration Verification & Playtest
+
+- [x] 6.1 Run `npm run typecheck` and targeted unit test suites (`npm test -- src/script/briefing.test.ts src/script/quiet.test.ts src/ui/objectives.test.ts src/ui/wayfinding.test.ts src/ui/tutorials.test.ts src/world/slice01.test.ts src/world/slice01Gallery.test.ts`) and confirm all pass with zero warnings.
+- [x] 6.2 Playtest the end of the intro through the morning briefing and first round transition in the browser (`?slot=scratch`, checking post-intro spotlight callout over live compass + right-side `obj_briefing`, adjacent-room door marker in Commons -> in-room marker in R03, reliable R03 trigger across all walk lanes, facing-Commons backwards walk-in with no pop-in, Heins door-lock beat and unlock, live round objectives on `brief_heins_05`, skip parity, and no markers for 2+ rooms away) and confirm everything behaves cleanly.

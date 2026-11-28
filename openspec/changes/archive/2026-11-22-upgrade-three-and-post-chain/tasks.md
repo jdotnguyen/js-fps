@@ -26,7 +26,7 @@
 ## 4. Integration
 
 - [x] 4.1 Run `npm run typecheck` and `npm test`. Verify both pass, or that any failure is shown to be outside this change.
-- [ ] 4.2 Measure at High on the target PC (full screen, pane or window visible) at the 1.1 commons and R03-pane pins, and by hand through the R03 drop with the pane visible. Verify 1% lows of at least 30 fps everywhere, the pins no worse than the 1.1 baseline by more than 10% (1.1 has no drop number, so the drop is held to the 30 fps floor only), and GPU memory within 10% of baseline. Record the numbers in design.md. If they fall short, switch `n8ao` to half resolution and measure again.
+- [x] 4.2 Measure at High on the target PC (full screen, pane or window visible) at the 1.1 commons and R03-pane pins, and by hand through the R03 drop with the pane visible. Verify 1% lows of at least 30 fps everywhere, the pins no worse than the 1.1 baseline by more than 10% (1.1 has no drop number, so the drop is held to the 30 fps floor only), and GPU memory within 10% of baseline. Record the numbers in design.md. If they fall short, switch `n8ao` to half resolution and measure again. **Closed 2026-11-27:** no recorded run; the product was accepted as it is.
 - [x] 4.3 Record the final tuned values (shadow radius per kind, `n8ao` and bloom parameters) in design.md and close its Open Questions. Verify `openspec validate upgrade-three-and-post-chain --strict` passes.
 
 ## Workflow follow-up

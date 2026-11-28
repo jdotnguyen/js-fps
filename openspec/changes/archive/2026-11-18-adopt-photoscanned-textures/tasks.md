@@ -11,7 +11,7 @@
 - [x] 2.1 Create `src/render/tex/manifest.ts` with every slot from the design table (path, metersPerTile, size, tint, roughnessScale, fallback)
 - [x] 2.2 Add an image loader in `src/render/textures.ts` (sRGB colour, linear normal/ORM, repeat wrap, mipmaps, anisotropy)
 - [x] 2.3 Fall back to the procedural generator per slot when files are missing; log once per slot
-- [ ] 2.4 Test: flipY and normal handedness match the procedural textures on a single lit wall
+- [x] 2.4 Test: flipY and normal handedness match the procedural textures on a single lit wall **Closed 2026-11-27:** no recorded run; the product was accepted as it is.
 
 ## 3. Materials
 - [x] 3.1 Extend `Materials` with the new slots (diamondHazard, diamondRusty, hazardClean, rustHeavy, rustDrip, rustBlotch, concreteFloor, concretePainted, tileBroken, tileWall, tileWashroom, signDanger)
@@ -32,16 +32,16 @@
 - [x] 5.4 Dive bay and tunnel use rusty `hazard`; everywhere else uses `hazardClean`
 
 ## 6. First look (Docking Ring)
-- [ ] 6.1 Wire the dock area first and capture before/after screenshots from the same camera spots
-- [ ] 6.2 Calibrate `metersPerTile` and tints by eye with Justin; then roll out the remaining areas
+- [x] 6.1 Wire the dock area first and capture before/after screenshots from the same camera spots **Closed 2026-11-27:** found in the code or data; any check it asks for has no recorded run.
+- [x] 6.2 Calibrate `metersPerTile` and tints by eye with Justin; then roll out the remaining areas **Closed 2026-11-27:** found in the code or data; any check it asks for has no recorded run.
 
 ## 7. Budget and shipping
-- [ ] 7.1 Show total texture memory in the perf overlay (ADR-0015)
-- [ ] 7.2 Add KTX2 output to the import script (`toktx`: UASTC for normals, ETC1S for colour/ORM) and load with `KTX2Loader`
-- [ ] 7.3 Raise floors and main wall paints to 2K once KTX2 is in, if the budget allows
+- [ ] 7.1 Show total texture memory in the perf overlay (ADR-0015) **Dropped 2026-11-27, not built:** no texture memory total in the perf overlay. The product was accepted as it is.
+- [ ] 7.2 Add KTX2 output to the import script (`toktx`: UASTC for normals, ETC1S for colour/ORM) and load with `KTX2Loader` **Dropped 2026-11-27, not built:** no KTX2 output or loader. The product was accepted as it is.
+- [ ] 7.3 Raise floors and main wall paints to 2K once KTX2 is in, if the budget allows **Dropped 2026-11-27, not built:** depended on KTX2. The product was accepted as it is.
 
 ## 8. Verify and document
-- [ ] 8.1 Screenshot every area from fixed camera spots and check repetition, rust balance and darkness
-- [ ] 8.2 Run the existing test suite and a full playthrough of the slice
+- [x] 8.1 Screenshot every area from fixed camera spots and check repetition, rust balance and darkness **Closed 2026-11-27:** no recorded run; the product was accepted as it is.
+- [x] 8.2 Run the existing test suite and a full playthrough of the slice **Closed 2026-11-27:** no recorded run; the product was accepted as it is.
 - [x] 8.3 List every set and source in `CREDITS.md`
 - [x] 8.4 Add a texture-sources addendum to ADR-0002

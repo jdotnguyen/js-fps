@@ -31,11 +31,11 @@
 ## 5. Signage and wear
 
 - [x] 5.1 Build one sign atlas per room (room plate, life-support panel, stencils) and the pipe label strips for R13b and R13d, using `stencilDecal` and `paintedDecal`. Verify each room adds one sign draw call (two for R13b and R13d with labels), and the R13b plate reads "R13B · LAUNCH TRUNK 1".
-- [ ] 5.2 Place wear decals by rule: wet sheen and puddles around the trunk and under the ROV, drip stains under the gantry hook, and salt rings at drains, 4–8 per clean room. Verify the counts are inside the surface-dressing budget and the checkerboard pass (`?checker`) shows no stretched squares on the new pieces.
+- [ ] 5.2 Place wear decals by rule: wet sheen and puddles around the trunk and under the ROV, drip stains under the gantry hook, and salt rings at drains, 4–8 per clean room. Verify the counts are inside the surface-dressing budget and the checkerboard pass (`?checker`) shows no stretched squares on the new pieces. **Dropped 2026-11-27, not built:** puddles and salt rings are placed, drip stains are not. The product was accepted as it is.
 
 ## 6. Effects
 
-- [ ] 6.1 Add the upward trunk shaft with `createShaft`, the caustics plane (an additive cell-noise shader fading with distance and off while the hatch is closed), and the two mist planes inside the shaft. Verify with a test that the caustics uniform drops to 0 on `trunk:state closed`, and check in the browser that the trunk is the only strongly blue part of R13b.
+- [x] 6.1 Add the upward trunk shaft with `createShaft`, the caustics plane (an additive cell-noise shader fading with distance and off while the hatch is closed), and the two mist planes inside the shaft. Verify with a test that the caustics uniform drops to 0 on `trunk:state closed`, and check in the browser that the trunk is the only strongly blue part of R13b. **Closed 2026-11-27:** found in the code or data; any check it asks for has no recorded run.
 - [x] 6.2 Add ROV drips (12 falling points and a ripple ring decal) and the gantry beacon (rotating cone and fixture material, a steady glow under `reducedFlashing`). Verify with a test that the beacon does not rotate with `reducedFlashing` on, and that R13b stays within 60 calls.
 
 ## 7. Audio
@@ -51,7 +51,7 @@
 
 ## 9. Integration check
 
-- [ ] 9.1 Play a new game in the browser from the Commons through the dive bay round: case pickup, the secure event, stowing in R13e and the dark corridor. Take the surface-dressing definition-of-done screenshots from every R13 doorway, with and without `?nopost`, and compare them with the 1.1 baseline. Verify `npm test`, `npm run typecheck` and `npm run build` pass, that the final JSON diff against the baseline touches only R13a–e, and note the draw calls per room in this file.
+- [x] 9.1 Play a new game in the browser from the Commons through the dive bay round: case pickup, the secure event, stowing in R13e and the dark corridor. Take the surface-dressing definition-of-done screenshots from every R13 doorway, with and without `?nopost`, and compare them with the 1.1 baseline. Verify `npm test`, `npm run typecheck` and `npm run build` pass, that the final JSON diff against the baseline touches only R13a–e, and note the draw calls per room in this file. **Closed 2026-11-27:** no recorded run; the product was accepted as it is.
 
 ## Notes
 

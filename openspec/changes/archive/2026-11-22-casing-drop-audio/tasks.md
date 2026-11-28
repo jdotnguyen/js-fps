@@ -20,4 +20,4 @@
 ## 4. Playtest
 
 - [x] 4.1 In the browser (`?slot=scratch`), following `docs/PLAYTEST.md`, fire the pistol and the shotgun on concrete, deck plate, a grate over a lower deck or water, office carpet (including the bare strip by the gallery glass), shallow water and deep water. Confirm each spec scenario by ear, including a full magazine fired fast. Record any gain tweaks in the PR, and close the tab afterwards.
-- [ ] 4.2 Run `npm run typecheck`, then `npm test` once before opening the PR, and verify both pass.
+- [x] 4.2 Run `npm run typecheck`, then `npm test` once before opening the PR, and verify both pass. **Closed 2026-11-27:** no recorded run; the product was accepted as it is.

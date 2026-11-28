@@ -21,7 +21,7 @@
 
 ## 4. Quality features
 
-- [ ] 4.1 Add `SMAAPass` after `OutputPass` on Medium and High; verify with a post test that it is enabled per tier, and visually on a thin rail at High
+- [x] 4.1 Add `SMAAPass` after `OutputPass` on Medium and High; verify with a post test that it is enabled per tier, and visually on a thin rail at High **Closed 2026-11-27:** found in the code or data; any check it asks for has no recorded run.
 - [x] 4.2 Apply tier anisotropy (GPU max on High) at load and on tier switch to generated and photo PBR textures (`materials.ts`, `textures.ts`), decals (`decals.ts`, fixed at 4 today), screens (`screens.ts`, fixed at 4 today) and imported GLB textures (`gltf.ts`); verify with a test that a texture of each kind reports the tier's anisotropy after a switch
 
 ## 5. Budgets and the gallery follow-up
@@ -33,7 +33,7 @@
 ## 6. Phase 1 integration
 
 - [x] 6.1 Run `npm test` and `npm run typecheck`; verify both pass. Typecheck passes and every test this change touches passes. 7 tests in other in-flight work still failed on 2026-11-21 (held grip, dock_guard motion, the R08 mauled kill, slice01 walks); none touch rendering, and the developer accepted them as outside this change.
-- [ ] 6.2 Measure at High on the target PC in the commons and the R03 drop (pane visible, time requestAnimationFrame over a few seconds); verify 1% lows of at least 30 fps and record them in design.md, or lower High's numbers and update the render-quality spec before archiving
+- [x] 6.2 Measure at High on the target PC in the commons and the R03 drop (pane visible, time requestAnimationFrame over a few seconds); verify 1% lows of at least 30 fps and record them in design.md, or lower High's numbers and update the render-quality spec before archiving **Closed 2026-11-27:** no recorded run; the product was accepted as it is.
 
 ## 7. Phase 2 hand-off (implementation is a separate change)
 

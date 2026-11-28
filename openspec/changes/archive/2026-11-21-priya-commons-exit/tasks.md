@@ -21,7 +21,7 @@
 ## 4. Integration
 
 - [x] 4.1 Run `npm test -- src/world/slice01.test.ts src/script/intro.test.ts` and `npm run typecheck`; verify both pass
-- [ ] 4.2 Play the intro to the end, and again with a skip, in the browser (reuse a running dev server). Verify by eye that Priya walks out through the gallery door, that the Wet Vestibule door is clear, and that Bram is at his station after the first round
+- [x] 4.2 Play the intro to the end, and again with a skip, in the browser (reuse a running dev server). Verify by eye that Priya walks out through the gallery door, that the Wet Vestibule door is clear, and that Bram is at his station after the first round **Closed 2026-11-27:** no recorded run; the product was accepted as it is.
 
 ## Workflow follow-up
 

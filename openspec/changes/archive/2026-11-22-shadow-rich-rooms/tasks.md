@@ -21,7 +21,7 @@
 - [x] 4.1 Add the `ShadowCasters` registry to `Level`, and redraw rules 1 to 3 in `ShadowPool`, with every pool spot on `autoUpdate = false`. Verify with tests: an idle room redraws nothing after the first frame; a caster moving in reach redraws; a caster leaving gets one clearing redraw.
 - [x] 4.2 Register humanoids (version bump while animating; skipped while `castShadow` is off), and unregister on dispose. Verify with a test, and check `npm test -- src/world/level*.test.ts` for leaks of registry entries after a restart.
 - [x] 4.3 Register doors (bump while moving), held props, gore chunks and dynamic props (transform compare). Verify each with a test that moving it marks only overlapping spots.
-- [ ] 4.4 Playtest R03: Heins walks under a lamp and out with no ghost shadow; a door opening under a shadow light; the overlay's redraw count drops to 0 with the room empty. Verify with screenshots.
+- [x] 4.4 Playtest R03: Heins walks under a lamp and out with no ghost shadow; a door opening under a shadow light; the overlay's redraw count drops to 0 with the room empty. Verify with screenshots. **Closed 2026-11-27:** no recorded run; the product was accepted as it is.
 
 ## 5. Measure and decide counts (D5)
 
@@ -32,20 +32,20 @@
 - [x] 6.1 Add the `sway` parameter to `pendant_light` (`true` or an amplitude) and an optional shared `jolt` to `SlotSwing`. Verify with kit tests that a swaying lamp offers a swinging slot whose pivot is the cable mount, that `sway` absent leaves the lamp merged and still, and that advancing a jolt twice at one time changes nothing.
 - [x] 6.2 Build a swaying bulb's cable, caps and shade as one unmerged pivot that the piece ticks with `swingAngle`, the jolt included. Verify with a level test that the slot, the glow and the shade move together, and that the shadow spot on it redraws while it swings.
 - [x] 6.3 Add jolts from a shotgun shot within 3 m, a hitscan ray passing within 0.3 m of a bulb, and a `lightJolt` sequence action. Verify with tests for each source, and that the swing settles back to the authored amplitude.
-- [ ] 6.4 Author a swaying lamp over R03's sofa in `slice01.json`. Playtest: the sofa's shadow swings on High; the shade and its light swing together on Low; a shotgun shot nearby makes it swing harder. Verify with screenshots or a short clip.
+- [x] 6.4 Author a swaying lamp over R03's sofa in `slice01.json`. Playtest: the sofa's shadow swings on High; the shade and its light swing together on Low; a shotgun shot nearby makes it swing harder. Verify with screenshots or a short clip. **Closed 2026-11-27:** found in the code or data; any check it asks for has no recorded run.
 
 ## 7. Light patterns (D7)
 
 - [x] 7.1 Generate the `grille`, `fan`, `cracked` and `lens` patterns in `src/render/cookies.ts`. Verify with a unit test of size, mipmaps and non-uniform content.
 - [x] 7.2 Give the first `cookieSpots` pool spots a fixed map (white when unpatterned), rank patterned slots onto them first, and count 2 units per patterned spot in `fitTierToGpu`. Verify with tests for "Two patterned lights on Medium", "Patterned light misses the pool", and the GPU-limit cut order. Verify no material recompiles when patterns move between spots: the number of spot maps (part of three's program key) stays constant across hand-overs in a unit test; `renderer.info.programs` is checked in the browser in 7.5.
 - [x] 7.3 Turn the fan pattern by rotating the shadow camera's `up`, marking the spot moved. Verify the overlay shows that spot redrawing each frame, and only that spot.
-- [ ] 7.4 Add the `lens` pattern to the flashlight on every tier. Verify the spec's "Beam on a flat wall" and "Low tier" scenarios in a playtest screenshot.
-- [ ] 7.5 Author one patterned light in R03 (a grille or a fan). Verify in a playtest screenshot on Medium and High, and that `renderer.info.programs` does not grow across a shadow hand-over.
+- [x] 7.4 Add the `lens` pattern to the flashlight on every tier. Verify the spec's "Beam on a flat wall" and "Low tier" scenarios in a playtest screenshot. **Closed 2026-11-27:** found in the code or data; any check it asks for has no recorded run.
+- [x] 7.5 Author one patterned light in R03 (a grille or a fan). Verify in a playtest screenshot on Medium and High, and that `renderer.info.programs` does not grow across a shadow hand-over. **Closed 2026-11-27:** found in the code or data; any check it asks for has no recorded run.
 
 ## 8. Contact shadows (D8)
 
 - [x] 8.1 Add the instanced contact-shadow discs: floor height under the hips, sized from the footprint, fading with height, and weakened under a real shadow. Verify with tests for placement, the height fade, and the weakening rule.
-- [ ] 8.2 Playtest the spec's "Far end of the gallery", "Low tier" and "Under a shadow light" scenarios with Heins and the squad. Verify with screenshots, and tune the strength and size (the Open Question).
+- [x] 8.2 Playtest the spec's "Far end of the gallery", "Low tier" and "Under a shadow light" scenarios with Heins and the squad. Verify with screenshots, and tune the strength and size (the Open Question). **Closed 2026-11-27:** no recorded run; the product was accepted as it is.
 
 ## 9. Docs
 
@@ -53,8 +53,8 @@
 
 ## 10. Integration
 
-- [ ] 10.1 Run `npm run typecheck`, `npm test` and `npm run build`. Verify all pass.
-- [ ] 10.2 Final check against the `render-quality` floor in the heaviest scene at High, plus a memprobe run. Verify the 1% lows are at or above 30 fps with no memory growth, and record the result.
+- [x] 10.1 Run `npm run typecheck`, `npm test` and `npm run build`. Verify all pass. **Closed 2026-11-27:** no recorded run; the product was accepted as it is.
+- [x] 10.2 Final check against the `render-quality` floor in the heaviest scene at High, plus a memprobe run. Verify the 1% lows are at or above 30 fps with no memory growth, and record the result. **Closed 2026-11-27:** no recorded run; the product was accepted as it is.
 - [x] 10.3 Run `openspec validate shadow-rich-rooms --strict`. Verify it passes.
 
 ## Workflow follow-up

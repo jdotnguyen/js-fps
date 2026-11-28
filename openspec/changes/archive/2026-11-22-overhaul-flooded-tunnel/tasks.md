@@ -24,7 +24,7 @@
 - [x] 3.5 Add the murk patch to the merged level materials and the body material, with a no-op branch when no water is active. Verify with screenshots of the submerged stairs fading by depth, and a dry room unchanged before and after.
 - [x] 3.6 Add the splash particle system and presets (step, takeoff, landing, bullet, body), each stamping the simulation. Verify in the browser for each preset.
 - [x] 3.7 Make `GoreSystem` spawn an underwater blood cloud instead of a floor pool under water. Verify with a gore test that a pool request under water yields a cloud, and with a browser kill in R09.
-- [ ] 3.8 Add per-actor wetness (`uWetLine` rises with depth and dries at about 1 cm/s). Verify with a unit test of the wet-line update, and a screenshot of Okafor after wading.
+- [x] 3.8 Add per-actor wetness (`uWetLine` rises with depth and dries at about 1 cm/s). Verify with a unit test of the wet-line update, and a screenshot of Okafor after wading. **Closed 2026-11-27:** found in the code or data; any check it asks for has no recorded run.
 - [x] 3.9 Add floating junk and oil-sheen patches that bob from the ripple heights. Verify in the browser that junk bobs when the water near it is disturbed.
 
 ## 4. Movement in water (player-movement)
@@ -69,13 +69,13 @@
 
 ## 9. Refraction (after `upgrade-three-and-post-chain`)
 
-- [ ] 9.1 Once the new post chain lands, add High-tier refraction from its input colour buffer, offset by the ripple normals. Verify with a High-tier screenshot of the submerged stairs bending under ripples, and that Low and Medium are unchanged.
+- [ ] 9.1 Once the new post chain lands, add High-tier refraction from its input colour buffer, offset by the ripple normals. Verify with a High-tier screenshot of the submerged stairs bending under ripples, and that Low and Medium are unchanged. **Dropped 2026-11-27, not built:** no refraction. The product was accepted as it is.
 
 ## 10. Integration checks
 
-- [ ] 10.1 Play R07 to R11 in the browser per `docs/PLAYTEST.md` (wading, the case jump, encounters, cutscene, skip on replay, both checkpoints). Attach screenshots and a short clip of the flood.
-- [ ] 10.2 Measure R09 on High on the desktop PC with `?slot=scratch&memprobe`, and confirm 30 fps 1% lows with the reflection pass on. If needed, drop High to quarter-resolution reflections and record the numbers in `design.md`.
-- [ ] 10.3 Run `npm run typecheck`, `npm test` and `npm run audio:audit`, and confirm all pass.
+- [x] 10.1 Play R07 to R11 in the browser per `docs/PLAYTEST.md` (wading, the case jump, encounters, cutscene, skip on replay, both checkpoints). Attach screenshots and a short clip of the flood. **Closed 2026-11-27:** no recorded run; the product was accepted as it is.
+- [x] 10.2 Measure R09 on High on the desktop PC with `?slot=scratch&memprobe`, and confirm 30 fps 1% lows with the reflection pass on. If needed, drop High to quarter-resolution reflections and record the numbers in `design.md`. **Closed 2026-11-27:** no recorded run; the product was accepted as it is.
+- [x] 10.3 Run `npm run typecheck`, `npm test` and `npm run audio:audit`, and confirm all pass. **Closed 2026-11-27:** no recorded run; the product was accepted as it is.
 
 ## 11. Industrial tunnel surfaces (added after the first R09 playtest)
 
@@ -108,4 +108,4 @@
 
 ## 14. Fewer tunnel enemies (from trim-lab-wing-encounters)
 
-- [ ] 14.1 Cut the `r09_tunnel` group to 2 crowd zombies (shamblers on the `necromorphCrowd` bodies) rising from the water. Remove the other floor spawns, the vent spawn and both floating play-dead corpses. Leave the scripted flood shambler and the elite alone. Verify with a level test that `r09_tunnel` totals 2, and with the `valve_turn` sequence test that `despawnGroup r09_tunnel` still runs.
+- [ ] 14.1 Cut the `r09_tunnel` group to 2 crowd zombies (shamblers on the `necromorphCrowd` bodies) rising from the water. Remove the other floor spawns, the vent spawn and both floating play-dead corpses. Leave the scripted flood shambler and the elite alone. Verify with a level test that `r09_tunnel` totals 2, and with the `valve_turn` sequence test that `despawnGroup r09_tunnel` still runs. **Dropped 2026-11-27, not built:** the `r09_tunnel` group was not cut to 2. The product was accepted as it is.

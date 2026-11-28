@@ -77,7 +77,7 @@ The sample case SHALL be picked up in R13b at `dive_case_pickup` and stowed in R
 - **THEN** the click plays and the objective completes at once, and "Locker's signed" plays once Sung finishes his current line
 
 ### Requirement: Clean finish across the dive bay
-R13a, R13b, R13c and R13e SHALL use clean painted steel walls, clean treadplate or grating floors and clean hazard paint, with no rust textures. Wear in these rooms SHALL come from placed decals (wet sheen, puddles, drip and salt stains), within the dressing standard's decal budget.
+R13a, R13b, R13c and R13e SHALL use clean painted steel walls, clean treadplate or grating floors and clean hazard paint, with no rust textures. Wear in these rooms SHALL come from placed decals (such as wet sheen, puddles and salt stains), within the dressing standard's decal budget.
 
 #### Scenario: Walking in from the Commons
 - **WHEN** Jay walks from the Commons through R13a into R13b
